@@ -19,6 +19,44 @@ Unraid path.
 Tutorial, account login, account provisioning, account switching, and credential entry remain
 permanently manual-only.
 
+Automated gameplay may carry account-enforcement risk under the current
+[Puzzles & Survival Terms](https://gpassport.pnsofficial.com/center/ServicePrivicy/service?gameId=191&language=en-US).
+This is a documented project risk, not a separate development approval or acknowledgment task. The
+project will not implement stealth, anti-detection, enforcement bypass, humanization intended to
+evade enforcement, or other evasion behavior.
+
+## Input authorization boundaries
+
+Manual user input may operate the game for provisioning, debugging, identity exposure, calibration,
+recovery, or supervised development. It does not require a project acknowledgment task. Tutorial,
+login, credentials, account switching, CAPTCHA handling, and account restoration remain permanently
+manual-only.
+
+Agent-driven supervised development input may send a specific game input only when all applicable
+technical conditions hold:
+
+- The selected task has reached its supervised-validation stage.
+- The input is explicitly within that task's scope.
+- Source state and expected successor are defined.
+- Target, consequence, cost, quantity, and policy are known.
+- No premium or unknown resource use is possible.
+- Before/after evidence is retained.
+- Timeout or ambiguity becomes unresolved; it never causes a blind retry.
+
+This is technical task-specific authorization and promotion, not a personal risk acknowledgment
+gate.
+
+Unattended automatic gameplay input requires all applicable technical gates:
+
+- Selected and locked runtime/profile.
+- Secured recovery backup.
+- Deterministic controller and policy gate.
+- Persistent action journal.
+- Fail-closed account/session guard.
+- Applicable task replay, observe-only, dry-run, and supervised-validation stages.
+- Exact allowlists, limits, reserves, and retry policy.
+- No unresolved consequential action.
+
 Fallback order:
 
 1. Bliss OS or another Android-focused VM under Unraid KVM, with deterministic worker in Unraid
@@ -117,7 +155,8 @@ remains blocked until RT-013 selects a runtime and RT-019 supplies the versioned
   global input-lock tests, and manual-restoration reconciliation.
 - Status: Pending.
 - Blocker: controller implementation; RT-016A remains the independent identity-evidence prerequisite.
-- Next: first supervised gameplay input after applicable safety gates.
+- Next: task-specific supervised-validation prerequisites for agent-driven supervised gameplay input;
+  unattended input additionally requires RT-017 and all applicable M7 and task-promotion gates.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; 24 hours is
 locked-runtime validation before meaningful gameplay automation; 72 hours is claim-only
@@ -470,8 +509,9 @@ unlocked when this task passes.
 - Rollback: retain original live runtime and do not overwrite it during backup or restore testing.
 - Status: Pending.
 - Blocker: RT-013 final runtime/profile decision.
-- Next: RT-019 and RT-021 may proceed in parallel; complete RT-017 before first live gameplay
-  input, but do not block framework selection or corpus tooling on this backup.
+- Next: RT-019 and RT-021 may proceed in parallel; RT-017 is required for unattended automatic
+  gameplay input with applicable M7 and task-specific promotion gates, but does not block
+  framework selection, corpus tooling, or task-specific supervised validation.
 
 ### RT-018 — Define narrow local VM lifecycle-control boundary
 
@@ -550,30 +590,6 @@ unlocked when this task passes.
 - Next: M5 framework bake-off; this proof must pass before bake-off results are representative of
   final deployment.
 
-### RT-020 — Record explicit account-risk acknowledgment before first live gameplay input
-
-- Dependencies: RT-013 and RT-016A. First supervised gameplay input additionally requires RT-017
-  and applicable M7 safety gates.
-- Objective: record explicit acknowledgment of account and terms risk before the first supervised
-  gameplay input.
-- Scope: acknowledgment record, applicable terms/policy reference, operator identity, timestamp,
-  selected profile, and enabled-input boundary.
-- Non-goals: stealth, anti-detection, enforcement bypass, evasion, credential automation,
-  tutorial automation, or account-operation input.
-- Method: record the acknowledgment before enabling the first supervised gameplay input; retain
-  only the minimum necessary administrative evidence.
-- Acceptance: acknowledgment exists before first supervised gameplay input and explicitly confirms
-  no stealth, anti-detection, enforcement bypass, or evasion behavior. Offline development and
-  observation remain allowed without this task.
-- Verification: review ordering against first supervised gameplay-input evidence and policy gate.
-- Evidence: `evidence/sessions/<timestamp>-rt-020-account-risk-ack/`.
-- Rollback: keep gameplay input disabled and return to offline/observe-only mode.
-- Status: Pending.
-- Blocker: acknowledgment is required before first supervised gameplay input; it does not block
-  offline development or observation.
-- Next: first supervised gameplay input after RT-017, applicable M7 safety gates, and account-risk
-  ordering pass.
-
 ## Dependency graph
 
 - RT-012 + RT-016A → RT-013.
@@ -583,7 +599,8 @@ unlocked when this task passes.
 - RT-019 → M6 production corpus.
 - RT-014A → M7-Takeover manual-takeover integration.
 - RT-016A → M7-AccountGuard account-guard implementation.
-- RT-017 + RT-020 + applicable M7 safety gates → first supervised gameplay input.
+- Task-specific supervised-validation prerequisites → agent-driven supervised gameplay input.
+- RT-017 + applicable M7 safety gates + task-specific promotion gates → unattended automatic gameplay input.
 - RT-018 → unattended VM lifecycle recovery.
 
 ## Current ready work
@@ -603,7 +620,7 @@ VirtIO-GL loads, so ADB remains the observation path until optional private scrc
 passes. RT-012 PowerShell harness is a current reference only; final soak execution must use an
 explicit NAS-local model selected during implementation. Soak execution is blocked by development
 SSH authentication. RT-014A shares that development blocker; RT-015 is deferred VM/worker-order
-documentation and does not block RT-013; RT-016A needs redacted identity evidence. RT-017
-through RT-021 are pending downstream gates. Resume RT-012 with the exact command in
+documentation and does not block RT-013; RT-016A needs redacted identity evidence. RT-017,
+RT-018, RT-019, and RT-021 are pending downstream gates. Resume RT-012 with the exact command in
 `evidence/sessions/20260711-rt-012-soak-auth-block/record.md`; do not place credentials in this
 repository or command history.
