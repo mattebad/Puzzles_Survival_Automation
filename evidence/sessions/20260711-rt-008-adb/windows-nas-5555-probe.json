@@ -1,0 +1,9 @@
+{
+  "target": "nas.local",
+  "port": 5555,
+  "tcp_test_succeeded": false,
+  "ping_succeeded": true,
+  "interface_alias": "Ethernet 3",
+  "source_address": "MSFT_NetIPAddress (Name = \";C?8;@B8?:8???55?55;55;\", CreationClassName = \"\", SystemCreationClassName = \"\", SystemName = \"\")",
+  "next_hop": "0.0.0.0"
+}

@@ -1,0 +1,17 @@
+﻿{
+    "generated_at":  "2026-07-11T00:29:56.5804097-05:00",
+    "serial":  "127.0.0.1:15555",
+    "display":  "Physical size: 1280x800\r\nOverride size: 800x1280",
+    "density":  "Physical density: 160",
+    "rotation":  "free",
+    "pointer_location_before":  "0",
+    "pointer_location_after_enable":  "1",
+    "pointer_location_after_reset":  "0",
+    "taps":  9,
+    "swipes":  4,
+    "invalid_dimensions":  0,
+    "undetected_markers":  0,
+    "max_error_pixels":  2.943,
+    "tolerance_pixels":  8,
+    "all_passed":  true
+}

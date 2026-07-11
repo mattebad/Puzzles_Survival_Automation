@@ -1,0 +1,6 @@
+{
+  "target": "127.0.0.1",
+  "port": 15555,
+  "tcp_test_succeeded": true,
+  "ping_succeeded": false
+}

@@ -1,0 +1,23 @@
+﻿{
+    "generated_at":  "2026-07-11T00:20:03.8907450-05:00",
+    "adb_path":  "C:\\Users\\burni\\adb\\adb.exe",
+    "serial":  "127.0.0.1:15555",
+    "boot_completed":  "1",
+    "display":  "Physical size: 1280x800\r\nOverride size: 800x1280",
+    "density":  "Physical density: 160",
+    "rotation":  "free",
+    "expected_width":  800,
+    "expected_height":  1280,
+    "samples":  8,
+    "interval_ms":  2000,
+    "valid_pngs":  8,
+    "invalid_dimensions":  0,
+    "unique_hashes":  8,
+    "duplicate_adjacent_samples":  0,
+    "max_duplicate_run":  0,
+    "latency_min_ms":  1007.818,
+    "latency_p50_ms":  1014.772,
+    "latency_p95_ms":  1026.136,
+    "latency_max_ms":  1027.104,
+    "freshness_observed":  true
+}

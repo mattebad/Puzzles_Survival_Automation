@@ -1,0 +1,5 @@
+Keyboard-interactive authentication prompts from server:
+End of keyboard-interactive prompts from server
+running
+
+bash: line 1: journalctl: command not found

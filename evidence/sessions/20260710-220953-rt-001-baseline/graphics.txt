@@ -1,0 +1,10 @@
+Keyboard-interactive authentication prompts from server:
+End of keyboard-interactive prompts from server
+total 0
+drwxrwxrwx 2 root root        80 May 23 11:43 by-path
+crwxrwxrwx 1 root video 226,   0 May 23 11:43 card0
+crwxrwxrwx 1 root video 226, 128 May 23 11:43 renderD128
+00:02.0 VGA compatible controller [0300]: Intel Corporation Alder Lake-S GT1 [UHD Graphics 770] [8086:4680] (rev 0c)
+	Subsystem: ASRock Incorporation Device [1849:4680]
+	Kernel driver in use: i915
+	Kernel modules: i915, xe

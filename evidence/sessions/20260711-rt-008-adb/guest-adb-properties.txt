@@ -1,0 +1,4 @@
+[persist.sys.usb.config]: [adb]
+[ro.adb.secure]: [0]
+[ro.debuggable]: [0]
+[sys.boot_completed]: [1]

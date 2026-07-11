@@ -1,0 +1,24 @@
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.pub
+id_rsa*
+id_ed25519*
+
+# VM and disk images
+*.qcow2
+*.img
+*.vmdk
+*.vdi
+
+# Local tooling and OS files
+.venv/
+__pycache__/
+.pytest_cache/
+.DS_Store
+Thumbs.db

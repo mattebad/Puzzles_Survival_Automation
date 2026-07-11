@@ -1,0 +1,29 @@
+trial=1 corrected VM power-cycle
+start=Keyboard-interactive authentication prompts from server:
+End of keyboard-interactive prompts from server
+Domain 'PnS-BlissOS-PoC' started
+adb_state=device
+boot_completed=1
+display=Physical size: 1280x800
+Override size: 800x1280
+density=Physical density: 160
+rotation=free
+egl=mesa
+adb_secure=0
+policy_before=mInputRestricted=true
+policy_after=mInputRestricted=false
+focus=mResumed=false mStopped=true mFinished=false
+      mStopped=true
+      mCreated=true mResumed=false mStopped=true    Back Stack Index: 0
+      mCurState=4 mStateSaved=true mStopped=true mDestroyed=false
+TASK 10286:com.global.ztmslg id=126 userId=0
+  ACTIVITY com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity cd48085 pid=3478
+      mResumed=true mStopped=false mFinished=false
+      mStopped=false
+       mInputChannel: ad0cd8d com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity (client)
+          mChannel = ad0cd8d com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity (client)
+post_display=Physical size: 1280x800
+Override size: 800x1280
+post_density=Physical density: 160
+post_rotation=free
+post_egl=mesa

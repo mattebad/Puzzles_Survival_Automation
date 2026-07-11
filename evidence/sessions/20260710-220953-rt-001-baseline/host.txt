@@ -1,0 +1,19 @@
+Keyboard-interactive authentication prompts from server:
+End of keyboard-interactive prompts from server
+NAS
+2026-07-10T22:09:56-05:00
+Linux NAS 6.12.54-Unraid #1 SMP PREEMPT_DYNAMIC Tue Oct 21 15:58:46 PDT 2025 x86_64 13th Gen Intel(R) Core(TM) i5-13500T GenuineIntel GNU/Linux
+Compiled against library: libvirt 11.7.0
+Using library: libvirt 11.7.0
+Using API: QEMU 11.7.0
+Running hypervisor: QEMU 9.2.3
+
+CPU model:           x86_64
+CPU(s):              20
+CPU frequency:       2538 MHz
+CPU socket(s):       1
+Core(s) per socket:  20
+Thread(s) per core:  1
+NUMA cell(s):        1
+Memory size:         32509752 KiB
+

@@ -1,0 +1,10 @@
+Keyboard-interactive authentication prompts from server:
+End of keyboard-interactive prompts from server
+ Interface   Type      Source    Model    MAC
+-------------------------------------------------------------
+ vnet7       network   default   virtio   52:54:00:50:92:10
+
+ Name       MAC address          Protocol     Address
+-------------------------------------------------------------------------------
+ vnet7      52:54:00:50:92:10    ipv4         192.168.122.79/24
+

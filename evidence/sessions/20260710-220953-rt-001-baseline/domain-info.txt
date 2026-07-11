@@ -1,0 +1,19 @@
+Keyboard-interactive authentication prompts from server:
+End of keyboard-interactive prompts from server
+Id:             8
+Name:           PnS-BlissOS-PoC
+UUID:           5500a07f-4352-4ce5-b1cf-7cf668e3a9f4
+OS Type:        hvm
+State:          running
+CPU(s):         4
+CPU time:       223793.6s
+Max memory:     6291456 KiB
+Used memory:    6291456 KiB
+Persistent:     yes
+Autostart:      disable
+Autostart Once: disable
+Managed save:   no
+Security model: none
+Security DOI:   0
+Messages:       tainted: running with undesirable elevated privileges
+

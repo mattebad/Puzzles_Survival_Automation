@@ -1,0 +1,332 @@
+user-unlocked:
+Unknown command: is-user-unlocked
+dumpsys-user:
+Current user: 0
+
+Users:
+  UserInfo{0:null:c13} serialNo=0 isPrimary=true
+    Type: android.os.usertype.full.SYSTEM
+    Flags: 3091 (ADMIN|FULL|INITIALIZED|PRIMARY|SYSTEM)
+    State: RUNNING_UNLOCKED
+    Created: <unknown>
+    Last logged in: +3m38s446ms ago
+    Last logged in fingerprint: 152
+    Start time: +3m43s373ms ago
+    Unlock time: +3m38s486ms ago
+    Has profile owner: false
+    Restrictions:
+      none
+    Device policy global restrictions:
+      null
+    Device policy local restrictions:
+      none
+    Effective restrictions:
+      none
+    Ignore errors preparing storage: false
+
+Device properties:
+  Device owner id:-10000
+
+  Guest restrictions:
+    no_sms
+    no_install_unknown_sources
+    no_config_wifi
+    no_config_credentials
+    no_outgoing_calls
+
+  Device managed: false
+  Started users state: [0=RUNNING_UNLOCKED]
+  Cached user IDs: [0]
+  Cached user IDs (including pre-created): [0]
+
+  Max users: 8 (limit reached: false)
+  Supports switchable users: true
+  All guests ephemeral: false
+  Force ephemeral users: false
+  Is split-system user: false
+  Is headless-system mode: false
+  User version: 9
+  Owner name: Owner
+
+Number of listeners for
+  restrictions: 5
+  user lifecycle events: 1
+
+User types version: 0
+User types (10 types):
+    android.os.usertype.full.GUEST: 
+        mName: android.os.usertype.full.GUEST
+        mBaseType: FULL
+        mEnabled: true
+        mMaxAllowed: 1
+        mMaxAllowedPerParent: -1
+        mDefaultUserInfoFlags: GUEST
+        mLabel: 0
+        mDefaultRestrictions: 
+            no_sms
+            no_install_unknown_sources
+            no_config_wifi
+            no_config_credentials
+            no_outgoing_calls
+        mIconBadge: 0
+        mBadgePlain: 0
+        mBadgeNoBackground: 0
+        mBadgeLabels.length: 0(null)
+        mBadgeColors.length: 0(null)
+        mDarkThemeBadgeColors.length: 0(null)
+    android.os.usertype.parallel.DEFAULT: 
+        mName: android.os.usertype.parallel.DEFAULT
+        mBaseType: FULL
+        mEnabled: true
+        mMaxAllowed: -1
+        mMaxAllowedPerParent: -1
+        mDefaultUserInfoFlags: PARALLEL
+        mLabel: 0
+        mDefaultRestrictions: 
+            no_wallpaper
+            no_install_unknown_sources
+        mIconBadge: 17302797
+        mBadgePlain: 17302796
+        mBadgeNoBackground: 17302796
+        mBadgeLabels.length: 1
+        mBadgeColors.length: 9
+        mDarkThemeBadgeColors.length: 9
+    android.os.usertype.profile.MANAGED: 
+        mName: android.os.usertype.profile.MANAGED
+        mBaseType: PROFILE
+        mEnabled: true
+        mMaxAllowed: -1
+        mMaxAllowedPerParent: 16
+        mDefaultUserInfoFlags: MANAGED_PROFILE
+        mLabel: 0
+        mDefaultRestrictions: 
+            no_wallpaper
+        mIconBadge: 17302410
+        mBadgePlain: 17302405
+        mBadgeNoBackground: 17302407
+        mBadgeLabels.length: 16
+        mBadgeColors.length: 16
+        mDarkThemeBadgeColors.length: 3
+    android.os.usertype.system.HEADLESS: 
+        mName: android.os.usertype.system.HEADLESS
+        mBaseType: SYSTEM
+        mEnabled: true
+        mMaxAllowed: -1
+        mMaxAllowedPerParent: -1
+        mDefaultUserInfoFlags: 0
+        mLabel: 0
+        config_defaultFirstUserRestrictions: 
+            none
+        mIconBadge: 0
+        mBadgePlain: 0
+        mBadgeNoBackground: 0
+        mBadgeLabels.length: 0(null)
+        mBadgeColors.length: 0(null)
+        mDarkThemeBadgeColors.length: 0(null)
+    android.os.usertype.parallel.SHARE: 
+        mName: android.os.usertype.parallel.SHARE
+        mBaseType: FULL
+        mEnabled: true
+        mMaxAllowed: -1
+        mMaxAllowedPerParent: -1
+        mDefaultUserInfoFlags: PARALLEL
+        mLabel: 0
+        mDefaultRestrictions: 
+            no_wallpaper
+            no_install_unknown_sources
+        mIconBadge: 17302797
+        mBadgePlain: 17302796
+        mBadgeNoBackground: 17302796
+        mBadgeLabels.length: 1
+        mBadgeColors.length: 9
+        mDarkThemeBadgeColors.length: 9
+    android.os.usertype.full.SYSTEM: 
+        mName: android.os.usertype.full.SYSTEM
+        mBaseType: FULL|SYSTEM
+        mEnabled: true
+        mMaxAllowed: -1
+        mMaxAllowedPerParent: -1
+        mDefaultUserInfoFlags: 0
+        mLabel: 0
+        config_defaultFirstUserRestrictions: 
+            none
+        mIconBadge: 0
+        mBadgePlain: 0
+        mBadgeNoBackground: 0
+        mBadgeLabels.length: 0(null)
+        mBadgeColors.length: 0(null)
+        mDarkThemeBadgeColors.length: 0(null)
+    android.os.usertype.full.SECONDARY: 
+        mName: android.os.usertype.full.SECONDARY
+        mBaseType: FULL
+        mEnabled: true
+        mMaxAllowed: -1
+        mMaxAllowedPerParent: -1
+        mDefaultUserInfoFlags: 0
+        mLabel: 0
+        mDefaultRestrictions: 
+            no_sms
+            no_outgoing_calls
+        mIconBadge: 0
+        mBadgePlain: 0
+        mBadgeNoBackground: 0
+        mBadgeLabels.length: 0(null)
+        mBadgeColors.length: 0(null)
+        mDarkThemeBadgeColors.length: 0(null)
+    android.os.usertype.full.RESTRICTED: 
+        mName: android.os.usertype.full.RESTRICTED
+        mBaseType: FULL
+        mEnabled: true
+        mMaxAllowed: -1
+        mMaxAllowedPerParent: -1
+        mDefaultUserInfoFlags: RESTRICTED
+        mLabel: 0
+        mDefaultRestrictions: 
+            null
+        mIconBadge: 0
+        mBadgePlain: 0
+        mBadgeNoBackground: 0
+        mBadgeLabels.length: 0(null)
+        mBadgeColors.length: 0(null)
+        mDarkThemeBadgeColors.length: 0(null)
+    android.os.usertype.full.DEMO: 
+        mName: android.os.usertype.full.DEMO
+        mBaseType: FULL
+        mEnabled: true
+        mMaxAllowed: -1
+        mMaxAllowedPerParent: -1
+        mDefaultUserInfoFlags: DEMO
+        mLabel: 0
+        mDefaultRestrictions: 
+            null
+        mIconBadge: 0
+        mBadgePlain: 0
+        mBadgeNoBackground: 0
+        mBadgeLabels.length: 0(null)
+        mBadgeColors.length: 0(null)
+        mDarkThemeBadgeColors.length: 0(null)
+    android.os.usertype.profile.CLONE: 
+        mName: android.os.usertype.profile.CLONE
+        mBaseType: PROFILE
+        mEnabled: true
+        mMaxAllowed: -1
+        mMaxAllowedPerParent: 1
+        mDefaultUserInfoFlags: 0
+        mLabel: 0
+        mDefaultRestrictions: 
+            null
+        mIconBadge: 0
+        mBadgePlain: 0
+        mBadgeNoBackground: 0
+        mBadgeLabels.length: 0(null)
+        mBadgeColors.length: 0(null)
+        mDarkThemeBadgeColors.length: 0(null)
+
+Whitelisted packages per user type
+  Mode: 13 (enforced) (implicit)
+  Legend
+    0 -> android.os.usertype.full.DEMO
+    1 -> android.os.usertype.full.GUEST
+    2 -> android.os.usertype.full.RESTRICTED
+    3 -> android.os.usertype.full.SECONDARY
+    4 -> android.os.usertype.full.SYSTEM
+    5 -> android.os.usertype.parallel.DEFAULT
+    6 -> android.os.usertype.parallel.SHARE
+    7 -> android.os.usertype.profile.CLONE
+    8 -> android.os.usertype.profile.MANAGED
+    9 -> android.os.usertype.system.HEADLESS
+  67 packages:
+    com.android.internal.display.cutout.emulation.corner: 0 1 2 3 4 5 6 
+    com.android.internal.display.cutout.emulation.double: 0 1 2 3 4 5 6 
+    com.android.theme.color.amethyst: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon.pebble: 0 1 2 3 4 5 6 7 8 
+    com.android.internal.systemui.navbar.gestural_wide_back: 0 1 2 3 4 5 6 
+    com.android.theme.color.sand: 0 1 2 3 4 5 6 7 8 
+    com.android.wallpapercropper: 0 1 2 3 4 5 6 
+    com.android.theme.icon.vessel: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.color.cinnamon: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.victor.settings: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.rounded.systemui: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon.taperedrect: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.rounded.android: 0 1 2 3 4 5 6 7 8 
+    com.android.internal.systemui.onehanded.gestural: 0 1 2 3 4 5 6 
+    com.android.theme.icon_pack.victor.systemui: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.circular.themepicker: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.color.tangerine: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.color.aquamarine: 0 1 2 3 4 5 6 7 8 
+    com.android.internal.display.cutout.emulation.hole: 0 1 2 3 4 5 6 
+    com.android.internal.display.cutout.emulation.tall: 0 1 2 3 4 5 6 
+    com.android.theme.color.black: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.color.green: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.color.ocean: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.color.space: 0 1 2 3 4 5 6 7 8 
+    com.android.internal.systemui.navbar.threebutton: 0 1 2 3 4 5 6 
+    android: 0 1 2 3 4 5 6 7 8 9 
+    com.android.theme.icon_pack.rounded.launcher: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.kai.settings: 0 1 2 3 4 5 6 7 8 
+    com.android.internal.systemui.navbar.twobutton: 0 1 2 3 4 5 6 
+    com.android.theme.icon_pack.sam.settings: 0 1 2 3 4 5 6 7 8 
+    com.android.internal.systemui.navbar.gestural_extra_wide_back: 0 1 2 3 4 5 6 
+    com.android.theme.icon_pack.kai.themepicker: 0 1 2 3 4 5 6 7 8 
+    com.android.providers.settings: 0 1 2 3 4 5 6 7 8 9 
+    com.android.theme.icon_pack.victor.launcher: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.filled.settings: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.kai.systemui: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.circular.settings: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.sam.systemui: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon.teardrop: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.rounded.themepicker: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.filled.systemui: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.sam.android: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.font.notoserifsource: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.filled.android: 0 1 2 3 4 5 6 7 8 
+    com.android.internal.display.cutout.emulation.waterfall: 0 1 2 3 4 5 6 
+    com.android.theme.icon_pack.circular.systemui: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.kai.android: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.kai.launcher: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.sam.launcher: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon.squircle: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.victor.android: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.color.palette: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.filled.launcher: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.color.carbon: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.circular.launcher: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.filled.themepicker: 0 1 2 3 4 5 6 7 8 
+    com.android.wallpaperbackup: 0 1 2 3 4 5 6 
+    com.android.providers.media.module: 0 1 2 3 4 5 6 8 9 
+    com.android.internal.systemui.navbar.gestural: 0 1 2 3 4 5 6 
+    com.android.theme.icon_pack.victor.themepicker: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.color.orchid: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.color.purple: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.sam.themepicker: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon.roundedrect: 0 1 2 3 4 5 6 7 8 
+    com.android.internal.systemui.navbar.gestural_narrow_back: 0 1 2 3 4 5 6 
+    com.android.theme.icon_pack.rounded.settings: 0 1 2 3 4 5 6 7 8 
+    com.android.theme.icon_pack.circular.android: 0 1 2 3 4 5 6 7 8 
+  No errors
+  16 warnings
+    com.android.theme.color.amethyst is allowlisted but not present.
+    com.android.theme.color.sand is allowlisted but not present.
+    com.android.wallpapercropper is allowlisted but not present.
+    com.android.theme.color.cinnamon is allowlisted but not present.
+    com.android.internal.systemui.onehanded.gestural is allowlisted but not present.
+    com.android.theme.color.tangerine is allowlisted but not present.
+    com.android.theme.color.aquamarine is allowlisted but not present.
+    com.android.theme.color.black is allowlisted but not present.
+    com.android.theme.color.green is allowlisted but not present.
+    com.android.theme.color.ocean is allowlisted but not present.
+    com.android.theme.color.space is allowlisted but not present.
+    com.android.theme.font.notoserifsource is allowlisted but not present.
+    com.android.theme.color.palette is allowlisted but not present.
+    com.android.theme.color.carbon is allowlisted but not present.
+    com.android.theme.color.orchid is allowlisted but not present.
+    com.android.theme.color.purple is allowlisted but not present.
+properties:
+[dev.bootcomplete]: [1]
+[init.svc.bootanim]: [stopped]
+[ro.crypto.state]: [unsupported]
+[sys.boot_completed]: [1]
+[sys.user.0.ce_available]: [true]
+keyguard:
+    mDisplayHomeButtonHandlers=    mKeyguardOccluded=false mKeyguardOccludedChanged=false mPendingKeyguardOccluded=false
+        mInputRestricted=true

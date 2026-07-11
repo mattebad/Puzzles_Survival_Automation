@@ -1,0 +1,7 @@
+Keyboard-interactive authentication prompts from server:
+End of keyboard-interactive prompts from server
+ Id   Name              State
+---------------------------------
+ 1    Home Assistant    running
+ 8    PnS-BlissOS-PoC   running
+

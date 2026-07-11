@@ -1,0 +1,70 @@
+Keyboard-interactive authentication prompts from server:
+End of keyboard-interactive prompts from server
+               total        used        free      shared  buff/cache   available
+Mem:            31Gi        18Gi       1.8Gi       1.5Gi        13Gi        12Gi
+Swap:             0B          0B          0B
+Filesystem      Size  Used Avail Use% Mounted on
+cache           1.6T  128K  1.6T   1% /mnt/cache
+nct6798-isa-02a0
+Adapter: ISA adapter
+in0:            1.12 V  (min =  +0.00 V, max =  +1.74 V)
+in1:            1.67 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in2:            3.41 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in3:            3.33 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in4:            1.02 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in5:          896.00 mV (min =  +0.00 V, max =  +0.00 V)
+in6:            1.38 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in7:            3.41 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in8:            3.18 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in9:            1.06 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in10:           1.06 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in11:         832.00 mV (min =  +0.00 V, max =  +0.00 V)  ALARM
+in12:           1.02 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in13:         464.00 mV (min =  +0.00 V, max =  +0.00 V)  ALARM
+in14:           1.50 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+fan2:         1250 RPM  (min =    0 RPM)
+Array Fan:    1355 RPM  (min =    0 RPM)
+MB Temp:       +37.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +115.0 C)  sensor = thermistor
+CPUTIN:        +26.0 C  (high = +105.0 C, hyst = +95.0 C)
+                        (crit = +115.0 C)  sensor = thermistor
+AUXTIN0:        +6.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +115.0 C)  sensor = thermistor
+AUXTIN1:       +22.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +115.0 C)  sensor = thermistor
+AUXTIN2:       +35.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +100.0 C)  sensor = thermistor
+AUXTIN3:        -1.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +115.0 C)  sensor = thermistor
+PECI Agent 0:  +49.5 C  (high = +80.0 C, hyst = +75.0 C)
+AUXTIN4:       +32.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +115.0 C)
+intrusion0:   ALARM
+intrusion1:   ALARM
+beep_enable:  disabled
+
+nvme-pci-0100
+Adapter: PCI adapter
+Composite:    +48.9 C  (low  = -40.1 C, high = +119.8 C)
+                       (crit = +129.8 C)
+Sensor 1:     +62.9 C  (low  = -40.1 C, high = +139.8 C)
+Sensor 2:     +48.9 C  (low  = -40.1 C, high = +119.8 C)
+
+coretemp-isa-0000
+Adapter: ISA adapter
+CPU Temp:     +50.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 0:       +45.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 4:       +41.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 8:       +50.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 12:      +48.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 16:      +50.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 20:      +48.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 24:      +40.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 25:      +40.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 26:      +40.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 27:      +40.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 28:      +38.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 29:      +38.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 30:      +38.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 31:      +38.0 C  (high = +80.0 C, crit = +100.0 C)
+

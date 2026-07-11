@@ -1,0 +1,6 @@
+Keyboard-interactive authentication prompts from server:
+End of keyboard-interactive prompts from server
+ Type   Device   Target   Source
+---------------------------------------------------------------------------
+ file   disk     sda      /mnt/cache/domains/PnS-BlissOS-PoC/system.qcow2
+

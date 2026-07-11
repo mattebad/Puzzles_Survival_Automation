@@ -1,0 +1,6 @@
+
+Algorithm       Hash                                                                   Path
+---------       ----                                                                   ----
+SHA256          969943049FEB24E3D36CE1FD6D148F750FDDEBDD62C18AA98B300FA7828BC77D       C:\Users\burni\Documents\Coding_…
+SHA256          D5FFAC2B4956F1BAC33C16E1C2D34981BBA117769397C8C85EF73249A18947CD       C:\Users\burni\Documents\Coding_…
+

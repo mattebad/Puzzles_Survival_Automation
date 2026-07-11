@@ -1,0 +1,8 @@
+{
+  "authentication_mode": "PlinkPassword",
+  "ssh_target": "root@nas.local",
+  "purpose": "RT-001 read-only rollback baseline collection",
+  "mutation": false,
+  "collected_at": "2026-07-10T22:10:27.2941760-05:00",
+  "vm_name": "PnS-BlissOS-PoC"
+}

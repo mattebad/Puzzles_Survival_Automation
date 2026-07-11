@@ -1,0 +1,112 @@
+Keyboard-interactive authentication prompts from server:
+End of keyboard-interactive prompts from server
+CONTAINER ID   NAME                                            CPU %     MEM USAGE / LIMIT   MEM %     NET I/O           BLOCK I/O     PIDS
+a3ff92132ff5   binhex-plexpass                                 0.26%     594.1MiB / 31GiB    1.87%     0B / 0B           783MB / 0B    70
+8f7e30ad4279   autobrr                                         0.00%     28.13MiB / 31GiB    0.09%     18.6MB / 3.55MB   118MB / 0B    10
+c362035cce7b   DiskSpeed                                       0.08%     236.1MiB / 31GiB    0.74%     510kB / 2.12kB    246MB / 0B    55
+59bca1f7317c   Plex-Auto-Languages                             0.02%     205.9MiB / 31GiB    0.65%     753MB / 37.2MB    110MB / 0B    7
+85c1c7153948   binhex-sonarr                                   0.04%     413.8MiB / 31GiB    1.30%     227MB / 44.7MB    605MB / 0B    24
+23eea30dc917   binhex-qbittorrentvpn                           1.58%     325.4MiB / 31GiB    1.02%     89.6GB / 65.1GB   268MB / 0B    25
+ba91a76e6f03   tautulli                                        0.02%     116.5MiB / 31GiB    0.37%     113MB / 21.8MB    187MB / 0B    24
+0458bafb91d1   binhex-radarr                                   0.04%     402.2MiB / 31GiB    1.27%     935MB / 51.8MB    554MB / 0B    22
+5c9616a9025c   binhex-prowlarr                                 0.03%     258.2MiB / 31GiB    0.81%     36.8MB / 185MB    398MB / 0B    21
+5a85469cdf81   monarch-gpt-cloudflared                         0.19%     28.82MiB / 31GiB    0.09%     159MB / 212MB     91.9MB / 0B   14
+8164ad5e2019   monarch-gpt-api                                 0.10%     52.04MiB / 31GiB    0.16%     13.4MB / 2.07MB   38.2MB / 0B   6
+ecbe99a0da03   Nginx-Proxy-Manager-Official                    0.07%     153MiB / 1GiB       14.94%    230MB / 167MB     330MB / 0B    43
+7757f9b681e8   binhex-seerr                                    0.02%     313.1MiB / 31GiB    0.99%     251MB / 224MB     452MB / 0B    15
+0e95f021e2b2   binhex-flaresolverr                             0.02%     376.5MiB / 31GiB    1.19%     537MB / 45MB      3.6GB / 0B    13
+ca069bf3fa21   ddns-updater                                    0.00%     23.29MiB / 31GiB    0.07%     13.3MB / 6.2MB    56.3MB / 0B   15
+5de4d5ff9ccc   kasa_energy_dashboard-kasa-energy-dashboard-1   0.85%     64.42MiB / 31GiB    0.20%     0B / 0B           62.6MB / 0B   8
+0d56df5d1c5f   immich_server                                   0.05%     913.1MiB / 31GiB    2.88%     2.53GB / 1.87GB   862MB / 0B    56
+01b67e4a5986   immich_machine_learning                         0.01%     100.5MiB / 31GiB    0.32%     35.8MB / 966kB    201MB / 0B    24
+5cf6c3853952   unpackerr                                       0.00%     20.96MiB / 31GiB    0.07%     26.7MB / 13.4MB   56MB / 0B     21
+30d1bf136eaf   binhex-lidarr                                   0.04%     334MiB / 31GiB      1.05%     24.1MB / 5.95MB   545MB / 0B    21
+988d2bdc279e   immich_redis                                    0.15%     22.18MiB / 31GiB    0.07%     1.84GB / 435MB    31.5MB / 0B   7
+daae519174e6   immich_postgres                                 0.00%     242.4MiB / 31GiB    0.76%     23.9MB / 808MB    419MB / 0B    10
+Domain: 'Home Assistant'
+  state.state=1
+  state.reason=1
+  cpu.time=77802868020000
+  cpu.user=61923894218000
+  cpu.system=15878973802000
+  cpu.cache.monitor.count=0
+  cpu.haltpoll.success.time=0
+  cpu.haltpoll.fail.time=0
+  balloon.current=2097152
+  balloon.maximum=2097152
+  balloon.swap_in=0
+  balloon.swap_out=0
+  balloon.major_fault=63
+  balloon.minor_fault=27485
+  balloon.unused=1858628
+  balloon.available=2017628
+  balloon.usable=1923608
+  balloon.last-update=1779554749
+  balloon.disk_caches=96684
+  balloon.hugetlb_pgalloc=0
+  balloon.hugetlb_pgfail=0
+  balloon.rss=2224632
+  net.count=1
+  net.0.name=vnet0
+  net.0.rx.bytes=20723693378
+  net.0.rx.pkts=72280613
+  net.0.rx.errs=0
+  net.0.rx.drop=0
+  net.0.tx.bytes=3707658719
+  net.0.tx.pkts=26363956
+  net.0.tx.errs=0
+  net.0.tx.drop=0
+  block.count=1
+  block.0.name=hdc
+  block.0.path=/mnt/user/domains/Home Assistant/vdisk1.img
+  block.0.backingIndex=1
+  block.0.rd.reqs=108965
+  block.0.rd.bytes=1374502400
+  block.0.rd.times=12165186796
+  block.0.wr.reqs=7175317
+  block.0.wr.bytes=74990750720
+  block.0.wr.times=2681974684909
+  block.0.fl.reqs=476935
+  block.0.fl.times=256051717541
+  block.0.allocation=14956167168
+  block.0.capacity=34359738368
+  block.0.physical=14966088704
+
+Domain: 'PnS-BlissOS-PoC'
+  state.state=1
+  state.reason=1
+  cpu.time=223786221774000
+  cpu.user=221861344585000
+  cpu.system=1924877189000
+  cpu.cache.monitor.count=0
+  cpu.haltpoll.success.time=0
+  cpu.haltpoll.fail.time=0
+  balloon.current=6291456
+  balloon.maximum=6291456
+  balloon.rss=6381748
+  net.count=1
+  net.0.name=vnet7
+  net.0.rx.bytes=2991043008
+  net.0.rx.pkts=421110
+  net.0.rx.errs=0
+  net.0.rx.drop=0
+  net.0.tx.bytes=41944968
+  net.0.tx.pkts=330758
+  net.0.tx.errs=0
+  net.0.tx.drop=0
+  block.count=1
+  block.0.name=sda
+  block.0.path=/mnt/cache/domains/PnS-BlissOS-PoC/system.qcow2
+  block.0.backingIndex=1
+  block.0.rd.reqs=162504
+  block.0.rd.bytes=8921398272
+  block.0.rd.times=32820864495
+  block.0.wr.reqs=315955
+  block.0.wr.bytes=12042512384
+  block.0.wr.times=47966361409
+  block.0.fl.reqs=104832
+  block.0.fl.times=38462370843
+  block.0.allocation=13353418752
+  block.0.capacity=68719476736
+  block.0.physical=13361669120
+

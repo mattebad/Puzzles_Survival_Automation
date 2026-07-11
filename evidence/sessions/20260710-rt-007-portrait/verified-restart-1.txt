@@ -1,0 +1,62 @@
+trial=1
+pre:
+boot=1
+Physical size: 1280x800
+Override size: 800x1280
+Physical density: 160
+free
+default
+ignoreOrientationRequest false for displayId=0
+    mDisplayHomeButtonHandlers=    mKeyguardOccluded=false mKeyguardOccludedChanged=false mPendingKeyguardOccluded=false
+        mInputRestricted=false
+dismissed:
+    mDisplayHomeButtonHandlers=    mKeyguardOccluded=false mKeyguardOccludedChanged=false mPendingKeyguardOccluded=false
+        mInputRestricted=false
+start:
+Starting: Intent { cmp=com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity
+TotalTime: 244
+WaitTime: 246
+Complete
+focus:
+TASK 10264:com.farmerbb.taskbar id=87 userId=0
+  ACTIVITY com.farmerbb.taskbar/.activity.HomeActivityDelegate 9744298 pid=2219
+    Local Activity fc2acce State:
+      mResumed=false mStopped=true mFinished=false
+      mCurrentConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1232dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1256) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}
+          mHost=android.app.Activity$HostCallbacks@ddc870d
+              mHost=android.app.Activity$HostCallbacks@ddc870d
+        mHost=android.app.Activity$HostCallbacks@ddc870d
+        mContainer=android.app.Activity$HostCallbacks@ddc870d
+      mStopped=true
+      mLastReportedMergedConfiguration={mGlobalConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.66 fontWeightAdjustment=0} mOverrideConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.3 fontWeightAdjustment=0}}
+      mLastConfigurationFromResources={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.3 fontWeightAdjustment=0}
+       mInputChannel: b9e90d8 com.farmerbb.taskbar/com.farmerbb.taskbar.activity.HomeActivityDelegate (client)
+          mChannel = b9e90d8 com.farmerbb.taskbar/com.farmerbb.taskbar.activity.HomeActivityDelegate (client)
+      DecorView@8763010[HomeActivityDelegate]
+                com.farmerbb.taskbar.activity.HomeActivityDelegate$c{de1834b V.E...... ........ 0,0-800,1224}
+          context: com.farmerbb.taskbar.activity.HomeActivityDelegate@fc2acce
+    Local FragmentActivity fc2acce State:
+      mCreated=true mResumed=false mStopped=true    Back Stack Index: 0
+      mCurState=4 mStateSaved=true mStopped=true mDestroyed=false
+TASK 10286:com.global.ztmslg id=93 userId=0
+  ACTIVITY com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity 3a8cadb pid=6998
+    Local Activity 555f0f4 State:
+      mResumed=true mStopped=false mFinished=false
+      mCurrentConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}
+          mHost=android.app.Activity$HostCallbacks@f930cbd
+              mHost=android.app.Activity$HostCallbacks@f930cbd
+          mHost=android.app.Activity$HostCallbacks@f930cbd
+              mHost=android.app.Activity$HostCallbacks@f930cbd
+        mHost=android.app.Activity$HostCallbacks@f930cbd
+        mContainer=android.app.Activity$HostCallbacks@f930cbd
+      mStopped=false
+      mLastReportedMergedConfiguration={mGlobalConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.66 fontWeightAdjustment=0} mOverrideConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}}
+      mLastConfigurationFromResources={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}
+       mInputChannel: 26bbb76 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity (client)
+          mChannel = 26bbb76 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity (client)
+          Callback: android.app.Activity$$ExternalSyntheticLambda0@88db3fb Priority=-1
+      DecorView@ae6bb5f[AtlasPluginDemoActivity]
+          context: com.games37.sdk.AtlasPluginDemoActivity@555f0f4
