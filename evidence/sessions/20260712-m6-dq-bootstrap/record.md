@@ -68,3 +68,11 @@ reconciliation of the VM, device, worker, temporary ADB server, game process, an
 Determine whether the latest Daily-tab input ran and clean up only task-scoped resources. Do not
 repeat the Daily-tab input until its prior result is known. Do not begin
 `M7-SAFE-ACTION-CORE`, `MVP-QUEST-TO-CLAIM`, or `M6-DQ-TRANSITION-CORPUS`.
+
+## Resume attempt
+
+The required read-only resume reconciliation was attempted on 2026-07-12 after SSH availability
+was reported restored. The pinned SSH connection again closed before remote output, and independent
+TCP checks failed for both configured host addresses. No worker launch, ADB command, screenshot,
+or input occurred during this attempt. Details are retained in
+`resume-reconciliation-20260712.md`.

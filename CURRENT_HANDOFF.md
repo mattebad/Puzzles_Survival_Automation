@@ -100,15 +100,17 @@ Recorded: 2026-07-12, America/Chicago
 - M6-DQ-BOOTSTRAP preflight/blocker: `evidence/sessions/20260712-m6-dq-bootstrap/preflight.md`.
 - M6-DQ-BOOTSTRAP retained bootstrap captures, replay, and transport blocker:
   `evidence/sessions/20260712-m6-dq-bootstrap/`; final-runtime Daily Quest frames and
-  `runtime-transport-blocker.md` are retained.
+  `runtime-transport-blocker.md` are retained. A resumed read-only reconciliation attempt is
+  recorded in `resume-reconciliation-20260712.md`; it again failed before remote output.
 
 ## Exact blocker and required user action
 
-1. M6-DQ-BOOTSTRAP is blocked because the corrected authenticated invocation reported a remote
-  connection close, and subsequent read-only TCP 22 checks failed for both pinned host names.
-  The fresh worker's Daily-tab result and cleanup state are unresolved. Do not retry the input;
-  begin the next run with read-only reconciliation when the private SSH path returns. Do not put
-  the supplied password in a command line, repository, evidence, script, log, or command history.
+1. M6-DQ-BOOTSTRAP remains blocked because the resumed authenticated read-only invocation again
+  reported a remote connection close, and subsequent TCP 22 checks failed for both pinned host
+  names. The fresh worker's Daily-tab result and cleanup state are unresolved. Do not retry the
+  input; begin the next run with read-only reconciliation when the private SSH path returns. Do
+  not put the supplied password in a command line, repository, evidence, script, log, or command
+  history.
 2. RT-016A remains a later manual-only account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,

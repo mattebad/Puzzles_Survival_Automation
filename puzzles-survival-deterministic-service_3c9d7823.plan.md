@@ -492,6 +492,9 @@ The task remains blocked because the fresh worker's post-input result and cleanu
 verified after the private Unraid SSH connection closed and TCP 22 became unavailable. This is a
 live-reconciliation blocker, not a Claim or quest-completion result; resume with read-only worker
 and device reconciliation and do not repeat the Daily-tab input until its prior result is known.
+The required resumed read-only reconciliation was attempted after SSH availability was reported
+restored, but the connection again closed before remote output and TCP 22 checks failed for both
+configured host addresses. No worker launch or input occurred during that attempt.
 
 `M7-SAFE-ACTION-CORE` depends on the bootstrap corpus and implements only the minimum supervised
 action safety boundary: central policy, one exclusive executor, a persistent SQLite journal with
