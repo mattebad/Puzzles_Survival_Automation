@@ -1,0 +1,146 @@
+{
+  "annotation": "evidence/sessions/20260711-mvp-startup-normalization/dry-run-annotation.png",
+  "home_base_offline": {
+    "reason": "no final locked-runtime Home/Base reference supplied",
+    "state": "UNKNOWN"
+  },
+  "home_base_reference_check": {
+    "decision": {
+      "reason": "Home/Base reference is not the locked 800x1280 runtime profile",
+      "recognized": false,
+      "state": "UNKNOWN"
+    },
+    "reference": "examples/screenshots/IMG_5080.PNG",
+    "reference_sha256": "8c3d7ac932ddf2836bfcfcc05559e7977a3745abeedef2704376e61144e86cdd"
+  },
+  "negative": [
+    {
+      "decision": {
+        "denial_rules": [
+          "never select purchase, offer, premium-currency, or confirmation controls",
+          "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+          "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+        ],
+        "features": {
+          "back_arrow": 0.803507,
+          "mall_context": 0.730012,
+          "mall_header": 0.818631,
+          "premium_header": 0.837851,
+          "purchase_context": 0.799842,
+          "title_region": 0.767202
+        },
+        "fresh_frame_dimensions": true,
+        "no_unknown_overlay": true,
+        "reason": "one or more positive Cash Mall features did not pass",
+        "recognized": false,
+        "state": "UNKNOWN",
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ]
+      },
+      "frame": "evidence\\sessions\\20260711-rt-021-worker-vm-adb\\remote-cache\\final-reconcile\\frame-final-reconcile.png",
+      "frame_sha256": "3b9f8b7411e144d41bca7c7ff2979453b7364eb0ddde71c5774dd2ee6c148714",
+      "reference": "evidence\\sessions\\20260711-rt-012-observe-soak\\cash-mall-startup-reference.png",
+      "reference_sha256": "c2a8de297912e402715784f3893a48b00651a76dcf5b95f53fde2647a44f311a"
+    },
+    {
+      "decision": {
+        "denial_rules": [
+          "never select purchase, offer, premium-currency, or confirmation controls",
+          "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+          "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+        ],
+        "features": {
+          "back_arrow": 0.803527,
+          "mall_context": 0.732071,
+          "mall_header": 0.81848,
+          "premium_header": 0.8511,
+          "purchase_context": 0.796353,
+          "title_region": 0.772581
+        },
+        "fresh_frame_dimensions": true,
+        "no_unknown_overlay": true,
+        "reason": "one or more positive Cash Mall features did not pass",
+        "recognized": false,
+        "state": "UNKNOWN",
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ]
+      },
+      "frame": "evidence\\sessions\\20260711-rt-011-restart-matrix\\vm-trial-3-cold-home.png",
+      "frame_sha256": "45f0d74331b9f040a5c833bab92206641665f11f4705b78e1e2e0303f3bd5626",
+      "reference": "evidence\\sessions\\20260711-rt-012-observe-soak\\cash-mall-startup-reference.png",
+      "reference_sha256": "c2a8de297912e402715784f3893a48b00651a76dcf5b95f53fde2647a44f311a"
+    },
+    {
+      "decision": {
+        "denial_rules": [
+          "never select purchase, offer, premium-currency, or confirmation controls",
+          "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+          "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+        ],
+        "features": {},
+        "fresh_frame_dimensions": false,
+        "no_unknown_overlay": false,
+        "reason": "frame is not the locked 800x1280 profile",
+        "recognized": false,
+        "state": "UNKNOWN",
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ]
+      },
+      "frame": "examples\\screenshots\\IMG_5076.PNG",
+      "frame_sha256": "283f1a7525a464657d50afd9c9d5972f6d69772e7f7c4cca562ca960b1f89aeb",
+      "reference": "evidence\\sessions\\20260711-rt-012-observe-soak\\cash-mall-startup-reference.png",
+      "reference_sha256": "c2a8de297912e402715784f3893a48b00651a76dcf5b95f53fde2647a44f311a"
+    }
+  ],
+  "positive": [
+    {
+      "decision": {
+        "denial_rules": [
+          "never select purchase, offer, premium-currency, or confirmation controls",
+          "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+          "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+        ],
+        "features": {
+          "back_arrow": 1.0,
+          "mall_context": 1.0,
+          "mall_header": 1.0,
+          "premium_header": 1.0,
+          "purchase_context": 1.0,
+          "title_region": 1.0
+        },
+        "fresh_frame_dimensions": true,
+        "no_unknown_overlay": true,
+        "reason": "all positive Cash Mall structural/context features passed",
+        "recognized": true,
+        "state": "CASH_MALL",
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ]
+      },
+      "frame": "evidence\\sessions\\20260711-rt-012-observe-soak\\cash-mall-startup-reference.png",
+      "frame_sha256": "c2a8de297912e402715784f3893a48b00651a76dcf5b95f53fde2647a44f311a",
+      "reference": "evidence\\sessions\\20260711-rt-012-observe-soak\\cash-mall-startup-reference.png",
+      "reference_sha256": "c2a8de297912e402715784f3893a48b00651a76dcf5b95f53fde2647a44f311a"
+    }
+  ],
+  "profile": {
+    "height": 1280,
+    "width": 800
+  },
+  "reference_type": "development/reference; not a production asset"
+}

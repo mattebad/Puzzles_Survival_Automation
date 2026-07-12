@@ -1,0 +1,15 @@
+MVP-STARTUP-NORMALIZATION validation — 2026-07-11
+
+python -m py_compile scripts/startup_normalization.py: passed
+JSON parse validation for runtime profile and task evidence: passed
+PNG validation for dry-run annotation and fresh before/after frames: passed; all 800x1280
+runtime frames decoded successfully
+runtime-profile validator manifest/schema: passed
+runtime-profile validator compatible example: passed
+exact credential/private-key scan: passed
+git diff --check excluding retained raw Android dumpsys logs: passed
+
+Known retained-evidence exception:
+git diff --check reports trailing whitespace at
+remote-cache/20260711-live-observe-2042/activities.txt:151 (`no ScreenRotationAnimation `).
+This is an immutable captured Android dump line and was not edited or filtered.

@@ -1,0 +1,18 @@
+07-12 01:43:15.366     9     9 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted
+07-12 01:43:15.367    10    10 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted
+07-12 01:43:15.368    11    11 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted
+07-12 01:43:15.373    15    15 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted
+07-12 01:43:15.374    16    16 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted
+07-12 01:43:15.375    17    17 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted
+07-12 01:43:15.378    20    20 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted
+07-12 01:43:15.381    23    23 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted
+07-12 01:43:15.382    24    24 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted

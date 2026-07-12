@@ -1,0 +1,42 @@
+{
+  "task": "MVP-STARTUP-NORMALIZATION",
+  "classification": "development/reference material; not production recognition assets",
+  "locked_runtime_profile": "pns-blissos-poc-virgl-800x1280-v1",
+  "assets": [
+    {
+      "path": "evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png",
+      "state": "Cash Mall",
+      "purpose": "positive startup reference",
+      "production_eligible": false,
+      "reason": "retained development/reference image; final locked-runtime recapture is required"
+    },
+    {
+      "path": "examples/screenshots/IMG_5080.PNG",
+      "state": "Home/Base",
+      "purpose": "development/reference feature context only",
+      "production_eligible": false,
+      "reason": "iOS/reference dimensions do not match the locked Android 800x1280 profile"
+    },
+    {
+      "path": "evidence/sessions/20260711-rt-021-worker-vm-adb/remote-cache/final-reconcile/frame-final-reconcile.png",
+      "state": "Android keyguard/launcher negative",
+      "purpose": "unknown-state negative",
+      "production_eligible": false,
+      "reason": "not a game source frame; retained RT-021 runtime evidence"
+    },
+    {
+      "path": "evidence/sessions/20260711-rt-011-restart-matrix/vm-trial-3-cold-home.png",
+      "state": "Android launcher negative",
+      "purpose": "unknown-state negative",
+      "production_eligible": false,
+      "reason": "not a game Home/Base frame"
+    },
+    {
+      "path": "examples/screenshots/IMG_5076.PNG",
+      "state": "Daily Quest negative",
+      "purpose": "unexpected-successor negative",
+      "production_eligible": false,
+      "reason": "different game screen and incompatible reference dimensions"
+    }
+  ]
+}

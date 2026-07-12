@@ -1,0 +1,7 @@
+Final read-only cleanup check: 2026-07-11T20:48:45-05:00
+VM PnS-BlissOS-PoC: running
+Temporary startup-normalization observer: absent
+Temporary ADB listeners 5038/5039/5040: absent
+Guest/public ADB listener 5555: absent from host listener review
+Existing Unraid loopback ADB server 127.0.0.1:5037: present
+Game: force-stopped; no game input sent

@@ -1,0 +1,4 @@
+07-12 01:43:15.371    14    14 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted
+07-12 01:43:15.377    19    19 F adb     : adb_utils.cpp:316 Cannot mkdir '/nonexistent/.android': No such file or directory
+Aborted

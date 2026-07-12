@@ -301,6 +301,14 @@ Current candidate and verified results:
 - Live state verified 2026-07-12: VM running selected VirtIO(3D)/Mesa profile; Android boot complete; physical `1280×800`, logical `800×1280`, 160 dpi; effective portrait configuration; game force-stopped after the completed observe-only run. VM autostart remains disabled.
 - Stability: corrected three-guest-restart trials resumed complete game frames with stable dimensions and no display drift. RT-011 then passed three app restarts, three corrected Android/guest recoveries, two clean VM power-cycles, and one controlled cold VM stop/start. One transient reconnect overlay was retained without input. RT-012 passed its four-hour Unraid-local observe-only gate with 48 five-minute samples, 48 valid `800×1280` frames, zero ADB failures, p95 capture latency 222.764 ms, complete host metric files, and no account/session hard stop. The staged 24-hour, 72-hour, 7-day, and 21-day validation remains later work.
 - Startup behavior: launching `com.global.ztmslg` normally opens the authenticated Cash Mall screen rather than Home/Base. Cash Mall is recognized by its exact title, mall header/offer layout, premium-currency header, and large top-left back arrow. It is normal authenticated game content, not login, tutorial, wrong account, server/state selection, or session loss. Startup normalization must positively recognize Cash Mall, recapture immediately, authorize at most one bounded no-spend tap on the recognized back arrow, recapture, and require positive Home/Base recognition; coordinate-only clicks, purchase/offer/premium controls, stale frames, unknown overlays, timeout, or unexpected successors are denied/UNKNOWN. Development reference: `evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png`; recapture from the final locked runtime is still required for production assets.
+- Startup-normalization MVP status (2026-07-11): the Python/OpenCV offline classifier passed all six
+  positive Cash Mall structural/context features against the retained development reference and
+  produced a dry-run back-arrow annotation. A direct unprivileged Unraid worker then captured
+  fresh valid `800×1280` frames, but the approved OS-only keyguard reconciliation retained
+  `showing=true`, `secure=false`, and `mInputRestricted=true`; the task stopped before game launch
+  and sent zero game input. The task is blocked pending manual clearing/confirmation of the safe
+  Android startup surface. The supplied iOS Home/Base reference is development material only and
+  is rejected for the locked Android profile; a final-runtime Home/Base recapture remains required.
 - Account guard limitation: restart evidence shows the authenticated game surface and no login/tutorial/CAPTCHA/wrong-account state, but a redacted stable player/server identity capture is still required before any automatic gameplay action.
 
 Completed runtime-proof work:
