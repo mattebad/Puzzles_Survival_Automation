@@ -1,0 +1,17 @@
+{
+  "fixtures": [
+    {
+      "candidate": "evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png",
+      "decision": "BLOCKED",
+      "visual_match": false,
+      "reason": "Cash Mall is not the known non-secure keyguard surface"
+    },
+    {
+      "candidate": "evidence/sessions/20260711-rt-011-restart-matrix/vm-trial-3-cold-home.png",
+      "decision": "BLOCKED",
+      "visual_match": false,
+      "reason": "launcher candidate lacks the known central unlock-text anchor"
+    }
+  ],
+  "input_sent": false
+}

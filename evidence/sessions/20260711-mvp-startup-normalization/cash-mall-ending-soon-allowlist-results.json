@@ -1,0 +1,48 @@
+{
+  "home_base_offline": {
+    "reason": "no final locked-runtime Home/Base reference supplied",
+    "state": "UNKNOWN"
+  },
+  "negative": [],
+  "positive": [
+    {
+      "decision": {
+        "denial_rules": [
+          "never select purchase, offer, premium-currency, or confirmation controls",
+          "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+          "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+        ],
+        "features": {
+          "back_arrow": 1.0,
+          "mall_context": 1.0,
+          "mall_header": 1.0,
+          "premium_header": 1.0,
+          "purchase_context": 1.0,
+          "title_region": 1.0
+        },
+        "fresh_frame_dimensions": true,
+        "known_informational_overlay": true,
+        "no_unknown_overlay": true,
+        "reason": "all positive Cash Mall features passed with the allowlisted Ending Soon informational banner",
+        "recognized": true,
+        "state": "CASH_MALL",
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ],
+        "unknown_overlay": false
+      },
+      "frame": "evidence\\sessions\\20260711-mvp-startup-normalization\\remote-cache\\20260711-cash-mall-observe-2120\\frame-final.png",
+      "frame_sha256": "29c5d380faed832f315a7f8cf8b5608763a659788ca9bea247b8e2e157d76f0a",
+      "reference": "evidence\\sessions\\20260711-mvp-startup-normalization\\remote-cache\\20260711-cash-mall-observe-2120\\frame-final.png",
+      "reference_sha256": "29c5d380faed832f315a7f8cf8b5608763a659788ca9bea247b8e2e157d76f0a"
+    }
+  ],
+  "profile": {
+    "height": 1280,
+    "width": 800
+  },
+  "reference_type": "development/reference; not a production asset"
+}

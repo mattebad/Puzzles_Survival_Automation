@@ -1,0 +1,257 @@
+[
+    {
+        "Id": "68bc9d8629a4c3303603ea5fbc1c92179ff2a2ea883b964dfcadcbfd4cf29bd5",
+        "Created": "2026-07-12T02:11:20.948603661Z",
+        "Path": "sh",
+        "Args": [
+            "-c",
+            "set -u; id > /evidence/identity.txt 2>&1; date -Is > /evidence/start-time.txt; /opt/adb start-server > /evidence/adb.log 2>&1; /opt/adb connect 192.168.122.79:5555 >> /evidence/adb.log 2>&1; /opt/adb -s 192.168.122.79:5555 get-state >> /evidence/adb.log 2>&1; /opt/adb -s 192.168.122.79:5555 shell am force-stop com.global.ztmslg >> /evidence/adb.log 2>&1; /opt/adb -s 192.168.122.79:5555 shell getprop sys.boot_completed > /evidence/boot.txt 2>&1; /opt/adb -s 192.168.122.79:5555 shell dumpsys window policy > /evidence/policy-before.txt 2>&1; /opt/adb -s 192.168.122.79:5555 shell dumpsys activity activities > /evidence/activities-before.txt 2>&1; /opt/adb -s 192.168.122.79:5555 exec-out screencap -p > /evidence/frame-before.png; date -Is > /evidence/capture-time.txt; /opt/adb -s 192.168.122.79:5555 disconnect >> /evidence/adb.log 2>&1; /opt/adb kill-server >> /evidence/adb.log 2>&1"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 189592,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-07-12T02:11:20.963973531Z",
+            "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "Image": "sha256:4febd12f7989492ef63bebcf49376b8377579495067cf37457f959f9f692e349",
+        "ResolvConfPath": "/var/lib/docker/containers/68bc9d8629a4c3303603ea5fbc1c92179ff2a2ea883b964dfcadcbfd4cf29bd5/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/68bc9d8629a4c3303603ea5fbc1c92179ff2a2ea883b964dfcadcbfd4cf29bd5/hostname",
+        "HostsPath": "/var/lib/docker/containers/68bc9d8629a4c3303603ea5fbc1c92179ff2a2ea883b964dfcadcbfd4cf29bd5/hosts",
+        "LogPath": "/var/lib/docker/containers/68bc9d8629a4c3303603ea5fbc1c92179ff2a2ea883b964dfcadcbfd4cf29bd5/68bc9d8629a4c3303603ea5fbc1c92179ff2a2ea883b964dfcadcbfd4cf29bd5-json.log",
+        "Name": "/mvp-keyguard-observer-20260711-2055",
+        "RestartCount": 0,
+        "Driver": "overlay2",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": null,
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {
+                    "max-file": "1",
+                    "max-size": "50m"
+                }
+            },
+            "NetworkMode": "host",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": [
+                "ALL"
+            ],
+            "CgroupnsMode": "private",
+            "Dns": [],
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": null,
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": true,
+            "SecurityOpt": [
+                "no-new-privileges"
+            ],
+            "Tmpfs": {
+                "/tmp": "rw,noexec,nosuid,nodev"
+            },
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 268435456,
+            "NanoCpus": 500000000,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": [],
+            "BlkioDeviceReadBps": [],
+            "BlkioDeviceWriteBps": [],
+            "BlkioDeviceReadIOps": [],
+            "BlkioDeviceWriteIOps": [],
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": [],
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": -1,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": 64,
+            "Ulimits": [],
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "Mounts": [
+                {
+                    "Type": "bind",
+                    "Source": "/mnt/cache/domains/PnS-BlissOS-PoC/tools/platform-tools/adb",
+                    "Target": "/opt/adb",
+                    "ReadOnly": true
+                },
+                {
+                    "Type": "bind",
+                    "Source": "/mnt/cache/puzzle-survival-runtime/mvp-startup-normalization/20260711-keyguard-reconcile-observe-2055",
+                    "Target": "/evidence"
+                }
+            ],
+            "MaskedPaths": [
+                "/proc/asound",
+                "/proc/acpi",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/sys/firmware",
+                "/sys/devices/virtual/powercap"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/2f04742c6bd3e110e3946294b6ad7761bfe802020362b58f5fa40b216aae0cc2-init/diff:/var/lib/docker/overlay2/lm7uf0t9h1c45o237yw50fe3x/diff:/var/lib/docker/overlay2/p6yyawdq0x1f32qpexnelykr4/diff:/var/lib/docker/overlay2/ug0icx4kfdl3bk116g4dav1kn/diff:/var/lib/docker/overlay2/lx9s5vbcszsb929x3dh8h413s/diff:/var/lib/docker/overlay2/pgeufix38aqtikqa7twb7mwp8/diff:/var/lib/docker/overlay2/f730901ca42b5819bb949cddbf60331f69113112892e016879551f02020a92b1/diff:/var/lib/docker/overlay2/c24687c0a0653851414cbd448dba0fe357d7c25e98a324a16e865c36278d9278/diff:/var/lib/docker/overlay2/13f4ed4244efc308a10f0c8ddc1da6fd0749db4aea621939bfd97710e6f17b68/diff:/var/lib/docker/overlay2/3f402e88683026cc76d93115e4ccb78a67905e9c53a22ffded501fb91f706705/diff",
+                "MergedDir": "/var/lib/docker/overlay2/2f04742c6bd3e110e3946294b6ad7761bfe802020362b58f5fa40b216aae0cc2/merged",
+                "UpperDir": "/var/lib/docker/overlay2/2f04742c6bd3e110e3946294b6ad7761bfe802020362b58f5fa40b216aae0cc2/diff",
+                "WorkDir": "/var/lib/docker/overlay2/2f04742c6bd3e110e3946294b6ad7761bfe802020362b58f5fa40b216aae0cc2/work"
+            },
+            "Name": "overlay2"
+        },
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/mnt/cache/domains/PnS-BlissOS-PoC/tools/platform-tools/adb",
+                "Destination": "/opt/adb",
+                "Mode": "",
+                "RW": false,
+                "Propagation": "rprivate"
+            },
+            {
+                "Type": "bind",
+                "Source": "/mnt/cache/puzzle-survival-runtime/mvp-startup-normalization/20260711-keyguard-reconcile-observe-2055",
+                "Destination": "/evidence",
+                "Mode": "",
+                "RW": true,
+                "Propagation": "rprivate"
+            }
+        ],
+        "Config": {
+            "Hostname": "NAS",
+            "Domainname": "",
+            "User": "65534:65534",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "ExposedPorts": {
+                "8000/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "HOME=/tmp",
+                "ANDROID_ADB_SERVER_PORT=5041",
+                "PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG=C.UTF-8",
+                "GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305",
+                "PYTHON_VERSION=3.12.13",
+                "PYTHON_SHA256=c08bc65a81971c1dd5783182826503369466c7e67374d1646519adf05207b684",
+                "PYTHONDONTWRITEBYTECODE=1",
+                "PYTHONUNBUFFERED=1",
+                "PIP_NO_CACHE_DIR=1"
+            ],
+            "Cmd": [
+                "sh",
+                "-c",
+                "set -u; id > /evidence/identity.txt 2>&1; date -Is > /evidence/start-time.txt; /opt/adb start-server > /evidence/adb.log 2>&1; /opt/adb connect 192.168.122.79:5555 >> /evidence/adb.log 2>&1; /opt/adb -s 192.168.122.79:5555 get-state >> /evidence/adb.log 2>&1; /opt/adb -s 192.168.122.79:5555 shell am force-stop com.global.ztmslg >> /evidence/adb.log 2>&1; /opt/adb -s 192.168.122.79:5555 shell getprop sys.boot_completed > /evidence/boot.txt 2>&1; /opt/adb -s 192.168.122.79:5555 shell dumpsys window policy > /evidence/policy-before.txt 2>&1; /opt/adb -s 192.168.122.79:5555 shell dumpsys activity activities > /evidence/activities-before.txt 2>&1; /opt/adb -s 192.168.122.79:5555 exec-out screencap -p > /evidence/frame-before.png; date -Is > /evidence/capture-time.txt; /opt/adb -s 192.168.122.79:5555 disconnect >> /evidence/adb.log 2>&1; /opt/adb kill-server >> /evidence/adb.log 2>&1"
+            ],
+            "Image": "monarch-gpt-wrapper-api:latest",
+            "Volumes": null,
+            "WorkingDir": "/app",
+            "Entrypoint": null,
+            "OnBuild": null,
+            "Labels": {
+                "com.docker.compose.project": "monarch-gpt-wrapper",
+                "com.docker.compose.service": "api",
+                "com.docker.compose.version": "2.40.3"
+            }
+        },
+        "NetworkSettings": {
+            "Bridge": "",
+            "SandboxID": "668dd7bae37d86f85290dc392e4720ea4143cc718a952023edebccf1d8b35353",
+            "SandboxKey": "/var/run/docker/netns/default",
+            "Ports": {},
+            "HairpinMode": false,
+            "LinkLocalIPv6Address": "",
+            "LinkLocalIPv6PrefixLen": 0,
+            "SecondaryIPAddresses": null,
+            "SecondaryIPv6Addresses": null,
+            "EndpointID": "",
+            "Gateway": "",
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "IPAddress": "",
+            "IPPrefixLen": 0,
+            "IPv6Gateway": "",
+            "MacAddress": "",
+            "Networks": {
+                "host": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": null,
+                    "MacAddress": "",
+                    "DriverOpts": null,
+                    "NetworkID": "5f2c370e70ddbea689f21728fbd05584a2d8de3340ae44563de17a60603bc0d6",
+                    "EndpointID": "c3034932ab8fda30ff55d7d8280bbb95884dbb1f54cc3a022f5d33ddde5e6bd4",
+                    "Gateway": "",
+                    "IPAddress": "",
+                    "IPPrefixLen": 0,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": null
+                }
+            }
+        }
+    }
+]

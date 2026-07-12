@@ -1,0 +1,22 @@
+{
+  "asset_id": "startup-normalization-home-base-candidate-20260711",
+  "asset_schema_version": 1,
+  "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+  "asset_kind": "development-reference",
+  "source": "evidence/sessions/20260711-mvp-startup-normalization/remote-cache/20260711-cash-mall-input-2125/frame-settled-after.png",
+  "production_ready": false,
+  "state": "Home/Base",
+  "status": "development candidate; final-profile reference",
+  "path": "remote-cache/20260711-cash-mall-input-2125/frame-settled-after.png",
+  "dimensions": [800, 1280],
+  "sha256": "51ddeee729f8d69a069d4e7e90a2606fa296b676f0cd4229cb78fb9cafcaca2a",
+  "production_asset": false,
+  "independent_features": [
+    "resource header activity",
+    "base-scene edge/activity and building labels",
+    "bottom navigation activity and OCR hits for Quest, Bag, Mail, More",
+    "Cash Mall negative classification",
+    "non-blocking Android policy"
+  ]
+}

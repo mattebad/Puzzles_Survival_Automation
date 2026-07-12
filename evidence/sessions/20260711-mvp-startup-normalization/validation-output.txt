@@ -13,3 +13,14 @@ Known retained-evidence exception:
 git diff --check reports trailing whitespace at
 remote-cache/20260711-live-observe-2042/activities.txt:151 (`no ScreenRotationAnimation `).
 This is an immutable captured Android dump line and was not edited or filtered.
+
+Resumed validation:
+keyguard fixture authorization and Cash Mall/launcher negatives: passed
+Ending Soon allowlist fixture and non-overlap guard: passed
+fresh precheck and immediate-before Cash Mall classification: passed
+ROI stability back-arrow/title/offer-header: 1.0/0.995065/1.0
+final Home/Base live classifier with resource/scene/navigation/OCR features: passed
+final Home/Base candidate runtime-profile compatibility validator: passed
+exact supervised input record: one tap at (107,32); no retry
+worker cleanup evidence: force-stop, ADB disconnect/kill, and container removal recorded
+final SSH cleanup query: unavailable after tool-usage limit; no retry/workaround attempted

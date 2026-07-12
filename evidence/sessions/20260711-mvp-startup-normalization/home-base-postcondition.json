@@ -1,0 +1,55 @@
+{
+  "candidate": "evidence\\sessions\\20260711-mvp-startup-normalization\\remote-cache\\20260711-cash-mall-input-2125\\frame-settled-after.png",
+  "candidate_sha256": "51ddeee729f8d69a069d4e7e90a2606fa296b676f0cd4229cb78fb9cafcaca2a",
+  "cash_mall_postcheck": {
+    "denial_rules": [
+      "never select purchase, offer, premium-currency, or confirmation controls",
+      "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+      "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+    ],
+    "features": {
+      "back_arrow": 0.821764,
+      "mall_context": 0.7346,
+      "mall_header": 0.78554,
+      "premium_header": 0.833067,
+      "purchase_context": 0.805065,
+      "title_region": 0.800017
+    },
+    "fresh_frame_dimensions": true,
+    "known_informational_overlay": false,
+    "no_unknown_overlay": true,
+    "reason": "one or more positive Cash Mall features did not pass",
+    "recognized": false,
+    "state": "UNKNOWN",
+    "target_roi": [
+      35,
+      0,
+      180,
+      65
+    ],
+    "unknown_overlay": false
+  },
+  "home_base": {
+    "base_scene_score": 0.116806,
+    "bottom_navigation_score": 0.142885,
+    "navigation_ocr_hits": [
+      "bag",
+      "mail",
+      "more",
+      "quest"
+    ],
+    "navigation_ocr_text": "- ae as ek \u2014 i ir ney es \u2014\nyy \\ a3\u00ae wf ric = ww, au) me wy\ncit at) quest bag t mail annee more\n",
+    "reason": "resource header, base scene, bottom navigation, and OCR anchors passed",
+    "recognized": true,
+    "resource_header_score": 0.115479,
+    "scene_ocr_hits": [
+      "camp",
+      "research",
+      "warehouse",
+      "watch tower"
+    ],
+    "scene_ocr_text": "ane rn cap ey a iica! -. lian\nmomma\u201d ae ne\nwe | cbs watch tower z a) t\nbuild \u201coe se rs a wey |\n(0/2) an pe <o\" a ze ow, 29.2%\nresearch oo} bi bs | eh @ > = \u2018\\\nom) ce og fe be:\na ee ee ae) ee be\npit , ~ s ss = es ye\nqa ge ) oss she\n2 al es es | ie th\noo ge\nbs qe \u00bb ls ve > = 22\nnoshatevert be ss, a warehouse\nyet afi, 5 shooter camp pe oe {\nk 2x\n\u2018 = | ieee \u00b0\u00b0 a 07:29:21\na > , :\ni fone. \u201d rider camp v\\\nfighter camp my ae p a\n| upgrade vehicle depat, leet ld ~ |\npgrade vehicle depetite pepot a }\njsr +agent rakyn\u00a2: ty!\naa teonla ph oe gluanz nee joe bnainnioicrand pageenonio.\n",
+    "state": "HOME_BASE"
+  },
+  "safe_os_surface": true
+}

@@ -1,0 +1,23 @@
+{
+  "candidate": "evidence/sessions/20260711-mvp-startup-normalization/remote-cache/20260711-live-observe-2042/frame-before.png",
+  "decision": {
+    "boot_completed": true,
+    "input_restricted": true,
+    "reason": "all known non-secure keyguard predicates passed; one swipe authorized",
+    "secure": false,
+    "showing": true,
+    "state": "AUTHORIZED",
+    "swipe_authorized": true,
+    "swipe_command": [
+      "input",
+      "swipe",
+      "400",
+      "1120",
+      "400",
+      "520",
+      "350"
+    ],
+    "swipe_count": 0,
+    "visual_match": true
+  }
+}

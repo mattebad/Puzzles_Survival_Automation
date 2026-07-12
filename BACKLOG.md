@@ -623,13 +623,12 @@ unlocked when this task passes.
 - Evidence: `evidence/sessions/<timestamp>-mvp-startup-normalization/`.
 - Rollback: force-stop the game after the trial; no state/spend rollback is required for the
   bounded back navigation. Preserve all failure evidence.
-- Status: Blocked (2026-07-11; offline and dry-run gates passed, live OS guard unresolved).
-- Blocker: The fresh direct-worker observation retained Android keyguard/setup state with
-  `showing=true`, `secure=false`, and `mInputRestricted=true` after the approved reconciliation
-  sequence. The user must manually clear/confirm the safe unrestricted startup surface; no
-  credential or profile navigation may be automated.
-- Next: Resume MVP-STARTUP-NORMALIZATION after the exact manual OS action; do not start the M5
-  framework bake-off or any later milestone in this run.
+- Status: Passed (2026-07-11; resumed guarded startup trial complete).
+- Blocker: None. The fresh runtime was already non-blocking at resumed observation, so no additional
+  keyguard swipe or HOME input was sent; the fail-closed one-swipe branch is implemented and
+  fixture-validated. No credential or profile navigation was automated.
+- Next: M5 framework bake-off. Daily Quest and later gameplay workflows were not started in this
+  task.
 
 ## Dependency graph
 
@@ -665,11 +664,10 @@ becomes inactive after VirtIO-GL loads, so ADB remains the observation path unti
 scrcpy or equivalent passes. RT-014A remains separately blocked by development authentication;
 RT-015 is deferred VM/worker-order documentation and does not block RT-013; RT-016A needs redacted
 identity evidence for M7-AccountGuard, not technical runtime selection. RT-018 is pending;
-RT-017, RT-019, and RT-021 have passed. MVP-STARTUP-NORMALIZATION is Blocked after its offline,
-dry-run, and direct-worker observe-only work because the Android keyguard/setup state remained
-unresolved after the approved sequence. No later milestone is ready for this run; resume the same
-task after the exact manual OS action and do not send the Cash Mall back-arrow input until the OS
-guard and ordered recognition gates pass.
+RT-017, RT-019, and RT-021 have passed. MVP-STARTUP-NORMALIZATION Passed after the resumed
+observe-only keyguard reconciliation, guarded Cash Mall launch, one authorized no-spend back-arrow
+tap, and positive final-profile Home/Base postcondition. The M5 framework bake-off is next; Daily
+Quest and later gameplay workflows were not started.
 M5 framework bake-off remains deferred until this first vertical slice is reconciled. Do not rerun RT-012; its complete evidence
 is retained in `evidence/sessions/20260711-rt-012-observe-soak/`. Do not place credentials in this
 repository or command history. Launching `com.global.ztmslg` normally opens the authenticated Cash

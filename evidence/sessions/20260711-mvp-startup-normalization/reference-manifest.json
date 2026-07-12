@@ -32,6 +32,13 @@
       "reason": "not a game Home/Base frame"
     },
     {
+      "path": "evidence/sessions/20260711-mvp-startup-normalization/remote-cache/20260711-cash-mall-observe-2120/frame-final.png",
+      "state": "Cash Mall with Ending Soon informational banner",
+      "purpose": "explicitly allowlisted final-profile informational-overlay fixture",
+      "production_eligible": false,
+      "reason": "banner may be allowed only when final-profile shape/content match and target non-overlap pass"
+    },
+    {
       "path": "examples/screenshots/IMG_5076.PNG",
       "state": "Daily Quest negative",
       "purpose": "unexpected-successor negative",

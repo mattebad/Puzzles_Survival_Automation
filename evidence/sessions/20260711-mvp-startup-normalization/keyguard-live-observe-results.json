@@ -1,0 +1,17 @@
+{
+  "capture": "remote-cache/20260711-keyguard-reconcile-observe-2055/frame-before.png",
+  "sha256": "d0ce880d8ed48345d5f3afbd46a74a3c16e100e88ff8863a2e671f468573fe75",
+  "dimensions": [800, 1280],
+  "boot_completed": "1",
+  "policy": {
+    "showing": false,
+    "secure": false,
+    "mInputRestricted": false
+  },
+  "focus": "com.farmerbb.taskbar/com.farmerbb.taskbar.activity.HomeActivityDelegate",
+  "launcher_visual_match": true,
+  "safe_launcher": true,
+  "swipe_authorized": false,
+  "swipe_sent": false,
+  "reason": "The manually reconciled runtime was already non-blocking at fresh observation; no additional swipe was necessary or sent."
+}

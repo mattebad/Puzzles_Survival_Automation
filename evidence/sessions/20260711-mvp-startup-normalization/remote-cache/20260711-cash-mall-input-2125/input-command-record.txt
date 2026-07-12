@@ -1,0 +1,9 @@
+Authorized input record
+
+Exactly one game input was sent after fresh Cash Mall classification and immediate recapture:
+`adb -s 192.168.122.79:5555 shell input tap 107 32`
+
+Target basis: recognized top-left back-arrow ROI `[35,0,180,65]`; tap center `(107,32)`.
+The allowlisted informational `Ending Soon` banner occupied the offer-header region and did not
+intersect the target. No purchase, offer, price, premium-currency, or confirmation control was
+selected. No retry was sent.
