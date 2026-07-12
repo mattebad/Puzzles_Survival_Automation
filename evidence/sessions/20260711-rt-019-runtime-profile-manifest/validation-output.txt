@@ -1,0 +1,23 @@
+RT-019 validator verification — 2026-07-11 America/Chicago
+
+python scripts/validate-runtime-profile.py
+manifest=valid profile_id=pns-blissos-poc-virgl-800x1280-v1 profile_content_sha256=195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742
+asset=not_supplied input_lock=false
+exit=0
+
+python scripts/validate-runtime-profile.py --asset runtime-profile/asset-metadata.compatible.example.json
+manifest=valid profile_id=pns-blissos-poc-virgl-800x1280-v1 profile_content_sha256=195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742
+asset=compatible asset_id=cash-mall-title-reference-example input_lock=false
+exit=0
+
+python scripts/validate-runtime-profile.py --asset runtime-profile/asset-metadata.mismatch.example.json
+GLOBAL_INPUT_LOCK: asset profile_id mismatch; GLOBAL_INPUT_LOCK
+exit=2
+
+The mismatch is an intentional negative compatibility test, not a runtime failure.
+
+python scripts/validate-runtime-profile.py --asset runtime-profile/asset-metadata.missing.example.json
+GLOBAL_INPUT_LOCK: asset metadata missing fields: profile_content_sha256
+exit=2
+
+The missing-field rejection is an intentional negative compatibility test, not a runtime failure.

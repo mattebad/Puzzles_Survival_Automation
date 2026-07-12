@@ -1,0 +1,9 @@
+{
+  "asset_id": "cash-mall-title-mismatch-example",
+  "asset_schema_version": 1,
+  "profile_id": "pns-blissos-poc-invalid-profile-v0",
+  "profile_content_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "asset_kind": "development-reference",
+  "source": "development-only-negative-test",
+  "production_ready": false
+}

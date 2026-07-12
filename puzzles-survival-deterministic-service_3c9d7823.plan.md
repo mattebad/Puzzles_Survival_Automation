@@ -31,7 +31,7 @@ todos:
     status: pending
   - id: rt-019-runtime-profile-manifest
     content: Lock and version final runtime-profile manifest and compatibility validator schema.
-    status: pending
+    status: completed
   - id: rt-021-worker-vm-adb
     content: Prove unprivileged Unraid worker-to-VM ADB path without an external tunnel.
     status: pending
@@ -325,9 +325,9 @@ Remaining runtime-proof work:
   and 21-day hardening stages remain later work.
 - RT-013 final Bliss pass/fail and runtime-profile lock: passed; depends on RT-012 only. The
   criterion matrix and selected-profile facts are retained in
-  `evidence/sessions/20260711-rt-013-runtime-decision/record.md`; RT-019 remains the separate
-  full manifest/schema task. RT-014A is operationally useful but not a Bliss-selection blocker.
-  RT-016A remains a later account-guard evidence task.
+  `evidence/sessions/20260711-rt-013-runtime-decision/record.md`; RT-019 has separately passed
+  the full manifest/schema task. RT-014A is operationally useful but not a Bliss-selection
+  blocker. RT-016A remains a later account-guard evidence task.
 - RT-014A optional post-VirtIO-GL viewer-transport proof: blocked by the same development SSH
   authentication needed for this execution path; it does not require the future controller and
   is not a production unattended-execution dependency.
@@ -336,6 +336,10 @@ Remaining runtime-proof work:
 - RT-016A account/server identity evidence: pending; no credential or account-operation automation.
 - RT-021 Unraid worker-to-VM ADB path proof: ready after RT-013; no external tunnel or runtime
   mutation is authorized by this plan.
+- RT-019 versioned runtime-profile manifest/schema: passed with profile ID
+  `pns-blissos-poc-virgl-800x1280-v1`, canonical content hash
+  `195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742`, and a validator that
+  produces `GLOBAL_INPUT_LOCK` for missing or mismatched asset metadata.
 - M7-Takeover and M7-AccountGuard remain later controller-integration tasks; neither is required
   to collect runtime evidence or select Bliss.
 
@@ -407,10 +411,12 @@ fail-closed account/session detection, global input lock, expected/unknown/misma
 notification, low-frequency backoff, manual restoration, and re-verification. These M7 tasks
 must not become prerequisites for runtime evidence or RT-013 selection.
 
-RT-019 locks a complete versioned runtime-profile manifest, immutable profile identifier/hash,
+RT-019 has locked a complete versioned runtime-profile manifest, immutable profile identifier/hash,
 asset compatibility field/schema, mismatch validator, and global input lock on mismatch. It
 documents that future assets must reference a runtime profile; M6 requires every recognition
-asset created in the production corpus to carry and validate that reference.
+asset created in the production corpus to carry and validate that reference. The manifest is
+`runtime-profile/manifest.json`; the full compatibility evidence is retained in
+`evidence/sessions/20260711-rt-019-runtime-profile-manifest/`.
 
 ### 5.3 Observe-only soak definition
 

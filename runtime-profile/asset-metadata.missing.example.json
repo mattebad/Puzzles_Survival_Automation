@@ -1,0 +1,8 @@
+{
+  "asset_id": "cash-mall-title-missing-metadata-example",
+  "asset_schema_version": 1,
+  "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "asset_kind": "development-reference",
+  "source": "development-only-negative-test",
+  "production_ready": false
+}

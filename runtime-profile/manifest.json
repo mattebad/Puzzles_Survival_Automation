@@ -1,0 +1,133 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "profile_version": "1.0.0",
+  "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+  "created_at": "2026-07-11",
+  "runtime": {
+    "distribution": "Bliss OS",
+    "version": "16.9.7",
+    "android_version": "13",
+    "architecture": "x86_64",
+    "gapps": true,
+    "abi_translation": "libndk_translation.so 0.2.3"
+  },
+  "vm": {
+    "name": "PnS-BlissOS-PoC",
+    "uuid": "5500a07f-4352-4ce5-b1cf-7cf668e3a9f4",
+    "selected_xml": {
+      "path": "/mnt/cache/domains/PnS-BlissOS-PoC/rollback/20260710-rt003-virgl-trial-01.xml",
+      "sha256": "9ed03ee6cabedbabf30271fbffe2869b0d5c96207e90a1927c6122f5f7f97c16"
+    },
+    "live_dumpxml_sha256_at_manifest_review": "428a9c62216acfbd1b17d9eda4219c28dafc8af5f2337fdea1455397044d1090",
+    "disk": {
+      "path": "/mnt/cache/domains/PnS-BlissOS-PoC/system.qcow2",
+      "format": "qcow2",
+      "virtual_size_bytes": 68719476736,
+      "actual_size_bytes_at_manifest_review": 13530088448,
+      "dirty_flag": false,
+      "corrupt": false,
+      "active_image_hash": null,
+      "active_image_hash_note": "Not collected while the VM was running; qemu-img shared-lock inspection was read-only and explicit. RT-017 owns the secured backup hash."
+    },
+    "grub": {
+      "saved_entry": "VM Options -> QEMU/KVM - Virgl - SW-FFMPEG",
+      "efi_grub_cfg_sha256": "ad642353d73bd67657d64cfe78df05f15945af216943f1221b161621658f1fe1",
+      "android_cfg_sha256": "b5090c8d99fa2f65c7c3228712d563258498f7d34d317bd127c78d150d2c42f4",
+      "grubenv_sha256": "cc7e18cd9bd8536b6a166aec6e0095b2f29faa04e40515baa2c508ba3c8c6dc1",
+      "rollback_entry": "nomodeset HWACCEL=0"
+    }
+  },
+  "graphics": {
+    "video_model": "VirtIO",
+    "acceleration": "VirtIO(3D)/Mesa VirGL",
+    "accel3d": true,
+    "egl_headless": true,
+    "host_render_node": "/dev/dri/by-path/pci-0000:00:02.0-render",
+    "renderer": "Mesa virgl (Mesa Intel(R) UHD Graphics 770 (ADL-S GT1))",
+    "opengl_es": "3.2",
+    "mesa_version": "24.0.8",
+    "remote_view": "VNC is retained for OVMF/GRUB; ADB PNG capture is the proven runtime observation path after VirtIO-GL."
+  },
+  "display": {
+    "physical_width": 1280,
+    "physical_height": 800,
+    "logical_width": 800,
+    "logical_height": 1280,
+    "density_dpi": 160,
+    "orientation": "portrait",
+    "orientation_control": "app-controlled",
+    "global_rotation_lock": false,
+    "system_bars_viewport": "stable across corrected restart trials"
+  },
+  "game": {
+    "package": "com.global.ztmslg",
+    "version": "7.0.278",
+    "provisioning": "already-provisioned authenticated package",
+    "gameplay_input_enabled": false
+  },
+  "transport": {
+    "kind": "ADB",
+    "guest_endpoint": "192.168.122.79:5555",
+    "network": "libvirt default NAT 192.168.122.0/24",
+    "host_listener": "127.0.0.1:5037 only",
+    "public_or_lan_adb": false,
+    "external_ssh_tunnel_production_dependency": false,
+    "protocol_authentication": "unavailable; ro.adb.secure=0; strict private containment is required",
+    "production_path": "unprivileged Unraid worker-to-VM path, pending RT-021"
+  },
+  "startup": {
+    "os_boot_gate": "verify sys.boot_completed=1 and reconcile non-secure Android keyguard/input restriction",
+    "approved_os_sequence": ["KEYCODE_WAKEUP", "keyevent 82", "cmd window dismiss-keyguard"],
+    "game_startup_surface": "Cash Mall",
+    "cash_mall_state": {
+      "authenticated_normal_state": true,
+      "exact_title": "Cash Mall",
+      "positive_features": ["exact title or title-region match", "mall header/layout", "top-left back-control", "purchase/offer context", "premium-currency header"],
+      "reference_evidence": "evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png",
+      "reference_only": true
+    },
+    "normalization": {
+      "target": "Home/Base",
+      "authorized_control": "recognized top-left Cash Mall back arrow",
+      "max_inputs": 1,
+      "recapture_immediately_before_input": true,
+      "positive_source_and_target_required": true,
+      "coordinate_only_target_denied": true,
+      "purchase_offer_premium_confirmation_controls_denied": true,
+      "unknown_overlay_timeout_or_unexpected_successor": "UNKNOWN_AND_STOP"
+    }
+  },
+  "account_guard": {
+    "version": "pending-RT-016A",
+    "stable_numeric_identity_evidence": "pending manual-only RT-016A",
+    "authenticated_surface_evidence": "present in RT-001 through RT-012 retained evidence",
+    "automatic_gameplay_authorized": false,
+    "login_credentials_account_switching_profile_navigation_automation": false
+  },
+  "compatibility": {
+    "asset_schema_version": 1,
+    "required_asset_fields": ["asset_id", "asset_schema_version", "profile_id", "profile_content_sha256", "asset_kind"],
+    "mismatch_action": "GLOBAL_INPUT_LOCK",
+    "missing_metadata_action": "GLOBAL_INPUT_LOCK",
+    "future_assets_must_be_recaptured_on_profile_change": true
+  },
+  "rollback": {
+    "baseline_xml_path": "/mnt/cache/domains/PnS-BlissOS-PoC/rollback/20260710-rt001-qxl-baseline.xml",
+    "baseline_xml_sha256": "f8011eeed1e3f464ad317610973e74bf97f2c922c261142eab51c7f9c002624e",
+    "baseline_graphics": "QXL/SwiftShader/OpenGL ES 3.0",
+    "display_reset": "wm size reset; wm density 160; wm set-ignore-orientation-request false; wm fixed-to-user-rotation default; wm user-rotation free",
+    "secured_post_provisioning_backup": "RT-017 pending; do not overwrite the live qcow2"
+  },
+  "evidence": [
+    "evidence/sessions/20260711-rt-013-runtime-decision/record.md",
+    "evidence/sessions/20260710-rt-003-virgl-trial-01/record.md",
+    "evidence/sessions/20260710-rt-007-portrait/record.md",
+    "evidence/sessions/20260711-rt-008-adb/record.md",
+    "evidence/sessions/20260711-rt-009-input/record.md",
+    "evidence/sessions/20260711-rt-010-capture/record.md",
+    "evidence/sessions/20260711-rt-011-restart-matrix/record.md",
+    "evidence/sessions/20260711-rt-012-observe-soak/record.md"
+  ]
+}

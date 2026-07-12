@@ -1,0 +1,9 @@
+{
+  "asset_id": "cash-mall-title-reference-example",
+  "asset_schema_version": 1,
+  "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+  "asset_kind": "development-reference",
+  "source": "evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png",
+  "production_ready": false
+}

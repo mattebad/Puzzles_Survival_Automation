@@ -85,7 +85,7 @@ dependency; no dedicated SSH-key task is a production blocker.
 | M3 Direct Bliss runtime proof | Passed | RT-001 through RT-013 passed; downstream infrastructure and later account-guard gates remain |
 | M4 One-time account provisioning | Passed for current Bliss runtime | Must remain manual on any rebuild |
 | M5 Framework bake-off | Blocked | RT-019 profile schema and RT-021 NAS-local ADB path proof |
-| M6 Production corpus | Blocked | RT-019 versioned runtime-profile schema |
+| M6 Production corpus | Blocked | M5 framework bake-off and final-runtime corpus selection |
 | M7 Deterministic service core | Pending | M5 selection and runtime-independent foundations; M7-Takeover after RT-014A; M7-AccountGuard after RT-016A |
 | M8 Claim-only MVP | Pending | Selected runtime, corpus, core, and promotion gates |
 | M9 Expanded tasks | Pending | Claim-only MVP evidence |
@@ -104,7 +104,8 @@ adapter.
 
 Every recognition asset created during M6 must declare its compatible runtime-profile version.
 Corpus validation fails when the asset/profile field is missing, malformed, or mismatched. M6
-remains blocked until RT-013 selects a runtime and RT-019 supplies the versioned profile schema.
+remains blocked until the M5 framework bake-off and final-runtime corpus-selection gate pass;
+the RT-019 versioned profile schema is now complete.
 
 ## M7 controller integration tasks
 
@@ -560,12 +561,13 @@ unlocked when this task passes.
   global input lock on profile mismatch. M6 separately validates every asset created in the
   production corpus.
 - Verification: independent manifest, XML/qcow2/GRUB/hash review and validator/schema review.
-- Evidence: `evidence/sessions/<timestamp>-rt-019-runtime-profile-manifest/`.
+- Evidence: `evidence/sessions/20260711-rt-019-runtime-profile-manifest/`.
 - Rollback: retain prior profile manifest and disable assets that lack compatibility evidence.
-- Status: Pending.
-- Blocker: None after RT-013. The complete versioned manifest/schema is the scope of RT-019.
-- Next: RT-021 in parallel; M5 framework bake-off requires RT-019 and RT-021, while M6 production
-  corpus requires RT-019.
+- Status: Passed.
+- Blocker: None. RT-019 manifest, schema, validator, profile hash, and criterion evidence are
+  recorded in `evidence/sessions/20260711-rt-019-runtime-profile-manifest/`.
+- Next: RT-021; M5 framework bake-off requires RT-019 and RT-021, while M6 production corpus
+  requires the RT-019 profile schema and later adapter selection.
 
 ### RT-021 — Prove unprivileged Unraid worker-to-VM ADB path
 
@@ -628,9 +630,9 @@ The VM is running Mesa VirGL and no gameplay input automation or external tunnel
 becomes inactive after VirtIO-GL loads, so ADB remains the observation path until optional private
 scrcpy or equivalent passes. RT-014A remains separately blocked by development authentication;
 RT-015 is deferred VM/worker-order documentation and does not block RT-013; RT-016A needs redacted
-identity evidence for M7-AccountGuard, not technical runtime selection. RT-017, RT-018, RT-019, and
-RT-021 are pending downstream gates; RT-017, RT-019, and RT-021 are ready in the post-selection
-sequence. Do not rerun RT-012; its complete evidence
+identity evidence for M7-AccountGuard, not technical runtime selection. RT-017, RT-018, and
+RT-021 are pending downstream gates; RT-017 and RT-021 are ready in the post-selection sequence,
+and RT-019 has passed. Do not rerun RT-012; its complete evidence
 is retained in `evidence/sessions/20260711-rt-012-observe-soak/`. Do not place credentials in this
 repository or command history. Launching `com.global.ztmslg` normally opens the authenticated Cash
 Mall screen; startup normalization must positively recognize Cash Mall, recapture immediately,
