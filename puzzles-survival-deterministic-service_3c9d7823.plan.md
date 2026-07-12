@@ -52,7 +52,7 @@ todos:
     status: pending
   - id: m6-dq-bootstrap
     content: Capture the final-runtime Daily Quest bootstrap corpus without completing a quest or claiming a reward.
-    status: pending
+    status: completed
   - id: m6-dq-transition-corpus
     content: Promote retained supervised quest-to-claim transition evidence into the M6 corpus.
     status: pending
@@ -473,28 +473,25 @@ No Daily Quest action or broad framework bake-off is part of that live trial.
 ### Daily Quest corpus and supervised-claim staging
 
 M6 Production Corpus is staged to avoid a circular dependency: a completed-but-unclaimed Daily
-Quest row and its post-claim state cannot be captured before a quest has been completed. The sole
-next ready task is `M6-DQ-BOOTSTRAP`. It depends on M5, RT-019, and the passed startup-normalization
-MVP and captures only final-runtime bootstrap states: Home/Base, Quest entry and screen, Daily
-Quest tab, incomplete rows, Go/non-claim state, points/reset/header regions, clipped and confusing
-negatives, candidate zero-cost prerequisite screens where observable, navigation targets, and
-forbidden regions. It sends no quest-completion or Claim input and may pass without a positive
-Claim example.
+Quest row and its post-claim state cannot be captured before a quest has been completed. The first
+staged task, `M6-DQ-BOOTSTRAP`, depends on M5, RT-019, and the passed startup-normalization MVP
+and passed with final-runtime bootstrap states: Home/Base, Quest entry and screen, Daily Quest
+tab, incomplete rows, Go/non-claim state, points/reset/header regions, clipped and confusing
+negatives, a bounded scroll-overlap capture, navigation targets, and forbidden regions. It sent
+no quest-completion or Claim input and passed without a positive Claim example.
 
 Every M6 asset must carry the current RT-019 runtime-profile identifier. The validator must reject
 missing or mismatched metadata, and replay must represent incomplete, Go, clipped, stale, unknown,
 and negative states while abstaining when evidence is insufficient.
 
-The first M6 bootstrap capture attempt retained fresh final-runtime Home/Base, Quest, and Daily
-Quest frames. The Daily Quest settled replay recognized the selected Daily Quest tab, points and
-reset evidence, six incomplete `Go` controls, and a clipped bottom row; no Claim row was visible.
-The task remains blocked because the fresh worker's post-input result and cleanup could not be
-verified after the private Unraid SSH connection closed and TCP 22 became unavailable. This is a
-live-reconciliation blocker, not a Claim or quest-completion result; resume with read-only worker
-and device reconciliation and do not repeat the Daily-tab input until its prior result is known.
-The required resumed read-only reconciliation was attempted after SSH availability was reported
-restored, but the connection again closed before remote output and TCP 22 checks failed for both
-configured host addresses. No worker launch or input occurred during that attempt.
+M6-DQ-BOOTSTRAP passed after read-only reconciliation confirmed the retained Daily-tab input,
+freshly recognized the selected Daily Quest screen, and cleaned up the exited worker. Its
+profile-compatible manifest promotes six final-runtime bootstrap assets: Home/Base, Quest, two
+Daily Quest settled captures, a Go-not-Claim negative, and one settled scroll-overlap capture.
+The replay passed points/reset/header recognition, incomplete rows, six Go controls, clipped-row
+and ambiguous-row abstention, and stale/mismatched-profile/corrupt/black fixture rejection. One
+bounded upward list scroll revealed additional incomplete rows without selecting Go or Claim.
+Cash Mall remains development/reference-only and no Claim-positive asset was created.
 
 `M7-SAFE-ACTION-CORE` depends on the bootstrap corpus and implements only the minimum supervised
 action safety boundary: central policy, one exclusive executor, a persistent SQLite journal with
@@ -1067,14 +1064,14 @@ scheduling is enabled. No later duration is a prerequisite for initial runtime s
    their worker packaging and central-policy adapters were not demonstrated without material
    dependency/native-runtime mutation. The selected stack receives the larger 500-capture and
    100-input validation set only in its future authorized validation task.
-5. Production corpus: first pass `M6-DQ-BOOTSTRAP` for final-runtime Home/Base, Quest, Daily
-   Quest, incomplete/Go states, targets, forbidden regions, and negatives without completing a
-   quest or claiming a reward. After the supervised vertical slice, pass
-   `M6-DQ-TRANSITION-CORPUS` with completed/unclaimed, Claim, before/after, reward, postcondition,
-   and failure evidence. M6 passes only when both tasks pass. Every recognition asset must
-   declare its compatible runtime-profile version; corpus validation fails when that field is
-   missing or mismatched. Accept with versioned labels, held-out sessions, confusing negatives,
-   and no iOS production assets.
+5. Production corpus: `M6-DQ-BOOTSTRAP` passed with final-runtime Home/Base, Quest, Daily Quest,
+   incomplete/Go states, targets, forbidden regions, negatives, clipped rows, and bounded
+   scroll-overlap evidence without completing a quest or claiming a reward. After the supervised
+   vertical slice, pass `M6-DQ-TRANSITION-CORPUS` with completed/unclaimed, Claim, before/after,
+   reward, postcondition, and failure evidence. M6 passes only when both tasks pass. Every
+   recognition asset must declare its compatible runtime-profile version; corpus validation fails
+   when that field is missing, stale, or mismatched. Accept with versioned labels, held-out
+   sessions, confusing negatives, and no iOS production assets.
 6. State/overlay classification: build viewport/profile guard and core detectors. Accept with zero unsafe authorizations on reviewed holdout; ambiguous frames abstain.
 7. Safe action core and persistent state: implement `M7-SAFE-ACTION-CORE` first for the
    supervised trial—central policy, exclusive executor, SQLite action journal, profile/freshness

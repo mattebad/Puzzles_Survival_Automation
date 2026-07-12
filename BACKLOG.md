@@ -85,7 +85,7 @@ dependency; no dedicated SSH-key task is a production blocker.
 | M3 Direct Bliss runtime proof | Passed | RT-001 through RT-013 passed; downstream infrastructure and later account-guard gates remain |
 | M4 One-time account provisioning | Passed for current Bliss runtime | Must remain manual on any rebuild |
 | M5 Framework bake-off | Passed | Custom Python/direct ADB/OpenCV/local OCR selected; Airtest and MaaFramework rejected early |
-| M6 Production corpus | In Progress | M6-DQ-BOOTSTRAP captured bootstrap evidence but is blocked at an unresolved Unraid SSH/worker reconciliation boundary; transition evidence remains later |
+| M6 Production corpus | In Progress | M6-DQ-BOOTSTRAP Passed; M6-DQ-TRANSITION-CORPUS remains later before the complete M6 corpus can pass |
 | M7 Deterministic service core | Pending | M7-SAFE-ACTION-CORE is the minimum supervised-trial subset; full core, M7-Takeover, and M7-AccountGuard remain later gates |
 | M8 Claim-only MVP | Pending | Selected runtime, staged corpus, full core, and promotion gates; one supervised trial does not pass M8 |
 | M9 Expanded tasks | Pending | Claim-only MVP evidence |
@@ -204,15 +204,13 @@ Claim example.
 - Evidence: `evidence/sessions/<timestamp>-m6-dq-bootstrap/`.
 - Rollback: disable or remove only unpromoted task-scoped corpus assets and annotations; preserve
   prior runtime, startup-normalization, and M5 evidence. No runtime mutation is part of rollback.
-- Status: Blocked (2026-07-12; SSH closed during post-input verification).
-- Blocker: The current worker's Daily-tab input result and cleanup state are unresolved because
-  the corrected SSH invocation reported a remote-side connection close and subsequent TCP 22
-  checks failed for both `nas.local` and `192.168.50.92`. Do not retry the Daily-tab input until
-  read-only reconciliation proves whether it ran and whether the temporary worker remains.
+- Status: Passed (2026-07-12; final-runtime bootstrap corpus and bounded scroll evidence closed).
+- Blocker: None. The prior Daily-tab input was confirmed by retained immediate/settled evidence;
+  fresh reconciliation, profile-compatible asset promotion, Go-not-Claim negatives, clipped-row
+  abstention, synthetic fail-closed fixtures, bounded scroll overlap, and cleanup all passed.
   No Claim, Go, quest-completion, or spend input was recorded. A positive completed-but-unclaimed
   Claim state remains intentionally deferred to `M6-DQ-TRANSITION-CORPUS`.
-- Next: Resume M6-DQ-BOOTSTRAP after the approved private Unraid SSH path returns; begin with
-  read-only runtime and worker reconciliation.
+- Next: M7-SAFE-ACTION-CORE. Do not begin it in the closed M6 boundary.
 
 ### M6-DQ-TRANSITION-CORPUS — Promote live transition evidence
 
@@ -877,10 +875,11 @@ observe-only keyguard reconciliation, guarded Cash Mall launch, one authorized n
 tap, and positive final-profile Home/Base postcondition. The M5 framework bake-off Passed on
 2026-07-12 with the custom Python/direct ADB/OpenCV/local OCR stack selected; Daily Quest and
 later gameplay workflows were not started.
-M6-DQ-BOOTSTRAP is the current M6 task but is Blocked at an unresolved Unraid SSH/worker
-reconciliation boundary after retained bootstrap captures. Do not mark M7-SAFE-ACTION-CORE,
-MVP-QUEST-TO-CLAIM, or M6-DQ-TRANSITION-CORPUS In Progress. Do not retry the Daily-tab input
-until the worker and device state are reconciled. Do not rerun RT-012 or the
+M6-DQ-BOOTSTRAP Passed after the prior Daily-tab input was confirmed, a fresh final-runtime
+reconciliation was positively classified, one bounded no-spend list scroll produced overlap
+evidence, profile-compatible assets were promoted, fail-closed fixtures passed, and all task-scoped
+workers were cleaned up. Do not mark M7-SAFE-ACTION-CORE, MVP-QUEST-TO-CLAIM, or
+M6-DQ-TRANSITION-CORPUS In Progress in this closed boundary. Do not rerun RT-012 or the
 completed MVP action; their complete evidence is retained in
 `evidence/sessions/20260711-rt-012-observe-soak/` and
 `evidence/sessions/20260711-mvp-startup-normalization/`. Do not place credentials in this

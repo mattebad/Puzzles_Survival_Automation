@@ -1,0 +1,27 @@
+{
+  "assets": [
+    {
+      "asset_id": "synthetic-stale-production",
+      "source_evidence_path": "evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-current-reconciled.png",
+      "capture_timestamp": "2026-07-12T20:13:16+00:00",
+      "sha256": "e6327b93da42a5ea6018843c157a1523b761fbaf7b6f9eee15342847cd9ad529",
+      "width": 800,
+      "height": 1280,
+      "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+      "game_package": "com.global.ztmslg",
+      "game_version": "7.0.278",
+      "locale": "en-US",
+      "screen_state": "DAILY_QUEST",
+      "overlay_state": "none_observed",
+      "settled_or_transient": "settled",
+      "freshness_status": "stale",
+      "label": "positive",
+      "rois": {},
+      "forbidden_regions": {},
+      "production_asset": true,
+      "provenance": "synthetic stale-frame validator fixture",
+      "review_status": "promoted"
+    }
+  ]
+}

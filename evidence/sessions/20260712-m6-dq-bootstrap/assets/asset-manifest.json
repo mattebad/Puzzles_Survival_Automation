@@ -1,0 +1,238 @@
+{
+  "asset_schema_version": 1,
+  "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+  "game_package": "com.global.ztmslg",
+  "game_version": "7.0.278",
+  "locale": "en-US",
+  "assets": [
+    {
+      "asset_id": "m6-dq-home-base-settled-v1",
+      "asset_kind": "screen",
+      "source_evidence_path": "evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png",
+      "capture_timestamp": "2026-07-12T17:43:53+00:00",
+      "sha256": "4a17de56f2455776ea38fe01416e90c77f7955c76cf2fd07b63a2b82a26ba85c",
+      "width": 800,
+      "height": 1280,
+      "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+      "game_package": "com.global.ztmslg",
+      "game_version": "7.0.278",
+      "locale": "en-US",
+      "screen_state": "HOME_BASE",
+      "overlay_state": "none_observed",
+      "settled_or_transient": "settled",
+      "freshness_status": "fresh",
+      "label": "positive",
+      "rois": {
+        "quest_entry": [250, 1130, 410, 1280]
+      },
+      "action_target": {
+        "semantic": "Quest",
+        "roi": [250, 1130, 410, 1280],
+        "input": "one bounded no-spend navigation tap"
+      },
+      "forbidden_regions": {
+        "purchase_or_premium": "none_in_target_region"
+      },
+      "ocr_truth": {
+        "quest_entry": "Quest"
+      },
+      "expected_transition": "QUEST",
+      "production_asset": true,
+      "provenance": "Fresh final-runtime ADB capture from the approved M6 Home-to-Quest navigation sequence.",
+      "review_status": "promoted"
+    },
+    {
+      "asset_id": "m6-dq-quest-main-settled-v1",
+      "asset_kind": "screen",
+      "source_evidence_path": "evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
+      "capture_timestamp": "2026-07-12T17:47:24+00:00",
+      "sha256": "2ab2039bf71458e771a8927400b441d94467546568ce5363714da5b0f3465bda",
+      "width": 800,
+      "height": 1280,
+      "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+      "game_package": "com.global.ztmslg",
+      "game_version": "7.0.278",
+      "locale": "en-US",
+      "screen_state": "QUEST_MAIN_TAB",
+      "overlay_state": "none_observed",
+      "settled_or_transient": "settled",
+      "freshness_status": "fresh",
+      "label": "positive",
+      "rois": {
+        "daily_quest_tab": [260, 80, 540, 300]
+      },
+      "action_target": {
+        "semantic": "Daily Quest tab",
+        "roi": [280, 70, 520, 138],
+        "input": "one bounded no-spend tab-selection tap"
+      },
+      "forbidden_regions": {
+        "purchase_or_premium": "none_in_target_region"
+      },
+      "ocr_truth": {
+        "screen_title": "Quest",
+        "daily_quest_tab": "Daily Quest"
+      },
+      "expected_transition": "DAILY_QUEST_TAB",
+      "production_asset": true,
+      "provenance": "Fresh final-runtime ADB capture immediately after the approved Home-to-Quest navigation.",
+      "review_status": "promoted"
+    },
+    {
+      "asset_id": "m6-dq-daily-incomplete-go-clipped-v1",
+      "asset_kind": "screen",
+      "source_evidence_path": "evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png",
+      "capture_timestamp": "2026-07-12T17:53:43+00:00",
+      "sha256": "af88b89614d75629a25532ae068c9944a20bf5e9a5729244f6bf4b1e5e736807",
+      "width": 800,
+      "height": 1280,
+      "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+      "game_package": "com.global.ztmslg",
+      "game_version": "7.0.278",
+      "locale": "en-US",
+      "screen_state": "DAILY_QUEST",
+      "overlay_state": "none_observed",
+      "settled_or_transient": "settled",
+      "freshness_status": "fresh",
+      "label": "positive",
+      "rois": {
+        "daily_header": [0, 0, 800, 450],
+        "daily_rows": [0, 400, 800, 1120],
+        "daily_bottom": [0, 1080, 800, 1280],
+        "go_button_bands": [[530, 410, 750, 500], [530, 545, 750, 635], [530, 680, 750, 770], [530, 815, 750, 905], [530, 950, 750, 1040], [530, 1085, 750, 1175]]
+      },
+      "forbidden_regions": {
+        "claim_authorization": "no_claim_control_observed",
+        "go_controls": "observation_only",
+        "clipped_bottom_row": [0, 1080, 800, 1280]
+      },
+      "ocr_truth": {
+        "title": "Daily Quest",
+        "points": "0",
+        "reset": "readable countdown",
+        "visible_controls": "Go",
+        "visible_progress": "0/1, 0/3, or 0/250",
+        "bottom_row": "partially visible Train Vehicle row"
+      },
+      "expected_transition": null,
+      "production_asset": true,
+      "provenance": "Fresh final-runtime ADB capture after the single retained Daily-tab navigation input; no row action was sent.",
+      "review_status": "promoted"
+    },
+    {
+      "asset_id": "m6-dq-daily-current-reconciled-v1",
+      "asset_kind": "screen",
+      "source_evidence_path": "evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-current-reconciled.png",
+      "capture_timestamp": "2026-07-12T20:13:16+00:00",
+      "sha256": "e6327b93da42a5ea6018843c157a1523b761fbaf7b6f9eee15342847cd9ad529",
+      "width": 800,
+      "height": 1280,
+      "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+      "game_package": "com.global.ztmslg",
+      "game_version": "7.0.278",
+      "locale": "en-US",
+      "screen_state": "DAILY_QUEST",
+      "overlay_state": "none_observed",
+      "settled_or_transient": "settled",
+      "freshness_status": "fresh",
+      "label": "positive",
+      "rois": {
+        "daily_header": [0, 0, 800, 450],
+        "daily_rows": [0, 400, 800, 1120],
+        "daily_bottom": [0, 1080, 800, 1280]
+      },
+      "forbidden_regions": {
+        "claim_authorization": "no_claim_control_observed",
+        "go_controls": "observation_only"
+      },
+      "ocr_truth": {
+        "title": "Daily Quest",
+        "points": "0",
+        "reset": "03:46:44 at capture",
+        "visible_controls": "six Go controls",
+        "visible_progress": "0/1, 0/3, or 0/250"
+      },
+      "expected_transition": null,
+      "production_asset": true,
+      "provenance": "Fresh observe-only final-runtime reconciliation capture after prior Daily-tab input confirmation; no input sent.",
+      "review_status": "promoted"
+    },
+    {
+      "asset_id": "m6-dq-go-not-claim-negative-v1",
+      "asset_kind": "negative",
+      "source_evidence_path": "evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-current-reconciled.png",
+      "capture_timestamp": "2026-07-12T20:13:16+00:00",
+      "sha256": "e6327b93da42a5ea6018843c157a1523b761fbaf7b6f9eee15342847cd9ad529",
+      "width": 800,
+      "height": 1280,
+      "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+      "game_package": "com.global.ztmslg",
+      "game_version": "7.0.278",
+      "locale": "en-US",
+      "screen_state": "DAILY_QUEST",
+      "overlay_state": "none_observed",
+      "settled_or_transient": "settled",
+      "freshness_status": "fresh",
+      "label": "negative",
+      "rois": {
+        "go_button_bands": [[530, 410, 750, 500], [530, 545, 750, 635], [530, 680, 750, 770], [530, 815, 750, 905], [530, 950, 750, 1040], [530, 1085, 750, 1175]]
+      },
+      "forbidden_regions": {
+        "claim_authorization": "Go is not Claim",
+        "all_game_input": "deny"
+      },
+      "ocr_truth": {
+        "controls": "Go",
+        "claim": "absent",
+        "progress": "incomplete"
+      },
+      "expected_transition": null,
+      "production_asset": true,
+      "provenance": "Fresh final-runtime negative example: visible Go controls and incomplete rows must never authorize Claim.",
+      "review_status": "promoted"
+    },
+    {
+      "asset_id": "m6-dq-daily-scroll-overlap-v1",
+      "asset_kind": "screen",
+      "source_evidence_path": "evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-scroll-overlap.png",
+      "capture_timestamp": "2026-07-12T20:24:09+00:00",
+      "sha256": "b17f438a8853cfade4a15c312e53e531fed6442863190946b59137991c1d95e1",
+      "width": 800,
+      "height": 1280,
+      "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+      "game_package": "com.global.ztmslg",
+      "game_version": "7.0.278",
+      "locale": "en-US",
+      "screen_state": "DAILY_QUEST",
+      "overlay_state": "none_observed",
+      "settled_or_transient": "settled",
+      "freshness_status": "fresh",
+      "label": "positive",
+      "rois": {
+        "daily_header": [0, 0, 800, 450],
+        "daily_rows": [0, 400, 800, 1120],
+        "daily_bottom": [0, 1080, 800, 1280]
+      },
+      "forbidden_regions": {
+        "claim_authorization": "no_claim_control_observed",
+        "go_controls": "observation_only"
+      },
+      "ocr_truth": {
+        "visible_rows": "Recruit, Upgrade hero, Defeat Zombie Lair, Consume Stamina, Consume AP, Help allies, Buy box",
+        "visible_controls": "Go",
+        "progress": "incomplete"
+      },
+      "expected_transition": null,
+      "production_asset": true,
+      "provenance": "Fresh final-runtime settled frame after one bounded list scroll; overlap review confirmed new rows without action controls being selected.",
+      "review_status": "promoted"
+    }
+  ]
+}

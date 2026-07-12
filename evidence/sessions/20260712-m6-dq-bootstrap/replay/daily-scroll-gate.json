@@ -1,0 +1,20 @@
+{
+  "source_state": "DAILY_QUEST",
+  "source_hash": "142b03a532976029041fe5b7f21bae864e98efec9e3f5698a2c0f1c9b5cf0cca",
+  "source_capture_timestamp": "2026-07-12T20:22:22+00:00",
+  "source_recognition": "daily-scroll-immediate-before-recognition.json",
+  "target_action": "one bounded upward list scroll",
+  "target_roi": [40, 400, 760, 1120],
+  "input": {
+    "type": "swipe",
+    "start": [400, 1080],
+    "end": [400, 600],
+    "duration_ms": 500
+  },
+  "consequence": "no-spend list navigation only",
+  "forbidden_overlap": false,
+  "claim_or_go_targeted": false,
+  "input_authorized": true,
+  "input_sent": false,
+  "expected_successor": "DAILY_QUEST_WITH_OVERLAP_OR_END_OF_LIST"
+}

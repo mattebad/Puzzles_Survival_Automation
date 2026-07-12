@@ -1,0 +1,38 @@
+{
+  "source_state": "DAILY_QUEST",
+  "input": "one bounded upward list scroll",
+  "input_command": "adb -s 192.168.122.79:5555 shell input swipe 400 1080 400 600 500",
+  "input_timestamp": "2026-07-12T20:24:02+00:00",
+  "pre_frame": {
+    "path": "remote-cache/20260712-daily-scroll/daily-scroll-immediate-before.png",
+    "timestamp": "2026-07-12T20:24:06+00:00",
+    "sha256": "142b03a532976029041fe5b7f21bae864e98efec9e3f5698a2c0f1c9b5cf0cca",
+    "recognition": "replay/daily-scroll-immediate-before-recognition.json",
+    "rows": ["Upgrade building 1x (0/1)", "Join Hero Duel 3x (0/3)", "Upgrade tech 1x (0/1)", "Train Fighter x250 (0/250)", "Train Rider x250 (0/250)", "Train Shooter x250 (0/250)"],
+    "controls": "Go",
+    "bottom_partial": "Train Vehicle x250 (0/250)"
+  },
+  "immediate_after_frame": {
+    "path": "remote-cache/20260712-daily-scroll/daily-scroll-immediate-after.png",
+    "sha256": "17f70961068df8d9c1541e7652011426b02527840254b5646817c2c4ba85ae5b",
+    "recognition": "replay/daily-scroll-immediate-after-recognition.json"
+  },
+  "settled_after_frame": {
+    "path": "remote-cache/20260712-daily-scroll/daily-scroll-settled-after.png",
+    "timestamp": "2026-07-12T20:24:09+00:00",
+    "sha256": "b17f438a8853cfade4a15c312e53e531fed6442863190946b59137991c1d95e1",
+    "recognition": "replay/daily-scroll-settled-after-recognition.json",
+    "rows": ["Recruit 5x in Noah's Tavern (0/5)", "Upgrade hero 3x (0/3)", "Defeat Zombie Lair 1x (0/1)", "Consume 20 Stamina (0/20)", "Consume 20 AP (0/20)", "Help allies 10x (0/10)", "Buy box x1 (0/1)"],
+    "controls": "Go",
+    "bottom_partial": "Buy box x1 (0/1)"
+  },
+  "overlap_review": {
+    "header_points_reset_stable": true,
+    "daily_quest_selected_tab_stable": true,
+    "incomplete_progress_stable": true,
+    "go_only_controls": true,
+    "claim_observed": false,
+    "ambiguous_or_clipped_rows_authorize_input": false,
+    "result": "bounded scroll confirmed new list content without any Claim or Go input"
+  }
+}

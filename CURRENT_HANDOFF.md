@@ -5,11 +5,10 @@ Recorded: 2026-07-12, America/Chicago
 ## Current milestone and task state
 
 - Milestone: M6 Production corpus — In Progress.
-- Current task: M6-DQ-BOOTSTRAP — Blocked at unresolved post-input Unraid SSH/worker
-  reconciliation. M5-DECISION passed; custom Python/direct ADB/OpenCV/local OCR was selected,
-  and fresh bootstrap captures were retained under
-  `evidence/sessions/20260712-m6-dq-bootstrap/`. Do not retry the Daily-tab input until the
-  worker and device state are reconciled.
+- Current task: M6-DQ-BOOTSTRAP — Passed. The retained Daily-tab input was confirmed, one
+  bounded no-spend list scroll added overlap evidence, profile-compatible bootstrap assets were
+  promoted, and all task-scoped workers were cleaned up. M6 remains In Progress only because the
+  later transition corpus is still required.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed in the preceding M5 run: M5-CUSTOM-BASELINE passed with 100 replay
@@ -17,17 +16,17 @@ Recorded: 2026-07-12, America/Chicago
   and five reconnect mocks; M5-AIRTEST and M5-MAA were rejected early with no live operations.
   M5-DECISION passed and authorized M6 corpus work. Earlier completed boundaries remain
   authoritative: RT-012, RT-013, RT-017, RT-019, RT-021, and MVP-STARTUP-NORMALIZATION.
-- Tasks completed in this M6 boundary: none. Bootstrap observation and offline detector work
-  progressed, including retained final-runtime Home/Base, Quest, and Daily Quest frames, but the
-  task was blocked before final post-input and cleanup reconciliation. No Claim, Go,
+- Tasks completed in this M6 boundary: M6-DQ-BOOTSTRAP passed. Fresh final-runtime Home/Base,
+  Quest, and Daily Quest reconciliation frames, six profile-compatible assets, scroll overlap
+  evidence, fail-closed synthetic fixtures, and cleanup evidence are retained. No Claim, Go,
   quest-completion, spend, or consequential gameplay input was recorded.
 
 ## Repository state
 
 - Branch: `main`.
-- Latest committed boundary before this M6 attempt: `91227c7`
-  (`plan: stage Daily Quest corpus and supervised claim validation`). The blocked M6 work is
-  task-scoped; the pre-existing unstaged entries remain untouched and no unrelated path is staged.
+- Latest committed boundary before this M6 closure: `9d7ff09`
+  (`task(M6): record resume reconciliation blocker`). The M6 closure remains task-scoped; the
+  pre-existing unstaged entries remain untouched and no unrelated path is staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - The completed guarded keyguard branch, live-validation evidence, final Home/Base candidate, and
   passed task decision are included in the task-scoped closure boundary.
@@ -53,9 +52,11 @@ Recorded: 2026-07-12, America/Chicago
 - Read-only Unraid reconciliation on 2026-07-12 confirmed the VM is `running`, autostart is
   disabled, no RT-012/MVP/observer container or related process remains, the RT-017 backup
   directory/qcow2 remains present, and no temporary 5038/5040/5555 listener remains. The game is
-  force-stopped by retained RT-021/MVP cleanup evidence; no attached device was available for a
-  current package query, so no new live command was issued. Later SSH/TCP 22 became unavailable
-  after the fresh Daily-tab worker was staged; its post-input and cleanup state is unresolved.
+  force-stopped during M6 cleanup. Fresh M6 reconciliation confirmed Android boot complete,
+  logical `800x1280`, density 160, nonblocking keyguard, and the game activity foreground before
+  cleanup. The exited M6 workers were inspected, their evidence preserved, and removed; only the
+  pre-existing loopback ADB server on `127.0.0.1:5037` remained, with no external tunnel or
+  published listener.
 - Rollback: RT-001 baseline XML, disk identity, graphics rollback, and boot-state evidence remain retained; no disk replacement or destructive VM storage action occurred.
 
 ## Evidence
@@ -97,31 +98,25 @@ Recorded: 2026-07-12, America/Chicago
   live operations, and the identical-corpus non-viability decision.
 - M5 final decision: `evidence/sessions/20260712-m5-decision/`; custom stack selected, rejected
   candidates compared, M6 authorized within scope, and no M6/Daily Quest work started.
-- M6-DQ-BOOTSTRAP preflight/blocker: `evidence/sessions/20260712-m6-dq-bootstrap/preflight.md`.
+- M6-DQ-BOOTSTRAP preflight and historical blocker: `evidence/sessions/20260712-m6-dq-bootstrap/preflight.md`.
 - M6-DQ-BOOTSTRAP retained bootstrap captures, replay, and transport blocker:
   `evidence/sessions/20260712-m6-dq-bootstrap/`; final-runtime Daily Quest frames and
-  `runtime-transport-blocker.md` are retained. A resumed read-only reconciliation attempt is
-  recorded in `resume-reconciliation-20260712.md`; it again failed before remote output.
+  `runtime-transport-blocker.md` are retained. The passed asset manifest, current reconciliation,
+  scroll fingerprint, synthetic fixture results, and cleanup evidence are retained in the same
+  directory.
 
-## Exact blocker and required user action
+## Blocker and required user action
 
-1. M6-DQ-BOOTSTRAP remains blocked because the resumed authenticated read-only invocation again
-  reported a remote connection close, and subsequent TCP 22 checks failed for both pinned host
-  names. The fresh worker's Daily-tab result and cleanup state are unresolved. Do not retry the
-  input; begin the next run with read-only reconciliation when the private SSH path returns. Do
-  not put the supplied password in a command line, repository, evidence, script, log, or command
-  history.
-2. RT-016A remains a later manual-only account-guard task. If performed, manually navigate the
+1. There is no blocker for the closed M6-DQ-BOOTSTRAP task. RT-016A remains a later manual-only
+  account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
    credentials, account switching, tutorial, CAPTCHA, or profile navigation.
 
 ## Exact next command
 
-Resume `M6-DQ-BOOTSTRAP` when the private Unraid SSH path returns. The first resumed live
-operation must be read-only Unraid/runtime and worker reconciliation; do not repeat the
-Daily-tab input until its prior result is known. Do not mark `M7-SAFE-ACTION-CORE`,
-`MVP-QUEST-TO-CLAIM`, or `M6-DQ-TRANSITION-CORPUS` In Progress.
+The next ready task is `M7-SAFE-ACTION-CORE`. Do not start it in this closed M6 boundary. The
+M6 transition corpus remains downstream of `MVP-QUEST-TO-CLAIM`; no later task was opened here.
 
 ## Facts that must not be re-tested
 

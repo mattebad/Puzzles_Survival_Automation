@@ -1,0 +1,10 @@
+container_name=m6-dq-bootstrap-cleanup-20260712
+2026-07-12T20:27:38+00:00
+uid=65534(nobody) gid=65534(nogroup) groups=65534(nogroup)
+* daemon not running; starting now at tcp:5050
+* daemon started successfully
+connected to 192.168.122.79:5555
+device
+force_stop_sent
+disconnected 192.168.122.79:5555
+cleanup_complete

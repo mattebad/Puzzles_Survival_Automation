@@ -1,0 +1,26 @@
+{
+  "ambiguous_rows_abstain": true,
+  "bottom_text": "help allies 10x (0/10) 60 reward: pts +5 buy box x1 (0/1) cf cy",
+  "claim_input_authorized": false,
+  "claim_observed_only": false,
+  "clipped_or_partial_bottom_row_present": true,
+  "clipped_rows_abstain": true,
+  "go_button_texts": [
+    "go",
+    "go",
+    "go",
+    "go",
+    "go",
+    "go"
+  ],
+  "header_text": "v v v v v 30 60 90 120 150 daily quest pts: 0 reset time: 03:35:54 recruit sy in noah'<\u00ab tavern (0/5) rt \u00a5",
+  "incomplete_or_go_present": true,
+  "reason": "Daily Quest header and points/reset evidence passed",
+  "recognized": true,
+  "row_controls": [
+    "go"
+  ],
+  "rows_text": "recruit 5x in noah's tavern (0/5) reward: pts +5 rs upgrade hero 3x (0/3) on reward: pts +5 defeat zombie lair 1x (0/1) reward: pts +10 \u2014s consume 20 stamina (0/20) reward: pts +5 = consume 20 ap (0/20) reward: pts +5 rs eee \u2014\u2014",
+  "state": "DAILY_QUEST",
+  "title_positive": true
+}

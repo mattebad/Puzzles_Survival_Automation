@@ -1,0 +1,18 @@
+container_name=m6-dq-bootstrap-reconcile-20260712
+2026-07-12T20:13:16+00:00
+uid=65534(nobody) gid=65534(nogroup) groups=65534(nogroup)
+* daemon not running; starting now at tcp:5050
+* daemon started successfully
+connected to 192.168.122.79:5555
+device
+1
+Physical size: 1280x800
+Override size: 800x1280
+Physical density: 160
+      showing=false
+      secure=false
+        mInputRestricted=false
+  mFocusedApp=ActivityRecord{41d21cf u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity} t146}
+6970
+e6327b93da42a5ea6018843c157a1523b761fbaf7b6f9eee15342847cd9ad529  /evidence/reconcile-current.png
+/evidence/reconcile-current.png 408211

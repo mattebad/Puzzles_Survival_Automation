@@ -1,0 +1,24 @@
+{
+  "assets": [
+    {
+      "asset_id": "synthetic-missing-profile",
+      "source_evidence_path": "evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-current-reconciled.png",
+      "capture_timestamp": "synthetic",
+      "sha256": "e6327b93da42a5ea6018843c157a1523b761fbaf7b6f9eee15342847cd9ad529",
+      "width": 800,
+      "height": 1280,
+      "game_package": "com.global.ztmslg",
+      "game_version": "7.0.278",
+      "locale": "en-US",
+      "screen_state": "DAILY_QUEST",
+      "overlay_state": "none_observed",
+      "settled_or_transient": "settled",
+      "label": "positive",
+      "rois": {},
+      "forbidden_regions": {},
+      "production_asset": false,
+      "provenance": "synthetic validator fixture",
+      "review_status": "synthetic"
+    }
+  ]
+}

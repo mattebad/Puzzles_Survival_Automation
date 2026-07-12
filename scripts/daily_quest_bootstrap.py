@@ -229,7 +229,7 @@ def validate_asset_manifest(manifest_path: Path, profile_path: Path) -> Dict[str
     required = {
         "asset_id", "source_evidence_path", "capture_timestamp", "sha256", "width", "height",
         "profile_id", "profile_content_sha256", "game_package", "game_version", "locale",
-        "screen_state", "overlay_state", "settled_or_transient", "label", "rois",
+        "screen_state", "overlay_state", "settled_or_transient", "freshness_status", "label", "rois",
         "forbidden_regions", "production_asset", "provenance", "review_status",
     }
     seen: set[str] = set()
@@ -250,6 +250,10 @@ def validate_asset_manifest(manifest_path: Path, profile_path: Path) -> Dict[str
             raise ValueError(f"asset profile hash mismatch: {asset_id}")
         if asset["production_asset"] is True and asset["review_status"] != "promoted":
             raise ValueError(f"production asset is not promoted: {asset_id}")
+        if asset["freshness_status"] not in {"fresh", "stale", "unknown"}:
+            raise ValueError(f"invalid freshness status: {asset_id}")
+        if asset["production_asset"] is True and asset["freshness_status"] != "fresh":
+            raise ValueError(f"stale or unknown production asset: {asset_id}")
         source = Path(asset["source_evidence_path"])
         actual = valid_png_frame(source)
         if asset["sha256"] != actual["sha256"]:
@@ -289,6 +293,7 @@ def build_parser() -> argparse.ArgumentParser:
     assets = sub.add_parser("validate-assets")
     assets.add_argument("--manifest", type=Path, required=True)
     assets.add_argument("--profile", type=Path, default=Path("runtime-profile/manifest.json"))
+    assets.add_argument("--output", type=Path)
     assets.set_defaults(handler=lambda a: validate_asset_manifest(a.manifest, a.profile))
     return parser
 
