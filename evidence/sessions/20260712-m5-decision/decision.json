@@ -1,0 +1,92 @@
+{
+  "task": "M5-DECISION",
+  "milestone": "M5",
+  "decision": "PASSED",
+  "selected_framework": {
+    "name": "custom Python + direct ADB + OpenCV + local OCR",
+    "role": "private Unraid worker capture/transport, deterministic profile/state recognition, ROI-specific OCR, dry-run target resolution, and project-owned policy-gated action integration",
+    "scheduler_controller_scope": "future SQLite scheduler/controller remains outside this selection task",
+    "m6_authorized": true,
+    "m6_authorization_scope": "final locked-runtime corpus capture/labeling and replay validation only; no gameplay input or Daily Quest authorization"
+  },
+  "methodology": {
+    "corpus": "retained MVP startup-normalization corpus; same Cash Mall, Ending Soon, Home/Base, keyguard/launcher, and profile-mismatch fixtures for every candidate",
+    "flow": "observe/reconcile startup -> launch/observe Cash Mall -> classify allowlisted Ending Soon -> resolve only back arrow -> dry-run annotation -> bounded postcondition review",
+    "live_input_policy": "no repeated live taps; only the already-passed MVP trial remains live evidence",
+    "candidate_order": ["custom baseline", "Airtest", "MaaFramework"],
+    "early_rejection_rule": "reject when packaging or central-policy integration cannot be demonstrated without material dependency/runtime mutation and no measured benefit is available"
+  },
+  "comparison": {
+    "custom_python_direct_adb_opencv_ocr": {
+      "decision": "SELECTED",
+      "replay_capture_operations": 100,
+      "classification_operations": 100,
+      "classification_expected_pass": "100/100",
+      "replay_decode_p50_p95_max_ms": [13.4999, 51.4715, 54.5985],
+      "classification_p50_p95_max_ms": [8.4673, 10.6073, 28.5165],
+      "target_annotations": "25/25 exact ROI [35,0,180,65]",
+      "ocr_operations": "10/10 Home/Base",
+      "ocr_p50_p95_max_ms": [948.9313, 1485.1412, 1485.1412],
+      "gesture_resolution": "10 mocks; one authorized, nine repeat-denied; zero input",
+      "reconnect": "five safe mocks plus retained RT-021 direct-worker restart/reconnect",
+      "live_adb_capture_p95_ms": 1026.136,
+      "live_input": "one prior MVP supervised tap only; no input during M5 bake-off"
+    },
+    "Airtest": {
+      "decision": "REJECTED_EARLY",
+      "operations": 0,
+      "reason": "absent module/CLI; broad dependency surface and direct simulated-input API required an unproven unprivileged packaging and policy adapter",
+      "evidence": "evidence/sessions/20260712-m5-airtest/"
+    },
+    "MaaFramework": {
+      "decision": "REJECTED_EARLY",
+      "operations": 0,
+      "reason": "absent native/package adapter; native/pipeline ecosystem required an unproven unprivileged packaging and policy boundary",
+      "evidence": "evidence/sessions/20260712-m5-maa/"
+    }
+  },
+  "packaging_implications": {
+    "selected": "retain existing Python/CV/OCR worker surface and RT-021 unprivileged/private ADB boundary",
+    "airtest": "would add pip dependencies and an adapter around direct simulated input; not installed or packaged",
+    "maa": "would add native artifacts/bindings/pipeline resources and a policy adapter; not installed or packaged",
+    "public_exposure": false,
+    "external_tunnel": false
+  },
+  "policy_and_failure_behavior": {
+    "central_gate_owner": "project controller/policy, not a third-party framework",
+    "selected_behavior": "stale, profile-mismatch, unknown overlay, target overlap, repeated input, timeout, and unexpected successor fail closed as UNKNOWN/blocker",
+    "one_input_immediate_recapture": true,
+    "generic_watchers_or_retries": false,
+    "reconnect": "reconnect and revalidate ADB/profile/state before any future authorized input; retained RT-021 is the transport proof",
+    "unresolved_consequential_outcome": "stop and preserve evidence"
+  },
+  "maintainability_and_fallback": {
+    "assessment": "custom stack has the lowest ownership/dependency complexity while already meeting the representative safety contract",
+    "known_limitations": [
+      "replay timings are not live ADB timings",
+      "ROI-specific Tesseract OCR is slower than template classification",
+      "M6 must replace development/reference fixtures with final locked-runtime corpus assets",
+      "RT-021 host-network fallback remains an explicit deployment limitation",
+      "account identity guard remains a later RT-016A/M7 task"
+    ],
+    "fallback_trigger": "reopen Airtest or MaaFramework only after a pinned unprivileged package, central policy adapter, identical-corpus replay pass, reconnect proof, and measurable benefit over the selected stack"
+  },
+  "evidence": [
+    "evidence/sessions/20260712-m5-custom-baseline/",
+    "evidence/sessions/20260712-m5-airtest/",
+    "evidence/sessions/20260712-m5-maa/",
+    "evidence/sessions/20260711-mvp-startup-normalization/",
+    "evidence/sessions/20260711-rt-010-capture/",
+    "evidence/sessions/20260711-rt-021-worker-vm-adb/"
+  ],
+  "live_state": {
+    "vm": "PnS-BlissOS-PoC running; autostart disabled",
+    "game": "force-stopped by retained cleanup evidence",
+    "adb": "documented loopback NAS daemon idle; no attached device in read-only query",
+    "temporary_workers": "none",
+    "temporary_tunnels_or_listeners": "none for RT-012/MVP/RT-021; unrelated host services untouched",
+    "rt017_backup": "present",
+    "runtime_profile": "present and RT-019 Passed",
+    "rollback": "intact; no VM/XML/qcow2/profile/network mutation"
+  }
+}

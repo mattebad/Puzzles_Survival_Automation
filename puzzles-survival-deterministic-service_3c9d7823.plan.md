@@ -46,7 +46,7 @@ todos:
     status: pending
   - id: select-control-stack
     content: Bake off ADB/OpenCV/OCR, Airtest, and MaaFramework on identical corpus.
-    status: pending
+    status: completed
   - id: build-production-corpus
     content: Capture and label final-runtime screens, overlays, transitions, and negatives.
     status: pending
@@ -658,9 +658,10 @@ Corpus/versioning:
 
 ## 12. Framework and repository comparison
 
-- Custom Python + direct ADB + OpenCV + pluggable local OCR: presumptive baseline pending the
-  bake-off, not a final selection. It offers lowest conceptual complexity, explicit safety gate,
-  excellent replay/debugging, Windows/Linux packaging, and easy scheduler/persistence integration.
+- Custom Python + direct ADB + OpenCV + pluggable local OCR: selected by the 2026-07-12 M5
+  decision. It offers the lowest demonstrated conceptual/deployment complexity, explicit project
+  safety gate, excellent replay/debugging, existing unprivileged-worker packaging, and easy
+  scheduler/persistence integration.
 - [Airtest](https://github.com/AirtestProject/Airtest): active Python game automation framework; the
   2026-07-12 M5 probe observed v1.4.3 as the latest release. Its image/input/reporting surface
   would require a project-owned policy adapter, while its current requirements add substantial
@@ -704,8 +705,8 @@ The incumbent custom Python/direct ADB/OpenCV/local OCR baseline completed its f
 on 2026-07-12 with 100 replay capture/classification operations, 25 exact target annotations,
 10 ROI-specific OCR operations, ten safe gesture-resolution mocks, five reconnect mocks, and
 retained RT-010/RT-021 live transport facts. The baseline remains under comparison until the
-Airtest and MaaFramework boundaries and the final decision close M5; this measurement does not
-promote replay fixtures to the M6 production corpus.
+Airtest and MaaFramework boundaries then closed M5 with the custom stack selected; this
+measurement does not promote replay fixtures to the M6 production corpus.
 
 ## 13. Daily quest and routine task catalog
 
@@ -980,11 +981,12 @@ the 4-hour gate and other runtime-selection gates pass.
    recognition, explicitly allowlisted informational banner, one bounded top-left back-arrow tap,
    and positive final-profile Home/Base postcondition passed in the ordered
    offline/observe-only/dry-run/supervised sequence. Broad framework comparison remains later.
-4. Framework bake-off: direct ADB/OpenCV/OCR versus Airtest and one MaaFramework path, treated as
-   representative only after RT-019 and RT-021 pass. Initial
-   bake-off uses 50–100 captures per candidate, 20–25 safe taps, 10 safe swipes, 5–10 reconnect
-   cycles, one detector, one OCR region, one bounded navigation flow, and packaging/policy review.
-   The selected adapter later receives the 500-capture and 100-input validation set.
+4. Framework bake-off — completed 2026-07-12: custom Python/direct ADB/OpenCV/local OCR selected
+   after 100 replay captures/classifications, 25 target annotations, 10 OCR calls, policy/gesture
+   mocks, and retained transport evidence. Airtest and MaaFramework were rejected early because
+   their worker packaging and central-policy adapters were not demonstrated without material
+   dependency/native-runtime mutation. The selected stack receives the larger 500-capture and
+   100-input validation set only in its future authorized validation task.
 5. Production corpus: capture all required screens/overlays/errors and Daily Quest before/after
    transitions. Every recognition asset created during M6 must declare its compatible
    runtime-profile version; corpus validation fails when that field is missing or mismatched.

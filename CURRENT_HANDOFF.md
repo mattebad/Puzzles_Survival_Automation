@@ -4,25 +4,26 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Current milestone and task state
 
-- Milestone: M5 Framework bake-off — In Progress.
-- Current task: M5-MAA — Rejected early after repository-only availability, native packaging,
-  pipeline, and policy review; evidence is under `evidence/sessions/20260712-m5-maa/`.
-  M5-DECISION is next.
+- Milestone: M5 Framework bake-off — Passed.
+- Current task: M5-DECISION — Passed; custom Python/direct ADB/OpenCV/local OCR selected. Final
+  decision evidence is under `evidence/sessions/20260712-m5-decision/`. M6 production corpus is
+  Ready but was not started in this run.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed during this run: M5-CUSTOM-BASELINE passed with 100 replay
   capture/classification operations, 25 target annotations, 10 OCR operations, ten gesture mocks,
   and five reconnect mocks; M5-AIRTEST and M5-MAA were rejected early with no live operations.
-  Earlier completed boundaries remain authoritative: RT-012, RT-013, RT-017, RT-019, RT-021, and
-  MVP-STARTUP-NORMALIZATION.
+  M5-DECISION passed and authorized M6 corpus work. Earlier completed boundaries remain
+  authoritative: RT-012, RT-013, RT-017, RT-019, RT-021, and MVP-STARTUP-NORMALIZATION.
 
 ## Repository state
 
 - Branch: `main`.
-- Latest committed boundaries: `d74d345` (`task(M5): reject Airtest adapter`), `d7cbca5`
-  (`task(M5): benchmark custom control stack`), and `70efbfd` (`task(MVP): automate guarded
-  startup normalization`). The M5-MAA task-scoped closure is pending commit in the current
-  working session; no unrelated path is staged.
+- Latest committed boundaries before final M5 closure: `efd7aef` (`task(M5): reject MaaFramework
+  adapter`), `d74d345` (`task(M5): reject Airtest adapter`), `d7cbca5` (`task(M5): benchmark
+  custom control stack`), and `70efbfd` (`task(MVP): automate guarded startup normalization`).
+  The M5-DECISION task-scoped closure is the final commit of this run; no unrelated path is
+  staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - The completed guarded keyguard branch, live-validation evidence, final Home/Base candidate, and
   passed task decision are included in the task-scoped closure boundary.
@@ -89,13 +90,15 @@ Recorded: 2026-07-12, America/Chicago
 - M5 MaaFramework: `evidence/sessions/20260712-m5-maa/`; early rejection records absent
   native/package adapter, official native/pipeline surface, missing central policy adapter, zero
   live operations, and the identical-corpus non-viability decision.
+- M5 final decision: `evidence/sessions/20260712-m5-decision/`; custom stack selected, rejected
+  candidates compared, M6 authorized within scope, and no M6/Daily Quest work started.
 
 ## Exact blocker and required user action
 
-1. No current blocker. The custom baseline passed without live input, Airtest and MaaFramework
-  were rejected early without package or runtime mutation, and the resumed startup-normalization
-  MVP previously passed with no additional keyguard swipe, exactly one supervised no-spend
-  back-arrow tap, positive Home/Base, and cleanup.
+1. No current blocker. M5 passed without new live input, Airtest and MaaFramework were rejected
+  early without package or runtime mutation, and the resumed startup-normalization MVP previously
+  passed with no additional keyguard swipe, exactly one supervised no-spend back-arrow tap,
+  positive Home/Base, and cleanup.
 2. RT-016A remains a later manual-only account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
@@ -103,9 +106,9 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Exact next command
 
-Start the M5-DECISION preflight/review using the retained baseline, Airtest, and MaaFramework
-evidence. Close M5 with the final control-stack decision; do not start M6 production corpus work
-or Daily Quest.
+The next ready milestone is M6 production corpus capture/selection using the selected custom
+stack. Do not start M6 or Daily Quest in this completed M5 run; the next task must create a fresh
+M6 preflight and final-runtime corpus plan.
 
 ## Facts that must not be re-tested
 

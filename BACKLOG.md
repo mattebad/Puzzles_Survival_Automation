@@ -84,8 +84,8 @@ dependency; no dedicated SSH-key task is a production blocker.
 | M2 Unraid audit | Passed | Measured in service plan on 2026-07-09 |
 | M3 Direct Bliss runtime proof | Passed | RT-001 through RT-013 passed; downstream infrastructure and later account-guard gates remain |
 | M4 One-time account provisioning | Passed for current Bliss runtime | Must remain manual on any rebuild |
-| M5 Framework bake-off | In Progress | RT-019 and RT-021 passed; incumbent baseline evaluation is active |
-| M6 Production corpus | Blocked | M5 framework bake-off and final-runtime corpus selection |
+| M5 Framework bake-off | Passed | Custom Python/direct ADB/OpenCV/local OCR selected; Airtest and MaaFramework rejected early |
+| M6 Production corpus | Ready | M5 passed; final locked-runtime corpus capture/selection remains required |
 | M7 Deterministic service core | Pending | M5 selection and runtime-independent foundations; M7-Takeover after RT-014A; M7-AccountGuard after RT-016A |
 | M8 Claim-only MVP | Pending | Selected runtime, corpus, core, and promotion gates |
 | M9 Expanded tasks | Pending | Claim-only MVP evidence |
@@ -170,15 +170,18 @@ and 100 supervised inputs—for the chosen adapter.
 - Evidence: `evidence/sessions/20260712-m5-decision/`.
 - Rollback: retain all candidate evidence; revert only the decision documentation if review
   rejects the selection.
-- Status: Pending.
-- Next: M6 production corpus gate after M5 Passed.
+- Status: Passed (2026-07-12; custom deterministic control stack selected).
+- Blocker: None. M5 authorizes M6 final-runtime corpus capture/replay validation; M6 was not
+  started in this run.
+- Next: M6 production corpus gate.
 
 ## M6 production corpus gate
 
 Every recognition asset created during M6 must declare its compatible runtime-profile version.
 Corpus validation fails when the asset/profile field is missing, malformed, or mismatched. M6
-remains blocked until the M5 framework bake-off and final-runtime corpus-selection gate pass;
-the RT-019 versioned profile schema is now complete.
+is now Ready because the M5 framework bake-off and final-runtime stack-selection gate passed;
+the RT-019 versioned profile schema is complete. M6 still requires final locked-runtime corpus
+capture/selection before production recognition assets can be promoted.
 
 ## M7 controller integration tasks
 
@@ -739,11 +742,10 @@ RT-015 is deferred VM/worker-order documentation and does not block RT-013; RT-0
 identity evidence for M7-AccountGuard, not technical runtime selection. RT-018 is pending;
 RT-017, RT-019, and RT-021 have passed. MVP-STARTUP-NORMALIZATION Passed after the resumed
 observe-only keyguard reconciliation, guarded Cash Mall launch, one authorized no-spend back-arrow
-tap, and positive final-profile Home/Base postcondition. The M5 framework bake-off is next; Daily
-Quest and later gameplay workflows were not started.
-M5 framework bake-off is active after the completed startup-normalization vertical slice. The
-incumbent custom baseline passed its offline replay boundary; Airtest is the next candidate task.
-Do not rerun RT-012 or the completed MVP action; their complete evidence is retained in
+tap, and positive final-profile Home/Base postcondition. The M5 framework bake-off Passed on
+2026-07-12 with the custom Python/direct ADB/OpenCV/local OCR stack selected; Daily Quest and
+later gameplay workflows were not started.
+M6 is the next Ready milestone and was not started. Do not rerun RT-012 or the completed MVP action; their complete evidence is retained in
 `evidence/sessions/20260711-rt-012-observe-soak/` and
 `evidence/sessions/20260711-mvp-startup-normalization/`. Do not place credentials in this
 repository or command history. Launching `com.global.ztmslg` normally opens the authenticated Cash
