@@ -661,7 +661,12 @@ Corpus/versioning:
 - Custom Python + direct ADB + OpenCV + pluggable local OCR: presumptive baseline pending the
   bake-off, not a final selection. It offers lowest conceptual complexity, explicit safety gate,
   excellent replay/debugging, Windows/Linux packaging, and easy scheduler/persistence integration.
-- [Airtest](https://github.com/AirtestProject/Airtest): active Python game automation framework; latest observed release v1.4.3 and 2026 activity. Strong capture/input/template tooling and reports, but no built-in OCR and recorded linear scripts can become brittle. Use as development experiment or adapter, not task architecture by default.
+- [Airtest](https://github.com/AirtestProject/Airtest): active Python game automation framework; the
+  2026-07-12 M5 probe observed v1.4.3 as the latest release. Its image/input/reporting surface
+  would require a project-owned policy adapter, while its current requirements add substantial
+  dependencies and an older OpenCV/Numpy constraint. M5 rejected it early because it was absent
+  from the approved unprivileged worker image and provided no measured benefit over the passed
+  custom baseline; no package was installed and no live trial was run.
 - [MaaFramework](https://github.com/MaaXYZ/MaaFramework): active C++ framework with ADB control, template/feature/color/OCR/custom recognition and declarative pipelines; 2026 releases observed. Strong reference and one-flow bake-off candidate. Do not let pipeline actions bypass central policy; likely more packaging/schema complexity than claim MVP needs.
 - [uiautomator2](https://github.com/openatx/uiautomator2): active Python utility for screenshots, input, lifecycle, hierarchy, and crash-aware sessions. Use opportunistically as device/native-dialog adapter; opaque game surfaces prevent sole reliance.
 - [scrcpy](https://github.com/Genymobile/scrcpy): active, current v4.0 observed. Use for private viewing, manual takeover, and bounded incident recording. Initial decisions use lossless request/response captures, not asynchronous compressed stream frames.

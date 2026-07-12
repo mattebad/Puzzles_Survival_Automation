@@ -135,8 +135,11 @@ and 100 supervised inputs—for the chosen adapter.
   Rejected decision.
 - Evidence: `evidence/sessions/20260712-m5-airtest/`.
 - Rollback: remove only task-scoped prototype/evidence; no live runtime changes.
-- Status: Pending.
-- Next: M5-MAA after closure.
+- Status: Rejected (2026-07-12; early packaging/policy rejection).
+- Blocker: None. Airtest was absent from the approved worker image; its dependency surface and
+  direct simulated-input API could not be introduced without an unproven packaging and policy
+  adapter, and no measurable benefit over the passed custom baseline was established.
+- Next: M5-MAA.
 
 ### M5-MAA — Evaluate policy-constrained MaaFramework adapter
 

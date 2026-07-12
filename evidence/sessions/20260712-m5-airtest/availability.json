@@ -1,0 +1,58 @@
+{
+  "task": "M5-AIRTEST",
+  "candidate": "Airtest",
+  "probe_recorded": "2026-07-12 America/Chicago",
+  "local_availability": {
+    "python_module_airtest": false,
+    "airtest_cli": false,
+    "pip_show_airtest": "package not found",
+    "maa_module": false,
+    "installation_attempted": false,
+    "network_or_dependency_mutation": false
+  },
+  "official_sources": {
+    "repository": "https://github.com/AirtestProject/Airtest",
+    "observed_latest_release": "v1.4.3, 2025-12-04",
+    "installation": "pip install -U airtest",
+    "requirements": "https://github.com/AirtestProject/Airtest/blob/master/requirements.txt",
+    "requirements_observed": [
+      "Jinja2",
+      "Pillow",
+      "requests",
+      "six<=1.16.0",
+      "mss==6.1.0",
+      "numpy<2.0",
+      "opencv-contrib-python>=4.4.0.46,<=4.6.0.66",
+      "facebook-wda==1.5.0",
+      "pywinauto==0.6.3",
+      "filelock",
+      "ffmpeg-python",
+      "tidevice",
+      "psutil",
+      "packaging"
+    ],
+    "api_surface_observed": ["ADB/device connection", "simulated touch/swipe/keyevent", "image assertions", "CLI runner/reports"]
+  },
+  "identical_corpus_review": {
+    "corpus": "evidence/sessions/20260712-m5-custom-baseline/benchmark.json",
+    "required_flow": "Cash Mall -> allowlisted Ending Soon -> recognized back arrow -> Home/Base",
+    "offline_candidate_operations": 0,
+    "target_dry_runs": 0,
+    "gesture_trials": 0,
+    "reconnect_cycles": 0,
+    "reason": "candidate rejected before execution because required adapter is absent and cannot be added within this boundary without dependency/policy mutation"
+  },
+  "policy_review": {
+    "central_policy_adapter_present": false,
+    "direct_framework_input_allowed": false,
+    "required_wrapper": "all Airtest touch/swipe/keyevent calls would require a project-owned policy wrapper and immediate recapture gate",
+    "default_watchers_or_retries_allowed": false
+  },
+  "live_operations": {
+    "adb_started": false,
+    "game_launched": false,
+    "input_commands": 0,
+    "runtime_changed": false
+  },
+  "decision": "REJECTED_EARLY"
+}

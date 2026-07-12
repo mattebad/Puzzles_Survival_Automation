@@ -5,22 +5,23 @@ Recorded: 2026-07-12, America/Chicago
 ## Current milestone and task state
 
 - Milestone: M5 Framework bake-off — In Progress.
-- Current task: M5-CUSTOM-BASELINE — Passed by offline replay, dry-run, mock policy, and retained
-  transport evidence; task record and preflight are under
-  `evidence/sessions/20260712-m5-custom-baseline/`. M5-AIRTEST is next.
+- Current task: M5-AIRTEST — Rejected early after repository-only availability, dependency,
+  packaging, and policy review; evidence is under `evidence/sessions/20260712-m5-airtest/`.
+  M5-MAA is next.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed during this run: M5-CUSTOM-BASELINE passed with 100 replay
   capture/classification operations, 25 target annotations, 10 OCR operations, ten gesture mocks,
-  and five reconnect mocks. Earlier completed boundaries remain authoritative: RT-012, RT-013,
-  RT-017, RT-019, RT-021, and MVP-STARTUP-NORMALIZATION.
+  and five reconnect mocks; M5-AIRTEST was rejected early with no live operations. Earlier
+  completed boundaries remain authoritative: RT-012, RT-013, RT-017, RT-019, RT-021, and
+  MVP-STARTUP-NORMALIZATION.
 
 ## Repository state
 
 - Branch: `main`.
-- Latest committed boundary before this M5 closure: `70efbfd` (`task(MVP): automate guarded
-  startup normalization`). The M5-CUSTOM-BASELINE task-scoped closure is pending commit in the
-  current working session; no unrelated path is staged.
+- Latest committed boundaries: `d7cbca5` (`task(M5): benchmark custom control stack`) and
+  `70efbfd` (`task(MVP): automate guarded startup normalization`). The M5-AIRTEST task-scoped
+  closure is pending commit in the current working session; no unrelated path is staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - The completed guarded keyguard branch, live-validation evidence, final Home/Base candidate, and
   passed task decision are included in the task-scoped closure boundary.
@@ -81,12 +82,16 @@ Recorded: 2026-07-12, America/Chicago
 - M5 custom baseline: `evidence/sessions/20260712-m5-custom-baseline/`; benchmark JSON records
   100 replay operations, 25 target annotations, 10 OCR calls, ten gesture mocks, five reconnect
   mocks, and the retained RT-010/RT-021 transport facts.
+- M5 Airtest: `evidence/sessions/20260712-m5-airtest/`; early rejection records absent module/CLI,
+  official dependency surface, missing central policy adapter, zero live operations, and the
+  identical-corpus non-viability decision.
 
 ## Exact blocker and required user action
 
-1. No current blocker. The custom baseline passed without live input; the resumed startup-
-  normalization MVP previously passed with no additional keyguard swipe, exactly one supervised
-  no-spend back-arrow tap, positive Home/Base, and cleanup.
+1. No current blocker. The custom baseline passed without live input, and Airtest was rejected
+  early without package or runtime mutation. The resumed startup-normalization MVP previously
+  passed with no additional keyguard swipe, exactly one supervised no-spend back-arrow tap,
+  positive Home/Base, and cleanup.
 2. RT-016A remains a later manual-only account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
@@ -94,8 +99,8 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Exact next command
 
-Start the M5-AIRTEST preflight/evaluation using the same retained corpus and offline/mock-only
-scope. Do not start M6 production corpus work or Daily Quest.
+Start the M5-MAA preflight/evaluation using the same retained corpus and offline/mock-only scope.
+Do not start M6 production corpus work or Daily Quest.
 
 ## Facts that must not be re-tested
 
