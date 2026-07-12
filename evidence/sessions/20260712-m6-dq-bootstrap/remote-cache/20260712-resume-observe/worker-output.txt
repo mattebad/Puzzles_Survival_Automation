@@ -1,0 +1,9 @@
+container_name=m6-dq-bootstrap-observe-20260712
+worker_start=2026-07-12T17:23:31+00:00
+uid=65534(nobody) gid=65534(nogroup) groups=65534(nogroup)
+* daemon not running; starting now at tcp:5046
+* daemon started successfully
+connected to 192.168.122.79:5555
+device
+worker_end 2026-07-12T17:23:32+00:00
+disconnected everything

@@ -5,10 +5,11 @@ Recorded: 2026-07-12, America/Chicago
 ## Current milestone and task state
 
 - Milestone: M6 Production corpus — In Progress.
-- Current task: M6-DQ-BOOTSTRAP — Blocked at the approved process-only Unraid credential
-  boundary. M5-DECISION passed; custom Python/direct ADB/OpenCV/local OCR was selected, with
-  final decision evidence under `evidence/sessions/20260712-m5-decision/`. No corpus capture or
-  gameplay navigation has started.
+- Current task: M6-DQ-BOOTSTRAP — Blocked at unresolved post-input Unraid SSH/worker
+  reconciliation. M5-DECISION passed; custom Python/direct ADB/OpenCV/local OCR was selected,
+  and fresh bootstrap captures were retained under
+  `evidence/sessions/20260712-m6-dq-bootstrap/`. Do not retry the Daily-tab input until the
+  worker and device state are reconciled.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed in the preceding M5 run: M5-CUSTOM-BASELINE passed with 100 replay
@@ -16,15 +17,16 @@ Recorded: 2026-07-12, America/Chicago
   and five reconnect mocks; M5-AIRTEST and M5-MAA were rejected early with no live operations.
   M5-DECISION passed and authorized M6 corpus work. Earlier completed boundaries remain
   authoritative: RT-012, RT-013, RT-017, RT-019, RT-021, and MVP-STARTUP-NORMALIZATION.
-- Tasks completed in this M6 boundary: none. The task was preflighted and blocked before any
-  authenticated runtime operation; no VM, game, ADB, container, tunnel, or prior retained evidence
-  state was changed. Only the new task-scoped preflight/blocker record was added.
+- Tasks completed in this M6 boundary: none. Bootstrap observation and offline detector work
+  progressed, including retained final-runtime Home/Base, Quest, and Daily Quest frames, but the
+  task was blocked before final post-input and cleanup reconciliation. No Claim, Go,
+  quest-completion, spend, or consequential gameplay input was recorded.
 
 ## Repository state
 
 - Branch: `main`.
 - Latest committed boundary before this M6 attempt: `91227c7`
-  (`plan: stage Daily Quest corpus and supervised claim validation`). The blocked M6 preflight is
+  (`plan: stage Daily Quest corpus and supervised claim validation`). The blocked M6 work is
   task-scoped; the pre-existing unstaged entries remain untouched and no unrelated path is staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - The completed guarded keyguard branch, live-validation evidence, final Home/Base candidate, and
@@ -52,7 +54,8 @@ Recorded: 2026-07-12, America/Chicago
   disabled, no RT-012/MVP/observer container or related process remains, the RT-017 backup
   directory/qcow2 remains present, and no temporary 5038/5040/5555 listener remains. The game is
   force-stopped by retained RT-021/MVP cleanup evidence; no attached device was available for a
-  current package query, so no new live command was issued.
+  current package query, so no new live command was issued. Later SSH/TCP 22 became unavailable
+  after the fresh Daily-tab worker was staged; its post-input and cleanup state is unresolved.
 - Rollback: RT-001 baseline XML, disk identity, graphics rollback, and boot-state evidence remain retained; no disk replacement or destructive VM storage action occurred.
 
 ## Evidence
@@ -95,13 +98,17 @@ Recorded: 2026-07-12, America/Chicago
 - M5 final decision: `evidence/sessions/20260712-m5-decision/`; custom stack selected, rejected
   candidates compared, M6 authorized within scope, and no M6/Daily Quest work started.
 - M6-DQ-BOOTSTRAP preflight/blocker: `evidence/sessions/20260712-m6-dq-bootstrap/preflight.md`.
+- M6-DQ-BOOTSTRAP retained bootstrap captures, replay, and transport blocker:
+  `evidence/sessions/20260712-m6-dq-bootstrap/`; final-runtime Daily Quest frames and
+  `runtime-transport-blocker.md` are retained.
 
 ## Exact blocker and required user action
 
-1. M6-DQ-BOOTSTRAP is blocked because the pinned host is reachable but the current non-interactive
-  process has no `UNRAID_TEMP_PASSWORD`, and no stored credential is available. No authenticated
-  Unraid command was executed; do not put the supplied password in a command line, repository,
-  evidence, script, log, or command history.
+1. M6-DQ-BOOTSTRAP is blocked because the corrected authenticated invocation reported a remote
+  connection close, and subsequent read-only TCP 22 checks failed for both pinned host names.
+  The fresh worker's Daily-tab result and cleanup state are unresolved. Do not retry the input;
+  begin the next run with read-only reconciliation when the private SSH path returns. Do not put
+  the supplied password in a command line, repository, evidence, script, log, or command history.
 2. RT-016A remains a later manual-only account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
@@ -109,9 +116,9 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Exact next command
 
-Resume `M6-DQ-BOOTSTRAP` after making the already-provided credential available through the
-process-only `UNRAID_TEMP_PASSWORD` mechanism. The first resumed live operation must be
-read-only Unraid/runtime reconciliation. Do not mark `M7-SAFE-ACTION-CORE`,
+Resume `M6-DQ-BOOTSTRAP` when the private Unraid SSH path returns. The first resumed live
+operation must be read-only Unraid/runtime and worker reconciliation; do not repeat the
+Daily-tab input until its prior result is known. Do not mark `M7-SAFE-ACTION-CORE`,
 `MVP-QUEST-TO-CLAIM`, or `M6-DQ-TRANSITION-CORPUS` In Progress.
 
 ## Facts that must not be re-tested

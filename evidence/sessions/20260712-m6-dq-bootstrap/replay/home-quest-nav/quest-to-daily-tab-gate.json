@@ -1,0 +1,38 @@
+{
+  "forbidden_overlap": false,
+  "input_authorized": "one bounded no-spend Daily Quest tab navigation tap",
+  "input_sent": false,
+  "source_hash": "2ab2039bf71458e771a8927400b441d94467546568ce5363714da5b0f3465bda",
+  "source_recognition": {
+    "daily_quest_tab_roi": [
+      260,
+      80,
+      540,
+      300
+    ],
+    "daily_quest_target_recognized": true,
+    "reason": "Quest screen and Daily Quest tab evidence passed",
+    "recognized": true,
+    "state": "QUEST",
+    "tabs_text": "ln guest___dallyquest_ \u201caci recom'd upgrade vehicle depot to lv.23 ie o/1",
+    "title_text": "2a ee ; : alliance reornm'd"
+  },
+  "source_state": "QUEST_MAIN_TAB",
+  "target_action_roi": [
+    280,
+    70,
+    520,
+    138
+  ],
+  "target_point": [
+    400,
+    105
+  ],
+  "target_recognition_region": [
+    260,
+    80,
+    540,
+    300
+  ],
+  "target_state": "DAILY_QUEST_TAB"
+}

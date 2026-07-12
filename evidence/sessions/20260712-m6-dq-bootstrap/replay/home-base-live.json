@@ -1,0 +1,52 @@
+{
+  "candidate": "evidence\\sessions\\20260712-m6-dq-bootstrap\\remote-cache\\20260712-cash-mall-input\\frame-settled-after.png",
+  "candidate_sha256": "d1b32475fe3d9aeb3ac4fb79b8c67d370f495f4731fe10148a1b39b3e2b10b12",
+  "cash_mall_postcheck": {
+    "denial_rules": [
+      "never select purchase, offer, premium-currency, or confirmation controls",
+      "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+      "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+    ],
+    "features": {
+      "back_arrow": 0.823878,
+      "mall_context": 0.731382,
+      "mall_header": 0.731177,
+      "premium_header": 0.802816,
+      "purchase_context": 0.776786,
+      "title_region": 0.801978
+    },
+    "fresh_frame_dimensions": true,
+    "known_informational_overlay": false,
+    "no_unknown_overlay": true,
+    "reason": "one or more positive Cash Mall features did not pass",
+    "recognized": false,
+    "state": "UNKNOWN",
+    "target_roi": [
+      35,
+      0,
+      180,
+      65
+    ],
+    "unknown_overlay": false
+  },
+  "home_base": {
+    "base_scene_score": 0.19371,
+    "bottom_navigation_score": 0.151167,
+    "navigation_ocr_hits": [
+      "bag",
+      "mail",
+      "quest"
+    ],
+    "navigation_ocr_text": "cat (so quest bag mail aan +\n",
+    "reason": "resource header, base scene, bottom navigation, and OCR anchors passed",
+    "recognized": true,
+    "resource_header_score": 0.167708,
+    "scene_ocr_hits": [
+      "camp",
+      "headquarters"
+    ],
+    "scene_ocr_text": "lle or m7) 72 ep jf ts\nmnomnn vee tomes ae al) 1 la yt\nbad an ter <5 pes q ( q ss <\n(02) = a za) ee eae\naa, pee fn} ne le. a he a ez !\nral ee a f ies c \u00bb reseal ff\ndg. sat ak\nve os = ts headquarters a = eb che\nse oe ge\nee. ee seecren\nrs (a oie x ds pane aes a\n<a ag. shooter camp = gs cy\n\u2014. es er ss 4 on -\n: ee peso ff cer ca vn\nfighter camp \u00bb sn es bppewicer camp\n\u201ce+ e) 7\nu a veni iene x z\nsz agent raxyn+: ty! = <i -\n= wm iconic chamnion war7ztone \u201c~ / jc hocting\na and fea h ry 24\n",
+    "state": "HOME_BASE"
+  },
+  "safe_os_surface": true
+}

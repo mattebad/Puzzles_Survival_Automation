@@ -1,0 +1,1 @@
+input_command=adb -s 192.168.122.79:5555 shell input tap 107 32

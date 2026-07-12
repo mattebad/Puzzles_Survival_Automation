@@ -1,0 +1,15 @@
+{
+  "ambiguous_rows_abstain": true,
+  "bottom_text": "train shooter x250 (0/250) reward: pts +5 \u2014s train vehicle x250 (0/250)",
+  "claim_input_authorized": false,
+  "claim_observed_only": false,
+  "clipped_rows_abstain": true,
+  "header_text": "v v v v v [ ]",
+  "incomplete_or_go_present": false,
+  "reason": "Daily Quest title/header or points/reset evidence is insufficient",
+  "recognized": false,
+  "row_controls": [],
+  "rows_text": "ee a. 30 60 90 120 150 daily quest pts: 0 reset time: 06:06:16 upgrade building 1x (0/1) reward: pts +5 \u2014s join hero duel 3x (0/3) reward: pts +5 am upgrade tech 1x (0/1) reward: pts +5 re train fighter x250 (0/250) reward: pts +5 as train rider x250 (0/250) 60 reward: pts +5",
+  "state": "UNKNOWN",
+  "title_positive": false
+}

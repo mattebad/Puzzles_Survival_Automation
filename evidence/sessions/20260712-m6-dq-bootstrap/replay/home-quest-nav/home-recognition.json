@@ -1,0 +1,33 @@
+{
+  "home_features": {
+    "base_scene_score": 0.193746,
+    "bottom_navigation_score": 0.152469,
+    "navigation_ocr_hits": [
+      "bag",
+      "mail",
+      "quest"
+    ],
+    "navigation_ocr_text": "ss ss, es \u2018se a na\nao 32.9 hh we ve 48\ncit to) quest bag t mail annee +\n",
+    "reason": "resource header, base scene, bottom navigation, and OCR anchors passed",
+    "recognized": true,
+    "resource_header_score": 0.170187,
+    "scene_ocr_hits": [
+      "camp",
+      "research"
+    ],
+    "scene_ocr_text": "ied -. yn ee. ure tee or han ~ ae\nstpzioti gs res a 73 se tis\nee! . ak f\nfe ng . * ae & 6\nbuild ~~ ai za pg) sith. 08\nce ea . research \"a\nalle sania =) 1 see se ga oe aes\nwk. ae a\nso) ee ee eee\ngite a ge we =\n: or- oy chy, sod ~ je 2)\naz \u00b0 = le shooter camp cy) na\nsaa ips = <= ee bp \u2122 \\ \\\na be\ncs upgrade vehicle deporte vepot cd aa _ sah\nw234 | ip ae, an\nsa +agent raxyn: ty! \u201c|. eae\n",
+    "state": "HOME_BASE"
+  },
+  "quest_entry_roi": [
+    250,
+    1130,
+    410,
+    1280
+  ],
+  "quest_entry_target_recognized": true,
+  "quest_entry_text": "1 warzone \u201c_/ wi y: quest b",
+  "reason": "Home/Base and Quest entry OCR passed",
+  "recognized": true,
+  "safe_os_surface": true,
+  "state": "HOME_BASE"
+}

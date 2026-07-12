@@ -1,0 +1,71 @@
+{
+  "forbidden_overlap": false,
+  "immediate_before": {
+    "denial_rules": [
+      "never select purchase, offer, premium-currency, or confirmation controls",
+      "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+      "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+    ],
+    "features": {
+      "back_arrow": 1.0,
+      "mall_context": 1.0,
+      "mall_header": 1.0,
+      "premium_header": 0.981125,
+      "purchase_context": 0.99979,
+      "title_region": 0.986335
+    },
+    "fresh_frame_dimensions": true,
+    "known_informational_overlay": true,
+    "no_unknown_overlay": true,
+    "reason": "all positive Cash Mall features passed with the allowlisted Ending Soon informational banner",
+    "recognized": true,
+    "state": "CASH_MALL",
+    "target_roi": [
+      35,
+      0,
+      180,
+      65
+    ],
+    "unknown_overlay": false
+  },
+  "immediate_before_hash": "a3a85058886b0fc5d77ad9de69789701fe5de75146d128c3b67a1802d4b7665d",
+  "input_authorized": "one bounded no-spend startup-normalization back-arrow tap only",
+  "input_sent": false,
+  "precheck": {
+    "denial_rules": [
+      "never select purchase, offer, premium-currency, or confirmation controls",
+      "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+      "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+    ],
+    "features": {
+      "back_arrow": 1.0,
+      "mall_context": 1.0,
+      "mall_header": 1.0,
+      "premium_header": 0.98095,
+      "purchase_context": 0.99979,
+      "title_region": 0.988463
+    },
+    "fresh_frame_dimensions": true,
+    "known_informational_overlay": true,
+    "no_unknown_overlay": true,
+    "reason": "all positive Cash Mall features passed with the allowlisted Ending Soon informational banner",
+    "recognized": true,
+    "state": "CASH_MALL",
+    "target_roi": [
+      35,
+      0,
+      180,
+      65
+    ],
+    "unknown_overlay": false
+  },
+  "precheck_hash": "b2aeba1974416054f08e4adbc89210980d81f7076d8394f6113ecb8efc3b8e23",
+  "source_and_target_stable": true,
+  "source_state": "CASH_MALL",
+  "target_roi": [
+    35,
+    0,
+    180,
+    65
+  ]
+}

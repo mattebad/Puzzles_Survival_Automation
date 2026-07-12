@@ -1,0 +1,14 @@
+{
+  "daily_quest_tab_roi": [
+    260,
+    80,
+    540,
+    300
+  ],
+  "daily_quest_target_recognized": true,
+  "reason": "Quest screen and Daily Quest tab evidence passed",
+  "recognized": true,
+  "state": "QUEST",
+  "tabs_text": "ln guest___dallyquest_ \u201caci recom'd upgrade vehicle depot to lv.23 ie o/1",
+  "title_text": "2a ee ; : alliance reornm'd"
+}

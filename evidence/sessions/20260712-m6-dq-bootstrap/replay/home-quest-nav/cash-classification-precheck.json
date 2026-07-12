@@ -1,0 +1,33 @@
+{
+  "candidate": "evidence\\sessions\\20260712-m6-dq-bootstrap\\remote-cache\\20260712-home-quest-nav\\cash-frame-precheck.png",
+  "candidate_sha256": "62c45868eb30f8cc9dd26e9fac2675e043544766e9d3ada7e4ca91204f0f57e3",
+  "decision": {
+    "denial_rules": [
+      "never select purchase, offer, premium-currency, or confirmation controls",
+      "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+      "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+    ],
+    "features": {
+      "back_arrow": 1.0,
+      "mall_context": 1.0,
+      "mall_header": 1.0,
+      "premium_header": 0.985513,
+      "purchase_context": 0.99979,
+      "title_region": 0.993909
+    },
+    "fresh_frame_dimensions": true,
+    "known_informational_overlay": true,
+    "no_unknown_overlay": true,
+    "reason": "all positive Cash Mall features passed with the allowlisted Ending Soon informational banner",
+    "recognized": true,
+    "state": "CASH_MALL",
+    "target_roi": [
+      35,
+      0,
+      180,
+      65
+    ],
+    "unknown_overlay": false
+  },
+  "reference": "evidence\\sessions\\20260712-m6-dq-bootstrap\\remote-cache\\20260712-cash-mall-launch\\frame-45.png"
+}

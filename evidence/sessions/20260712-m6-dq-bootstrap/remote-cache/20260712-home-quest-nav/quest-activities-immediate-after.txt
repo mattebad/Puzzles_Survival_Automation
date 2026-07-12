@@ -1,0 +1,404 @@
+ACTIVITY MANAGER ACTIVITIES (dumpsys activity activities)
+Display #0 (activities from top to bottom):
+  * Task{4e4bca9 #146 type=standard A=10286:com.global.ztmslg U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}
+    mLastNonFullscreenBounds=Rect(194, 270 - 606, 1002)
+    isSleeping=false
+    topResumedActivity=ActivityRecord{41d21cf u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity} t146}
+    * Hist  #0: ActivityRecord{41d21cf u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity} t146}
+      packageName=com.global.ztmslg processName=com.global.ztmslg
+      launchedFromUid=2000 launchedFromPackage=com.android.shell launchedFromFeature=null userId=0
+      app=ProcessRecord{5cea75c 6970:com.global.ztmslg/u0a286}
+      Intent { flg=0x10000000 cmp=com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity }
+      rootOfTask=true task=Task{4e4bca9 #146 type=standard A=10286:com.global.ztmslg}
+      taskAffinity=10286:com.global.ztmslg
+      mActivityComponent=com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity
+      baseDir=/data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/base.apk
+      dataDir=/data/user/0/com.global.ztmslg
+      splitDir=[/data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/split_abPack1.apk, /data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/split_config.arm64_v8a.apk, /data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/split_gpdeku.apk, /data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/split_gpdeku.config.arm64_v8a.apk]
+      stateNotNeeded=false componentSpecified=false mActivityType=standard
+      compat={160dpi always-compat} labelRes=0x7f10004c icon=0x7f0d0000 theme=0x7f1102da
+      mLastReportedConfigurations:
+        mGlobalConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.70 fontWeightAdjustment=0}
+        mOverrideConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}
+      CurrentConfiguration={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}
+      taskDescription: label="null" icon=null iconResource=/0 iconFilename=null primaryColor=ffe6e6e6
+        backgroundColor=fff3f3f3 statusBarColor=ff000000 navigationBarColor=ff000000
+       backgroundColorFloating=fff3f3f3
+      launchFailed=false launchCount=1 lastLaunchTime=-8m24s534ms
+      mHaveState=false mIcicle=null
+      state=RESUMED stopped=false delayedResume=false finishing=false
+      keysPaused=false inHistory=true idle=true
+      occludesParent=true noDisplay=false immersive=false launchMode=2
+      frozenBeforeDestroy=false forceNewConfig=false
+      mActivityType=standard
+      mImeInsetsFrozenUntilStartInput=false
+      windows=[Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}]
+      windowType=2
+      mOccludesParent=true
+      overrideOrientation=SCREEN_ORIENTATION_PORTRAIT
+      requestedOrientation=SCREEN_ORIENTATION_PORTRAIT
+      mVisibleRequested=true mVisible=true mClientVisible=true reportedDrawn=true reportedVisible=true
+      mNumInterestingWindows=2 mNumDrawnWindows=2 allDrawn=true lastAllDrawn=true)
+      startingData=null firstWindowDrawn=true mIsExiting=false
+      nowVisible=true lastVisibleTime=-8m24s80ms
+      resizeMode=RESIZE_MODE_RESIZEABLE
+      mLastReportedMultiWindowMode=false mLastReportedPictureInPictureMode=false
+      supportsSizeChanges=SIZE_CHANGES_UNSUPPORTED_METADATA
+      configChanges=0x40003fff
+      neverSandboxDisplayApis=false
+      alwaysSandboxDisplayApis=false
+      areBoundsLetterboxed=false
+      mCameraCompatControlState=hidden
+      mCameraCompatControlEnabled=false
+
+  * Task{87166af #141 type=standard A=10264:com.farmerbb.taskbar U=0 visible=false visibleRequested=false mode=fullscreen translucent=true sz=1}
+    mLastPausedActivity: ActivityRecord{eece8e u0 com.farmerbb.taskbar/.activity.HomeActivityDelegate} t141}
+    mLastNonFullscreenBounds=Rect(194, 274 - 606, 1006)
+    isSleeping=false
+    * Hist  #0: ActivityRecord{eece8e u0 com.farmerbb.taskbar/.activity.HomeActivityDelegate} t141}
+      packageName=com.farmerbb.taskbar processName=com.farmerbb.taskbar
+      launchedFromUid=10257 launchedFromPackage=com.farmerbb.taskbar.support launchedFromFeature=null userId=0
+      app=ProcessRecord{f1f73e 1987:com.farmerbb.taskbar/u0a264}
+      Intent { act=android.intent.action.MAIN flg=0x10000000 cmp=com.farmerbb.taskbar/.activity.HomeActivityDelegate }
+      rootOfTask=true task=Task{87166af #141 type=standard A=10264:com.farmerbb.taskbar}
+      taskAffinity=10264:com.farmerbb.taskbar
+      mActivityComponent=com.farmerbb.taskbar/.activity.HomeActivityDelegate
+      baseDir=/system/system_ext/priv-app/com.farmerbb.taskbar/com.farmerbb.taskbar.apk
+      dataDir=/data/user/0/com.farmerbb.taskbar
+      stateNotNeeded=false componentSpecified=false mActivityType=standard
+      compat={160dpi always-compat} labelRes=0x7f1000a3 icon=0x7f0e0001 theme=0x7f110133
+      mLastReportedConfigurations:
+        mGlobalConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.70 fontWeightAdjustment=0}
+        mOverrideConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.3 fontWeightAdjustment=0}
+      CurrentConfiguration={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.3 fontWeightAdjustment=0}
+      taskDescription: label="null" icon=null iconResource=/0 iconFilename=null primaryColor=ff212121
+        backgroundColor=ff303030 statusBarColor=0 navigationBarColor=0
+       backgroundColorFloating=ff424242
+      launchFailed=false launchCount=0 lastLaunchTime=-16h23m59s643ms
+      mHaveState=true mIcicle=Bundle[mParcelledData.dataSize=2044]
+      state=STOPPED stopped=true delayedResume=false finishing=false
+      keysPaused=false inHistory=true idle=true
+      occludesParent=true noDisplay=false immersive=false launchMode=2
+      frozenBeforeDestroy=false forceNewConfig=false
+      mActivityType=standard
+      mImeInsetsFrozenUntilStartInput=true
+      windows=[Window{15a5748 u0 com.farmerbb.taskbar/com.farmerbb.taskbar.activity.HomeActivityDelegate}]
+      windowType=2
+      mOccludesParent=true
+      overrideOrientation=SCREEN_ORIENTATION_UNSPECIFIED
+      requestedOrientation=SCREEN_ORIENTATION_UNSPECIFIED
+      mVisibleRequested=false mVisible=false mClientVisible=false reportedDrawn=false reportedVisible=false
+      mAppStopped=true
+      mNumInterestingWindows=1 mNumDrawnWindows=1 allDrawn=true lastAllDrawn=true)
+      nowVisible=false lastVisibleTime=-12m38s565ms
+      resizeMode=RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION
+      mLastReportedMultiWindowMode=false mLastReportedPictureInPictureMode=false
+      supportsSizeChanges=SIZE_CHANGES_UNSUPPORTED_METADATA
+      configChanges=0x3
+      neverSandboxDisplayApis=false
+      alwaysSandboxDisplayApis=false
+      areBoundsLetterboxed=false
+      mCameraCompatControlState=hidden
+      mCameraCompatControlEnabled=false
+
+  * Task{7ecdb8 #3 type=undefined U=0 visible=false visibleRequested=false mode=fullscreen translucent=true sz=2}
+    mCreatedByOrganizer=true
+    * Task{cf20f93 #5 type=undefined U=0 rootTaskId=3 visible=false visibleRequested=false mode=multi-window translucent=true sz=0}
+      mBounds=Rect(0, 1280 - 800, 1920)
+      mCreatedByOrganizer=true
+      isSleeping=false
+    * Task{e0f26f6 #4 type=undefined U=0 rootTaskId=3 visible=false visibleRequested=false mode=multi-window translucent=true sz=0}
+      mCreatedByOrganizer=true
+      isSleeping=false
+
+  Resumed activities in task display areas (from top to bottom):
+    Resumed: ActivityRecord{41d21cf u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity} t146}
+
+  ResumedActivity: ActivityRecord{41d21cf u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity} t146}
+
+ActivityTaskSupervisor state:
+  topDisplayFocusedRootTask=Task{4e4bca9 #146 type=standard A=10286:com.global.ztmslg}
+  Display: mDisplayId=0 (organized)
+    init=1280x800 160dpi mMinSizeOfResizeableTaskDp=220 base=800x1280 160dpi cur=800x1280 app=800x1248 rng=800x744-1280x1224
+    deferred=false mLayoutNeeded=false mTouchExcludeRegion=SkRegion((0,0,800,1280))
+
+  mLastOrientationSource=WindowedMagnification:0:31@133983331
+  deepestLastOrientationSource=ActivityRecord{41d21cf u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity} t146}
+  overrideConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.70 fontWeightAdjustment=0}
+  mLayoutSeq=613
+  mCurrentFocus=Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+  mFocusedApp=ActivityRecord{41d21cf u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity} t146}
+
+  mHoldScreenWindow=Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+  mObscuringWindow=null
+  mLastWakeLockHoldingWindow=Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+  mLastWakeLockObscuringWindow=null
+
+  displayId=0
+  mWallpaperTarget=null
+  mLastWallpaperX=0.5 mLastWallpaperY=0.5
+
+  mSystemGestureExclusion=SkRegion()
+
+  Display areas in top down Z order:
+    * Leaf:36:36
+    * HideDisplayCutout:32:35
+      * OneHanded:34:35 (organized)
+        * FullscreenMagnification:34:35
+          * Leaf:34:35
+      * FullscreenMagnification:33:33
+        * Leaf:33:33
+      * OneHanded:32:32 (organized)
+        * Leaf:32:32
+    * WindowedMagnification:0:31
+      * HideDisplayCutout:26:31
+        * OneHanded:26:31 (organized)
+          * FullscreenMagnification:29:31
+            * Leaf:29:31
+          * Leaf:28:28
+          * FullscreenMagnification:26:27
+            * Leaf:26:27
+      * Leaf:24:25
+      * HideDisplayCutout:18:23
+        * OneHanded:18:23 (organized)
+          * FullscreenMagnification:18:23
+            * Leaf:18:23
+      * OneHanded:17:17 (organized)
+        * FullscreenMagnification:17:17
+          * Leaf:17:17
+      * HideDisplayCutout:16:16
+        * OneHanded:16:16 (organized)
+          * FullscreenMagnification:16:16
+            * Leaf:16:16
+      * OneHanded:15:15 (organized)
+        * FullscreenMagnification:15:15
+          * Leaf:15:15
+      * HideDisplayCutout:0:14
+        * OneHanded:0:14 (organized)
+          * ImePlaceholder:13:14
+            * ImeContainer
+          * FullscreenMagnification:0:12
+            * Leaf:3:12
+            * DefaultTaskDisplayArea (organized)
+            * Leaf:0:1
+
+  Task display areas in top down Z order:
+    TaskDisplayArea DefaultTaskDisplayArea
+      overrideConfig={0.0 ?mcc?mnc ?localeList ?layoutDir ?swdp ?wdp ?hdp ?density ?lsize ?long ?ldr ?wideColorGamut ?orien ?uimode ?night ?touch ?keyb/?/? ?nav/? winConfig={ mBounds=Rect(0, 0 - 0, 0) mAppBounds=null mMaxBounds=Rect(0, 0 - 0, 0) mDisplayRotation=undefined mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=undefined} ?fontWeightAdjustment}
+      mPreferredTopFocusableRootTask=Task{4e4bca9 #146 type=standard A=10286:com.global.ztmslg}
+      mLastFocusedRootTask=Task{4e4bca9 #146 type=standard A=10286:com.global.ztmslg}
+      Application tokens in top down Z order:
+      * Task{4e4bca9 #146 type=standard A=10286:com.global.ztmslg U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}
+        bounds=[0,0][800,1280]
+        * ActivityRecord{41d21cf u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity} t146}
+      * Task{87166af #141 type=standard A=10264:com.farmerbb.taskbar U=0 visible=false visibleRequested=false mode=fullscreen translucent=true sz=1}
+        bounds=[0,0][800,1280]
+        * ActivityRecord{eece8e u0 com.farmerbb.taskbar/.activity.HomeActivityDelegate} t141}
+      * Task{7ecdb8 #3 type=undefined U=0 visible=false visibleRequested=false mode=fullscreen translucent=true sz=2}
+        bounds=[0,0][800,1280]
+        * Task{cf20f93 #5 type=undefined U=0 rootTaskId=3 visible=false visibleRequested=false mode=multi-window translucent=true sz=0}
+          bounds=[0,1280][800,1920]
+        * Task{e0f26f6 #4 type=undefined U=0 rootTaskId=3 visible=false visibleRequested=false mode=multi-window translucent=true sz=0}
+          bounds=[0,0][800,1280]
+
+  no ScreenRotationAnimation 
+
+
+  PinnedTaskController
+    mIsImeShowing=false
+    mImeHeight=0
+    mMinAspectRatio=0.41841003
+    mMaxAspectRatio=2.39
+
+  DisplayFrames w=800 h=1280 r=0
+
+  DisplayPolicy
+    mCarDockEnablesAccelerometer=true mDeskDockEnablesAccelerometer=true
+ mDeskDockRespectsNoSensorAndLockedWithoutAccelerometer=false
+    mDockMode=EXTRA_DOCK_STATE_UNDOCKED mLidState=LID_ABSENT
+    mAwake=true mScreenOnEarly=true mScreenOnFully=true
+    mKeyguardDrawComplete=true mWindowManagerDrawComplete=true
+    mHdmiPlugged=false
+    mLastBehavior=SHOW_TRANSIENT_BARS_BY_SWIPE
+    mShowingDream=false mDreamingLockscreen=false
+    mStatusBar=Window{c513200 u0 StatusBar}
+    mExpandedPanel=Window{ebc8de8 u0 NotificationShade}
+    isKeyguardShowing=false
+    mExtraNavBarAlt=Window{fd9388a u0 Taskbar}
+    mExtraNavBarAltPosition=4
+    mFocusedWindow=Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+    mTopFullscreenOpaqueWindowState=Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+    mSystemBarColorApps={ActivityRecord{41d21cf u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity} t146}}
+    mLastStatusBarAppearanceRegions=
+      AppearanceRegion{ bounds=[0,0][800,1280]}
+    mLastLetterboxDetails=
+    mStatusBarBackgroundWindows=
+      Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+    mTopIsFullscreen=true
+    mForceShowNavigationBarEnabled=false mAllowLockscreenWhenOn=false
+    mRemoteInsetsControllerControlsSystemBars=false
+    mDecorInsetsInfo:
+      ROTATION_0={nonDecorInsets=Rect(0, 0 - 0, 32), configInsets=Rect(0, 24 - 0, 32), nonDecorFrame=Rect(0, 0 - 800, 1248), configFrame=Rect(0, 24 - 800, 1248)}
+      ROTATION_90={nonDecorInsets=Rect(0, 0 - 0, 32), configInsets=Rect(0, 24 - 0, 32), nonDecorFrame=Rect(0, 0 - 1280, 768), configFrame=Rect(0, 24 - 1280, 768)}
+      ROTATION_180={nonDecorInsets=Rect(0, 0 - 0, 32), configInsets=Rect(0, 24 - 0, 32), nonDecorFrame=Rect(0, 0 - 800, 1248), configFrame=Rect(0, 24 - 800, 1248)}
+      ROTATION_270={nonDecorInsets=Rect(0, 0 - 0, 32), configInsets=Rect(0, 24 - 0, 32), nonDecorFrame=Rect(0, 0 - 1280, 768), configFrame=Rect(0, 24 - 1280, 768)}
+    SystemGestures:
+      mDisplayCutoutTouchableRegionSize=0
+      mSwipeStartThreshold=Rect(24, 24 - 24, 24)
+      mSwipeDistanceThreshold=24
+    Looper state:
+      Looper (android.ui, tid 19) {a023cf8}
+        (Total messages: 0, polling=true, quitting=false)
+
+  DisplayRotation
+    mCurrentAppOrientation=SCREEN_ORIENTATION_PORTRAIT
+    mLastOrientation=1
+    mRotation=0 mDeferredRotationPauseCount=0
+    mLandscapeRotation=ROTATION_90 mSeascapeRotation=ROTATION_270
+    mPortraitRotation=ROTATION_0 mUpsideDownRotation=ROTATION_180
+    mSupportAutoRotation=true
+    WindowOrientationListener
+      mEnabled=true
+      mCurrentRotation=ROTATION_0
+      mSensorType=null
+      mSensor={Sensor name="Kbd Orientation Sensor", vendor="Android-x86 Open Source Project", version=2, type=1, maxRange=2.8000994, resolution=2.480159E-4, power=3.0, minDelay=0}
+      mRate=2
+      AccelSensorJudge
+        mProposedRotation=-1
+        mPredictedRotation=-1
+        mLastFilteredX=0.0
+        mLastFilteredY=0.0
+        mLastFilteredZ=0.0
+        mLastFilteredTimestampNanos=-9223372036854775808 (-9.2233133E12ms ago)
+        mTiltHistory={last: NaN}
+        mFlat=false
+        mSwinging=false
+        mAccelerating=false
+        mOverhead=false
+        mTouched=false
+        mTiltToleranceConfig=[[-25, 70], [-25, 65], [-25, 60], [-25, 65]]
+
+    mCarDockRotation=-1 mDeskDockRotation=-1
+    mUserRotationMode=USER_ROTATION_FREE mUserRotation=ROTATION_0 mCameraRotationMode=0 mAllowAllRotations=true
+    mDemoHdmiRotation=ROTATION_90 mDemoHdmiRotationLock=false mUndockedHdmiRotation=-1
+    mLidOpenRotation=-1
+    mFixedToUserRotation=false
+
+  InputConsumers:
+    name=recents_animation_input_consumer pid=1660 user=UserHandle{0}
+
+  WindowInsetsStateController
+    InsetsState
+      mDisplayFrame=Rect(0, 0 - 800, 1280)
+      mDisplayCutout=DisplayCutout{insets=Rect(0, 0 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=0 displayHeight=0 physicalDisplayWidth=0 physicalDisplayHeight=0 density={0.0} cutoutSpec={} rotation={0} scale={0.0} physicalPixelDisplaySizeRatio={0.0}}}}
+      mRoundedCorners=RoundedCorners{[RoundedCorner{position=TopLeft, radius=0, center=Point(0, 0)}, RoundedCorner{position=TopRight, radius=0, center=Point(0, 0)}, RoundedCorner{position=BottomRight, radius=0, center=Point(0, 0)}, RoundedCorner{position=BottomLeft, radius=0, center=Point(0, 0)}]}
+      mRoundedCornerFrame=Rect(0, 0 - 0, 0)
+      mPrivacyIndicatorBounds=PrivacyIndicatorBounds {static bounds=Rect(704, 0 - 786, 24) rotation=0}
+        InsetsSource type=ITYPE_STATUS_BAR frame=[0,0][800,24] visible=false insetsRoundedCornerFrame=false
+        InsetsSource type=ITYPE_NAVIGATION_BAR frame=[0,0][0,0] visible=false insetsRoundedCornerFrame=false
+        InsetsSource type=ITYPE_LEFT_GESTURES frame=[0,0][30,1280] visible=true insetsRoundedCornerFrame=false
+        InsetsSource type=ITYPE_RIGHT_GESTURES frame=[770,0][800,1280] visible=true insetsRoundedCornerFrame=false
+        InsetsSource type=ITYPE_TOP_MANDATORY_GESTURES frame=[0,0][800,24] visible=true insetsRoundedCornerFrame=false
+        InsetsSource type=ITYPE_BOTTOM_MANDATORY_GESTURES frame=[0,1248][800,1280] visible=true insetsRoundedCornerFrame=false
+        InsetsSource type=ITYPE_TOP_TAPPABLE_ELEMENT frame=[0,0][800,24] visible=true insetsRoundedCornerFrame=false
+        InsetsSource type=ITYPE_BOTTOM_TAPPABLE_ELEMENT frame=[0,0][0,0] visible=true insetsRoundedCornerFrame=false
+        InsetsSource type=ITYPE_IME frame=[0,0][0,0] visible=false insetsRoundedCornerFrame=false
+        InsetsSource type=ITYPE_EXTRA_NAVIGATION_BAR frame=[0,1248][800,1280] visible=false insetsRoundedCornerFrame=false
+    Control map:
+      ITYPE_EXTRA_NAVIGATION_BAR -> Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+      ITYPE_IME -> Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+      ITYPE_STATUS_BAR -> Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+    InsetsSourceProviders:
+      WindowContainerInsetsSourceProvider
+        mSource=InsetsSource type=ITYPE_TOP_TAPPABLE_ELEMENT frame=[0,0][800,24] visible=true insetsRoundedCornerFrame=false
+        mSourceFrame=Rect(0, 0 - 800, 24)
+        mIsLeashReadyForDispatching=true
+        mWindowContainer=Window{c513200 u0 StatusBar}
+      WindowContainerInsetsSourceProvider
+        mSource=InsetsSource type=ITYPE_STATUS_BAR frame=[0,0][800,24] visible=false insetsRoundedCornerFrame=false
+        mSourceFrame=Rect(0, 0 - 800, 24)
+        mControl=InsetsSourceControl type=ITYPE_STATUS_BAR mLeash=Surface(name=Surface(name=c513200 StatusBar)/@0xc8cb41b - animation-leash of insets_animation)/@0x7c6c29b mInitiallyVisible=false mSurfacePosition=Point(0, 0) mInsetsHint=Insets{left=0, top=24, right=0, bottom=0} mSkipAnimationOnce=false
+        mIsLeashReadyForDispatching=true
+        mWindowContainer=Window{c513200 u0 StatusBar}
+        mAdapter=ControlAdapter mCapturedLeash=Surface(name=Surface(name=c513200 StatusBar)/@0xc8cb41b - animation-leash of insets_animation)/@0x7c6c29b
+        mControlTarget=Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+      WindowContainerInsetsSourceProvider
+        mSource=InsetsSource type=ITYPE_NAVIGATION_BAR frame=[0,0][0,0] visible=false insetsRoundedCornerFrame=false
+        mSourceFrame=Rect(0, 0 - 0, 0)
+        mIsLeashReadyForDispatching=true
+        mPendingControlTarget=Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+      WindowContainerInsetsSourceProvider
+        mSource=InsetsSource type=ITYPE_BOTTOM_TAPPABLE_ELEMENT frame=[0,0][0,0] visible=true insetsRoundedCornerFrame=false
+        mSourceFrame=Rect(0, 0 - 0, 0)
+        mOverrideFrames={2011=Rect(0, 1232 - 800, 1280), 2031=Rect(0, 0 - 0, 0)}
+        mIsLeashReadyForDispatching=true
+        mWindowContainer=Window{fd9388a u0 Taskbar}
+      ImeInsetsSourceProvider
+        mSource=InsetsSource type=ITYPE_IME frame=[0,0][0,0] visible=false insetsRoundedCornerFrame=false
+        mSourceFrame=Rect(110, 1280 - 690, 1280)
+        mControl=InsetsSourceControl type=ITYPE_IME mLeash=Surface(name=Surface(name=f3944b4 InputMethod)/@0x7958c52 - animation-leash of insets_animation)/@0xdce4638 mInitiallyVisible=false mSurfacePosition=Point(110, 1232) mInsetsHint=Insets{left=0, top=0, right=0, bottom=0} mSkipAnimationOnce=false
+        mIsLeashReadyForDispatching=true
+        mWindowContainer=Window{f3944b4 u0 InputMethod}
+        mAdapter=ControlAdapter mCapturedLeash=Surface(name=Surface(name=f3944b4 InputMethod)/@0x7958c52 - animation-leash of insets_animation)/@0xdce4638
+        mControlTarget=Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+        mImeShowing=false
+      WindowContainerInsetsSourceProvider
+        mSource=InsetsSource type=ITYPE_EXTRA_NAVIGATION_BAR frame=[0,1248][800,1280] visible=false insetsRoundedCornerFrame=false
+        mSourceFrame=Rect(0, 1248 - 800, 1280)
+        mOverrideFrames={2011=Rect(0, 1232 - 800, 1280)}
+        mControl=InsetsSourceControl type=ITYPE_EXTRA_NAVIGATION_BAR mLeash=Surface(name=Surface(name=fd9388a Taskbar)/@0x61a5356 - animation-leash of insets_animation)/@0x1892611 mInitiallyVisible=false mSurfacePosition=Point(0, 1124) mInsetsHint=Insets{left=0, top=0, right=0, bottom=32} mSkipAnimationOnce=false
+        mIsLeashReadyForDispatching=true
+        mWindowContainer=Window{fd9388a u0 Taskbar}
+        mAdapter=ControlAdapter mCapturedLeash=Surface(name=Surface(name=fd9388a Taskbar)/@0x61a5356 - animation-leash of insets_animation)/@0x1892611
+        mControlTarget=Window{10d1bab u0 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity}
+      WindowContainerInsetsSourceProvider
+        mSource=InsetsSource type=ITYPE_LEFT_GESTURES frame=[0,0][30,1280] visible=true insetsRoundedCornerFrame=false
+        mSourceFrame=Rect(0, 0 - 30, 1280)
+        mIsLeashReadyForDispatching=true
+        mWindowContainer=Window{fd9388a u0 Taskbar}
+      WindowContainerInsetsSourceProvider
+        mSource=InsetsSource type=ITYPE_RIGHT_GESTURES frame=[770,0][800,1280] visible=true insetsRoundedCornerFrame=false
+        mSourceFrame=Rect(770, 0 - 800, 1280)
+        mIsLeashReadyForDispatching=true
+        mWindowContainer=Window{fd9388a u0 Taskbar}
+      WindowContainerInsetsSourceProvider
+        mSource=InsetsSource type=ITYPE_TOP_MANDATORY_GESTURES frame=[0,0][800,24] visible=true insetsRoundedCornerFrame=false
+        mSourceFrame=Rect(0, 0 - 800, 24)
+        mIsLeashReadyForDispatching=true
+        mWindowContainer=Window{c513200 u0 StatusBar}
+      WindowContainerInsetsSourceProvider
+        mSource=InsetsSource type=ITYPE_BOTTOM_MANDATORY_GESTURES frame=[0,1248][800,1280] visible=true insetsRoundedCornerFrame=false
+        mSourceFrame=Rect(0, 1248 - 800, 1280)
+        mOverrideFrames={2011=Rect(0, 1232 - 800, 1280)}
+        mIsLeashReadyForDispatching=true
+        mWindowContainer=Window{fd9388a u0 Taskbar}
+
+  KeyguardController:
+    mKeyguardShowing=false
+    mAodShowing=false
+    mKeyguardGoingAway=false
+   KeyguardShowing=false AodShowing=false KeyguardGoingAway=false DismissalRequested=false  Occluded=false DismissingKeyguardActivity=null TurnScreenOnActivity=null at display=0
+    mDismissalRequested=false
+
+  LockTaskController:
+    mLockTaskModeState=NONE
+    mLockTaskModeTasks=
+    mLockTaskPackages (userId:packages)=
+      u0:[]
+
+  mCurTaskIdForUser={0=146}
+  mUserRootTaskInFront={}
+  mVisibilityTransactionDepth=0
+  isHomeRecentsComponent=false
+  mNoHistoryActivities=[]
+
+  TaskOrganizerController:
+      android.window.ITaskOrganizer$Stub$Proxy@e9397cf uid=10266:
+        (fullscreen) Task{7ecdb8 #3 type=undefined}
+        (multi-window) Task{e0f26f6 #4 type=undefined}
+        (multi-window) Task{cf20f93 #5 type=undefined}
+        (fullscreen) Task{87166af #141 type=standard A=10264:com.farmerbb.taskbar}
+        (fullscreen) Task{4e4bca9 #146 type=standard A=10286:com.global.ztmslg}
+
+  VisibleActivityProcess:[ ProcessRecord{5cea75c 6970:com.global.ztmslg/u0a286}]
+  NumNonAppVisibleWindowUidMap:[ 10266:1 10253:1]

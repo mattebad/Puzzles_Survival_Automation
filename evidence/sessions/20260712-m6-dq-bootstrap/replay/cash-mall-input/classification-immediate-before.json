@@ -1,0 +1,33 @@
+{
+  "candidate": "evidence\\sessions\\20260712-m6-dq-bootstrap\\remote-cache\\20260712-cash-mall-input\\frame-immediate-before.png",
+  "candidate_sha256": "a3a85058886b0fc5d77ad9de69789701fe5de75146d128c3b67a1802d4b7665d",
+  "decision": {
+    "denial_rules": [
+      "never select purchase, offer, premium-currency, or confirmation controls",
+      "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+      "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+    ],
+    "features": {
+      "back_arrow": 1.0,
+      "mall_context": 1.0,
+      "mall_header": 1.0,
+      "premium_header": 0.981125,
+      "purchase_context": 0.99979,
+      "title_region": 0.986335
+    },
+    "fresh_frame_dimensions": true,
+    "known_informational_overlay": true,
+    "no_unknown_overlay": true,
+    "reason": "all positive Cash Mall features passed with the allowlisted Ending Soon informational banner",
+    "recognized": true,
+    "state": "CASH_MALL",
+    "target_roi": [
+      35,
+      0,
+      180,
+      65
+    ],
+    "unknown_overlay": false
+  },
+  "reference": "evidence\\sessions\\20260712-m6-dq-bootstrap\\remote-cache\\20260712-cash-mall-launch\\frame-45.png"
+}

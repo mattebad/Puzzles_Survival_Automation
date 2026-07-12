@@ -485,6 +485,14 @@ Every M6 asset must carry the current RT-019 runtime-profile identifier. The val
 missing or mismatched metadata, and replay must represent incomplete, Go, clipped, stale, unknown,
 and negative states while abstaining when evidence is insufficient.
 
+The first M6 bootstrap capture attempt retained fresh final-runtime Home/Base, Quest, and Daily
+Quest frames. The Daily Quest settled replay recognized the selected Daily Quest tab, points and
+reset evidence, six incomplete `Go` controls, and a clipped bottom row; no Claim row was visible.
+The task remains blocked because the fresh worker's post-input result and cleanup could not be
+verified after the private Unraid SSH connection closed and TCP 22 became unavailable. This is a
+live-reconciliation blocker, not a Claim or quest-completion result; resume with read-only worker
+and device reconciliation and do not repeat the Daily-tab input until its prior result is known.
+
 `M7-SAFE-ACTION-CORE` depends on the bootstrap corpus and implements only the minimum supervised
 action safety boundary: central policy, one exclusive executor, a persistent SQLite journal with
 `prepared → input_sent → confirmed/unresolved`, source hash/time, profile and freshness guards,

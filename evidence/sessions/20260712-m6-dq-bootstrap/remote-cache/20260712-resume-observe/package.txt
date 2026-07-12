@@ -1,0 +1,470 @@
+Activity Resolver Table:
+  Schemes:
+      riversdk.rustore.looteu:
+        555a8e3 com.global.ztmslg/com.games37.riversdk.core.purchase.activity.GooglePlayV3Activity filter 18042e0
+          Action: "android.intent.action.VIEW"
+          Category: "android.intent.category.DEFAULT"
+          Category: "android.intent.category.BROWSABLE"
+          Scheme: "riversdk.rustore.looteu"
+      globalztmslglink:
+        2c6af61 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity filter a3c5f47
+          Action: "android.intent.action.VIEW"
+          Category: "android.intent.category.DEFAULT"
+          Category: "android.intent.category.BROWSABLE"
+          Scheme: "globalztmslglink"
+      fbconnect:
+        13ce999 com.global.ztmslg/com.facebook.CustomTabActivity filter b72445e
+          Action: "android.intent.action.VIEW"
+          Category: "android.intent.category.DEFAULT"
+          Category: "android.intent.category.BROWSABLE"
+          Scheme: "fbconnect"
+          Authority: "cct.com.global.ztmslg": -1
+      fb2303380839957579:
+        13ce999 com.global.ztmslg/com.facebook.CustomTabActivity filter f2ff03f
+          Action: "android.intent.action.VIEW"
+          Category: "android.intent.category.DEFAULT"
+          Category: "android.intent.category.BROWSABLE"
+          Scheme: "fb2303380839957579"
+      riversdkproxy:
+        dde09d com.global.ztmslg/com.games37.riversdk.core.activity.ProxyActivity filter f56a912
+          Action: "android.intent.action.VIEW"
+          Category: "android.intent.category.DEFAULT"
+          Category: "android.intent.category.BROWSABLE"
+          Scheme: "riversdkproxy"
+
+  Non-Data Actions:
+      android.intent.action.MAIN:
+        2c6af61 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity filter e0e6a86
+          Action: "android.intent.action.MAIN"
+          Category: "android.intent.category.LAUNCHER"
+      ACTION_OPEN_GAME_ACTIVITY:
+        2c6af61 com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity filter 8a66374
+          Action: "ACTION_OPEN_GAME_ACTIVITY"
+          Category: "android.intent.category.DEFAULT"
+
+Receiver Resolver Table:
+  Non-Data Actions:
+      android.intent.action.BATTERY_OKAY:
+        6177ac2 com.global.ztmslg/androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy filter 37290d3
+          Action: "android.intent.action.BATTERY_OKAY"
+          Action: "android.intent.action.BATTERY_LOW"
+      android.intent.action.ACTION_POWER_DISCONNECTED:
+        256ad0c com.global.ztmslg/com.igexin.sdk.PushReceiver filter ae98655
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.net.conn.CONNECTIVITY_CHANGE"
+          Action: "android.intent.action.USER_PRESENT"
+          Action: "com.igexin.sdk.action.refreshls"
+          Action: "android.intent.action.MEDIA_MOUNTED"
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+        26391a4 com.global.ztmslg/androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy filter 39d2b0d
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+      android.intent.action.MEDIA_MOUNTED:
+        256ad0c com.global.ztmslg/com.igexin.sdk.PushReceiver filter ae98655
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.net.conn.CONNECTIVITY_CHANGE"
+          Action: "android.intent.action.USER_PRESENT"
+          Action: "com.igexin.sdk.action.refreshls"
+          Action: "android.intent.action.MEDIA_MOUNTED"
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+      androidx.profileinstaller.action.SAVE_PROFILE:
+        b481872 com.global.ztmslg/androidx.profileinstaller.ProfileInstallReceiver filter 29b2879
+          Action: "androidx.profileinstaller.action.SAVE_PROFILE"
+      com.facebook.sdk.ACTION_CURRENT_AUTHENTICATION_TOKEN_CHANGED:
+        78c8136 com.global.ztmslg/com.facebook.AuthenticationTokenManager$CurrentAuthenticationTokenChangedBroadcastReceiver filter bf5a837
+          Action: "com.facebook.sdk.ACTION_CURRENT_AUTHENTICATION_TOKEN_CHANGED"
+      android.intent.action.DEVICE_STORAGE_LOW:
+        61a2410 com.global.ztmslg/androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy filter 47e6b09
+          Action: "android.intent.action.DEVICE_STORAGE_LOW"
+          Action: "android.intent.action.DEVICE_STORAGE_OK"
+      android.net.conn.CONNECTIVITY_CHANGE:
+        256ad0c com.global.ztmslg/com.igexin.sdk.PushReceiver filter ae98655
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.net.conn.CONNECTIVITY_CHANGE"
+          Action: "android.intent.action.USER_PRESENT"
+          Action: "com.igexin.sdk.action.refreshls"
+          Action: "android.intent.action.MEDIA_MOUNTED"
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+        71a486a com.global.ztmslg/com.igexin.download.DownloadReceiver filter 43d515b
+          Action: "android.net.conn.CONNECTIVITY_CHANGE"
+        66810e com.global.ztmslg/androidx.work.impl.background.systemalarm.ConstraintProxy$NetworkStateProxy filter 5cb672f
+          Action: "android.net.conn.CONNECTIVITY_CHANGE"
+      com.igexin.sdk.action.refreshls:
+        256ad0c com.global.ztmslg/com.igexin.sdk.PushReceiver filter ae98655
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.net.conn.CONNECTIVITY_CHANGE"
+          Action: "android.intent.action.USER_PRESENT"
+          Action: "com.igexin.sdk.action.refreshls"
+          Action: "android.intent.action.MEDIA_MOUNTED"
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+      com.facebook.sdk.ACTION_CURRENT_ACCESS_TOKEN_CHANGED:
+        4478df8 com.global.ztmslg/com.facebook.CurrentAccessTokenExpirationBroadcastReceiver filter 58932d1
+          Action: "com.facebook.sdk.ACTION_CURRENT_ACCESS_TOKEN_CHANGED"
+      android.intent.action.DEVICE_STORAGE_OK:
+        61a2410 com.global.ztmslg/androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy filter 47e6b09
+          Action: "android.intent.action.DEVICE_STORAGE_LOW"
+          Action: "android.intent.action.DEVICE_STORAGE_OK"
+      com.android.vending.INSTALL_REFERRER:
+        aa0abd4 com.global.ztmslg/com.appsflyer.MultipleInstallBroadcastReceiver filter 4bbf17d
+          Action: "com.android.vending.INSTALL_REFERRER"
+      androidx.profileinstaller.action.INSTALL_PROFILE:
+        b481872 com.global.ztmslg/androidx.profileinstaller.ProfileInstallReceiver filter f5154c3
+          Action: "androidx.profileinstaller.action.INSTALL_PROFILE"
+      com.google.android.c2dm.intent.RECEIVE:
+        fd5a3e6 com.global.ztmslg/com.google.firebase.iid.FirebaseInstanceIdReceiver filter fcb0d27
+          Action: "com.google.android.c2dm.intent.RECEIVE"
+      android.intent.action.BATTERY_LOW:
+        6177ac2 com.global.ztmslg/androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy filter 37290d3
+          Action: "android.intent.action.BATTERY_OKAY"
+          Action: "android.intent.action.BATTERY_LOW"
+      android.intent.action.TIMEZONE_CHANGED:
+        e65713c com.global.ztmslg/androidx.work.impl.background.systemalarm.RescheduleReceiver filter a19aec5
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+      android.intent.action.TIME_SET:
+        e65713c com.global.ztmslg/androidx.work.impl.background.systemalarm.RescheduleReceiver filter a19aec5
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+      androidx.profileinstaller.action.SKIP_FILE:
+        b481872 com.global.ztmslg/androidx.profileinstaller.ProfileInstallReceiver filter f46b140
+          Action: "androidx.profileinstaller.action.SKIP_FILE"
+      androidx.profileinstaller.action.BENCHMARK_OPERATION:
+        b481872 com.global.ztmslg/androidx.profileinstaller.ProfileInstallReceiver filter 8fb49be
+          Action: "androidx.profileinstaller.action.BENCHMARK_OPERATION"
+      android.intent.action.BOOT_COMPLETED:
+        256ad0c com.global.ztmslg/com.igexin.sdk.PushReceiver filter ae98655
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.net.conn.CONNECTIVITY_CHANGE"
+          Action: "android.intent.action.USER_PRESENT"
+          Action: "com.igexin.sdk.action.refreshls"
+          Action: "android.intent.action.MEDIA_MOUNTED"
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+        e65713c com.global.ztmslg/androidx.work.impl.background.systemalarm.RescheduleReceiver filter a19aec5
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+      android.intent.action.USER_PRESENT:
+        256ad0c com.global.ztmslg/com.igexin.sdk.PushReceiver filter ae98655
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.net.conn.CONNECTIVITY_CHANGE"
+          Action: "android.intent.action.USER_PRESENT"
+          Action: "com.igexin.sdk.action.refreshls"
+          Action: "android.intent.action.MEDIA_MOUNTED"
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+      android.intent.action.ACTION_POWER_CONNECTED:
+        256ad0c com.global.ztmslg/com.igexin.sdk.PushReceiver filter ae98655
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.net.conn.CONNECTIVITY_CHANGE"
+          Action: "android.intent.action.USER_PRESENT"
+          Action: "com.igexin.sdk.action.refreshls"
+          Action: "android.intent.action.MEDIA_MOUNTED"
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+        26391a4 com.global.ztmslg/androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy filter 39d2b0d
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+      androidx.work.diagnostics.REQUEST_DIAGNOSTICS:
+        db66528 com.global.ztmslg/androidx.work.impl.diagnostics.DiagnosticsReceiver filter e6b7241
+          Action: "androidx.work.diagnostics.REQUEST_DIAGNOSTICS"
+      androidx.work.impl.background.systemalarm.UpdateProxies:
+        18da01a com.global.ztmslg/androidx.work.impl.background.systemalarm.ConstraintProxyUpdateReceiver filter e31474b
+          Action: "androidx.work.impl.background.systemalarm.UpdateProxies"
+
+Service Resolver Table:
+  Non-Data Actions:
+      com.google.firebase.MESSAGING_EVENT:
+        8c6993b com.global.ztmslg/com.igexin.sdk.FcmPushService filter de16858
+          Action: "com.google.firebase.MESSAGING_EVENT"
+        2d46db1 com.global.ztmslg/com.google.firebase.messaging.FirebaseMessagingService filter 5c4d296
+          Action: "com.google.firebase.MESSAGING_EVENT"
+          mPriority=-500, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+        2fb8e17 com.global.ztmslg/com.games37.riversdk.core.firebase.SdkFirebaseMessagingService filter 730b204
+          Action: "com.google.firebase.MESSAGING_EVENT"
+      org.OpenUDID.GETUDID:
+        a6a7a1f com.global.ztmslg/org.OpenUDID.OpenUDID_service filter 385a16c
+          Action: "org.OpenUDID.GETUDID"
+      com.igexin.sdk.action.service.message:
+        c9cd335 com.global.ztmslg/com.igexin.sdk.PushService filter 71e43ca
+          Action: "com.igexin.sdk.action.service.message"
+
+Domain verification status:
+
+Permissions:
+  Permission [com.global.ztmslg.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION] (739345f):
+    sourcePackage=com.global.ztmslg
+    uid=10286 gids=[] type=0 prot=signature
+    perm=PermissionInfo{1ca6eac com.global.ztmslg.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION}
+
+Permissions:
+  Permission [getui.permission.GetuiService.com.global.ztmslg] (5f1b775):
+    sourcePackage=com.global.ztmslg
+    uid=10286 gids=[] type=0 prot=normal
+    perm=PermissionInfo{74ef30a getui.permission.GetuiService.com.global.ztmslg}
+
+Permissions:
+  Permission [com.global.ztmslg.push.permission.MESSAGE] (e66b77b):
+    sourcePackage=com.global.ztmslg
+    uid=10286 gids=[] type=0 prot=signature
+    perm=PermissionInfo{1c5c998 com.global.ztmslg.push.permission.MESSAGE}
+
+Permissions:
+  Permission [com.global.ztmslg.permission.C2D_MESSAGE] (83355f1):
+    sourcePackage=com.global.ztmslg
+    uid=10286 gids=[] type=0 prot=signature
+    perm=PermissionInfo{b7135d6 com.global.ztmslg.permission.C2D_MESSAGE}
+
+Permissions:
+  Permission [com.global.ztmslg.permission.MIPUSH_RECEIVE] (71f5057):
+    sourcePackage=com.global.ztmslg
+    uid=10286 gids=[] type=0 prot=signature|privileged
+    perm=PermissionInfo{d19e744 com.global.ztmslg.permission.MIPUSH_RECEIVE}
+
+Registered ContentProviders:
+  com.global.ztmslg/com.google.android.play.deku.DekuContentProvider$Process0:
+    Provider{b16602d com.global.ztmslg/com.google.android.play.deku.DekuContentProvider$Process0}
+  com.global.ztmslg/com.google.android.play.deku.DekuContentProvider$Process1:
+    Provider{9a2d962 com.global.ztmslg/com.google.android.play.deku.DekuContentProvider$Process1}
+  com.global.ztmslg/com.facebook.FacebookContentProvider:
+    Provider{c5e9af3 com.global.ztmslg/com.facebook.FacebookContentProvider}
+  com.global.ztmslg/com.vk.api.sdk.internal.VKInitProvider:
+    Provider{27033b0 com.global.ztmslg/com.vk.api.sdk.internal.VKInitProvider}
+  com.global.ztmslg/com.igexin.download.DownloadProvider:
+    Provider{3a5d229 com.global.ztmslg/com.igexin.download.DownloadProvider}
+  com.global.ztmslg/com.google.firebase.provider.FirebaseInitProvider:
+    Provider{85929ae com.global.ztmslg/com.google.firebase.provider.FirebaseInitProvider}
+  com.global.ztmslg/com.facebook.internal.FacebookInitProvider:
+    Provider{33df34f com.global.ztmslg/com.facebook.internal.FacebookInitProvider}
+  com.global.ztmslg/androidx.startup.InitializationProvider:
+    Provider{f9cdadc com.global.ztmslg/androidx.startup.InitializationProvider}
+
+ContentProvider Authorities:
+  [com.global.ztmslg.androidx-startup]:
+    Provider{f9cdadc com.global.ztmslg/androidx.startup.InitializationProvider}
+      applicationInfo=ApplicationInfo{2a067e5 com.global.ztmslg}
+  [com.global.ztmslg.FacebookInitProvider]:
+    Provider{33df34f com.global.ztmslg/com.facebook.internal.FacebookInitProvider}
+      applicationInfo=ApplicationInfo{e1232ba com.global.ztmslg}
+  [com.global.ztmslg.VKInitProvider]:
+    Provider{27033b0 com.global.ztmslg/com.vk.api.sdk.internal.VKInitProvider}
+      applicationInfo=ApplicationInfo{f10756b com.global.ztmslg}
+  [com.facebook.app.FacebookContentProvider2303380839957579]:
+    Provider{c5e9af3 com.global.ztmslg/com.facebook.FacebookContentProvider}
+      applicationInfo=ApplicationInfo{98ac8c8 com.global.ztmslg}
+  [com.global.ztmslg.gpdeku.contentprovider0]:
+    Provider{b16602d com.global.ztmslg/com.google.android.play.deku.DekuContentProvider$Process0}
+      applicationInfo=ApplicationInfo{bf49d61 com.global.ztmslg}
+  [com.global.ztmslg.gpdeku.contentprovider1]:
+    Provider{9a2d962 com.global.ztmslg/com.google.android.play.deku.DekuContentProvider$Process1}
+      applicationInfo=ApplicationInfo{920c086 com.global.ztmslg}
+  [downloads.com.global.ztmslg]:
+    Provider{3a5d229 com.global.ztmslg/com.igexin.download.DownloadProvider}
+      applicationInfo=ApplicationInfo{b3efd47 com.global.ztmslg}
+  [com.global.ztmslg.firebaseinitprovider]:
+    Provider{85929ae com.global.ztmslg/com.google.firebase.provider.FirebaseInitProvider}
+      applicationInfo=ApplicationInfo{6e7a974 com.global.ztmslg}
+
+Key Set Manager:
+  [com.global.ztmslg]
+      Signing KeySets: 31
+
+Packages:
+  Package [com.global.ztmslg] (9fcae9d):
+    userId=10286
+    pkg=Package{8385f12 com.global.ztmslg}
+    codePath=/data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==
+    resourcePath=/data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==
+    legacyNativeLibraryDir=/data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/lib
+    extractNativeLibs=true
+    primaryCpuAbi=arm64-v8a
+    secondaryCpuAbi=null
+    cpuAbiOverride=null
+    versionCode=348 minSdk=24 targetSdk=35
+    minExtensionVersions=[]
+    versionName=7.0.278
+    usesNonSdkApi=false
+    splits=[base, abPack1, config.arm64_v8a, gpdeku, gpdeku.config.arm64_v8a]
+    apkSigningVersion=3
+    flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE ALLOW_AUDIO_PLAYBACK_CAPTURE PARTIALLY_DIRECT_BOOT_AWARE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]
+    forceQueryable=false
+    queriesPackages=[com.facebook.katana, com.instagram.android, com.facebook.lite, com.samsung.android.mapsagent, com.google.android.youtube, com.google.android.apps.maps, com.twitter.android, com.nhn.android.navercafe]
+    queriesIntents=[Intent { act=com.android.vending.billing.InAppBillingService.BIND }, Intent { act=com.google.android.apps.play.billingtestcompanion.BillingOverrideService.BIND }, Intent { act=com.appsflyer.referrer.INSTALL_PROVIDER }, Intent { act=com.vkontakte.android.action.SDK_AUTH }, Intent { act=android.intent.action.VIEW cat=[android.intent.category.BROWSABLE] dat=http:/... }, Intent { act=android.intent.action.SEND dat=content://*/... typ=text/plain }, Intent { act=android.support.customtabs.action.CustomTabsService }, Intent { act=android.intent.action.VIEW }, Intent { act=android.intent.action.SEND dat=content://*/... typ=text/plain }, Intent { act=com.onestore.ipc.iap.IapService.ACTION }, Intent { act=android.intent.action.VIEW dat=onestore:/... }]
+    dataDir=/data/user/0/com.global.ztmslg
+    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]
+    usesOptionalLibraries:
+      android.ext.adservices
+    timeStamp=2026-07-09 23:35:59
+    lastUpdateTime=2026-07-09 23:36:00
+    installerPackageName=com.android.vending
+    packageSource=0
+    signatures=PackageSignatures{6e426e3 version:3, signatures:[ef0fdc4a], past signatures:[]}
+    installPermissionsFixed=true
+    pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    declared permissions:
+      getui.permission.GetuiService.com.global.ztmslg: prot=normal, INSTALLED
+      com.global.ztmslg.permission.MIPUSH_RECEIVE: prot=signature|privileged, INSTALLED
+      com.global.ztmslg.push.permission.MESSAGE: prot=signature, INSTALLED
+      com.global.ztmslg.permission.C2D_MESSAGE: prot=signature, INSTALLED
+      com.global.ztmslg.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: prot=signature, INSTALLED
+    requested permissions:
+      android.permission.INTERNET
+      android.permission.ACCESS_NETWORK_STATE
+      android.permission.ACCESS_WIFI_STATE
+      com.android.vending.BILLING
+      com.android.vending.CHECK_LICENSE
+      android.permission.SYSTEM_ALERT_WINDOW
+      android.permission.CHANGE_WIFI_STATE
+      android.permission.CHANGE_NETWORK_STATE
+      android.permission.WAKE_LOCK
+      android.permission.RECEIVE_BOOT_COMPLETED
+      android.permission.VIBRATE
+      android.permission.GET_TASKS
+      android.permission.POST_NOTIFICATIONS
+      getui.permission.GetuiService.com.global.ztmslg
+      com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE
+      com.google.android.c2dm.permission.RECEIVE
+      com.google.android.providers.gsf.permission.READ_GSERVICES
+      com.google.android.providers.gsf.permission.WRITE_GSERVICES
+      android.permission.BROADCAST_PACKAGE_ADDED
+      android.permission.BROADCAST_PACKAGE_CHANGED
+      android.permission.BROADCAST_PACKAGE_INSTALL
+      android.permission.BROADCAST_PACKAGE_REPLACED
+      android.permission.RESTART_PACKAGES
+      com.global.ztmslg.permission.MIPUSH_RECEIVE
+      android.permission.WRITE_SETTINGS
+      com.meizu.flyme.push.permission.RECEIVE
+      com.meizu.c2dm.permission.RECEIVE
+      com.global.ztmslg.push.permission.MESSAGE
+      com.global.ztmslg.permission.C2D_MESSAGE
+      com.google.android.gms.permission.AD_ID
+      android.permission.ACCESS_ADSERVICES_ATTRIBUTION
+      android.permission.ACCESS_ADSERVICES_AD_ID
+      android.permission.ACCESS_ADSERVICES_CUSTOM_AUDIENCE
+      android.permission.ACCESS_ADSERVICES_TOPICS
+      android.permission.FOREGROUND_SERVICE
+      com.samsung.android.mapsagent.permission.READ_APP_INFO
+      com.huawei.appmarket.service.commondata.permission.GET_COMMON_DATA
+      android.permission.SCHEDULE_EXACT_ALARM
+      android.permission.FOREGROUND_SERVICE_DATA_SYNC
+      android.permission.USE_FINGERPRINT
+      com.global.ztmslg.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+      android.permission.USE_BIOMETRIC
+    install permissions:
+      android.permission.WRITE_SETTINGS: granted=false
+      com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE: granted=true
+      com.google.android.c2dm.permission.RECEIVE: granted=true
+      android.permission.RESTART_PACKAGES: granted=true
+      com.google.android.providers.gsf.permission.READ_GSERVICES: granted=true
+      android.permission.SYSTEM_ALERT_WINDOW: granted=false
+      com.global.ztmslg.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: granted=true
+      android.permission.CHANGE_NETWORK_STATE: granted=true
+      android.permission.FOREGROUND_SERVICE: granted=true
+      com.google.android.providers.gsf.permission.WRITE_GSERVICES: granted=false
+      android.permission.RECEIVE_BOOT_COMPLETED: granted=true
+      getui.permission.GetuiService.com.global.ztmslg: granted=true
+      com.global.ztmslg.push.permission.MESSAGE: granted=true
+      android.permission.GET_TASKS: granted=true
+      android.permission.INTERNET: granted=true
+      com.android.vending.CHECK_LICENSE: granted=true
+      com.android.vending.BILLING: granted=true
+      android.permission.CHANGE_WIFI_STATE: granted=true
+      android.permission.ACCESS_NETWORK_STATE: granted=true
+      com.global.ztmslg.permission.C2D_MESSAGE: granted=true
+      android.permission.USE_FINGERPRINT: granted=true
+      android.permission.SCHEDULE_EXACT_ALARM: granted=true
+      android.permission.VIBRATE: granted=true
+      android.permission.ACCESS_WIFI_STATE: granted=true
+      android.permission.USE_BIOMETRIC: granted=true
+      com.google.android.gms.permission.AD_ID: granted=true
+      com.global.ztmslg.permission.MIPUSH_RECEIVE: granted=true
+      android.permission.WAKE_LOCK: granted=true
+    User 0: ceDataInode=3999460 installed=true hidden=false suspended=false distractionFlags=0 stopped=true notLaunched=false enabled=0 instant=false virtual=false
+      installReason=4
+      firstInstallTime=2026-07-09 23:26:16
+      uninstallReason=0
+      overlay paths:
+        /system/product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk
+        /data/resource-cache/com.android.systemui-neutral-cpaM.frro
+        /data/resource-cache/com.android.systemui-accent-k9s4.frro
+      legacy overlay paths:
+        /system/product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk
+      gids=[3003]
+      runtime permissions:
+        android.permission.POST_NOTIFICATIONS: granted=false, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]
+      enabledComponents:
+        com.google.android.play.core.assetpacks.ExtractionForegroundService
+        androidx.work.impl.background.systemjob.SystemJobService
+        com.google.android.play.core.assetpacks.AssetPackExtractionService
+
+Queries:
+  system apps queryable: false
+  queries via forceQueryable:
+  queries via package name:
+  queries via component:
+    com.android.settings.intelligence:
+      com.global.ztmslg
+    org.eu.droid_ng.jellyfish:
+      com.global.ztmslg
+    xtr.keymapper:
+      com.global.ztmslg
+    com.global.ztmslg:
+      com.android.bluetooth
+      com.android.cts.priv.ctsshim
+      com.android.cts.ctsshim
+      com.android.dialer
+      com.google.android.apps.restore
+      com.google.android.googlequicksearchbox
+      com.android.messaging
+      org.lineageos.etar
+      com.google.android.setupwizard
+      com.amaze.filemanager
+      com.termux
+  queryable via interaction:
+    User 0:
+      [com.android.touch.gestures,com.android.dynsystem,com.android.location.fused,android,com.android.wallpaperbackup,com.android.providers.settings,com.android.server.telecom,com.android.localtransport,com.android.inputdevices,io.chaldeaprjkt.gamespace,org.zeroxlab.util.tscal,com.android.settings,com.android.keychain]:
+        com.global.ztmslg
+      [com.google.android.gms,com.google.android.gsf]:
+        com.global.ztmslg
+      com.android.vending:
+        com.global.ztmslg
+      com.android.webview:
+        com.global.ztmslg
+      com.android.inputmethod.latin:
+        com.global.ztmslg
+      com.global.ztmslg:
+        [com.android.touch.gestures,com.android.dynsystem,com.android.location.fused,android,com.android.wallpaperbackup,com.android.providers.settings,com.android.server.telecom,com.android.localtransport,com.android.inputdevices,io.chaldeaprjkt.gamespace,org.zeroxlab.util.tscal,com.android.settings,com.android.keychain]
+        com.android.webview
+  queryable via uses-library:
+
+Dexopt state:
+  [com.global.ztmslg]
+    path: /data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/base.apk
+      x86_64: [status=speed-profile] [reason=install-dm]
+    path: /data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/split_gpdeku.apk
+      x86_64: [status=speed-profile] [reason=install-dm]
+  BgDexopt state:
+    enabled:true
+    mDexOptThread:null
+    mDexOptCancellingThread:null
+    mFinishedPostBootUpdate:false
+    mLastExecutionStatus:0
+    mLastExecutionStartTimeMs:0
+    mLastExecutionDurationIncludingSleepMs:0
+    mLastExecutionStartUptimeMs:0
+    mLastExecutionDurationMs:0
+    now:57624566
+    mLastCancelledPackages:
+    mFailedPackageNamesPrimary:
+    mFailedPackageNamesSecondary:
+
+Compiler stats:
+  [com.global.ztmslg]
+    (No recorded stats)
