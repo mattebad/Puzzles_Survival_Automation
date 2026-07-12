@@ -1,27 +1,26 @@
 # Current runtime-proof handoff
 
-Recorded: 2026-07-11, America/Chicago
+Recorded: 2026-07-12, America/Chicago
 
 ## Current milestone and task state
 
-- Milestone: M3 Direct Bliss runtime proof — Passed; downstream post-selection gates are pending.
-- Current task: MVP-STARTUP-NORMALIZATION — Passed after resumed bounded keyguard, Cash Mall, and
-  Home/Base validation; resumed preflight is recorded at
-  `evidence/sessions/20260711-mvp-startup-normalization/preflight-resume.md`. RT-017, RT-019, and
-  RT-021 passed, and the secured backup and offline restore validation are complete.
+- Milestone: M5 Framework bake-off — In Progress.
+- Current task: M5-CUSTOM-BASELINE — Passed by offline replay, dry-run, mock policy, and retained
+  transport evidence; task record and preflight are under
+  `evidence/sessions/20260712-m5-custom-baseline/`. M5-AIRTEST is next.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
-- Tasks completed during this run: RT-012 passed; RT-013 passed with Bliss selected; RT-019
-  passed with the versioned runtime profile; RT-021 passed with direct worker/reconnect evidence;
-  Cash Mall startup behavior recorded as a stable runtime fact; MVP-STARTUP-NORMALIZATION passed
-  with one supervised no-spend transition.
+- Tasks completed during this run: M5-CUSTOM-BASELINE passed with 100 replay
+  capture/classification operations, 25 target annotations, 10 OCR operations, ten gesture mocks,
+  and five reconnect mocks. Earlier completed boundaries remain authoritative: RT-012, RT-013,
+  RT-017, RT-019, RT-021, and MVP-STARTUP-NORMALIZATION.
 
 ## Repository state
 
 - Branch: `main`.
-- Latest committed boundary before resumed closure: `278a7f5` (`task(MVP): record keyguard
-  blocker`). The resumed startup-normalization evidence and implementation form the next
-  task-scoped closure boundary.
+- Latest committed boundary before this M5 closure: `70efbfd` (`task(MVP): automate guarded
+  startup normalization`). The M5-CUSTOM-BASELINE task-scoped closure is pending commit in the
+  current working session; no unrelated path is staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - The completed guarded keyguard branch, live-validation evidence, final Home/Base candidate, and
   passed task decision are included in the task-scoped closure boundary.
@@ -33,10 +32,10 @@ Recorded: 2026-07-11, America/Chicago
 - VM: dedicated `PnS-BlissOS-PoC`, selected VirtIO(3D)/Mesa VirGL profile, running.
 - Game: force-stopped after one explicitly authorized supervised no-spend startup tap; no
   unattended gameplay input automation is enabled.
-- ADB: private NAS-local ADB server remains loopback-only; RT-012 connection disconnected and no
-  external tunnel is active. RT-021 direct worker proof used a temporary UID-65534 host-network
-  container with an isolated local ADB server port; all RT-021 containers and that port were
-  removed afterward.
+- ADB: the documented NAS-local ADB server remains loopback-only and idle with no attached device
+  in the 2026-07-12 read-only query; no external tunnel or temporary worker ADB server is active.
+  RT-021 direct worker proof used a temporary UID-65534 host-network container with an isolated
+  local ADB server port; all RT-021 containers and that port were removed afterward.
 - Observer: temporary container `rt012-observer-20260711-1519` and host collector completed and were removed/stopped after evidence preservation.
 - Supervisor: completed normally at 2026-07-12 00:19:36 America/Chicago.
 - VM autostart: disabled.
@@ -44,10 +43,11 @@ Recorded: 2026-07-11, America/Chicago
   `showing=false`, `secure=false`, and `mInputRestricted=false`. No additional keyguard swipe or
   HOME input was sent. The game reached Cash Mall, received exactly one authorized back-arrow tap,
   reached positively recognized Home/Base, and was force-stopped during cleanup.
-- Final remote status query: unavailable because the session reached its SSH/tool-usage limit;
-  no retry or workaround was attempted. The completed worker evidence records
-  `force-stopped-after-trial`, ADB disconnect/kill, and temporary-container removal, so the last
-  known live state remains the safe cleaned-up state above.
+- Read-only Unraid reconciliation on 2026-07-12 confirmed the VM is `running`, autostart is
+  disabled, no RT-012/MVP/observer container or related process remains, the RT-017 backup
+  directory/qcow2 remains present, and no temporary 5038/5040/5555 listener remains. The game is
+  force-stopped by retained RT-021/MVP cleanup evidence; no attached device was available for a
+  current package query, so no new live command was issued.
 - Rollback: RT-001 baseline XML, disk identity, graphics rollback, and boot-state evidence remain retained; no disk replacement or destructive VM storage action occurred.
 
 ## Evidence
@@ -78,11 +78,15 @@ Recorded: 2026-07-11, America/Chicago
   criterion review; Home/Base candidate manifest is
   `evidence/sessions/20260711-mvp-startup-normalization/home-base-candidate-manifest.json`.
 - No RT-016A identity-evidence directory exists yet because its required manual identity exposure has not occurred.
+- M5 custom baseline: `evidence/sessions/20260712-m5-custom-baseline/`; benchmark JSON records
+  100 replay operations, 25 target annotations, 10 OCR calls, ten gesture mocks, five reconnect
+  mocks, and the retained RT-010/RT-021 transport facts.
 
 ## Exact blocker and required user action
 
-1. No current blocker. The resumed startup-normalization MVP passed with no additional keyguard
-   swipe, exactly one supervised no-spend back-arrow tap, positive Home/Base, and cleanup.
+1. No current blocker. The custom baseline passed without live input; the resumed startup-
+  normalization MVP previously passed with no additional keyguard swipe, exactly one supervised
+  no-spend back-arrow tap, positive Home/Base, and cleanup.
 2. RT-016A remains a later manual-only account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
@@ -90,8 +94,8 @@ Recorded: 2026-07-11, America/Chicago
 
 ## Exact next command
 
-M5 framework bake-off is the next backlog task. Do not start Daily Quest or later gameplay in the
-same startup-normalization boundary.
+Start the M5-AIRTEST preflight/evaluation using the same retained corpus and offline/mock-only
+scope. Do not start M6 production corpus work or Daily Quest.
 
 ## Facts that must not be re-tested
 

@@ -84,7 +84,7 @@ dependency; no dedicated SSH-key task is a production blocker.
 | M2 Unraid audit | Passed | Measured in service plan on 2026-07-09 |
 | M3 Direct Bliss runtime proof | Passed | RT-001 through RT-013 passed; downstream infrastructure and later account-guard gates remain |
 | M4 One-time account provisioning | Passed for current Bliss runtime | Must remain manual on any rebuild |
-| M5 Framework bake-off | Pending | RT-019 and RT-021 passed; first startup vertical slice precedes broad bake-off |
+| M5 Framework bake-off | In Progress | RT-019 and RT-021 passed; incumbent baseline evaluation is active |
 | M6 Production corpus | Blocked | M5 framework bake-off and final-runtime corpus selection |
 | M7 Deterministic service core | Pending | M5 selection and runtime-independent foundations; M7-Takeover after RT-014A; M7-AccountGuard after RT-016A |
 | M8 Claim-only MVP | Pending | Selected runtime, corpus, core, and promotion gates |
@@ -92,13 +92,80 @@ dependency; no dedicated SSH-key task is a production blocker.
 | Milestone 10 — Production hardening and operational acceptance | Pending | Production task catalog |
 
 Framework bake-off is time-boxed. Custom Python + ADB + OpenCV + local OCR remains the
-presumptive baseline, not a final selection. Compare it with Airtest and MaaFramework using one
-representative safe flow: 50–100 captures per candidate, 20–25 safe
-taps, 10 safe swipes, 5–10 reconnect cycles, one detector, one OCR region, one bounded navigation
-flow, and packaging/policy-gate integration review. Stop evaluating a candidate when its
-reliability or maintainability benefit clearly does not justify added complexity. Reserve the
-selected adapter's larger validation set—500 captures and 100 supervised inputs—for the chosen
-adapter.
+presumptive baseline until the four M5 task boundaries below close. Compare it with Airtest and
+MaaFramework using one representative safe flow: 50–100 captures per candidate, 20–25 safe
+target-resolution trials, 10 safe gesture-resolution trials, 5–10 reconnect cycles, one
+detector, one OCR region, one bounded navigation flow, and packaging/policy-gate integration
+review. Prefer offline replay, mocks, and dry-run annotations; do not manufacture live game
+inputs. Stop evaluating a candidate when its reliability or maintainability benefit clearly does
+not justify added complexity. Reserve the selected adapter's larger validation set—500 captures
+and 100 supervised inputs—for the chosen adapter.
+
+## M5 candidate evaluation tasks
+
+### M5-CUSTOM-BASELINE — Benchmark incumbent deterministic stack
+
+- Dependencies: MVP-STARTUP-NORMALIZATION, RT-019, and RT-021.
+- Objective: measure the existing Python/direct ADB/OpenCV/local-OCR implementation on the
+  retained startup corpus and safety contract.
+- Scope: offline replay and image decoding, Cash Mall/Ending Soon/Home/Base/negative
+  classification, target annotation, OCR, stale/profile/unknown rejection, policy-contract
+  mocks, and retained RT-010/RT-021 live facts. No live game input.
+- Acceptance: 100 replay capture/classification operations; 25 target annotations; 10 OCR
+  operations; 10 safe gesture-resolution trials; 5 reconnect simulations; retained live ADB
+  capture/reconnect evidence; packaging/resource/diagnostic/maintainability review; all expected
+  outcomes pass and every limitation is recorded.
+- Evidence: `evidence/sessions/20260712-m5-custom-baseline/`.
+- Rollback: remove only task-scoped benchmark script/evidence; preserve all passed runtime and
+  MVP evidence.
+- Status: Passed (2026-07-12; offline baseline benchmark complete).
+- Blocker: None. The incumbent baseline met the replay, policy, packaging, and diagnostic
+  criteria; live ADB capture/reconnect facts remain explicitly attributed to RT-010/RT-021.
+- Next: M5-AIRTEST.
+
+### M5-AIRTEST — Evaluate policy-constrained Airtest adapter
+
+- Dependencies: M5-CUSTOM-BASELINE.
+- Objective: determine whether Airtest provides a measurable benefit for the representative flow
+  without bypassing the central policy gate.
+- Scope: minimal offline/mock adapter or packaging review only; no framework auto-watchers,
+  coordinate scripts, retries, live game taps, or scheduler/controller rewrite.
+- Acceptance: identical corpus and target/policy tests, dependency and unprivileged-worker
+  packaging assessment, reconnect and diagnostics assessment, and evidence-backed Passed or
+  Rejected decision.
+- Evidence: `evidence/sessions/20260712-m5-airtest/`.
+- Rollback: remove only task-scoped prototype/evidence; no live runtime changes.
+- Status: Pending.
+- Next: M5-MAA after closure.
+
+### M5-MAA — Evaluate policy-constrained MaaFramework adapter
+
+- Dependencies: M5-AIRTEST.
+- Objective: determine whether MaaFramework provides a measurable benefit for the representative
+  flow without introducing uncontrolled watchers, retries, or policy bypass.
+- Scope: minimal offline/mock adapter or packaging review only; no live game input, generic popup
+  handlers, coordinate scripts, or scheduler/controller rewrite.
+- Acceptance: identical corpus and target/policy tests, dependency and unprivileged-worker
+  packaging assessment, reconnect and diagnostics assessment, and evidence-backed Passed or
+  Rejected decision.
+- Evidence: `evidence/sessions/20260712-m5-maa/`.
+- Rollback: remove only task-scoped prototype/evidence; no live runtime changes.
+- Status: Pending.
+- Next: M5-DECISION after closure.
+
+### M5-DECISION — Select final deterministic control stack
+
+- Dependencies: M5-CUSTOM-BASELINE, M5-AIRTEST, and M5-MAA.
+- Objective: select the lowest-complexity framework that reliably satisfies the project
+  requirements and authorize M6.
+- Acceptance: comparative measurements, selected role, rejected-candidate reasons, packaging and
+  policy implications, reconnect/failure behavior, maintainability, limitations, fallback
+  conditions, evidence links, and explicit authorization to proceed to M6 are recorded.
+- Evidence: `evidence/sessions/20260712-m5-decision/`.
+- Rollback: retain all candidate evidence; revert only the decision documentation if review
+  rejects the selection.
+- Status: Pending.
+- Next: M6 production corpus gate after M5 Passed.
 
 ## M6 production corpus gate
 
@@ -668,8 +735,11 @@ RT-017, RT-019, and RT-021 have passed. MVP-STARTUP-NORMALIZATION Passed after t
 observe-only keyguard reconciliation, guarded Cash Mall launch, one authorized no-spend back-arrow
 tap, and positive final-profile Home/Base postcondition. The M5 framework bake-off is next; Daily
 Quest and later gameplay workflows were not started.
-M5 framework bake-off remains deferred until this first vertical slice is reconciled. Do not rerun RT-012; its complete evidence
-is retained in `evidence/sessions/20260711-rt-012-observe-soak/`. Do not place credentials in this
+M5 framework bake-off is active after the completed startup-normalization vertical slice. The
+incumbent custom baseline passed its offline replay boundary; Airtest is the next candidate task.
+Do not rerun RT-012 or the completed MVP action; their complete evidence is retained in
+`evidence/sessions/20260711-rt-012-observe-soak/` and
+`evidence/sessions/20260711-mvp-startup-normalization/`. Do not place credentials in this
 repository or command history. Launching `com.global.ztmslg` normally opens the authenticated Cash
 Mall screen; startup normalization must positively recognize Cash Mall, recapture immediately,
 send at most one authorized no-spend top-left back-arrow input, and positively recognize Home/Base

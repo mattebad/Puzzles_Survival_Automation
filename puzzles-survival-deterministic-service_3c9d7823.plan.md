@@ -37,7 +37,7 @@ todos:
     status: completed
   - id: startup-normalization-mvp
     content: Validate the bounded Cash Mall-to-Home/Base startup-normalization vertical slice.
-    status: pending
+    status: completed
   - id: m7-takeover
     content: Integrate safe manual takeover with controller after RT-014A.
     status: pending
@@ -689,6 +689,13 @@ Stop evaluating a candidate when it clearly lacks enough reliability or maintain
 to justify added complexity. Reserve the larger selected-adapter validation set—500 captures,
 100 supervised inputs, reconnect behavior, replay diagnostics, packaging, CPU/RAM, and proof that
 all inputs pass one policy gate—for the chosen adapter only.
+
+The incumbent custom Python/direct ADB/OpenCV/local OCR baseline completed its first M5 boundary
+on 2026-07-12 with 100 replay capture/classification operations, 25 exact target annotations,
+10 ROI-specific OCR operations, ten safe gesture-resolution mocks, five reconnect mocks, and
+retained RT-010/RT-021 live transport facts. The baseline remains under comparison until the
+Airtest and MaaFramework boundaries and the final decision close M5; this measurement does not
+promote replay fixtures to the M6 production corpus.
 
 ## 13. Daily quest and routine task catalog
 

@@ -1,0 +1,683 @@
+{
+  "benchmark_scope": "offline replay, mocks, dry-run annotations, and retained RT-010/RT-021/MVP live evidence; no live game input",
+  "candidate": "custom Python + direct ADB + OpenCV + local OCR",
+  "corpus": {
+    "cash_mall": {
+      "bytes": 761745,
+      "decode_ms": 21.5052,
+      "dimensions": [
+        800,
+        1280
+      ],
+      "locked_profile_valid": true,
+      "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\evidence\\sessions\\20260711-rt-012-observe-soak\\cash-mall-startup-reference.png",
+      "png_signature": true,
+      "sha256": "c2a8de297912e402715784f3893a48b00651a76dcf5b95f53fde2647a44f311a"
+    },
+    "ending_soon": {
+      "bytes": 752303,
+      "decode_ms": 19.5787,
+      "dimensions": [
+        800,
+        1280
+      ],
+      "locked_profile_valid": true,
+      "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\evidence\\sessions\\20260711-mvp-startup-normalization\\remote-cache\\20260711-cash-mall-observe-2120\\frame-final.png",
+      "png_signature": true,
+      "sha256": "29c5d380faed832f315a7f8cf8b5608763a659788ca9bea247b8e2e157d76f0a"
+    },
+    "home_base": {
+      "bytes": 1965198,
+      "decode_ms": 25.1239,
+      "dimensions": [
+        800,
+        1280
+      ],
+      "locked_profile_valid": true,
+      "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\evidence\\sessions\\20260711-mvp-startup-normalization\\remote-cache\\20260711-cash-mall-input-2125\\frame-settled-after.png",
+      "png_signature": true,
+      "sha256": "51ddeee729f8d69a069d4e7e90a2606fa296b676f0cd4229cb78fb9cafcaca2a"
+    },
+    "keyguard_launcher": {
+      "bytes": 266239,
+      "decode_ms": 15.4701,
+      "dimensions": [
+        800,
+        1280
+      ],
+      "locked_profile_valid": true,
+      "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\evidence\\sessions\\20260711-mvp-startup-normalization\\remote-cache\\20260711-live-observe-2042\\frame-before.png",
+      "png_signature": true,
+      "sha256": "5f52d94818eb7ace6383bf9ae453562e72c6c28ae258bce918207adfdea6567a"
+    },
+    "profile_mismatch": {
+      "bytes": 5495251,
+      "decode_ms": 55.6855,
+      "dimensions": [
+        1206,
+        2622
+      ],
+      "locked_profile_valid": false,
+      "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\examples\\screenshots\\IMG_5080.PNG",
+      "png_signature": true,
+      "sha256": "8c3d7ac932ddf2836bfcfcc05559e7977a3745abeedef2704376e61144e86cdd"
+    }
+  },
+  "decision": "PASSED_BASELINE",
+  "diagnostics": {
+    "per_trial_results_retained": true,
+    "replay_hashes_retained": true,
+    "stale_and_profile_mismatch_rejected": true,
+    "unknown_outcomes_fail_closed": true
+  },
+  "limitations": [
+    "replay decode timing is not live ADB capture timing",
+    "RT-021 provides one retained live reconnect path; additional cycles are safe mocks",
+    "Home/Base OCR remains ROI-specific and requires final M6 corpus promotion",
+    "the helper does not itself own the future SQLite scheduler or controller"
+  ],
+  "measurements": {
+    "classification": {
+      "all_expected_outcomes": true,
+      "cases": {
+        "cash_mall": 20,
+        "ending_soon": 20,
+        "home_base": 20,
+        "keyguard_launcher": 20,
+        "profile_mismatch": 20
+      },
+      "expected_count": 100,
+      "latency_ms": {
+        "max": 28.5165,
+        "p50": 8.4673,
+        "p95": 10.6073
+      },
+      "operations": 100,
+      "passed_count": 100
+    },
+    "gesture_resolution": {
+      "authorized_count": 1,
+      "authorized_expected_count": 1,
+      "no_input_sent": true,
+      "one-swipe-retry-denied": true,
+      "operations": 10,
+      "trials": [
+        {
+          "authorized": true,
+          "input_sent": false,
+          "trial": 1
+        },
+        {
+          "authorized": false,
+          "input_sent": false,
+          "trial": 2
+        },
+        {
+          "authorized": false,
+          "input_sent": false,
+          "trial": 3
+        },
+        {
+          "authorized": false,
+          "input_sent": false,
+          "trial": 4
+        },
+        {
+          "authorized": false,
+          "input_sent": false,
+          "trial": 5
+        },
+        {
+          "authorized": false,
+          "input_sent": false,
+          "trial": 6
+        },
+        {
+          "authorized": false,
+          "input_sent": false,
+          "trial": 7
+        },
+        {
+          "authorized": false,
+          "input_sent": false,
+          "trial": 8
+        },
+        {
+          "authorized": false,
+          "input_sent": false,
+          "trial": 9
+        },
+        {
+          "authorized": false,
+          "input_sent": false,
+          "trial": 10
+        }
+      ]
+    },
+    "ocr": {
+      "all_recognized": true,
+      "latency_ms": {
+        "max": 1485.1412,
+        "p50": 948.9313,
+        "p95": 1485.1412
+      },
+      "operations": 10,
+      "roi": "Home/Base scene and bottom-navigation regions only"
+    },
+    "reconnect_mock": {
+      "all_reconnected": true,
+      "operations": 5,
+      "trials": [
+        {
+          "capture_allowed_after_reconnect": true,
+          "initial": "DISCONNECTED",
+          "input_sent": false,
+          "reconnected": "DEVICE",
+          "transport": "mock direct-private-ADB adapter",
+          "trial": 1
+        },
+        {
+          "capture_allowed_after_reconnect": true,
+          "initial": "DISCONNECTED",
+          "input_sent": false,
+          "reconnected": "DEVICE",
+          "transport": "mock direct-private-ADB adapter",
+          "trial": 2
+        },
+        {
+          "capture_allowed_after_reconnect": true,
+          "initial": "DISCONNECTED",
+          "input_sent": false,
+          "reconnected": "DEVICE",
+          "transport": "mock direct-private-ADB adapter",
+          "trial": 3
+        },
+        {
+          "capture_allowed_after_reconnect": true,
+          "initial": "DISCONNECTED",
+          "input_sent": false,
+          "reconnected": "DEVICE",
+          "transport": "mock direct-private-ADB adapter",
+          "trial": 4
+        },
+        {
+          "capture_allowed_after_reconnect": true,
+          "initial": "DISCONNECTED",
+          "input_sent": false,
+          "reconnected": "DEVICE",
+          "transport": "mock direct-private-ADB adapter",
+          "trial": 5
+        }
+      ]
+    },
+    "replay_capture": {
+      "all_expected_dimensions": true,
+      "latency_ms": {
+        "max": 54.5985,
+        "p50": 13.4999,
+        "p95": 51.4715
+      },
+      "operations": 100,
+      "profile_mismatch_rejected_count": 20,
+      "profile_valid_count": 100,
+      "profile_valid_expected_count": 100,
+      "source": "immutable retained PNG replay; not live ADB latency"
+    },
+    "target_resolution": {
+      "all_exact_roi": true,
+      "all_recognized": true,
+      "all_spend_controls_denied": true,
+      "expected_roi": [
+        35,
+        0,
+        180,
+        65
+      ],
+      "operations": 25,
+      "trials": [
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 1
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 2
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 3
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 4
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 5
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 6
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 7
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 8
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 9
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 10
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 11
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 12
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 13
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 14
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 15
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 16
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 17
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 18
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 19
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 20
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 21
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 22
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 23
+        },
+        {
+          "annotation_sha256": "a298d34f8a31516a54e42fa0a91eef6c20d09f3cb93581c0b6aea262591f45e2",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 24
+        },
+        {
+          "annotation_sha256": "990e0f5551b767b97e88fff32e39726d50be361bd0c50d2705fe8aacfe8d77e9",
+          "purchase_offer_premium_controls_authorized": false,
+          "recognized": true,
+          "target_roi": [
+            35,
+            0,
+            180,
+            65
+          ],
+          "trial": 25
+        }
+      ]
+    }
+  },
+  "packaging": {
+    "policy_gate_embedded_in_framework": false,
+    "production_dependencies": {
+      "top_level_imports": [
+        "__future__",
+        "argparse",
+        "cv2",
+        "dataclasses",
+        "hashlib",
+        "json",
+        "numpy",
+        "pathlib",
+        "pytesseract",
+        "re",
+        "sys",
+        "typing"
+      ]
+    },
+    "third_party_framework_dependency": false,
+    "unprivileged_worker_path": "passed in RT-021 with constrained host-network boundary",
+    "worker_identity": "UID 65534:nobody from retained RT-021 evidence"
+  },
+  "policy": {
+    "all_expected": true,
+    "cases": [
+      {
+        "attempt": 0,
+        "authorized": true,
+        "case": "fresh-positive",
+        "expected": true,
+        "fresh": true,
+        "reason": "positive source/target and one-input policy predicates passed",
+        "source_state": "CASH_MALL",
+        "target_overlap": false,
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ],
+        "target_stable": true
+      },
+      {
+        "attempt": 0,
+        "authorized": false,
+        "case": "stale-frame",
+        "expected": false,
+        "fresh": false,
+        "reason": "central policy contract denied stale, unstable, overlapping, unknown, or repeated input",
+        "source_state": "CASH_MALL",
+        "target_overlap": false,
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ],
+        "target_stable": true
+      },
+      {
+        "attempt": 0,
+        "authorized": false,
+        "case": "unstable-target",
+        "expected": false,
+        "fresh": true,
+        "reason": "central policy contract denied stale, unstable, overlapping, unknown, or repeated input",
+        "source_state": "CASH_MALL",
+        "target_overlap": false,
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ],
+        "target_stable": false
+      },
+      {
+        "attempt": 0,
+        "authorized": false,
+        "case": "target-overlap",
+        "expected": false,
+        "fresh": true,
+        "reason": "central policy contract denied stale, unstable, overlapping, unknown, or repeated input",
+        "source_state": "CASH_MALL",
+        "target_overlap": true,
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ],
+        "target_stable": true
+      },
+      {
+        "attempt": 1,
+        "authorized": false,
+        "case": "repeat-input",
+        "expected": false,
+        "fresh": true,
+        "reason": "central policy contract denied stale, unstable, overlapping, unknown, or repeated input",
+        "source_state": "CASH_MALL",
+        "target_overlap": false,
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ],
+        "target_stable": true
+      },
+      {
+        "attempt": 0,
+        "authorized": false,
+        "case": "unknown-source",
+        "expected": false,
+        "fresh": true,
+        "reason": "central policy contract denied stale, unstable, overlapping, unknown, or repeated input",
+        "source_state": "UNKNOWN",
+        "target_overlap": false,
+        "target_roi": [
+          35,
+          0,
+          180,
+          65
+        ],
+        "target_stable": true
+      }
+    ],
+    "immediate_recapture_required": true,
+    "input_commands_sent": 0,
+    "source": "offline policy-contract mock plus retained MVP gate evidence"
+  },
+  "retained_live_facts": {
+    "adb_capture": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\evidence\\sessions\\20260711-rt-010-capture\\record.md",
+    "adb_capture_p95_ms": 1026.136,
+    "adb_capture_profile": "800x1280",
+    "mvp_one_input_record": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\evidence\\sessions\\20260711-mvp-startup-normalization\\remote-cache\\20260711-cash-mall-input-2125\\input-command-record.txt",
+    "mvp_one_input_repeated": false,
+    "worker_reconnect": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\evidence\\sessions\\20260711-rt-021-worker-vm-adb\\record.md",
+    "worker_reconnect_passed": true
+  },
+  "task": "M5-CUSTOM-BASELINE"
+}
