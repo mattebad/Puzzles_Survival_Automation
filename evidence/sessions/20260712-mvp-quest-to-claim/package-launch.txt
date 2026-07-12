@@ -1,0 +1,7 @@
+Starting: Intent { cmp=com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity
+TotalTime: 260
+WaitTime: 261
+Complete

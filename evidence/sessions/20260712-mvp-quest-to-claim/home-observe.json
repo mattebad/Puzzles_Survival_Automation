@@ -1,0 +1,47 @@
+{
+  "captured_at": 1783893006.3993196,
+  "classification": {
+    "home_features": {
+      "base_scene_score": 0.120064,
+      "bottom_navigation_score": 0.140854,
+      "navigation_ocr_hits": [
+        "bag",
+        "mail",
+        "more",
+        "quest"
+      ],
+      "navigation_ocr_text": "= sp sapo) a ey\ndt \u201cee quest bag \u201cmail allianeo) more\n",
+      "reason": "resource header, base scene, bottom navigation, and OCR anchors passed",
+      "recognized": true,
+      "resource_header_score": 0.116674,
+      "scene_ocr_hits": [
+        "camp",
+        "depot",
+        "research",
+        "warehouse",
+        "watch tower"
+      ],
+      "scene_ocr_text": "aon : pg pa\n: =e os watch tower i e ne \u00a5 f\n\u2018hid \u201csepa 5 see > wit wg\n- (0/2) _ aes aia = os eadass f\n\u2018research ing os be fa en\n(0/1) | ee ce eb ae sy\nae (stree ss oe\nte ~ ec ns ee -\u2014\u2014 <<\n: is = poses eo an\neee 2,\nsg a! s we aa s bie a as\n\u2014 ge \u201ce a + age =i\n%) pe fo. se = ae <4\nss ie. pee 2 a es,\nnoah's tavern : fa ae so x warehouse\ni = ta\neh ep os, 122) \u2014w\nes ee <\nee oom z shooter camp , =| (at) e\nss es 7 | \u00a5 a\nbe ae <> f =\nu ae. rider camp v\\ |\nfighter camp = m ot ee es y\nie paie oi 4 g\n~~ aa sse > a se\nupgrade vehicle depotito nepot by lhl ~ |\nw\u00e9 iconic champion warzone \u201c_~ is hosting a grand feast. hurry\n@anent ranwns hac initiated a rally attack on lv 21 zambie[ air! 24\n",
+      "state": "HOME_BASE"
+    },
+    "quest_entry_roi": [
+      250,
+      1130,
+      410,
+      1280
+    ],
+    "quest_entry_target_recognized": true,
+    "quest_entry_text": "ee ee. has initiated a r quest b",
+    "reason": "Home/Base and Quest entry OCR passed",
+    "recognized": true,
+    "safe_os_surface": true,
+    "state": "HOME_BASE"
+  },
+  "metadata": {
+    "bytes": 1965366,
+    "height": 1280,
+    "path": "/evidence/home-observe.png",
+    "sha256": "ce84abd3d1cd08a0648942eb2fb0d82c068635917a2917d7351320f85594c1cc",
+    "width": 800
+  }
+}

@@ -210,8 +210,8 @@ Claim example.
   abstention, synthetic fail-closed fixtures, bounded scroll overlap, and cleanup all passed.
   No Claim, Go, quest-completion, or spend input was recorded. A positive completed-but-unclaimed
   Claim state remains intentionally deferred to `M6-DQ-TRANSITION-CORPUS`.
-- Next: M7-SAFE-ACTION-CORE Passed; `MVP-QUEST-TO-CLAIM` is now ready as a separate supervised
-  live boundary.
+- Next: M7-SAFE-ACTION-CORE Passed; `MVP-QUEST-TO-CLAIM` is now Blocked by its retained
+  pre-dispatch freshness-policy denial.
 
 ### M6-DQ-TRANSITION-CORPUS — Promote live transition evidence
 
@@ -348,13 +348,16 @@ Claim example.
   live trial with immediate pre-input recapture, one input, bounded postcondition observation,
   and independent reconciliation. Do not continue into Daily Quest claims or other gameplay after
   this trial.
-- Evidence: `evidence/sessions/<timestamp>-mvp-quest-to-claim/`.
+- Evidence: `evidence/sessions/20260712-mvp-quest-to-claim/`.
 - Rollback: stop at the first unknown or unresolved outcome, preserve the action journal and all
   frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
   fallback is allowed.
-- Status: Ready.
-- Blocker: none. M6-DQ-BOOTSTRAP and M7-SAFE-ACTION-CORE Passed. A positive transition state may
-  not exist until the bounded supervised trial completes one approved zero-cost objective.
+- Status: Blocked (2026-07-12; pre-dispatch freshness-policy denial).
+- Blocker: the immediate-before Home/Base-to-Quest frame remained positively recognized but CPU
+  OCR/classification exceeded the configured three-second maximum frame age. Policy returned
+  `STALE_FRAME`, the prepared action was cancelled with zero transport calls, and the trial
+  stopped without retry. Review and test an evidence-based recognition/freshness timing contract
+  before resuming this same task. No unresolved action remains.
 - Next: M6-DQ-TRANSITION-CORPUS after a successful trial.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
@@ -887,8 +890,10 @@ reconciliation was positively classified, one bounded no-spend list scroll produ
 evidence, profile-compatible assets were promoted, fail-closed fixtures passed, and all task-scoped
 workers were cleaned up. M7-SAFE-ACTION-CORE Passed with SQLite schema version 1, the persistent
 lease/action journal, central policy, injected exactly-one-input executor, startup reconciliation,
-and 44 passing offline tests. `MVP-QUEST-TO-CLAIM` is the sole next ready task; do not begin
-M6-DQ-TRANSITION-CORPUS before that supervised trial passes. Do not rerun RT-012 or the
+and 44 passing offline tests. `MVP-QUEST-TO-CLAIM` is Blocked after one confirmed Cash Mall-to-Home
+action and a pre-dispatch `STALE_FRAME` denial on Home-to-Quest; no Daily Quest, prerequisite, or
+Claim input occurred. Resume only after offline review of the recognition/freshness timing
+contract. Do not begin M6-DQ-TRANSITION-CORPUS before the supervised trial passes. Do not rerun RT-012 or the
 completed MVP action; their complete evidence is retained in
 `evidence/sessions/20260711-rt-012-observe-soak/` and
 `evidence/sessions/20260711-mvp-startup-normalization/`. Do not place credentials in this

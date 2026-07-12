@@ -61,7 +61,7 @@ todos:
     status: completed
   - id: mvp-quest-to-claim
     content: Complete one supervised zero-cost Daily Quest objective and claim exactly one resulting row.
-    status: pending
+    status: blocked
   - id: design-core-service
     content: Implement persistent scheduler, HSM, policy gate, executor, and recovery.
     status: pending
@@ -518,6 +518,14 @@ one positively recognized zero-cost R1 prerequisite (prefer exact free Alliance 
 free Supply Depot as fallback); verify the row becomes Claim; claim exactly one row; prove the
 postcondition; and stop. No resource-consuming substitute is authorized. This trial does not pass
 M8 or authorize unattended gameplay.
+
+The first supervised attempt on 2026-07-12 is retained as Blocked. One Cash Mall-to-Home
+navigation action passed the M7 `prepared → input_sent → confirmed` lifecycle. The next
+Home/Base-to-Quest proposal was positively recognized but its immediate-before OCR path exceeded
+the configured three-second frame-age limit; central policy denied `STALE_FRAME`, persisted
+`cancelled`, and made zero transport calls. No Daily Quest objective, Go, prerequisite, or Claim
+input occurred. Resume only after offline timing tests establish an evidence-based freshness
+contract; do not weaken policy during a live retry.
 
 `M6-DQ-TRANSITION-CORPUS` depends on a successful supervised trial and promotes its completed-
 unclaimed, Claim-versus-Go, prepared/pre-input, reward, claimed-row, points-before/after,

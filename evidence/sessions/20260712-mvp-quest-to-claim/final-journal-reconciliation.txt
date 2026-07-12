@@ -1,0 +1,4 @@
+nonterminal []
+unresolved []
+lease_before {'singleton': 1, 'owner_id': 'mvp-supervisor-20260712', 'acquired_at': 1783892941.3423157, 'heartbeat_at': 1783892941.3423157, 'expires_at': 1783893541.3423157, 'released_at': None, 'valid': True}
+lease_after {'singleton': 1, 'owner_id': 'mvp-supervisor-20260712', 'acquired_at': 1783892941.3423157, 'heartbeat_at': 1783892941.3423157, 'expires_at': 1783893541.3423157, 'released_at': 1783893078.572462, 'valid': False}

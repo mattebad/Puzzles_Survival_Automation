@@ -5,11 +5,11 @@ Recorded: 2026-07-12, America/Chicago
 ## Current milestone and task state
 
 - Milestones: M6 Production corpus — In Progress; M7 Deterministic service core — In Progress.
-- Current task: M7-SAFE-ACTION-CORE — Passed. SQLite schema version 1, persistent action journal,
-  exclusive controller lease, structured central policy, injected exactly-one-input executor,
-  startup reconciliation, and append-only audits passed 44 offline tests. M6 remains In Progress
-  because the later supervised transition corpus is still required; the full M7 service core also
-  remains incomplete.
+- Current task: MVP-QUEST-TO-CLAIM — Blocked at the immediate-before freshness policy. One
+  Cash Mall-to-Home action passed `prepared → input_sent → confirmed`; Home/Base-to-Quest was
+  positively recognized but denied `STALE_FRAME` after OCR exceeded the three-second frame-age
+  limit. It was cancelled with zero transport calls. No Daily Quest, prerequisite, Go, or Claim
+  input occurred. M6 and overall M7 remain In Progress.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed in the preceding M5 run: M5-CUSTOM-BASELINE passed with 100 replay
@@ -24,6 +24,10 @@ Recorded: 2026-07-12, America/Chicago
 - Task completed in this repository-only M7 boundary: M7-SAFE-ACTION-CORE passed with no Unraid,
   VM, ADB, game, container, tunnel, or runtime-network access. Synthetic executor-success inputs
   were test-only and no production Claim-positive asset was created.
+- Current MVP attempt evidence: `evidence/sessions/20260712-mvp-quest-to-claim/`. The task database
+  has no nonterminal/unresolved action and its lease is released. The game is force-stopped, task
+  worker/ADB/image removed, VM running, and RT-017 intact. The pre-existing loopback 5037 daemon
+  was present initially but absent at final verification; no public listener exists.
 
 ## Repository state
 
@@ -114,7 +118,8 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Blocker and required user action
 
-1. There is no blocker for the closed M7-SAFE-ACTION-CORE task. RT-016A remains a later manual-only
+1. MVP-QUEST-TO-CLAIM is blocked until the immediate-recapture recognition/freshness timing
+   contract is reviewed and tested offline. No user action is required. RT-016A remains a later manual-only
   account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
@@ -122,9 +127,9 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Exact next command
 
-The next ready task is `MVP-QUEST-TO-CLAIM`. It is a separate supervised live boundary and was not
-started here. The M6 transition corpus remains downstream of that trial; no live input was
-authorized or sent by M7-SAFE-ACTION-CORE.
+Resume `MVP-QUEST-TO-CLAIM` only after offline timing/policy review. Do not begin
+M6-DQ-TRANSITION-CORPUS; the required completed/unclaimed and Claim transition evidence does not
+exist.
 
 ## Facts that must not be re-tested
 
