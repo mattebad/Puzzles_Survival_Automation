@@ -58,7 +58,7 @@ todos:
     status: pending
   - id: m7-safe-action-core
     content: Implement the minimum fail-closed action journal and executor safety core for one supervised claim trial.
-    status: pending
+    status: completed
   - id: mvp-quest-to-claim
     content: Complete one supervised zero-cost Daily Quest objective and claim exactly one resulting row.
     status: pending
@@ -499,6 +499,17 @@ action safety boundary: central policy, one exclusive executor, a persistent SQL
 immediate pre-input recapture, exactly one input, immediate post-input observation, no-blind-retry
 handling, unresolved-action global blocking, and mocked/offline tests. It does not implement the
 full scheduler, watchdog, lifecycle recovery, or unattended deployment stack.
+
+The minimum core passed on 2026-07-12 as `safe_action_core` with SQLite schema version 1. Its
+injected transport has no direct ADB dependency; the executor is the sole dispatch path and calls
+the structured central policy both before intent persistence and after mandatory immediate
+recapture. The persistent lease, unique action key, append-only audits, and
+`prepared/input_sent/confirmed/unresolved` journal were validated across restart boundaries.
+Persisted nonterminal actions become unresolved at startup and are never replayed automatically;
+only positive task-specific evidence can reconcile unresolved to confirmed. Forty-four offline
+tests passed, including all six promoted M6 assets, Go-not-Claim and clipped/ambiguous denials,
+profile mismatch global lock, transport ambiguity, and post-dispatch persistence failure. This
+does not complete the full M7 scheduler/service core or authorize live input by itself.
 
 `MVP-QUEST-TO-CLAIM` depends on the bootstrap corpus, this minimum safety core, startup
 normalization, and no unresolved action. It is one agent-driven supervised development trial:
@@ -1073,11 +1084,12 @@ scheduling is enabled. No later duration is a prerequisite for initial runtime s
    when that field is missing, stale, or mismatched. Accept with versioned labels, held-out
    sessions, confusing negatives, and no iOS production assets.
 6. State/overlay classification: build viewport/profile guard and core detectors. Accept with zero unsafe authorizations on reviewed holdout; ambiguous frames abstain.
-7. Safe action core and persistent state: implement `M7-SAFE-ACTION-CORE` first for the
+7. Safe action core and persistent state: `M7-SAFE-ACTION-CORE` passed for the
    supervised trial—central policy, exclusive executor, SQLite action journal, profile/freshness
    guards, exactly-one-input semantics, immediate observation, and unresolved blocking. The full
-   M7 scheduler/state core then adds lease, reset model, dedupe, deadlines, backoff, breakers, and
-   recovery. Accept the minimum subset through mocked/offline crash-boundary tests before the
+   M7 scheduler/state core then integrates this lease and dedupe boundary with the reset model,
+   deadlines, backoff, breakers, and recovery. Accept the minimum subset through mocked/offline
+   crash-boundary tests before the
    supervised trial, and the full core through simulated multi-month schedule plus
    crash/restart/reset tests before automatic scheduling.
 8. Navigation/recovery: launch, popup allowlist, safe-home recovery, base↔Daily Quest, bounded waits. Accept with 50 supervised round trips and all injected unknowns stopping safely.

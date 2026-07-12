@@ -4,11 +4,12 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Current milestone and task state
 
-- Milestone: M6 Production corpus — In Progress.
-- Current task: M6-DQ-BOOTSTRAP — Passed. The retained Daily-tab input was confirmed, one
-  bounded no-spend list scroll added overlap evidence, profile-compatible bootstrap assets were
-  promoted, and all task-scoped workers were cleaned up. M6 remains In Progress only because the
-  later transition corpus is still required.
+- Milestones: M6 Production corpus — In Progress; M7 Deterministic service core — In Progress.
+- Current task: M7-SAFE-ACTION-CORE — Passed. SQLite schema version 1, persistent action journal,
+  exclusive controller lease, structured central policy, injected exactly-one-input executor,
+  startup reconciliation, and append-only audits passed 44 offline tests. M6 remains In Progress
+  because the later supervised transition corpus is still required; the full M7 service core also
+  remains incomplete.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed in the preceding M5 run: M5-CUSTOM-BASELINE passed with 100 replay
@@ -20,12 +21,15 @@ Recorded: 2026-07-12, America/Chicago
   Quest, and Daily Quest reconciliation frames, six profile-compatible assets, scroll overlap
   evidence, fail-closed synthetic fixtures, and cleanup evidence are retained. No Claim, Go,
   quest-completion, spend, or consequential gameplay input was recorded.
+- Task completed in this repository-only M7 boundary: M7-SAFE-ACTION-CORE passed with no Unraid,
+  VM, ADB, game, container, tunnel, or runtime-network access. Synthetic executor-success inputs
+  were test-only and no production Claim-positive asset was created.
 
 ## Repository state
 
 - Branch: `main`.
-- Latest committed boundary before this M6 closure: `9d7ff09`
-  (`task(M6): record resume reconciliation blocker`). The M6 closure remains task-scoped; the
+- Latest committed boundary before this M7 implementation: `c2c5a3d`
+  (`task(M6): complete Daily Quest bootstrap corpus`). The M7 closure remains task-scoped; the
   pre-existing unstaged entries remain untouched and no unrelated path is staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - The completed guarded keyguard branch, live-validation evidence, final Home/Base candidate, and
@@ -104,10 +108,13 @@ Recorded: 2026-07-12, America/Chicago
   `runtime-transport-blocker.md` are retained. The passed asset manifest, current reconciliation,
   scroll fingerprint, synthetic fixture results, and cleanup evidence are retained in the same
   directory.
+- M7-SAFE-ACTION-CORE: `evidence/sessions/20260712-m7-safe-action-core/`; preflight, schema and
+  lifecycle design, 44-test result, crash-boundary matrix, fixture review, and criterion decision
+  are retained there.
 
 ## Blocker and required user action
 
-1. There is no blocker for the closed M6-DQ-BOOTSTRAP task. RT-016A remains a later manual-only
+1. There is no blocker for the closed M7-SAFE-ACTION-CORE task. RT-016A remains a later manual-only
   account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
@@ -115,8 +122,9 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Exact next command
 
-The next ready task is `M7-SAFE-ACTION-CORE`. Do not start it in this closed M6 boundary. The
-M6 transition corpus remains downstream of `MVP-QUEST-TO-CLAIM`; no later task was opened here.
+The next ready task is `MVP-QUEST-TO-CLAIM`. It is a separate supervised live boundary and was not
+started here. The M6 transition corpus remains downstream of that trial; no live input was
+authorized or sent by M7-SAFE-ACTION-CORE.
 
 ## Facts that must not be re-tested
 

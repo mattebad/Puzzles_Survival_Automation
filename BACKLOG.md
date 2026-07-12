@@ -86,7 +86,7 @@ dependency; no dedicated SSH-key task is a production blocker.
 | M4 One-time account provisioning | Passed for current Bliss runtime | Must remain manual on any rebuild |
 | M5 Framework bake-off | Passed | Custom Python/direct ADB/OpenCV/local OCR selected; Airtest and MaaFramework rejected early |
 | M6 Production corpus | In Progress | M6-DQ-BOOTSTRAP Passed; M6-DQ-TRANSITION-CORPUS remains later before the complete M6 corpus can pass |
-| M7 Deterministic service core | Pending | M7-SAFE-ACTION-CORE is the minimum supervised-trial subset; full core, M7-Takeover, and M7-AccountGuard remain later gates |
+| M7 Deterministic service core | In Progress | M7-SAFE-ACTION-CORE Passed; full core, M7-Takeover, and M7-AccountGuard remain later gates |
 | M8 Claim-only MVP | Pending | Selected runtime, staged corpus, full core, and promotion gates; one supervised trial does not pass M8 |
 | M9 Expanded tasks | Pending | Claim-only MVP evidence |
 | Milestone 10 — Production hardening and operational acceptance | Pending | Production task catalog |
@@ -210,7 +210,8 @@ Claim example.
   abstention, synthetic fail-closed fixtures, bounded scroll overlap, and cleanup all passed.
   No Claim, Go, quest-completion, or spend input was recorded. A positive completed-but-unclaimed
   Claim state remains intentionally deferred to `M6-DQ-TRANSITION-CORPUS`.
-- Next: M7-SAFE-ACTION-CORE. Do not begin it in the closed M6 boundary.
+- Next: M7-SAFE-ACTION-CORE Passed; `MVP-QUEST-TO-CLAIM` is now ready as a separate supervised
+  live boundary.
 
 ### M6-DQ-TRANSITION-CORPUS — Promote live transition evidence
 
@@ -253,11 +254,17 @@ Claim example.
   unresolved outcomes fail closed; and no executor path exists outside the central policy gate.
 - Verification: unit and integration tests with mocked device/capture/transport failures and
   action-journal crash-boundary replay. No live game input is authorized by this task alone.
-- Evidence: `evidence/sessions/<timestamp>-m7-safe-action-core/`.
+- Evidence: `evidence/sessions/20260712-m7-safe-action-core/`.
 - Rollback: disable the new executor/core path and restore the prior repository behavior; retain
   failed test evidence and do not alter runtime state.
-- Status: Pending.
-- Blocker: M6-DQ-BOOTSTRAP must pass first.
+- Status: Passed (2026-07-12).
+- Result: schema version 1, persistent controller lease and action journal, structured central
+  policy decisions, injected exactly-one-input executor, startup reconciliation, append-only
+  audits, and M6 fixture guards passed 44 deterministic offline tests. Every persisted
+  `prepared` or `input_sent` restart boundary becomes unresolved without replay; positive
+  evidence is required to reconcile it to confirmed. No Unraid, VM, ADB, container, network, or
+  game access occurred.
+- Blocker: none; dependency satisfied by M6-DQ-BOOTSTRAP.
 - Next: MVP-QUEST-TO-CLAIM.
 
 ### M7-Takeover — Integrate safe manual takeover with controller
@@ -345,9 +352,9 @@ Claim example.
 - Rollback: stop at the first unknown or unresolved outcome, preserve the action journal and all
   frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
   fallback is allowed.
-- Status: Pending.
-- Blocker: M6-DQ-BOOTSTRAP and M7-SAFE-ACTION-CORE are not yet passed; the positive transition
-  state may not exist until a quest is completed.
+- Status: Ready.
+- Blocker: none. M6-DQ-BOOTSTRAP and M7-SAFE-ACTION-CORE Passed. A positive transition state may
+  not exist until the bounded supervised trial completes one approved zero-cost objective.
 - Next: M6-DQ-TRANSITION-CORPUS after a successful trial.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
@@ -878,8 +885,10 @@ later gameplay workflows were not started.
 M6-DQ-BOOTSTRAP Passed after the prior Daily-tab input was confirmed, a fresh final-runtime
 reconciliation was positively classified, one bounded no-spend list scroll produced overlap
 evidence, profile-compatible assets were promoted, fail-closed fixtures passed, and all task-scoped
-workers were cleaned up. Do not mark M7-SAFE-ACTION-CORE, MVP-QUEST-TO-CLAIM, or
-M6-DQ-TRANSITION-CORPUS In Progress in this closed boundary. Do not rerun RT-012 or the
+workers were cleaned up. M7-SAFE-ACTION-CORE Passed with SQLite schema version 1, the persistent
+lease/action journal, central policy, injected exactly-one-input executor, startup reconciliation,
+and 44 passing offline tests. `MVP-QUEST-TO-CLAIM` is the sole next ready task; do not begin
+M6-DQ-TRANSITION-CORPUS before that supervised trial passes. Do not rerun RT-012 or the
 completed MVP action; their complete evidence is retained in
 `evidence/sessions/20260711-rt-012-observe-soak/` and
 `evidence/sessions/20260711-mvp-startup-normalization/`. Do not place credentials in this
