@@ -667,7 +667,12 @@ Corpus/versioning:
   dependencies and an older OpenCV/Numpy constraint. M5 rejected it early because it was absent
   from the approved unprivileged worker image and provided no measured benefit over the passed
   custom baseline; no package was installed and no live trial was run.
-- [MaaFramework](https://github.com/MaaXYZ/MaaFramework): active C++ framework with ADB control, template/feature/color/OCR/custom recognition and declarative pipelines; 2026 releases observed. Strong reference and one-flow bake-off candidate. Do not let pipeline actions bypass central policy; likely more packaging/schema complexity than claim MVP needs.
+- [MaaFramework](https://github.com/MaaXYZ/MaaFramework): active native framework with ADB
+  control, image/OCR/custom recognition, and declarative pipelines; the 2026-07-12 M5 probe
+  observed v5.11.2 as the latest release. M5 rejected it early because no native/package adapter
+  was present in the approved unprivileged worker, its broader native ecosystem required a new
+  packaging/policy boundary, and no measurable benefit over the passed custom baseline was
+  established. No package or live trial was run.
 - [uiautomator2](https://github.com/openatx/uiautomator2): active Python utility for screenshots, input, lifecycle, hierarchy, and crash-aware sessions. Use opportunistically as device/native-dialog adapter; opaque game surfaces prevent sole reliance.
 - [scrcpy](https://github.com/Genymobile/scrcpy): active, current v4.0 observed. Use for private viewing, manual takeover, and bounded incident recording. Initial decisions use lossless request/response captures, not asynchronous compressed stream frames.
 - Appium + images plugin: active and capable, but server/driver/plugin layers add complexity while visual game controls remain image elements. Discard for core unless hierarchy PoC proves major value.

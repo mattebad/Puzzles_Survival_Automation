@@ -1,0 +1,43 @@
+{
+  "task": "M5-MAA",
+  "candidate": "MaaFramework",
+  "probe_recorded": "2026-07-12 America/Chicago",
+  "local_availability": {
+    "python_module_maa": false,
+    "maa_cli": false,
+    "native_library_or_sdk_in_repo": false,
+    "installation_attempted": false,
+    "network_or_dependency_mutation": false
+  },
+  "official_sources": {
+    "repository": "https://github.com/MaaXYZ/MaaFramework",
+    "observed_latest_release": "v5.11.2, 2026-07-11",
+    "license": "LGPL-3.0",
+    "documented_surfaces": ["ADB/controller integration", "image recognition", "OCR/custom recognition", "simulated UI operation", "declarative Pipeline protocol", "PI/API integration"],
+    "native_ecosystem_references": ["OpenCV", "FastDeploy", "ONNX Runtime", "Boost", "ZeroMQ/cppzmq", "minitouch/maatouch", "minicap"],
+    "source_basis": "official README/release metadata; native/dependency complexity assessment is an implementation inference from the published C++/Python composition and referenced native libraries"
+  },
+  "identical_corpus_review": {
+    "corpus": "evidence/sessions/20260712-m5-custom-baseline/benchmark.json",
+    "required_flow": "Cash Mall -> allowlisted Ending Soon -> recognized back arrow -> Home/Base",
+    "offline_candidate_operations": 0,
+    "target_dry_runs": 0,
+    "gesture_trials": 0,
+    "reconnect_cycles": 0,
+    "reason": "candidate rejected before execution because no native/package adapter is present and adding one would require an unproven worker packaging and policy integration boundary"
+  },
+  "policy_review": {
+    "central_policy_adapter_present": false,
+    "pipeline_actions_allowed_directly": false,
+    "required_wrapper": "all Maa controller/pipeline actions would require a project-owned authorization and immediate-recapture wrapper",
+    "generic_watchers_or_retries_allowed": false,
+    "task_scheduler_or_controller_rewrite_allowed": false
+  },
+  "live_operations": {
+    "adb_started": false,
+    "game_launched": false,
+    "input_commands": 0,
+    "runtime_changed": false
+  },
+  "decision": "REJECTED_EARLY"
+}

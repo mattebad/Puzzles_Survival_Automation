@@ -153,8 +153,11 @@ and 100 supervised inputs—for the chosen adapter.
   Rejected decision.
 - Evidence: `evidence/sessions/20260712-m5-maa/`.
 - Rollback: remove only task-scoped prototype/evidence; no live runtime changes.
-- Status: Pending.
-- Next: M5-DECISION after closure.
+- Status: Rejected (2026-07-12; early packaging/policy rejection).
+- Blocker: None. MaaFramework was absent from the approved worker image; its native/pipeline
+  packaging and central-policy adapter were not demonstrable within this boundary, and no
+  measurable benefit over the passed custom baseline was established.
+- Next: M5-DECISION.
 
 ### M5-DECISION — Select final deterministic control stack
 
