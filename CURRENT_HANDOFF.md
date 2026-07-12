@@ -5,18 +5,18 @@ Recorded: 2026-07-11, America/Chicago
 ## Current milestone and task state
 
 - Milestone: M3 Direct Bliss runtime proof — Passed; downstream post-selection gates are pending.
-- Current task: RT-019 — Passed; RT-013 passed with Bliss selected and the manifest/schema gate is
-  complete.
+- Current task: RT-021 — Passed; RT-013 and RT-019 passed, and the direct Unraid worker path,
+  reconnect, and LAN-boundary evidence are complete.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed during this run: RT-012 passed; RT-013 passed with Bliss selected; RT-019
-  passed with the versioned runtime profile; Cash Mall startup behavior recorded as a stable
-  runtime fact.
+  passed with the versioned runtime profile; RT-021 passed with direct worker/reconnect evidence;
+  Cash Mall startup behavior recorded as a stable runtime fact.
 
 ## Repository state
 
 - Branch: `main`.
-- Latest commit: `58697a3` (`task(RT-013): select final Bliss runtime`).
+- Latest commit: `90703cf` (`task(RT-019): lock runtime profile manifest`).
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - Working tree contains the RT-012 evidence/observer implementation, Cash Mall documentation, and this handoff.
 - RT-020 is removed from the committed backlog and plan; do not recreate it.
@@ -26,10 +26,16 @@ Recorded: 2026-07-11, America/Chicago
 
 - VM: dedicated `PnS-BlissOS-PoC`, selected VirtIO(3D)/Mesa VirGL profile, running.
 - Game: force-stopped after RT-012 rollback; no gameplay input automation enabled.
-- ADB: private NAS-local ADB server remains loopback-only; RT-012 connection disconnected and no external tunnel is active.
+- ADB: private NAS-local ADB server remains loopback-only; RT-012 connection disconnected and no
+  external tunnel is active. RT-021 direct worker proof used a temporary UID-65534 host-network
+  container with an isolated local ADB server port; all RT-021 containers and that port were
+  removed afterward.
 - Observer: temporary container `rt012-observer-20260711-1519` and host collector completed and were removed/stopped after evidence preservation.
 - Supervisor: completed normally at 2026-07-12 00:19:36 America/Chicago.
 - VM autostart: disabled.
+- Android startup state: after the RT-021 guest restart, the non-secure keyguard remained showing
+  (`mIsSecure=false`, `mInputRestricted=true`) after the approved dismissal sequence; no credential
+  action was attempted. Game is force-stopped.
 - Rollback: RT-001 baseline XML, disk identity, graphics rollback, and boot-state evidence remain retained; no disk replacement or destructive VM storage action occurred.
 
 ## Evidence
@@ -47,6 +53,8 @@ Recorded: 2026-07-11, America/Chicago
 - Runtime profile: `runtime-profile/manifest.json`; profile ID
   `pns-blissos-poc-virgl-800x1280-v1`; canonical hash
   `195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742`.
+- RT-021 preflight: `evidence/sessions/20260711-rt-021-worker-vm-adb/preflight.md`.
+- RT-021 decision/evidence: `evidence/sessions/20260711-rt-021-worker-vm-adb/record.md`.
 - No RT-016A identity-evidence directory exists yet because its required manual identity exposure has not occurred.
 
 ## Exact blocker and required user action
@@ -57,13 +65,14 @@ Recorded: 2026-07-11, America/Chicago
 
 ## Exact next command
 
-Begin RT-021 preflight for the unprivileged Unraid worker-to-VM ADB path. Keep live VM operations
-sequential, preserve the selected runtime, and do not begin startup-navigation input until RT-021
-and RT-017 are complete.
+Begin RT-017 preflight for the secured post-provisioning runtime recovery backup. Preserve the
+selected runtime, do not overwrite the qcow2, and do not begin startup-navigation input until
+RT-017 is complete.
 
 ## Facts that must not be re-tested
 
 RT-001 through RT-013 are passed and their retained evidence is authoritative unless contradictory
 evidence is discovered. Do not repeat the graphics, display, ADB-isolation, capture,
 input-fidelity, restart-matrix, or four-hour observe-only experiments, and do not run RT-014A
-concurrently with any live runtime task.
+concurrently with any live runtime task. RT-019 and RT-021 are also closed; do not rerun the
+profile-validator or worker-path trials without contradictory evidence.

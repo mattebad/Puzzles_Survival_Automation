@@ -1,0 +1,26 @@
+RT-021 final boundary review — 2026-07-11 America/Chicago
+
+Normal-LAN negative probes from the development Windows client:
+lan_guest_192.168.122.79_5555=False
+lan_nas_5555=False
+
+Container inspect review for the passing host-network, reconnect, and final-reconcile containers:
+user=65534:65534
+network=host (explicitly justified after bridge forwarding refused the private guest)
+readonly_rootfs=True
+privileged=False
+cap_drop=ALL
+security_opt=no-new-privileges
+pids_limit=64
+memory=268435456
+nano_cpus=500000000
+ADB mount=read-only
+evidence mount=task-scoped cache-backed output only
+Docker socket=not mounted
+published ports=none
+
+Final remote checks:
+VM state=running
+temporary RT-021 containers=absent
+host 5038 listener=absent after cleanup
+host 5555 listener=absent

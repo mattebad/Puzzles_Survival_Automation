@@ -1,0 +1,39 @@
+container_started
+uid=65534(nobody) gid=65534(nogroup) groups=65534(nogroup)
+network=host_justified_after_bridge_refusal
+07-12 00:54:07.527     8     8 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+error: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.528     9     9 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+error: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.529    10    10 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+error: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.531    11    11 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+adb: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.532    12    12 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+adb: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.533    13    13 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+adb: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.535    14    14 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+adb: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.536    15    15 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+adb: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.537    17    17 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+error: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.539    18    18 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+adb: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.540    19    19 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+* cannot start server on remote host
+error: cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+07-12 00:54:07.541    20    20 W adb     : network.cpp:149 failed to connect to '127.0.0.1:5038': Connection refused
+cannot connect to daemon at tcp:127.0.0.1:5038: failed to connect to '127.0.0.1:5038': Connection refused
+container_complete

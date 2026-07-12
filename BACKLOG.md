@@ -84,7 +84,7 @@ dependency; no dedicated SSH-key task is a production blocker.
 | M2 Unraid audit | Passed | Measured in service plan on 2026-07-09 |
 | M3 Direct Bliss runtime proof | Passed | RT-001 through RT-013 passed; downstream infrastructure and later account-guard gates remain |
 | M4 One-time account provisioning | Passed for current Bliss runtime | Must remain manual on any rebuild |
-| M5 Framework bake-off | Blocked | RT-019 profile schema and RT-021 NAS-local ADB path proof |
+| M5 Framework bake-off | Pending | RT-019 and RT-021 passed; framework bake-off is now the next gate |
 | M6 Production corpus | Blocked | M5 framework bake-off and final-runtime corpus selection |
 | M7 Deterministic service core | Pending | M5 selection and runtime-independent foundations; M7-Takeover after RT-014A; M7-AccountGuard after RT-016A |
 | M8 Claim-only MVP | Pending | Selected runtime, corpus, core, and promotion gates |
@@ -589,14 +589,15 @@ unlocked when this task passes.
   documented; production design no longer depends on the development tunnel.
 - Verification: container privilege review, positive ADB/capture/reconnect evidence, negative LAN
   test, and configuration replay review.
-- Evidence: `evidence/sessions/<timestamp>-rt-021-worker-vm-adb/`.
+- Evidence: `evidence/sessions/20260711-rt-021-worker-vm-adb/`.
 - Rollback: remove temporary test container/network attachment; retain existing private VM network
   and runtime state.
-- Status: Pending.
-- Blocker: None after RT-013; selected local/private VM networking is retained from RT-008 and
-  the production-path proof remains the scope of RT-021.
-- Next: M5 framework bake-off; this proof must pass before bake-off results are representative of
-  final deployment.
+- Status: Passed.
+- Blocker: None. RT-021 passed with an explicit host-network limitation after the retained Docker
+  bridge refusal; criterion review and all positive/negative/failure evidence are recorded in
+  `evidence/sessions/20260711-rt-021-worker-vm-adb/record.md`.
+- Next: M5 framework bake-off; RT-019 and RT-021 now pass, so bake-off work may begin in its own
+  task boundary.
 
 ## Dependency graph
 
@@ -630,9 +631,9 @@ The VM is running Mesa VirGL and no gameplay input automation or external tunnel
 becomes inactive after VirtIO-GL loads, so ADB remains the observation path until optional private
 scrcpy or equivalent passes. RT-014A remains separately blocked by development authentication;
 RT-015 is deferred VM/worker-order documentation and does not block RT-013; RT-016A needs redacted
-identity evidence for M7-AccountGuard, not technical runtime selection. RT-017, RT-018, and
-RT-021 are pending downstream gates; RT-017 and RT-021 are ready in the post-selection sequence,
-and RT-019 has passed. Do not rerun RT-012; its complete evidence
+identity evidence for M7-AccountGuard, not technical runtime selection. RT-017 and RT-018 are
+pending downstream gates; RT-017 is ready, RT-019 and RT-021 have passed, and M5 framework
+bake-off is now the next milestone gate. Do not rerun RT-012; its complete evidence
 is retained in `evidence/sessions/20260711-rt-012-observe-soak/`. Do not place credentials in this
 repository or command history. Launching `com.global.ztmslg` normally opens the authenticated Cash
 Mall screen; startup normalization must positively recognize Cash Mall, recapture immediately,

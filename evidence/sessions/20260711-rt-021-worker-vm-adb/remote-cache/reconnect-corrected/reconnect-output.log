@@ -1,0 +1,62 @@
+container_started
+uid=65534(nobody) gid=65534(nogroup) groups=65534(nogroup)
+* daemon not running; starting now at tcp:5038
+* daemon started successfully
+connected to 192.168.122.79:5555
+device
+1
+Physical size: 1280x800
+Override size: 800x1280
+Physical density: 160
+package:/data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/base.apk
+package:/data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/split_abPack1.apk
+package:/data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/split_config.arm64_v8a.apk
+package:/data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/split_gpdeku.apk
+package:/data/app/~~JMYGNwn8WLw2PBhv3IAbtA==/com.global.ztmslg-F0Z7XAexZ4J6SWRmRXQXxw==/split_gpdeku.config.arm64_v8a.apk
+ACTIVITY MANAGER ACTIVITIES (dumpsys activity activities)
+Display #0 (activities from top to bottom):
+  * Task{f0fd6b0 #139 type=standard A=10264:com.farmerbb.taskbar U=0 visible=true visibleRequested=false mode=fullscreen translucent=false sz=1}
+    mLastPausedActivity: ActivityRecord{cfae9f3 u0 com.farmerbb.taskbar/.activity.HomeActivityDelegate} t139}
+    mLastNonFullscreenBounds=Rect(194, 274 - 606, 1006)
+    isSleeping=true
+    * Hist  #0: ActivityRecord{cfae9f3 u0 com.farmerbb.taskbar/.activity.HomeActivityDelegate} t139}
+      packageName=com.farmerbb.taskbar processName=com.farmerbb.taskbar
+      launchedFromUid=10257 launchedFromPackage=com.farmerbb.taskbar.support launchedFromFeature=null userId=0
+      app=ProcessRecord{66df55e 2156:com.farmerbb.taskbar/u0a264}
+      Intent { act=android.intent.action.MAIN flg=0x10000000 cmp=com.farmerbb.taskbar/.activity.HomeActivityDelegate }
+      rootOfTask=true task=Task{f0fd6b0 #139 type=standard A=10264:com.farmerbb.taskbar}
+      taskAffinity=10264:com.farmerbb.taskbar
+      mActivityComponent=com.farmerbb.taskbar/.activity.HomeActivityDelegate
+      baseDir=/system/system_ext/priv-app/com.farmerbb.taskbar/com.farmerbb.taskbar.apk
+      dataDir=/data/user/0/com.farmerbb.taskbar
+      stateNotNeeded=false componentSpecified=false mActivityType=standard
+      compat={160dpi always-compat} labelRes=0x7f1000a3 icon=0x7f0e0001 theme=0x7f110133
+      mLastReportedConfigurations:
+        mGlobalConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1232dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1256) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.31 fontWeightAdjustment=0}
+        mOverrideConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1232dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1256) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}
+      CurrentConfiguration={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.3 fontWeightAdjustment=0}
+      taskDescription: label="null" icon=null iconResource=/0 iconFilename=null primaryColor=ff212121
+        backgroundColor=ff303030 statusBarColor=0 navigationBarColor=0
+       backgroundColorFloating=ff424242
+      launchFailed=false launchCount=0 lastLaunchTime=-1m51s0ms
+      mHaveState=true mIcicle=Bundle[mParcelledData.dataSize=2044]
+      state=STOPPED stopped=true delayedResume=false finishing=false
+      keysPaused=false inHistory=true idle=true
+      occludesParent=true noDisplay=false immersive=false launchMode=2
+      frozenBeforeDestroy=false forceNewConfig=false
+      mActivityType=standard
+      mImeInsetsFrozenUntilStartInput=false
+      windows=[Window{ddfe55a u0 com.farmerbb.taskbar/com.farmerbb.taskbar.activity.HomeActivityDelegate}]
+      windowType=2
+      mOccludesParent=true
+      overrideOrientation=SCREEN_ORIENTATION_UNSPECIFIED
+      requestedOrientation=SCREEN_ORIENTATION_UNSPECIFIED
+      mVisibleRequested=false mVisible=false mClientVisible=false reportedDrawn=false reportedVisible=false
+      mAppStopped=true
+      resizeMode=RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION
+      mLastReportedMultiWindowMode=false mLastReportedPictureInPictureMode=false
+      supportsSizeChanges=SIZE_CHANGES_UNSUPPORTED_METADATA
+      configChanges=0x3
+      neverSandboxDisplayApis=false
+disconnected everything
+container_complete

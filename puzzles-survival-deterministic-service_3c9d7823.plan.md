@@ -80,9 +80,10 @@ Unraid-hosted production runtime order:
      logs, and local status service in one unprivileged Unraid Docker worker.
    - Connect worker to VM ADB through an isolated point-to-point network. Permit only
      worker-to-ADB traffic; expose neither ADB nor remote console publicly.
-   - Treat this as a gated recommendation, not proven compatibility. Game installation, Play
-     login, ABI translation, graphics, ADB, updates, capture/input, 4-hour runtime selection
-     soak, and remaining runtime gates must pass before selection.
+   - Treat this as a gated recommendation, not an authorization for gameplay. Game installation,
+     Play login, ABI translation, graphics, ADB, updates, capture/input, 4-hour runtime selection
+     soak, RT-013 selection, RT-019 profile contract, and RT-021 worker-path proof are now passed;
+     later deployment and task gates remain.
 2. Another Android runtime isolated inside an Unraid-hosted VM.
 3. Windows VM hosted on Unraid running BlueStacks, only after nested virtualization, graphics,
    persistence, and NAS-stability testing pass.
@@ -155,8 +156,8 @@ Unattended automatic gameplay input requires all applicable technical gates:
 
 Recommended proof target: direct Android-focused VM, not Android emulator nested inside another VM.
 
-- Runtime: Bliss OS 16.9.7/Android 13 x86_64 VM on Unraid KVM. Current Google Play, ARM64 translation, game installation, live account, and persistence compatibility are proven; final runtime selection still requires the remaining Milestone 1 gates. See [Bliss hardware compatibility](https://docs.blissos.org/knowledgebase/frequently-asked-questions/hardware-compatibility/) and [QEMU VM guidance](https://github.com/BlissRoms-x86/Documentation/blob/main/Installation/install-in-a-virtual-machine/install-in-qemu.md).
-- Graphics: selected PoC profile is Unraid VirtIO(3D)/Mesa VirGL sharing UHD 770 through `/dev/dri/by-path/pci-0000:00:02.0-render`. Accelerated Android/game rendering and the effective `800×1280` portrait profile are proven; post-driver remote viewing and remaining runtime gates remain open. Unraid documents VirGL for Linux guests, not Windows guests: [Unraid VM setup](https://docs.unraid.net/unraid-os/using-unraid-to/create-virtual-machines/vm-setup/).
+- Runtime: Bliss OS 16.9.7/Android 13 x86_64 VM on Unraid KVM. Current Google Play, ARM64 translation, game installation, live account, persistence compatibility, technical runtime selection, and the Unraid-local RT-021 worker path are proven; later deployment and task gates remain. See [Bliss hardware compatibility](https://docs.blissos.org/knowledgebase/frequently-asked-questions/hardware-compatibility/) and [QEMU VM guidance](https://github.com/BlissRoms-x86/Documentation/blob/main/Installation/install-in-a-virtual-machine/install-in-qemu.md).
+- Graphics: selected PoC profile is Unraid VirtIO(3D)/Mesa VirGL sharing UHD 770 through `/dev/dri/by-path/pci-0000:00:02.0-render`. Accelerated Android/game rendering and the effective `800×1280` portrait profile are proven; post-driver remote viewing remains optional. Unraid documents VirGL for Linux guests, not Windows guests: [Unraid VM setup](https://docs.unraid.net/unraid-os/using-unraid-to/create-virtual-machines/vm-setup/).
 - Controller: one unprivileged Unraid Docker worker. Controller/CV/OCR remain CPU-capable; no GPU required for their initial low-frequency workload.
 - Storage: worker database on local cache/NVMe-backed filesystem; immutable config/assets and retained evidence on restricted Unraid storage. Never place active SQLite WAL on SMB/NFS.
 - Network: dedicated local VM/worker network or VLAN; firewall allowlist only the Unraid worker
@@ -238,11 +239,11 @@ Administrative access used for Milestone 1:
 - These existing SSH credentials are sufficient for development work when handled through the
   process-only mechanism above. They are development-only administrative credentials, not a
   production dependency; no dedicated SSH-key task blocks production selection.
-- The current SSH issue affecting RT-012 and RT-014A is a development execution blocker only.
-  Production communication uses the local/private Unraid worker-to-VM path and does not require
-  an external SSH session or tunnel.
+- The prior SSH issue affected RT-012 execution and still blocks optional RT-014A; RT-012 is
+  complete, and RT-021 proves the production worker path without an external SSH session.
+  Production communication does not require an external SSH session or tunnel.
 
-### 5.2 Milestone 1 direct Bliss VM findings — in progress
+### 5.2 Milestone 1 direct Bliss VM findings — completed for technical runtime selection
 
 Execution status is authoritative in the [runtime backlog](../../Puzzle_Survival_Runtime_POC/BACKLOG.md). Detailed retained evidence is in the [VirGL trial record](../../Puzzle_Survival_Runtime_POC/evidence/sessions/20260710-rt-003-virgl-trial-01/record.md), [portrait-profile record](../../Puzzle_Survival_Runtime_POC/evidence/sessions/20260710-rt-007-portrait/record.md), and [restart-matrix record](../../Puzzle_Survival_Runtime_POC/evidence/sessions/20260711-rt-011-restart-matrix/record.md).
 
@@ -334,8 +335,11 @@ Remaining runtime-proof work:
 - RT-015 VM autostart/worker-order documentation: pending; Unraid host reboot validation is
   explicitly excluded from autonomous runtime proof and deferred to deployment operations.
 - RT-016A account/server identity evidence: pending; no credential or account-operation automation.
-- RT-021 Unraid worker-to-VM ADB path proof: ready after RT-013; no external tunnel or runtime
-  mutation is authorized by this plan.
+- RT-021 Unraid worker-to-VM ADB path proof: passed with a temporary UID-65534 host-network
+  container after the default Docker bridge refused the private guest endpoint. Direct ADB,
+  capture, package observation, guest restart/reconnect, LAN denial, least privilege, and cleanup
+  are retained in `evidence/sessions/20260711-rt-021-worker-vm-adb/`. No external tunnel or public
+  ADB is allowed; a dedicated point-to-point network remains the preferred production refinement.
 - RT-019 versioned runtime-profile manifest/schema: passed with profile ID
   `pns-blissos-poc-virgl-800x1280-v1`, canonical content hash
   `195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742`, and a validator that
@@ -347,7 +351,11 @@ Progressive gate status:
 
 1. Boot/install: pass for installation and three unattended accelerated cold boots; VM autostart and worker ordering remain untested and are tracked by RT-015.
 2. Game compatibility: pass for Play, install/update, ARM64 translation, Mesa VirGL rendering, and authenticated account persistence.
-3. ADB capture/input: partial pass; final-profile `800×1280` capture fidelity and latency, strict isolation, and non-game tap/swipe fidelity passed. Guest ADB protocol authentication is unavailable; optional viewer transport is tracked by RT-014A, while actual Unraid worker-to-VM production-path proof is tracked by RT-021.
+3. ADB capture/input: pass for the tested private path; final-profile `800×1280` capture fidelity
+   and latency, strict isolation, non-game tap/swipe fidelity, and RT-021 Unraid worker-to-VM
+   capture/reconnect passed. Guest ADB protocol authentication is unavailable; the RT-021 bridge
+   refusal and justified host-network fallback are retained. Optional viewer transport is tracked
+   by RT-014A.
 4. Restart/persistence: RT-011 pass for app, corrected guest, clean VM power-cycle, and
    controlled cold VM stop/start trials; display, Mesa renderer, game surface, ADB reconnect,
    and hard-stop checks passed. VM/worker startup documentation, unresolved-action recovery, and
@@ -920,7 +928,7 @@ Safety-critical acceptance uses zero false action authorizations in reviewed hol
 ## 20. Phased roadmap and measurable acceptance criteria
 
 1. Hardware/Unraid audit — completed 2026-07-09: verified version, KVM, BIOS virtualization exposure, RAM/storage, `/dev/dri`, VirGL components, IOMMU, temperatures, workloads, and NAS baseline. Array fullness requires all PoC hot data to remain on cache.
-2. Runtime proof — completed for technical selection: direct Bliss passed Play/game/ABI/account, reversible VirtIO(3D)/Mesa VirGL acceleration, graphics rollback, three unattended cold boots, the effective `800×1280`/160-dpi app-controlled portrait profile across three corrected guest restarts, strict private ADB isolation, capture/input fidelity, the RT-011 restart matrix, the RT-012 four-hour Unraid-local observe-only soak, and RT-013 final Bliss selection. RT-016A remains the later M7-AccountGuard evidence task. RT-014A is optional viewer transport proof and RT-021 is the later actual Unraid worker-to-VM ADB proof. RT-015 VM autostart/worker-order documentation is a later deployment gate and never authorizes an Unraid host reboot. Test ReDroid-in-isolation and Windows-VM/BlueStacks only if new contradictory evidence produces a documented remaining rejection gate.
+2. Runtime proof — completed for technical selection and local worker-path proof: direct Bliss passed Play/game/ABI/account, reversible VirtIO(3D)/Mesa VirGL acceleration, graphics rollback, three unattended cold boots, the effective `800×1280`/160-dpi app-controlled portrait profile across three corrected guest restarts, strict private ADB isolation, capture/input fidelity, the RT-011 restart matrix, the RT-012 four-hour Unraid-local observe-only soak, RT-013 final Bliss selection, RT-019 profile contract, and RT-021 direct Unraid worker-to-VM ADB proof. RT-016A remains the later M7-AccountGuard evidence task. RT-014A is optional viewer transport proof. RT-021's Docker bridge refusal and explicit host-network fallback are retained; a dedicated point-to-point network remains the preferred production refinement. RT-015 VM autostart/worker-order documentation is a later deployment gate and never authorizes an Unraid host reboot. Test ReDroid-in-isolation and Windows-VM/BlueStacks only if new contradictory evidence produces a documented remaining rejection gate.
 
 Validation progression: 4 hours is the Bliss runtime-selection gate; 24 hours is locked-runtime
 validation before meaningful gameplay automation; 72 hours is claim-only continuous-scheduling
@@ -984,8 +992,8 @@ the 4-hour gate and other runtime-selection gates pass.
 
 Hardware/deployment gates:
 
-- Host inventory and the UHD 770-backed VirtIO-GPU/VirGL graphics proof are answered in sections 5.1–5.2. Remaining runtime gates are observe soak and account/server identity evidence; RT-014A viewer transport is optional for unattended selection, RT-021 proves the actual Unraid worker-to-VM path after selection, and VM autostart/worker-order documentation is deferred to deployment. Unraid host reboot validation is explicitly excluded here.
-- Bliss installs and updates the current game, executes its ARM64 ABI, signs into Play and the live account, captures over ADB, preserves state, renders correctly through Mesa VirGL, and cold-boots unattended using the saved entry. RT-007 through RT-011 also pass the effective portrait profile, strict private ADB boundary, input/capture fidelity, and tested app/guest/VM restart paths. Remaining runtime gates are observe soak and redacted account/server identity evidence.
+- Host inventory and the UHD 770-backed VirtIO-GPU/VirGL graphics proof are answered in sections 5.1–5.2. RT-012, RT-013, RT-019, and RT-021 now pass the technical runtime, profile contract, and worker-path gates; RT-014A viewer transport is optional for unattended selection, RT-016A remains the later account/server identity task, and VM autostart/worker-order documentation is deferred to deployment. Unraid host reboot validation is explicitly excluded here.
+- Bliss installs and updates the current game, executes its ARM64 ABI, signs into Play and the live account, captures over ADB, preserves state, renders correctly through Mesa VirGL, and cold-boots unattended using the saved entry. RT-007 through RT-013, RT-019, and RT-021 also pass the effective portrait profile, strict private ADB boundary, input/capture fidelity, tested app/guest/VM restart paths, versioned profile contract, and direct Unraid worker path. The active keyguard startup condition and redacted account/server identity remain later guard inputs.
 - If direct Android VM fails, test another Android runtime inside an isolated Unraid-hosted VM
   first; test BlueStacks only inside a Windows VM hosted on Unraid after nested-virtualization,
   graphics, persistence, capture/input, and NAS-stability gates pass.

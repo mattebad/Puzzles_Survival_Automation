@@ -1,0 +1,257 @@
+[
+    {
+        "Id": "a6f49bc60822c2bd1227754d861edd675b1c8752931c440e77600bd04a027db2",
+        "Created": "2026-07-12T00:52:53.349967021Z",
+        "Path": "/bin/sh",
+        "Args": [
+            "-c",
+            "set -u; exec 1>/evidence/container-output.log 2>&1; echo container_started; id; /opt/adb start-server; /opt/adb connect 192.168.122.79:5555; /opt/adb -s 192.168.122.79:5555 get-state; /opt/adb -s 192.168.122.79:5555 shell getprop ro.build.version.release; /opt/adb -s 192.168.122.79:5555 shell pm path com.global.ztmslg; /opt/adb -s 192.168.122.79:5555 shell am force-stop com.global.ztmslg; /opt/adb -s 192.168.122.79:5555 shell am start -W -n com.games37.sdk/.AtlasPluginDemoActivity; /opt/adb -s 192.168.122.79:5555 shell dumpsys activity activities | head -n 80; /opt/adb -s 192.168.122.79:5555 exec-out screencap -p >/evidence/frame-bridge-attempt-1.png; /opt/adb -s 192.168.122.79:5555 shell am force-stop com.global.ztmslg; /opt/adb -s 192.168.122.79:5555 disconnect; echo container_complete"
+        ],
+        "State": {
+            "Status": "exited",
+            "Running": false,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 0,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-07-12T00:52:53.943729837Z",
+            "FinishedAt": "2026-07-12T00:52:55.265984743Z"
+        },
+        "Image": "sha256:4febd12f7989492ef63bebcf49376b8377579495067cf37457f959f9f692e349",
+        "ResolvConfPath": "/var/lib/docker/containers/a6f49bc60822c2bd1227754d861edd675b1c8752931c440e77600bd04a027db2/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/a6f49bc60822c2bd1227754d861edd675b1c8752931c440e77600bd04a027db2/hostname",
+        "HostsPath": "/var/lib/docker/containers/a6f49bc60822c2bd1227754d861edd675b1c8752931c440e77600bd04a027db2/hosts",
+        "LogPath": "/var/lib/docker/containers/a6f49bc60822c2bd1227754d861edd675b1c8752931c440e77600bd04a027db2/a6f49bc60822c2bd1227754d861edd675b1c8752931c440e77600bd04a027db2-json.log",
+        "Name": "/rt021-worker-bridge-20260711",
+        "RestartCount": 0,
+        "Driver": "overlay2",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": null,
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {
+                    "max-file": "1",
+                    "max-size": "50m"
+                }
+            },
+            "NetworkMode": "bridge",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": [
+                "ALL"
+            ],
+            "CgroupnsMode": "private",
+            "Dns": [],
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": null,
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": true,
+            "SecurityOpt": [
+                "no-new-privileges"
+            ],
+            "Tmpfs": {
+                "/tmp": "rw,nosuid,nodev,noexec,size=64m"
+            },
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 268435456,
+            "NanoCpus": 500000000,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": [],
+            "BlkioDeviceReadBps": [],
+            "BlkioDeviceWriteBps": [],
+            "BlkioDeviceReadIOps": [],
+            "BlkioDeviceWriteIOps": [],
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": [],
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": -1,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": 64,
+            "Ulimits": [],
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "Mounts": [
+                {
+                    "Type": "bind",
+                    "Source": "/mnt/cache/puzzle-survival-runtime/rt021/20260711-rt-021-worker-vm-adb/bridge-attempt-1",
+                    "Target": "/evidence"
+                },
+                {
+                    "Type": "bind",
+                    "Source": "/mnt/cache/domains/PnS-BlissOS-PoC/tools/platform-tools/adb",
+                    "Target": "/opt/adb",
+                    "ReadOnly": true
+                }
+            ],
+            "MaskedPaths": [
+                "/proc/asound",
+                "/proc/acpi",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/sys/firmware",
+                "/sys/devices/virtual/powercap"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/9a62cbfe17f51b1eb96907a63ca49ba12a15bd4bd1ff52485dc35b589e256f0d-init/diff:/var/lib/docker/overlay2/lm7uf0t9h1c45o237yw50fe3x/diff:/var/lib/docker/overlay2/p6yyawdq0x1f32qpexnelykr4/diff:/var/lib/docker/overlay2/ug0icx4kfdl3bk116g4dav1kn/diff:/var/lib/docker/overlay2/lx9s5vbcszsb929x3dh8h413s/diff:/var/lib/docker/overlay2/pgeufix38aqtikqa7twb7mwp8/diff:/var/lib/docker/overlay2/f730901ca42b5819bb949cddbf60331f69113112892e016879551f02020a92b1/diff:/var/lib/docker/overlay2/c24687c0a0653851414cbd448dba0fe357d7c25e98a324a16e865c36278d9278/diff:/var/lib/docker/overlay2/13f4ed4244efc308a10f0c8ddc1da6fd0749db4aea621939bfd97710e6f17b68/diff:/var/lib/docker/overlay2/3f402e88683026cc76d93115e4ccb78a67905e9c53a22ffded501fb91f706705/diff",
+                "MergedDir": "/var/lib/docker/overlay2/9a62cbfe17f51b1eb96907a63ca49ba12a15bd4bd1ff52485dc35b589e256f0d/merged",
+                "UpperDir": "/var/lib/docker/overlay2/9a62cbfe17f51b1eb96907a63ca49ba12a15bd4bd1ff52485dc35b589e256f0d/diff",
+                "WorkDir": "/var/lib/docker/overlay2/9a62cbfe17f51b1eb96907a63ca49ba12a15bd4bd1ff52485dc35b589e256f0d/work"
+            },
+            "Name": "overlay2"
+        },
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/mnt/cache/domains/PnS-BlissOS-PoC/tools/platform-tools/adb",
+                "Destination": "/opt/adb",
+                "Mode": "",
+                "RW": false,
+                "Propagation": "rprivate"
+            },
+            {
+                "Type": "bind",
+                "Source": "/mnt/cache/puzzle-survival-runtime/rt021/20260711-rt-021-worker-vm-adb/bridge-attempt-1",
+                "Destination": "/evidence",
+                "Mode": "",
+                "RW": true,
+                "Propagation": "rprivate"
+            }
+        ],
+        "Config": {
+            "Hostname": "a6f49bc60822",
+            "Domainname": "",
+            "User": "65534:65534",
+            "AttachStdin": false,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "ExposedPorts": {
+                "8000/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "HOME=/tmp",
+                "PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG=C.UTF-8",
+                "GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305",
+                "PYTHON_VERSION=3.12.13",
+                "PYTHON_SHA256=c08bc65a81971c1dd5783182826503369466c7e67374d1646519adf05207b684",
+                "PYTHONDONTWRITEBYTECODE=1",
+                "PYTHONUNBUFFERED=1",
+                "PIP_NO_CACHE_DIR=1"
+            ],
+            "Cmd": [
+                "-c",
+                "set -u; exec 1>/evidence/container-output.log 2>&1; echo container_started; id; /opt/adb start-server; /opt/adb connect 192.168.122.79:5555; /opt/adb -s 192.168.122.79:5555 get-state; /opt/adb -s 192.168.122.79:5555 shell getprop ro.build.version.release; /opt/adb -s 192.168.122.79:5555 shell pm path com.global.ztmslg; /opt/adb -s 192.168.122.79:5555 shell am force-stop com.global.ztmslg; /opt/adb -s 192.168.122.79:5555 shell am start -W -n com.games37.sdk/.AtlasPluginDemoActivity; /opt/adb -s 192.168.122.79:5555 shell dumpsys activity activities | head -n 80; /opt/adb -s 192.168.122.79:5555 exec-out screencap -p >/evidence/frame-bridge-attempt-1.png; /opt/adb -s 192.168.122.79:5555 shell am force-stop com.global.ztmslg; /opt/adb -s 192.168.122.79:5555 disconnect; echo container_complete"
+            ],
+            "Image": "monarch-gpt-wrapper-api:latest",
+            "Volumes": null,
+            "WorkingDir": "/app",
+            "Entrypoint": [
+                "/bin/sh"
+            ],
+            "OnBuild": null,
+            "Labels": {
+                "com.docker.compose.project": "monarch-gpt-wrapper",
+                "com.docker.compose.service": "api",
+                "com.docker.compose.version": "2.40.3"
+            }
+        },
+        "NetworkSettings": {
+            "Bridge": "",
+            "SandboxID": "",
+            "SandboxKey": "",
+            "Ports": {},
+            "HairpinMode": false,
+            "LinkLocalIPv6Address": "",
+            "LinkLocalIPv6PrefixLen": 0,
+            "SecondaryIPAddresses": null,
+            "SecondaryIPv6Addresses": null,
+            "EndpointID": "",
+            "Gateway": "",
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "IPAddress": "",
+            "IPPrefixLen": 0,
+            "IPv6Gateway": "",
+            "MacAddress": "",
+            "Networks": {
+                "bridge": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": null,
+                    "MacAddress": "",
+                    "DriverOpts": null,
+                    "NetworkID": "068d5c8705d6a56a37b10df72f7f9d6901cc58ff00034107aac251ac749d2a72",
+                    "EndpointID": "",
+                    "Gateway": "",
+                    "IPAddress": "",
+                    "IPPrefixLen": 0,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": null
+                }
+            }
+        }
+    }
+]
