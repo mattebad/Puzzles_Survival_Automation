@@ -61,7 +61,7 @@ todos:
     status: completed
   - id: mvp-quest-to-claim
     content: Complete one supervised zero-cost Daily Quest objective and claim exactly one resulting row.
-    status: pending
+    status: blocked
   - id: design-core-service
     content: Implement persistent scheduler, HSM, policy gate, executor, and recovery.
     status: pending
@@ -537,6 +537,22 @@ is reusable only when every critical ROI, including the overlay guard, is pixel-
 otherwise required ROI OCR runs on the immediate frame. A pre-dispatch stale attempt cannot become
 unresolved or call transport, while any ambiguity after dispatch remains unresolved. The task is
 Ready to resume with a new action key; the cancelled action remains terminal evidence.
+
+The resumed run then proved the corrected transport boundary in live supervised navigation. Cash
+Mall-to-Home and Quest-to-Daily each confirmed with one input. Home-to-Quest initially became
+unresolved because Linux Tesseract missed the Daily tab, but all post/current frames exactly
+matched the promoted M6 Quest asset and were positively reconciled without another input. The
+worker now accepts only an exact promoted Quest-reference hash before falling back to OCR. A
+separate Quest-to-Daily proposal safely cancelled with zero transport calls when a new static
+capture had identical pixels; the binding was corrected so a newer monotonic capture remains fresh
+while reused OCR carries both the prior frame hash and prior capture-completion timestamp. The new
+action then confirmed in one tap. Sixty-five tests pass.
+
+The current Daily Quest observation showed six `Go` controls, no Claim, zero points, and reset time
+`00:08:33`. The reset-boundary guard stopped the run before scrolling, prerequisite selection, Go,
+quest completion, or Claim. Cleanup left the VM running, game force-stopped, lease released, no
+task worker/ADB/listener/tunnel, and no unresolved/nonterminal action. Resume only after the reset
+boundary passes and the new game day is positively reconciled.
 
 `M6-DQ-TRANSITION-CORPUS` depends on a successful supervised trial and promotes its completed-
 unclaimed, Claim-versus-Go, prepared/pre-input, reward, claimed-row, points-before/after,

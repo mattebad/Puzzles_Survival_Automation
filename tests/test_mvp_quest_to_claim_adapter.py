@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.mvp_quest_to_claim import ADBTransport
+from scripts.mvp_quest_to_claim import ADBTransport, classify
 
 
 class Result:
@@ -12,6 +12,15 @@ class Result:
 
 
 class AdapterCase(unittest.TestCase):
+    def test_exact_promoted_quest_reference_bypasses_platform_ocr_drift(self):
+        class Args:
+            quest_reference = Path("evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png")
+
+        result = classify("quest", Args.quest_reference, Args())
+        self.assertTrue(result["recognized"])
+        self.assertEqual(result["state"], "QUEST")
+        self.assertEqual(result["detail"]["method"], "exact_promoted_quest_reference_hash")
+
     def test_capture_timestamp_is_successful_completion_monotonic_time(self):
         def runner(command, **kwargs):
             kwargs["stdout"].write(b"retained-test-bytes")

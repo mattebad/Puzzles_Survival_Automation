@@ -253,10 +253,7 @@ class SafeActionExecutor:
         for name, before, after in fields:
             if before != after:
                 return name.upper() + "_CHANGED"
-        if (
-            first.frame_sha256 == second.frame_sha256
-            or second.capture_completed_monotonic <= first.capture_completed_monotonic
-        ):
+        if second.capture_completed_monotonic <= first.capture_completed_monotonic:
             return "IMMEDIATE_RECAPTURE_NOT_FRESH"
         return None
 

@@ -1,0 +1,13 @@
+{
+  "unresolved": [],
+  "nonterminal": [],
+  "lease": {
+    "singleton": 1,
+    "owner_id": "mvp-supervisor-resume-20260712",
+    "acquired_at": 1783899758.065263,
+    "heartbeat_at": 1783899758.065263,
+    "expires_at": 1783900358.065263,
+    "released_at": 1783900322.4041839,
+    "valid": false
+  }
+}

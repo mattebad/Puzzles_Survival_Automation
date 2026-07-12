@@ -54,6 +54,7 @@ def observation(**changes) -> Observation:
         expected_postcondition="QUEST",
         critical_roi_hashes=(("semantic_target", ROI_HASH),),
         ocr_result_frame_sha256="a" * 64,
+        ocr_result_capture_completed_monotonic=999.5,
     )
     return replace(base, **changes)
 
@@ -80,9 +81,16 @@ def request(obs: Observation | None = None, **changes) -> PolicyRequest:
 
 class FreshnessPolicyCase(unittest.TestCase):
     def test_capture_age_begins_at_successful_capture_completion(self):
-        completed = observation(capture_completed_monotonic=999.9)
+        completed = observation(
+            capture_completed_monotonic=999.9,
+            ocr_result_capture_completed_monotonic=999.9,
+        )
         self.assertTrue(CentralPolicy().evaluate(request(completed)).authorized)
-        command_started = replace(completed, capture_completed_monotonic=996.0)
+        command_started = replace(
+            completed,
+            capture_completed_monotonic=996.0,
+            ocr_result_capture_completed_monotonic=996.0,
+        )
         self.assertEqual(CentralPolicy().evaluate(request(command_started)).reason_code, "STALE_FRAME")
 
     def test_ocr_duration_advances_frame_age(self):
@@ -162,6 +170,7 @@ class ExecutorHarness(unittest.TestCase):
             frame_sha256="b" * 64,
             capture_completed_monotonic=999.9,
             ocr_result_frame_sha256="b" * 64,
+            ocr_result_capture_completed_monotonic=999.9,
         )
         return replace(base, **changes)
 
@@ -175,6 +184,7 @@ class ExecutorHarness(unittest.TestCase):
             frame_sha256="c" * 64,
             capture_completed_monotonic=1002.1,
             ocr_result_frame_sha256="c" * 64,
+            ocr_result_capture_completed_monotonic=1002.1,
         )
         result = self.execute([(stale, 1002.0), (fresh, 1002.2)])
         self.assertEqual((result.status, self.recapture_calls, self.transport_calls), (ActionStatus.CONFIRMED, 2, 1))
@@ -188,6 +198,7 @@ class ExecutorHarness(unittest.TestCase):
             frame_sha256="c" * 64,
             capture_completed_monotonic=1002.1,
             ocr_result_frame_sha256="c" * 64,
+            ocr_result_capture_completed_monotonic=1002.1,
         )
         result = self.execute([(first, 1002.0), (second, 1004.5)])
         self.assertEqual((result.status, result.reason, self.transport_calls), (ActionStatus.CANCELLED, "STALE_FRAME", 0))
@@ -201,6 +212,7 @@ class ExecutorHarness(unittest.TestCase):
     def test_identical_critical_roi_allows_explicit_ocr_reuse(self):
         reused = self.fresh(
             ocr_result_frame_sha256="a" * 64,
+            ocr_result_capture_completed_monotonic=999.5,
             ocr_reused=True,
         )
         self.assertIsNone(ocr_reuse_denial(observation(), reused))
@@ -215,6 +227,7 @@ class ExecutorHarness(unittest.TestCase):
         changed = self.fresh(
             critical_roi_hashes=(("semantic_target", "e" * 64),),
             ocr_result_frame_sha256="a" * 64,
+            ocr_result_capture_completed_monotonic=999.5,
             ocr_reused=True,
         )
         self.assertEqual(ocr_reuse_denial(observation(), changed), "CRITICAL_ROI_CHANGED")
@@ -248,6 +261,17 @@ class ExecutorHarness(unittest.TestCase):
         self.assertEqual(result.status, ActionStatus.CANCELLED)
         transitions = [e for e in self.store.audit_events("freshness-action") if e["event_type"] == "action_transition"]
         self.assertEqual([(e["lifecycle_from"], e["lifecycle_to"]) for e in transitions], [(None, "prepared"), ("prepared", "cancelled")])
+
+    def test_new_capture_with_identical_pixels_is_fresh(self):
+        identical = self.fresh(
+            frame_sha256="a" * 64,
+            capture_completed_monotonic=999.9,
+            ocr_result_frame_sha256="a" * 64,
+            ocr_result_capture_completed_monotonic=999.5,
+            ocr_reused=True,
+        )
+        result = self.execute(identical)
+        self.assertEqual((result.status, self.transport_calls), (ActionStatus.CONFIRMED, 1))
 
     def test_restart_after_prepared_reconciles_without_dispatch(self):
         first_policy = CentralPolicy().evaluate(request())

@@ -68,8 +68,18 @@ class CentralPolicy:
             return deny, "INVALID_FRAME_HASH", "source frame hash is missing or malformed"
         if obs.ocr_result_frame_sha256 is not None and not SHA256.fullmatch(obs.ocr_result_frame_sha256):
             return deny, "INVALID_PERCEPTION_BINDING", "OCR result frame binding is malformed"
-        if obs.ocr_reused and obs.ocr_result_frame_sha256 == obs.frame_sha256:
-            return deny, "INVALID_PERCEPTION_BINDING", "OCR reuse must identify a prior frame"
+        if obs.ocr_result_frame_sha256 is not None and obs.ocr_result_capture_completed_monotonic is None:
+            return deny, "INVALID_PERCEPTION_BINDING", "OCR result capture binding is missing"
+        if not obs.ocr_reused and obs.ocr_result_frame_sha256 is not None and (
+            obs.ocr_result_frame_sha256 != obs.frame_sha256
+            or obs.ocr_result_capture_completed_monotonic != obs.capture_completed_monotonic
+        ):
+            return deny, "INVALID_PERCEPTION_BINDING", "fresh OCR must bind to the immediate frame and capture"
+        if obs.ocr_reused and (
+            obs.ocr_result_capture_completed_monotonic is None
+            or obs.ocr_result_capture_completed_monotonic >= obs.capture_completed_monotonic
+        ):
+            return deny, "INVALID_PERCEPTION_BINDING", "OCR reuse must identify an earlier completed capture"
         if any(not name or not SHA256.fullmatch(digest) for name, digest in obs.critical_roi_hashes):
             return deny, "INVALID_PERCEPTION_BINDING", "critical ROI bindings are missing or malformed"
         if not obs.recognized or not obs.source_state or obs.source_state == "UNKNOWN":

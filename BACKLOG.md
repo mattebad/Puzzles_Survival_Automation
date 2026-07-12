@@ -356,14 +356,15 @@ Claim example.
 - Rollback: stop at the first unknown or unresolved outcome, preserve the action journal and all
   frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
   fallback is allowed.
-- Status: Ready (2026-07-12; freshness blocker corrected offline; resume pending).
-- Blocker: None. The retained denial remains authoritative evidence, but the timing defect is
-  corrected without increasing the former three-second limit: capture age now starts at monotonic
-  successful-capture completion; a 90-sample retained-frame benchmark measured 1.410-second p95
-  full validation and 42.1 ms p95 exact-ROI immediate validation; dispatch has a separate
-  2.0-second hard maximum and two total pre-dispatch attempts. Sixty-three tests pass, stale
-  attempts cancel before dispatch, and no unresolved action remains. Resume with a new action key;
-  never reinterpret or resend the cancelled Home-to-Quest action.
+- Status: Blocked (2026-07-12; reset-boundary guard).
+- Blocker: the freshness correction passed and the resumed run safely reached a recognized Daily
+  Quest screen, but its reset countdown was `00:08:33`. The run stopped before scrolling,
+  prerequisite selection, Go, objective completion, or Claim. Three resumed no-spend navigation
+  taps were confirmed through M7; one Home-to-Quest postcondition was positively reconciled from
+  the exact promoted Quest asset hash, and one static Quest immediate frame was cancelled before
+  dispatch before the timestamp-binding correction. Sixty-five tests pass; no unresolved or
+  nonterminal action remains. Resume only after the reset boundary has passed and the new game day
+  is positively reconciled. Never reuse either cancelled action key.
 - Next: M6-DQ-TRANSITION-CORPUS after a successful trial.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,

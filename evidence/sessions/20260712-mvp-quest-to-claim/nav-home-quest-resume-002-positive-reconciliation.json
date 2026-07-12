@@ -1,0 +1,15 @@
+{
+  "action_id": "nav-home-quest-resume-002",
+  "asset_id": "m6-dq-quest-main-settled-v1",
+  "evidence_refs": [
+    "/evidence/nav-home-quest-resume-002-post-1.png",
+    "/evidence/nav-home-quest-resume-002-reconcile-current.png"
+  ],
+  "final_status": "confirmed",
+  "frame_sha256": "2ab2039bf71458e771a8927400b441d94467546568ce5363714da5b0f3465bda",
+  "method": "exact_promoted_m6_quest_asset_hash",
+  "nonterminal_actions": 0,
+  "positive": true,
+  "unresolved_actions": 0,
+  "worker_ocr_result": "retained as failed detector evidence"
+}

@@ -31,6 +31,11 @@ def ocr_reuse_denial(
         return None
     if immediate.ocr_result_frame_sha256 != proposal.frame_sha256:
         return "OCR_REUSE_SOURCE_MISMATCH"
+    if (
+        immediate.ocr_result_capture_completed_monotonic
+        != proposal.capture_completed_monotonic
+    ):
+        return "OCR_REUSE_CAPTURE_MISMATCH"
     before = roi_hash_map(proposal)
     after = roi_hash_map(immediate)
     required = tuple(required_roi_ids or before.keys())

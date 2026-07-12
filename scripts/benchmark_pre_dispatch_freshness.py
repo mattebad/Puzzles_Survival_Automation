@@ -168,6 +168,7 @@ def run(args: argparse.Namespace) -> Dict[str, Any]:
                     expected_postcondition="BENCHMARK_SUCCESSOR",
                     critical_roi_hashes=bindings,
                     ocr_result_frame_sha256=frame_hash,
+                    ocr_result_capture_completed_monotonic=capture_completed,
                 )
                 first_now = time.perf_counter()
                 timed(
@@ -189,6 +190,7 @@ def run(args: argparse.Namespace) -> Dict[str, Any]:
                     capture_completed_monotonic=immediate_completed,
                     critical_roi_hashes=immediate_bindings,
                     ocr_result_frame_sha256=observation.frame_sha256,
+                    ocr_result_capture_completed_monotonic=immediate_completed,
                     ocr_reused=False,
                 )
                 stage_values["second_validation_total"].append(time.perf_counter() - immediate_started)

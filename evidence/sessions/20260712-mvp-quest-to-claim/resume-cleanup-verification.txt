@@ -1,0 +1,17 @@
+verified_at=2026-07-12T18:52:02-05:00
+vm_state=running
+game_state=force-stopped
+task_worker=absent
+task_image_tag=removed
+task_adb_server=stopped
+project_listener_5037=absent
+project_listener_5042=absent
+project_listener_5555=absent
+external_tunnel=absent
+unresolved_actions=0
+nonterminal_actions=0
+controller_lease_valid=false
+rt017_qcow2_mode=600
+rt017_qcow2_size=13522501632
+rt017_hash_manifest_mode=600
+rt017_profile_binding_mode=600

@@ -100,6 +100,19 @@ def classify(mode: str, frame: Path, args: argparse.Namespace) -> Dict[str, Any]
     if mode == "home":
         return recognize_home(frame, args.cash_reference, args.policy_file)
     if mode == "quest":
+        if getattr(args, "quest_reference", None):
+            candidate = valid_png_frame(frame)
+            reference = valid_png_frame(args.quest_reference)
+            if candidate["sha256"] == reference["sha256"]:
+                return {
+                    "state": "QUEST",
+                    "recognized": True,
+                    "detail": {
+                        "method": "exact_promoted_quest_reference_hash",
+                        "frame_sha256": candidate["sha256"],
+                        "daily_quest_target_recognized": True,
+                    },
+                }
         return recognize_quest(frame)
     if mode == "daily":
         return recognize_daily_quest(frame)
@@ -146,6 +159,9 @@ def observation_for(
         evidence_refs=(str(frame),),
         critical_roi_hashes=bindings,
         ocr_result_frame_sha256=prior.frame_sha256 if reuse and prior else metadata["sha256"],
+        ocr_result_capture_completed_monotonic=(
+            prior.capture_completed_monotonic if reuse and prior else capture_completed_monotonic
+        ),
         ocr_reused=reuse,
     )
 
@@ -312,6 +328,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--serial", default="192.168.122.79:5555")
     root.add_argument("--cash-reference", type=Path, required=True)
     root.add_argument("--cash-overlay-reference", type=Path)
+    root.add_argument("--quest-reference", type=Path)
     root.add_argument("--policy-file", type=Path)
     sub = root.add_subparsers(dest="command", required=True)
     obs = sub.add_parser("observe")

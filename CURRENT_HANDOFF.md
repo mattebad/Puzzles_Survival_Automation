@@ -5,14 +5,16 @@ Recorded: 2026-07-12, America/Chicago
 ## Current milestone and task state
 
 - Milestones: M6 Production corpus — In Progress; M7 Deterministic service core — In Progress.
-- Current task: MVP-QUEST-TO-CLAIM — Ready to resume after the offline freshness correction. One
-  Cash Mall-to-Home action passed `prepared → input_sent → confirmed`; Home/Base-to-Quest was
-  positively recognized but denied `STALE_FRAME` after OCR exceeded the three-second frame-age
-  limit. It was cancelled with zero transport calls and remains terminal evidence. Frame age now
-  starts at successful monotonic capture completion; proposal/dispatch limits are 3.0/2.0 seconds,
-  exact critical-ROI reuse is fail-closed, and two pre-dispatch attempts are audited within one
-  prepared action. Sixty-three tests pass. No Daily Quest, prerequisite, Go, or Claim input
-  occurred. M6 and overall M7 remain In Progress.
+- Current task: MVP-QUEST-TO-CLAIM — Blocked at the Daily Quest reset-boundary guard. The offline
+  freshness correction passed, and the resumed run safely confirmed Cash Mall→Home,
+  Home→Quest (including positive exact-asset reconciliation), and Quest→Daily navigation. The
+  current Daily Quest screen had six Go controls, no Claim, zero points, and reset time `00:08:33`,
+  so the run stopped before scrolling or selecting a prerequisite. One pixel-identical static
+  immediate frame was cancelled before dispatch and led to a capture+OCR timestamp-binding fix;
+  65 tests pass. Frame age starts at successful monotonic capture completion;
+  proposal/dispatch limits are 3.0/2.0 seconds, exact critical-ROI reuse is fail-closed, and two
+  pre-dispatch attempts are audited within one prepared action. No prerequisite, Go,
+  quest-completion, spend, or Claim input occurred. M6 and overall M7 remain In Progress.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed in the preceding M5 run: M5-CUSTOM-BASELINE passed with 100 replay
@@ -27,7 +29,7 @@ Recorded: 2026-07-12, America/Chicago
 - Task completed in this repository-only M7 boundary: M7-SAFE-ACTION-CORE passed with no Unraid,
   VM, ADB, game, container, tunnel, or runtime-network access. Synthetic executor-success inputs
   were test-only and no production Claim-positive asset was created.
-- Current MVP attempt evidence: `evidence/sessions/20260712-mvp-quest-to-claim/`. The task database
+- Current MVP attempt evidence: `evidence/sessions/20260712-mvp-quest-to-claim/`. The schema-v1 task database
   has no nonterminal/unresolved action and its lease is released. The game is force-stopped, task
   worker/ADB/image removed, VM running, and RT-017 intact. The pre-existing loopback 5037 daemon
   was present initially but absent at final verification; no public listener exists.
@@ -35,8 +37,8 @@ Recorded: 2026-07-12, America/Chicago
 ## Repository state
 
 - Branch: `main`.
-- Latest committed boundary before this M7 implementation: `c2c5a3d`
-  (`task(M6): complete Daily Quest bootstrap corpus`). The M7 closure remains task-scoped; the
+- Latest completed implementation boundary: `5bf6e54`
+  (`fix(M7): calibrate pre-dispatch freshness`). The MVP closure remains task-scoped; the
   pre-existing unstaged entries remain untouched and no unrelated path is staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - The completed guarded keyguard branch, live-validation evidence, final Home/Base candidate, and
@@ -47,10 +49,10 @@ Recorded: 2026-07-12, America/Chicago
 ## Runtime and rollback state
 
 - VM: dedicated `PnS-BlissOS-PoC`, selected VirtIO(3D)/Mesa VirGL profile, running.
-- Game: force-stopped after one explicitly authorized supervised no-spend startup tap; no
+- Game: force-stopped after three resumed supervised no-spend navigation taps; no
   unattended gameplay input automation is enabled.
-- ADB: the documented NAS-local ADB server remains loopback-only and idle with no attached device
-  in the 2026-07-12 read-only query; no external tunnel or temporary worker ADB server is active.
+- ADB: the task-scoped loopback server was stopped and no 5037/5042/5555 listener remains; no
+  external tunnel or temporary worker ADB server is active.
   RT-021 direct worker proof used a temporary UID-65534 host-network container with an isolated
   local ADB server port; all RT-021 containers and that port were removed afterward.
 - Observer: temporary container `rt012-observer-20260711-1519` and host collector completed and were removed/stopped after evidence preservation.
@@ -121,16 +123,16 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Blocker and required user action
 
-1. The freshness blocker is resolved offline and MVP-QUEST-TO-CLAIM is ready to resume with a new
-   action key after read-only runtime reconciliation. No user action is required. RT-016A remains a later manual-only
-  account-guard task. If performed, manually navigate the
+1. MVP-QUEST-TO-CLAIM must wait until the observed `00:08:33` reset boundary has passed. Resume
+   only after positively reconciling the new game day. No in-game user action is required. RT-016A
+   remains a later manual-only account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
    credentials, account switching, tutorial, CAPTCHA, or profile navigation.
 
 ## Exact next command
 
-Resume `MVP-QUEST-TO-CLAIM` with the corrected freshness contract. Do not begin
+Resume `MVP-QUEST-TO-CLAIM` after the reset boundary with the corrected freshness contract. Do not begin
 M6-DQ-TRANSITION-CORPUS; the required completed/unclaimed and Claim transition evidence does not
 exist.
 

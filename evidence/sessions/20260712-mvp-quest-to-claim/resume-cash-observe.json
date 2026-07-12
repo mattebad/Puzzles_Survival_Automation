@@ -1,0 +1,44 @@
+{
+  "classification": {
+    "detail": {
+      "denial_rules": [
+        "never select purchase, offer, premium-currency, or confirmation controls",
+        "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+        "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+      ],
+      "features": {
+        "back_arrow": 1.0,
+        "mall_context": 1.0,
+        "mall_header": 1.0,
+        "premium_header": 0.977583,
+        "purchase_context": 0.99979,
+        "title_region": 0.994299
+      },
+      "fresh_frame_dimensions": true,
+      "known_informational_overlay": true,
+      "no_unknown_overlay": true,
+      "reason": "all positive Cash Mall features passed with the allowlisted Ending Soon informational banner",
+      "recognized": true,
+      "state": "CASH_MALL",
+      "target_roi": [
+        35,
+        0,
+        180,
+        65
+      ],
+      "unknown_overlay": false
+    },
+    "recognized": true,
+    "state": "CASH_MALL"
+  },
+  "metadata": {
+    "bytes": 751109,
+    "capture_completed_monotonic": 4345167.304759433,
+    "command_started_monotonic": 4345167.107115883,
+    "decode_completed_monotonic": 4345167.326871465,
+    "height": 1280,
+    "path": "/evidence/resume-cash-observe.png",
+    "sha256": "77094e19986c0385a74cc527f2b88aa9bbde2be8248952bff6ba600c019037d3",
+    "width": 800
+  }
+}

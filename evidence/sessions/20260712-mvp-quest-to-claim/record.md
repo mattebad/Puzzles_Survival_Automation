@@ -143,3 +143,44 @@ and injected transport adapter. The retained SQLite database remains schema vers
 Mall confirmed, Home-to-Quest cancelled before dispatch, zero Home-to-Quest transport calls, no
 nonterminal or unresolved action, and no lease. No Unraid, VM, ADB, game, container, tunnel, or
 runtime-network access occurred during this correction.
+
+## Resumed supervised run — reset-boundary stop
+
+Read-only reconciliation confirmed commit `5bf6e54`, the expected eight metadata-only entries,
+VM running on the selected VirtIO/VirGL profile with autostart disabled, Android boot complete,
+logical `800x1280` at 160 dpi, nonblocking keyguard, game process absent, no prior task worker or
+project listener/tunnel, and the restricted RT-017 qcow2/hash/profile-binding artifacts intact.
+The fresh screenshot was the known Taskbar launcher. A temporary UID/GID-65534 worker used the
+same read-only/capability-dropped/no-published-port boundary as the prior attempt. Its ADB server
+was loopback-only at `127.0.0.1:5037` because the bundled ADB ignored the requested alternate
+environment port; no pre-existing 5037 daemon was present.
+
+Package launch reached positively recognized Cash Mall. Resumed action results:
+
+1. `nav-cash-home-resume-002`: one tap `(107,32)`, `prepared → input_sent → confirmed`, positive
+   Home/Base postcondition. Immediate policy age was 132 ms after fresh OCR.
+2. `nav-home-quest-resume-002`: one tap `(330,1205)`, initially unresolved because Linux
+   Tesseract missed the Daily tab. Three post frames and the current frame all had SHA-256
+   `2ab2039bf71458e771a8927400b441d94467546568ce5363714da5b0f3465bda`, exactly matching promoted
+   asset `m6-dq-quest-main-settled-v1`; independent replay recognized Quest and the Daily tab. The
+   exact positive evidence reconciled the same action to confirmed without retry or another input.
+3. `nav-quest-daily-resume-001`: a new immediate capture was pixel-identical to the static Quest
+   frame. The old duplicate-hash guard cancelled before dispatch; transport calls were zero.
+4. The binding was corrected and tested: freshness depends on newer monotonic capture completion,
+   while OCR reuse binds to the prior frame hash, prior capture timestamp, and pixel-identical
+   critical ROIs. An exact promoted Quest-reference hash is accepted before OCR fallback.
+5. `nav-quest-daily-resume-002`: one tap `(400,104)`, `prepared → input_sent → confirmed`, positive
+   Daily Quest postcondition. The immediate static capture reused bound OCR and reached policy in
+   55 ms.
+
+The resulting Daily Quest observation was positive at 800x1280 with six `Go` controls, no Claim,
+zero points, incomplete rows, and reset countdown `00:08:33`. The reset-boundary stop fired before
+scrolling, selecting Alliance Help/Supply Depot, Go, prerequisite execution, quest completion, or
+Claim. No OS input, resource use, spend, account operation, or combat occurred.
+
+Cleanup preserved the updated schema-v1 SQLite database and all frames/results, positively
+reconciled the sole temporary unresolved action, released the lease, force-stopped the game,
+stopped the task ADB server, removed the task worker and image tag, and verified no 5037/5042/5555
+project listener or external tunnel. VM remains running; RT-017 modes/sizes remain intact. Final
+journal state is zero unresolved, zero prepared/input_sent, and released lease. The task remains
+Blocked only until the reset boundary passes and a new game day is positively reconciled.

@@ -1,0 +1,21 @@
+{
+  "classification": {
+    "detail": {
+      "daily_quest_target_recognized": true,
+      "frame_sha256": "2ab2039bf71458e771a8927400b441d94467546568ce5363714da5b0f3465bda",
+      "method": "exact_promoted_quest_reference_hash"
+    },
+    "recognized": true,
+    "state": "QUEST"
+  },
+  "metadata": {
+    "bytes": 449391,
+    "capture_completed_monotonic": 4345495.162305742,
+    "command_started_monotonic": 4345495.02933845,
+    "decode_completed_monotonic": 4345495.18088903,
+    "height": 1280,
+    "path": "/evidence/resume-quest-observe-exact.png",
+    "sha256": "2ab2039bf71458e771a8927400b441d94467546568ce5363714da5b0f3465bda",
+    "width": 800
+  }
+}

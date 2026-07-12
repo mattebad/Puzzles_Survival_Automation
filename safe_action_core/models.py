@@ -49,6 +49,7 @@ class Observation:
     evidence_refs: Tuple[str, ...] = field(default_factory=tuple)
     critical_roi_hashes: Tuple[Tuple[str, str], ...] = field(default_factory=tuple)
     ocr_result_frame_sha256: Optional[str] = None
+    ocr_result_capture_completed_monotonic: Optional[float] = None
     ocr_reused: bool = False
 
 

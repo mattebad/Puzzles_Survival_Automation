@@ -1,0 +1,90 @@
+{
+  "action": {
+    "action_id": "nav-cash-home-resume-002",
+    "action_key": "20260712:resume:nav:cash-home:002",
+    "consequence": "navigate_zero_cost",
+    "consequential": 1,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/nav-cash-home-resume-002-source.png\"]",
+    "expected_postcondition": "HOME_BASE",
+    "final_reason": "positive_postcondition",
+    "final_status": "confirmed",
+    "game_day_id": null,
+    "input_attempt_at": 1783899758.7386744,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_ZERO_COST_R1",
+    "policy_request_json": "{\"action_id\":\"nav-cash-home-resume-002\",\"action_key\":\"20260712:resume:nav:cash-home:002\",\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"game_day_id\":null,\"lease_owner\":\"mvp-supervisor-resume-20260712\",\"lease_valid\":true,\"monotonic_now\":4345190.862572828,\"observation\":{\"ambiguous\":false,\"black\":false,\"capture_completed_monotonic\":4345190.730295873,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"overlay_guard\",\"2697d57d36e7e1e48b9eea7ae8738edddbd9b9a7ac1b6ed41ff35e2454d1b58f\"],[\"semantic_target\",\"9759d6198a44392692d15f953a296ea863196971eb5acd0988ae2658e2144a11\"],[\"source_back\",\"9759d6198a44392692d15f953a296ea863196971eb5acd0988ae2658e2144a11\"],[\"source_title\",\"36976e5f1cacc7827a217453c4a336f8a5d92de7bce6c11b28569e9537e41eb3\"]],\"evidence_refs\":[\"/evidence/nav-cash-home-resume-002-source.png\"],\"expected_postcondition\":\"HOME_BASE\",\"frame_sha256\":\"04b53b49458ad6c44682cd2d3cea13f7cc5fc049090cf0f5fe6a7e0047303de7\",\"height\":1280,\"ocr_result_frame_sha256\":\"04b53b49458ad6c44682cd2d3cea13f7cc5fc049090cf0f5fe6a7e0047303de7\",\"ocr_reused\":false,\"overlay_state\":\"none_observed\",\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_state\":\"CASH_MALL\",\"target_identity\":\"cash-mall-back-arrow\",\"target_roi\":[35,0,180,65],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"semantic_action\":\"NAVIGATE_CASH_TO_HOME\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1783899758.4006004,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":true,\"evidence_refs\":[\"/evidence/nav-cash-home-resume-002-post-1.png\"],\"frame_sha256\":\"b11968873b021666ace69621e21032fb30888bbaade1697494f6ee88c717b9f2\"}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "NAVIGATE_CASH_TO_HOME",
+    "source_frame_captured_at": 4345190.730295873,
+    "source_frame_sha256": "04b53b49458ad6c44682cd2d3cea13f7cc5fc049090cf0f5fe6a7e0047303de7",
+    "source_state": "CASH_MALL",
+    "target_identity": "cash-mall-back-arrow",
+    "target_roi_json": "[35,0,180,65]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input tap 107 32\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1783899762.3106318
+  },
+  "audit": [
+    {
+      "action_id": "nav-cash-home-resume-002",
+      "event_id": 13,
+      "event_type": "policy_evaluated",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"decision\":\"authorize\",\"evaluated_at\":4345190.862572828,\"reason\":\"all supervised zero-cost R1 guards passed\",\"reason_code\":\"AUTHORIZED_ZERO_COST_R1\",\"request_snapshot\":{\"action_id\":\"nav-cash-home-resume-002\",\"action_key\":\"20260712:resume:nav:cash-home:002\",\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"game_day_id\":null,\"lease_owner\":\"mvp-supervisor-resume-20260712\",\"lease_valid\":true,\"monotonic_now\":4345190.862572828,\"observation\":{\"ambiguous\":false,\"black\":false,\"capture_completed_monotonic\":4345190.730295873,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"overlay_guard\",\"2697d57d36e7e1e48b9eea7ae8738edddbd9b9a7ac1b6ed41ff35e2454d1b58f\"],[\"semantic_target\",\"9759d6198a44392692d15f953a296ea863196971eb5acd0988ae2658e2144a11\"],[\"source_back\",\"9759d6198a44392692d15f953a296ea863196971eb5acd0988ae2658e2144a11\"],[\"source_title\",\"36976e5f1cacc7827a217453c4a336f8a5d92de7bce6c11b28569e9537e41eb3\"]],\"evidence_refs\":[\"/evidence/nav-cash-home-resume-002-source.png\"],\"expected_postcondition\":\"HOME_BASE\",\"frame_sha256\":\"04b53b49458ad6c44682cd2d3cea13f7cc5fc049090cf0f5fe6a7e0047303de7\",\"height\":1280,\"ocr_result_frame_sha256\":\"04b53b49458ad6c44682cd2d3cea13f7cc5fc049090cf0f5fe6a7e0047303de7\",\"ocr_reused\":false,\"overlay_state\":\"none_observed\",\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_state\":\"CASH_MALL\",\"target_identity\":\"cash-mall-back-arrow\",\"target_roi\":[35,0,180,65],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"semantic_action\":\"NAVIGATE_CASH_TO_HOME\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}",
+      "recorded_at": 1783899758.4006004,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-cash-home-resume-002",
+      "event_id": 14,
+      "event_type": "action_transition",
+      "lifecycle_from": null,
+      "lifecycle_to": "prepared",
+      "payload_json": "{\"intent\":{\"action_id\":\"nav-cash-home-resume-002\",\"action_key\":\"20260712:resume:nav:cash-home:002\",\"consequence\":\"navigate_zero_cost\",\"consequential\":true,\"cost_amount\":0,\"cost_type\":\"none\",\"evidence_refs\":[\"/evidence/nav-cash-home-resume-002-source.png\"],\"expected_postcondition\":\"HOME_BASE\",\"game_day_id\":null,\"quantity\":1,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"semantic_action\":\"NAVIGATE_CASH_TO_HOME\",\"source_frame_captured_at\":4345190.730295873,\"source_frame_sha256\":\"04b53b49458ad6c44682cd2d3cea13f7cc5fc049090cf0f5fe6a7e0047303de7\",\"source_state\":\"CASH_MALL\",\"target_identity\":\"cash-mall-back-arrow\",\"target_roi\":[35,0,180,65],\"task_id\":\"MVP-QUEST-TO-CLAIM\"},\"policy\":{\"decision\":\"authorize\",\"evaluated_at\":4345190.862572828,\"reason\":\"all supervised zero-cost R1 guards passed\",\"reason_code\":\"AUTHORIZED_ZERO_COST_R1\",\"request_snapshot\":{\"action_id\":\"nav-cash-home-resume-002\",\"action_key\":\"20260712:resume:nav:cash-home:002\",\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"game_day_id\":null,\"lease_owner\":\"mvp-supervisor-resume-20260712\",\"lease_valid\":true,\"monotonic_now\":4345190.862572828,\"observation\":{\"ambiguous\":false,\"black\":false,\"capture_completed_monotonic\":4345190.730295873,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"overlay_guard\",\"2697d57d36e7e1e48b9eea7ae8738edddbd9b9a7ac1b6ed41ff35e2454d1b58f\"],[\"semantic_target\",\"9759d6198a44392692d15f953a296ea863196971eb5acd0988ae2658e2144a11\"],[\"source_back\",\"9759d6198a44392692d15f953a296ea863196971eb5acd0988ae2658e2144a11\"],[\"source_title\",\"36976e5f1cacc7827a217453c4a336f8a5d92de7bce6c11b28569e9537e41eb3\"]],\"evidence_refs\":[\"/evidence/nav-cash-home-resume-002-source.png\"],\"expected_postcondition\":\"HOME_BASE\",\"frame_sha256\":\"04b53b49458ad6c44682cd2d3cea13f7cc5fc049090cf0f5fe6a7e0047303de7\",\"height\":1280,\"ocr_result_frame_sha256\":\"04b53b49458ad6c44682cd2d3cea13f7cc5fc049090cf0f5fe6a7e0047303de7\",\"ocr_reused\":false,\"overlay_state\":\"none_observed\",\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_state\":\"CASH_MALL\",\"target_identity\":\"cash-mall-back-arrow\",\"target_roi\":[35,0,180,65],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"semantic_action\":\"NAVIGATE_CASH_TO_HOME\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}}",
+      "recorded_at": 1783899758.4006004,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-cash-home-resume-002",
+      "event_id": 15,
+      "event_type": "pre_input_attempt",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"attempt\":1,\"changed\":null,\"frame_age_seconds\":0.13229831121861935,\"max_attempts\":2,\"ocr_reuse_denial\":null,\"policy\":{\"decision\":\"authorize\",\"evaluated_at\":4345191.188019423,\"reason\":\"all supervised zero-cost R1 guards passed\",\"reason_code\":\"AUTHORIZED_ZERO_COST_R1\",\"request_snapshot\":{\"action_id\":\"nav-cash-home-resume-002\",\"action_key\":\"20260712:resume:nav:cash-home:002\",\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"game_day_id\":null,\"lease_owner\":\"mvp-supervisor-resume-20260712\",\"lease_valid\":true,\"monotonic_now\":4345191.188019423,\"observation\":{\"ambiguous\":false,\"black\":false,\"capture_completed_monotonic\":4345191.055721112,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"overlay_guard\",\"2697d57d36e7e1e48b9eea7ae8738edddbd9b9a7ac1b6ed41ff35e2454d1b58f\"],[\"semantic_target\",\"9759d6198a44392692d15f953a296ea863196971eb5acd0988ae2658e2144a11\"],[\"source_back\",\"9759d6198a44392692d15f953a296ea863196971eb5acd0988ae2658e2144a11\"],[\"source_title\",\"7d3d55b848a46bce29b8a6c62d98b854cb116c2f62ca99252c9a1e05d91d4a9a\"]],\"evidence_refs\":[\"/evidence/nav-cash-home-resume-002-immediate-before-1.png\"],\"expected_postcondition\":\"HOME_BASE\",\"frame_sha256\":\"d1b9bf0e0a7e734e126e9df8af3271dbc1f46c565fd54875bf75e3df4414f554\",\"height\":1280,\"ocr_result_frame_sha256\":\"d1b9bf0e0a7e734e126e9df8af3271dbc1f46c565fd54875bf75e3df4414f554\",\"ocr_reused\":false,\"overlay_state\":\"none_observed\",\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_state\":\"CASH_MALL\",\"target_identity\":\"cash-mall-back-arrow\",\"target_roi\":[35,0,180,65],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"pre_dispatch\",\"semantic_action\":\"NAVIGATE_CASH_TO_HOME\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}},\"transport_calls\":0}",
+      "recorded_at": 1783899758.726048,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-cash-home-resume-002",
+      "event_id": 16,
+      "event_type": "action_transition",
+      "lifecycle_from": "prepared",
+      "lifecycle_to": "input_sent",
+      "payload_json": "{\"fields\":{\"input_attempt_at\":1783899758.7386744,\"transport_result_json\":{\"detail\":\"input tap 107 32\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}},\"reason\":\"transport_reported_dispatch\"}",
+      "recorded_at": 1783899758.7386744,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-cash-home-resume-002",
+      "event_id": 17,
+      "event_type": "action_transition",
+      "lifecycle_from": "input_sent",
+      "lifecycle_to": "confirmed",
+      "payload_json": "{\"fields\":{\"reconciliation_result_json\":{\"confirmed\":true,\"evidence_refs\":[\"/evidence/nav-cash-home-resume-002-post-1.png\"],\"frame_sha256\":\"b11968873b021666ace69621e21032fb30888bbaade1697494f6ee88c717b9f2\"}},\"reason\":\"positive_postcondition\"}",
+      "recorded_at": 1783899762.3106318,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    }
+  ],
+  "result": {
+    "action_id": "nav-cash-home-resume-002",
+    "reason": "positive_postcondition",
+    "status": "confirmed",
+    "transport_calls": 1
+  }
+}
