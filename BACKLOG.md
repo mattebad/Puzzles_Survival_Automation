@@ -380,20 +380,20 @@ unlocked when this task passes.
 - Evidence: `scripts/test-observe-soak.ps1`,
   `evidence/sessions/20260711-rt-012-soak-auth-block/record.md`, and future soak session directory.
 - Rollback: stop observer; return VM to safe known state.
-- Status: Blocked (development authentication).
-- Blocker: RT-011 passed. The read-only development SSH probe returned exit 255
-  (`Permission denied (publickey,password,keyboard-interactive)`); no secret was supplied or
-  stored. The soak harness is ready, but this development run needs process-only
-  `UNRAID_TEMP_PASSWORD` injection from the password manager. This is a development execution
-  blocker only; production worker-to-VM communication must use the local/private Unraid path and
-  must not depend on an external SSH session or tunnel.
-- Next: RT-016A; RT-013 follows after RT-012 and RT-016A pass. RT-014A is separate optional
+- Status: Passed.
+- Blocker: None. A temporary unprivileged Docker observer ran locally on Unraid for four hours
+  with 48 five-minute samples; the complete cache-backed output and criterion review are retained
+  in `evidence/sessions/20260711-rt-012-observe-soak/`. Historical pre-existing NBD warnings in
+  host logs are preserved as anomalies and were not generated during this run. Live GPU payload
+  was not populated by `intel_gpu_top`; prior RT-004 GPU proof remains authoritative.
+- Next: RT-013. RT-014A remains separate optional viewer transport proof. RT-016A remains the
+  independent prerequisite for M7-AccountGuard and does not block technical runtime selection.
   viewer transport proof. Later validation is staged as 24-hour locked-runtime, 72-hour
   claim-only, 7-day expanded-task, and 21-day production-hardening runs.
 
 ### RT-013 — Final Bliss pass/fail and runtime-profile decision
 
-- Dependencies: RT-012 and RT-016A. Earlier graphics, display, ADB, capture, and restart tasks
+- Dependencies: RT-012. Earlier graphics, display, ADB, capture, and restart tasks
   remain required evidence inputs.
 - Objective: select/lock Bliss or reject it using plan criteria.
 - Scope: evidence-based decision and runtime-profile finalization.
@@ -404,9 +404,10 @@ unlocked when this task passes.
 - Evidence: RT-013 decision record and runtime-profile manifest.
 - Rollback: preserved RT-001 baseline; fallback begins only after recorded rejection.
 - Status: Pending.
-- Blocker: RT-012 observe-only soak and RT-016A account/server identity evidence remain
-  incomplete. RT-014A viewer transport is optional for unattended runtime selection. RT-015 is
-  deferred deployment documentation and does not block the runtime decision.
+- Blocker: None after RT-012. RT-016A account/server identity evidence remains a later
+  account-guard prerequisite and does not block the technical Bliss runtime decision. RT-014A
+  viewer transport is optional for unattended runtime selection. RT-015 is deferred deployment
+  documentation and does not block the runtime decision.
 - Next: RT-017, RT-019, and RT-021 in parallel; M5 framework bake-off requires RT-019 and
   RT-021, while M6 production corpus requires RT-019. ReDroid isolated-in-Linux-VM proof
   remains the rejection path.
@@ -488,7 +489,7 @@ unlocked when this task passes.
 - Status: Pending.
 - Blocker: retained evidence proves authenticated game surface but does not yet contain stable
   redacted player/server identity evidence.
-- Next: RT-013 and M7-AccountGuard.
+- Next: M7-AccountGuard. RT-016A is not a prerequisite for RT-013.
 
 ### RT-017 — Create secured post-provisioning runtime recovery backup
 
@@ -592,13 +593,14 @@ unlocked when this task passes.
 
 ## Dependency graph
 
-- RT-012 + RT-016A → RT-013.
+- RT-012 → RT-013.
 - RT-013 → RT-017 secured backup, RT-019 runtime-profile manifest, and RT-021 worker-to-VM ADB
   proof in parallel.
 - RT-019 + RT-021 → M5 framework bake-off.
 - RT-019 → M6 production corpus.
 - RT-014A → M7-Takeover manual-takeover integration.
-- RT-016A → M7-AccountGuard account-guard implementation.
+- RT-016A → M7-AccountGuard account-guard implementation → unattended automatic gameplay only
+  after all applicable safety and promotion gates.
 - Task-specific supervised-validation prerequisites → agent-driven supervised gameplay input.
 - RT-017 + applicable M7 safety gates + task-specific promotion gates → unattended automatic gameplay input.
 - RT-018 → unattended VM lifecycle recovery.
@@ -614,13 +616,17 @@ p50/p95 capture latency of about 1.015/1.026 seconds. These measurements do not 
 initial final-profile acceptance thresholds recorded in RT-010. RT-011 completed 3 app restarts,
 3 corrected Android/guest recoveries, 2 clean VM power-cycles, and 1 controlled cold VM
 stop/start; display, Mesa renderer, game surface, and ADB reconnect persisted. Do not place a
-password or private key in this repository. The VM is running Mesa VirGL, the game is
-force-stopped, and no input automation or tunnel is active. VNC becomes inactive after
-VirtIO-GL loads, so ADB remains the observation path until optional private scrcpy or equivalent
-passes. RT-012 PowerShell harness is a current reference only; final soak execution must use an
-explicit NAS-local model selected during implementation. Soak execution is blocked by development
-SSH authentication. RT-014A shares that development blocker; RT-015 is deferred VM/worker-order
-documentation and does not block RT-013; RT-016A needs redacted identity evidence. RT-017,
-RT-018, RT-019, and RT-021 are pending downstream gates. Resume RT-012 with the exact command in
-`evidence/sessions/20260711-rt-012-soak-auth-block/record.md`; do not place credentials in this
-repository or command history.
+password or private key in this repository. RT-012 passed with a temporary unprivileged
+Unraid-local Docker observer and a root read-only host-metrics collector; its complete four-hour
+evidence and criterion review are retained in `evidence/sessions/20260711-rt-012-observe-soak/`.
+The VM is running Mesa VirGL and no gameplay input automation or external tunnel is active. VNC
+becomes inactive after VirtIO-GL loads, so ADB remains the observation path until optional private
+scrcpy or equivalent passes. RT-014A remains separately blocked by development authentication;
+RT-015 is deferred VM/worker-order documentation and does not block RT-013; RT-016A needs redacted
+identity evidence for M7-AccountGuard, not technical runtime selection. RT-017,
+RT-018, RT-019, and RT-021 are pending downstream gates. Do not rerun RT-012; its complete evidence
+is retained in `evidence/sessions/20260711-rt-012-observe-soak/`. Do not place credentials in this
+repository or command history. Launching `com.global.ztmslg` normally opens the authenticated Cash
+Mall screen; startup normalization must positively recognize Cash Mall, recapture immediately,
+send at most one authorized no-spend top-left back-arrow input, and positively recognize Home/Base
+afterward. Cash Mall is not an authentication hard stop.

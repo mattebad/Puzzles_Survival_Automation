@@ -1,0 +1,368 @@
+--- sample ---
+sample=46 captured_at=2026-07-11T19:04:33-05:00 elapsed_seconds=13500
+--- domain state ---
+running
+
+--- domain stats ---
+Domain: 'PnS-BlissOS-PoC'
+  state.state=1
+  state.reason=1
+  cpu.time=17274929297000
+  cpu.user=15922300722000
+  cpu.system=1352628574000
+  cpu.cache.monitor.count=0
+  cpu.haltpoll.success.time=0
+  cpu.haltpoll.fail.time=0
+  balloon.current=6291456
+  balloon.maximum=6291456
+  balloon.rss=6534340
+  net.count=1
+  net.0.name=vnet19
+  net.0.rx.bytes=12429618
+  net.0.rx.pkts=75226
+  net.0.rx.errs=0
+  net.0.rx.drop=0
+  net.0.tx.bytes=45638413
+  net.0.tx.pkts=41321
+  net.0.tx.errs=0
+  net.0.tx.drop=0
+  block.count=1
+  block.0.name=sda
+  block.0.path=/mnt/cache/domains/PnS-BlissOS-PoC/system.qcow2
+  block.0.backingIndex=1
+  block.0.rd.reqs=51541
+  block.0.rd.bytes=2274665984
+  block.0.rd.times=10479975123
+  block.0.wr.reqs=54226
+  block.0.wr.bytes=634549248
+  block.0.wr.times=9591807422
+  block.0.fl.reqs=22523
+  block.0.fl.times=9127568030
+  block.0.allocation=13521256448
+  block.0.capacity=68719476736
+  block.0.physical=13529555968
+
+--- domain address ---
+ Name       MAC address          Protocol     Address
+-------------------------------------------------------------------------------
+ vnet19     52:54:00:50:92:10    ipv4         192.168.122.79/24
+
+--- memory and load ---
+               total        used        free      shared  buff/cache   available
+Mem:           31747       20217         593        3006       14772       11530
+Swap:              0           0           0
+0.89 0.97 1.01 3/1916 4165351
+--- cache filesystem ---
+Filesystem         1B-blocks     Used     Available Use% Mounted on
+cache          1754907672576 38535168 1754869137408   1% /mnt/cache
+36357302	/mnt/cache/puzzle-survival-runtime/rt012/20260711-rt-012-observe-soak
+--- sensors ---
+nct6798-isa-02a0
+Adapter: ISA adapter
+in0:            1.04 V  (min =  +0.00 V, max =  +1.74 V)
+in1:            1.67 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in2:            3.41 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in3:            3.33 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in4:            1.02 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in5:          896.00 mV (min =  +0.00 V, max =  +0.00 V)
+in6:            1.38 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in7:            3.41 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in8:            3.17 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in9:            1.06 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in10:           1.06 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in11:         832.00 mV (min =  +0.00 V, max =  +0.00 V)  ALARM
+in12:           1.02 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+in13:         464.00 mV (min =  +0.00 V, max =  +0.00 V)  ALARM
+in14:           1.50 V  (min =  +0.00 V, max =  +0.00 V)  ALARM
+fan2:         1017 RPM  (min =    0 RPM)
+Array Fan:    1337 RPM  (min =    0 RPM)
+MB Temp:       +35.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +115.0 C)  sensor = thermistor
+CPUTIN:        +22.0 C  (high = +105.0 C, hyst = +95.0 C)
+                        (crit = +115.0 C)  sensor = thermistor
+AUXTIN0:        +6.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +115.0 C)  sensor = thermistor
+AUXTIN1:       +22.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +115.0 C)  sensor = thermistor
+AUXTIN2:       +35.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +100.0 C)  sensor = thermistor
+AUXTIN3:        -1.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +115.0 C)  sensor = thermistor
+PECI Agent 0:  +38.5 C  (high = +80.0 C, hyst = +75.0 C)
+AUXTIN4:       +32.0 C  (high = +80.0 C, hyst = +75.0 C)
+                        (crit = +115.0 C)
+intrusion0:   ALARM
+intrusion1:   ALARM
+beep_enable:  disabled
+
+nvme-pci-0100
+Adapter: PCI adapter
+Composite:    +46.9 C  (low  = -40.1 C, high = +119.8 C)
+                       (crit = +129.8 C)
+Sensor 1:     +58.9 C  (low  = -40.1 C, high = +139.8 C)
+Sensor 2:     +46.9 C  (low  = -40.1 C, high = +119.8 C)
+
+coretemp-isa-0000
+Adapter: ISA adapter
+CPU Temp:     +41.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 0:       +38.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 4:       +35.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 8:       +35.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 12:      +41.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 16:      +38.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 20:      +34.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 24:      +37.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 25:      +37.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 26:      +37.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 27:      +37.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 28:      +35.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 29:      +35.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 30:      +35.0 C  (high = +80.0 C, crit = +100.0 C)
+Core 31:      +35.0 C  (high = +80.0 C, crit = +100.0 C)
+
+--- docker health ---
+rt012-observer-20260711-1519	monarch-gpt-wrapper-api:latest	Up 4 hours
+binhex-plexpass	ghcr.io/binhex/arch-plexpass	Up 5 days (healthy)
+autobrr	ghcr.io/autobrr/autobrr:latest	Up 5 days
+DiskSpeed	jbartlett777/diskspeed	Up 5 days
+Plex-Auto-Languages	journeyover/plex-auto-languages	Up 5 days (healthy)
+binhex-sonarr	ghcr.io/binhex/arch-sonarr	Up 5 days (healthy)
+binhex-qbittorrentvpn	ghcr.io/binhex/arch-qbittorrentvpn	Up 5 days
+tautulli	tautulli/tautulli	Up 5 days (healthy)
+binhex-radarr	ghcr.io/binhex/arch-radarr	Up 5 days (healthy)
+binhex-prowlarr	ghcr.io/binhex/arch-prowlarr	Up 5 days (healthy)
+monarch-gpt-cloudflared	cloudflare/cloudflared:latest	Up 5 days
+monarch-gpt-api	monarch-gpt-wrapper-api	Up 5 days
+Nginx-Proxy-Manager-Official	jc21/nginx-proxy-manager	Up 5 days
+binhex-seerr	ghcr.io/binhex/arch-seerr	Up 5 days (healthy)
+binhex-flaresolverr	ghcr.io/binhex/arch-flaresolverr	Up 5 days (healthy)
+ddns-updater	qmcgaw/ddns-updater	Up 5 days (healthy)
+kasa_energy_dashboard-kasa-energy-dashboard-1	kasa_energy_dashboard-kasa-energy-dashboard	Up 5 days
+immich_server	ghcr.io/immich-app/immich-server:v2	Up 6 days (healthy)
+immich_machine_learning	ghcr.io/immich-app/immich-machine-learning:v2	Up 6 days (unhealthy)
+unpackerr	golift/unpackerr	Up 5 days
+binhex-lidarr	ghcr.io/binhex/arch-lidarr	Up 5 days (healthy)
+immich_redis	valkey/valkey:9	Up 6 days (healthy)
+immich_postgres	ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0	Up 5 days (healthy)
+rt012-observer-20260711-1519	0.00%	14.04MiB / 512MiB
+binhex-plexpass	0.27%	404MiB / 31GiB
+autobrr	0.00%	27.89MiB / 31GiB
+DiskSpeed	0.14%	235.4MiB / 31GiB
+Plex-Auto-Languages	0.03%	206MiB / 31GiB
+binhex-sonarr	0.04%	467.1MiB / 31GiB
+binhex-qbittorrentvpn	0.10%	227.7MiB / 31GiB
+tautulli	0.03%	114.4MiB / 31GiB
+binhex-radarr	0.06%	437.5MiB / 31GiB
+binhex-prowlarr	0.04%	264.3MiB / 31GiB
+monarch-gpt-cloudflared	0.13%	28.22MiB / 31GiB
+monarch-gpt-api	0.10%	53.27MiB / 31GiB
+Nginx-Proxy-Manager-Official	0.09%	155.4MiB / 1GiB
+binhex-seerr	0.02%	315.6MiB / 31GiB
+binhex-flaresolverr	0.02%	245.4MiB / 31GiB
+ddns-updater	0.00%	23.35MiB / 31GiB
+kasa_energy_dashboard-kasa-energy-dashboard-1	0.74%	64.39MiB / 31GiB
+immich_server	0.09%	917MiB / 31GiB
+immich_machine_learning	0.01%	100.4MiB / 31GiB
+unpackerr	0.00%	20.27MiB / 31GiB
+binhex-lidarr	0.05%	364.5MiB / 31GiB
+immich_redis	0.14%	22.32MiB / 31GiB
+immich_postgres	0.00%	226.7MiB / 31GiB
+--- listeners ---
+State  Recv-Q Send-Q           Local Address:Port  Peer Address:PortProcess                                                             
+LISTEN 0      128                  127.0.0.1:5037       0.0.0.0:*    users:(("adb",pid=265624,fd=9))                                    
+LISTEN 0      4096                   0.0.0.0:81         0.0.0.0:*    users:(("docker-proxy",pid=372326,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:80         0.0.0.0:*    users:(("docker-proxy",pid=372312,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:443        0.0.0.0:*    users:(("docker-proxy",pid=372340,fd=4))                           
+LISTEN 0      5      0.0.0.0%br-4085e70991e8:3702       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=23))                                   
+LISTEN 0      5      0.0.0.0%br-f9ede682047e:3702       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=22))                                   
+LISTEN 0      5      0.0.0.0%br-a72dfd9c2b17:3702       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=21))                                   
+LISTEN 0      5      0.0.0.0%br-5a38f876de71:3702       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=20))                                   
+LISTEN 0      5      0.0.0.0%br-b5a8d915eee9:3702       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=19))                                   
+LISTEN 0      5      0.0.0.0%br-a05018316997:3702       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=18))                                   
+LISTEN 0      5      0.0.0.0%br-9e2cc2f622d8:3702       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=17))                                   
+LISTEN 0      5      0.0.0.0%br-7716008c13c9:3702       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=16))                                   
+LISTEN 0      5      0.0.0.0%br-27b13d0da4ca:3702       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=15))                                   
+LISTEN 0      5                  0.0.0.0%br0:3702       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=14))                                   
+LISTEN 0      32               192.168.122.1:53         0.0.0.0:*    users:(("dnsmasq",pid=18530,fd=6))                                 
+LISTEN 0      4096                   0.0.0.0:2283       0.0.0.0:*    users:(("docker-proxy",pid=2114646,fd=4))                          
+LISTEN 0      128                  127.0.0.1:40327      0.0.0.0:*    users:(("Plex Script Hos",pid=394225,fd=4))                        
+LISTEN 0      4096                   0.0.0.0:18888      0.0.0.0:*    users:(("docker-proxy",pid=374297,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:3004       0.0.0.0:*    users:(("docker-proxy",pid=372356,fd=4))                           
+LISTEN 0      2048                   0.0.0.0:3000       0.0.0.0:*    users:(("uvicorn",pid=372948,fd=20))                               
+LISTEN 0      50                   127.0.0.1:139        0.0.0.0:*    users:(("smbd-scavenger",pid=958021,fd=27),("smbd",pid=8216,fd=27))
+LISTEN 0      5      0.0.0.0%br-4085e70991e8:5355       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=43))                                   
+LISTEN 0      5      0.0.0.0%br-f9ede682047e:5355       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=42))                                   
+LISTEN 0      5      0.0.0.0%br-a72dfd9c2b17:5355       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=41))                                   
+LISTEN 0      5      0.0.0.0%br-5a38f876de71:5355       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=40))                                   
+LISTEN 0      5      0.0.0.0%br-b5a8d915eee9:5355       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=39))                                   
+LISTEN 0      5      0.0.0.0%br-a05018316997:5355       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=38))                                   
+LISTEN 0      5      0.0.0.0%br-9e2cc2f622d8:5355       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=37))                                   
+LISTEN 0      5      0.0.0.0%br-7716008c13c9:5355       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=36))                                   
+LISTEN 0      5      0.0.0.0%br-27b13d0da4ca:5355       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=35))                                   
+LISTEN 0      5                  0.0.0.0%br0:5355       0.0.0.0:*    users:(("wsdd2",pid=8230,fd=34))                                   
+LISTEN 0      511                  127.0.0.1:84         0.0.0.0:*    users:(("nginx",pid=764143,fd=8),("nginx",pid=7812,fd=8))          
+LISTEN 0      1000                 127.0.0.1:16509      0.0.0.0:*    users:(("libvirtd",pid=18204,fd=14))                               
+LISTEN 0      50                   127.0.0.1:445        0.0.0.0:*    users:(("smbd-scavenger",pid=958021,fd=26),("smbd",pid=8216,fd=26))
+LISTEN 0      511                  127.0.0.1:447        0.0.0.0:*    users:(("nginx",pid=764143,fd=10),("nginx",pid=7812,fd=10))        
+LISTEN 0      1                      0.0.0.0:5701       0.0.0.0:*    users:(("qemu-system-x86",pid=2551581,fd=36))                      
+LISTEN 0      1                      0.0.0.0:5700       0.0.0.0:*    users:(("qemu-system-x86",pid=19199,fd=29))                        
+LISTEN 0      1                      0.0.0.0:5901       0.0.0.0:*    users:(("qemu-system-x86",pid=2551581,fd=35))                      
+LISTEN 0      1                      0.0.0.0:5900       0.0.0.0:*    users:(("qemu-system-x86",pid=19199,fd=28))                        
+LISTEN 0      4096                   0.0.0.0:5055       0.0.0.0:*    users:(("docker-proxy",pid=396168,fd=4))                           
+LISTEN 0      128              192.168.50.92:22         0.0.0.0:*    users:(("sshd",pid=8138,fd=6))                                     
+LISTEN 0      511              192.168.50.92:84         0.0.0.0:*    users:(("nginx",pid=764143,fd=9),("nginx",pid=7812,fd=9))          
+LISTEN 0      50               192.168.50.92:139        0.0.0.0:*    users:(("smbd-scavenger",pid=958021,fd=29),("smbd",pid=8216,fd=29))
+LISTEN 0      50               192.168.50.92:445        0.0.0.0:*    users:(("smbd-scavenger",pid=958021,fd=28),("smbd",pid=8216,fd=28))
+LISTEN 0      511              192.168.50.92:447        0.0.0.0:*    users:(("nginx",pid=764143,fd=11),("nginx",pid=7812,fd=11))        
+LISTEN 0      4096                   0.0.0.0:7474       0.0.0.0:*    users:(("docker-proxy",pid=373628,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:7878       0.0.0.0:*    users:(("docker-proxy",pid=377694,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:8080       0.0.0.0:*    users:(("docker-proxy",pid=378156,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:8118       0.0.0.0:*    users:(("docker-proxy",pid=378173,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:8181       0.0.0.0:*    users:(("docker-proxy",pid=374916,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:8191       0.0.0.0:*    users:(("docker-proxy",pid=394880,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:8000       0.0.0.0:*    users:(("docker-proxy",pid=373374,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:9696       0.0.0.0:*    users:(("docker-proxy",pid=380153,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:9897       0.0.0.0:*    users:(("docker-proxy",pid=375364,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:58946      0.0.0.0:*    users:(("docker-proxy",pid=378204,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:8686       0.0.0.0:*    users:(("docker-proxy",pid=394547,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:9118       0.0.0.0:*    users:(("docker-proxy",pid=378188,fd=4))                           
+LISTEN 0      4096                   0.0.0.0:8989       0.0.0.0:*    users:(("docker-proxy",pid=375350,fd=4))                           
+LISTEN 0      1024                 127.0.0.1:32401      0.0.0.0:*    users:(("Plex Media Serv",pid=394118,fd=52))                       
+LISTEN 0      128                  127.0.0.1:32600      0.0.0.0:*    users:(("Plex Tuner Serv",pid=394352,fd=10))                       
+LISTEN 0      4096                      [::]:81            [::]:*    users:(("docker-proxy",pid=372334,fd=4))                           
+LISTEN 0      4096                      [::]:80            [::]:*    users:(("docker-proxy",pid=372319,fd=4))                           
+LISTEN 0      4096                      [::]:443           [::]:*    users:(("docker-proxy",pid=372348,fd=4))                           
+LISTEN 0      4096                      [::]:2283          [::]:*    users:(("docker-proxy",pid=2114653,fd=4))                          
+LISTEN 0      4096                      [::]:18888         [::]:*    users:(("docker-proxy",pid=374304,fd=4))                           
+LISTEN 0      4096                      [::]:3004          [::]:*    users:(("docker-proxy",pid=372362,fd=4))                           
+LISTEN 0      4096                      [::]:5055          [::]:*    users:(("docker-proxy",pid=396176,fd=4))                           
+LISTEN 0      4096                      [::]:7474          [::]:*    users:(("docker-proxy",pid=373634,fd=4))                           
+LISTEN 0      4096                      [::]:7878          [::]:*    users:(("docker-proxy",pid=377702,fd=4))                           
+LISTEN 0      4096                      [::]:8080          [::]:*    users:(("docker-proxy",pid=378163,fd=4))                           
+LISTEN 0      4096                      [::]:8118          [::]:*    users:(("docker-proxy",pid=378180,fd=4))                           
+LISTEN 0      4096                      [::]:8181          [::]:*    users:(("docker-proxy",pid=374922,fd=4))                           
+LISTEN 0      4096                      [::]:8191          [::]:*    users:(("docker-proxy",pid=394888,fd=4))                           
+LISTEN 0      4096                      [::]:8000          [::]:*    users:(("docker-proxy",pid=373380,fd=4))                           
+LISTEN 0      4096                      [::]:9696          [::]:*    users:(("docker-proxy",pid=380160,fd=4))                           
+LISTEN 0      4096                      [::]:9897          [::]:*    users:(("docker-proxy",pid=375371,fd=4))                           
+LISTEN 0      4096                      [::]:58946         [::]:*    users:(("docker-proxy",pid=378212,fd=4))                           
+LISTEN 0      4096                      [::]:8686          [::]:*    users:(("docker-proxy",pid=394553,fd=4))                           
+LISTEN 0      4096                      [::]:9118          [::]:*    users:(("docker-proxy",pid=378197,fd=4))                           
+LISTEN 0      4096                      [::]:8989          [::]:*    users:(("docker-proxy",pid=375357,fd=4))                           
+LISTEN 0      1024                         *:32400            *:*    users:(("Plex Media Serv",pid=394118,fd=51))                       
+--- routes ---
+default via 192.168.50.1 dev br0 proto dhcp src 192.168.50.92 metric 1005 
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 
+172.18.0.0/16 dev br-a05018316997 proto kernel scope link src 172.18.0.1 linkdown 
+172.19.0.0/16 dev br-5a38f876de71 proto kernel scope link src 172.19.0.1 
+172.20.0.0/16 dev br-7716008c13c9 proto kernel scope link src 172.20.0.1 linkdown 
+172.21.0.0/16 dev br-f9ede682047e proto kernel scope link src 172.21.0.1 linkdown 
+172.22.0.0/16 dev br-a72dfd9c2b17 proto kernel scope link src 172.22.0.1 linkdown 
+172.23.0.0/16 dev br-27b13d0da4ca proto kernel scope link src 172.23.0.1 linkdown 
+172.24.0.0/16 dev br-b5a8d915eee9 proto kernel scope link src 172.24.0.1 
+172.25.0.0/16 dev br-9e2cc2f622d8 proto kernel scope link src 172.25.0.1 
+172.26.0.0/16 dev br-4085e70991e8 proto kernel scope link src 172.26.0.1 linkdown 
+192.168.50.0/24 dev br0 proto dhcp scope link src 192.168.50.92 metric 1005 
+192.168.122.0/24 dev virbr0 proto kernel scope link src 192.168.122.1 
+--- recent kernel warnings/errors ---
+[Mon Jul  6 03:59:29 2026] x86/split lock detection: #AC: CHTTPClientThre/372297 took a split_lock trap at address: 0x56817fcf
+[Mon Jul  6 03:59:32 2026] x86/split lock detection: #AC: CHTTPClientThre/372955 took a split_lock trap at address: 0x29188def
+[Mon Jul  6 03:59:34 2026] x86/split lock detection: #AC: steamcmd/373071 took a split_lock trap at address: 0x56886fcf
+[Mon Jul  6 03:59:36 2026] x86/split lock detection: #AC: CHTTPClientThre/373213 took a split_lock trap at address: 0x56886fcf
+[Mon Jul  6 04:11:17 2026] mdcmd (127): check resume
+
+[Mon Jul  6 04:11:17 2026] md: recovery thread: check P ...
+[Mon Jul  6 04:49:37 2026] x86/split lock detection: #AC: steamcmd/461757 took a split_lock trap at address: 0x56836fcf
+[Mon Jul  6 04:49:43 2026] x86/split lock detection: #AC: CHTTPClientThre/461866 took a split_lock trap at address: 0x56836fcf
+[Mon Jul  6 04:49:46 2026] x86/split lock detection: #AC: CHTTPClientThre/461940 took a split_lock trap at address: 0x29288def
+[Mon Jul  6 04:49:48 2026] x86/split lock detection: #AC: steamcmd/462016 took a split_lock trap at address: 0x5685dfcf
+[Mon Jul  6 04:49:54 2026] x86/split lock detection: #AC: CHTTPClientThre/462144 took a split_lock trap at address: 0x5685dfcf
+[Mon Jul  6 04:50:19 2026] x86/split lock detection: #AC: steamcmd/463038 took a split_lock trap at address: 0x5689ffcf
+[Mon Jul  6 04:50:25 2026] x86/split lock detection: #AC: CHTTPClientThre/463150 took a split_lock trap at address: 0x5689ffcf
+[Mon Jul  6 04:50:30 2026] x86/split lock detection: #AC: steamcmd/463217 took a split_lock trap at address: 0x568f5fcf
+[Mon Jul  6 04:50:36 2026] x86/split lock detection: #AC: CHTTPClientThre/463332 took a split_lock trap at address: 0x568f5fcf
+[Mon Jul  6 07:29:17 2026] mdcmd (128): nocheck PAUSE
+
+[Mon Jul  6 07:29:17 2026] md: recovery thread: exit status: -4
+[Tue Jul  7 00:14:18 2026] mdcmd (129): check resume
+
+[Tue Jul  7 00:14:18 2026] md: recovery thread: check P ...
+[Tue Jul  7 03:41:14 2026] mdcmd (130): nocheck PAUSE
+
+[Tue Jul  7 03:41:14 2026] md: recovery thread: exit status: -4
+[Tue Jul  7 03:59:17 2026] mdcmd (131): check resume
+
+[Tue Jul  7 03:59:17 2026] md: recovery thread: check P ...
+[Tue Jul  7 04:49:35 2026] x86/split lock detection: #AC: steamcmd/2699406 took a split_lock trap at address: 0x5689cfcf
+[Tue Jul  7 04:49:41 2026] x86/split lock detection: #AC: CHTTPClientThre/2699506 took a split_lock trap at address: 0x5689cfcf
+[Tue Jul  7 04:49:46 2026] x86/split lock detection: #AC: steamcmd/2699641 took a split_lock trap at address: 0x568c4fcf
+[Tue Jul  7 04:49:51 2026] x86/split lock detection: #AC: CHTTPClientThre/2699702 took a split_lock trap at address: 0x568c4fcf
+[Tue Jul  7 04:50:17 2026] x86/split lock detection: #AC: steamcmd/2700486 took a split_lock trap at address: 0x568d2fcf
+[Tue Jul  7 04:50:23 2026] x86/split lock detection: #AC: CHTTPClientThre/2700568 took a split_lock trap at address: 0x568d2fcf
+[Tue Jul  7 04:50:28 2026] x86/split lock detection: #AC: steamcmd/2700684 took a split_lock trap at address: 0x56894fcf
+[Tue Jul  7 04:50:34 2026] x86/split lock detection: #AC: CHTTPClientThre/2700793 took a split_lock trap at address: 0x56894fcf
+[Tue Jul  7 07:29:19 2026] mdcmd (132): nocheck PAUSE
+
+[Tue Jul  7 07:29:19 2026] md: recovery thread: exit status: -4
+[Wed Jul  8 00:14:15 2026] mdcmd (133): check resume
+
+[Wed Jul  8 00:14:15 2026] md: recovery thread: check P ...
+[Wed Jul  8 03:41:19 2026] mdcmd (134): nocheck PAUSE
+
+[Wed Jul  8 03:41:19 2026] md: recovery thread: exit status: -4
+[Wed Jul  8 04:11:17 2026] mdcmd (135): check resume
+
+[Wed Jul  8 04:11:17 2026] md: recovery thread: check P ...
+[Wed Jul  8 04:49:34 2026] x86/split lock detection: #AC: steamcmd/598336 took a split_lock trap at address: 0x56901fcf
+[Wed Jul  8 04:49:40 2026] x86/split lock detection: #AC: CHTTPClientThre/598431 took a split_lock trap at address: 0x56901fcf
+[Wed Jul  8 04:49:43 2026] x86/split lock detection: #AC: CHTTPClientThre/598513 took a split_lock trap at address: 0x29188def
+[Wed Jul  8 04:49:43 2026] x86/split lock detection: #AC: CHTTPClientThre/598514 took a split_lock trap at address: 0x29188def
+[Wed Jul  8 04:49:45 2026] x86/split lock detection: #AC: steamcmd/598551 took a split_lock trap at address: 0x568fefcf
+[Wed Jul  8 04:49:51 2026] x86/split lock detection: #AC: CHTTPClientThre/598666 took a split_lock trap at address: 0x568fefcf
+[Wed Jul  8 04:50:16 2026] x86/split lock detection: #AC: steamcmd/599350 took a split_lock trap at address: 0x56860fcf
+[Wed Jul  8 04:50:22 2026] x86/split lock detection: #AC: CHTTPClientThre/599461 took a split_lock trap at address: 0x56860fcf
+[Wed Jul  8 04:50:27 2026] x86/split lock detection: #AC: steamcmd/599542 took a split_lock trap at address: 0x56833fcf
+[Wed Jul  8 04:50:33 2026] x86/split lock detection: #AC: CHTTPClientThre/599650 took a split_lock trap at address: 0x56833fcf
+[Wed Jul  8 07:29:18 2026] mdcmd (136): nocheck PAUSE
+
+[Wed Jul  8 07:29:18 2026] md: recovery thread: exit status: -4
+[Thu Jul  9 00:14:15 2026] mdcmd (137): check resume
+
+[Thu Jul  9 00:14:15 2026] md: recovery thread: check P ...
+[Thu Jul  9 03:23:19 2026] md: sync done. time=11344sec
+[Thu Jul  9 03:23:19 2026] md: recovery thread: exit status: 0
+[Thu Jul  9 04:49:34 2026] x86/split lock detection: #AC: steamcmd/2619466 took a split_lock trap at address: 0x568c6fcf
+[Thu Jul  9 04:49:40 2026] x86/split lock detection: #AC: CHTTPClientThre/2619632 took a split_lock trap at address: 0x568c6fcf
+[Thu Jul  9 04:49:43 2026] x86/split lock detection: #AC: CHTTPClientThre/2619739 took a split_lock trap at address: 0x29288def
+[Thu Jul  9 04:49:43 2026] x86/split lock detection: #AC: CHTTPClientThre/2619740 took a split_lock trap at address: 0x29288def
+[Thu Jul  9 04:49:45 2026] x86/split lock detection: #AC: steamcmd/2619790 took a split_lock trap at address: 0x56810fcf
+[Thu Jul  9 04:49:51 2026] x86/split lock detection: #AC: CHTTPClientThre/2619904 took a split_lock trap at address: 0x56810fcf
+[Thu Jul  9 04:50:16 2026] x86/split lock detection: #AC: steamcmd/2620745 took a split_lock trap at address: 0x5685efcf
+[Thu Jul  9 04:50:22 2026] x86/split lock detection: #AC: CHTTPClientThre/2620872 took a split_lock trap at address: 0x5685efcf
+[Thu Jul  9 04:50:27 2026] x86/split lock detection: #AC: steamcmd/2620967 took a split_lock trap at address: 0x56818fcf
+[Thu Jul  9 04:50:33 2026] x86/split lock detection: #AC: CHTTPClientThre/2621072 took a split_lock trap at address: 0x56818fcf
+[Thu Jul  9 22:53:15 2026] block nbd0: shutting down sockets
+[Thu Jul  9 22:53:15 2026] I/O error, dev nbd0, sector 0 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+[Thu Jul  9 22:53:15 2026] Buffer I/O error on dev nbd0, logical block 0, async page read
+[Thu Jul  9 22:53:15 2026] I/O error, dev nbd0, sector 0 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+[Thu Jul  9 22:53:15 2026] Buffer I/O error on dev nbd0, logical block 0, async page read
+[Thu Jul  9 22:53:15 2026] I/O error, dev nbd0, sector 0 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+[Thu Jul  9 22:53:15 2026] Buffer I/O error on dev nbd0, logical block 0, async page read
+[Thu Jul  9 22:53:15 2026] udevd[186652]: inotify_add_watch(6, /dev/nbd0p1, 10) failed: No such file or directory
+[Thu Jul  9 22:53:15 2026] udevd[186700]: inotify_add_watch(6, /dev/nbd0p2, 10) failed: No such file or directory
+[Thu Jul  9 22:53:15 2026] I/O error, dev nbd0, sector 0 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+[Thu Jul  9 22:53:15 2026] Buffer I/O error on dev nbd0, logical block 0, async page read
+[Thu Jul  9 22:53:15 2026] I/O error, dev nbd0, sector 0 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+[Thu Jul  9 22:53:15 2026] Buffer I/O error on dev nbd0, logical block 0, async page read
+[Thu Jul  9 22:53:15 2026] I/O error, dev nbd0, sector 0 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+[Thu Jul  9 22:53:15 2026] Buffer I/O error on dev nbd0, logical block 0, async page read
+[Thu Jul  9 22:53:15 2026] I/O error, dev nbd0, sector 0 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+[Thu Jul  9 22:53:15 2026] Buffer I/O error on dev nbd0, logical block 0, async page read
+[Thu Jul  9 22:53:15 2026] I/O error, dev nbd0, sector 0 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+[Thu Jul  9 22:53:15 2026] Buffer I/O error on dev nbd0, logical block 0, async page read
+[Thu Jul  9 22:53:15 2026] I/O error, dev nbd0, sector 0 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+[Thu Jul  9 22:53:15 2026] Buffer I/O error on dev nbd0, logical block 0, async page read
+[Fri Jul 10 23:31:56 2026] block nbd15: shutting down sockets
+[Fri Jul 10 23:32:25 2026] block nbd15: shutting down sockets
+[Fri Jul 10 23:32:54 2026] block nbd15: shutting down sockets
+--- GPU sample ---

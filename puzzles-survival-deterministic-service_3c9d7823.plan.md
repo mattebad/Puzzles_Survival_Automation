@@ -10,7 +10,7 @@ todos:
     status: in_progress
   - id: rt-012-observe-soak
     content: Run 4-hour runtime-selection observe-only Bliss soak; use staged 24-hour, 72-hour, 7-day, and 21-day validation after selection.
-    status: blocked
+    status: completed
   - id: rt-014a-private-viewer-transport
     content: Prove optional private post-VirGL viewer transport without requiring the future controller.
     status: blocked
@@ -246,14 +246,14 @@ Administrative access used for Milestone 1:
 
 Execution status is authoritative in the [runtime backlog](../../Puzzle_Survival_Runtime_POC/BACKLOG.md). Detailed retained evidence is in the [VirGL trial record](../../Puzzle_Survival_Runtime_POC/evidence/sessions/20260710-rt-003-virgl-trial-01/record.md), [portrait-profile record](../../Puzzle_Survival_Runtime_POC/evidence/sessions/20260710-rt-007-portrait/record.md), and [restart-matrix record](../../Puzzle_Survival_Runtime_POC/evidence/sessions/20260711-rt-011-restart-matrix/record.md).
 
-The current RT-012 harness reference is
+The current RT-012 PowerShell harness is a reference only. The completed RT-012 execution used a
+temporary unprivileged Docker observer running locally on Unraid, with cache-backed evidence and
+a separate read-only host-metrics collector. The complete passed run is recorded in
+[`20260711-rt-012-observe-soak/record.md`](../../Puzzle_Survival_Runtime_POC/evidence/sessions/20260711-rt-012-observe-soak/record.md).
+The pre-execution authentication blocker and resume procedure remain recorded in
 [`scripts/test-observe-soak.ps1`](../../Puzzle_Survival_Runtime_POC/scripts/test-observe-soak.ps1);
-it is not a requirement for the final NAS-local execution model. During implementation, select
-one explicit model: temporary unprivileged Docker observer, Python observer running locally on
-Unraid, or PowerShell Core inside a temporary container. Do not make an external Windows
-PowerShell process part of the soak. Its pre-execution authentication blocker and resume procedure
-are recorded in
-[`20260711-rt-012-soak-auth-block/record.md`](../../Puzzle_Survival_Runtime_POC/evidence/sessions/20260711-rt-012-soak-auth-block/record.md).
+it is not the final NAS-local execution model. Do not make an external Windows PowerShell process
+part of the soak.
 
 Current candidate and verified results:
 
@@ -294,8 +294,9 @@ Current candidate and verified results:
   `82`, and `cmd window dismiss-keyguard`, then verify input restriction cleared. Stop on a
   secure credential prompt, login state, or unknown OS state. After verified dismissal, the
   already-provisioned game resumes correctly; no credentials or game input are sent.
-- Live state verified 2026-07-11: VM running selected VirtIO(3D)/Mesa profile; Android boot complete; physical `1280×800`, logical `800×1280`, 160 dpi; effective portrait configuration; game force-stopped after observation. VM autostart remains disabled.
-- Stability: corrected three-guest-restart trials resumed complete game frames with stable dimensions and no display drift. RT-011 then passed three app restarts, three corrected Android/guest recoveries, two clean VM power-cycles, and one controlled cold VM stop/start. One transient reconnect overlay was retained without input. The RT-012 observe-only harness is parser/linter verified but its live run is externally blocked by development SSH authentication; the 4-hour runtime-selection gate remains open and staged 24-hour, 72-hour, 7-day, and 21-day validation remains later work.
+- Live state verified 2026-07-12: VM running selected VirtIO(3D)/Mesa profile; Android boot complete; physical `1280×800`, logical `800×1280`, 160 dpi; effective portrait configuration; game force-stopped after the completed observe-only run. VM autostart remains disabled.
+- Stability: corrected three-guest-restart trials resumed complete game frames with stable dimensions and no display drift. RT-011 then passed three app restarts, three corrected Android/guest recoveries, two clean VM power-cycles, and one controlled cold VM stop/start. One transient reconnect overlay was retained without input. RT-012 passed its four-hour Unraid-local observe-only gate with 48 five-minute samples, 48 valid `800×1280` frames, zero ADB failures, p95 capture latency 222.764 ms, complete host metric files, and no account/session hard stop. The staged 24-hour, 72-hour, 7-day, and 21-day validation remains later work.
+- Startup behavior: launching `com.global.ztmslg` normally opens the authenticated Cash Mall screen rather than Home/Base. Cash Mall is recognized by its exact title, mall header/offer layout, premium-currency header, and large top-left back arrow. It is normal authenticated game content, not login, tutorial, wrong account, server/state selection, or session loss. Startup normalization must positively recognize Cash Mall, recapture immediately, authorize at most one bounded no-spend tap on the recognized back arrow, recapture, and require positive Home/Base recognition; coordinate-only clicks, purchase/offer/premium controls, stale frames, unknown overlays, timeout, or unexpected successors are denied/UNKNOWN. Development reference: `evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png`; recapture from the final locked runtime is still required for production assets.
 - Account guard limitation: restart evidence shows the authenticated game surface and no login/tutorial/CAPTCHA/wrong-account state, but a redacted stable player/server identity capture is still required before any automatic gameplay action.
 
 Completed runtime-proof work:
@@ -314,13 +315,17 @@ Completed runtime-proof work:
   worker-to-VM path.
 - RT-009 non-game tap/swipe input fidelity: passed on two profile states; 9 taps and 4 swipes per run, all markers detected, maximum endpoint error 4.031 px.
 - RT-011 restart matrix: passed for 3 app restarts, 3 corrected Android/guest recoveries, 2 clean VM power-cycles, and 1 controlled cold VM stop/start; profile, renderer, game surface, ADB reconnect, and authentication hard-stop behavior persisted.
+- RT-012 observe-only runtime-selection soak: passed with a temporary unprivileged Unraid-local Docker observer; 4 hours, 48 five-minute samples, 48 valid non-black `800×1280` frames, p95 capture latency 222.764 ms, zero input commands, no hard-stop signal, and 48 host metric files. Historical pre-existing NBD warnings were retained as anomalies; live GPU utilization payload was empty, while RT-004 remains the authoritative GPU-use proof.
 
 Remaining runtime-proof work:
 
-- RT-012 4-hour runtime-selection observe-only soak: blocked before execution by development SSH authentication; harness and blocker evidence retained. This is not a production architecture dependency. The 24-hour locked-runtime, 72-hour claim-only, 7-day expanded-task, and 21-day hardening stages remain later work.
-- RT-013 final Bliss pass/fail and runtime-profile lock: pending; depends only on RT-012 and
-  RT-016A for runtime selection. RT-014A is operationally useful but not a Bliss-selection
-  blocker.
+- RT-012 4-hour runtime-selection observe-only soak: passed; complete evidence and criterion review
+  are retained in `evidence/sessions/20260711-rt-012-observe-soak/`. This is not a production
+  architecture dependency. The 24-hour locked-runtime, 72-hour claim-only, 7-day expanded-task,
+  and 21-day hardening stages remain later work.
+- RT-013 final Bliss pass/fail and runtime-profile lock: pending; depends on RT-012 only. RT-014A
+  is operationally useful but not a Bliss-selection blocker. RT-016A remains a later
+  account-guard evidence task.
 - RT-014A optional post-VirtIO-GL viewer-transport proof: blocked by the same development SSH
   authentication needed for this execution path; it does not require the future controller and
   is not a production unattended-execution dependency.
@@ -342,16 +347,18 @@ Progressive gate status:
    and hard-stop checks passed. VM/worker startup documentation, unresolved-action recovery, and
    the strong account/server guard remain open; no Unraid host reboot is required here.
 5. 4-hour runtime-selection observe-only stability: harness ready, live run not started; development SSH authentication is required before sampling. The 24-hour locked-runtime, 72-hour claim-only, 7-day expanded-task, and 21-day hardening stages follow runtime selection.
-6. Final runtime controls: RT-016A account/server identity evidence must pass before RT-013 can
-select Bliss. RT-014A is required before manual takeover or the first supervised live validation
-that depends on remote observation, but is not a runtime-selection blocker. RT-015 is a later
-deployment/runbook gate and does not require or authorize an Unraid host reboot.
+6. Final runtime controls: RT-013 may select Bliss after RT-012 and the earlier technical gates
+pass. RT-016A remains required for M7-AccountGuard and later unattended automatic gameplay, not
+for technical runtime selection. RT-014A is required before manual takeover or the first
+supervised live validation that depends on remote observation, but is not a runtime-selection
+blocker. RT-015 is a later deployment/runbook gate and does not require or authorize an Unraid
+host reboot.
 
-Decision: direct Bliss remains the leading candidate and has passed the graphics and effective portrait-profile gates. Do not select it as final runtime until RT-012 and RT-016A pass or an explicit rejection is recorded. RT-014A remains an optional operator-viewer proof and does not reject Bliss by itself. VM/worker autostart documentation remains a later deployment gate; no Unraid host reboot is part of this runtime decision. Advance to isolated ReDroid only if a remaining hard gate rejects Bliss.
+Decision: direct Bliss remains the leading candidate and has passed the graphics, effective portrait-profile, restart, and four-hour observe-only gates. RT-013 is now the technical runtime decision task; RT-016A does not block it and remains the independent M7-AccountGuard prerequisite. RT-014A remains an optional operator-viewer proof and does not reject Bliss by itself. VM/worker autostart documentation remains a later deployment gate; no Unraid host reboot is part of this runtime decision. Advance to isolated ReDroid only if RT-013 records a remaining hard-gate rejection.
 
 Post-selection dependency chain:
 
-- RT-012 + RT-016A → RT-013.
+- RT-012 → RT-013.
 - RT-013 → RT-017, RT-019, and RT-021 in parallel.
 - RT-019 + RT-021 → framework bake-off → production corpus.
 - RT-019 → production corpus profile/schema gate.
@@ -407,10 +414,11 @@ Default execution profile:
 - Target duration: 4 hours. A 2-hour run is diagnostic only and cannot pass RT-012.
 - The 24-hour locked-runtime validation follows profile selection and precedes meaningful gameplay
   automation; it does not block initial runtime selection after the 4-hour gate passes.
-- Implementation model is intentionally undecided during this plan edit. Select one during RT-012
-  implementation: (1) temporary unprivileged Docker observer, (2) Python observer running locally
-  on Unraid, or (3) PowerShell Core inside a temporary container. Do not use a long-running
-  external Windows PowerShell process.
+- Implementation model selected and passed: a temporary unprivileged Docker observer using the
+  existing cache-local Unraid image, with a separate root read-only host-metrics collector. The
+  observer used host networking only to reach the existing loopback ADB server, published no
+  listener, mounted no Docker socket, dropped capabilities, and survived SSH detachment. Do not
+  use a long-running external Windows PowerShell process.
 - Sampling interval: 300 seconds. The observer runs locally on Unraid and continues if the
   development machine disconnects; SSH is development administration only and may later launch,
   inspect, stop, or retrieve observer evidence.
@@ -431,7 +439,7 @@ Default execution profile:
   runtime instability, renderer failure, NAS degradation, host fault, storage failure, or
   unexpected game state.
 
-RT-012 passes only after the 4-hour duration; zero input commands; read-only observer behavior;
+RT-012 passed after the 4-hour duration; zero input commands; read-only observer behavior;
 100% expected-dimension valid PNGs; zero corrupt or black frames; threshold-compliant p95 capture
 latency; multi-signal freshness review; complete runtime/NAS metrics; no account/session hard-stop;
 and no host or runtime rejection condition. A soak pass does not authorize gameplay automation or
@@ -896,7 +904,7 @@ Safety-critical acceptance uses zero false action authorizations in reviewed hol
 ## 20. Phased roadmap and measurable acceptance criteria
 
 1. Hardware/Unraid audit — completed 2026-07-09: verified version, KVM, BIOS virtualization exposure, RAM/storage, `/dev/dri`, VirGL components, IOMMU, temperatures, workloads, and NAS baseline. Array fullness requires all PoC hot data to remain on cache.
-2. Runtime proof — in progress: direct Bliss passed Play/game/ABI/account, reversible VirtIO(3D)/Mesa VirGL acceleration, graphics rollback, three unattended cold boots, the effective `800×1280`/160-dpi app-controlled portrait profile across three corrected guest restarts, strict private ADB isolation, capture/input fidelity, and the RT-011 restart matrix. RT-012 harness is ready; execute it after process-only SSH authentication is supplied, then finish RT-016A account/server identity evidence. RT-014A is optional viewer transport proof and RT-021 is the later actual Unraid worker-to-VM ADB proof. RT-015 VM autostart/worker-order documentation is a later deployment gate and never authorizes an Unraid host reboot. Test ReDroid-in-isolation and Windows-VM/BlueStacks only if direct Bliss fails a remaining rejection gate.
+2. Runtime proof — in progress: direct Bliss passed Play/game/ABI/account, reversible VirtIO(3D)/Mesa VirGL acceleration, graphics rollback, three unattended cold boots, the effective `800×1280`/160-dpi app-controlled portrait profile across three corrected guest restarts, strict private ADB isolation, capture/input fidelity, the RT-011 restart matrix, and the RT-012 four-hour Unraid-local observe-only soak. RT-013 now performs the final Bliss runtime decision and depends on RT-012 only; RT-016A remains the later M7-AccountGuard evidence task. RT-014A is optional viewer transport proof and RT-021 is the later actual Unraid worker-to-VM ADB proof. RT-015 VM autostart/worker-order documentation is a later deployment gate and never authorizes an Unraid host reboot. Test ReDroid-in-isolation and Windows-VM/BlueStacks only if direct Bliss fails a remaining rejection gate.
 
 Validation progression: 4 hours is the Bliss runtime-selection gate; 24 hours is locked-runtime
 validation before meaningful gameplay automation; 72 hours is claim-only continuous-scheduling
@@ -1013,4 +1021,3 @@ Explicit answers:
     BlueStacks inside a Windows VM hosted on Unraid, and only after nested virtualization,
     graphics, persistence, capture/input, and NAS-stability validation.
 14. Each enabled task needs complete production evidence, zero unsafe holdout authorizations, policy/persistence/fault tests, repeated supervised success, and soak validation.
-

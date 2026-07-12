@@ -1,0 +1,9 @@
+{
+  "density": "Physical density: 160",
+  "display": "Physical size: 1280x800\nOverride size: 800x1280",
+  "expected_height": 1280,
+  "expected_width": 800,
+  "profile_match": true,
+  "renderer": "mesa",
+  "rotation": "free"
+}

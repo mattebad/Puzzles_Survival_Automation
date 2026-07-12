@@ -1,0 +1,4 @@
+2026-07-11T20:15:29+00:00 observer started; read-only game observation
+2026-07-11T20:15:29+00:00 started_at=2026-07-11T20:15:29+00:00 expected_end_at=2026-07-11T22:15:29+00:00
+2026-07-11T20:15:29+00:00 adb_connect_exit=0 result=connected to 192.168.122.79:5555
+2026-07-11T20:16:29+00:00 observer ended stop_reason=signal samples=1

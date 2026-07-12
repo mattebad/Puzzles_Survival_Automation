@@ -1,0 +1,9 @@
+{
+  "evidence_bytes": 38352406,
+  "expected_end_at": "2026-07-12T00:19:33+00:00",
+  "last_sample": 48,
+  "last_sample_at": "2026-07-12T00:14:33+00:00",
+  "samples": 48,
+  "stop_reason": "duration",
+  "stop_requested": false
+}
