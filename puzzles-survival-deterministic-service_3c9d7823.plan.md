@@ -48,13 +48,25 @@ todos:
     content: Bake off ADB/OpenCV/OCR, Airtest, and MaaFramework on identical corpus.
     status: completed
   - id: build-production-corpus
-    content: Capture and label final-runtime screens, overlays, transitions, and negatives.
+    content: Capture and label staged final-runtime screens, overlays, transitions, and negatives.
+    status: pending
+  - id: m6-dq-bootstrap
+    content: Capture the final-runtime Daily Quest bootstrap corpus without completing a quest or claiming a reward.
+    status: pending
+  - id: m6-dq-transition-corpus
+    content: Promote retained supervised quest-to-claim transition evidence into the M6 corpus.
+    status: pending
+  - id: m7-safe-action-core
+    content: Implement the minimum fail-closed action journal and executor safety core for one supervised claim trial.
+    status: pending
+  - id: mvp-quest-to-claim
+    content: Complete one supervised zero-cost Daily Quest objective and claim exactly one resulting row.
     status: pending
   - id: design-core-service
     content: Implement persistent scheduler, HSM, policy gate, executor, and recovery.
     status: pending
   - id: validate-claim-mvp
-    content: Replay, dry-run, supervise, then enable claim-only Daily Quest flow.
+    content: Promote the supervised quest-to-claim evidence, then validate bounded and continuous claim-only flow after the promotion gates.
     status: pending
   - id: expand-task-catalog
     content: Add free, resource, march, and queue tasks one-by-one after gates.
@@ -398,11 +410,21 @@ Post-selection dependency chain:
 
 - RT-012 → RT-013.
 - RT-013 → RT-017, RT-019, and RT-021 in parallel.
-- RT-019 + RT-021 → framework bake-off → production corpus.
-- RT-019 → production corpus profile/schema gate.
+- RT-019 + RT-021 → framework bake-off.
+- M5 + RT-019 + startup-normalization MVP → M6-DQ-BOOTSTRAP.
+- M6-DQ-BOOTSTRAP → M7-SAFE-ACTION-CORE.
+- M6-DQ-BOOTSTRAP + M7-SAFE-ACTION-CORE + startup-normalization MVP → MVP-QUEST-TO-CLAIM.
+- MVP-QUEST-TO-CLAIM → M6-DQ-TRANSITION-CORPUS.
+- M6-DQ-BOOTSTRAP + M6-DQ-TRANSITION-CORPUS → M6 Production Corpus Passed.
+- M7-SAFE-ACTION-CORE is the minimum M7 subset required for the supervised vertical slice; the
+  full M7 deterministic service core remains required before repeated/bounded automatic claim
+  execution, continuous scheduling, and production operation.
+- MVP-QUEST-TO-CLAIM supplies promotion evidence but does not by itself pass M8 Claim-only MVP.
 - RT-014A → M7-Takeover manual-takeover integration.
 - RT-016A → M7-AccountGuard account/session guard implementation.
 - Task-specific supervised-validation prerequisites → agent-driven supervised gameplay input.
+- 24-hour locked-runtime validation → repeated/bounded automatic claim-only execution.
+- 72-hour validation applies after claim-only continuous scheduling is enabled.
 - RT-017 + applicable M7 safety gates + task-specific promotion gates → unattended automatic gameplay input.
 - RT-018 → unattended VM lifecycle recovery.
 
@@ -448,6 +470,43 @@ validation order is offline recognition, live observe-only classification, dry-r
 one supervised no-spend back-arrow input, positive Home/Base postcondition, and full reconciliation.
 No Daily Quest action or broad framework bake-off is part of that live trial.
 
+### Daily Quest corpus and supervised-claim staging
+
+M6 Production Corpus is staged to avoid a circular dependency: a completed-but-unclaimed Daily
+Quest row and its post-claim state cannot be captured before a quest has been completed. The sole
+next ready task is `M6-DQ-BOOTSTRAP`. It depends on M5, RT-019, and the passed startup-normalization
+MVP and captures only final-runtime bootstrap states: Home/Base, Quest entry and screen, Daily
+Quest tab, incomplete rows, Go/non-claim state, points/reset/header regions, clipped and confusing
+negatives, candidate zero-cost prerequisite screens where observable, navigation targets, and
+forbidden regions. It sends no quest-completion or Claim input and may pass without a positive
+Claim example.
+
+Every M6 asset must carry the current RT-019 runtime-profile identifier. The validator must reject
+missing or mismatched metadata, and replay must represent incomplete, Go, clipped, stale, unknown,
+and negative states while abstaining when evidence is insufficient.
+
+`M7-SAFE-ACTION-CORE` depends on the bootstrap corpus and implements only the minimum supervised
+action safety boundary: central policy, one exclusive executor, a persistent SQLite journal with
+`prepared → input_sent → confirmed/unresolved`, source hash/time, profile and freshness guards,
+immediate pre-input recapture, exactly one input, immediate post-input observation, no-blind-retry
+handling, unresolved-action global blocking, and mocked/offline tests. It does not implement the
+full scheduler, watchdog, lifecycle recovery, or unattended deployment stack.
+
+`MVP-QUEST-TO-CLAIM` depends on the bootstrap corpus, this minimum safety core, startup
+normalization, and no unresolved action. It is one agent-driven supervised development trial:
+navigate to Daily Quest; use an already completed Claim row if present, otherwise complete exactly
+one positively recognized zero-cost R1 prerequisite (prefer exact free Alliance Help, with proven-
+free Supply Depot as fallback); verify the row becomes Claim; claim exactly one row; prove the
+postcondition; and stop. No resource-consuming substitute is authorized. This trial does not pass
+M8 or authorize unattended gameplay.
+
+`M6-DQ-TRANSITION-CORPUS` depends on a successful supervised trial and promotes its completed-
+unclaimed, Claim-versus-Go, prepared/pre-input, reward, claimed-row, points-before/after,
+postcondition, failure, and ambiguity evidence. M6 passes only when both the bootstrap and
+transition corpus tasks pass. RT-016A and M7-AccountGuard remain required before unattended
+automatic gameplay, but do not block the one supervised trial when its task-specific safety
+criteria are satisfied.
+
 ### 5.3 Observe-only soak definition
 
 RT-012 is a bounded runtime-selection endurance and health observation run, not gameplay automation. Start the already
@@ -458,8 +517,10 @@ credentials, tutorial input, account-operation input, or consequential actions.
 Default execution profile:
 
 - Target duration: 4 hours. A 2-hour run is diagnostic only and cannot pass RT-012.
-- The 24-hour locked-runtime validation follows profile selection and precedes meaningful gameplay
-  automation; it does not block initial runtime selection after the 4-hour gate passes.
+- The 24-hour locked-runtime validation follows profile selection and is not required before the
+  first tightly bounded supervised development action. It is required before repeated or
+  unattended automatic claim-only execution; it does not block initial runtime selection after
+  the 4-hour gate passes.
 - Implementation model selected and passed: a temporary unprivileged Docker observer using the
   existing cache-local Unraid image, with a separate root read-only host-metrics collector. The
   observer used host networking only to reach the existing loopback ADB server, published no
@@ -955,13 +1016,17 @@ Promotion ladder:
 2. Observe-only runtime.
 3. Dry-run.
 4. Supervised navigation.
-5. One validated action.
-6. Bounded task.
+5. One validated supervised action.
+6. One bounded supervised task.
 7. 24-hour locked-runtime validation.
-8. 72-hour claim-only continuous schedule.
-9. 7-day expanded approved-task validation.
-10. Restart/fault recovery.
+8. Bounded automatic claim-only execution.
+9. 72-hour claim-only continuous scheduling.
+10. Seven-day expanded-task validation.
 11. 21-day production hardening and operational acceptance.
+
+The 24-hour gate is not required before the first supervised development action or the first
+bounded supervised task. It is required before repeated or unattended automatic claim-only
+execution. The 72-hour gate applies only after continuous claim-only scheduling is enabled.
 
 Safety-critical acceptance uses zero false action authorizations in reviewed holdout and fault corpus, high abstention when uncertain, and explicit evidence. One successful example never promotes a task.
 
@@ -970,34 +1035,54 @@ Safety-critical acceptance uses zero false action authorizations in reviewed hol
 1. Hardware/Unraid audit — completed 2026-07-09: verified version, KVM, BIOS virtualization exposure, RAM/storage, `/dev/dri`, VirGL components, IOMMU, temperatures, workloads, and NAS baseline. Array fullness requires all PoC hot data to remain on cache.
 2. Runtime proof — completed for technical selection and local worker-path proof: direct Bliss passed Play/game/ABI/account, reversible VirtIO(3D)/Mesa VirGL acceleration, graphics rollback, three unattended cold boots, the effective `800×1280`/160-dpi app-controlled portrait profile across three corrected guest restarts, strict private ADB isolation, capture/input fidelity, the RT-011 restart matrix, the RT-012 four-hour Unraid-local observe-only soak, RT-013 final Bliss selection, RT-019 profile contract, and RT-021 direct Unraid worker-to-VM ADB proof. RT-016A remains the later M7-AccountGuard evidence task. RT-014A is optional viewer transport proof. RT-021's Docker bridge refusal and explicit host-network fallback are retained; a dedicated point-to-point network remains the preferred production refinement. RT-015 VM autostart/worker-order documentation is a later deployment gate and never authorizes an Unraid host reboot. Test ReDroid-in-isolation and Windows-VM/BlueStacks only if new contradictory evidence produces a documented remaining rejection gate.
 
-Validation progression: 4 hours is the Bliss runtime-selection gate; 24 hours is locked-runtime
-validation before meaningful gameplay automation; 72 hours is claim-only continuous-scheduling
-validation; 7 days is expanded approved-task validation; 21 days is production hardening and
-operational acceptance. No later duration is a prerequisite for initial runtime selection once
-the 4-hour gate and other runtime-selection gates pass.
+Validation progression after runtime selection is: offline replay; observe-only; dry-run;
+supervised navigation; one validated supervised action; one bounded supervised task; 24-hour
+locked-runtime validation; bounded automatic claim-only execution; 72-hour claim-only continuous
+scheduling; seven-day expanded-task validation; and 21-day production hardening. The 24-hour gate
+is not required before the first supervised development action, but is required before repeated or
+unattended automatic claim-only execution. The 72-hour gate applies after continuous claim-only
+scheduling is enabled. No later duration is a prerequisite for initial runtime selection once the
+4-hour gate and other runtime-selection gates pass.
 
 3. First vertical slice: startup normalization MVP using Python, direct ADB, OpenCV, and local OCR
    only where needed — completed 2026-07-11. The guarded non-secure keyguard branch, Cash Mall
    recognition, explicitly allowlisted informational banner, one bounded top-left back-arrow tap,
    and positive final-profile Home/Base postcondition passed in the ordered
-   offline/observe-only/dry-run/supervised sequence. Broad framework comparison remains later.
+   offline/observe-only/dry-run/supervised sequence. The separate M5 framework comparison then
+   passed with the custom stack selected; no Daily Quest action was part of this slice.
 4. Framework bake-off — completed 2026-07-12: custom Python/direct ADB/OpenCV/local OCR selected
    after 100 replay captures/classifications, 25 target annotations, 10 OCR calls, policy/gesture
    mocks, and retained transport evidence. Airtest and MaaFramework were rejected early because
    their worker packaging and central-policy adapters were not demonstrated without material
    dependency/native-runtime mutation. The selected stack receives the larger 500-capture and
    100-input validation set only in its future authorized validation task.
-5. Production corpus: capture all required screens/overlays/errors and Daily Quest before/after
-   transitions. Every recognition asset created during M6 must declare its compatible
-   runtime-profile version; corpus validation fails when that field is missing or mismatched.
-   Accept with versioned labels, held-out sessions, confusing negatives, and no iOS production
-   assets.
+5. Production corpus: first pass `M6-DQ-BOOTSTRAP` for final-runtime Home/Base, Quest, Daily
+   Quest, incomplete/Go states, targets, forbidden regions, and negatives without completing a
+   quest or claiming a reward. After the supervised vertical slice, pass
+   `M6-DQ-TRANSITION-CORPUS` with completed/unclaimed, Claim, before/after, reward, postcondition,
+   and failure evidence. M6 passes only when both tasks pass. Every recognition asset must
+   declare its compatible runtime-profile version; corpus validation fails when that field is
+   missing or mismatched. Accept with versioned labels, held-out sessions, confusing negatives,
+   and no iOS production assets.
 6. State/overlay classification: build viewport/profile guard and core detectors. Accept with zero unsafe authorizations on reviewed holdout; ambiguous frames abstain.
-7. Persistent scheduler/state: implement lease, SQLite transactions, reset model, dedupe, deadlines, backoff, breakers, and unresolved actions. Accept through simulated multi-month schedule plus crash/restart/reset tests with no duplicate completions.
+7. Safe action core and persistent state: implement `M7-SAFE-ACTION-CORE` first for the
+   supervised trial—central policy, exclusive executor, SQLite action journal, profile/freshness
+   guards, exactly-one-input semantics, immediate observation, and unresolved blocking. The full
+   M7 scheduler/state core then adds lease, reset model, dedupe, deadlines, backoff, breakers, and
+   recovery. Accept the minimum subset through mocked/offline crash-boundary tests before the
+   supervised trial, and the full core through simulated multi-month schedule plus
+   crash/restart/reset tests before automatic scheduling.
 8. Navigation/recovery: launch, popup allowlist, safe-home recovery, base↔Daily Quest, bounded waits. Accept with 50 supervised round trips and all injected unknowns stopping safely.
 9. Daily Quest claim dry-run: row identity, Claim/Go distinction, overlap scrolling, milestones observed only. Accept across full corpus with no Go/clipped/stale proposals and no infinite loop.
-10. Claim-only executable MVP: one row at a time, fresh recapture/postcondition, zero spend; crates still disabled. Complete 24-hour locked-runtime validation before meaningful gameplay automation. Accept one supervised claim then seven daily bounded runs without unsafe/duplicate action.
-11. Continuous scheduling: integrate claim task into wake-based service. Accept 72 hours with bounded polling, quiet periods, restart persistence, and no full-routine tight loop.
+10. Supervised claim vertical slice: `MVP-QUEST-TO-CLAIM` navigates to Daily Quest, uses or creates
+    exactly one completed row through an approved zero-cost R1 prerequisite, claims exactly one
+    row, proves the postcondition, retains transition evidence, and stops. The 24-hour gate is
+    not required before this first supervised action or bounded supervised task; one successful
+    trial does not pass M8.
+11. Automatic claim promotion and continuous scheduling: after the 24-hour locked-runtime gate,
+    enable only bounded automatic claim-only execution; after that is stable, integrate the claim
+    task into the wake-based service and accept 72 hours with bounded polling, quiet periods,
+    restart persistence, and no full-routine tight loop.
 12. Free/cooldown tasks: alliance help, proven-free Supply Depot, and individually proven free interactions. Accept positive/paid-fallback/cooldown tests plus at least three supervised successes per task.
 13. Campaign/AP, stamina/lairs, gathering: add one family at a time. Accept exact ledgers, 10 supervised successes per enabled family, and hard denial of refill, no-slot, occupied, expired, level-60, unreadable-level cases.
 14. Allowlisted resource tasks: training, shops, donation, item/speedup if approved, enhancement; keep strategic tasks disabled. Accept exact target/currency/material/quantity/reserve/cap reconciliation and task-specific corpus before each enablement.

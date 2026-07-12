@@ -4,26 +4,30 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Current milestone and task state
 
-- Milestone: M5 Framework bake-off — Passed.
-- Current task: M5-DECISION — Passed; custom Python/direct ADB/OpenCV/local OCR selected. Final
-  decision evidence is under `evidence/sessions/20260712-m5-decision/`. M6 production corpus is
-  Ready but was not started in this run.
+- Milestone: M6 Production corpus — Ready.
+- Current task: none in progress. M5-DECISION passed; custom Python/direct ADB/OpenCV/local OCR
+  was selected, with final decision evidence under `evidence/sessions/20260712-m5-decision/`.
+  The documentation boundary stages `M6-DQ-BOOTSTRAP` as the sole next ready task; no M6 task
+  execution has started.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
-- Tasks completed during this run: M5-CUSTOM-BASELINE passed with 100 replay
+- Tasks completed in the preceding M5 run: M5-CUSTOM-BASELINE passed with 100 replay
   capture/classification operations, 25 target annotations, 10 OCR operations, ten gesture mocks,
   and five reconnect mocks; M5-AIRTEST and M5-MAA were rejected early with no live operations.
   M5-DECISION passed and authorized M6 corpus work. Earlier completed boundaries remain
   authoritative: RT-012, RT-013, RT-017, RT-019, RT-021, and MVP-STARTUP-NORMALIZATION.
+- Tasks completed in this documentation boundary: none. No task was marked In Progress and no
+  runtime, game, ADB, container, tunnel, or evidence state was accessed or changed.
 
 ## Repository state
 
 - Branch: `main`.
-- Latest committed boundaries before final M5 closure: `efd7aef` (`task(M5): reject MaaFramework
+- Latest committed boundaries before this documentation correction: `2b8fa2d`
+  (`task(M5): select deterministic control stack`), `efd7aef` (`task(M5): reject MaaFramework
   adapter`), `d74d345` (`task(M5): reject Airtest adapter`), `d7cbca5` (`task(M5): benchmark
   custom control stack`), and `70efbfd` (`task(MVP): automate guarded startup normalization`).
-  The M5-DECISION task-scoped closure is the final commit of this run; no unrelated path is
-  staged.
+  The documentation correction is scoped to the Daily Quest dependency/validation staging; no
+  unrelated path is staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - The completed guarded keyguard branch, live-validation evidence, final Home/Base candidate, and
   passed task decision are included in the task-scoped closure boundary.
@@ -106,9 +110,12 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Exact next command
 
-The next ready milestone is M6 production corpus capture/selection using the selected custom
-stack. Do not start M6 or Daily Quest in this completed M5 run; the next task must create a fresh
-M6 preflight and final-runtime corpus plan.
+The next ready task is `M6-DQ-BOOTSTRAP` under the selected custom stack. Its preflight must cover
+the final-runtime bootstrap corpus only: no quest completion and no Claim input. Do not mark
+`M7-SAFE-ACTION-CORE` or `MVP-QUEST-TO-CLAIM` In Progress during this documentation boundary.
+After the bootstrap passes, the minimum supervised-action core may begin; the 24-hour gate is not
+required before the first supervised development action but is required before repeated or
+unattended automatic claim-only execution.
 
 ## Facts that must not be re-tested
 

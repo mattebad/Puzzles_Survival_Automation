@@ -1,6 +1,6 @@
 # Canonical execution backlog
 
-Last updated: 2026-07-11 (America/Chicago)
+Last updated: 2026-07-12 (America/Chicago)
 
 This is the single authoritative task/status record. The service plan controls technical
 requirements and measured facts. Evidence records contain observations, not competing status.
@@ -85,15 +85,15 @@ dependency; no dedicated SSH-key task is a production blocker.
 | M3 Direct Bliss runtime proof | Passed | RT-001 through RT-013 passed; downstream infrastructure and later account-guard gates remain |
 | M4 One-time account provisioning | Passed for current Bliss runtime | Must remain manual on any rebuild |
 | M5 Framework bake-off | Passed | Custom Python/direct ADB/OpenCV/local OCR selected; Airtest and MaaFramework rejected early |
-| M6 Production corpus | Ready | M5 passed; final locked-runtime corpus capture/selection remains required |
-| M7 Deterministic service core | Pending | M5 selection and runtime-independent foundations; M7-Takeover after RT-014A; M7-AccountGuard after RT-016A |
-| M8 Claim-only MVP | Pending | Selected runtime, corpus, core, and promotion gates |
+| M6 Production corpus | Ready | M5 passed; M6-DQ-BOOTSTRAP is next, with transition evidence promoted after the supervised trial |
+| M7 Deterministic service core | Pending | M7-SAFE-ACTION-CORE is the minimum supervised-trial subset; full core, M7-Takeover, and M7-AccountGuard remain later gates |
+| M8 Claim-only MVP | Pending | Selected runtime, staged corpus, full core, and promotion gates; one supervised trial does not pass M8 |
 | M9 Expanded tasks | Pending | Claim-only MVP evidence |
 | Milestone 10 — Production hardening and operational acceptance | Pending | Production task catalog |
 
-Framework bake-off is time-boxed. Custom Python + ADB + OpenCV + local OCR remains the
-presumptive baseline until the four M5 task boundaries below close. Compare it with Airtest and
-MaaFramework using one representative safe flow: 50–100 captures per candidate, 20–25 safe
+Framework bake-off was time-boxed and is now closed with Custom Python + ADB + OpenCV + local OCR
+selected. The completed comparison used one representative safe flow: 50–100 captures per
+candidate, 20–25 safe
 target-resolution trials, 10 safe gesture-resolution trials, 5–10 reconnect cycles, one
 detector, one OCR region, one bounded navigation flow, and packaging/policy-gate integration
 review. Prefer offline replay, mocks, and dry-run annotations; do not manufacture live game
@@ -173,17 +173,89 @@ and 100 supervised inputs—for the chosen adapter.
 - Status: Passed (2026-07-12; custom deterministic control stack selected).
 - Blocker: None. M5 authorizes M6 final-runtime corpus capture/replay validation; M6 was not
   started in this run.
-- Next: M6 production corpus gate.
+- Next: M6-DQ-BOOTSTRAP.
 
 ## M6 production corpus gate
 
 Every recognition asset created during M6 must declare its compatible runtime-profile version.
 Corpus validation fails when the asset/profile field is missing, malformed, or mismatched. M6
 is now Ready because the M5 framework bake-off and final-runtime stack-selection gate passed;
-the RT-019 versioned profile schema is complete. M6 still requires final locked-runtime corpus
-capture/selection before production recognition assets can be promoted.
+the RT-019 versioned profile schema is complete. M6 is staged because a positive Daily Quest
+Claim row may not exist before a quest is completed. M6 passes only after both the bootstrap
+corpus and the later transition corpus pass; the bootstrap task may pass without a positive
+Claim example.
+
+### M6-DQ-BOOTSTRAP — Capture Daily Quest bootstrap corpus
+
+- Dependencies: M5 Passed, RT-019 Passed, and MVP-STARTUP-NORMALIZATION Passed.
+- Objective: capture the final-runtime Daily Quest states that can be observed before completing
+  a quest, without creating a Claim row or sending Claim input.
+- Scope: final-runtime `800x1280` Home/Base; Quest entry; Quest screen; Daily Quest tab;
+  incomplete objective rows; Go or equivalent non-claim state; points, reset, and header regions;
+  clipped-row and confusing-negative examples; candidate zero-cost prerequisite quest screens
+  where observable; navigation targets; and forbidden regions. Do not complete a quest or claim a
+  reward in this task.
+- Acceptance: every executable asset is a final-runtime capture and declares the current RT-019
+  profile identifier; the corpus validator rejects missing or mismatched profile metadata;
+  incomplete, Go, clipped, stale, unknown, and negative examples are represented; and
+  recognition abstains when evidence is insufficient.
+- Verification: offline replay, observe-only classification, and dry-run target annotations. No
+  quest completion or Claim input is authorized.
+- Evidence: `evidence/sessions/<timestamp>-m6-dq-bootstrap/`.
+- Rollback: disable or remove only unpromoted task-scoped corpus assets and annotations; preserve
+  prior runtime, startup-normalization, and M5 evidence. No runtime mutation is part of rollback.
+- Status: Ready.
+- Blocker: None for the bootstrap scope. A positive completed-but-unclaimed Claim state is
+  intentionally deferred to `M6-DQ-TRANSITION-CORPUS`.
+- Next: M7-SAFE-ACTION-CORE after this task passes.
+
+### M6-DQ-TRANSITION-CORPUS — Promote live transition evidence
+
+- Dependencies: MVP-QUEST-TO-CLAIM Passed.
+- Objective: promote retained supervised quest-to-claim transition evidence into the M6 corpus.
+- Scope: completed-but-unclaimed objective row; positive Claim control; exact Claim versus Go
+  negatives; prepared and immediate pre-input frames; reward popup or toast if present;
+  claimed/changed row; points before and after; postcondition evidence; and all failure or
+  ambiguity examples retained during the trial.
+- Acceptance: M6 Production Corpus is Passed only when `M6-DQ-BOOTSTRAP` and
+  `M6-DQ-TRANSITION-CORPUS` both pass, with profile-compatible metadata and fail-closed replay
+  results for the complete staged corpus.
+- Verification: replay the promoted triplets and negatives, validate profile metadata, and
+  review the supervised-trial evidence against each transition criterion.
+- Evidence: `evidence/sessions/<timestamp>-m6-dq-transition-corpus/`.
+- Rollback: remove only unpromoted transition assets; retain the supervised-trial and failure
+  evidence and leave claim automation disabled until the corpus is reviewed.
+- Status: Pending.
+- Blocker: No successful supervised quest-to-claim trial has yet supplied the required positive
+  transition state.
+- Next: full M6 corpus review and later claim-only promotion gates.
 
 ## M7 controller integration tasks
+
+### M7-SAFE-ACTION-CORE — Implement minimum supervised-action safety core
+
+- Dependencies: M6-DQ-BOOTSTRAP Passed.
+- Objective: implement only the fail-closed safety machinery required for one supervised Daily
+  Quest claim trial.
+- Scope: central policy authorization; one exclusive executor path; persistent SQLite action
+  journal; `prepared → input_sent → confirmed/unresolved` lifecycle; source-frame hash and
+  timestamp; runtime-profile guard; fresh-frame requirement; target and consequence
+  authorization; immediate pre-input recapture; exactly-one-input semantics; immediate
+  post-input observation; no-blind-retry handling; unresolved-action global block; and
+  mocked/offline tests.
+- Non-goals: scheduler daemon, continuous automation, full watchdog, VM lifecycle recovery,
+  unattended deployment, or the remainder of the full M7 service core.
+- Acceptance: every supervised-action safety criterion is covered by mocked/offline tests and a
+  retained review; stale/profile-mismatched/unknown frames, policy denial, duplicate input, and
+  unresolved outcomes fail closed; and no executor path exists outside the central policy gate.
+- Verification: unit and integration tests with mocked device/capture/transport failures and
+  action-journal crash-boundary replay. No live game input is authorized by this task alone.
+- Evidence: `evidence/sessions/<timestamp>-m7-safe-action-core/`.
+- Rollback: disable the new executor/core path and restore the prior repository behavior; retain
+  failed test evidence and do not alter runtime state.
+- Status: Pending.
+- Blocker: M6-DQ-BOOTSTRAP must pass first.
+- Next: MVP-QUEST-TO-CLAIM.
 
 ### M7-Takeover — Integrate safe manual takeover with controller
 
@@ -235,11 +307,54 @@ capture/selection before production recognition assets can be promoted.
 - Next: task-specific supervised-validation prerequisites for agent-driven supervised gameplay input;
   unattended input additionally requires RT-017 and all applicable M7 and task-promotion gates.
 
-Validation duration progression: 4 hours is the Bliss runtime-selection gate; 24 hours is
-locked-runtime validation before meaningful gameplay automation; 72 hours is claim-only
-continuous-scheduling validation; 7 days is expanded approved-task validation; 21 days is
-production hardening and operational acceptance. No later duration is required for initial
-runtime selection after the 4-hour gate and other runtime-selection gates pass.
+## M8 claim-only MVP validation
+
+### MVP-QUEST-TO-CLAIM — Complete one supervised Daily Quest vertical slice
+
+- Dependencies: M6-DQ-BOOTSTRAP Passed, M7-SAFE-ACTION-CORE Passed,
+  MVP-STARTUP-NORMALIZATION Passed, and no unresolved action.
+- Objective: prove one bounded, supervised Daily Quest quest-to-claim transition using the
+  selected runtime and the minimum safety core.
+- Scope:
+  1. Navigate to Daily Quest.
+  2. Determine whether a completed, unclaimed row already exists.
+  3. If none exists, complete exactly one approved zero-cost R1 objective.
+  4. Verify that the corresponding row becomes Claim.
+  5. Claim exactly that one row.
+  6. Prove the postcondition.
+  7. Stop.
+- Prerequisite policy: prefer Alliance Help only when the exact zero-cost action is positively
+  recognized. A proven-free Supply Depot action may be the fallback. No resource-consuming
+  substitute is permitted without explicit user authorization.
+- Boundary: this is agent-driven supervised development input, not unattended automatic gameplay.
+  RT-016A and M7-AccountGuard remain required before unattended automatic gameplay, but do not
+  block this one supervised trial when the task-specific source, target, consequence, cost,
+  evidence, journal, and unresolved-action requirements are satisfied.
+- Acceptance: exactly one approved zero-cost prerequisite, if needed, produces one positively
+  identified Claim row; exactly one Claim input is sent through the central policy/executor path;
+  the claimed-row/reward/points postcondition is positively verified; all before/action/after and
+  failure evidence is retained; and any ambiguity becomes unresolved without retry.
+- Verification: offline replay and dry-run coverage from M6-DQ-BOOTSTRAP, then one supervised
+  live trial with immediate pre-input recapture, one input, bounded postcondition observation,
+  and independent reconciliation. Do not continue into Daily Quest claims or other gameplay after
+  this trial.
+- Evidence: `evidence/sessions/<timestamp>-mvp-quest-to-claim/`.
+- Rollback: stop at the first unknown or unresolved outcome, preserve the action journal and all
+  frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
+  fallback is allowed.
+- Status: Pending.
+- Blocker: M6-DQ-BOOTSTRAP and M7-SAFE-ACTION-CORE are not yet passed; the positive transition
+  state may not exist until a quest is completed.
+- Next: M6-DQ-TRANSITION-CORPUS after a successful trial.
+
+Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
+observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded
+supervised task precede the 24-hour gate. The 24-hour locked-runtime validation is not required
+before the first supervised development action, but is required before repeated or unattended
+automatic claim-only execution. The 72-hour gate applies after claim-only continuous scheduling
+is enabled; 7 days is expanded-task validation; 21 days is production hardening and operational
+acceptance. No later duration is required for initial runtime selection after the 4-hour gate and
+other runtime-selection gates pass.
 
 ## Runtime-proof tasks
 
@@ -713,11 +828,23 @@ unlocked when this task passes.
   proof in parallel.
 - RT-019 + RT-021 → M5 framework bake-off.
 - RT-017 + RT-019 + RT-021 → MVP-STARTUP-NORMALIZATION supervised trial.
-- RT-019 → M6 production corpus.
+- M5 + RT-019 + MVP-STARTUP-NORMALIZATION → M6-DQ-BOOTSTRAP.
+- M6-DQ-BOOTSTRAP → M7-SAFE-ACTION-CORE.
+- M6-DQ-BOOTSTRAP + M7-SAFE-ACTION-CORE + MVP-STARTUP-NORMALIZATION → MVP-QUEST-TO-CLAIM.
+- MVP-QUEST-TO-CLAIM → M6-DQ-TRANSITION-CORPUS.
+- M6-DQ-BOOTSTRAP + M6-DQ-TRANSITION-CORPUS → M6 Production Corpus Passed.
+- M7-SAFE-ACTION-CORE is the minimum M7 subset for the supervised trial; the full M7
+  deterministic service core remains required before repeated/bounded automatic claim operation,
+  continuous scheduling, and production operation.
+- MVP-QUEST-TO-CLAIM is evidence for later promotion and does not by itself pass M8 Claim-only
+  MVP.
 - RT-014A → M7-Takeover manual-takeover integration.
 - RT-016A → M7-AccountGuard account-guard implementation → unattended automatic gameplay only
   after all applicable safety and promotion gates.
 - Task-specific supervised-validation prerequisites → agent-driven supervised gameplay input.
+- 24-hour locked-runtime validation → repeated/bounded automatic claim-only execution.
+- 72-hour claim-only continuous scheduling applies only after continuous claim-only scheduling is
+  enabled.
 - RT-017 + applicable M7 safety gates + task-specific promotion gates → unattended automatic gameplay input.
 - RT-018 → unattended VM lifecycle recovery.
 
@@ -745,7 +872,9 @@ observe-only keyguard reconciliation, guarded Cash Mall launch, one authorized n
 tap, and positive final-profile Home/Base postcondition. The M5 framework bake-off Passed on
 2026-07-12 with the custom Python/direct ADB/OpenCV/local OCR stack selected; Daily Quest and
 later gameplay workflows were not started.
-M6 is the next Ready milestone and was not started. Do not rerun RT-012 or the completed MVP action; their complete evidence is retained in
+M6 remains Ready and its sole next task is M6-DQ-BOOTSTRAP. Do not mark M7-SAFE-ACTION-CORE or
+MVP-QUEST-TO-CLAIM In Progress during this documentation boundary. Do not rerun RT-012 or the
+completed MVP action; their complete evidence is retained in
 `evidence/sessions/20260711-rt-012-observe-soak/` and
 `evidence/sessions/20260711-mvp-startup-normalization/`. Do not place credentials in this
 repository or command history. Launching `com.global.ztmslg` normally opens the authenticated Cash
