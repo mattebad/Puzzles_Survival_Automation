@@ -260,7 +260,11 @@ Claim example.
 - Status: Passed (2026-07-12).
 - Result: schema version 1, persistent controller lease and action journal, structured central
   policy decisions, injected exactly-one-input executor, startup reconciliation, append-only
-  audits, and M6 fixture guards passed 44 deterministic offline tests. Every persisted
+  audits, and M6 fixture guards passed deterministic offline tests. The resumed freshness review
+  binds frame age to monotonic successful-capture completion, separates the 3.0-second proposal
+  limit from the 2.0-second dispatch hard maximum and post-input timeout, permits prior OCR reuse
+  only across exact critical-ROI hashes, and retains at most two audited pre-dispatch attempts in
+  one prepared semantic action. Every persisted
   `prepared` or `input_sent` restart boundary becomes unresolved without replay; positive
   evidence is required to reconcile it to confirmed. No Unraid, VM, ADB, container, network, or
   game access occurred.
@@ -352,12 +356,14 @@ Claim example.
 - Rollback: stop at the first unknown or unresolved outcome, preserve the action journal and all
   frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
   fallback is allowed.
-- Status: Blocked (2026-07-12; pre-dispatch freshness-policy denial).
-- Blocker: the immediate-before Home/Base-to-Quest frame remained positively recognized but CPU
-  OCR/classification exceeded the configured three-second maximum frame age. Policy returned
-  `STALE_FRAME`, the prepared action was cancelled with zero transport calls, and the trial
-  stopped without retry. Review and test an evidence-based recognition/freshness timing contract
-  before resuming this same task. No unresolved action remains.
+- Status: Ready (2026-07-12; freshness blocker corrected offline; resume pending).
+- Blocker: None. The retained denial remains authoritative evidence, but the timing defect is
+  corrected without increasing the former three-second limit: capture age now starts at monotonic
+  successful-capture completion; a 90-sample retained-frame benchmark measured 1.410-second p95
+  full validation and 42.1 ms p95 exact-ROI immediate validation; dispatch has a separate
+  2.0-second hard maximum and two total pre-dispatch attempts. Sixty-three tests pass, stale
+  attempts cancel before dispatch, and no unresolved action remains. Resume with a new action key;
+  never reinterpret or resend the cancelled Home-to-Quest action.
 - Next: M6-DQ-TRANSITION-CORPUS after a successful trial.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,

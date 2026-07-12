@@ -1,4 +1,7 @@
 import unittest
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
 from scripts.mvp_quest_to_claim import ADBTransport
 
@@ -9,6 +12,22 @@ class Result:
 
 
 class AdapterCase(unittest.TestCase):
+    def test_capture_timestamp_is_successful_completion_monotonic_time(self):
+        def runner(command, **kwargs):
+            kwargs["stdout"].write(b"retained-test-bytes")
+            return Result()
+
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "frame.png"
+            with patch(
+                "scripts.mvp_quest_to_claim.valid_png_frame",
+                return_value={"sha256": "a" * 64, "width": 800, "height": 1280},
+            ), patch("scripts.mvp_quest_to_claim.time.monotonic", side_effect=(10.0, 11.0, 11.1)):
+                metadata = ADBTransport("adb", "private-device", runner).capture(output)
+        self.assertEqual(metadata["command_started_monotonic"], 10.0)
+        self.assertEqual(metadata["capture_completed_monotonic"], 11.0)
+        self.assertEqual(metadata["decode_completed_monotonic"], 11.1)
+
     def test_tap_is_one_exact_injected_transport_call(self):
         calls = []
 

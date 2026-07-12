@@ -5,11 +5,14 @@ Recorded: 2026-07-12, America/Chicago
 ## Current milestone and task state
 
 - Milestones: M6 Production corpus — In Progress; M7 Deterministic service core — In Progress.
-- Current task: MVP-QUEST-TO-CLAIM — Blocked at the immediate-before freshness policy. One
+- Current task: MVP-QUEST-TO-CLAIM — Ready to resume after the offline freshness correction. One
   Cash Mall-to-Home action passed `prepared → input_sent → confirmed`; Home/Base-to-Quest was
   positively recognized but denied `STALE_FRAME` after OCR exceeded the three-second frame-age
-  limit. It was cancelled with zero transport calls. No Daily Quest, prerequisite, Go, or Claim
-  input occurred. M6 and overall M7 remain In Progress.
+  limit. It was cancelled with zero transport calls and remains terminal evidence. Frame age now
+  starts at successful monotonic capture completion; proposal/dispatch limits are 3.0/2.0 seconds,
+  exact critical-ROI reuse is fail-closed, and two pre-dispatch attempts are audited within one
+  prepared action. Sixty-three tests pass. No Daily Quest, prerequisite, Go, or Claim input
+  occurred. M6 and overall M7 remain In Progress.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed in the preceding M5 run: M5-CUSTOM-BASELINE passed with 100 replay
@@ -118,8 +121,8 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Blocker and required user action
 
-1. MVP-QUEST-TO-CLAIM is blocked until the immediate-recapture recognition/freshness timing
-   contract is reviewed and tested offline. No user action is required. RT-016A remains a later manual-only
+1. The freshness blocker is resolved offline and MVP-QUEST-TO-CLAIM is ready to resume with a new
+   action key after read-only runtime reconciliation. No user action is required. RT-016A remains a later manual-only
   account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
@@ -127,7 +130,7 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Exact next command
 
-Resume `MVP-QUEST-TO-CLAIM` only after offline timing/policy review. Do not begin
+Resume `MVP-QUEST-TO-CLAIM` with the corrected freshness contract. Do not begin
 M6-DQ-TRANSITION-CORPUS; the required completed/unclaimed and Claim transition evidence does not
 exist.
 

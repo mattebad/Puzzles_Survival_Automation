@@ -33,7 +33,7 @@ class CentralPolicy:
             decision=decision,
             reason_code=code,
             reason=reason,
-            evaluated_at=request.now,
+            evaluated_at=request.monotonic_now,
             request_snapshot=snapshot(request),
         )
 
@@ -56,10 +56,22 @@ class CentralPolicy:
             return deny, "TASK_MODE_DENIED", "task is not enabled for supervised validation"
         if req.task_id not in self.supervised_tasks:
             return deny, "TASK_NOT_ENABLED", "task identity is not explicitly enabled for supervised validation"
-        if req.now - obs.captured_at < 0 or req.now - obs.captured_at > req.max_frame_age_seconds:
+        age = req.monotonic_now - obs.capture_completed_monotonic
+        limit = (
+            req.dispatch_max_age_seconds
+            if req.policy_phase == "pre_dispatch"
+            else req.observation_max_age_seconds
+        )
+        if age < 0 or age > limit:
             return deny, "STALE_FRAME", "source frame is stale or timestamped in the future"
         if not SHA256.fullmatch(obs.frame_sha256):
             return deny, "INVALID_FRAME_HASH", "source frame hash is missing or malformed"
+        if obs.ocr_result_frame_sha256 is not None and not SHA256.fullmatch(obs.ocr_result_frame_sha256):
+            return deny, "INVALID_PERCEPTION_BINDING", "OCR result frame binding is malformed"
+        if obs.ocr_reused and obs.ocr_result_frame_sha256 == obs.frame_sha256:
+            return deny, "INVALID_PERCEPTION_BINDING", "OCR reuse must identify a prior frame"
+        if any(not name or not SHA256.fullmatch(digest) for name, digest in obs.critical_roi_hashes):
+            return deny, "INVALID_PERCEPTION_BINDING", "critical ROI bindings are missing or malformed"
         if not obs.recognized or not obs.source_state or obs.source_state == "UNKNOWN":
             return deny, "UNKNOWN_SOURCE", "source state is not positively recognized"
         if obs.overlay_state not in ("none", "none_observed"):

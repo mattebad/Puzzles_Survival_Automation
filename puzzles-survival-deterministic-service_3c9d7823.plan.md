@@ -61,7 +61,7 @@ todos:
     status: completed
   - id: mvp-quest-to-claim
     content: Complete one supervised zero-cost Daily Quest objective and claim exactly one resulting row.
-    status: blocked
+    status: pending
   - id: design-core-service
     content: Implement persistent scheduler, HSM, policy gate, executor, and recovery.
     status: pending
@@ -526,6 +526,17 @@ the configured three-second frame-age limit; central policy denied `STALE_FRAME`
 `cancelled`, and made zero transport calls. No Daily Quest objective, Go, prerequisite, or Claim
 input occurred. Resume only after offline timing tests establish an evidence-based freshness
 contract; do not weaken policy during a live retry.
+
+The offline freshness correction then passed on 2026-07-12. Frame age is now measured from a
+successful capture-completion monotonic timestamp and remains bound to the exact frame hash,
+profile, and critical ROI hashes. A 90-sample retained-frame benchmark measured 1.410-second p95
+full capture-completion-to-policy validation and 42.1 ms p95 exact-critical-ROI immediate
+validation. Proposal freshness remains 3.0 seconds; dispatch uses a separate 2.0-second hard
+maximum and at most two audited pre-dispatch attempts in the same prepared action. Prior-frame OCR
+is reusable only when every critical ROI, including the overlay guard, is pixel-identical;
+otherwise required ROI OCR runs on the immediate frame. A pre-dispatch stale attempt cannot become
+unresolved or call transport, while any ambiguity after dispatch remains unresolved. The task is
+Ready to resume with a new action key; the cancelled action remains terminal evidence.
 
 `M6-DQ-TRANSITION-CORPUS` depends on a successful supervised trial and promotes its completed-
 unclaimed, Claim-versus-Go, prepared/pre-input, reward, claimed-row, points-before/after,

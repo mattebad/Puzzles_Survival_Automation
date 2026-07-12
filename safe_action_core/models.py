@@ -26,7 +26,7 @@ class PolicyDecision(str, Enum):
 @dataclass(frozen=True)
 class Observation:
     frame_sha256: str
-    captured_at: float
+    capture_completed_monotonic: float
     runtime_profile_id: str
     width: int
     height: int
@@ -47,6 +47,9 @@ class Observation:
     quantity: Optional[int] = None
     expected_postcondition: Optional[str] = None
     evidence_refs: Tuple[str, ...] = field(default_factory=tuple)
+    critical_roi_hashes: Tuple[Tuple[str, str], ...] = field(default_factory=tuple)
+    ocr_result_frame_sha256: Optional[str] = None
+    ocr_reused: bool = False
 
 
 @dataclass(frozen=True)
@@ -58,16 +61,25 @@ class PolicyRequest:
     semantic_action: str
     expected_runtime_profile_id: str
     observation: Observation
-    now: float
-    max_frame_age_seconds: float
+    monotonic_now: float
+    observation_max_age_seconds: float
+    dispatch_max_age_seconds: float
     lease_owner: Optional[str]
     lease_valid: bool
     unresolved_action: bool
     duplicate_action_key: bool
     game_day_id: Optional[str] = None
+    policy_phase: str = "proposal"
 
-    def with_observation(self, observation: Observation, now: float) -> "PolicyRequest":
-        return replace(self, observation=observation, now=now)
+    def with_observation(
+        self, observation: Observation, monotonic_now: float, policy_phase: str = "pre_dispatch"
+    ) -> "PolicyRequest":
+        return replace(
+            self,
+            observation=observation,
+            monotonic_now=monotonic_now,
+            policy_phase=policy_phase,
+        )
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,7 @@ There are no retries, generic input service, scheduler, or unattended loop.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -55,11 +56,21 @@ class ADBTransport:
 
     def capture(self, path: Path) -> Dict[str, Any]:
         path.parent.mkdir(parents=True, exist_ok=True)
+        command_started_monotonic = time.monotonic()
         with path.open("wb") as handle:
             result = self._run(["exec-out", "screencap", "-p"], stdout=handle)
         if result.returncode != 0:
             raise RuntimeError("ADB capture failed without retry: " + result.stderr.decode("utf-8", "replace"))
-        return valid_png_frame(path)
+        capture_completed_monotonic = time.monotonic()
+        metadata = valid_png_frame(path)
+        metadata.update(
+            {
+                "command_started_monotonic": command_started_monotonic,
+                "capture_completed_monotonic": capture_completed_monotonic,
+                "decode_completed_monotonic": time.monotonic(),
+            }
+        )
+        return metadata
 
     def tap(self, x: int, y: int) -> TransportResult:
         result = self._run(["shell", "input", "tap", str(x), str(y)])
@@ -98,15 +109,21 @@ def classify(mode: str, frame: Path, args: argparse.Namespace) -> Dict[str, Any]
 def observation_for(
     mode: str,
     frame: Path,
-    captured_at: float,
+    capture_completed_monotonic: float,
     args: argparse.Namespace,
+    prior: Observation | None = None,
 ) -> Observation:
     metadata = valid_png_frame(frame)
-    result = classify(mode, frame, args)
     roi = tuple(args.roi) if args.roi else None
+    bindings = critical_roi_hashes(mode, frame, args)
+    reuse = bool(prior and dict(prior.critical_roi_hashes) == dict(bindings))
+    if reuse:
+        result = {"state": prior.source_state, "recognized": prior.recognized}
+    else:
+        result = classify(mode, frame, args)
     return Observation(
         frame_sha256=metadata["sha256"],
-        captured_at=captured_at,
+        capture_completed_monotonic=capture_completed_monotonic,
         runtime_profile_id=PROFILE_ID,
         width=metadata["width"],
         height=metadata["height"],
@@ -127,7 +144,49 @@ def observation_for(
         quantity=args.quantity,
         expected_postcondition=args.expected_state,
         evidence_refs=(str(frame),),
+        critical_roi_hashes=bindings,
+        ocr_result_frame_sha256=prior.frame_sha256 if reuse and prior else metadata["sha256"],
+        ocr_reused=reuse,
     )
+
+
+def critical_rois(mode: str, args: argparse.Namespace) -> Dict[str, tuple[int, int, int, int]]:
+    target = tuple(args.roi) if getattr(args, "roi", None) else None
+    if mode == "cash":
+        rois = {
+            "source_title": (220, 0, 580, 70),
+            "source_back": (35, 0, 180, 65),
+            "overlay_guard": (0, 70, 800, 1000),
+        }
+    elif mode == "home":
+        rois = {
+            "source_bottom_nav": (0, 1120, 800, 1280),
+            "target_quest": (250, 1130, 410, 1280),
+            "overlay_guard": (0, 180, 800, 1120),
+        }
+    elif mode == "quest":
+        rois = {
+            "source_title": (0, 0, 800, 180),
+            "target_daily_tab": (260, 80, 540, 300),
+            "overlay_guard": (0, 300, 800, 1120),
+        }
+    else:
+        rois = {"source_header": (0, 0, 800, 450), "source_rows": (0, 400, 800, 1120)}
+    if target is not None:
+        rois["semantic_target"] = target
+    return rois
+
+
+def critical_roi_hashes(
+    mode: str, frame_path: Path, args: argparse.Namespace
+) -> tuple[tuple[str, str], ...]:
+    image = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
+    if image is None or image.shape != (1280, 800, 3):
+        raise ValueError("critical ROI frame is not the locked profile")
+    values = []
+    for name, (x0, y0, x1, y1) in critical_rois(mode, args).items():
+        values.append((name, hashlib.sha256(image[y0:y1, x0:x1].tobytes()).hexdigest()))
+    return tuple(sorted(values))
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -137,10 +196,9 @@ def write_json(path: Path, value: Any) -> None:
 
 def observe(args: argparse.Namespace) -> int:
     transport = ADBTransport(args.adb, args.serial)
-    captured_at = time.time()
     metadata = transport.capture(args.output)
     result = classify(args.mode, args.output, args)
-    write_json(args.result, {"captured_at": captured_at, "metadata": metadata, "classification": result})
+    write_json(args.result, {"metadata": metadata, "classification": result})
     print(json.dumps(result, sort_keys=True, default=str))
     return 0 if result["recognized"] else 2
 
@@ -169,18 +227,27 @@ def execute(args: argparse.Namespace) -> int:
         store.acquire_lease(args.owner, now, args.lease_ttl)
 
     initial_path = evidence / (args.action_id + "-source.png")
-    initial_at = time.time()
-    transport.capture(initial_path)
-    initial = observation_for(args.source_mode, initial_path, initial_at, args)
+    initial_metadata = transport.capture(initial_path)
+    initial = observation_for(
+        args.source_mode,
+        initial_path,
+        initial_metadata["capture_completed_monotonic"],
+        args,
+    )
 
     capture_counter = {"value": 0}
 
     def recapture() -> Observation:
         capture_counter["value"] += 1
-        path = evidence / (args.action_id + "-immediate-before.png")
-        captured_at = time.time()
-        transport.capture(path)
-        return observation_for(args.source_mode, path, captured_at, args)
+        path = evidence / (args.action_id + "-immediate-before-%d.png" % capture_counter["value"])
+        metadata = transport.capture(path)
+        return observation_for(
+            args.source_mode,
+            path,
+            metadata["capture_completed_monotonic"],
+            args,
+            prior=initial,
+        )
 
     post_paths: List[Path] = []
 
@@ -189,14 +256,14 @@ def execute(args: argparse.Namespace) -> int:
         for index, delay in enumerate((1.0, 3.0, 6.0), start=1):
             time.sleep(delay)
             path = evidence / (args.action_id + "-post-%d.png" % index)
-            captured_at = time.time()
-            transport.capture(path)
+            capture_metadata = transport.capture(path)
             post_paths.append(path)
             result = classify(args.expected_mode, path, args)
             metadata = valid_png_frame(path)
             observations.append(
                 Observation(
-                    frame_sha256=metadata["sha256"], captured_at=captured_at,
+                    frame_sha256=metadata["sha256"],
+                    capture_completed_monotonic=capture_metadata["capture_completed_monotonic"],
                     runtime_profile_id=PROFILE_ID, width=800, height=1280,
                     valid_png=True, corrupt=False, black=False,
                     source_state=result["state"], overlay_state="none_observed" if result["recognized"] else "unknown",
@@ -215,14 +282,18 @@ def execute(args: argparse.Namespace) -> int:
         return transport.swipe(*args.swipe)
 
     executor = SafeActionExecutor(
-        store, CentralPolicy(), args.owner, time.time, dispatch, recapture, post_observe,
+        store, CentralPolicy(), args.owner, time.monotonic, dispatch, recapture, post_observe,
         lambda _intent, item: item.recognized and item.source_state == args.expected_state,
+        wall_clock=time.time,
+        max_pre_dispatch_attempts=args.max_pre_dispatch_attempts,
     )
     request = PolicyRequest(
         action_id=args.action_id, action_key=args.action_key, task_id=TASK_ID,
         task_mode="supervised_validation", semantic_action=args.semantic_action,
-        expected_runtime_profile_id=PROFILE_ID, observation=initial, now=time.time(),
-        max_frame_age_seconds=args.max_frame_age, lease_owner=args.owner, lease_valid=True,
+        expected_runtime_profile_id=PROFILE_ID, observation=initial, monotonic_now=time.monotonic(),
+        observation_max_age_seconds=args.observation_max_age,
+        dispatch_max_age_seconds=args.dispatch_max_age,
+        lease_owner=args.owner, lease_valid=True,
         unresolved_action=False, duplicate_action_key=False, game_day_id=args.game_day,
     )
     result = executor.execute(request)
@@ -274,7 +345,9 @@ def parser() -> argparse.ArgumentParser:
     act.add_argument("--ambiguous", action="store_true")
     act.add_argument("--input-kind", choices=("tap", "swipe"), default="tap")
     act.add_argument("--swipe", type=int, nargs=5)
-    act.add_argument("--max-frame-age", type=float, default=3.0)
+    act.add_argument("--observation-max-age", type=float, default=3.0)
+    act.add_argument("--dispatch-max-age", type=float, default=2.0)
+    act.add_argument("--max-pre-dispatch-attempts", type=int, choices=(1, 2, 3), default=2)
     act.set_defaults(handler=execute)
     return root
 

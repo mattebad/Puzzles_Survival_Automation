@@ -1,0 +1,63 @@
+{
+  "asset_count": 6,
+  "assets": [
+    {
+      "asset_id": "m6-dq-home-base-settled-v1",
+      "bytes": 2261985,
+      "height": 1280,
+      "path": "evidence\\sessions\\20260712-m6-dq-bootstrap\\assets\\home-base-settled.png",
+      "sha256": "4a17de56f2455776ea38fe01416e90c77f7955c76cf2fd07b63a2b82a26ba85c",
+      "valid": true,
+      "width": 800
+    },
+    {
+      "asset_id": "m6-dq-quest-main-settled-v1",
+      "bytes": 449391,
+      "height": 1280,
+      "path": "evidence\\sessions\\20260712-m6-dq-bootstrap\\assets\\quest-main-settled.png",
+      "sha256": "2ab2039bf71458e771a8927400b441d94467546568ce5363714da5b0f3465bda",
+      "valid": true,
+      "width": 800
+    },
+    {
+      "asset_id": "m6-dq-daily-incomplete-go-clipped-v1",
+      "bytes": 408215,
+      "height": 1280,
+      "path": "evidence\\sessions\\20260712-m6-dq-bootstrap\\assets\\daily-quest-settled.png",
+      "sha256": "af88b89614d75629a25532ae068c9944a20bf5e9a5729244f6bf4b1e5e736807",
+      "valid": true,
+      "width": 800
+    },
+    {
+      "asset_id": "m6-dq-daily-current-reconciled-v1",
+      "bytes": 408211,
+      "height": 1280,
+      "path": "evidence\\sessions\\20260712-m6-dq-bootstrap\\assets\\daily-quest-current-reconciled.png",
+      "sha256": "e6327b93da42a5ea6018843c157a1523b761fbaf7b6f9eee15342847cd9ad529",
+      "valid": true,
+      "width": 800
+    },
+    {
+      "asset_id": "m6-dq-go-not-claim-negative-v1",
+      "bytes": 408211,
+      "height": 1280,
+      "path": "evidence\\sessions\\20260712-m6-dq-bootstrap\\assets\\daily-quest-current-reconciled.png",
+      "sha256": "e6327b93da42a5ea6018843c157a1523b761fbaf7b6f9eee15342847cd9ad529",
+      "valid": true,
+      "width": 800
+    },
+    {
+      "asset_id": "m6-dq-daily-scroll-overlap-v1",
+      "bytes": 405878,
+      "height": 1280,
+      "path": "evidence\\sessions\\20260712-m6-dq-bootstrap\\assets\\daily-quest-scroll-overlap.png",
+      "sha256": "b17f438a8853cfade4a15c312e53e531fed6442863190946b59137991c1d95e1",
+      "valid": true,
+      "width": 800
+    }
+  ],
+  "input_lock": false,
+  "manifest": "evidence\\sessions\\20260712-m6-dq-bootstrap\\assets\\asset-manifest.json",
+  "profile_content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742",
+  "profile_id": "pns-blissos-poc-virgl-800x1280-v1"
+}

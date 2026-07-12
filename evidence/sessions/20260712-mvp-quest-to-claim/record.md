@@ -99,3 +99,47 @@ threshold. Re-run offline timing/policy tests first. Do not reuse the cancelled 
 retry blindly, and do not begin M6-DQ-TRANSITION-CORPUS.
 
 No user action is currently required.
+
+## Offline freshness correction — 2026-07-12
+
+The retained blocker was reproduced from journal timestamps without reinterpreting or resending
+the cancelled action. Its code recorded screenshot-command start as `captured_at`, so the retained
+~1.0-second ADB capture latency was incorrectly charged against the three-second frame-age limit.
+Home recognition then reached the second policy at 3.031 seconds despite a still-positive source.
+
+`freshness-benchmark.json` retains 90 offline pipeline samples (30 each for Home/Base, Quest, and
+Daily Quest) plus eight retained RT-010 live capture-command samples. Results:
+
+- retained screenshot command: p50 1014.7722 ms, p95/max 1027.1039 ms;
+- image decode: p50 11.5598 ms, p95 18.5211 ms, max 20.8826 ms;
+- profile validation: p50 1.5984 ms, p95 1.8662 ms, max 2.0143 ms;
+- full screen classification: p50 1023.0236 ms, p95 1383.6213 ms, max 1417.0655 ms;
+- ROI OCR total: p50 305.8572 ms, p95 1352.3459 ms, max 1388.0392 ms;
+- target/critical-ROI hashing: p50 14.5579 ms, p95 22.4432 ms, max 23.7521 ms;
+- first policy: p50 0.0762 ms, p95 0.1268 ms, max 0.1515 ms;
+- capture-completion to first policy: p50 1067.1063 ms, p95 1410.2460 ms, max 1443.6087 ms;
+- exact-ROI immediate validation: p50 27.7787 ms, p95 42.1217 ms, max 43.1933 ms;
+- second policy: p50 0.0739 ms, p95 0.1293 ms, max 0.2449 ms;
+- capture-completion to second policy: p50 27.7803 ms, p95 42.1232 ms, max 43.1937 ms;
+- mock transport invocation: p50 0.0002 ms, p95 0.0003 ms, max 0.0005 ms.
+
+The corrected contract retains the 3.0-second proposal limit and introduces a separate 2.0-second
+dispatch hard maximum. The dispatch limit exceeds measured full-validation p95 by about 0.59
+seconds and the observed maximum by about 0.56 seconds; the exact-ROI fast path remains far below
+it. Post-input observation remains separately bounded at ten seconds. Two total immediate-before
+attempts are allowed in one prepared semantic action. Only `STALE_FRAME` before transport may use
+the second attempt; every attempt and policy result is audited. Exhaustion cancels before dispatch,
+never becomes unresolved, and never changes the dedupe key. No loop exists after transport.
+
+Every capture now records screenshot-command start, successful capture completion, and decode
+completion separately. Policy age uses `time.monotonic()` at successful capture completion only;
+wall time remains audit/journal data and cannot affect freshness. Perception remains bound to the
+exact frame SHA-256, RT-019 profile, and critical ROI hashes. OCR may be reused only when source,
+target, overlay guard, profile, consequence, cost, quantity, and every required critical ROI are
+unchanged and pixel-identical. A changed ROI forces fresh ROI OCR; changed semantics deny input.
+
+Sixty-three deterministic tests pass across the existing core, new freshness/crash/reuse cases,
+and injected transport adapter. The retained SQLite database remains schema version 1 with Cash
+Mall confirmed, Home-to-Quest cancelled before dispatch, zero Home-to-Quest transport calls, no
+nonterminal or unresolved action, and no lease. No Unraid, VM, ADB, game, container, tunnel, or
+runtime-network access occurred during this correction.

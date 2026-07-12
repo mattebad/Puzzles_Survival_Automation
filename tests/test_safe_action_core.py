@@ -46,7 +46,7 @@ class FakeClock:
 def observation(**changes):
     base = Observation(
         frame_sha256="a" * 64,
-        captured_at=999.5,
+        capture_completed_monotonic=999.5,
         runtime_profile_id=PROFILE_ID,
         width=800,
         height=1280,
@@ -78,8 +78,9 @@ def request(obs=None, **changes):
         semantic_action="CLAIM_DAILY_QUEST",
         expected_runtime_profile_id=PROFILE_ID,
         observation=obs or observation(),
-        now=1000.0,
-        max_frame_age_seconds=2.0,
+        monotonic_now=1000.0,
+        observation_max_age_seconds=5.0,
+        dispatch_max_age_seconds=2.0,
         lease_owner="executor-1",
         lease_valid=True,
         unresolved_action=False,
@@ -100,7 +101,7 @@ def intent(action_id="action-1", action_key="day-1:claim:row-1"):
         target_identity=obs.target_identity,
         target_roi=obs.target_roi,
         source_frame_sha256=obs.frame_sha256,
-        source_frame_captured_at=obs.captured_at,
+        source_frame_captured_at=obs.capture_completed_monotonic,
         runtime_profile_id=obs.runtime_profile_id,
         game_day_id="day-1",
         expected_postcondition=obs.expected_postcondition,
@@ -232,7 +233,10 @@ class PolicyCase(unittest.TestCase):
         self.assertEqual(self.decision(request()).decision, PolicyDecision.AUTHORIZE)
 
     def test_stale_frame_denied(self):
-        self.assertEqual(self.decision(request(observation(captured_at=990))).reason_code, "STALE_FRAME")
+        self.assertEqual(
+            self.decision(request(observation(capture_completed_monotonic=990))).reason_code,
+            "STALE_FRAME",
+        )
 
     def test_profile_mismatch_global_lock(self):
         result = self.decision(request(observation(runtime_profile_id="wrong")))
@@ -292,10 +296,10 @@ class ExecutorCase(unittest.TestCase):
         self.store.acquire_lease("executor-1", self.clock(), 100.0)
         self.transport_calls = 0
         self.initial = observation()
-        self.pre = observation(frame_sha256="b" * 64, captured_at=999.8)
+        self.pre = observation(frame_sha256="b" * 64, capture_completed_monotonic=999.8)
         self.post = observation(
             frame_sha256="c" * 64,
-            captured_at=1000.1,
+            capture_completed_monotonic=1000.1,
             source_state="DAILY_QUEST_POST",
             target_identity=None,
             target_roi=None,
@@ -330,8 +334,8 @@ class ExecutorCase(unittest.TestCase):
 
     def test_source_or_target_change_prevents_dispatch(self):
         for changed in (
-            observation(frame_sha256="b" * 64, captured_at=999.8, source_state="QUEST"),
-            observation(frame_sha256="b" * 64, captured_at=999.8, target_roi=(1, 1, 2, 2)),
+            observation(frame_sha256="b" * 64, capture_completed_monotonic=999.8, source_state="QUEST"),
+            observation(frame_sha256="b" * 64, capture_completed_monotonic=999.8, target_roi=(1, 1, 2, 2)),
         ):
             with self.subTest(changed=changed.source_state):
                 result = self.executor(pre=changed).execute(request(self.initial, action_id="a" + changed.frame_sha256[:1], action_key="k" + str(changed.target_roi)))
@@ -452,7 +456,7 @@ class M6FixtureCase(unittest.TestCase):
         daily = next(asset for asset in manifest["assets"] if asset["asset_id"] == "m6-dq-daily-incomplete-go-clipped-v1")
         base = observation(
             frame_sha256=negative["sha256"],
-            captured_at=999.5,
+            capture_completed_monotonic=999.5,
             control_class="GO",
             evidence_refs=(negative["source_evidence_path"],),
         )
@@ -463,7 +467,10 @@ class M6FixtureCase(unittest.TestCase):
     def test_ambiguous_stale_and_profile_mismatch_fail_closed(self):
         policy = CentralPolicy()
         self.assertEqual(policy.evaluate(request(observation(ambiguous=True))).reason_code, "AMBIGUOUS_TARGET")
-        self.assertEqual(policy.evaluate(request(observation(captured_at=1))).reason_code, "STALE_FRAME")
+        self.assertEqual(
+            policy.evaluate(request(observation(capture_completed_monotonic=1))).reason_code,
+            "STALE_FRAME",
+        )
         self.assertEqual(policy.evaluate(request(observation(runtime_profile_id="mismatch"))).decision, PolicyDecision.GLOBAL_INPUT_LOCK)
 
 

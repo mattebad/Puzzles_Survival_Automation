@@ -1,6 +1,7 @@
 """Deterministic, fail-closed supervised action safety core."""
 
 from .executor import ExecutionResult, SafeActionExecutor
+from .freshness import ocr_reuse_denial, roi_hash_map, sha256_bytes
 from .models import (
     ActionIntent,
     ActionStatus,
@@ -26,4 +27,7 @@ __all__ = [
     "SafeActionExecutor",
     "SafetyStore",
     "TransportResult",
+    "ocr_reuse_denial",
+    "roi_hash_map",
+    "sha256_bytes",
 ]

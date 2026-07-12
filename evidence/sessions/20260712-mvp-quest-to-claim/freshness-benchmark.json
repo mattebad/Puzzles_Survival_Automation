@@ -1,0 +1,114 @@
+{
+  "calibration": {
+    "bounded_pre_dispatch_attempts": 2,
+    "dispatch_calibration_target_seconds": 1.9,
+    "dispatch_freshness_seconds": 2.0,
+    "observation_freshness_seconds": 3.0,
+    "post_input_observation_timeout_seconds": 10.0,
+    "rationale": "the 2.0-second dispatch hard maximum exceeds the measured 1.410-second full-validation p95 and 1.444-second maximum by a bounded margin; exact critical-ROI reuse measured 42.1 ms p95"
+  },
+  "modes": {
+    "daily": {
+      "recognized": true,
+      "samples": 30
+    },
+    "home": {
+      "recognized": true,
+      "samples": 30
+    },
+    "quest": {
+      "recognized": true,
+      "samples": 30
+    }
+  },
+  "retained_live_screenshot_command": {
+    "max_ms": 1027.1039,
+    "p50_ms": 1014.7722,
+    "p95_ms": 1027.1039,
+    "samples": 8,
+    "source": "evidence\\sessions\\20260711-rt-010-capture\\captures.csv"
+  },
+  "samples_per_mode": 30,
+  "scope": "offline retained final-runtime replay plus retained RT-010 live capture timing; zero live input",
+  "stages": {
+    "capture_completion_to_first_policy": {
+      "max_ms": 1443.6087,
+      "p50_ms": 1067.1063,
+      "p95_ms": 1410.246,
+      "samples": 90
+    },
+    "capture_completion_to_second_policy": {
+      "max_ms": 43.1937,
+      "p50_ms": 27.7803,
+      "p95_ms": 42.1232,
+      "samples": 90
+    },
+    "first_policy_evaluation": {
+      "max_ms": 0.1515,
+      "p50_ms": 0.0762,
+      "p95_ms": 0.1268,
+      "samples": 90
+    },
+    "image_decode": {
+      "max_ms": 20.8826,
+      "p50_ms": 11.5598,
+      "p95_ms": 18.5211,
+      "samples": 90
+    },
+    "immediate_before_recapture_read": {
+      "max_ms": 0.6966,
+      "p50_ms": 0.1533,
+      "p95_ms": 0.4398,
+      "samples": 90
+    },
+    "offline_capture_read": {
+      "max_ms": 0.6897,
+      "p50_ms": 0.2078,
+      "p95_ms": 0.5648,
+      "samples": 90
+    },
+    "profile_validation": {
+      "max_ms": 2.0143,
+      "p50_ms": 1.5984,
+      "p95_ms": 1.8662,
+      "samples": 90
+    },
+    "roi_ocr_total": {
+      "max_ms": 1388.0392,
+      "p50_ms": 305.8572,
+      "p95_ms": 1352.3459,
+      "samples": 90
+    },
+    "screen_classification_total": {
+      "max_ms": 1417.0655,
+      "p50_ms": 1023.0236,
+      "p95_ms": 1383.6213,
+      "samples": 90
+    },
+    "second_policy_evaluation": {
+      "max_ms": 0.2449,
+      "p50_ms": 0.0739,
+      "p95_ms": 0.1293,
+      "samples": 90
+    },
+    "second_validation_total": {
+      "max_ms": 43.1933,
+      "p50_ms": 27.7787,
+      "p95_ms": 42.1217,
+      "samples": 90
+    },
+    "target_detection": {
+      "max_ms": 23.7521,
+      "p50_ms": 14.5579,
+      "p95_ms": 22.4432,
+      "samples": 90
+    },
+    "transport_invocation_mock": {
+      "max_ms": 0.0005,
+      "p50_ms": 0.0002,
+      "p95_ms": 0.0003,
+      "samples": 90
+    }
+  },
+  "total_pipeline_samples": 90
+}
