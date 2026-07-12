@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: prove-runtime
     content: Complete direct Android VM gates; select or reject runtime only after recorded evidence.
-    status: in_progress
+    status: completed
   - id: rt-012-observe-soak
     content: Run 4-hour runtime-selection observe-only Bliss soak; use staged 24-hour, 72-hour, 7-day, and 21-day validation after selection.
     status: completed
@@ -19,7 +19,7 @@ todos:
     status: pending
   - id: rt-013-runtime-decision
     content: Make final Bliss pass/fail and runtime-profile decision after remaining gates.
-    status: pending
+    status: completed
   - id: rt-015-vm-autostart-order
     content: Document VM autostart and future worker ordering; never reboot Unraid autonomously.
     status: pending
@@ -323,16 +323,18 @@ Remaining runtime-proof work:
   are retained in `evidence/sessions/20260711-rt-012-observe-soak/`. This is not a production
   architecture dependency. The 24-hour locked-runtime, 72-hour claim-only, 7-day expanded-task,
   and 21-day hardening stages remain later work.
-- RT-013 final Bliss pass/fail and runtime-profile lock: pending; depends on RT-012 only. RT-014A
-  is operationally useful but not a Bliss-selection blocker. RT-016A remains a later
-  account-guard evidence task.
+- RT-013 final Bliss pass/fail and runtime-profile lock: passed; depends on RT-012 only. The
+  criterion matrix and selected-profile facts are retained in
+  `evidence/sessions/20260711-rt-013-runtime-decision/record.md`; RT-019 remains the separate
+  full manifest/schema task. RT-014A is operationally useful but not a Bliss-selection blocker.
+  RT-016A remains a later account-guard evidence task.
 - RT-014A optional post-VirtIO-GL viewer-transport proof: blocked by the same development SSH
   authentication needed for this execution path; it does not require the future controller and
   is not a production unattended-execution dependency.
 - RT-015 VM autostart/worker-order documentation: pending; Unraid host reboot validation is
   explicitly excluded from autonomous runtime proof and deferred to deployment operations.
 - RT-016A account/server identity evidence: pending; no credential or account-operation automation.
-- RT-021 Unraid worker-to-VM ADB path proof: pending after RT-013; no external tunnel or runtime
+- RT-021 Unraid worker-to-VM ADB path proof: ready after RT-013; no external tunnel or runtime
   mutation is authorized by this plan.
 - M7-Takeover and M7-AccountGuard remain later controller-integration tasks; neither is required
   to collect runtime evidence or select Bliss.
@@ -346,15 +348,23 @@ Progressive gate status:
    controlled cold VM stop/start trials; display, Mesa renderer, game surface, ADB reconnect,
    and hard-stop checks passed. VM/worker startup documentation, unresolved-action recovery, and
    the strong account/server guard remain open; no Unraid host reboot is required here.
-5. 4-hour runtime-selection observe-only stability: harness ready, live run not started; development SSH authentication is required before sampling. The 24-hour locked-runtime, 72-hour claim-only, 7-day expanded-task, and 21-day hardening stages follow runtime selection.
-6. Final runtime controls: RT-013 may select Bliss after RT-012 and the earlier technical gates
-pass. RT-016A remains required for M7-AccountGuard and later unattended automatic gameplay, not
-for technical runtime selection. RT-014A is required before manual takeover or the first
-supervised live validation that depends on remote observation, but is not a runtime-selection
-blocker. RT-015 is a later deployment/runbook gate and does not require or authorize an Unraid
-host reboot.
+5. 4-hour runtime-selection observe-only stability: passed with 48 five-minute samples, 48 valid
+   `800×1280` frames, p95 capture latency `222.764 ms`, complete host metric files, zero input,
+   and no account/session hard stop. The 24-hour locked-runtime, 72-hour claim-only, 7-day
+   expanded-task, and 21-day hardening stages follow runtime selection.
+6. Final runtime controls: RT-013 passed and selected Bliss after RT-012 and the earlier
+technical gates. RT-016A remains required for M7-AccountGuard and later unattended automatic
+gameplay, not for technical runtime selection. RT-014A is required before manual takeover or the
+first supervised live validation that depends on remote observation, but is not a runtime-
+selection blocker. RT-015 is a later deployment/runbook gate and does not require or authorize an
+Unraid host reboot.
 
-Decision: direct Bliss remains the leading candidate and has passed the graphics, effective portrait-profile, restart, and four-hour observe-only gates. RT-013 is now the technical runtime decision task; RT-016A does not block it and remains the independent M7-AccountGuard prerequisite. RT-014A remains an optional operator-viewer proof and does not reject Bliss by itself. VM/worker autostart documentation remains a later deployment gate; no Unraid host reboot is part of this runtime decision. Advance to isolated ReDroid only if RT-013 records a remaining hard-gate rejection.
+Decision: direct Bliss Passed the technical runtime decision. The selected profile, rollback, known
+limitations, and fallback trigger are recorded in RT-013 evidence. RT-016A does not block the
+decision and remains the independent M7-AccountGuard prerequisite. RT-014A remains optional and
+does not reject Bliss by itself. VM/worker autostart documentation remains a later deployment
+gate; no Unraid host reboot is part of this decision. Advance to isolated ReDroid only if new
+contradictory evidence produces a documented remaining hard-gate rejection.
 
 Post-selection dependency chain:
 
@@ -904,7 +914,7 @@ Safety-critical acceptance uses zero false action authorizations in reviewed hol
 ## 20. Phased roadmap and measurable acceptance criteria
 
 1. Hardware/Unraid audit — completed 2026-07-09: verified version, KVM, BIOS virtualization exposure, RAM/storage, `/dev/dri`, VirGL components, IOMMU, temperatures, workloads, and NAS baseline. Array fullness requires all PoC hot data to remain on cache.
-2. Runtime proof — in progress: direct Bliss passed Play/game/ABI/account, reversible VirtIO(3D)/Mesa VirGL acceleration, graphics rollback, three unattended cold boots, the effective `800×1280`/160-dpi app-controlled portrait profile across three corrected guest restarts, strict private ADB isolation, capture/input fidelity, the RT-011 restart matrix, and the RT-012 four-hour Unraid-local observe-only soak. RT-013 now performs the final Bliss runtime decision and depends on RT-012 only; RT-016A remains the later M7-AccountGuard evidence task. RT-014A is optional viewer transport proof and RT-021 is the later actual Unraid worker-to-VM ADB proof. RT-015 VM autostart/worker-order documentation is a later deployment gate and never authorizes an Unraid host reboot. Test ReDroid-in-isolation and Windows-VM/BlueStacks only if direct Bliss fails a remaining rejection gate.
+2. Runtime proof — completed for technical selection: direct Bliss passed Play/game/ABI/account, reversible VirtIO(3D)/Mesa VirGL acceleration, graphics rollback, three unattended cold boots, the effective `800×1280`/160-dpi app-controlled portrait profile across three corrected guest restarts, strict private ADB isolation, capture/input fidelity, the RT-011 restart matrix, the RT-012 four-hour Unraid-local observe-only soak, and RT-013 final Bliss selection. RT-016A remains the later M7-AccountGuard evidence task. RT-014A is optional viewer transport proof and RT-021 is the later actual Unraid worker-to-VM ADB proof. RT-015 VM autostart/worker-order documentation is a later deployment gate and never authorizes an Unraid host reboot. Test ReDroid-in-isolation and Windows-VM/BlueStacks only if new contradictory evidence produces a documented remaining rejection gate.
 
 Validation progression: 4 hours is the Bliss runtime-selection gate; 24 hours is locked-runtime
 validation before meaningful gameplay automation; 72 hours is claim-only continuous-scheduling

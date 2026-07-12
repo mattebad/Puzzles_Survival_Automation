@@ -82,10 +82,10 @@ dependency; no dedicated SSH-key task is a production blocker.
 |---|---|---|
 | M1 Repository/environment baseline | Passed | Host/VM baseline and rollback XML captured; authentication hard-stop manually resolved and verified |
 | M2 Unraid audit | Passed | Measured in service plan on 2026-07-09 |
-| M3 Direct Bliss runtime proof | In progress | Current hard gate |
+| M3 Direct Bliss runtime proof | Passed | RT-001 through RT-013 passed; downstream infrastructure and later account-guard gates remain |
 | M4 One-time account provisioning | Passed for current Bliss runtime | Must remain manual on any rebuild |
 | M5 Framework bake-off | Blocked | RT-019 profile schema and RT-021 NAS-local ADB path proof |
-| M6 Production corpus | Blocked | RT-013 runtime decision and RT-019 profile manifest |
+| M6 Production corpus | Blocked | RT-019 versioned runtime-profile schema |
 | M7 Deterministic service core | Pending | M5 selection and runtime-independent foundations; M7-Takeover after RT-014A; M7-AccountGuard after RT-016A |
 | M8 Claim-only MVP | Pending | Selected runtime, corpus, core, and promotion gates |
 | M9 Expanded tasks | Pending | Claim-only MVP evidence |
@@ -401,13 +401,16 @@ unlocked when this task passes.
 - Method: criterion matrix with mandatory evidence links and known limitations.
 - Acceptance: every hard gate is pass or explicit reject; selected profile is reproducible and rollback retained; fallback trigger is documented.
 - Verification: replay setup from records where safe and review evidence completeness.
-- Evidence: RT-013 decision record and runtime-profile manifest.
+- Evidence: `evidence/sessions/20260711-rt-013-runtime-decision/record.md` and selected-profile
+  facts; the complete versioned manifest/schema remains RT-019.
 - Rollback: preserved RT-001 baseline; fallback begins only after recorded rejection.
-- Status: Pending.
-- Blocker: None after RT-012. RT-016A account/server identity evidence remains a later
-  account-guard prerequisite and does not block the technical Bliss runtime decision. RT-014A
-  viewer transport is optional for unattended runtime selection. RT-015 is deferred deployment
-  documentation and does not block the runtime decision.
+- Status: Passed.
+- Blocker: None. The criterion-by-criterion decision is recorded in
+  `evidence/sessions/20260711-rt-013-runtime-decision/record.md`; the preflight is retained in
+  the same directory. Bliss is selected with preserved rollback and explicit limitations.
+  RT-016A account/server identity evidence remains a later account-guard prerequisite and does
+  not block technical runtime selection. RT-014A viewer transport is optional, and RT-015 is
+  deferred deployment documentation.
 - Next: RT-017, RT-019, and RT-021 in parallel; M5 framework bake-off requires RT-019 and
   RT-021, while M6 production corpus requires RT-019. ReDroid isolated-in-Linux-VM proof
   remains the rejection path.
@@ -509,7 +512,8 @@ unlocked when this task passes.
 - Evidence: `evidence/sessions/<timestamp>-rt-017-runtime-backup/`.
 - Rollback: retain original live runtime and do not overwrite it during backup or restore testing.
 - Status: Pending.
-- Blocker: RT-013 final runtime/profile decision.
+- Blocker: None after RT-013. The selected profile and rollback references are recorded in the
+  RT-013 decision evidence.
 - Next: RT-019 and RT-021 may proceed in parallel; RT-017 is required for unattended automatic
   gameplay input with applicable M7 and task-specific promotion gates, but does not block
   framework selection, corpus tooling, or task-specific supervised validation.
@@ -559,7 +563,7 @@ unlocked when this task passes.
 - Evidence: `evidence/sessions/<timestamp>-rt-019-runtime-profile-manifest/`.
 - Rollback: retain prior profile manifest and disable assets that lack compatibility evidence.
 - Status: Pending.
-- Blocker: RT-013 final profile decision.
+- Blocker: None after RT-013. The complete versioned manifest/schema is the scope of RT-019.
 - Next: RT-021 in parallel; M5 framework bake-off requires RT-019 and RT-021, while M6 production
   corpus requires RT-019.
 
@@ -587,7 +591,8 @@ unlocked when this task passes.
 - Rollback: remove temporary test container/network attachment; retain existing private VM network
   and runtime state.
 - Status: Pending.
-- Blocker: RT-013 selected runtime/profile and selected local/private VM networking.
+- Blocker: None after RT-013; selected local/private VM networking is retained from RT-008 and
+  the production-path proof remains the scope of RT-021.
 - Next: M5 framework bake-off; this proof must pass before bake-off results are representative of
   final deployment.
 
@@ -607,7 +612,7 @@ unlocked when this task passes.
 
 ## Current ready work
 
-RT-007 through RT-011 passed. RT-009 measured 9 taps and 4 swipes before and after guest restart
+RT-007 through RT-013 passed. RT-009 measured 9 taps and 4 swipes before and after guest restart
 on Android Home; all frames were `800x1280`, zero markers missed, and maximum endpoint error was
 4.031 px. RT-008 proves strict private ADB isolation but records `ro.adb.secure=0`; production
 must use the local/private Unraid worker-to-VM path and must not depend on an external SSH tunnel.
@@ -623,8 +628,9 @@ The VM is running Mesa VirGL and no gameplay input automation or external tunnel
 becomes inactive after VirtIO-GL loads, so ADB remains the observation path until optional private
 scrcpy or equivalent passes. RT-014A remains separately blocked by development authentication;
 RT-015 is deferred VM/worker-order documentation and does not block RT-013; RT-016A needs redacted
-identity evidence for M7-AccountGuard, not technical runtime selection. RT-017,
-RT-018, RT-019, and RT-021 are pending downstream gates. Do not rerun RT-012; its complete evidence
+identity evidence for M7-AccountGuard, not technical runtime selection. RT-017, RT-018, RT-019, and
+RT-021 are pending downstream gates; RT-017, RT-019, and RT-021 are ready in the post-selection
+sequence. Do not rerun RT-012; its complete evidence
 is retained in `evidence/sessions/20260711-rt-012-observe-soak/`. Do not place credentials in this
 repository or command history. Launching `com.global.ztmslg` normally opens the authenticated Cash
 Mall screen; startup normalization must positively recognize Cash Mall, recapture immediately,
