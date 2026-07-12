@@ -85,7 +85,7 @@ dependency; no dedicated SSH-key task is a production blocker.
 | M3 Direct Bliss runtime proof | Passed | RT-001 through RT-013 passed; downstream infrastructure and later account-guard gates remain |
 | M4 One-time account provisioning | Passed for current Bliss runtime | Must remain manual on any rebuild |
 | M5 Framework bake-off | Passed | Custom Python/direct ADB/OpenCV/local OCR selected; Airtest and MaaFramework rejected early |
-| M6 Production corpus | Ready | M5 passed; M6-DQ-BOOTSTRAP is next, with transition evidence promoted after the supervised trial |
+| M6 Production corpus | In Progress | M6-DQ-BOOTSTRAP started and is blocked at the approved process-only credential boundary; transition evidence remains later |
 | M7 Deterministic service core | Pending | M7-SAFE-ACTION-CORE is the minimum supervised-trial subset; full core, M7-Takeover, and M7-AccountGuard remain later gates |
 | M8 Claim-only MVP | Pending | Selected runtime, staged corpus, full core, and promotion gates; one supervised trial does not pass M8 |
 | M9 Expanded tasks | Pending | Claim-only MVP evidence |
@@ -204,8 +204,11 @@ Claim example.
 - Evidence: `evidence/sessions/<timestamp>-m6-dq-bootstrap/`.
 - Rollback: disable or remove only unpromoted task-scoped corpus assets and annotations; preserve
   prior runtime, startup-normalization, and M5 evidence. No runtime mutation is part of rollback.
-- Status: Ready.
-- Blocker: None for the bootstrap scope. A positive completed-but-unclaimed Claim state is
+- Status: Blocked (2026-07-12; approved process-only Unraid credential unavailable to the
+  non-interactive execution environment).
+- Blocker: The pinned host is reachable, but `UNRAID_TEMP_PASSWORD` is absent and no stored
+  credential is available. Do not place the supplied password in a command line, repository,
+  evidence, script, log, or command history. A positive completed-but-unclaimed Claim state is
   intentionally deferred to `M6-DQ-TRANSITION-CORPUS`.
 - Next: M7-SAFE-ACTION-CORE after this task passes.
 
@@ -872,8 +875,9 @@ observe-only keyguard reconciliation, guarded Cash Mall launch, one authorized n
 tap, and positive final-profile Home/Base postcondition. The M5 framework bake-off Passed on
 2026-07-12 with the custom Python/direct ADB/OpenCV/local OCR stack selected; Daily Quest and
 later gameplay workflows were not started.
-M6 remains Ready and its sole next task is M6-DQ-BOOTSTRAP. Do not mark M7-SAFE-ACTION-CORE or
-MVP-QUEST-TO-CLAIM In Progress during this documentation boundary. Do not rerun RT-012 or the
+M6-DQ-BOOTSTRAP is the current M6 task but is Blocked at the approved process-only credential
+boundary. Do not mark M7-SAFE-ACTION-CORE, MVP-QUEST-TO-CLAIM, or M6-DQ-TRANSITION-CORPUS In
+Progress. Do not rerun RT-012 or the
 completed MVP action; their complete evidence is retained in
 `evidence/sessions/20260711-rt-012-observe-soak/` and
 `evidence/sessions/20260711-mvp-startup-normalization/`. Do not place credentials in this

@@ -4,11 +4,11 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Current milestone and task state
 
-- Milestone: M6 Production corpus — Ready.
-- Current task: none in progress. M5-DECISION passed; custom Python/direct ADB/OpenCV/local OCR
-  was selected, with final decision evidence under `evidence/sessions/20260712-m5-decision/`.
-  The documentation boundary stages `M6-DQ-BOOTSTRAP` as the sole next ready task; no M6 task
-  execution has started.
+- Milestone: M6 Production corpus — In Progress.
+- Current task: M6-DQ-BOOTSTRAP — Blocked at the approved process-only Unraid credential
+  boundary. M5-DECISION passed; custom Python/direct ADB/OpenCV/local OCR was selected, with
+  final decision evidence under `evidence/sessions/20260712-m5-decision/`. No corpus capture or
+  gameplay navigation has started.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed in the preceding M5 run: M5-CUSTOM-BASELINE passed with 100 replay
@@ -16,18 +16,16 @@ Recorded: 2026-07-12, America/Chicago
   and five reconnect mocks; M5-AIRTEST and M5-MAA were rejected early with no live operations.
   M5-DECISION passed and authorized M6 corpus work. Earlier completed boundaries remain
   authoritative: RT-012, RT-013, RT-017, RT-019, RT-021, and MVP-STARTUP-NORMALIZATION.
-- Tasks completed in this documentation boundary: none. No task was marked In Progress and no
-  runtime, game, ADB, container, tunnel, or evidence state was accessed or changed.
+- Tasks completed in this M6 boundary: none. The task was preflighted and blocked before any
+  authenticated runtime operation; no VM, game, ADB, container, tunnel, or prior retained evidence
+  state was changed. Only the new task-scoped preflight/blocker record was added.
 
 ## Repository state
 
 - Branch: `main`.
-- Latest committed boundaries before this documentation correction: `2b8fa2d`
-  (`task(M5): select deterministic control stack`), `efd7aef` (`task(M5): reject MaaFramework
-  adapter`), `d74d345` (`task(M5): reject Airtest adapter`), `d7cbca5` (`task(M5): benchmark
-  custom control stack`), and `70efbfd` (`task(MVP): automate guarded startup normalization`).
-  The documentation correction is scoped to the Daily Quest dependency/validation staging; no
-  unrelated path is staged.
+- Latest committed boundary before this M6 attempt: `91227c7`
+  (`plan: stage Daily Quest corpus and supervised claim validation`). The blocked M6 preflight is
+  task-scoped; the pre-existing unstaged entries remain untouched and no unrelated path is staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - The completed guarded keyguard branch, live-validation evidence, final Home/Base candidate, and
   passed task decision are included in the task-scoped closure boundary.
@@ -96,13 +94,14 @@ Recorded: 2026-07-12, America/Chicago
   live operations, and the identical-corpus non-viability decision.
 - M5 final decision: `evidence/sessions/20260712-m5-decision/`; custom stack selected, rejected
   candidates compared, M6 authorized within scope, and no M6/Daily Quest work started.
+- M6-DQ-BOOTSTRAP preflight/blocker: `evidence/sessions/20260712-m6-dq-bootstrap/preflight.md`.
 
 ## Exact blocker and required user action
 
-1. No current blocker. M5 passed without new live input, Airtest and MaaFramework were rejected
-  early without package or runtime mutation, and the resumed startup-normalization MVP previously
-  passed with no additional keyguard swipe, exactly one supervised no-spend back-arrow tap,
-  positive Home/Base, and cleanup.
+1. M6-DQ-BOOTSTRAP is blocked because the pinned host is reachable but the current non-interactive
+  process has no `UNRAID_TEMP_PASSWORD`, and no stored credential is available. No authenticated
+  Unraid command was executed; do not put the supplied password in a command line, repository,
+  evidence, script, log, or command history.
 2. RT-016A remains a later manual-only account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
@@ -110,12 +109,10 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Exact next command
 
-The next ready task is `M6-DQ-BOOTSTRAP` under the selected custom stack. Its preflight must cover
-the final-runtime bootstrap corpus only: no quest completion and no Claim input. Do not mark
-`M7-SAFE-ACTION-CORE` or `MVP-QUEST-TO-CLAIM` In Progress during this documentation boundary.
-After the bootstrap passes, the minimum supervised-action core may begin; the 24-hour gate is not
-required before the first supervised development action but is required before repeated or
-unattended automatic claim-only execution.
+Resume `M6-DQ-BOOTSTRAP` after making the already-provided credential available through the
+process-only `UNRAID_TEMP_PASSWORD` mechanism. The first resumed live operation must be
+read-only Unraid/runtime reconciliation. Do not mark `M7-SAFE-ACTION-CORE`,
+`MVP-QUEST-TO-CLAIM`, or `M6-DQ-TRANSITION-CORPUS` In Progress.
 
 ## Facts that must not be re-tested
 
