@@ -25,7 +25,7 @@ todos:
     status: pending
   - id: rt-017-recovery-backup
     content: Create secured post-provisioning qcow2/XML/EFI/GRUB recovery backup.
-    status: pending
+    status: completed
   - id: rt-018-local-lifecycle-boundary
     content: Define narrow local VM lifecycle control with unresolved-action guard.
     status: pending
@@ -34,6 +34,9 @@ todos:
     status: completed
   - id: rt-021-worker-vm-adb
     content: Prove unprivileged Unraid worker-to-VM ADB path without an external tunnel.
+    status: completed
+  - id: startup-normalization-mvp
+    content: Validate the bounded Cash Mall-to-Home/Base startup-normalization vertical slice.
     status: pending
   - id: m7-takeover
     content: Integrate safe manual takeover with controller after RT-014A.
@@ -340,6 +343,9 @@ Remaining runtime-proof work:
   capture, package observation, guest restart/reconnect, LAN denial, least privilege, and cleanup
   are retained in `evidence/sessions/20260711-rt-021-worker-vm-adb/`. No external tunnel or public
   ADB is allowed; a dedicated point-to-point network remains the preferred production refinement.
+- RT-017 secured post-provisioning recovery backup: passed with matching source/backup qcow2
+  SHA-256, restricted access, EFI/GRUB state, profile binding, and offline restore XML/QEMU/qcow2
+  validation. Evidence is retained in `evidence/sessions/20260711-rt-017-runtime-backup/`.
 - RT-019 versioned runtime-profile manifest/schema: passed with profile ID
   `pns-blissos-poc-virgl-800x1280-v1`, canonical content hash
   `195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742`, and a validator that
@@ -425,6 +431,12 @@ documents that future assets must reference a runtime profile; M6 requires every
 asset created in the production corpus to carry and validate that reference. The manifest is
 `runtime-profile/manifest.json`; the full compatibility evidence is retained in
 `evidence/sessions/20260711-rt-019-runtime-profile-manifest/`.
+
+The first post-selection vertical slice is the bounded startup normalization from Cash Mall to
+Home/Base. It uses Python, direct ADB, OpenCV, and local OCR only for a demonstrated ROI. Its
+validation order is offline recognition, live observe-only classification, dry-run ROI annotation,
+one supervised no-spend back-arrow input, positive Home/Base postcondition, and full reconciliation.
+No Daily Quest action or broad framework bake-off is part of that live trial.
 
 ### 5.3 Observe-only soak definition
 
@@ -936,28 +948,32 @@ validation; 7 days is expanded approved-task validation; 21 days is production h
 operational acceptance. No later duration is a prerequisite for initial runtime selection once
 the 4-hour gate and other runtime-selection gates pass.
 
-3. Framework bake-off: direct ADB/OpenCV/OCR versus Airtest and one MaaFramework path, treated as
+3. First vertical slice: startup normalization MVP using Python, direct ADB, OpenCV, and local OCR
+   only where needed. Validate Cash Mall recognition, no-overlay guard, one bounded top-left
+   back-arrow tap, and positive Home/Base postcondition in the ordered offline/observe-only/dry-run/
+   supervised sequence. Broad framework comparison remains later and is not part of this trial.
+4. Framework bake-off: direct ADB/OpenCV/OCR versus Airtest and one MaaFramework path, treated as
    representative only after RT-019 and RT-021 pass. Initial
    bake-off uses 50–100 captures per candidate, 20–25 safe taps, 10 safe swipes, 5–10 reconnect
    cycles, one detector, one OCR region, one bounded navigation flow, and packaging/policy review.
    The selected adapter later receives the 500-capture and 100-input validation set.
-4. Production corpus: capture all required screens/overlays/errors and Daily Quest before/after
+5. Production corpus: capture all required screens/overlays/errors and Daily Quest before/after
    transitions. Every recognition asset created during M6 must declare its compatible
    runtime-profile version; corpus validation fails when that field is missing or mismatched.
    Accept with versioned labels, held-out sessions, confusing negatives, and no iOS production
    assets.
-5. State/overlay classification: build viewport/profile guard and core detectors. Accept with zero unsafe authorizations on reviewed holdout; ambiguous frames abstain.
-6. Persistent scheduler/state: implement lease, SQLite transactions, reset model, dedupe, deadlines, backoff, breakers, and unresolved actions. Accept through simulated multi-month schedule plus crash/restart/reset tests with no duplicate completions.
-7. Navigation/recovery: launch, popup allowlist, safe-home recovery, base↔Daily Quest, bounded waits. Accept with 50 supervised round trips and all injected unknowns stopping safely.
-8. Daily Quest claim dry-run: row identity, Claim/Go distinction, overlap scrolling, milestones observed only. Accept across full corpus with no Go/clipped/stale proposals and no infinite loop.
-9. Claim-only executable MVP: one row at a time, fresh recapture/postcondition, zero spend; crates still disabled. Complete 24-hour locked-runtime validation before meaningful gameplay automation. Accept one supervised claim then seven daily bounded runs without unsafe/duplicate action.
-10. Continuous scheduling: integrate claim task into wake-based service. Accept 72 hours with bounded polling, quiet periods, restart persistence, and no full-routine tight loop.
-11. Free/cooldown tasks: alliance help, proven-free Supply Depot, and individually proven free interactions. Accept positive/paid-fallback/cooldown tests plus at least three supervised successes per task.
-12. Campaign/AP, stamina/lairs, gathering: add one family at a time. Accept exact ledgers, 10 supervised successes per enabled family, and hard denial of refill, no-slot, occupied, expired, level-60, unreadable-level cases.
-13. Allowlisted resource tasks: training, shops, donation, item/speedup if approved, enhancement; keep strategic tasks disabled. Accept exact target/currency/material/quantity/reserve/cap reconciliation and task-specific corpus before each enablement.
-14. Operations hardening: watchdog, remote status, notifications, retention, backup/restore, pause/kill. Accept 10/10 worker/game/runtime/VM restart trials and storage/network fault outcomes matching policy.
-15. Long soak: run seven-day then 21-day observe/dry/approved-task soak. Accept no unsafe action, duplicate daily completion, stuck loop, unreconciled spend, or measurable NAS reliability regression.
-16. Packaging/deployment: reproducible worker image/service, pinned assets/models/config migration,
+6. State/overlay classification: build viewport/profile guard and core detectors. Accept with zero unsafe authorizations on reviewed holdout; ambiguous frames abstain.
+7. Persistent scheduler/state: implement lease, SQLite transactions, reset model, dedupe, deadlines, backoff, breakers, and unresolved actions. Accept through simulated multi-month schedule plus crash/restart/reset tests with no duplicate completions.
+8. Navigation/recovery: launch, popup allowlist, safe-home recovery, base↔Daily Quest, bounded waits. Accept with 50 supervised round trips and all injected unknowns stopping safely.
+9. Daily Quest claim dry-run: row identity, Claim/Go distinction, overlap scrolling, milestones observed only. Accept across full corpus with no Go/clipped/stale proposals and no infinite loop.
+10. Claim-only executable MVP: one row at a time, fresh recapture/postcondition, zero spend; crates still disabled. Complete 24-hour locked-runtime validation before meaningful gameplay automation. Accept one supervised claim then seven daily bounded runs without unsafe/duplicate action.
+11. Continuous scheduling: integrate claim task into wake-based service. Accept 72 hours with bounded polling, quiet periods, restart persistence, and no full-routine tight loop.
+12. Free/cooldown tasks: alliance help, proven-free Supply Depot, and individually proven free interactions. Accept positive/paid-fallback/cooldown tests plus at least three supervised successes per task.
+13. Campaign/AP, stamina/lairs, gathering: add one family at a time. Accept exact ledgers, 10 supervised successes per enabled family, and hard denial of refill, no-slot, occupied, expired, level-60, unreadable-level cases.
+14. Allowlisted resource tasks: training, shops, donation, item/speedup if approved, enhancement; keep strategic tasks disabled. Accept exact target/currency/material/quantity/reserve/cap reconciliation and task-specific corpus before each enablement.
+15. Operations hardening: watchdog, remote status, notifications, retention, backup/restore, pause/kill. Accept 10/10 worker/game/runtime/VM restart trials and storage/network fault outcomes matching policy.
+16. Long soak: run seven-day then 21-day observe/dry/approved-task soak. Accept no unsafe action, duplicate daily completion, stuck loop, unreconciled spend, or measurable NAS reliability regression.
+17. Packaging/deployment: reproducible worker image/service, pinned assets/models/config migration,
     Unraid autostart/order, runbook, and local lifecycle boundary. Accept five VM/worker
     lifecycle cycles that resume safely and preserve daily/commit state. Unraid host reboot
     validation is not autonomous and requires separate explicit authorization.

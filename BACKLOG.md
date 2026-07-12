@@ -84,7 +84,7 @@ dependency; no dedicated SSH-key task is a production blocker.
 | M2 Unraid audit | Passed | Measured in service plan on 2026-07-09 |
 | M3 Direct Bliss runtime proof | Passed | RT-001 through RT-013 passed; downstream infrastructure and later account-guard gates remain |
 | M4 One-time account provisioning | Passed for current Bliss runtime | Must remain manual on any rebuild |
-| M5 Framework bake-off | Pending | RT-019 and RT-021 passed; framework bake-off is now the next gate |
+| M5 Framework bake-off | Pending | RT-019 and RT-021 passed; first startup vertical slice precedes broad bake-off |
 | M6 Production corpus | Blocked | M5 framework bake-off and final-runtime corpus selection |
 | M7 Deterministic service core | Pending | M5 selection and runtime-independent foundations; M7-Takeover after RT-014A; M7-AccountGuard after RT-016A |
 | M8 Claim-only MVP | Pending | Selected runtime, corpus, core, and promotion gates |
@@ -510,14 +510,15 @@ unlocked when this task passes.
   backup; access is restricted; restoration procedure recreates the selected profile; restore
   testing records that no competing live account session was present.
 - Verification: independent manifest/hash review and restoration evidence.
-- Evidence: `evidence/sessions/<timestamp>-rt-017-runtime-backup/`.
+- Evidence: `evidence/sessions/20260711-rt-017-runtime-backup/`.
 - Rollback: retain original live runtime and do not overwrite it during backup or restore testing.
-- Status: Pending.
-- Blocker: None after RT-013. The selected profile and rollback references are recorded in the
-  RT-013 decision evidence.
-- Next: RT-019 and RT-021 may proceed in parallel; RT-017 is required for unattended automatic
-  gameplay input with applicable M7 and task-specific promotion gates, but does not block
-  framework selection, corpus tooling, or task-specific supervised validation.
+- Status: Passed.
+- Blocker: None. The restricted backup, artifact hashes, EFI/GRUB state, profile binding, and
+  offline restore-test review are recorded in `evidence/sessions/20260711-rt-017-runtime-backup/`.
+- Next: MVP-STARTUP-NORMALIZATION. RT-017 remains required for unattended automatic gameplay
+  input with applicable M7 and task-specific promotion gates; the broad M5 framework bake-off is
+  deferred while the first vertical slice is validated with the presumptive Python/direct ADB/
+  OpenCV stack.
 
 ### RT-018 — Define narrow local VM lifecycle-control boundary
 
@@ -599,12 +600,42 @@ unlocked when this task passes.
 - Next: M5 framework bake-off; RT-019 and RT-021 now pass, so bake-off work may begin in its own
   task boundary.
 
+### MVP-STARTUP-NORMALIZATION — Validate Cash Mall-to-Home/Base startup slice
+
+- Dependencies: RT-017, RT-019, and RT-021.
+- Objective: safely normalize the already-provisioned game from its normal Cash Mall startup
+  state to a positively recognized Home/Base screen.
+- Scope: Python, direct ADB, OpenCV, local OCR only for a demonstrated ROI; offline recognition,
+  live observe-only classification, dry-run annotation, and one supervised no-spend back-arrow
+  trial with retained before/target/input/after evidence.
+- Non-goals: login, credentials, tutorial, account/server selection, profile navigation, purchases,
+  Daily Quest claims, broad framework bake-off, or production unattended gameplay.
+- Method: launch/observe the package, capture fresh `800x1280`, recognize Cash Mall using exact
+  title/layout/header/back-control/mall context, confirm no unknown overlay, recapture immediately,
+  authorize exactly one recognized top-left back-arrow tap, and require positive Home/Base after.
+  Coordinate-only, stale, purchase/offer/premium, confirmation, timeout, and unexpected-successor
+  actions are denied/UNKNOWN. Never retry blindly.
+- Acceptance: offline/reference recognition passes; live observe-only classification passes; dry-run
+  ROI annotation passes; one supervised Cash Mall-to-Home/Base transition passes with no spend and
+  retained evidence; failure/timeout/overlay stops safely.
+- Verification: ordered offline → observe-only → dry-run → one supervised input → positive
+  postcondition review. Do not continue to Daily Quest in the same live trial.
+- Evidence: `evidence/sessions/<timestamp>-mvp-startup-normalization/`.
+- Rollback: force-stop the game after the trial; no state/spend rollback is required for the
+  bounded back navigation. Preserve all failure evidence.
+- Status: Pending.
+- Blocker: None after the infrastructure gates, but stop and request user action for a secure
+  credential prompt or unresolved OS/keyguard state; no credential or profile navigation may be
+  automated.
+- Next: M5 framework bake-off after this first vertical slice is reconciled.
+
 ## Dependency graph
 
 - RT-012 → RT-013.
 - RT-013 → RT-017 secured backup, RT-019 runtime-profile manifest, and RT-021 worker-to-VM ADB
   proof in parallel.
 - RT-019 + RT-021 → M5 framework bake-off.
+- RT-017 + RT-019 + RT-021 → MVP-STARTUP-NORMALIZATION supervised trial.
 - RT-019 → M6 production corpus.
 - RT-014A → M7-Takeover manual-takeover integration.
 - RT-016A → M7-AccountGuard account-guard implementation → unattended automatic gameplay only
@@ -631,9 +662,9 @@ The VM is running Mesa VirGL and no gameplay input automation or external tunnel
 becomes inactive after VirtIO-GL loads, so ADB remains the observation path until optional private
 scrcpy or equivalent passes. RT-014A remains separately blocked by development authentication;
 RT-015 is deferred VM/worker-order documentation and does not block RT-013; RT-016A needs redacted
-identity evidence for M7-AccountGuard, not technical runtime selection. RT-017 and RT-018 are
-pending downstream gates; RT-017 is ready, RT-019 and RT-021 have passed, and M5 framework
-bake-off is now the next milestone gate. Do not rerun RT-012; its complete evidence
+identity evidence for M7-AccountGuard, not technical runtime selection. RT-018 is pending;
+RT-017, RT-019, and RT-021 have passed, and MVP-STARTUP-NORMALIZATION is the next ready task.
+M5 framework bake-off remains deferred until this first vertical slice is reconciled. Do not rerun RT-012; its complete evidence
 is retained in `evidence/sessions/20260711-rt-012-observe-soak/`. Do not place credentials in this
 repository or command history. Launching `com.global.ztmslg` normally opens the authenticated Cash
 Mall screen; startup normalization must positively recognize Cash Mall, recapture immediately,
