@@ -571,7 +571,7 @@ quantity, or offer control is authorized. The retained frame passed the detector
 `0.898225`; the offline result and annotation are retained in
 `evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape/`. A subsequent live attempt sent
 exactly one authorized promotional Back tap and positively reconciled its Home/Base successor; a
-following Home→Quest proposal safely cancelled before dispatch when its source changed. No Quest,
+following Home→Quest proposal safely cancelled before dispatch when broad recognition regions treated harmless animation as a source change. Navigation now validates only stable local source anchors, the target ROI, overlays, nearby dangerous controls, and bounded successors; full-frame equality is diagnostic only. Navigation failure does not create an unresolved consequential-action block, while zero-cost consequential and spend/strategic actions retain stronger semantics. No Quest,
 Daily Quest, prerequisite, Go, Claim, or spend input occurred. Resume only after a fresh startup
 reconciliation positively recognizes a safe canonical screen and the post-reset game day. Do not
 begin `M6-DQ-TRANSITION-CORPUS`.
@@ -685,6 +685,7 @@ Daily reset model:
 
 Control choice:
 
+- Input policy has three explicit classes: NAVIGATION_ONLY, ZERO_COST_CONSEQUENTIAL, and SPEND_OR_STRATEGIC. Navigation uses fresh profile-valid frames plus local source anchors, local target recognition, overlay/dangerous-control separation, and bounded successors; full-frame hashes are logging evidence, not an authorization condition. A proven no-effect navigation input may receive one separately audited retry. Unknown navigation successors enter bounded recovery without becoming unresolved consequential actions. Claim, Alliance Help, and free Supply Depot remain journaled one-shot consequential actions; spend and strategic actions remain disabled.
 - Hierarchical state machine: runtime → screen family → concrete screen, with overlay modeled orthogonally. Better than a flat FSM, which would explode into screen×overlay states.
 - Rule scheduler: chooses eligible task; HSM does navigation/recovery; each task uses a small bounded workflow.
 - Behavior tree: useful for large reactive combat, but unnecessary and easier to overgeneralize for this scope. Keep as later option only if bounded workflows become unmanageable.

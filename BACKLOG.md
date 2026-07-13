@@ -365,7 +365,7 @@ Claim example.
   prerequisite selection, Go, objective completion, or Claim. Three resumed no-spend navigation
   taps were confirmed through M7; one Home-to-Quest postcondition was positively reconciled from
   the exact promoted Quest asset hash, and one static Quest immediate frame was cancelled before
-  dispatch before the timestamp-binding correction. Sixty-five tests pass; no unresolved or
+  dispatch before the timestamp-binding correction. Eighty-five tests pass after the local-ROI navigation regression coverage; no unresolved or
   nonterminal action remains. Resume only after the reset boundary has passed and the new game day
   is positively reconciled. Never reuse either cancelled action key.
 - Latest read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an already-running
@@ -377,7 +377,7 @@ Claim example.
   policy for the retained top-up surface; it recognizes only the isolated standard game Back arrow
   and does not authorize purchase, reward, Claim, quantity, or offer controls. The live attempt sent
   exactly one authorized Back tap and reconciled its Home/Base successor; the following Home→Quest
-  proposal cancelled before dispatch on source change with zero transport calls. No Quest, Daily
+  proposal cancelled before dispatch because the prior recognizer treated harmless Home/Base animation as a source change, with zero transport calls. The corrected navigation contract now uses stable local source/target/overlay ROIs, not full-frame equality; navigation failure is separate from unresolved consequential action. No Quest, Daily
   Quest, prerequisite, Go, Claim, or spend input occurred. Resume only after a fresh startup
   reconciliation positively recognizes a safe canonical screen and the post-reset game day.
 - Next: M6-DQ-TRANSITION-CORPUS after a successful trial.

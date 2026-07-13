@@ -10,11 +10,13 @@ Recorded: 2026-07-12, America/Chicago
   and reset time `00:08:33`; it correctly stopped before selecting a prerequisite. The committed
   escape-only policy then recognized the fresh top-up surface and dispatched exactly one Back tap
   through M7; three independent post frames recognized Home/Base and the action was reconciled to
-  confirmed. A subsequent Home→Quest proposal was cancelled before dispatch because its immediate
-  source changed; transport calls were zero and no retry occurred. No Quest, Daily Quest, Go,
+  confirmed. A subsequent Home→Quest proposal was cancelled before dispatch because broad recognition regions
+  included harmless animated content; transport calls were zero. Offline regression now proves both
+  retained frames are Home/Base with an unchanged Quest target. Navigation uses stable local ROIs,
+  and navigation failure is separate from unresolved consequential action. No Quest, Daily Quest, Go,
   Claim, prerequisite, quest-completion, spend, account, combat, or OS input occurred. Frame age
   remains capture-completion monotonic; proposal/dispatch limits remain 3.0/2.0 seconds, with two
-  audited pre-dispatch attempts. The complete offline suite is 78 tests. M6 and overall M7 remain
+  audited pre-dispatch attempts. The complete offline suite is 85 tests. M6 and overall M7 remain
   In Progress.
 - Latest resumed read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an
   already-running task-scoped post-reset worker and resumed game activity, but the fresh

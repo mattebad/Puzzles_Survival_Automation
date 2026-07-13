@@ -17,6 +17,12 @@ class ActionStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class ActionClass(str, Enum):
+    NAVIGATION_ONLY = "navigation_only"
+    ZERO_COST_CONSEQUENTIAL = "zero_cost_consequential"
+    SPEND_OR_STRATEGIC = "spend_or_strategic"
+
+
 class PolicyDecision(str, Enum):
     AUTHORIZE = "authorize"
     DENY = "deny"
@@ -80,6 +86,7 @@ class PolicyRequest:
     game_day_id: Optional[str] = None
     policy_phase: str = "proposal"
     promotional_back_count: int = 0
+    action_class: ActionClass = ActionClass.ZERO_COST_CONSEQUENTIAL
 
     def with_observation(
         self, observation: Observation, monotonic_now: float, policy_phase: str = "pre_dispatch"
@@ -130,6 +137,7 @@ class ActionIntent:
     forbidden_region_intersects_target: bool = False
     arrow_geometry: Optional[str] = None
     promotional_back_count: int = 0
+    action_class: ActionClass = ActionClass.ZERO_COST_CONSEQUENTIAL
 
 
 @dataclass(frozen=True)

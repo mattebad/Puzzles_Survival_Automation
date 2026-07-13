@@ -3,6 +3,7 @@
 from .executor import ExecutionResult, SafeActionExecutor
 from .freshness import ocr_reuse_denial, roi_hash_map, sha256_bytes
 from .models import (
+    ActionClass,
     ActionIntent,
     ActionStatus,
     Observation,
@@ -20,6 +21,7 @@ from .promotional import (
 from .store import CURRENT_SCHEMA_VERSION, SafetyStore
 
 __all__ = [
+    "ActionClass",
     "ActionIntent",
     "ActionStatus",
     "CentralPolicy",

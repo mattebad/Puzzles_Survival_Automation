@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Tuple
 
-from .models import PolicyDecision, PolicyRequest, PolicyResult, snapshot
+from .models import ActionClass, PolicyDecision, PolicyRequest, PolicyResult, snapshot
 from .promotional import (
     MAX_PROMOTIONAL_BACKS,
     PROMOTIONAL_BACK_GEOMETRY,
@@ -89,6 +89,8 @@ class CentralPolicy:
             return deny, "INVALID_PERCEPTION_BINDING", "OCR reuse must identify an earlier completed capture"
         if any(not name or not SHA256.fullmatch(digest) for name, digest in obs.critical_roi_hashes):
             return deny, "INVALID_PERCEPTION_BINDING", "critical ROI bindings are missing or malformed"
+        if req.action_class == ActionClass.SPEND_OR_STRATEGIC:
+            return deny, "SPEND_OR_STRATEGIC_DISABLED", "spend and strategic actions remain disabled"
         if req.semantic_action == SAFE_PROMOTIONAL_BACK:
             return self._decide_promotional_back(req)
         if not obs.recognized or not obs.source_state or obs.source_state == "UNKNOWN":
@@ -109,6 +111,16 @@ class CentralPolicy:
             return deny, "GO_NOT_CLAIM", "Go cannot be classified or authorized as Claim"
         if req.semantic_action == "CLAIM_DAILY_QUEST" and obs.control_class != "CLAIM":
             return deny, "CLAIM_TARGET_NOT_RECOGNIZED", "Claim requires an exact Claim control classification"
+        if req.action_class == ActionClass.NAVIGATION_ONLY:
+            if obs.os_surface or obs.hard_stop_detected or not obs.package_foreground:
+                return lock, "NAVIGATION_HARD_STOP", "foreground, OS, or account/session safety is not proven"
+            if obs.forbidden_region_intersects_target:
+                return deny, "NAVIGATION_TARGET_DANGEROUS", "the local target intersects a dangerous control"
+            if obs.consequence != "navigate_zero_cost" or not obs.expected_postcondition:
+                return deny, "NAVIGATION_CONTRACT_INVALID", "navigation requires a zero-cost bounded successor"
+            if obs.cost_type != "none" or obs.cost_amount != 0 or obs.quantity != 1:
+                return deny, "NAVIGATION_COST_DENIED", "navigation must be one zero-cost input"
+            return PolicyDecision.AUTHORIZE, "AUTHORIZED_NAVIGATION_ONLY", "local source, target, overlay, and successor guards passed"
         if not obs.consequence or obs.consequence == "unknown":
             return deny, "UNKNOWN_CONSEQUENCE", "consequence must be exact and known"
         if not obs.expected_postcondition:

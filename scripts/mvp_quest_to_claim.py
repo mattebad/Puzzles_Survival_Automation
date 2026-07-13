@@ -19,6 +19,7 @@ from typing import Any, Dict, Iterable, List, Sequence
 import cv2
 
 from safe_action_core import (
+    ActionClass,
     CentralPolicy,
     Observation,
     PolicyRequest,
@@ -32,6 +33,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from daily_quest_bootstrap import recognize_daily_quest, recognize_home, recognize_quest, valid_png_frame
+from navigation_recognition import recognize_home_quest
 from startup_normalization import classify_cash_mall, load_frame
 from promotional_escape import (
     PROMOTIONAL_BACK_TARGET_ROI,
@@ -108,6 +110,9 @@ def classify(mode: str, frame: Path, args: argparse.Namespace) -> Dict[str, Any]
         )
         return {"state": decision.state, "recognized": decision.recognized, "detail": decision.__dict__}
     if mode == "home":
+        if getattr(args, "home_reference", None):
+            local = recognize_home_quest(load_frame(frame), load_frame(args.home_reference))
+            return {"state": local.state, "recognized": local.recognized, "detail": local.as_dict()}
         return recognize_home(frame, args.cash_reference, args.policy_file)
     if mode == "quest":
         if getattr(args, "quest_reference", None):
@@ -227,15 +232,14 @@ def critical_rois(mode: str, args: argparse.Namespace) -> Dict[str, tuple[int, i
         }
     elif mode == "home":
         rois = {
-            "source_bottom_nav": (0, 1120, 800, 1280),
+            "source_nav_left_anchor": (0, 1130, 250, 1280),
             "target_quest": (250, 1130, 410, 1280),
-            "overlay_guard": (0, 180, 800, 1120),
+            "source_nav_right_anchor": (410, 1130, 800, 1280),
         }
     elif mode == "quest":
         rois = {
             "source_title": (0, 0, 800, 180),
             "target_daily_tab": (260, 80, 540, 300),
-            "overlay_guard": (0, 300, 800, 1120),
         }
     elif mode == "promo":
         rois = {
@@ -398,6 +402,7 @@ def execute(args: argparse.Namespace) -> int:
         lease_owner=args.owner, lease_valid=True,
         unresolved_action=False, duplicate_action_key=False, game_day_id=args.game_day,
         promotional_back_count=args.promotional_back_count,
+        action_class=(ActionClass.NAVIGATION_ONLY if args.consequence == "navigate_zero_cost" else ActionClass.ZERO_COST_CONSEQUENTIAL),
     )
     result = executor.execute(request)
     write_json(
@@ -416,6 +421,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--cash-reference", type=Path, required=True)
     root.add_argument("--cash-overlay-reference", type=Path)
     root.add_argument("--quest-reference", type=Path)
+    root.add_argument("--home-reference", type=Path)
     root.add_argument("--policy-file", type=Path)
     sub = root.add_subparsers(dest="command", required=True)
     obs = sub.add_parser("observe")

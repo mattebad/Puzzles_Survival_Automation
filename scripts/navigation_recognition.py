@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Fixed-profile, local-ROI recognizers for harmless navigation."""
+from __future__ import annotations
+from dataclasses import asdict, dataclass
+from typing import Dict, Tuple
+import cv2
+import numpy as np
+
+ROI = Tuple[int, int, int, int]
+HOME_NAV_ROI: ROI = (0, 1120, 800, 1280)
+H_QUEST_ROI: ROI = (250, 1130, 410, 1280)
+H_ANCHOR_ROIS: Tuple[ROI, ...] = ((0, 1130, 250, 1280), (410, 1130, 800, 1280))
+QUEST_TAB_ROI: ROI = (260, 80, 540, 300)
+QUEST_HEADER_ROI: ROI = (0, 0, 800, 180)
+DAILY_HEADER_ROI: ROI = (0, 0, 800, 450)
+
+
+@dataclass(frozen=True)
+class LocalRecognition:
+    state: str
+    recognized: bool
+    target_identity: str | None
+    target_roi: ROI | None
+    anchor_scores: Tuple[float, ...]
+    target_score: float
+    overlay_intersects: bool = False
+    dangerous_intersects: bool = False
+
+    def as_dict(self) -> Dict:
+        return asdict(self)
+
+
+def _crop(frame: np.ndarray, roi: ROI) -> np.ndarray:
+    x0, y0, x1, y1 = roi
+    return frame[y0:y1, x0:x1]
+
+
+def similarity(candidate: np.ndarray, reference: np.ndarray) -> float:
+    if candidate.shape != reference.shape or not candidate.size:
+        return 0.0
+    a, b = cv2.cvtColor(candidate, cv2.COLOR_BGR2GRAY), cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY)
+    pixel = 1.0 - float(np.mean(cv2.absdiff(a, b))) / 255.0
+    edge = 1.0 - float(np.mean(cv2.absdiff(cv2.Canny(a, 80, 180), cv2.Canny(b, 80, 180)))) / 255.0
+    return round(0.7 * pixel + 0.3 * edge, 6)
+
+
+def recognize_home_quest(frame: np.ndarray, reference: np.ndarray, overlay_intersects=False, dangerous_intersects=False) -> LocalRecognition:
+    if frame.shape != (1280, 800, 3) or reference.shape != frame.shape:
+        return LocalRecognition("UNKNOWN", False, None, None, (), 0.0)
+    anchors = tuple(similarity(_crop(frame, r), _crop(reference, r)) for r in H_ANCHOR_ROIS)
+    target = similarity(_crop(frame, H_QUEST_ROI), _crop(reference, H_QUEST_ROI))
+    ok = min(anchors) >= 0.90 and target >= 0.94 and not overlay_intersects and not dangerous_intersects
+    return LocalRecognition("HOME_BASE" if ok else "UNKNOWN", ok, "home-quest-entry" if ok else None, H_QUEST_ROI if ok else None, anchors, target, overlay_intersects, dangerous_intersects)
+
+
+def recognize_local_state(frame: np.ndarray, reference: np.ndarray, state: str, target_roi: ROI, target_id: str) -> LocalRecognition:
+    """Recognize Quest/Daily navigation from a local header anchor and target only."""
+    if frame.shape != (1280, 800, 3) or reference.shape != frame.shape:
+        return LocalRecognition("UNKNOWN", False, None, None, (), 0.0)
+    header_roi = QUEST_HEADER_ROI if state == "QUEST" else DAILY_HEADER_ROI
+    header = similarity(_crop(frame, header_roi), _crop(reference, header_roi))
+    target = similarity(_crop(frame, target_roi), _crop(reference, target_roi))
+    ok = header >= 0.88 and target >= 0.90
+    return LocalRecognition(state if ok else "UNKNOWN", ok, target_id if ok else None, target_roi if ok else None, (header,), target)
