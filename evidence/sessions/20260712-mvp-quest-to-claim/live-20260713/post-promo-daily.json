@@ -1,0 +1,36 @@
+{
+  "classification": {
+    "ambiguous_rows_abstain": true,
+    "bottom_text": "a agent rakyn\u00a2: ty! & x ax \\ #3: \u00a9 \\f re is ie wi ) _ at a at ie) quest my cay allian\u00e9e) more",
+    "claim_input_authorized": false,
+    "claim_observed_only": false,
+    "clipped_or_partial_bottom_row_present": true,
+    "clipped_rows_abstain": true,
+    "go_button_texts": [
+      "~~",
+      "",
+      "",
+      "\"yrr es",
+      "",
+      "\u201csom ebay"
+    ],
+    "header_text": "214m @214m 789k 494k bs 25.4k + 146 uw) +5 eee ania are sg urioy $5. 90.722,088 aw!) tn puzoumeo ae ss ae watch tower oe aa build \u201c~* abe pr - k it ge la ory ins aes re eras ss * coe igre ae a wee <a 2 research",
+    "incomplete_or_go_present": false,
+    "reason": "Daily Quest title/header or points/reset evidence is insufficient",
+    "recognized": false,
+    "row_controls": [],
+    "rows_text": "pit \u2018sy we ge ip atch ' idle ie : as ss a = = \u2018 ypn \u2018eg ~ wet ib gy woe ee be de a pia b= a es ps . \u2014\u2014 (ae 3 shi : ps wie at, ef es ae : - ap. pac ie <3 ie s be op sae ; oe lip ch. shooter camp e 4s. ste) ia a i a 23) ; ss hiece: ai sin oe, ee a a. hie _ <li soe =) rider cami \u2018 es a i aso 95 sy ee se 7 a a_ v\\ 5 > upgrade vehi \u201caaah 4) 2) ae r lv.23 ehicle depotito ren. | \u201csb % g \u2014\u2014\u2014 a es ea - a \u2014 rv ba, ot eh we",
+    "state": "UNKNOWN",
+    "title_positive": false
+  },
+  "metadata": {
+    "bytes": 2272850,
+    "capture_completed_monotonic": 4414900.828660725,
+    "command_started_monotonic": 4414900.459920988,
+    "decode_completed_monotonic": 4414900.862369191,
+    "height": 1280,
+    "path": "/evidence/post-promo-daily.png",
+    "sha256": "c55d60444acac9cc11fa9b2fcd2106bcc6e24649ba4c574f40be436b3d3f4e4b",
+    "width": 800
+  }
+}

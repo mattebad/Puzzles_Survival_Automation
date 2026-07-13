@@ -1,0 +1,90 @@
+{
+  "action": {
+    "action_id": "promo-back-20260713-001",
+    "action_key": "20260713:mvp:promo-back:001",
+    "consequence": "navigate_zero_cost",
+    "consequential": 0,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/promo-back-20260713-001-source.png\"]",
+    "expected_postcondition": "RECOGNIZED_NAVIGATION_STATE",
+    "final_reason": "positive_postcondition",
+    "final_status": "confirmed",
+    "game_day_id": null,
+    "input_attempt_at": 1783969431.766215,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_SAFE_PROMOTIONAL_BACK",
+    "policy_request_json": "{\"action_class\":\"navigation_only\",\"action_id\":\"promo-back-20260713-001\",\"action_key\":\"20260713:mvp:promo-back:001\",\"action_kind\":\"SAFE_PROMOTIONAL_BACK\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"mvp-task-20260713-owner\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4414863.839226171,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":\"standard_game_back_arrow\",\"black\":false,\"capture_completed_monotonic\":4414863.713154388,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":\"SAFE_PROMOTIONAL_BACK\",\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"arrow_target\",\"c0cdbb3eff35979efe907723f9abb624bd506831d641564ca0355c42c8cbb73a\"],[\"confirmation_controls\",\"785263a961bdf03628137d65a4e2b762a0f3f7b6c56b4ebba95f33265ee4f406\"],[\"offer_tabs\",\"c961dbd7a6eec782a18583c6aa418569cdaec9f5a92b6373c9e52132f9da4ec5\"],[\"premium_currency_controls\",\"63cd24bcec9e2b178ee0638a16f0f2000376ea86ef6ccd006d73a05981a15f99\"],[\"price_purchase_controls\",\"4330e62c7226b9598336117a924218c10a272b029c5ebbf6dcf94b25b828437c\"],[\"reward_tiles\",\"7103f0e162a2aabd83053ab57cc45c78ec8059c7e6168b7a78a8798f2e783cb5\"],[\"semantic_target\",\"c0cdbb3eff35979efe907723f9abb624bd506831d641564ca0355c42c8cbb73a\"]],\"evidence_refs\":[\"/evidence/promo-back-20260713-001-source.png\"],\"expected_postcondition\":\"RECOGNIZED_NAVIGATION_STATE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[[\"offer_tabs\",[40,120,760,390]],[\"reward_tiles\",[40,390,760,900]],[\"confirmation_controls\",[0,880,800,1280]],[\"price_purchase_controls\",[40,950,760,1260]],[\"premium_currency_controls\",[500,0,800,120]]],\"frame_sha256\":\"239befbf30f06c20315abb3d114da7b946018f98352be67a56fe7069e39c2a21\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":null,\"ocr_result_frame_sha256\":null,\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"promotional_unknown_nonintersecting\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":\"promotional\",\"source_state\":\"UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK\",\"target_identity\":\"standard-game-back-arrow\",\"target_isolated\":true,\"target_roi\":[45,5,130,60],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"SAFE_PROMOTIONAL_BACK\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1783969431.3772538,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":true,\"evidence_refs\":[\"/evidence/promo-back-20260713-001-post-2.png\"],\"frame_sha256\":\"b27219a7ad02e426d3ad3a16e33c8c828d851363fa740a269afc49a654628227\"}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "SAFE_PROMOTIONAL_BACK",
+    "source_frame_captured_at": 4414863.713154388,
+    "source_frame_sha256": "239befbf30f06c20315abb3d114da7b946018f98352be67a56fe7069e39c2a21",
+    "source_state": "UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK",
+    "target_identity": "standard-game-back-arrow",
+    "target_roi_json": "[45,5,130,60]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input tap 87 32\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1783969442.4196398
+  },
+  "audit": [
+    {
+      "action_id": "promo-back-20260713-001",
+      "event_id": 51,
+      "event_type": "policy_evaluated",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"decision\":\"authorize\",\"evaluated_at\":4414863.839226171,\"reason\":\"isolated verified promotional Back guards passed\",\"reason_code\":\"AUTHORIZED_SAFE_PROMOTIONAL_BACK\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"promo-back-20260713-001\",\"action_key\":\"20260713:mvp:promo-back:001\",\"action_kind\":\"SAFE_PROMOTIONAL_BACK\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"mvp-task-20260713-owner\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4414863.839226171,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":\"standard_game_back_arrow\",\"black\":false,\"capture_completed_monotonic\":4414863.713154388,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":\"SAFE_PROMOTIONAL_BACK\",\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"arrow_target\",\"c0cdbb3eff35979efe907723f9abb624bd506831d641564ca0355c42c8cbb73a\"],[\"confirmation_controls\",\"785263a961bdf03628137d65a4e2b762a0f3f7b6c56b4ebba95f33265ee4f406\"],[\"offer_tabs\",\"c961dbd7a6eec782a18583c6aa418569cdaec9f5a92b6373c9e52132f9da4ec5\"],[\"premium_currency_controls\",\"63cd24bcec9e2b178ee0638a16f0f2000376ea86ef6ccd006d73a05981a15f99\"],[\"price_purchase_controls\",\"4330e62c7226b9598336117a924218c10a272b029c5ebbf6dcf94b25b828437c\"],[\"reward_tiles\",\"7103f0e162a2aabd83053ab57cc45c78ec8059c7e6168b7a78a8798f2e783cb5\"],[\"semantic_target\",\"c0cdbb3eff35979efe907723f9abb624bd506831d641564ca0355c42c8cbb73a\"]],\"evidence_refs\":[\"/evidence/promo-back-20260713-001-source.png\"],\"expected_postcondition\":\"RECOGNIZED_NAVIGATION_STATE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[[\"offer_tabs\",[40,120,760,390]],[\"reward_tiles\",[40,390,760,900]],[\"confirmation_controls\",[0,880,800,1280]],[\"price_purchase_controls\",[40,950,760,1260]],[\"premium_currency_controls\",[500,0,800,120]]],\"frame_sha256\":\"239befbf30f06c20315abb3d114da7b946018f98352be67a56fe7069e39c2a21\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":null,\"ocr_result_frame_sha256\":null,\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"promotional_unknown_nonintersecting\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":\"promotional\",\"source_state\":\"UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK\",\"target_identity\":\"standard-game-back-arrow\",\"target_isolated\":true,\"target_roi\":[45,5,130,60],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"SAFE_PROMOTIONAL_BACK\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}",
+      "recorded_at": 1783969431.3772538,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "promo-back-20260713-001",
+      "event_id": 52,
+      "event_type": "action_transition",
+      "lifecycle_from": null,
+      "lifecycle_to": "prepared",
+      "payload_json": "{\"intent\":{\"action_class\":\"navigation_only\",\"action_id\":\"promo-back-20260713-001\",\"action_key\":\"20260713:mvp:promo-back:001\",\"action_kind\":\"SAFE_PROMOTIONAL_BACK\",\"allowed_confirmation_dialogs\":[],\"arrow_geometry\":\"standard_game_back_arrow\",\"consequence\":\"navigate_zero_cost\",\"consequential\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"evidence_refs\":[\"/evidence/promo-back-20260713-001-source.png\"],\"expected_postcondition\":\"RECOGNIZED_NAVIGATION_STATE\",\"forbidden_region_intersects_target\":false,\"free_only\":true,\"game_day_id\":null,\"maximum_cost\":0,\"promotional_back_count\":0,\"quantity\":1,\"resource_or_currency\":\"none\",\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"semantic_action\":\"SAFE_PROMOTIONAL_BACK\",\"semantic_postconditions\":[\"RECOGNIZED_NAVIGATION_STATE\"],\"semantic_preconditions\":[\"UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK\",\"promotional_unknown_nonintersecting\"],\"source_family\":\"promotional\",\"source_frame_captured_at\":4414863.713154388,\"source_frame_sha256\":\"239befbf30f06c20315abb3d114da7b946018f98352be67a56fe7069e39c2a21\",\"source_state\":\"UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK\",\"subject\":\"standard-game-back-arrow\",\"target_identity\":\"standard-game-back-arrow\",\"target_isolated\":true,\"target_roi\":[45,5,130,60],\"task_id\":\"MVP-QUEST-TO-CLAIM\"},\"policy\":{\"decision\":\"authorize\",\"evaluated_at\":4414863.839226171,\"reason\":\"isolated verified promotional Back guards passed\",\"reason_code\":\"AUTHORIZED_SAFE_PROMOTIONAL_BACK\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"promo-back-20260713-001\",\"action_key\":\"20260713:mvp:promo-back:001\",\"action_kind\":\"SAFE_PROMOTIONAL_BACK\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"mvp-task-20260713-owner\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4414863.839226171,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":\"standard_game_back_arrow\",\"black\":false,\"capture_completed_monotonic\":4414863.713154388,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":\"SAFE_PROMOTIONAL_BACK\",\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"arrow_target\",\"c0cdbb3eff35979efe907723f9abb624bd506831d641564ca0355c42c8cbb73a\"],[\"confirmation_controls\",\"785263a961bdf03628137d65a4e2b762a0f3f7b6c56b4ebba95f33265ee4f406\"],[\"offer_tabs\",\"c961dbd7a6eec782a18583c6aa418569cdaec9f5a92b6373c9e52132f9da4ec5\"],[\"premium_currency_controls\",\"63cd24bcec9e2b178ee0638a16f0f2000376ea86ef6ccd006d73a05981a15f99\"],[\"price_purchase_controls\",\"4330e62c7226b9598336117a924218c10a272b029c5ebbf6dcf94b25b828437c\"],[\"reward_tiles\",\"7103f0e162a2aabd83053ab57cc45c78ec8059c7e6168b7a78a8798f2e783cb5\"],[\"semantic_target\",\"c0cdbb3eff35979efe907723f9abb624bd506831d641564ca0355c42c8cbb73a\"]],\"evidence_refs\":[\"/evidence/promo-back-20260713-001-source.png\"],\"expected_postcondition\":\"RECOGNIZED_NAVIGATION_STATE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[[\"offer_tabs\",[40,120,760,390]],[\"reward_tiles\",[40,390,760,900]],[\"confirmation_controls\",[0,880,800,1280]],[\"price_purchase_controls\",[40,950,760,1260]],[\"premium_currency_controls\",[500,0,800,120]]],\"frame_sha256\":\"239befbf30f06c20315abb3d114da7b946018f98352be67a56fe7069e39c2a21\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":null,\"ocr_result_frame_sha256\":null,\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"promotional_unknown_nonintersecting\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":\"promotional\",\"source_state\":\"UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK\",\"target_identity\":\"standard-game-back-arrow\",\"target_isolated\":true,\"target_roi\":[45,5,130,60],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"SAFE_PROMOTIONAL_BACK\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}}",
+      "recorded_at": 1783969431.3772538,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "promo-back-20260713-001",
+      "event_id": 53,
+      "event_type": "pre_input_attempt",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"attempt\":1,\"changed\":null,\"frame_age_seconds\":0.12571682687848806,\"max_attempts\":2,\"ocr_reuse_denial\":null,\"policy\":{\"decision\":\"authorize\",\"evaluated_at\":4414864.215604608,\"reason\":\"isolated verified promotional Back guards passed\",\"reason_code\":\"AUTHORIZED_SAFE_PROMOTIONAL_BACK\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"promo-back-20260713-001\",\"action_key\":\"20260713:mvp:promo-back:001\",\"action_kind\":\"SAFE_PROMOTIONAL_BACK\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"mvp-task-20260713-owner\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4414864.215604608,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":\"standard_game_back_arrow\",\"black\":false,\"capture_completed_monotonic\":4414864.089887781,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":\"SAFE_PROMOTIONAL_BACK\",\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"arrow_target\",\"c0cdbb3eff35979efe907723f9abb624bd506831d641564ca0355c42c8cbb73a\"],[\"confirmation_controls\",\"9ea1d7604e597d7f30a0963d024ad923bae8b06cc84d6229da5e85097a3fc07b\"],[\"offer_tabs\",\"c961dbd7a6eec782a18583c6aa418569cdaec9f5a92b6373c9e52132f9da4ec5\"],[\"premium_currency_controls\",\"63cd24bcec9e2b178ee0638a16f0f2000376ea86ef6ccd006d73a05981a15f99\"],[\"price_purchase_controls\",\"01bf77474f7dd2443c2e6e4268519eb65a9cab6326b0b3074ef6d35ef6a49b2e\"],[\"reward_tiles\",\"d32e1f54e790a89e23a72a61e798c9dc0bb0fda1703fac8b6db02ca4934044ad\"],[\"semantic_target\",\"c0cdbb3eff35979efe907723f9abb624bd506831d641564ca0355c42c8cbb73a\"]],\"evidence_refs\":[\"/evidence/promo-back-20260713-001-immediate-before-1.png\"],\"expected_postcondition\":\"RECOGNIZED_NAVIGATION_STATE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[[\"offer_tabs\",[40,120,760,390]],[\"reward_tiles\",[40,390,760,900]],[\"confirmation_controls\",[0,880,800,1280]],[\"price_purchase_controls\",[40,950,760,1260]],[\"premium_currency_controls\",[500,0,800,120]]],\"frame_sha256\":\"6ef54b8729163e5c523256b57f11b9ed81f25f47acfe6c7d6bb59987934f8ecd\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":null,\"ocr_result_frame_sha256\":null,\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"promotional_unknown_nonintersecting\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":\"promotional\",\"source_state\":\"UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK\",\"target_identity\":\"standard-game-back-arrow\",\"target_isolated\":true,\"target_roi\":[45,5,130,60],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"pre_dispatch\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"SAFE_PROMOTIONAL_BACK\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}},\"transport_calls\":0}",
+      "recorded_at": 1783969431.753633,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "promo-back-20260713-001",
+      "event_id": 54,
+      "event_type": "action_transition",
+      "lifecycle_from": "prepared",
+      "lifecycle_to": "input_sent",
+      "payload_json": "{\"fields\":{\"input_attempt_at\":1783969431.766215,\"transport_result_json\":{\"detail\":\"input tap 87 32\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}},\"reason\":\"transport_reported_dispatch\"}",
+      "recorded_at": 1783969431.766215,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "promo-back-20260713-001",
+      "event_id": 55,
+      "event_type": "action_transition",
+      "lifecycle_from": "input_sent",
+      "lifecycle_to": "confirmed",
+      "payload_json": "{\"fields\":{\"reconciliation_result_json\":{\"confirmed\":true,\"evidence_refs\":[\"/evidence/promo-back-20260713-001-post-2.png\"],\"frame_sha256\":\"b27219a7ad02e426d3ad3a16e33c8c828d851363fa740a269afc49a654628227\"}},\"reason\":\"positive_postcondition\"}",
+      "recorded_at": 1783969442.4196398,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    }
+  ],
+  "result": {
+    "action_id": "promo-back-20260713-001",
+    "reason": "positive_postcondition",
+    "status": "confirmed",
+    "transport_calls": 1
+  }
+}

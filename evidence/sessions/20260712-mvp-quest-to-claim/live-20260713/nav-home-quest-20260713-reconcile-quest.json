@@ -1,0 +1,26 @@
+{
+  "classification": {
+    "daily_quest_tab_roi": [
+      260,
+      80,
+      540,
+      300
+    ],
+    "daily_quest_target_recognized": false,
+    "reason": "Quest screen or Daily Quest tab evidence is insufficient",
+    "recognized": false,
+    "state": "UNKNOWN",
+    "tabs_text": "recom'd upgrade vehicle depot to lv.23 ie, 0/1",
+    "title_text": "2a ee ; ; alliance rornm'd"
+  },
+  "metadata": {
+    "bytes": 449378,
+    "capture_completed_monotonic": 4415002.102443691,
+    "command_started_monotonic": 4415001.954394104,
+    "decode_completed_monotonic": 4415002.120999228,
+    "height": 1280,
+    "path": "/evidence/nav-home-quest-20260713-reconcile-quest.png",
+    "sha256": "9ea1a70cf8ac5ad9f288b4d935fd7bd5341da0a0fe587cca048433d5259ed1aa",
+    "width": 800
+  }
+}

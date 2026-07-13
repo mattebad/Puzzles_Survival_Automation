@@ -1,0 +1,36 @@
+{
+  "classification": {
+    "ambiguous_rows_abstain": true,
+    "bottom_text": "tuu cat uiry duy us fot ltuprupy patkr.",
+    "claim_input_authorized": false,
+    "claim_observed_only": false,
+    "clipped_or_partial_bottom_row_present": true,
+    "clipped_rows_abstain": true,
+    "go_button_texts": [
+      "",
+      "",
+      "iid",
+      "",
+      "",
+      "\"| = lentil"
+    ],
+    "header_text": "2 i y \\ - max effect\u00bb. sa ; sy, ar | a \u2018build speed pioo% fo \"free speedup time +80imins",
+    "incomplete_or_go_present": false,
+    "reason": "Daily Quest title/header or points/reset evidence is insufficient",
+    "recognized": false,
+    "row_controls": [],
+    "rows_text": "=, se aa - free-speedup time +80, es ds ) \u2014 \u2014\u2014\u2014 . | ee sy i) i. ss iwi | stfop=up \u201ctst-lop,up | tsg pgud il salle (xora \u2014\u2014 (effi is o oo} y 10,000 ale) 10 y 10k 10k . on cy ve ss na@ = ais micas sesame aa se ee y st ae day 3 le hid ps, ap \u2018a you can only buy one 1st top-up pack.",
+    "state": "UNKNOWN",
+    "title_positive": false
+  },
+  "metadata": {
+    "bytes": 1028000,
+    "capture_completed_monotonic": 4414828.90051531,
+    "command_started_monotonic": 4414828.657202057,
+    "decode_completed_monotonic": 4414828.927540894,
+    "height": 1280,
+    "path": "/evidence/reconcile-daily.png",
+    "sha256": "b009af639dd9f3b64fdac449a2bf4c0a8984e59791efcc0e85abd93ab9d731cb",
+    "width": 800
+  }
+}

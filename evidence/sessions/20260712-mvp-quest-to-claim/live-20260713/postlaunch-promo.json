@@ -1,0 +1,97 @@
+{
+  "classification": {
+    "detail": {
+      "arrow_component": null,
+      "arrow_contrast": 0.0,
+      "arrow_geometry": "unknown",
+      "arrow_similarity": 0.707632,
+      "consequence": "navigate_zero_cost",
+      "control_class": null,
+      "cost_amount": 0,
+      "cost_type": "none",
+      "denial_rules": [
+        "ARROW_SHAPE_MISMATCH",
+        "ARROW_MISSING_OR_GEOMETRY_MISMATCH",
+        "ARROW_CONTRAST_INSUFFICIENT"
+      ],
+      "expected_postcondition": "recognized_navigation_state",
+      "forbidden_region_intersects_target": false,
+      "forbidden_regions": [
+        [
+          "offer_tabs",
+          [
+            40,
+            120,
+            760,
+            390
+          ]
+        ],
+        [
+          "reward_tiles",
+          [
+            40,
+            390,
+            760,
+            900
+          ]
+        ],
+        [
+          "confirmation_controls",
+          [
+            0,
+            880,
+            800,
+            1280
+          ]
+        ],
+        [
+          "price_purchase_controls",
+          [
+            40,
+            950,
+            760,
+            1260
+          ]
+        ],
+        [
+          "premium_currency_controls",
+          [
+            500,
+            0,
+            800,
+            120
+          ]
+        ]
+      ],
+      "hard_stop_detected": false,
+      "os_surface": false,
+      "overlay_state": "unknown",
+      "package_foreground": true,
+      "quantity": 1,
+      "reason": "ARROW_SHAPE_MISMATCH;ARROW_MISSING_OR_GEOMETRY_MISMATCH;ARROW_CONTRAST_INSUFFICIENT",
+      "recognized": false,
+      "source_family": "promotional",
+      "state": "UNKNOWN",
+      "target_identity": null,
+      "target_isolated": true,
+      "target_roi": [
+        45,
+        5,
+        130,
+        60
+      ]
+    },
+    "recognized": false,
+    "state": "UNKNOWN"
+  },
+  "metadata": {
+    "bytes": 590794,
+    "capture_completed_monotonic": 4363344.17315543,
+    "command_started_monotonic": 4363343.871723838,
+    "decode_completed_monotonic": 4363344.198462123,
+    "height": 1280,
+    "path": "/evidence/postlaunch-observe.png",
+    "sha256": "b68a5bb3bdb1fe82f8e996759dd645746fcccc2b6de1f87403cf792ae3d3ee51",
+    "width": 800
+  }
+}

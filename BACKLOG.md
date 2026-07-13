@@ -363,15 +363,20 @@ Claim example.
 - Rollback: stop at the first unknown or unresolved outcome, preserve the action journal and all
   frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
   fallback is allowed.
-- Status: Blocked (2026-07-12; reset-boundary guard).
-- Blocker: the freshness correction passed and the resumed run safely reached a recognized Daily
-  Quest screen, but its reset countdown was `00:08:33`. The run stopped before scrolling,
-  prerequisite selection, Go, objective completion, or Claim. Three resumed no-spend navigation
-  taps were confirmed through M7; one Home-to-Quest postcondition was positively reconciled from
-  the exact promoted Quest asset hash, and one static Quest immediate frame was cancelled before
-  dispatch before the timestamp-binding correction. Eighty-five tests pass after the local-ROI navigation regression coverage; no unresolved or
-  nonterminal action remains. Resume only after the reset boundary has passed and the new game day
-  is positively reconciled. Never reuse either cancelled action key.
+- Status: Blocked (2026-07-13; no supported zero-cost objective and reset evidence unreadable).
+- Blocker: the typed navigation continuation reached Daily Quest and inspected two bounded
+  final-runtime list views. The upper view contained Vehicle Depot upgrade, Ultimate Challenge,
+  Hunt Zombie, Train Fighter, and Own Lv.211 Hero objectives; the lower view additionally showed
+  Gathered Food and Attack a player's Headquarters and win. These are strategic, resource,
+  stamina/march, gathering, or combat actions and are outside this MVP. No ordinary Claim row,
+  Alliance Help objective, or explicitly free Supply Depot objective was observed. The local ROI
+  Daily recognizer passed, but the current frame did not expose readable `Daily Quest Pts` or
+  `Reset Time` evidence, so no current `game_day_id` was assigned. No Go or Claim input was sent.
+  The schema-v1 live journal has only terminal actions, zero unresolved/nonterminal records, and a
+  released lease. The full combined offline suite remains 96 passing tests; RT-019 and all six M6
+  assets pass. Resume only after a fresh Daily observation positively establishes reset/game-day
+  identity and a supported zero-cost objective or existing ordinary Claim row. Never reuse prior
+  action keys.
 - Latest read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an already-running
   task-scoped worker and resumed game activity, but the fresh `800x1280` frame was a purchase/top-up
   surface. The Daily Quest recognizer abstained and reset/game-day identity could not be assigned.
@@ -384,7 +389,15 @@ Claim example.
   proposal cancelled before dispatch because the prior recognizer treated harmless Home/Base animation as a source change, with zero transport calls. The corrected navigation contract now uses stable local source/target/overlay ROIs, not full-frame equality; navigation failure is separate from unresolved consequential action. No Quest, Daily
   Quest, prerequisite, Go, Claim, or spend input occurred. Resume only after a fresh startup
   reconciliation positively recognizes a safe canonical screen and the post-reset game day.
-- Next: M6-DQ-TRANSITION-CORPUS after a successful trial.
+- Latest live continuation on 2026-07-13 reached Daily Quest through one verified promotional Back,
+  Home→Quest, and Quest→Daily navigation input each, then sent two journaled navigation-only list
+  swipes. Home→Quest and Quest→Daily were positively reconciled from fresh local ROI successor
+  evidence without retry. The task-scoped worker was removed after evidence preservation; the game
+  was force-stopped; no task worker, ADB server, tunnel, or public listener remained; the VM stayed
+  running and RT-017 remained intact. Details are in
+  `evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md`.
+- Next: Resume `MVP-QUEST-TO-CLAIM` after reset/game-day and supported-objective evidence;
+  `M6-DQ-TRANSITION-CORPUS` remains downstream.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded

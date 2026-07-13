@@ -1,0 +1,26 @@
+{
+  "classification": {
+    "daily_quest_tab_roi": [
+      260,
+      80,
+      540,
+      300
+    ],
+    "daily_quest_target_recognized": false,
+    "reason": "Quest screen or Daily Quest tab evidence is insufficient",
+    "recognized": false,
+    "state": "UNKNOWN",
+    "tabs_text": "# ie. | as zs ai, 7 pies lr eee",
+    "title_text": "bs214m j ; b26 47 2.14m \u00a9 789k \u00a9 494k bs 25.4k + @ \\ae $5, 90,722,088 er rh, ; q yt ss 2 no/=4 fa"
+  },
+  "metadata": {
+    "bytes": 2272335,
+    "capture_completed_monotonic": 4414899.309498312,
+    "command_started_monotonic": 4414898.948994656,
+    "decode_completed_monotonic": 4414899.343176889,
+    "height": 1280,
+    "path": "/evidence/post-promo-quest.png",
+    "sha256": "90504a66cc007302151715e055de616138dad471e4523f152f6a42eb619540df",
+    "width": 800
+  }
+}

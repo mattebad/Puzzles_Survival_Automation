@@ -1,0 +1,29 @@
+{
+  "classification": {
+    "detail": {
+      "anchor_scores": [
+        0.808986,
+        0.838638
+      ],
+      "dangerous_intersects": false,
+      "overlay_intersects": false,
+      "recognized": false,
+      "state": "UNKNOWN",
+      "target_identity": null,
+      "target_roi": null,
+      "target_score": 0.836373
+    },
+    "recognized": false,
+    "state": "UNKNOWN"
+  },
+  "metadata": {
+    "bytes": 449378,
+    "capture_completed_monotonic": 4415003.20064842,
+    "command_started_monotonic": 4415003.06648735,
+    "decode_completed_monotonic": 4415003.219125707,
+    "height": 1280,
+    "path": "/evidence/nav-home-quest-20260713-reconcile-home.png",
+    "sha256": "9ea1a70cf8ac5ad9f288b4d935fd7bd5341da0a0fe587cca048433d5259ed1aa",
+    "width": 800
+  }
+}

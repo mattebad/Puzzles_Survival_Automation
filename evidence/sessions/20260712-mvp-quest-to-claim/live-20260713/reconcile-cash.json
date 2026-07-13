@@ -1,0 +1,44 @@
+{
+  "classification": {
+    "detail": {
+      "denial_rules": [
+        "never select purchase, offer, premium-currency, or confirmation controls",
+        "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+        "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+      ],
+      "features": {
+        "back_arrow": 0.844853,
+        "mall_context": 0.735463,
+        "mall_header": 0.765342,
+        "premium_header": 0.828697,
+        "purchase_context": 0.849297,
+        "title_region": 0.693768
+      },
+      "fresh_frame_dimensions": true,
+      "known_informational_overlay": false,
+      "no_unknown_overlay": false,
+      "reason": "possible unknown overlay: source structure and center context disagree",
+      "recognized": false,
+      "state": "UNKNOWN",
+      "target_roi": [
+        35,
+        0,
+        180,
+        65
+      ],
+      "unknown_overlay": true
+    },
+    "recognized": false,
+    "state": "UNKNOWN"
+  },
+  "metadata": {
+    "bytes": 1027912,
+    "capture_completed_monotonic": 4414826.807189178,
+    "command_started_monotonic": 4414826.556103075,
+    "decode_completed_monotonic": 4414826.833978347,
+    "height": 1280,
+    "path": "/evidence/reconcile-cash.png",
+    "sha256": "a25735b4e3e2ad6728b2f6d2a3723a435711bb1b14095faee9632fac2da59550",
+    "width": 800
+  }
+}

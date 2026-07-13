@@ -1,23 +1,43 @@
 # Current runtime-proof handoff
 
-Recorded: 2026-07-12, America/Chicago
+Recorded: 2026-07-13, America/Chicago
+
+## 2026-07-13 live continuation
+
+- The focused typed-task refactor is committed in `e24b304`, with the local Quest successor
+  correction in `1c87219`; the fixed-profile navigation contract remains local-ROI based and does
+  not require whole-frame equality.
+- The fresh continuation started from the approved private unprivileged worker. One verified
+  promotional Back reached Home/Base, Home→Quest and Quest→Daily each dispatched once and were
+  confirmed from fresh local-ROI successor evidence without retry, and two bounded Daily Quest
+  list swipes were dispatched through the safe-action executor.
+- Daily Quest was positively recognized, but current points/reset text was not readable enough to
+  assign a current `game_day_id`. The visible objectives were Vehicle Depot upgrade, Ultimate
+  Challenge, Hunt Zombie, Train Fighter, Own Lv.211 Hero, Gathered Food, and Attack a player's
+  Headquarters and win. None is a supported zero-cost R1 handler, and no ordinary Claim row,
+  Alliance Help objective, or explicitly free Supply Depot objective was present. No Go or Claim
+  input occurred. MVP remains Blocked.
+- The live schema-v1 journal is retained at
+  `evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/actions.sqlite3`; all actions are
+  terminal, with zero unresolved/nonterminal records and a released lease. The task worker and
+  its ADB server were removed after evidence preservation; the game was force-stopped; no task
+  listener or tunnel remains; the VM is running and RT-017 is intact.
+- Full dependency-complete offline validation is 96 passing tests. RT-019 and all six promoted M6
+  assets remain passing. Details are in
+  `evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md`.
 
 ## Current milestone and task state
 
 - Milestones: M6 Production corpus — In Progress; M7 Deterministic service core — In Progress.
-- Current task: MVP-QUEST-TO-CLAIM — Blocked after the reset-boundary and promotional-surface
-  recovery stops. The earlier Daily Quest observation had six Go controls, no Claim, zero points,
-  and reset time `00:08:33`; it correctly stopped before selecting a prerequisite. The committed
-  escape-only policy then recognized the fresh top-up surface and dispatched exactly one Back tap
-  through M7; three independent post frames recognized Home/Base and the action was reconciled to
-  confirmed. A subsequent Home→Quest proposal was cancelled before dispatch because broad recognition regions
-  included harmless animated content; transport calls were zero. Offline regression now proves both
-  retained frames are Home/Base with an unchanged Quest target. Navigation uses stable local ROIs,
-  and navigation failure is separate from unresolved consequential action. No Quest, Daily Quest, Go,
-  Claim, prerequisite, quest-completion, spend, account, combat, or OS input occurred. Frame age
-  remains capture-completion monotonic; proposal/dispatch limits remain 3.0/2.0 seconds, with two
-  audited pre-dispatch attempts. The complete offline suite is 85 tests. M6 and overall M7 remain
-  In Progress.
+- Current task: MVP-QUEST-TO-CLAIM — Blocked after the 2026-07-13 continuation reached Daily
+  Quest but found no ordinary Claim row, no Alliance Help or explicitly free Supply Depot candidate,
+  and no readable current points/reset evidence for assigning `game_day_id`. The visible objectives
+  were unsupported strategic, resource, gathering, stamina/march, or combat actions. No Go, Claim,
+  prerequisite, quest-completion, spend, account, combat, or OS input occurred. The typed navigation
+  refactor uses stable local ROIs and separates navigation uncertainty from consequential-action
+  uncertainty. Frame age remains capture-completion monotonic; proposal/dispatch limits remain
+  3.0/2.0 seconds, with two audited pre-dispatch attempts. The complete offline suite is 96 tests.
+  M6 and overall M7 remain In Progress.
 - Latest resumed read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an
   already-running task-scoped post-reset worker and resumed game activity, but the fresh
   `800x1280` frame was a purchase/top-up surface. Daily Quest recognition abstained, so the new
@@ -51,8 +71,9 @@ Recorded: 2026-07-12, America/Chicago
 ## Repository state
 
 - Branch: `main`.
-- Latest completed implementation boundary: `d6fd1c7`
-  (`fix(startup): accept bounded promotional successors`), following `5cec210`
+- Latest completed implementation boundary: `1c87219`
+  (`fix(tasks): use local Quest successor anchors`), following `e24b304` and `8483981`.
+  The previous startup boundary was `d6fd1c7` (`fix(startup): accept bounded promotional successors`), following `5cec210`
   (`fix(startup): allow bounded verified promotional back`). The MVP closure remains task-scoped; the
   pre-existing unstaged entries remain untouched and no unrelated path is staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).

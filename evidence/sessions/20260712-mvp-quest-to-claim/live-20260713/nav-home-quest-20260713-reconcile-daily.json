@@ -1,0 +1,36 @@
+{
+  "classification": {
+    "ambiguous_rows_abstain": true,
+    "bottom_text": "growth > own lv.211 hero x3 ee (= 2/3",
+    "claim_input_authorized": false,
+    "claim_observed_only": false,
+    "clipped_or_partial_bottom_row_present": true,
+    "clipped_rows_abstain": true,
+    "go_button_texts": [
+      "age 110 :",
+      "a",
+      "",
+      "+ = ~<",
+      "00. |",
+      ">"
+    ],
+    "header_text": "recom'd upgrade vehicle depot to lv.23 a% 0/1 wer f931 2261 4102 211k - battle >",
+    "incomplete_or_go_present": false,
+    "reason": "Daily Quest title/header or points/reset evidence is insufficient",
+    "recognized": false,
+    "row_controls": [],
+    "rows_text": "battle > clear ultimate challenge stage 110 ie? 0/1 hunting > hunt lv.5 zombie x3 ie? a \\ vy 110 6.23k46.30k military > train fighter ie. (ent 559946 /1, 000,000 me. 545 102k 423.2% 16.7% co",
+    "state": "UNKNOWN",
+    "title_positive": false
+  },
+  "metadata": {
+    "bytes": 449378,
+    "capture_completed_monotonic": 4415003.991438493,
+    "command_started_monotonic": 4415003.856498576,
+    "decode_completed_monotonic": 4415004.009919497,
+    "height": 1280,
+    "path": "/evidence/nav-home-quest-20260713-reconcile-daily.png",
+    "sha256": "9ea1a70cf8ac5ad9f288b4d935fd7bd5341da0a0fe587cca048433d5259ed1aa",
+    "width": 800
+  }
+}

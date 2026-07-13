@@ -1,0 +1,29 @@
+{
+  "classification": {
+    "detail": {
+      "anchor_scores": [
+        0.795117,
+        0.806602
+      ],
+      "dangerous_intersects": false,
+      "overlay_intersects": false,
+      "recognized": false,
+      "state": "UNKNOWN",
+      "target_identity": null,
+      "target_roi": null,
+      "target_score": 0.759013
+    },
+    "recognized": false,
+    "state": "UNKNOWN"
+  },
+  "metadata": {
+    "bytes": 1027785,
+    "capture_completed_monotonic": 4414776.814735507,
+    "command_started_monotonic": 4414776.566113371,
+    "decode_completed_monotonic": 4414776.84073355,
+    "height": 1280,
+    "path": "/evidence/live-reconcile-002.png",
+    "sha256": "45b65bec9136855d7a5aea23e3573fb03e54e1cdbe2ce7e0b1c328b872f863f9",
+    "width": 800
+  }
+}

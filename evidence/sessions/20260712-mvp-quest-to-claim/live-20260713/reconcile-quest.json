@@ -1,0 +1,26 @@
+{
+  "classification": {
+    "daily_quest_tab_roi": [
+      260,
+      80,
+      540,
+      300
+    ],
+    "daily_quest_target_recognized": false,
+    "reason": "Quest screen or Daily Quest tab evidence is insufficient",
+    "recognized": false,
+    "state": "UNKNOWN",
+    "tabs_text": "i",
+    "title_text": ""
+  },
+  "metadata": {
+    "bytes": 1027592,
+    "capture_completed_monotonic": 4414827.727595907,
+    "command_started_monotonic": 4414827.465499208,
+    "decode_completed_monotonic": 4414827.754561728,
+    "height": 1280,
+    "path": "/evidence/reconcile-quest.png",
+    "sha256": "07309877006c277b725b0996d5e35530df1e1815fc829d38b1dce835bc8a0a50",
+    "width": 800
+  }
+}
