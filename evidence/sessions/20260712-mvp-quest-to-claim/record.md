@@ -208,3 +208,18 @@ prepared/input_sent/unresolved action, or duplicate key. Full details are in
 This is a new justified blocker. Resume only after a fresh startup observation positively
 recognizes a safe canonical screen and the new game day/reset state; do not begin
 `M6-DQ-TRANSITION-CORPUS`.
+## Promotional escape and resumed MVP attempt — 2026-07-12
+
+After the narrow escape-only implementation commit `5cec210`, a fresh post-launch frame again
+matched the retained first-top-up promotional surface. The exact standard game Back arrow ROI was
+`[45,5,130,60]`; M7 authorized and dispatched exactly one tap at `(87,32)`. The first bounded
+post-observation was recorded as `unexpected_successor`/unresolved. No retry occurred. Three retained
+post frames independently recognized Home/Base, and after adapter correction commit `d6fd1c7` the
+existing action was reconciled to confirmed from positive Home/Base evidence.
+
+A following Home→Quest proposal was cancelled at immediate-before revalidation because the source
+changed from recognized Home/Base; it made zero transport calls and was not retried. The run stopped.
+No Quest, Daily Quest, Go, Claim, prerequisite, quest-completion, spend, combat, account, or OS input
+occurred. Final combined journal state is terminal-only with no unresolved action and a released
+lease. The game was force-stopped; task worker/image/ADB were removed; no tunnel or public listener
+remained; the VM and RT-017 backup were unchanged.

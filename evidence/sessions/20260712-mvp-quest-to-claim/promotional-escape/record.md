@@ -41,5 +41,20 @@ successor or unresolved result stops the sequence.
 - Offline classifier output: `promo-classification.json`.
 - Review annotation: `promo-annotated.png`.
 
-This analysis does not pass `MVP-QUEST-TO-CLAIM`, does not create a Claim-positive asset, and does
-not authorize live input by itself.
+This offline analysis did not pass `MVP-QUEST-TO-CLAIM` and did not create a Claim-positive asset.
+
+## Live bounded attempt after implementation commit
+
+After commit `5cec210`, the fresh post-launch frame independently matched this detector. One
+`SAFE_PROMOTIONAL_BACK` tap at `(87, 32)` was authorized and dispatched through M7. The initial
+post-observation result was `unexpected_successor`, so the action was durably marked unresolved and
+no retry was sent. Three retained post frames independently recognized Home/Base, a bounded safe
+successor. After commit `d6fd1c7` corrected the adapter to accept the bounded successor set, the
+existing action was reconciled to confirmed from those positive frames and the lease was released.
+This was reconciliation, not another input.
+
+A subsequent Home→Quest proposal was cancelled before dispatch because its immediate-before frame
+changed to an unknown/non-Home surface; transport calls were zero and no retry was sent. The game
+was force-stopped afterward. No Quest, Daily Quest, Go, Claim, prerequisite, spend, combat, account,
+or OS input occurred. The final combined journal is retained at the task `actions.sqlite3`, and
+`live-actions.sqlite3` preserves the fetched cleanup copy.

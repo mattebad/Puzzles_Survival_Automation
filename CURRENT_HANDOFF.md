@@ -5,19 +5,17 @@ Recorded: 2026-07-12, America/Chicago
 ## Current milestone and task state
 
 - Milestones: M6 Production corpus — In Progress; M7 Deterministic service core — In Progress.
-- Current task: MVP-QUEST-TO-CLAIM — Blocked at the Daily Quest reset-boundary guard. The offline
-  freshness correction passed, and the resumed run safely confirmed Cash Mall→Home,
-  Home→Quest (including positive exact-asset reconciliation), and Quest→Daily navigation. The
-  current Daily Quest screen had six Go controls, no Claim, zero points, and reset time `00:08:33`,
-  so the run stopped before scrolling or selecting a prerequisite. One pixel-identical static
-  immediate frame was cancelled before dispatch and led to a capture+OCR timestamp-binding fix;
-  65 tests pass. Frame age starts at successful monotonic capture completion;
-  proposal/dispatch limits are 3.0/2.0 seconds, exact critical-ROI reuse is fail-closed, and two
-  pre-dispatch attempts are audited within one prepared action. No prerequisite, Go,
-  quest-completion, spend, or Claim input occurred. M6 and overall M7 remain In Progress. The
-  retained purchase/top-up surface now has an offline escape-only classifier: only an independently
-  verified isolated game Back arrow can authorize `SAFE_PROMOTIONAL_BACK`, with explicit forbidden
-  regions, bounded successors, and a three-action limit. The complete offline suite is 78 tests.
+- Current task: MVP-QUEST-TO-CLAIM — Blocked after the reset-boundary and promotional-surface
+  recovery stops. The earlier Daily Quest observation had six Go controls, no Claim, zero points,
+  and reset time `00:08:33`; it correctly stopped before selecting a prerequisite. The committed
+  escape-only policy then recognized the fresh top-up surface and dispatched exactly one Back tap
+  through M7; three independent post frames recognized Home/Base and the action was reconciled to
+  confirmed. A subsequent Home→Quest proposal was cancelled before dispatch because its immediate
+  source changed; transport calls were zero and no retry occurred. No Quest, Daily Quest, Go,
+  Claim, prerequisite, quest-completion, spend, account, combat, or OS input occurred. Frame age
+  remains capture-completion monotonic; proposal/dispatch limits remain 3.0/2.0 seconds, with two
+  audited pre-dispatch attempts. The complete offline suite is 78 tests. M6 and overall M7 remain
+  In Progress.
 - Latest resumed read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an
   already-running task-scoped post-reset worker and resumed game activity, but the fresh
   `800x1280` frame was a purchase/top-up surface. Daily Quest recognition abstained, so the new
@@ -39,9 +37,10 @@ Recorded: 2026-07-12, America/Chicago
 - Task completed in this repository-only M7 boundary: M7-SAFE-ACTION-CORE passed with no Unraid,
   VM, ADB, game, container, tunnel, or runtime-network access. Synthetic executor-success inputs
   were test-only and no production Claim-positive asset was created.
-- Promotional escape review evidence: `evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape/`;
-  the retained top-up frame passed the isolated arrow detector offline at similarity `0.898225`. No
-  live input or runtime access occurred during this implementation boundary.
+- Promotional escape review and live blocker evidence: `evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape/`;
+  the retained top-up frame passed the isolated arrow detector offline at similarity `0.898225`.
+  The later bounded run sent one verified Back tap, reconciled Home/Base, then cancelled Home→Quest
+  before dispatch on source change. No Claim-positive asset was created.
 - Current MVP attempt evidence: `evidence/sessions/20260712-mvp-quest-to-claim/`. The schema-v1 task database
   has no nonterminal/unresolved action and its lease is released. The game is force-stopped, task
   worker/ADB/image removed, VM running, and RT-017 intact. The pre-existing loopback 5037 daemon
@@ -50,8 +49,9 @@ Recorded: 2026-07-12, America/Chicago
 ## Repository state
 
 - Branch: `main`.
-- Latest completed implementation boundary: `5bf6e54`
-  (`fix(M7): calibrate pre-dispatch freshness`). The MVP closure remains task-scoped; the
+- Latest completed implementation boundary: `d6fd1c7`
+  (`fix(startup): accept bounded promotional successors`), following `5cec210`
+  (`fix(startup): allow bounded verified promotional back`). The MVP closure remains task-scoped; the
   pre-existing unstaged entries remain untouched and no unrelated path is staged.
 - Prior relevant policy/dependency commit: `7c932d2` (`docs(policy): remove risk acknowledgment gate`).
 - The completed guarded keyguard branch, live-validation evidence, final Home/Base candidate, and
@@ -136,9 +136,11 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Blocker and required user action
 
-1. MVP-QUEST-TO-CLAIM remains blocked by the reset/game-day reconciliation and the latest unknown
-   purchase/top-up surface. Resume only after fresh startup observation positively recognizes a
-   safe canonical screen and the post-reset game day. No in-game user action is required. RT-016A
+1. MVP-QUEST-TO-CLAIM remains blocked by the reset/game-day reconciliation and the cancelled
+   Home→Quest proposal whose source changed during immediate-before validation. The promotional
+   Back was already reconciled to Home/Base with no unresolved action. Resume only after fresh
+   startup observation positively recognizes a safe canonical screen and the post-reset game day;
+   do not retry the cancelled action key. No in-game user action is required. RT-016A
    remains a later manual-only account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,

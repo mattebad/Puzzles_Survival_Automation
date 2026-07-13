@@ -375,9 +375,11 @@ Claim example.
   evidence retained, the game force-stopped, and only those task-scoped resources were removed; no
   task listener/tunnel remained and RT-017 stayed intact. Offline review added a narrow escape-only
   policy for the retained top-up surface; it recognizes only the isolated standard game Back arrow
-  and does not authorize purchase, reward, Claim, quantity, or offer controls. No live input occurred
-  during that review. Resume only after a fresh startup reconciliation positively recognizes a safe
-  canonical screen and the post-reset game day.
+  and does not authorize purchase, reward, Claim, quantity, or offer controls. The live attempt sent
+  exactly one authorized Back tap and reconciled its Home/Base successor; the following Home→Quest
+  proposal cancelled before dispatch on source change with zero transport calls. No Quest, Daily
+  Quest, prerequisite, Go, Claim, or spend input occurred. Resume only after a fresh startup
+  reconciliation positively recognizes a safe canonical screen and the post-reset game day.
 - Next: M6-DQ-TRANSITION-CORPUS after a successful trial.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,

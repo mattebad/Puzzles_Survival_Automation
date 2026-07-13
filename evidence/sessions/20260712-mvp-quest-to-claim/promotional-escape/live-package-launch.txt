@@ -1,0 +1,10 @@
+  bash arg: -p
+  bash arg: com.global.ztmslg
+  bash arg: 1
+args: [-p, com.global.ztmslg, 1]
+ arg: "-p"
+ arg: "com.global.ztmslg"
+ arg: "1"
+data="com.global.ztmslg"
+Events injected: 1
+## Network stats: elapsed time=3ms (0ms mobile, 0ms wifi, 3ms not connected)

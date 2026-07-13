@@ -569,9 +569,12 @@ escape-only classifier for this retained purchase/top-up surface: the standard i
 arrow may be proposed without semantically classifying the offer, but no purchase, reward, Claim,
 quantity, or offer control is authorized. The retained frame passed the detector at similarity
 `0.898225`; the offline result and annotation are retained in
-`evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape/`. No live input was sent. Resume
-only after a fresh startup reconciliation positively recognizes a safe canonical screen and the
-post-reset game day. Do not begin `M6-DQ-TRANSITION-CORPUS`.
+`evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape/`. A subsequent live attempt sent
+exactly one authorized promotional Back tap and positively reconciled its Home/Base successor; a
+following Home→Quest proposal safely cancelled before dispatch when its source changed. No Quest,
+Daily Quest, prerequisite, Go, Claim, or spend input occurred. Resume only after a fresh startup
+reconciliation positively recognizes a safe canonical screen and the post-reset game day. Do not
+begin `M6-DQ-TRANSITION-CORPUS`.
 
 `M6-DQ-TRANSITION-CORPUS` depends on a successful supervised trial and promotes its completed-
 unclaimed, Claim-versus-Go, prepared/pre-input, reward, claimed-row, points-before/after,

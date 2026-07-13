@@ -1,0 +1,34 @@
+{
+  "daily_quest_reached": false,
+  "home_to_quest_after_promo": {
+    "action_id": "nav-home-quest-promo-001",
+    "immediate_before": "live-nav-home-quest-promo-001-immediate-before-1.png",
+    "reason": "SOURCE_STATE_CHANGED",
+    "source": "live-nav-home-quest-promo-001-source.png",
+    "status": "cancelled",
+    "transport_calls": 0
+  },
+  "implementation_commits": [
+    "5cec210",
+    "d6fd1c7"
+  ],
+  "mvp_status": "BLOCKED",
+  "promotional_action": {
+    "action_id": "promo-back-20260712-001",
+    "action_key": "startup:promo-back:1",
+    "initial_result": "unresolved:unexpected_successor",
+    "input": "tap 87 32",
+    "status": "confirmed_after_positive_reconciliation",
+    "successor": "HOME_BASE",
+    "successor_evidence": [
+      "live-promo-back-20260712-001-post-1.png",
+      "live-promo-back-20260712-001-post-2.png",
+      "live-promo-back-20260712-001-post-3.png"
+    ],
+    "transport_calls": 1
+  },
+  "promotional_pages_encountered": 1,
+  "quest_or_claim_input_sent": false,
+  "resources_spent": false,
+  "unresolved_actions": 0
+}
