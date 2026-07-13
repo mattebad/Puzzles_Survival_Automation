@@ -33,6 +33,11 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from daily_quest_bootstrap import recognize_daily_quest, recognize_home, recognize_quest, valid_png_frame
 from startup_normalization import classify_cash_mall, load_frame
+from promotional_escape import (
+    PROMOTIONAL_BACK_TARGET_ROI,
+    PROMOTIONAL_FORBIDDEN_REGIONS,
+    classify_promotional_back,
+)
 
 PROFILE_ID = "pns-blissos-poc-virgl-800x1280-v1"
 TASK_ID = "MVP-QUEST-TO-CLAIM"
@@ -116,6 +121,9 @@ def classify(mode: str, frame: Path, args: argparse.Namespace) -> Dict[str, Any]
         return recognize_quest(frame)
     if mode == "daily":
         return recognize_daily_quest(frame)
+    if mode == "promo":
+        decision = classify_promotional_back(load_frame(frame), load_frame(args.cash_reference))
+        return {"state": decision.state, "recognized": decision.recognized, "detail": decision.as_dict()}
     raise ValueError("unsupported classifier: " + mode)
 
 
@@ -127,13 +135,42 @@ def observation_for(
     prior: Observation | None = None,
 ) -> Observation:
     metadata = valid_png_frame(frame)
-    roi = tuple(args.roi) if args.roi else None
     bindings = critical_roi_hashes(mode, frame, args)
     reuse = bool(prior and dict(prior.critical_roi_hashes) == dict(bindings))
-    if reuse:
-        result = {"state": prior.source_state, "recognized": prior.recognized}
+    if reuse and prior is not None:
+        result = {
+            "state": prior.source_state,
+            "recognized": prior.recognized,
+            "detail": {
+                "target_roi": prior.target_roi,
+                "target_identity": prior.target_identity,
+                "control_class": prior.control_class,
+                "source_family": prior.source_family,
+                "overlay_state": prior.overlay_state,
+                "consequence": prior.consequence,
+                "cost_type": prior.cost_type,
+                "cost_amount": prior.cost_amount,
+                "quantity": prior.quantity,
+                "expected_postcondition": prior.expected_postcondition,
+                "arrow_geometry": prior.arrow_geometry,
+                "target_isolated": prior.target_isolated,
+                "forbidden_region_intersects_target": prior.forbidden_region_intersects_target,
+                "forbidden_regions": prior.forbidden_regions,
+                "package_foreground": prior.package_foreground,
+                "os_surface": prior.os_surface,
+                "hard_stop_detected": prior.hard_stop_detected,
+            },
+        }
     else:
         result = classify(mode, frame, args)
+    detail = result.get("detail", {})
+    recognized = bool(result["recognized"])
+    is_promo = mode == "promo"
+    roi = tuple(detail.get("target_roi")) if is_promo and detail.get("target_roi") else (tuple(args.roi) if args.roi else None)
+    target_identity = detail.get("target_identity") if is_promo else (args.target if recognized else None)
+    overlay_state = detail.get("overlay_state", "unknown") if is_promo else ("none_observed" if recognized else "unknown")
+    ocr_frame = None if is_promo else (prior.frame_sha256 if reuse and prior else metadata["sha256"])
+    ocr_time = None if is_promo else (prior.capture_completed_monotonic if reuse and prior else capture_completed_monotonic)
     return Observation(
         frame_sha256=metadata["sha256"],
         capture_completed_monotonic=capture_completed_monotonic,
@@ -144,25 +181,31 @@ def observation_for(
         corrupt=False,
         black=False,
         source_state=result["state"],
-        overlay_state="none_observed" if result["recognized"] else "unknown",
-        target_identity=args.target if result["recognized"] else None,
-        target_roi=roi if result["recognized"] else None,
-        recognized=bool(result["recognized"]),
+        overlay_state=overlay_state,
+        target_identity=target_identity if recognized else None,
+        target_roi=roi if recognized else None,
+        recognized=recognized,
         clipped=args.clipped,
         ambiguous=args.ambiguous,
-        control_class=args.control_class,
-        consequence=args.consequence,
-        cost_type="none",
-        cost_amount=0,
-        quantity=args.quantity,
-        expected_postcondition=args.expected_state,
+        control_class=detail.get("control_class") if is_promo else args.control_class,
+        consequence=detail.get("consequence") if is_promo else args.consequence,
+        cost_type=detail.get("cost_type", "none") if is_promo else "none",
+        cost_amount=detail.get("cost_amount", 0) if is_promo else 0,
+        quantity=detail.get("quantity", 1) if is_promo else args.quantity,
+        expected_postcondition=(getattr(args, "expected_state", None) or detail.get("expected_postcondition")) if is_promo else args.expected_state,
         evidence_refs=(str(frame),),
         critical_roi_hashes=bindings,
-        ocr_result_frame_sha256=prior.frame_sha256 if reuse and prior else metadata["sha256"],
-        ocr_result_capture_completed_monotonic=(
-            prior.capture_completed_monotonic if reuse and prior else capture_completed_monotonic
-        ),
-        ocr_reused=reuse,
+        ocr_result_frame_sha256=ocr_frame,
+        ocr_result_capture_completed_monotonic=ocr_time,
+        ocr_reused=(reuse and not is_promo),
+        source_family=detail.get("source_family") if is_promo else None,
+        target_isolated=bool(detail.get("target_isolated", False)) if is_promo else False,
+        forbidden_region_intersects_target=bool(detail.get("forbidden_region_intersects_target", False)) if is_promo else False,
+        arrow_geometry=detail.get("arrow_geometry") if is_promo else None,
+        forbidden_regions=tuple(tuple(item) for item in detail.get("forbidden_regions", ())) if is_promo else (),
+        package_foreground=bool(detail.get("package_foreground", True)) if is_promo else True,
+        os_surface=bool(detail.get("os_surface", False)) if is_promo else False,
+        hard_stop_detected=bool(detail.get("hard_stop_detected", False)) if is_promo else False,
     )
 
 
@@ -185,6 +228,11 @@ def critical_rois(mode: str, args: argparse.Namespace) -> Dict[str, tuple[int, i
             "source_title": (0, 0, 800, 180),
             "target_daily_tab": (260, 80, 540, 300),
             "overlay_guard": (0, 300, 800, 1120),
+        }
+    elif mode == "promo":
+        rois = {
+            "arrow_target": PROMOTIONAL_BACK_TARGET_ROI,
+            **{name: roi for name, roi in PROMOTIONAL_FORBIDDEN_REGIONS},
         }
     else:
         rois = {"source_header": (0, 0, 800, 450), "source_rows": (0, 400, 800, 1120)}
@@ -222,12 +270,21 @@ def observe(args: argparse.Namespace) -> int:
 def annotate(args: argparse.Namespace) -> int:
     valid_png_frame(args.frame)
     image = cv2.imread(str(args.frame), cv2.IMREAD_COLOR)
-    x0, y0, x1, y1 = args.roi
-    cv2.rectangle(image, (x0, y0), (x1, y1), (0, 255, 0), 3)
+    if args.mode == "promo":
+        decision = classify_promotional_back(image, load_frame(args.cash_reference))
+        from promotional_escape import annotate_promotional_back
+        image = annotate_promotional_back(image, decision)
+        detail = decision.as_dict()
+    else:
+        if args.roi is None:
+            raise ValueError("--roi is required for non-promotional annotations")
+        x0, y0, x1, y1 = args.roi
+        cv2.rectangle(image, (x0, y0), (x1, y1), (0, 255, 0), 3)
+        detail = {"roi": args.roi}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if not cv2.imwrite(str(args.output), image):
         raise RuntimeError("failed to write annotation")
-    print(json.dumps({"frame": str(args.frame), "output": str(args.output), "roi": args.roi}))
+    print(json.dumps({"frame": str(args.frame), "output": str(args.output), "detail": detail}, default=str))
     return 0
 
 
@@ -311,6 +368,7 @@ def execute(args: argparse.Namespace) -> int:
         dispatch_max_age_seconds=args.dispatch_max_age,
         lease_owner=args.owner, lease_valid=True,
         unresolved_action=False, duplicate_action_key=False, game_day_id=args.game_day,
+        promotional_back_count=args.promotional_back_count,
     )
     result = executor.execute(request)
     write_json(
@@ -332,14 +390,15 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--policy-file", type=Path)
     sub = root.add_subparsers(dest="command", required=True)
     obs = sub.add_parser("observe")
-    obs.add_argument("--mode", choices=("cash", "home", "quest", "daily"), required=True)
+    obs.add_argument("--mode", choices=("cash", "home", "quest", "daily", "promo"), required=True)
     obs.add_argument("--output", type=Path, required=True)
     obs.add_argument("--result", type=Path, required=True)
     obs.set_defaults(handler=observe)
     ann = sub.add_parser("annotate")
     ann.add_argument("--frame", type=Path, required=True)
     ann.add_argument("--output", type=Path, required=True)
-    ann.add_argument("--roi", type=int, nargs=4, required=True)
+    ann.add_argument("--mode", choices=("generic", "promo"), default="generic")
+    ann.add_argument("--roi", type=int, nargs=4)
     ann.set_defaults(handler=annotate)
     act = sub.add_parser("execute")
     act.add_argument("--database", type=Path, required=True)
@@ -349,8 +408,8 @@ def parser() -> argparse.ArgumentParser:
     act.add_argument("--action-id", required=True)
     act.add_argument("--action-key", required=True)
     act.add_argument("--game-day")
-    act.add_argument("--source-mode", choices=("cash", "home", "quest", "daily"), required=True)
-    act.add_argument("--expected-mode", choices=("cash", "home", "quest", "daily"), required=True)
+    act.add_argument("--source-mode", choices=("cash", "home", "quest", "daily", "promo"), required=True)
+    act.add_argument("--expected-mode", choices=("cash", "home", "quest", "daily", "promo"), required=True)
     act.add_argument("--expected-state", required=True)
     act.add_argument("--target", required=True)
     act.add_argument("--roi", type=int, nargs=4, required=True)
@@ -365,6 +424,7 @@ def parser() -> argparse.ArgumentParser:
     act.add_argument("--observation-max-age", type=float, default=3.0)
     act.add_argument("--dispatch-max-age", type=float, default=2.0)
     act.add_argument("--max-pre-dispatch-attempts", type=int, choices=(1, 2, 3), default=2)
+    act.add_argument("--promotional-back-count", type=int, choices=(0, 1, 2, 3), default=0)
     act.set_defaults(handler=execute)
     return root
 

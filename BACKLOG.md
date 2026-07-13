@@ -267,7 +267,10 @@ Claim example.
   one prepared semantic action. Every persisted
   `prepared` or `input_sent` restart boundary becomes unresolved without replay; positive
   evidence is required to reconcile it to confirmed. No Unraid, VM, ADB, container, network, or
-  game access occurred.
+  game access occurred. The narrow startup escape-only extension also passed offline: only
+  `UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK` with an isolated standard game Back arrow can authorize
+  `SAFE_PROMOTIONAL_BACK`; explicit forbidden-region separation, bounded successors, and a three-action
+  sequence limit are enforced. The complete suite is 78 passing tests.
 - Blocker: none; dependency satisfied by M6-DQ-BOOTSTRAP.
 - Next: MVP-QUEST-TO-CLAIM.
 
@@ -370,8 +373,11 @@ Claim example.
   surface. The Daily Quest recognizer abstained and reset/game-day identity could not be assigned.
   No lease, journal action, transport call, or game input occurred. The worker/image were inspected,
   evidence retained, the game force-stopped, and only those task-scoped resources were removed; no
-  task listener/tunnel remained and RT-017 stayed intact. Resume only after a fresh startup
-  reconciliation positively recognizes a safe canonical screen and the post-reset game day.
+  task listener/tunnel remained and RT-017 stayed intact. Offline review added a narrow escape-only
+  policy for the retained top-up surface; it recognizes only the isolated standard game Back arrow
+  and does not authorize purchase, reward, Claim, quantity, or offer controls. No live input occurred
+  during that review. Resume only after a fresh startup reconciliation positively recognizes a safe
+  canonical screen and the post-reset game day.
 - Next: M6-DQ-TRANSITION-CORPUS after a successful trial.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,

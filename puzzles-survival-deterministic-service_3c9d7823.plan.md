@@ -506,10 +506,14 @@ the structured central policy both before intent persistence and after mandatory
 recapture. The persistent lease, unique action key, append-only audits, and
 `prepared/input_sent/confirmed/unresolved` journal were validated across restart boundaries.
 Persisted nonterminal actions become unresolved at startup and are never replayed automatically;
-only positive task-specific evidence can reconcile unresolved to confirmed. Forty-four offline
-tests passed, including all six promoted M6 assets, Go-not-Claim and clipped/ambiguous denials,
-profile mismatch global lock, transport ambiguity, and post-dispatch persistence failure. This
-does not complete the full M7 scheduler/service core or authorize live input by itself.
+only positive task-specific evidence can reconcile unresolved to confirmed. The core and its
+promotional escape-only extension pass 78 offline tests, including all six promoted M6 assets,
+Go-not-Claim and clipped/ambiguous denials, profile mismatch global lock, transport ambiguity,
+post-dispatch persistence failure, and bounded verified promotional Back cases. The extension
+recognizes only `UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK`, authorizes only `SAFE_PROMOTIONAL_BACK`,
+requires explicit forbidden-region separation and a bounded expected successor, and permits at most
+three independently journaled Back actions. This does not complete the full M7 scheduler/service
+core or authorize live input by itself.
 
 `MVP-QUEST-TO-CLAIM` depends on the bootstrap corpus, this minimum safety core, startup
 normalization, and no unresolved action. It is one agent-driven supervised development trial:
@@ -560,9 +564,14 @@ purchase/top-up surface rather than a recognized Home/Base, Quest, or Daily Ques
 Quest recognizer abstained, so reset/game-day identity could not be assigned. No lease, journal
 action, transport call, or game input occurred. The worker/image were inspected and removed after
 preserving evidence; the game was force-stopped, no task listener/tunnel remained, and the VM,
-network, RT-019 profile, and RT-017 backup were unchanged. Resume only after a fresh startup
-reconciliation positively recognizes a safe canonical screen and the post-reset game day. Do not
-begin `M6-DQ-TRANSITION-CORPUS`.
+network, RT-019 profile, and RT-017 backup were unchanged. Offline review then added a narrow
+escape-only classifier for this retained purchase/top-up surface: the standard isolated game Back
+arrow may be proposed without semantically classifying the offer, but no purchase, reward, Claim,
+quantity, or offer control is authorized. The retained frame passed the detector at similarity
+`0.898225`; the offline result and annotation are retained in
+`evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape/`. No live input was sent. Resume
+only after a fresh startup reconciliation positively recognizes a safe canonical screen and the
+post-reset game day. Do not begin `M6-DQ-TRANSITION-CORPUS`.
 
 `M6-DQ-TRANSITION-CORPUS` depends on a successful supervised trial and promotes its completed-
 unclaimed, Claim-versus-Go, prepared/pre-input, reward, claimed-row, points-before/after,

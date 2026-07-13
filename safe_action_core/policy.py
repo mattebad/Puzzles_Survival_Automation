@@ -6,6 +6,13 @@ import re
 from typing import Tuple
 
 from .models import PolicyDecision, PolicyRequest, PolicyResult, snapshot
+from .promotional import (
+    MAX_PROMOTIONAL_BACKS,
+    PROMOTIONAL_BACK_GEOMETRY,
+    PROMOTIONAL_BACK_TARGET_ROI,
+    PROMOTIONAL_STATE,
+    SAFE_PROMOTIONAL_BACK,
+)
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_SIZE = (800, 1280)
@@ -82,6 +89,8 @@ class CentralPolicy:
             return deny, "INVALID_PERCEPTION_BINDING", "OCR reuse must identify an earlier completed capture"
         if any(not name or not SHA256.fullmatch(digest) for name, digest in obs.critical_roi_hashes):
             return deny, "INVALID_PERCEPTION_BINDING", "critical ROI bindings are missing or malformed"
+        if req.semantic_action == SAFE_PROMOTIONAL_BACK:
+            return self._decide_promotional_back(req)
         if not obs.recognized or not obs.source_state or obs.source_state == "UNKNOWN":
             return deny, "UNKNOWN_SOURCE", "source state is not positively recognized"
         if obs.overlay_state not in ("none", "none_observed"):
@@ -114,3 +123,55 @@ class CentralPolicy:
         if obs.consequence not in ALLOWED_R1_CONSEQUENCES:
             return deny, "CONSEQUENCE_DENIED", "the consequence is not allowlisted for supervised zero-cost R1"
         return PolicyDecision.AUTHORIZE, "AUTHORIZED_ZERO_COST_R1", "all supervised zero-cost R1 guards passed"
+
+    @staticmethod
+    def _decide_promotional_back(req: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+        """Authorize only an isolated standard game arrow on an unknown promotion."""
+        obs = req.observation
+        deny = PolicyDecision.DENY
+        lock = PolicyDecision.GLOBAL_INPUT_LOCK
+        if req.promotional_back_count >= MAX_PROMOTIONAL_BACKS:
+            return deny, "PROMOTIONAL_BACK_LIMIT", "the bounded promotional escape limit was reached"
+        if obs.os_surface or obs.hard_stop_detected or not obs.package_foreground:
+            return lock, "PROMOTIONAL_HARD_STOP", "OS, account/session, or foreground safety is not proven"
+        if not obs.recognized or obs.source_state != PROMOTIONAL_STATE or obs.source_family != "promotional":
+            return deny, "PROMOTIONAL_SOURCE_NOT_RECOGNIZED", "the source is not an independently recognized promotional surface"
+        if obs.overlay_state != "promotional_unknown_nonintersecting":
+            return deny, "PROMOTIONAL_OVERLAY_NOT_SAFE", "an unknown overlay is not proven separate from the arrow"
+        if obs.target_identity != "standard-game-back-arrow" or obs.control_class != SAFE_PROMOTIONAL_BACK:
+            return deny, "PROMOTIONAL_ARROW_TARGET_REQUIRED", "only the recognized standard game Back arrow is allowed"
+        if obs.target_roi != PROMOTIONAL_BACK_TARGET_ROI:
+            return deny, "PROMOTIONAL_ARROW_ROI_INVALID", "the arrow target must use the locked isolated ROI"
+        if obs.clipped:
+            return deny, "CLIPPED_TARGET", "the promotional Back arrow is clipped"
+        if obs.ambiguous:
+            return deny, "AMBIGUOUS_TARGET", "the promotional Back arrow is ambiguous"
+        if obs.arrow_geometry != PROMOTIONAL_BACK_GEOMETRY:
+            return deny, "PROMOTIONAL_ARROW_GEOMETRY_INVALID", "the standard game Back arrow geometry did not pass"
+        if not obs.forbidden_regions:
+            return deny, "PROMOTIONAL_FORBIDDEN_REGIONS_REQUIRED", "forbidden interactive regions must be explicitly bound"
+        x0, y0, x1, y1 = obs.target_roi
+        for _name, region in obs.forbidden_regions:
+            if len(region) != 4 or region[0] >= region[2] or region[1] >= region[3]:
+                return deny, "PROMOTIONAL_FORBIDDEN_REGION_INVALID", "forbidden region metadata is invalid"
+            fx0, fy0, fx1, fy1 = region
+            if not (x1 <= fx0 or fx1 <= x0 or y1 <= fy0 or fy1 <= y0):
+                return deny, "PROMOTIONAL_TARGET_NOT_ISOLATED", "the arrow ROI intersects a forbidden control region"
+        if not obs.target_isolated or obs.forbidden_region_intersects_target:
+            return deny, "PROMOTIONAL_TARGET_NOT_ISOLATED", "the arrow ROI is not separated from forbidden controls"
+        if not obs.consequence or obs.consequence != "navigate_zero_cost":
+            return deny, "PROMOTIONAL_CONSEQUENCE_DENIED", "promotional escape is navigation-only"
+        if obs.cost_type != "none" or obs.cost_amount != 0:
+            return deny, "PROMOTIONAL_COST_DENIED", "promotional escape must have exactly zero cost"
+        if obs.quantity != 1:
+            return deny, "PROMOTIONAL_QUANTITY_DENIED", "promotional escape quantity must be exactly one"
+        if not obs.expected_postcondition:
+            return deny, "PROMOTIONAL_SUCCESSOR_REQUIRED", "a bounded expected successor is required"
+        successor = obs.expected_postcondition.upper().replace("-", "_")
+        allowed_successors = {
+            "CASH_MALL", "HOME_BASE", "QUEST", "DAILY_QUEST",
+            "UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK", "RECOGNIZED_NAVIGATION_STATE",
+        }
+        if successor not in allowed_successors:
+            return deny, "PROMOTIONAL_SUCCESSOR_DENIED", "successor is outside the bounded navigation-only set"
+        return PolicyDecision.AUTHORIZE, "AUTHORIZED_SAFE_PROMOTIONAL_BACK", "isolated verified promotional Back guards passed"

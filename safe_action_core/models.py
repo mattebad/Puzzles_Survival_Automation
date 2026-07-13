@@ -51,6 +51,14 @@ class Observation:
     ocr_result_frame_sha256: Optional[str] = None
     ocr_result_capture_completed_monotonic: Optional[float] = None
     ocr_reused: bool = False
+    source_family: Optional[str] = None
+    target_isolated: bool = False
+    forbidden_region_intersects_target: bool = False
+    arrow_geometry: Optional[str] = None
+    forbidden_regions: Tuple[Tuple[str, ROI], ...] = field(default_factory=tuple)
+    package_foreground: bool = True
+    os_surface: bool = False
+    hard_stop_detected: bool = False
 
 
 @dataclass(frozen=True)
@@ -71,6 +79,7 @@ class PolicyRequest:
     duplicate_action_key: bool
     game_day_id: Optional[str] = None
     policy_phase: str = "proposal"
+    promotional_back_count: int = 0
 
     def with_observation(
         self, observation: Observation, monotonic_now: float, policy_phase: str = "pre_dispatch"
@@ -116,6 +125,11 @@ class ActionIntent:
     quantity: int
     evidence_refs: Tuple[str, ...]
     consequential: bool = True
+    source_family: Optional[str] = None
+    target_isolated: bool = False
+    forbidden_region_intersects_target: bool = False
+    arrow_geometry: Optional[str] = None
+    promotional_back_count: int = 0
 
 
 @dataclass(frozen=True)

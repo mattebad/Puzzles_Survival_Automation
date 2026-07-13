@@ -14,7 +14,10 @@ Recorded: 2026-07-12, America/Chicago
   65 tests pass. Frame age starts at successful monotonic capture completion;
   proposal/dispatch limits are 3.0/2.0 seconds, exact critical-ROI reuse is fail-closed, and two
   pre-dispatch attempts are audited within one prepared action. No prerequisite, Go,
-  quest-completion, spend, or Claim input occurred. M6 and overall M7 remain In Progress.
+  quest-completion, spend, or Claim input occurred. M6 and overall M7 remain In Progress. The
+  retained purchase/top-up surface now has an offline escape-only classifier: only an independently
+  verified isolated game Back arrow can authorize `SAFE_PROMOTIONAL_BACK`, with explicit forbidden
+  regions, bounded successors, and a three-action limit. The complete offline suite is 78 tests.
 - Latest resumed read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an
   already-running task-scoped post-reset worker and resumed game activity, but the fresh
   `800x1280` frame was a purchase/top-up surface. Daily Quest recognition abstained, so the new
@@ -36,6 +39,9 @@ Recorded: 2026-07-12, America/Chicago
 - Task completed in this repository-only M7 boundary: M7-SAFE-ACTION-CORE passed with no Unraid,
   VM, ADB, game, container, tunnel, or runtime-network access. Synthetic executor-success inputs
   were test-only and no production Claim-positive asset was created.
+- Promotional escape review evidence: `evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape/`;
+  the retained top-up frame passed the isolated arrow detector offline at similarity `0.898225`. No
+  live input or runtime access occurred during this implementation boundary.
 - Current MVP attempt evidence: `evidence/sessions/20260712-mvp-quest-to-claim/`. The schema-v1 task database
   has no nonterminal/unresolved action and its lease is released. The game is force-stopped, task
   worker/ADB/image removed, VM running, and RT-017 intact. The pre-existing loopback 5037 daemon

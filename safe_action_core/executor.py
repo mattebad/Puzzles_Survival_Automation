@@ -84,6 +84,7 @@ class SafeActionExecutor:
             unresolved_action=unresolved,
             duplicate_action_key=duplicate,
             game_day_id=request.game_day_id,
+            promotional_back_count=request.promotional_back_count,
         )
         first_policy = self.policy.evaluate(request)
         self.store.audit(request.task_id, "policy_evaluated", recorded_at, first_policy, request.action_id)
@@ -120,6 +121,7 @@ class SafeActionExecutor:
                 duplicate_action_key=False,
                 game_day_id=pre_request.game_day_id,
                 policy_phase="pre_dispatch",
+                promotional_back_count=pre_request.promotional_back_count,
             )
             pre_policy = self.policy.evaluate(pre_request)
             changed = self._changed(request.observation, immediate)
@@ -249,6 +251,14 @@ class SafeActionExecutor:
             ("cost_amount", first.cost_amount, second.cost_amount),
             ("quantity", first.quantity, second.quantity),
             ("expected_postcondition", first.expected_postcondition, second.expected_postcondition),
+            ("source_family", first.source_family, second.source_family),
+            ("target_isolated", first.target_isolated, second.target_isolated),
+            ("forbidden_region_intersects_target", first.forbidden_region_intersects_target, second.forbidden_region_intersects_target),
+            ("arrow_geometry", first.arrow_geometry, second.arrow_geometry),
+            ("forbidden_regions", first.forbidden_regions, second.forbidden_regions),
+            ("package_foreground", first.package_foreground, second.package_foreground),
+            ("os_surface", first.os_surface, second.os_surface),
+            ("hard_stop_detected", first.hard_stop_detected, second.hard_stop_detected),
         )
         for name, before, after in fields:
             if before != after:
@@ -281,4 +291,9 @@ class SafeActionExecutor:
             cost_amount=obs.cost_amount,
             quantity=obs.quantity,
             evidence_refs=obs.evidence_refs,
+            source_family=obs.source_family,
+            target_isolated=obs.target_isolated,
+            forbidden_region_intersects_target=obs.forbidden_region_intersects_target,
+            arrow_geometry=obs.arrow_geometry,
+            promotional_back_count=request.promotional_back_count,
         )
