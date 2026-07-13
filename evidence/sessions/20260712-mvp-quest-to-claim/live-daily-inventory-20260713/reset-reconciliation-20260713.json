@@ -1,0 +1,11 @@
+{
+  "recorded_at": "2026-07-13",
+  "host_time": "2026-07-13T16:01:11-05:00",
+  "guest_time": "2026-07-13T16:01:10-05:00",
+  "daily_reset_evidence": "first selected Daily capture showed approximately 03:15 remaining",
+  "alliance_reset_evidence": "Alliance Help screen displayed Daily reset time 19:00:00",
+  "game_day_id": "daily-2026-07-13",
+  "guard_result": "outside configured five-minute pre/post reset guard at the time of the consequential action",
+  "ambiguity": false,
+  "note": "No objective completion or Claim occurred; this game-day assignment is retained as action-request evidence."
+}

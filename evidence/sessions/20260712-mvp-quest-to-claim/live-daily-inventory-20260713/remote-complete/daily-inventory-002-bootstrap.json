@@ -1,0 +1,27 @@
+{
+  "ambiguous_rows_abstain": true,
+  "bottom_text": "mietp ales tux (u/ tu) reward: pts +5 po buy box x1 (0/1) reward: pts +20 | s",
+  "claim_input_authorized": false,
+  "claim_observed_only": false,
+  "clipped_or_partial_bottom_row_present": true,
+  "clipped_rows_abstain": true,
+  "go_button_texts": [
+    "go",
+    "go",
+    "go",
+    "go",
+    "go",
+    "icfe)"
+  ],
+  "header_text": "main quest dallyquest___\u201cacivity v v v v v 30 60 90 120 150 daily quest pts: 0 reset time: 03:26:43 meciuil sa il inogiis faverlti (usa)",
+  "incomplete_or_go_present": true,
+  "reason": "Daily Quest header and points/reset evidence passed",
+  "recognized": true,
+  "row_controls": [
+    "go"
+  ],
+  "rows_text": "meciuil sa il inogiis faverlti (usa) ~ reward: pts +5 upgrade hero 3x (0/3) go reward: pts +5 defeat zombie lair 1x (0/1) reward: pts +10 \u2014s consume 20 stamina (0/20) reward: pts +5 rs consume 20 ap (0/20) reward: pts +5 rs help allies 10x (0/10) icone",
+  "selected_tab_positive": true,
+  "state": "DAILY_QUEST",
+  "title_positive": true
+}

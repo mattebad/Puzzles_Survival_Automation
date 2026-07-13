@@ -1,0 +1,21 @@
+{
+  "recorded_at": "2026-07-13",
+  "action_id": "help-go-route-20260713-001",
+  "initial_classifier": "CASH_MALL",
+  "corrected_route_class": "ALLIANCE",
+  "route_name": "daily_go_to_alliance_help",
+  "correction_basis": [
+    "post frame OCR showed Daily Alliance Coin 0/50,000",
+    "post frame showed Daily reset time 19:00:00",
+    "post frame showed Please help me Build Lv.20 Gas Field",
+    "post frame showed Help 0/30",
+    "no purchase control was touched"
+  ],
+  "evidence": [
+    "remote-complete/help-go-source.png",
+    "remote-complete/help-go-immediate-before-1.png",
+    "remote-complete/help-go-post-1.png",
+    "remote-complete/help-go-route-002-result.json"
+  ],
+  "note": "The first temporary classifier checked Cash Mall before Alliance and was corrected before the consequential Help action. The route action itself was navigation-only and confirmed."
+}

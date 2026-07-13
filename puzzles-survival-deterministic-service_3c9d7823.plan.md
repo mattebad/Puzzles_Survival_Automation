@@ -1268,3 +1268,16 @@ Explicit answers:
     BlueStacks inside a Windows VM hosted on Unraid, and only after nested virtualization,
     graphics, persistence, capture/input, and NAS-stability validation.
 14. Each enabled task needs complete production evidence, zero unsafe holdout authorizations, policy/persistence/fault tests, repeated supervised success, and soak validation.
+
+
+## 2026-07-13 stable Daily Quest handler finding
+
+The selected Daily Quest screen must be positively recognized before row parsing, and the live row
+set is expected to vary by game day. The 2026-07-13 final-runtime inventory found no ordinary Claim
+row and selected the exact Help allies 0/10 row as the first supported zero-cost R1 candidate.
+Its Go route reached Alliance Help and was independently corrected to the ALLIANCE route from
+post-frame OCR. The narrow AllianceHelpHandler was added in c1b32e7 with profile-bound Help
+target metadata and a strict zero-cost ActionTransaction contract. Its first live Help transaction
+was dispatched exactly once but remained unresolved because Help 0/30 did not change in the
+post-dispatch evidence; no retry is permitted. This does not authorize Claim or any other
+consequential action, and M6-DQ-TRANSITION-CORPUS remains downstream.

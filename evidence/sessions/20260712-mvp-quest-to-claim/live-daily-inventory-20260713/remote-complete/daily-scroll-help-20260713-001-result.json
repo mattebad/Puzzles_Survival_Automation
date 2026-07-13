@@ -1,0 +1,90 @@
+{
+  "action": {
+    "action_id": "daily-scroll-help-20260713-001",
+    "action_key": "daily-scroll-help-20260713-001",
+    "consequence": "navigate_zero_cost",
+    "consequential": 0,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/daily-scroll-help-20260713-001-source.png\"]",
+    "expected_postcondition": "DAILY_QUEST",
+    "final_reason": "positive_postcondition",
+    "final_status": "confirmed",
+    "game_day_id": null,
+    "input_attempt_at": 1783975449.0493643,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_NAVIGATION_ONLY",
+    "policy_request_json": "{\"action_class\":\"navigation_only\",\"action_id\":\"daily-scroll-help-20260713-001\",\"action_key\":\"daily-scroll-help-20260713-001\",\"action_kind\":\"DAILY_QUEST_SCROLL\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"mvp-dq-inventory-20260713\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4420880.942347594,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4420880.83785781,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"4bb884e3bf79ce153e9cab218cb786504b80d9201453bd2e40ad08c0f9556a49\"],[\"source_header\",\"9a10530b61c076d351c402a285e0cb683f94e3617959d4dbcd4f092e6834fc81\"],[\"source_rows\",\"4bb884e3bf79ce153e9cab218cb786504b80d9201453bd2e40ad08c0f9556a49\"]],\"evidence_refs\":[\"/evidence/daily-scroll-help-20260713-001-source.png\"],\"expected_postcondition\":\"DAILY_QUEST\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"f8b0078c27c20aacdccbcd39a4055a1df10a06d1e0d86ae473b9a9c4fb6f4f2c\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4420880.83785781,\"ocr_result_frame_sha256\":\"f8b0078c27c20aacdccbcd39a4055a1df10a06d1e0d86ae473b9a9c4fb6f4f2c\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"DAILY_QUEST\",\"target_identity\":\"daily-quest-list-scroll\",\"target_isolated\":false,\"target_roi\":[0,400,800,1120],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"DAILY_QUEST_SCROLL\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1783975448.4803753,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":true,\"evidence_refs\":[\"/evidence/daily-scroll-help-20260713-001-post-1.png\"],\"frame_sha256\":\"3188c8cebb072f8a3cef8c98f2842ae744d2123263857eee07a420bd36d502d5\"}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "DAILY_QUEST_SCROLL",
+    "source_frame_captured_at": 4420880.83785781,
+    "source_frame_sha256": "f8b0078c27c20aacdccbcd39a4055a1df10a06d1e0d86ae473b9a9c4fb6f4f2c",
+    "source_state": "DAILY_QUEST",
+    "target_identity": "daily-quest-list-scroll",
+    "target_roi_json": "[0,400,800,1120]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input swipe 400 1000 400 600 350\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1783975450.2775526
+  },
+  "audit": [
+    {
+      "action_id": "daily-scroll-help-20260713-001",
+      "event_id": 63,
+      "event_type": "policy_evaluated",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"decision\":\"authorize\",\"evaluated_at\":4420880.942347594,\"reason\":\"local source, target, overlay, and successor guards passed\",\"reason_code\":\"AUTHORIZED_NAVIGATION_ONLY\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"daily-scroll-help-20260713-001\",\"action_key\":\"daily-scroll-help-20260713-001\",\"action_kind\":\"DAILY_QUEST_SCROLL\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"mvp-dq-inventory-20260713\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4420880.942347594,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4420880.83785781,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"4bb884e3bf79ce153e9cab218cb786504b80d9201453bd2e40ad08c0f9556a49\"],[\"source_header\",\"9a10530b61c076d351c402a285e0cb683f94e3617959d4dbcd4f092e6834fc81\"],[\"source_rows\",\"4bb884e3bf79ce153e9cab218cb786504b80d9201453bd2e40ad08c0f9556a49\"]],\"evidence_refs\":[\"/evidence/daily-scroll-help-20260713-001-source.png\"],\"expected_postcondition\":\"DAILY_QUEST\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"f8b0078c27c20aacdccbcd39a4055a1df10a06d1e0d86ae473b9a9c4fb6f4f2c\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4420880.83785781,\"ocr_result_frame_sha256\":\"f8b0078c27c20aacdccbcd39a4055a1df10a06d1e0d86ae473b9a9c4fb6f4f2c\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"DAILY_QUEST\",\"target_identity\":\"daily-quest-list-scroll\",\"target_isolated\":false,\"target_roi\":[0,400,800,1120],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"DAILY_QUEST_SCROLL\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}",
+      "recorded_at": 1783975448.4803753,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "daily-scroll-help-20260713-001",
+      "event_id": 64,
+      "event_type": "action_transition",
+      "lifecycle_from": null,
+      "lifecycle_to": "prepared",
+      "payload_json": "{\"intent\":{\"action_class\":\"navigation_only\",\"action_id\":\"daily-scroll-help-20260713-001\",\"action_key\":\"daily-scroll-help-20260713-001\",\"action_kind\":\"DAILY_QUEST_SCROLL\",\"allowed_confirmation_dialogs\":[],\"arrow_geometry\":null,\"consequence\":\"navigate_zero_cost\",\"consequential\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"evidence_refs\":[\"/evidence/daily-scroll-help-20260713-001-source.png\"],\"expected_postcondition\":\"DAILY_QUEST\",\"forbidden_region_intersects_target\":false,\"free_only\":true,\"game_day_id\":null,\"maximum_cost\":0,\"promotional_back_count\":0,\"quantity\":1,\"resource_or_currency\":\"none\",\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"semantic_action\":\"DAILY_QUEST_SCROLL\",\"semantic_postconditions\":[\"DAILY_QUEST\"],\"semantic_preconditions\":[\"DAILY_QUEST\",\"none_observed\"],\"source_family\":null,\"source_frame_captured_at\":4420880.83785781,\"source_frame_sha256\":\"f8b0078c27c20aacdccbcd39a4055a1df10a06d1e0d86ae473b9a9c4fb6f4f2c\",\"source_state\":\"DAILY_QUEST\",\"subject\":\"daily-quest-list-scroll\",\"target_identity\":\"daily-quest-list-scroll\",\"target_isolated\":false,\"target_roi\":[0,400,800,1120],\"task_id\":\"MVP-QUEST-TO-CLAIM\"},\"policy\":{\"decision\":\"authorize\",\"evaluated_at\":4420880.942347594,\"reason\":\"local source, target, overlay, and successor guards passed\",\"reason_code\":\"AUTHORIZED_NAVIGATION_ONLY\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"daily-scroll-help-20260713-001\",\"action_key\":\"daily-scroll-help-20260713-001\",\"action_kind\":\"DAILY_QUEST_SCROLL\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"mvp-dq-inventory-20260713\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4420880.942347594,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4420880.83785781,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"4bb884e3bf79ce153e9cab218cb786504b80d9201453bd2e40ad08c0f9556a49\"],[\"source_header\",\"9a10530b61c076d351c402a285e0cb683f94e3617959d4dbcd4f092e6834fc81\"],[\"source_rows\",\"4bb884e3bf79ce153e9cab218cb786504b80d9201453bd2e40ad08c0f9556a49\"]],\"evidence_refs\":[\"/evidence/daily-scroll-help-20260713-001-source.png\"],\"expected_postcondition\":\"DAILY_QUEST\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"f8b0078c27c20aacdccbcd39a4055a1df10a06d1e0d86ae473b9a9c4fb6f4f2c\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4420880.83785781,\"ocr_result_frame_sha256\":\"f8b0078c27c20aacdccbcd39a4055a1df10a06d1e0d86ae473b9a9c4fb6f4f2c\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"DAILY_QUEST\",\"target_identity\":\"daily-quest-list-scroll\",\"target_isolated\":false,\"target_roi\":[0,400,800,1120],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"DAILY_QUEST_SCROLL\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}}",
+      "recorded_at": 1783975448.4803753,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "daily-scroll-help-20260713-001",
+      "event_id": 65,
+      "event_type": "pre_input_attempt",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"attempt\":1,\"changed\":null,\"frame_age_seconds\":0.055391984060406685,\"max_attempts\":2,\"ocr_reuse_denial\":null,\"policy\":{\"decision\":\"authorize\",\"evaluated_at\":4420881.146889923,\"reason\":\"local source, target, overlay, and successor guards passed\",\"reason_code\":\"AUTHORIZED_NAVIGATION_ONLY\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"daily-scroll-help-20260713-001\",\"action_key\":\"daily-scroll-help-20260713-001\",\"action_kind\":\"DAILY_QUEST_SCROLL\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"mvp-dq-inventory-20260713\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4420881.146889923,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4420881.091497939,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"4bb884e3bf79ce153e9cab218cb786504b80d9201453bd2e40ad08c0f9556a49\"],[\"source_header\",\"9a10530b61c076d351c402a285e0cb683f94e3617959d4dbcd4f092e6834fc81\"],[\"source_rows\",\"4bb884e3bf79ce153e9cab218cb786504b80d9201453bd2e40ad08c0f9556a49\"]],\"evidence_refs\":[\"/evidence/daily-scroll-help-20260713-001-immediate-before-1.png\"],\"expected_postcondition\":\"DAILY_QUEST\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"f8b0078c27c20aacdccbcd39a4055a1df10a06d1e0d86ae473b9a9c4fb6f4f2c\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4420880.83785781,\"ocr_result_frame_sha256\":\"f8b0078c27c20aacdccbcd39a4055a1df10a06d1e0d86ae473b9a9c4fb6f4f2c\",\"ocr_reused\":true,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"DAILY_QUEST\",\"target_identity\":\"daily-quest-list-scroll\",\"target_isolated\":false,\"target_roi\":[0,400,800,1120],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"pre_dispatch\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"DAILY_QUEST_SCROLL\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}},\"transport_calls\":0}",
+      "recorded_at": 1783975448.684918,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "daily-scroll-help-20260713-001",
+      "event_id": 66,
+      "event_type": "action_transition",
+      "lifecycle_from": "prepared",
+      "lifecycle_to": "input_sent",
+      "payload_json": "{\"fields\":{\"input_attempt_at\":1783975449.0493643,\"transport_result_json\":{\"detail\":\"input swipe 400 1000 400 600 350\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}},\"reason\":\"transport_reported_dispatch\"}",
+      "recorded_at": 1783975449.0493643,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "daily-scroll-help-20260713-001",
+      "event_id": 67,
+      "event_type": "action_transition",
+      "lifecycle_from": "input_sent",
+      "lifecycle_to": "confirmed",
+      "payload_json": "{\"fields\":{\"reconciliation_result_json\":{\"confirmed\":true,\"evidence_refs\":[\"/evidence/daily-scroll-help-20260713-001-post-1.png\"],\"frame_sha256\":\"3188c8cebb072f8a3cef8c98f2842ae744d2123263857eee07a420bd36d502d5\"}},\"reason\":\"positive_postcondition\"}",
+      "recorded_at": 1783975450.2775526,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    }
+  ],
+  "result": {
+    "action_id": "daily-scroll-help-20260713-001",
+    "reason": "positive_postcondition",
+    "status": "confirmed",
+    "transport_calls": 1
+  }
+}

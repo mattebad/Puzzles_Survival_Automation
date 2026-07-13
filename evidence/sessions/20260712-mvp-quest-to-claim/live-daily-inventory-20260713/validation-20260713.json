@@ -1,0 +1,56 @@
+{
+  "recorded_at": "2026-07-13",
+  "offline_tests": {
+    "suite": "python3 -m unittest discover -s tests -p test_*.py",
+    "count": 102,
+    "result": "passed",
+    "environment": "pinned Unraid image with in-memory /tmp"
+  },
+  "runtime_profile": {
+    "result": "valid",
+    "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "content_sha256": "195c145e5779b13d1f65708a6b3ef31f6cbdb934b33854f886f1091aa583d742"
+  },
+  "m6_assets": {
+    "count": 6,
+    "result": "all valid",
+    "input_lock": false
+  },
+  "repository_checks": {
+    "git_diff_check": "passed",
+    "tracked_secret_scan": "no actual secret-pattern matches",
+    "protected_hashes_unchanged": true
+  },
+  "journal": {
+    "path": "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/actions-after-release.sqlite3",
+    "schema_version": 1,
+    "status_counts": [
+      [
+        "confirmed",
+        19
+      ],
+      [
+        "unresolved",
+        1
+      ]
+    ],
+    "nonterminal": [],
+    "unresolved": [
+      [
+        "alliance-help-20260713-001",
+        "unresolved",
+        "unexpected_successor"
+      ]
+    ],
+    "active_leases": [],
+    "duplicate_action_keys": []
+  },
+  "live_input_limits": {
+    "claim_inputs": 0,
+    "quest_completion_inputs": 0,
+    "consequential_help_inputs": 1,
+    "help_transport_calls": 1,
+    "help_action_status": "unresolved",
+    "transport_retry": false
+  }
+}

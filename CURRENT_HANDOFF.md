@@ -1,5 +1,27 @@
 # Current runtime-proof handoff
 
+## 2026-07-13 live Daily Quest inventory and unresolved Alliance Help action
+
+- The current run used the selected Daily Quest gate and a complete bounded overlapping-scroll
+  inventory. The list contained no ordinary Claim row. It included the exact Help allies row at
+  0/10; other rows were upgrades, training, combat, stamina/AP, gathering, purchases, research,
+  enhancements, donation, Supply Depot, or other unsupported/strategic actions. Full inventory and
+  frame provenance are retained in
+  evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/.
+- Help allies Go was used only as navigation and its destination was corrected from a temporary
+  Cash Mall-first classifier to ALLIANCE using the retained post OCR: Alliance coin header,
+  Daily reset time 19:00:00, the Build Lv.20 Gas Field request, and Help 0/30. No purchase
+  control was touched.
+- The first supported task handler is AllianceHelpHandler, committed in c1b32e7. Reset
+  reconciliation assigned daily-2026-07-13 outside the configured guard. One exact zero-cost Help
+  action was authorized and dispatched exactly once at (650,350). The immediate post-dispatch
+  frame remained Help 0/30, so the expected positive postcondition was not proven and
+  alliance-help-20260713-001 is unresolved. No retry or further input was sent.
+- The unresolved journal state is intentionally preserved. The lease was released only after
+  journal reconciliation; the task worker and task ADB server were removed afterward. The game
+  remains on Alliance Help so the unresolved live evidence is not destroyed. No Claim input,
+  objective completion, spend, account, combat, or OS input occurred.
+
 Recorded: 2026-07-13, America/Chicago
 
 ## 2026-07-13 live continuation
@@ -46,22 +68,13 @@ Recorded: 2026-07-13, America/Chicago
 ## Current milestone and task state
 
 - Milestones: M6 Production corpus — In Progress; M7 Deterministic service core — In Progress.
-- Current task: MVP-QUEST-TO-CLAIM — Blocked after the 2026-07-13 continuation reached Daily
-  Quest but found no ordinary Claim row, no Alliance Help or explicitly free Supply Depot candidate,
-  and no readable current points/reset evidence for assigning `game_day_id`. The visible objectives
-  were unsupported strategic, resource, gathering, stamina/march, or combat actions. No Go, Claim,
-  prerequisite, quest-completion, spend, account, combat, or OS input occurred. The typed navigation
-  refactor uses stable local ROIs and separates navigation uncertainty from consequential-action
-  uncertainty. Frame age remains capture-completion monotonic; proposal/dispatch limits remain
-  3.0/2.0 seconds, with two audited pre-dispatch attempts. The complete offline suite is 96 tests.
-  M6 and overall M7 remain In Progress.
-- Latest resumed read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an
-  already-running task-scoped post-reset worker and resumed game activity, but the fresh
-  `800x1280` frame was a purchase/top-up surface. Daily Quest recognition abstained, so the new
-  game day/reset state could not be assigned. No lease, journal action, transport call, or game
-  input occurred. The inspected worker/image were removed after preserving identity/log/activity
-  evidence; the game was force-stopped and no task listener/tunnel remained. Details are in
-  `evidence/sessions/20260712-mvp-quest-to-claim/reset-reconciliation-20260712.md`.
+- Current task: MVP-QUEST-TO-CLAIM — Blocked after the 2026-07-13 live inventory selected the
+  exact Help allies zero-cost R1 candidate but its first Alliance Help transaction remained
+  unresolved after one dispatch. The action journal requires manual positive reconciliation before
+  any later consequential input. No Claim row was present, no quest completion was proven, and no
+  Claim input occurred. The typed navigation/task-module contracts remain local-ROI based; the
+  AllianceHelpHandler is the first narrow supported handler. M6 and overall M7 remain In Progress.
+
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed in the preceding M5 run: M5-CUSTOM-BASELINE passed with 100 replay
@@ -102,10 +115,8 @@ Recorded: 2026-07-13, America/Chicago
 ## Runtime and rollback state
 
 - VM: dedicated `PnS-BlissOS-PoC`, selected VirtIO(3D)/Mesa VirGL profile, running.
-- Game: force-stopped after three resumed supervised no-spend navigation taps; no
-  unattended gameplay input automation is enabled.
-- ADB: the task-scoped loopback server was stopped and no 5037/5042/5555 listener remains; no
-  external tunnel or temporary worker ADB server is active.
+- Game: remains on the Alliance Help screen because the unresolved Help action evidence must be preserved; no further input is authorized.
+- ADB: the task worker and its task ADB server were removed after evidence preservation; the approved pre-existing loopback daemon at 127.0.0.1:5037 was left untouched. No external tunnel or public/published listener remains.
   RT-021 direct worker proof used a temporary UID-65534 host-network container with an isolated
   local ADB server port; all RT-021 containers and that port were removed afterward.
 - Observer: temporary container `rt012-observer-20260711-1519` and host collector completed and were removed/stopped after evidence preservation.
@@ -176,23 +187,18 @@ Recorded: 2026-07-13, America/Chicago
 
 ## Blocker and required user action
 
-1. MVP-QUEST-TO-CLAIM remains blocked by reset/game-day reconciliation and the lack of a supported
-   zero-cost objective or existing ordinary Claim row in the retained Daily observation. The selected
-   Daily-tab gate and corrected target geometry were live-verified in the focused retest. Its first
-   old-coordinate attempt is retained as one navigation-only no-effect unresolved record; the final
-   journal has zero unresolved consequential and zero nonterminal actions, with a released lease.
-   Do not replay the old `quest-daily-retest-001` action key. Resume only after fresh startup and
-   Daily observation positively establish the current game day and a supported objective. RT-016A
-   remains a later manual-only account-guard task. If performed, manually navigate the
-   already-provisioned authenticated game to expose numeric player/account and server/state
-   identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
-   credentials, account switching, tutorial, CAPTCHA, or profile navigation.
+1. MVP-QUEST-TO-CLAIM remains Blocked by unresolved consequential action
+   alliance-help-20260713-001. The selected row was Help allies 0/10; the Alliance Help screen
+   showed Help 0/30. One exact zero-cost tap was dispatched at (650,350), but the immediate
+   post-dispatch evidence still showed Help 0/30, so the action was not confirmed and was not
+   retried. All later consequential input, including Claim, is blocked.
+2. Manually reconcile the retained Alliance Help state and journal using positive evidence of whether
+   that Help request registered. Do not blindly tap the Help control. After reconciliation, resume
+   only from a fresh runtime/profile observation with the existing action key preserved; do not
+   begin M6-DQ-TRANSITION-CORPUS.
+3. No credentials, login, tutorial, account switching, CAPTCHA, or profile navigation may be
+   automated. RT-016A remains a separate later manual-only account-guard task.
 
-## Exact next command
-
-Resume `MVP-QUEST-TO-CLAIM` after a fresh safe-screen and reset/game-day reconciliation with the
-corrected freshness contract. Do not begin M6-DQ-TRANSITION-CORPUS; the required completed/unclaimed
-and Claim transition evidence does not exist.
 
 ## Facts that must not be re-tested
 

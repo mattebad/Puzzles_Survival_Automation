@@ -1,0 +1,34 @@
+{
+  "classification": {
+    "detail": {
+      "anchor_scores": [
+        1.0,
+        0.940858
+      ],
+      "dangerous_intersects": false,
+      "overlay_intersects": false,
+      "recognized": true,
+      "state": "DAILY_QUEST",
+      "target_identity": "daily-quest-selected",
+      "target_roi": [
+        260,
+        80,
+        540,
+        200
+      ],
+      "target_score": 1.0
+    },
+    "recognized": true,
+    "state": "DAILY_QUEST"
+  },
+  "metadata": {
+    "bytes": 418772,
+    "capture_completed_monotonic": 4420283.733814017,
+    "command_started_monotonic": 4420283.58764005,
+    "decode_completed_monotonic": 4420283.752642745,
+    "height": 1280,
+    "path": "/evidence/daily-inventory-003.png",
+    "sha256": "dd67b3190697496e471cb3cea6492989d4dff6de6895d04aeb1d2b2192b2a7dd",
+    "width": 800
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "ambiguous_rows_abstain": true,
+  "bottom_text": "enhance a module 1x (0/1) enhance gear 1x (0/1) reward: pts +5 ie",
+  "claim_input_authorized": false,
+  "claim_observed_only": false,
+  "clipped_or_partial_bottom_row_present": true,
+  "clipped_rows_abstain": true,
+  "go_button_texts": [
+    "go",
+    "go",
+    "go",
+    "go",
+    "go",
+    "go"
+  ],
+  "header_text": "main quest dallyquest___\u201cacivity v v v v v 30 60 90 120 150 daily quest pts: 0 reset time: 03:20:03 speedup 180 minutes using items (0/180) fe. |",
+  "incomplete_or_go_present": true,
+  "reason": "Daily Quest header and points/reset evidence passed",
+  "recognized": true,
+  "row_controls": [
+    "go"
+  ],
+  "rows_text": "speedup 180 minutes using items (0/180) _ reward: pts +5 bioenhancer research x1 (0/1) reward: pts +5 rs craft nanoweapon 1x (0/1) reward: pts +5 na praise 1x in personal might rank (0/1) reward: pts +5 \u2014 enhance a chip 1x (0/1) go reward: pts +5 enhance a module 1x (0/1) re",
+  "selected_tab_positive": true,
+  "state": "DAILY_QUEST",
+  "title_positive": true
+}

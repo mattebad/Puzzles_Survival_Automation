@@ -1,0 +1,261 @@
+{
+  "recorded_at": "2026-07-13",
+  "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "logical_frame": [
+    800,
+    1280
+  ],
+  "game_package": "com.global.ztmslg",
+  "game_version": "7.0.278",
+  "daily_selected_positive": true,
+  "claim_row_observed": false,
+  "points": 0,
+  "reset_countdown_at_first_daily_capture": "approximately 03:28:14",
+  "rows": [
+    {
+      "name": "Upgrade building",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "building_upgrade",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Join Hero Duel",
+      "progress": "0/3",
+      "state": "Go",
+      "handler_class": "combat_pvp",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Upgrade tech",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "research_or_upgrade",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Train Fighter",
+      "progress": "0/250",
+      "state": "Go",
+      "handler_class": "training",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Train Rider",
+      "progress": "0/250",
+      "state": "Go",
+      "handler_class": "training",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Train Shooter",
+      "progress": "0/250",
+      "state": "Go",
+      "handler_class": "training",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Train Vehicle",
+      "progress": "0/250",
+      "state": "clipped",
+      "handler_class": "training",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Recruit 5x in Noah's Tavern",
+      "progress": "0/5",
+      "state": "Go",
+      "handler_class": "recruitment",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Upgrade hero",
+      "progress": "0/3",
+      "state": "Go",
+      "handler_class": "hero_upgrade",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Defeat Zombie Lair",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "combat_or_lair",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Consume 20 Stamina",
+      "progress": "0/20",
+      "state": "Go",
+      "handler_class": "stamina",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Consume 20 AP",
+      "progress": "0/20",
+      "state": "Go",
+      "handler_class": "campaign_ap",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Help allies",
+      "progress": "0/10",
+      "state": "Go",
+      "handler_class": "alliance_help",
+      "supported_for_mvp": true,
+      "selected": true
+    },
+    {
+      "name": "Buy box",
+      "progress": "0/1",
+      "state": "clipped",
+      "handler_class": "purchase",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Gather Wood",
+      "progress": "0/30000",
+      "state": "Go",
+      "handler_class": "gathering",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Gather Steel",
+      "progress": "0/6000",
+      "state": "Go",
+      "handler_class": "gathering",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Boost any resource building's output",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "resource_or_building",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Make purchase 1x in Ruins Shop",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "purchase",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Make 1 purchase(s) in Rare Earth Shop",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "purchase",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Make 1 purchase(s) in Alliance Shop",
+      "progress": "0/1",
+      "state": "partial",
+      "handler_class": "purchase",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Speedup 180 minutes using items",
+      "progress": "0/180",
+      "state": "Go",
+      "handler_class": "speedup_item",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Bioenhancer research",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "research_or_upgrade",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Craft nanoweapon",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "crafting",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Praise 1x in Personal Might rank",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "praise",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Enhance a chip",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "enhancement",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Enhance a module",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "enhancement",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Enhance gear",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "enhancement",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Donate for alliance tech",
+      "progress": "0/10",
+      "state": "Go",
+      "handler_class": "donation",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Get supplies at Supply Depot",
+      "progress": "0/5",
+      "state": "Go",
+      "handler_class": "supply_depot",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Enter Ruins Challenge",
+      "progress": "0/1",
+      "state": "Go",
+      "handler_class": "challenge",
+      "supported_for_mvp": false
+    },
+    {
+      "name": "Gather Gas",
+      "progress": "0/1500",
+      "state": "clipped",
+      "handler_class": "gathering",
+      "supported_for_mvp": false
+    }
+  ],
+  "scroll_evidence": {
+    "down_actions": [
+      "daily-scroll-20260713-001",
+      "daily-scroll-20260713-002",
+      "daily-scroll-20260713-003",
+      "daily-scroll-20260713-004",
+      "daily-scroll-20260713-005"
+    ],
+    "up_actions": [
+      "daily-scroll-up-20260713-001",
+      "daily-scroll-up-20260713-002",
+      "daily-scroll-up-20260713-003",
+      "daily-scroll-up-20260713-004"
+    ],
+    "help_actions": [
+      "daily-scroll-help-20260713-001",
+      "daily-scroll-help-20260713-002"
+    ],
+    "end_of_list": "bottom segments repeated; overlapping rows reconciled"
+  },
+  "candidate_decision": {
+    "selected": "Help allies",
+    "initial_progress": "0/10",
+    "reason": "exact row identity, readable requirement, recognized Go, and Alliance Help route; no spend/resource/AP/stamina/march/queue/combat action authorized",
+    "handler": "AllianceHelpHandler",
+    "route": "daily_go_to_alliance_help"
+  }
+}

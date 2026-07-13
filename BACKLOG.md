@@ -363,7 +363,7 @@ Claim example.
 - Rollback: stop at the first unknown or unresolved outcome, preserve the action journal and all
   frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
   fallback is allowed.
-- Status: Blocked (2026-07-13; no supported zero-cost objective and reset evidence unreadable).
+- Status: Blocked (2026-07-13; first Alliance Help transaction unresolved after one dispatch).
 - Blocker: the typed navigation continuation reached Daily Quest and inspected two bounded
   final-runtime list views. The upper view contained Vehicle Depot upgrade, Ultimate Challenge,
   Hunt Zombie, Train Fighter, and Own Lv.211 Hero objectives; the lower view additionally showed
@@ -404,6 +404,18 @@ Claim example.
   No Daily Quest objectives were inspected and no Go, Claim, prerequisite, spend, combat, account,
   or OS input occurred. The 100-test suite, RT-019, and six-asset M6 validation pass. Evidence is
   retained in `evidence/sessions/20260712-mvp-quest-to-claim/live-selected-tab-retest-20260713/`.
+- Latest live inventory and handler attempt on 2026-07-13: selected Daily Quest was positively
+  recognized and the complete bounded list inventory was retained in
+  evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/. No ordinary
+  Claim row was present. The exact Help allies row was 0/10; its navigation-only Go action
+  was confirmed to the Alliance Help screen, and the narrow AllianceHelpHandler was added in
+  c1b32e7. Reset evidence supported game_day_id=daily-2026-07-13 and the action was outside
+  the configured reset guard. One zero-cost Help transaction was authorized, prepared, recaptured,
+  dispatched exactly once, and persisted as unresolved because the post-dispatch evidence still
+  showed Help 0/30. No retry, quest completion, or Claim input occurred. The unresolved action
+  blocks all later consequential input until positive manual reconciliation. The task worker and
+  task ADB server were removed after evidence preservation; the game remains on Alliance Help to
+  preserve the unresolved state, the lease is released, the VM is running, and RT-017 is intact.
 - Next: Resume `MVP-QUEST-TO-CLAIM` after reset/game-day and supported-objective evidence;
   `M6-DQ-TRANSITION-CORPUS` remains downstream.
 

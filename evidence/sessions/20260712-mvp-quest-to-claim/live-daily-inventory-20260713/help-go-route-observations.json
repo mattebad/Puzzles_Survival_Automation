@@ -1,0 +1,11 @@
+[
+  {
+    "detail": {
+      "classifier": "cash",
+      "state": "CASH_MALL"
+    },
+    "path": "/evidence/help-go-post-1.png",
+    "recognized": true,
+    "state": "CASH_MALL"
+  }
+]

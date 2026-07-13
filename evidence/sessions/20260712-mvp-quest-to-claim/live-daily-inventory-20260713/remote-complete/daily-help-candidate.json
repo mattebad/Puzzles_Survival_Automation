@@ -1,0 +1,34 @@
+{
+  "classification": {
+    "detail": {
+      "anchor_scores": [
+        1.0,
+        0.940858
+      ],
+      "dangerous_intersects": false,
+      "overlay_intersects": false,
+      "recognized": true,
+      "state": "DAILY_QUEST",
+      "target_identity": "daily-quest-selected",
+      "target_roi": [
+        260,
+        80,
+        540,
+        200
+      ],
+      "target_score": 1.0
+    },
+    "recognized": true,
+    "state": "DAILY_QUEST"
+  },
+  "metadata": {
+    "bytes": 407513,
+    "capture_completed_monotonic": 4420851.948246576,
+    "command_started_monotonic": 4420851.786835094,
+    "decode_completed_monotonic": 4420851.967448718,
+    "height": 1280,
+    "path": "/evidence/daily-help-candidate.png",
+    "sha256": "bda24c47b6105a28454040de5a14d691120d13a4e4296b4ed9b1f205c20cc7e4",
+    "width": 800
+  }
+}

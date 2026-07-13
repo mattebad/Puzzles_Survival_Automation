@@ -1,0 +1,27 @@
+{
+  "ambiguous_rows_abstain": true,
+  "bottom_text": "train shooter x250 (0/250) bo reward: pts +5 train vehicle x250 (0/250) rt ti(\u201ci\u2018osososcsc\u2018*d",
+  "claim_input_authorized": false,
+  "claim_observed_only": false,
+  "clipped_or_partial_bottom_row_present": true,
+  "clipped_rows_abstain": true,
+  "go_button_texts": [
+    "go",
+    "go",
+    "go",
+    "go",
+    "go",
+    "go"
+  ],
+  "header_text": ": ; alliance v v v v v 30 60 90 120 150 daily quest pts: 0 reset time: 03:16:21",
+  "incomplete_or_go_present": true,
+  "reason": "Daily Quest header and points/reset evidence passed",
+  "recognized": true,
+  "row_controls": [
+    "go"
+  ],
+  "rows_text": "upgrade building 1x (0/1) reward: pts +5 \u2014 join hero duel 3x (0/3) go reward: pts +5 upgrade tech 1x (0/1) reward: pts +5 \u2014s train fighter x250 (0/250) reward: pts +5 rs train rider x250 (0/250) reward: pts +5 rs",
+  "selected_tab_positive": true,
+  "state": "DAILY_QUEST",
+  "title_positive": true
+}

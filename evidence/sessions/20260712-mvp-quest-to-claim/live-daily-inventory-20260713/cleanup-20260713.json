@@ -1,0 +1,18 @@
+{
+  "recorded_at": "2026-07-13",
+  "task_worker": "mvp-dq-inventory-20260713",
+  "task_worker_removed": true,
+  "task_adb_removed_with_worker": true,
+  "preexisting_loopback_adb": "127.0.0.1:5037 remained untouched",
+  "external_tunnel": false,
+  "public_or_published_listener": false,
+  "lease_released": true,
+  "nonterminal_actions": [],
+  "unresolved_actions": [
+    "alliance-help-20260713-001"
+  ],
+  "game_state": "Alliance Help retained on screen because unresolved evidence requires preservation",
+  "vm": "running",
+  "rt017_backup": "intact",
+  "vm_xml_qcow2_network_modified": false
+}

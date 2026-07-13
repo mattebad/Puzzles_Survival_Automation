@@ -1,0 +1,99 @@
+{
+  "classification": {
+    "detail": {
+      "arrow_component": [
+        13,
+        5,
+        60,
+        38,
+        812
+      ],
+      "arrow_contrast": 160.974,
+      "arrow_geometry": "standard_game_back_arrow",
+      "arrow_similarity": 0.898225,
+      "consequence": "navigate_zero_cost",
+      "control_class": "SAFE_PROMOTIONAL_BACK",
+      "cost_amount": 0,
+      "cost_type": "none",
+      "denial_rules": [],
+      "expected_postcondition": "recognized_navigation_state",
+      "forbidden_region_intersects_target": false,
+      "forbidden_regions": [
+        [
+          "offer_tabs",
+          [
+            40,
+            120,
+            760,
+            390
+          ]
+        ],
+        [
+          "reward_tiles",
+          [
+            40,
+            390,
+            760,
+            900
+          ]
+        ],
+        [
+          "confirmation_controls",
+          [
+            0,
+            880,
+            800,
+            1280
+          ]
+        ],
+        [
+          "price_purchase_controls",
+          [
+            40,
+            950,
+            760,
+            1260
+          ]
+        ],
+        [
+          "premium_currency_controls",
+          [
+            500,
+            0,
+            800,
+            120
+          ]
+        ]
+      ],
+      "hard_stop_detected": false,
+      "os_surface": false,
+      "overlay_state": "promotional_unknown_nonintersecting",
+      "package_foreground": true,
+      "quantity": 1,
+      "reason": "isolated standard game Back arrow recognized; page semantics intentionally remain unknown",
+      "recognized": true,
+      "source_family": "promotional",
+      "state": "UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK",
+      "target_identity": "standard-game-back-arrow",
+      "target_isolated": true,
+      "target_roi": [
+        45,
+        5,
+        130,
+        60
+      ]
+    },
+    "recognized": true,
+    "state": "UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK"
+  },
+  "metadata": {
+    "bytes": 1028201,
+    "capture_completed_monotonic": 4419990.637382739,
+    "command_started_monotonic": 4419990.392640687,
+    "decode_completed_monotonic": 4419990.665340895,
+    "height": 1280,
+    "path": "/evidence/startup-001.png",
+    "sha256": "a53fd6f22b94c6db7bfe7cdb3b440f7b75d7e634499c425d609022b8b610311e",
+    "width": 800
+  }
+}
