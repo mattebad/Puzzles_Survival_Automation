@@ -1,6 +1,6 @@
 """Deterministic, fail-closed supervised action safety core."""
 
-from .executor import ExecutionResult, SafeActionExecutor
+from .executor import ActionTransaction, ExecutionResult, SafeActionExecutor
 from .freshness import ocr_reuse_denial, roi_hash_map, sha256_bytes
 from .models import (
     ActionClass,
@@ -19,9 +19,11 @@ from .promotional import (
     PromotionalSequenceError,
 )
 from .store import CURRENT_SCHEMA_VERSION, SafetyStore
+from .popup import PopupController, PopupObservation
 
 __all__ = [
     "ActionClass",
+    "ActionTransaction",
     "ActionIntent",
     "ActionStatus",
     "CentralPolicy",
@@ -34,6 +36,8 @@ __all__ = [
     "PolicyResult",
     "PromotionalBackSequence",
     "PromotionalSequenceError",
+    "PopupController",
+    "PopupObservation",
     "SafeActionExecutor",
     "SafetyStore",
     "TransportResult",

@@ -5,14 +5,15 @@ from dataclasses import asdict, dataclass
 from typing import Dict, Tuple
 import cv2
 import numpy as np
+from tasks.profile import HOME_LEFT, HOME_QUEST, HOME_RIGHT, QUEST_DAILY, QUEST_HEADER, DAILY_HEADER
 
 ROI = Tuple[int, int, int, int]
 HOME_NAV_ROI: ROI = (0, 1120, 800, 1280)
-H_QUEST_ROI: ROI = (250, 1130, 410, 1280)
-H_ANCHOR_ROIS: Tuple[ROI, ...] = ((0, 1130, 250, 1280), (410, 1130, 800, 1280))
-QUEST_TAB_ROI: ROI = (260, 80, 540, 300)
-QUEST_HEADER_ROI: ROI = (0, 0, 800, 180)
-DAILY_HEADER_ROI: ROI = (0, 0, 800, 450)
+H_QUEST_ROI: ROI = HOME_QUEST.roi
+H_ANCHOR_ROIS: Tuple[ROI, ...] = (HOME_LEFT.roi, HOME_RIGHT.roi)
+QUEST_TAB_ROI: ROI = QUEST_DAILY.roi
+QUEST_HEADER_ROI: ROI = QUEST_HEADER.roi
+DAILY_HEADER_ROI: ROI = DAILY_HEADER.roi
 
 
 @dataclass(frozen=True)

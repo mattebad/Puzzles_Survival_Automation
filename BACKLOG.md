@@ -267,10 +267,14 @@ Claim example.
   one prepared semantic action. Every persisted
   `prepared` or `input_sent` restart boundary becomes unresolved without replay; positive
   evidence is required to reconcile it to confirmed. No Unraid, VM, ADB, container, network, or
-  game access occurred. The narrow startup escape-only extension also passed offline: only
+  game access occurred. The focused Daily Quest task-module boundary now supplies typed
+  `PROGRESS/DONE/RETRY/BLOCKED/FAILED_SAFE` outcomes, fixed-profile anchor specifications, local
+  navigation steps, explicit navigation/action popup modes, route dispatch, and transaction
+  intent semantics without reopening this passed core. The complete dependency-complete suite is
+  96 passing tests. The narrow startup escape-only extension also passed offline: only
   `UNKNOWN_PROMOTIONAL_WITH_VERIFIED_BACK` with an isolated standard game Back arrow can authorize
   `SAFE_PROMOTIONAL_BACK`; explicit forbidden-region separation, bounded successors, and a three-action
-  sequence limit are enforced. The complete suite is 78 passing tests.
+  sequence limit are enforced. The current combined suite is 96 passing tests (the prior core boundary was 78).
 - Blocker: none; dependency satisfied by M6-DQ-BOOTSTRAP.
 - Next: MVP-QUEST-TO-CLAIM.
 

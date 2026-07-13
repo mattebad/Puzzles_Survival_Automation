@@ -505,6 +505,12 @@ injected transport has no direct ADB dependency; the executor is the sole dispat
 the structured central policy both before intent persistence and after mandatory immediate
 recapture. The persistent lease, unique action key, append-only audits, and
 `prepared/input_sent/confirmed/unresolved` journal were validated across restart boundaries.
+The 2026-07-13 task-module boundary keeps that executor as the ActionTransaction implementation
+and adds typed `PROGRESS/DONE/RETRY/BLOCKED/FAILED_SAFE` outcomes, fixed-profile `AnchorSpec` and
+`NavigationStep` contracts, explicit navigation versus action popup handling, and a bounded route
+dispatcher for Daily Quest Go destinations. Navigation validates local source/target/overlay
+anchors; it does not require whole-frame equality or unrelated OCR. A task reaches `DONE` only
+after its explicit postcondition is verified.
 Persisted nonterminal actions become unresolved at startup and are never replayed automatically;
 only positive task-specific evidence can reconcile unresolved to confirmed. The core and its
 promotional escape-only extension pass 78 offline tests, including all six promoted M6 assets,

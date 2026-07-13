@@ -87,6 +87,14 @@ class PolicyRequest:
     policy_phase: str = "proposal"
     promotional_back_count: int = 0
     action_class: ActionClass = ActionClass.ZERO_COST_CONSEQUENTIAL
+    action_kind: Optional[str] = None
+    subject: Optional[str] = None
+    resource_or_currency: Optional[str] = None
+    maximum_cost: Optional[float] = None
+    free_only: bool = False
+    allowed_confirmation_dialogs: Tuple[str, ...] = field(default_factory=tuple)
+    semantic_preconditions: Tuple[str, ...] = field(default_factory=tuple)
+    semantic_postconditions: Tuple[str, ...] = field(default_factory=tuple)
 
     def with_observation(
         self, observation: Observation, monotonic_now: float, policy_phase: str = "pre_dispatch"
@@ -138,6 +146,14 @@ class ActionIntent:
     arrow_geometry: Optional[str] = None
     promotional_back_count: int = 0
     action_class: ActionClass = ActionClass.ZERO_COST_CONSEQUENTIAL
+    action_kind: Optional[str] = None
+    subject: Optional[str] = None
+    resource_or_currency: Optional[str] = None
+    maximum_cost: Optional[float] = None
+    free_only: bool = False
+    allowed_confirmation_dialogs: Tuple[str, ...] = field(default_factory=tuple)
+    semantic_preconditions: Tuple[str, ...] = field(default_factory=tuple)
+    semantic_postconditions: Tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

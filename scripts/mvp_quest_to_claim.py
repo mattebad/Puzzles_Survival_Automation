@@ -405,9 +405,16 @@ def execute(args: argparse.Namespace) -> int:
         action_class=(ActionClass.NAVIGATION_ONLY if args.consequence == "navigate_zero_cost" else ActionClass.ZERO_COST_CONSEQUENTIAL),
     )
     result = executor.execute(request)
+    audit = store.audit_events(args.action_id)
+    try:
+        action_record = store.get_action(args.action_id)
+    except Exception:
+        # Policy can deny before preparation.  Preserve a safe cancellation without
+        # fabricating a journal record or implying that transport was attempted.
+        action_record = None
     write_json(
         evidence / (args.action_id + "-result.json"),
-        {"result": result.__dict__, "action": store.get_action(args.action_id), "audit": store.audit_events(args.action_id)},
+        {"result": result.__dict__, "action": action_record, "audit": audit},
     )
     print(json.dumps(result.__dict__, sort_keys=True, default=str))
     store.close()

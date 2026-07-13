@@ -86,6 +86,14 @@ class SafeActionExecutor:
             game_day_id=request.game_day_id,
             promotional_back_count=request.promotional_back_count,
             action_class=request.action_class,
+            action_kind=request.action_kind or request.semantic_action,
+            subject=request.subject,
+            resource_or_currency=request.resource_or_currency,
+            maximum_cost=request.maximum_cost,
+            free_only=request.free_only,
+            allowed_confirmation_dialogs=request.allowed_confirmation_dialogs,
+            semantic_preconditions=request.semantic_preconditions,
+            semantic_postconditions=request.semantic_postconditions,
         )
         first_policy = self.policy.evaluate(request)
         self.store.audit(request.task_id, "policy_evaluated", recorded_at, first_policy, request.action_id)
@@ -124,6 +132,14 @@ class SafeActionExecutor:
                 policy_phase="pre_dispatch",
                 promotional_back_count=pre_request.promotional_back_count,
                 action_class=pre_request.action_class,
+                action_kind=pre_request.action_kind,
+                subject=pre_request.subject,
+                resource_or_currency=pre_request.resource_or_currency,
+                maximum_cost=pre_request.maximum_cost,
+                free_only=pre_request.free_only,
+                allowed_confirmation_dialogs=pre_request.allowed_confirmation_dialogs,
+                semantic_preconditions=pre_request.semantic_preconditions,
+                semantic_postconditions=pre_request.semantic_postconditions,
             )
             pre_policy = self.policy.evaluate(pre_request)
             changed = self._changed(request.observation, immediate)
@@ -300,4 +316,16 @@ class SafeActionExecutor:
             arrow_geometry=obs.arrow_geometry,
             promotional_back_count=request.promotional_back_count,
             action_class=request.action_class,
+            action_kind=request.semantic_action,
+            subject=obs.target_identity,
+            resource_or_currency=obs.cost_type,
+            maximum_cost=obs.cost_amount,
+            free_only=obs.cost_type == "none" and obs.cost_amount == 0,
+            allowed_confirmation_dialogs=request.allowed_confirmation_dialogs,
+            semantic_preconditions=request.semantic_preconditions or (obs.source_state, obs.overlay_state),
+            semantic_postconditions=request.semantic_postconditions or (obs.expected_postcondition,),
         )
+
+
+# The existing fail-closed executor is the MVP ActionTransaction implementation.
+ActionTransaction = SafeActionExecutor
