@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Any, Mapping, Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
-from .profile import ALLIANCE_HELP_ACTION
+from .profile import HELP_ALL_ACTION
 
 
 ALLIANCE_HELP_ROUTE = "daily_go_to_alliance_help"
@@ -65,7 +65,7 @@ class RouteDispatcher:
                 return RouteType.HOME_WITH_HIGHLIGHTED_BUILDING
             if observation.search_required:
                 return RouteType.HOME_SEARCH_REQUIRED
-        if state == "ALLIANCE":
+        if state in {"ALLIANCE", "SPEEDUP_HELP"}:
             return RouteType.ALLIANCE
         if state == "WORLD":
             return RouteType.WORLD
@@ -94,7 +94,7 @@ class RouteDispatcher:
 
 @dataclass(frozen=True)
 class AllianceHelpObservation:
-    """Semantic evidence for one independently recognized Alliance Help request."""
+    """Semantic evidence for the Speedup Help / Help All transaction."""
 
     screen_state: str
     objective_name: str
@@ -103,17 +103,22 @@ class AllianceHelpObservation:
     target_identity: str
     target_roi: ROI
     zero_cost_evidence: bool
+    available_request_count: Optional[int] = None
+    help_all_visible: bool = False
+    request_controls_count: Optional[int] = None
+    empty_state: bool = False
     overlay_state: str = "none_observed"
     forbidden_region_intersects_target: bool = False
     recognized: bool = True
 
 
 class AllianceHelpHandler:
-    """The first narrow zero-cost Daily Quest handler; transport remains injected."""
+    """Bounded Help All handler; device input remains injected by ActionTransaction."""
 
     objective_name = "Help allies"
-    action_kind = "ALLIANCE_HELP"
+    action_kind = "ALLIANCE_HELP_ALL"
     consequence = "alliance_help_zero_cost"
+    route_name = "daily_go_to_speedup_help"
 
     @classmethod
     def matches_objective(cls, name: str) -> bool:
@@ -131,31 +136,32 @@ class AllianceHelpHandler:
     def authorizeable(cls, observation: AllianceHelpObservation) -> bool:
         remaining = cls.remaining(observation)
         return bool(
-            observation.screen_state == RouteType.ALLIANCE.value
+            observation.screen_state in {RouteType.ALLIANCE.value, "SPEEDUP_HELP"}
             and cls.matches_objective(observation.objective_name)
             and remaining is not None and remaining > 0
-            and observation.target_identity == ALLIANCE_HELP_ACTION.name
-            and observation.target_roi == ALLIANCE_HELP_ACTION.roi
+            and observation.target_identity == HELP_ALL_ACTION.name
+            and observation.target_roi == HELP_ALL_ACTION.roi
+            and observation.help_all_visible
             and observation.zero_cost_evidence
-            and observation.overlay_state == "none_observed"
+            and observation.overlay_state in {"none", "none_observed"}
             and not observation.forbidden_region_intersects_target
         )
 
     @classmethod
     def transaction_spec(cls, observation: AllianceHelpObservation) -> ActionTransactionSpec:
         if not cls.authorizeable(observation):
-            raise ValueError("Alliance Help preconditions are not positively recognized")
+            raise ValueError("Speedup Help / Help All preconditions are not positively recognized")
         return ActionTransactionSpec(
             action_kind=cls.action_kind,
-            expected_source_screen=RouteType.ALLIANCE.value,
+            expected_source_screen="SPEEDUP_HELP",
             subject=cls.objective_name,
             quantity=1,
             resource_or_currency=None,
             maximum_cost=0,
             free_only=True,
             allowed_confirmation_dialogs=(),
-            semantic_preconditions=("exact_alliance_help_request", "explicit_zero_cost_help", "remaining_count_positive"),
-            semantic_postconditions=("help_request_or_count_changes", "daily_objective_progress_increases"),
+            semantic_preconditions=("speedup_help_screen", "help_all_visible", "explicit_zero_cost_help_all", "remaining_count_positive"),
+            semantic_postconditions=("available_help_controls_decrease_or_empty", "daily_objective_progress_increases"),
         )
 
     @classmethod
@@ -164,9 +170,47 @@ class AllianceHelpHandler:
         after_remaining = cls.remaining(after)
         if before_remaining is None or after_remaining is None:
             return False
-        if not cls.matches_objective(after.objective_name) or after.screen_state != RouteType.ALLIANCE.value:
+        if not cls.matches_objective(after.objective_name):
             return False
-        return after.current_progress == before.current_progress + 1 and after_remaining < before_remaining
+        if after.screen_state not in {RouteType.ALLIANCE.value, "SPEEDUP_HELP"}:
+            return False
+        progress_increased = after.current_progress > before.current_progress
+        request_count_decreased = (
+            before.available_request_count is not None
+            and after.available_request_count is not None
+            and after.available_request_count < before.available_request_count
+        )
+        control_count_decreased = (
+            before.request_controls_count is not None
+            and after.request_controls_count is not None
+            and after.request_controls_count < before.request_controls_count
+        )
+        empty_state_reached = after.empty_state or (
+            after.available_request_count is not None and after.available_request_count == 0
+        )
+        return progress_increased or request_count_decreased or control_count_decreased or empty_state_reached
+
+    @classmethod
+    def perform_one_pulse(cls, before: AllianceHelpObservation, after: Optional[AllianceHelpObservation] = None) -> TaskResult:
+        if not cls.authorizeable(before):
+            return TaskResult(TaskOutcome.FAILED_SAFE, "HELP_ALL_PRECONDITION_NOT_PROVEN", state="SPEEDUP_HELP")
+        if after is None:
+            return TaskResult.progress("Help All is authorized; dispatch one ActionTransaction", "SPEEDUP_HELP")
+        if not cls.postcondition_verified(before, after):
+            return TaskResult(TaskOutcome.FAILED_SAFE, "HELP_ALL_POSTCONDITION_NOT_PROVEN", state="SPEEDUP_HELP")
+        remaining = cls.remaining(after)
+        if remaining == 0:
+            return TaskResult.done("Help allies objective is complete", "daily:help_allies:complete", "SPEEDUP_HELP")
+        return TaskResult.progress("Help All changed the available request state", "SPEEDUP_HELP")
+
+    @classmethod
+    def completion_check(cls, observation: AllianceHelpObservation) -> bool:
+        return cls.remaining(observation) == 0
+
+    @classmethod
+    def next_eligible_time(cls, observation: AllianceHelpObservation) -> Optional[float]:
+        # Availability/cooldown scheduling is supplied by the later service scheduler.
+        return None
 
 
 @dataclass(frozen=True)

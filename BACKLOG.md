@@ -87,7 +87,7 @@ dependency; no dedicated SSH-key task is a production blocker.
 | M5 Framework bake-off | Passed | Custom Python/direct ADB/OpenCV/local OCR selected; Airtest and MaaFramework rejected early |
 | M6 Production corpus | In Progress | M6-DQ-BOOTSTRAP Passed; M6-DQ-TRANSITION-CORPUS remains later before the complete M6 corpus can pass |
 | M7 Deterministic service core | In Progress | M7-SAFE-ACTION-CORE Passed; full core, M7-Takeover, and M7-AccountGuard remain later gates |
-| M8 Claim-only MVP | Pending | Selected runtime, staged corpus, full core, and promotion gates; one supervised trial does not pass M8 |
+| M8 Claim-only MVP | Blocked | Selected runtime, staged corpus, full core, and promotion gates; one supervised trial does not pass M8 |
 | M9 Expanded tasks | Pending | Claim-only MVP evidence |
 | Milestone 10 — Production hardening and operational acceptance | Pending | Production task catalog |
 
@@ -363,7 +363,7 @@ Claim example.
 - Rollback: stop at the first unknown or unresolved outcome, preserve the action journal and all
   frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
   fallback is allowed.
-- Status: Blocked (2026-07-13; first Alliance Help transaction unresolved after one dispatch).
+- Status: Blocked (2026-07-13; the corrected Help All transaction is terminally reconciled, but the full quest-to-claim flow remains incomplete).
 - Blocker: the typed navigation continuation reached Daily Quest and inspected two bounded
   final-runtime list views. The upper view contained Vehicle Depot upgrade, Ultimate Challenge,
   Hunt Zombie, Train Fighter, and Own Lv.211 Hero objectives; the lower view additionally showed
@@ -418,6 +418,15 @@ Claim example.
   preserve the unresolved state, the lease is released, the VM is running, and RT-017 is intact.
 - Next: Resume `MVP-QUEST-TO-CLAIM` after reset/game-day and supported-objective evidence;
   `M6-DQ-TRANSITION-CORPUS` remains downstream.
+- Latest Help All correction and short validation on 2026-07-13: the retained first action at
+  `(650,350)` was below the visible Help All control and remains immutable historical evidence;
+  a separate copy was reconciled as `proven_no_effect_mistarget`. The corrected Speedup Help
+  handler uses the matched Help All ROI `(556,274)-(727,330)` and derived tap `(641,302)`.
+  One fresh zero-cost transaction dispatched exactly once; the Help All control disappeared while
+  the stable local header remained unchanged, and the operational copy was reconciled as
+  `confirmed` with no unresolved or nonterminal action. No Daily Quest progress or Claim row was
+  proven, so the MVP remains Blocked. The reusable `scripts/pnsctl.py` interface, 31-objective
+  catalog, and handler status matrix are retained with the task evidence.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded

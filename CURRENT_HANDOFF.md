@@ -1,5 +1,28 @@
 # Current runtime-proof handoff
 
+## 2026-07-13 operator interface and Help All validation update
+
+- The retained prior action `alliance-help-20260713-001` remains immutable historical evidence;
+  its `(650,350)` input was below the visible Help All control and a separate copy is reconciled
+  as `proven_no_effect_mistarget`. The historical journal itself was not rewritten.
+- The corrected Alliance Help flow uses the Speedup Help screen, profile-bound Help All ROI
+  `(556,274)-(727,330)`, and derived tap `(641,302)`. One fresh zero-cost transaction dispatched
+  exactly once. The Help All control disappeared while the stable local header remained unchanged;
+  the operational reconciled copy is terminal `confirmed` with zero unresolved/nonterminal actions.
+- `scripts/pnsctl.py` is now the checked-in operator interface for preflight, scoped worker/private
+  ADB lifecycle, launch/capture/observe/navigation/task execution, tests, RT-019/M6 validation,
+  evidence preservation, reconciliation, and cleanup. The 31 retained inventory objectives are
+  cataloged in `tasks/daily_quest_catalog.json`; Help allies is `LIVE_VALIDATED` for one Help All
+  transaction only and is not automatically enabled.
+- Final pinned validation: 114 tests passed; RT-019 passed; all six M6 assets passed. Cleanup
+  removed the scoped worker and task ADB while leaving the approved loopback ADB untouched. The
+  VM is running, no public listener or tunnel remains, and RT-017 is intact.
+- `MVP-QUEST-TO-CLAIM` remains Blocked because no Daily Quest progress or Claim postcondition was
+  proven. No Claim, Go, quest-completion, spend, account, or OS input occurred in this short
+  validation. The next continuation must start with fresh Daily Quest reconciliation; M6 transition
+  corpus work remains downstream.
+
+
 ## 2026-07-13 live Daily Quest inventory and unresolved Alliance Help action
 
 - The current run used the selected Daily Quest gate and a complete bounded overlapping-scroll
@@ -187,16 +210,16 @@ Recorded: 2026-07-13, America/Chicago
 
 ## Blocker and required user action
 
-1. MVP-QUEST-TO-CLAIM remains Blocked by unresolved consequential action
-   alliance-help-20260713-001. The selected row was Help allies 0/10; the Alliance Help screen
-   showed Help 0/30. One exact zero-cost tap was dispatched at (650,350), but the immediate
-   post-dispatch evidence still showed Help 0/30, so the action was not confirmed and was not
-   retried. All later consequential input, including Claim, is blocked.
-2. Manually reconcile the retained Alliance Help state and journal using positive evidence of whether
-   that Help request registered. Do not blindly tap the Help control. After reconciliation, resume
-   only from a fresh runtime/profile observation with the existing action key preserved; do not
-   begin M6-DQ-TRANSITION-CORPUS.
-3. No credentials, login, tutorial, account switching, CAPTCHA, or profile navigation may be
+1. `MVP-QUEST-TO-CLAIM` remains Blocked because the short Help All validation did not prove
+   Daily Quest progress or produce a Claim row. The historical `alliance-help-20260713-001`
+   tap at `(650,350)` was a proven-no-effect mistarget in the separate operational copy; its
+   original journal remains immutable historical evidence.
+2. No unresolved or nonterminal action remains in the reconciled operational journal, and no
+   further consequential input is authorized until a fresh Daily Quest observation establishes
+   current progress and an eligible objective or Claim row. Do not retry the historical tap.
+3. Resume with the checked-in `scripts/pnsctl.py` interface, fresh runtime/profile reconciliation,
+   and the existing single-objective MVP boundary. `M6-DQ-TRANSITION-CORPUS` remains downstream.
+4. No credentials, login, tutorial, account switching, CAPTCHA, or profile navigation may be
    automated. RT-016A remains a separate later manual-only account-guard task.
 
 

@@ -1281,3 +1281,22 @@ target metadata and a strict zero-cost ActionTransaction contract. Its first liv
 was dispatched exactly once but remained unresolved because Help 0/30 did not change in the
 post-dispatch evidence; no retry is permitted. This does not authorize Claim or any other
 consequential action, and M6-DQ-TRANSITION-CORPUS remains downstream.
+
+
+## 2026-07-13 stable operator and Help All finding
+
+Routine Unraid operations now use the checked-in `scripts/pnsctl.py` interface and
+`docs/pns-operations-runbook.md` for pinned host-key handling, scoped worker lifecycle, private
+ADB, evidence synchronization, tests, validation, and cleanup. Credentials are read only from
+the approved process/environment mechanism and are never logged or persisted. The retained
+2026-07-13 Daily Quest inventory is promoted as the 31-objective catalog in
+`tasks/daily_quest_catalog.json`; unknown runtime aliases cannot alter a cataloged consequence or
+policy. Handler status is tracked separately from automatic enablement.
+
+Alliance Help remains a narrow supervised zero-cost handler using the Speedup Help screen and the
+profile-bound Help All ROI `(556,274)-(727,330)`. The old `(650,350)` mistarget is preserved as
+historical evidence and separately reconciled as proven no effect. A corrected live transaction
+derived tap `(641,302)`, dispatched once, and confirmed the local Help All disappearance with a
+stable local header. This validates one Help All transaction only; no Daily Quest progress or
+Claim postcondition was proven, so MVP-QUEST-TO-CLAIM remains Blocked and no transition corpus
+work is authorized.

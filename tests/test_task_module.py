@@ -14,7 +14,7 @@ from tasks.daily_quest import (
     RouteType,
     handler_for_objective,
 )
-from tasks.profile import ALLIANCE_HELP_ACTION, HOME_QUEST, QUEST_DAILY, PROFILE_ID
+from tasks.profile import HELP_ALL_ACTION, HOME_QUEST, QUEST_DAILY, PROFILE_ID
 
 
 class ContractTests(unittest.TestCase):
@@ -26,8 +26,8 @@ class ContractTests(unittest.TestCase):
                           (QUEST_DAILY.roi[1] + QUEST_DAILY.roi[3]) // 2), (400, 105))
         self.assertTrue(HOME_QUEST.asset_provenance.endswith("home-base-settled.png"))
         self.assertEqual(QUEST_DAILY.required_confirmation_frames, 1)
-        self.assertEqual(ALLIANCE_HELP_ACTION.roi, (580, 320, 720, 380))
-        self.assertTrue(ALLIANCE_HELP_ACTION.asset_provenance.endswith("help-go-post-1.png"))
+        self.assertEqual(HELP_ALL_ACTION.roi, (556, 274, 727, 330))
+        self.assertTrue(HELP_ALL_ACTION.asset_provenance.endswith("help-go-post-002.png"))
 
     def test_anchor_thresholds_are_anchor_specific(self):
         a = AnchorSpec("a", (0, 0, 10, 10), 0.81, template="a.png")
@@ -59,20 +59,22 @@ class ContractTests(unittest.TestCase):
         self.assertIs(handler_for_objective(" Help   allies "), ALLIANCE_HELP_HANDLER)
         observation = AllianceHelpObservation(
             screen_state="ALLIANCE", objective_name="Help allies", current_progress=0,
-            required_progress=10, target_identity=ALLIANCE_HELP_ACTION.name,
-            target_roi=ALLIANCE_HELP_ACTION.roi, zero_cost_evidence=True,
+            required_progress=10, target_identity=HELP_ALL_ACTION.name,
+            target_roi=HELP_ALL_ACTION.roi, zero_cost_evidence=True,
+            available_request_count=1, help_all_visible=True, request_controls_count=1,
         )
         self.assertEqual(AllianceHelpHandler.remaining(observation), 10)
         spec = AllianceHelpHandler.transaction_spec(observation)
         self.assertTrue(spec.free_only)
         self.assertEqual(spec.maximum_cost, 0)
-        self.assertEqual(spec.action_kind, "ALLIANCE_HELP")
+        self.assertEqual(spec.action_kind, "ALLIANCE_HELP_ALL")
 
     def test_alliance_help_requires_exact_zero_cost_and_positive_postcondition(self):
         base = AllianceHelpObservation(
             screen_state="ALLIANCE", objective_name="Help allies", current_progress=0,
-            required_progress=10, target_identity=ALLIANCE_HELP_ACTION.name,
-            target_roi=ALLIANCE_HELP_ACTION.roi, zero_cost_evidence=True,
+            required_progress=10, target_identity=HELP_ALL_ACTION.name,
+            target_roi=HELP_ALL_ACTION.roi, zero_cost_evidence=True,
+            available_request_count=1, help_all_visible=True, request_controls_count=1,
         )
         self.assertTrue(AllianceHelpHandler.authorizeable(base))
         self.assertFalse(AllianceHelpHandler.authorizeable(
@@ -86,6 +88,11 @@ class ContractTests(unittest.TestCase):
         ))
         self.assertFalse(AllianceHelpHandler.postcondition_verified(
             base, AllianceHelpObservation(**{**base.__dict__, "current_progress": 11})
+        ))
+        self.assertTrue(AllianceHelpHandler.postcondition_verified(
+            base, AllianceHelpObservation(**{**base.__dict__, "help_all_visible": False,
+                                             "available_request_count": 0,
+                                             "request_controls_count": 0, "empty_state": True})
         ))
 
 

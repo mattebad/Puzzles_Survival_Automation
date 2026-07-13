@@ -18,7 +18,7 @@ ALLOWED_TRANSITIONS = {
         ActionStatus.CANCELLED.value,
     },
     ActionStatus.INPUT_SENT.value: {ActionStatus.CONFIRMED.value, ActionStatus.UNRESOLVED.value},
-    ActionStatus.UNRESOLVED.value: {ActionStatus.CONFIRMED.value},
+    ActionStatus.UNRESOLVED.value: {ActionStatus.CONFIRMED.value, ActionStatus.CANCELLED.value},
     ActionStatus.CONFIRMED.value: set(),
     ActionStatus.CANCELLED.value: set(),
 }
@@ -259,6 +259,9 @@ class SafetyStore:
         )
 
     def mark_cancelled(self, action_id: str, now: float, reason: str) -> None:
+        row = self.get_action(action_id)
+        if row["final_status"] == ActionStatus.UNRESOLVED.value and not reason.startswith("proven_no_effect"):
+            raise InvalidTransitionError("an unresolved action may be cancelled only with proven no-effect evidence")
         self._transition(action_id, ActionStatus.CANCELLED, now, reason)
 
     def reconcile_confirmed(self, action_id: str, now: float, positive_evidence: Any) -> None:

@@ -442,6 +442,15 @@ class CrashBoundaryCase(StoreFixture, unittest.TestCase):
         self.assertEqual(self.store.startup_reconcile(1001.0), [])
         self.assertEqual(self.store.get_action("action-1")["final_status"], "confirmed")
 
+    def test_unresolved_mistarget_can_only_be_terminally_reconciled_with_proof(self):
+        self.store.prepare_action(intent(), self.policy, 1000.0)
+        self.store.mark_unresolved("action-1", 1000.1, "unexpected_successor")
+        with self.assertRaises(InvalidTransitionError):
+            self.store.mark_cancelled("action-1", 1000.2, "operator_guess")
+        self.store.mark_cancelled("action-1", 1000.3, "proven_no_effect_mistarget")
+        self.assertEqual(self.store.get_action("action-1")["final_status"], "cancelled")
+        self.assertEqual(self.store.list_unresolved_actions(), [])
+
 
 class M6FixtureCase(unittest.TestCase):
     def test_six_promoted_assets_match_locked_profile(self):

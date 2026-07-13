@@ -1,0 +1,22 @@
+{
+  "recorded_at": "2026-07-13",
+  "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "source_frame": "remote-complete/alliance-help-source-001.png",
+  "post_route_frame": "remote-complete/help-go-post-002.png",
+  "screen_family": "Speedup Help",
+  "help_all_anchor": {
+    "roi": [556, 274, 727, 330],
+    "recognition": "independent Bliss local orange-control geometry plus ROI OCR",
+    "asset_provenance": "remote-complete/help-go-post-002.png",
+    "derived_tap": [641, 302]
+  },
+  "prior_mistarget": {
+    "input": [650, 350],
+    "historical_roi": [580, 320, 720, 380],
+    "finding": "the input was below the visible orange Help All control on passive Help text",
+    "result": "proven_no_effect_mistarget",
+    "historical_journal_preserved": true,
+    "reconciled_copy": "reconciled-actions-20260713.sqlite3"
+  },
+  "policy": "Help All is the only permitted consequential target on this surface; no individual Help coordinate is reused."
+}
