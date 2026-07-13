@@ -1,0 +1,34 @@
+{
+  "classification": {
+    "detail": {
+      "anchor_scores": [
+        0.993396,
+        0.978736
+      ],
+      "dangerous_intersects": false,
+      "overlay_intersects": false,
+      "recognized": true,
+      "state": "HOME_BASE",
+      "target_identity": "home-quest-entry",
+      "target_roi": [
+        250,
+        1130,
+        410,
+        1280
+      ],
+      "target_score": 1.0
+    },
+    "recognized": true,
+    "state": "HOME_BASE"
+  },
+  "metadata": {
+    "bytes": 2275829,
+    "capture_completed_monotonic": 4418092.163855096,
+    "command_started_monotonic": 4418091.79930467,
+    "decode_completed_monotonic": 4418092.197575724,
+    "height": 1280,
+    "path": "/evidence/after-promo-home.png",
+    "sha256": "944eddda9ae0faa50447b31be5e15ca42ffd1a7bfd0f72bba48da7d348d1072c",
+    "width": 800
+  }
+}

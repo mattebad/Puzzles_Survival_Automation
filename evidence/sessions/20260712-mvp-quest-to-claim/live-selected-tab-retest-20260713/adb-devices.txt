@@ -1,0 +1,3 @@
+List of devices attached
+192.168.122.79:5555    device product:Standard PC (Q35 + ICH9, 2009) model:Generic_Android_x86_64 device:Standard PC (Q35 + ICH9, 2009) transport_id:1
+

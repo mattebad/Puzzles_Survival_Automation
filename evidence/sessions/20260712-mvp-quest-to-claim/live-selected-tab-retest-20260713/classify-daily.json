@@ -1,0 +1,29 @@
+{
+  "classification": {
+    "detail": {
+      "anchor_scores": [
+        0.647328,
+        0.650489
+      ],
+      "dangerous_intersects": false,
+      "overlay_intersects": false,
+      "recognized": false,
+      "state": "UNKNOWN",
+      "target_identity": null,
+      "target_roi": null,
+      "target_score": 0.647328
+    },
+    "recognized": false,
+    "state": "UNKNOWN"
+  },
+  "metadata": {
+    "bytes": 1028617,
+    "capture_completed_monotonic": 4418022.449329424,
+    "command_started_monotonic": 4418022.201967139,
+    "decode_completed_monotonic": 4418022.475635082,
+    "height": 1280,
+    "path": "/evidence/classify-daily.png",
+    "sha256": "7757930399797a4168c80d10a90da7841d671835aa944722b61d208bdffd32db",
+    "width": 800
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "classification": {
+    "daily_quest_tab_roi": [
+      260,
+      80,
+      540,
+      300
+    ],
+    "daily_quest_target_recognized": false,
+    "reason": "Quest screen or Daily Quest tab evidence is insufficient",
+    "recognized": true,
+    "state": "QUEST",
+    "tabs_text": "oo me a ur eae ~survivo! re ie. el a che >, ron 5 roe aa ae ee",
+    "title_text": "e214\" @2.14m \u00a9 789k w 494k @25.4k + i \u00bb\\ (mp10 $5,00,722,088\u00b0 pe. ray) waa y, we ss a qu) es : ; \u2014\u2014\u2014 ee a ny ez pare lg"
+  },
+  "metadata": {
+    "bytes": 2269398,
+    "capture_completed_monotonic": 4418093.17617044,
+    "command_started_monotonic": 4418092.81164129,
+    "decode_completed_monotonic": 4418093.210054699,
+    "height": 1280,
+    "path": "/evidence/after-promo-quest.png",
+    "sha256": "9ca6057ad005f19cbd34ba43ba8793aad0903e13d8e437e3e3a0d562ff750c7e",
+    "width": 800
+  }
+}

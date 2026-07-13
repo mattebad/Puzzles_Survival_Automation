@@ -396,6 +396,14 @@ Claim example.
   was force-stopped; no task worker, ADB server, tunnel, or public listener remained; the VM stayed
   running and RT-017 remained intact. Details are in
   `evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md`.
+- Selected Daily-tab correction and retest on 2026-07-13: `4f26889` now requires selected-tab
+  evidence and rejects Main Quest as Daily; `f3373f8` tightened the actual Main Quest Daily-tab
+  target from `(260,80,540,300)` to `(300,70,500,140)`, centering the tap at `(400,105)`. The
+  old `(400,190)` attempt remained on Main Quest and is retained as navigation-only no-effect
+  evidence. A new safe-action record then confirmed Quest→selected Daily with exactly one input.
+  No Daily Quest objectives were inspected and no Go, Claim, prerequisite, spend, combat, account,
+  or OS input occurred. The 100-test suite, RT-019, and six-asset M6 validation pass. Evidence is
+  retained in `evidence/sessions/20260712-mvp-quest-to-claim/live-selected-tab-retest-20260713/`.
 - Next: Resume `MVP-QUEST-TO-CLAIM` after reset/game-day and supported-objective evidence;
   `M6-DQ-TRANSITION-CORPUS` remains downstream.
 

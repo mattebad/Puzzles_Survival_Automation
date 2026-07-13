@@ -26,6 +26,23 @@ Recorded: 2026-07-13, America/Chicago
   assets remain passing. Details are in
   `evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md`.
 
+## 2026-07-13 selected Daily-tab correction and retest
+
+- The false-positive Main Quest/Daily Quest classification is corrected by `4f26889`: selected
+  Daily recognition now requires the selected-tab state and an explicit Main Quest negative.
+- The first live retest proved a separate target defect: the old broad tab ROI centered the tap at
+  `(400,190)`, below the live tab label. The screen stayed Main Quest; the navigation-only record is
+  retained as a no-effect unresolved navigation record, not an unresolved consequential action.
+- `f3373f8` tightened the fixed-profile Daily-tab target to `(300,70,500,140)`, center `(400,105)`.
+  A new journaled Quest→Daily action dispatched exactly one tap at `(400,105)` and positively
+  confirmed the selected Daily Quest successor. No Daily Quest rows or objectives were inspected.
+- Fresh retest evidence and schema-v1 database are retained in
+  `evidence/sessions/20260712-mvp-quest-to-claim/live-selected-tab-retest-20260713/`. The full
+  offline suite is 100 passing tests; RT-019 and all six M6 assets pass.
+- Cleanup completed: game force-stopped, task worker removed, lease released, no task listener or
+  tunnel remained, VM running, and RT-017 intact. The pre-existing ADB daemon was not killed or
+  recreated.
+
 ## Current milestone and task state
 
 - Milestones: M6 Production corpus — In Progress; M7 Deterministic service core — In Progress.
@@ -159,11 +176,13 @@ Recorded: 2026-07-13, America/Chicago
 
 ## Blocker and required user action
 
-1. MVP-QUEST-TO-CLAIM remains blocked by the reset/game-day reconciliation and the cancelled
-   Home→Quest proposal whose source changed during immediate-before validation. The promotional
-   Back was already reconciled to Home/Base with no unresolved action. Resume only after fresh
-   startup observation positively recognizes a safe canonical screen and the post-reset game day;
-   do not retry the cancelled action key. No in-game user action is required. RT-016A
+1. MVP-QUEST-TO-CLAIM remains blocked by reset/game-day reconciliation and the lack of a supported
+   zero-cost objective or existing ordinary Claim row in the retained Daily observation. The selected
+   Daily-tab gate and corrected target geometry were live-verified in the focused retest. Its first
+   old-coordinate attempt is retained as one navigation-only no-effect unresolved record; the final
+   journal has zero unresolved consequential and zero nonterminal actions, with a released lease.
+   Do not replay the old `quest-daily-retest-001` action key. Resume only after fresh startup and
+   Daily observation positively establish the current game day and a supported objective. RT-016A
    remains a later manual-only account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,

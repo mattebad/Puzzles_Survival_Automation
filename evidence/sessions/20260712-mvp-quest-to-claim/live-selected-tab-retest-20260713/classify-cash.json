@@ -1,0 +1,44 @@
+{
+  "classification": {
+    "detail": {
+      "denial_rules": [
+        "never select purchase, offer, premium-currency, or confirmation controls",
+        "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+        "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+      ],
+      "features": {
+        "back_arrow": 0.844853,
+        "mall_context": 0.735463,
+        "mall_header": 0.765342,
+        "premium_header": 0.828697,
+        "purchase_context": 0.849281,
+        "title_region": 0.693768
+      },
+      "fresh_frame_dimensions": true,
+      "known_informational_overlay": false,
+      "no_unknown_overlay": false,
+      "reason": "possible unknown overlay: source structure and center context disagree",
+      "recognized": false,
+      "state": "UNKNOWN",
+      "target_roi": [
+        35,
+        0,
+        180,
+        65
+      ],
+      "unknown_overlay": true
+    },
+    "recognized": false,
+    "state": "UNKNOWN"
+  },
+  "metadata": {
+    "bytes": 1029404,
+    "capture_completed_monotonic": 4418019.598629875,
+    "command_started_monotonic": 4418019.341368036,
+    "decode_completed_monotonic": 4418019.624713802,
+    "height": 1280,
+    "path": "/evidence/classify-cash.png",
+    "sha256": "737a1366c46baa7c230e04ae375de49b6077bf525a53d5f710807cd7a2e21df7",
+    "width": 800
+  }
+}

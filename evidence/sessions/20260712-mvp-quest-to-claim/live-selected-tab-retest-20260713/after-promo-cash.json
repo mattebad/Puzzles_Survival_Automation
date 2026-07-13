@@ -1,0 +1,44 @@
+{
+  "classification": {
+    "detail": {
+      "denial_rules": [
+        "never select purchase, offer, premium-currency, or confirmation controls",
+        "never authorize from coordinates without positive Cash Mall recognition immediately before input",
+        "stale, unknown-overlay, timeout, and unexpected-successor frames are UNKNOWN"
+      ],
+      "features": {
+        "back_arrow": 0.823126,
+        "mall_context": 0.728297,
+        "mall_header": 0.737877,
+        "premium_header": 0.812441,
+        "purchase_context": 0.769217,
+        "title_region": 0.802126
+      },
+      "fresh_frame_dimensions": true,
+      "known_informational_overlay": false,
+      "no_unknown_overlay": true,
+      "reason": "one or more positive Cash Mall features did not pass",
+      "recognized": false,
+      "state": "UNKNOWN",
+      "target_roi": [
+        35,
+        0,
+        180,
+        65
+      ],
+      "unknown_overlay": false
+    },
+    "recognized": false,
+    "state": "UNKNOWN"
+  },
+  "metadata": {
+    "bytes": 2273228,
+    "capture_completed_monotonic": 4418091.173588295,
+    "command_started_monotonic": 4418090.80918076,
+    "decode_completed_monotonic": 4418091.207253333,
+    "height": 1280,
+    "path": "/evidence/after-promo-cash.png",
+    "sha256": "76fdf20d0209432dca5e4df837a339ae5e9ade3faa45ca6241cf0b8e5d427c27",
+    "width": 800
+  }
+}

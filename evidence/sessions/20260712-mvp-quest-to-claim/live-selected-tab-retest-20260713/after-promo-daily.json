@@ -1,0 +1,29 @@
+{
+  "classification": {
+    "detail": {
+      "anchor_scores": [
+        0.76451,
+        0.7759
+      ],
+      "dangerous_intersects": false,
+      "overlay_intersects": false,
+      "recognized": false,
+      "state": "UNKNOWN",
+      "target_identity": null,
+      "target_roi": null,
+      "target_score": 0.76451
+    },
+    "recognized": false,
+    "state": "UNKNOWN"
+  },
+  "metadata": {
+    "bytes": 2277156,
+    "capture_completed_monotonic": 4418094.780551327,
+    "command_started_monotonic": 4418094.404385507,
+    "decode_completed_monotonic": 4418094.814215754,
+    "height": 1280,
+    "path": "/evidence/after-promo-daily.png",
+    "sha256": "20b65c3313d269b93dcd93bb1bb674626699f9a3710fa6557efe1170b3d2741f",
+    "width": 800
+  }
+}

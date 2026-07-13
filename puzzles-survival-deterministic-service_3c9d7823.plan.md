@@ -582,6 +582,14 @@ Daily Quest, prerequisite, Go, Claim, or spend input occurred. Resume only after
 reconciliation positively recognizes a safe canonical screen and the post-reset game day. Do not
 begin `M6-DQ-TRANSITION-CORPUS`.
 
+The 2026-07-13 selected Daily-tab correction is retained in commits `4f26889` and `f3373f8`.
+Daily Quest recognition requires the selected tab state and an explicit Main Quest negative. The
+fixed-profile Main Quest Daily-tab target uses local ROI `(300,70,500,140)` with tap center
+`(400,105)`; the former broad ROI centered below the tab and produced a proven no-effect navigation
+record. The corrected live action confirmed the selected Daily Quest successor with one input. This
+retest intentionally stopped before reset/game-day or objective inspection; MVP remains Blocked and
+no transition-corpus evidence was promoted.
+
 `M6-DQ-TRANSITION-CORPUS` depends on a successful supervised trial and promotes its completed-
 unclaimed, Claim-versus-Go, prepared/pre-input, reward, claimed-row, points-before/after,
 postcondition, failure, and ambiguity evidence. M6 passes only when both the bootstrap and
