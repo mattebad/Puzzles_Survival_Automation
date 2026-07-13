@@ -33,7 +33,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from daily_quest_bootstrap import recognize_daily_quest, recognize_home, recognize_quest, valid_png_frame
-from navigation_recognition import recognize_home_quest
+from navigation_recognition import QUEST_TAB_ROI, recognize_home_quest, recognize_local_state
 from startup_normalization import classify_cash_mall, load_frame
 from promotional_escape import (
     PROMOTIONAL_BACK_TARGET_ROI,
@@ -128,6 +128,15 @@ def classify(mode: str, frame: Path, args: argparse.Namespace) -> Dict[str, Any]
                         "daily_quest_target_recognized": True,
                     },
                 }
+            local = recognize_local_state(
+                load_frame(frame),
+                load_frame(args.quest_reference),
+                "QUEST",
+                QUEST_TAB_ROI,
+                "daily-quest-target",
+            )
+            if local.recognized:
+                return {"state": local.state, "recognized": True, "detail": local.as_dict()}
         return recognize_quest(frame)
     if mode == "daily":
         return recognize_daily_quest(frame)
