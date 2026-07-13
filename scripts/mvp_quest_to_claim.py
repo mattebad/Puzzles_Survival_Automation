@@ -33,7 +33,12 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from daily_quest_bootstrap import recognize_daily_quest, recognize_home, recognize_quest, valid_png_frame
-from navigation_recognition import QUEST_TAB_ROI, recognize_home_quest, recognize_local_state
+from navigation_recognition import (
+    QUEST_TAB_ROI,
+    recognize_daily_selected,
+    recognize_home_quest,
+    recognize_local_state,
+)
 from startup_normalization import classify_cash_mall, load_frame
 from promotional_escape import (
     PROMOTIONAL_BACK_TARGET_ROI,
@@ -139,7 +144,18 @@ def classify(mode: str, frame: Path, args: argparse.Namespace) -> Dict[str, Any]
                 return {"state": local.state, "recognized": True, "detail": local.as_dict()}
         return recognize_quest(frame)
     if mode == "daily":
-        return recognize_daily_quest(frame)
+        if getattr(args, "daily_reference", None) and getattr(args, "main_quest_reference", None):
+            local = recognize_daily_selected(
+                load_frame(frame),
+                load_frame(args.daily_reference),
+                load_frame(args.main_quest_reference),
+            )
+            return {"state": local.state, "recognized": local.recognized, "detail": local.as_dict()}
+        return {
+            "state": "UNKNOWN",
+            "recognized": False,
+            "detail": {"reason": "selected Daily Quest reference pair is required"},
+        }
     if mode == "promo":
         decision = classify_promotional_back(load_frame(frame), load_frame(args.cash_reference))
         return {"state": decision.state, "recognized": decision.recognized, "detail": decision.as_dict()}
@@ -437,6 +453,8 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--cash-reference", type=Path, required=True)
     root.add_argument("--cash-overlay-reference", type=Path)
     root.add_argument("--quest-reference", type=Path)
+    root.add_argument("--daily-reference", type=Path)
+    root.add_argument("--main-quest-reference", type=Path)
     root.add_argument("--home-reference", type=Path)
     root.add_argument("--policy-file", type=Path)
     sub = root.add_subparsers(dest="command", required=True)

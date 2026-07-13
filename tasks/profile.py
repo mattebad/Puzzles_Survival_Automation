@@ -28,6 +28,11 @@ QUEST_DAILY = AnchorSpec(
     template=f"{M6_ASSET_ROOT}/quest-main-settled.png#daily-tab-roi",
     asset_provenance=f"{M6_ASSET_ROOT}/quest-main-settled.png",
 )
+DAILY_SELECTED_TAB = AnchorSpec(
+    "daily-quest-selected-state", (260, 80, 540, 200), 0.95,
+    template=f"{M6_ASSET_ROOT}/daily-quest-settled.png#selected-tab-state-roi",
+    asset_provenance=f"{M6_ASSET_ROOT}/daily-quest-settled.png",
+)
 QUEST_HEADER = AnchorSpec(
     "quest-header", (0, 0, 800, 180), 0.88,
     template=f"{M6_ASSET_ROOT}/quest-main-settled.png#header-roi",

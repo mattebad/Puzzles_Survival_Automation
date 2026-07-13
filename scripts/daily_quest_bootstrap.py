@@ -13,8 +13,13 @@ from difflib import SequenceMatcher
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
 import cv2
 import numpy as np
@@ -177,8 +182,23 @@ def recognize_quest(frame_path: Path) -> Dict[str, Any]:
     }
 
 
-def recognize_daily_quest(frame_path: Path) -> Dict[str, Any]:
+def recognize_daily_quest(
+    frame_path: Path,
+    daily_reference: Path | None = None,
+    main_reference: Path | None = None,
+) -> Dict[str, Any]:
     frame = frame_from(frame_path)
+    selected_tab_positive = None
+    if daily_reference and main_reference:
+        # The tab label exists on every Quest category. Require the selected-state
+        # comparison when references are supplied for live navigation.
+        from navigation_recognition import recognize_daily_selected
+        selected = recognize_daily_selected(
+            frame,
+            frame_from(daily_reference),
+            frame_from(main_reference),
+        )
+        selected_tab_positive = selected.recognized
     header = ocr(frame, ROIS["daily_header"], psm=6)
     rows = ocr(frame, ROIS["daily_rows"], psm=6)
     bottom = ocr(frame, ROIS["daily_bottom"], psm=6)
@@ -200,6 +220,8 @@ def recognize_daily_quest(frame_path: Path) -> Dict[str, Any]:
         or ocr_has_phrase(header, "point", threshold=0.80)
         or ocr_has_phrase(header, "reset", threshold=0.80)
     )
+    if selected_tab_positive is not None:
+        recognized = recognized and selected_tab_positive
     return {
         "state": "DAILY_QUEST" if recognized else "UNKNOWN",
         "recognized": recognized,
@@ -208,6 +230,7 @@ def recognize_daily_quest(frame_path: Path) -> Dict[str, Any]:
         "go_button_texts": button_texts,
         "bottom_text": bottom,
         "title_positive": title_positive,
+        "selected_tab_positive": selected_tab_positive,
         "incomplete_or_go_present": go_present,
         "claim_observed_only": claim_present,
         "row_controls": sorted(row_words),
@@ -288,8 +311,10 @@ def build_parser() -> argparse.ArgumentParser:
     quest.set_defaults(handler=lambda a: recognize_quest(a.frame))
     daily = sub.add_parser("recognize-daily-quest")
     daily.add_argument("--frame", type=Path, required=True)
+    daily.add_argument("--daily-reference", type=Path)
+    daily.add_argument("--main-reference", type=Path)
     daily.add_argument("--output", type=Path)
-    daily.set_defaults(handler=lambda a: recognize_daily_quest(a.frame))
+    daily.set_defaults(handler=lambda a: recognize_daily_quest(a.frame, a.daily_reference, a.main_reference))
     assets = sub.add_parser("validate-assets")
     assets.add_argument("--manifest", type=Path, required=True)
     assets.add_argument("--profile", type=Path, default=Path("runtime-profile/manifest.json"))

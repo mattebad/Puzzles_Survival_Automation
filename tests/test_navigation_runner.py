@@ -5,12 +5,15 @@ from pathlib import Path
 import cv2
 from safe_action_core import ActionClass, CentralPolicy, Observation, PolicyRequest, SafetyStore, TransportResult
 from safe_action_core.navigation import NavigationRunner, NavigationStatus, NavigationStep
-from scripts.navigation_recognition import H_QUEST_ROI, recognize_home_quest
+from scripts.navigation_recognition import DAILY_SELECTED_TAB_ROI, H_QUEST_ROI, recognize_daily_selected, recognize_home_quest
 ROOT=Path(__file__).resolve().parents[1]
 E=ROOT/"evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape"
 SOURCE=E/"live-nav-home-quest-promo-001-source.png"
 IMMEDIATE=E/"live-nav-home-quest-promo-001-immediate-before-1.png"
 REFERENCE=ROOT/"evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png"
+DAILY_REFERENCE=ROOT/"evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png"
+MAIN_REFERENCE=ROOT/"evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png"
+LIVE_MAIN=ROOT/"evidence/sessions/20260712-mvp-quest-to-claim/daily-postreset-observation-20260713.png"
 PROFILE=json.loads((ROOT/"runtime-profile/manifest.json").read_text())["profile_id"]
 def obs(**changes):
     base=Observation(frame_sha256="a"*64,capture_completed_monotonic=1000.0,runtime_profile_id=PROFILE,width=800,height=1280,valid_png=True,corrupt=False,black=False,source_state="HOME_BASE",overlay_state="none_observed",target_identity="home-quest-entry",target_roi=H_QUEST_ROI,recognized=True,consequence="navigate_zero_cost",cost_type="none",cost_amount=0,quantity=1,expected_postcondition="QUEST")
@@ -34,6 +37,26 @@ class RecognitionTests(unittest.TestCase):
         self.assertFalse(recognize_home_quest(self.a,self.ref,dangerous_intersects=True).recognized)
         changed=self.a.copy(); changed[1130:1280,250:410]=0
         self.assertFalse(recognize_home_quest(changed,self.ref).recognized)
+class DailyTabRecognitionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.daily=cv2.imread(str(DAILY_REFERENCE)); cls.main=cv2.imread(str(MAIN_REFERENCE)); cls.live_main=cv2.imread(str(LIVE_MAIN))
+    def test_selected_daily_fixture_is_positive(self):
+        result=recognize_daily_selected(self.daily,self.daily,self.main)
+        self.assertTrue(result.recognized); self.assertEqual(result.state,"DAILY_QUEST")
+        self.assertEqual(result.target_roi,DAILY_SELECTED_TAB_ROI)
+    def test_main_fixture_and_retained_live_frame_are_negative(self):
+        for frame in (self.main,self.live_main):
+            result=recognize_daily_selected(frame,self.daily,self.main)
+            self.assertFalse(result.recognized); self.assertEqual(result.state,"UNKNOWN")
+    def test_unrelated_animation_outside_selected_roi_is_ignored(self):
+        changed=self.daily.copy(); changed[300:1000,0:800]=0
+        self.assertTrue(recognize_daily_selected(changed,self.daily,self.main).recognized)
+    def test_changed_selected_roi_denies_daily(self):
+        changed=self.daily.copy(); changed[80:200,260:540]=self.main[80:200,260:540]
+        self.assertFalse(recognize_daily_selected(changed,self.daily,self.main).recognized)
+
+
 class RunnerTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(); self.store=SafetyStore(Path(self.tmp.name)/"n.sqlite3"); self.store.acquire_lease("nav",1000,30); self.clock=[1000.1]
