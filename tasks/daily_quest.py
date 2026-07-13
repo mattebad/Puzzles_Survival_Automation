@@ -10,7 +10,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Mapping, Optional
 
-from .contracts import TaskOutcome, TaskResult
+from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
+from .profile import ALLIANCE_HELP_ACTION
+
+
+ALLIANCE_HELP_ROUTE = "daily_go_to_alliance_help"
 
 
 class RouteType(str, Enum):
@@ -86,6 +90,106 @@ class RouteDispatcher:
         if route == RouteType.ACCOUNT_OR_SESSION_HARD_STOP:
             return TaskResult(TaskOutcome.FAILED_SAFE, "account or session hard stop", verified=False, state=route.value)
         return TaskResult(TaskOutcome.FAILED_SAFE, "unknown unsafe route", verified=False, state=route.value)
+
+
+@dataclass(frozen=True)
+class AllianceHelpObservation:
+    """Semantic evidence for one independently recognized Alliance Help request."""
+
+    screen_state: str
+    objective_name: str
+    current_progress: int
+    required_progress: int
+    target_identity: str
+    target_roi: ROI
+    zero_cost_evidence: bool
+    overlay_state: str = "none_observed"
+    forbidden_region_intersects_target: bool = False
+    recognized: bool = True
+
+
+class AllianceHelpHandler:
+    """The first narrow zero-cost Daily Quest handler; transport remains injected."""
+
+    objective_name = "Help allies"
+    action_kind = "ALLIANCE_HELP"
+    consequence = "alliance_help_zero_cost"
+
+    @classmethod
+    def matches_objective(cls, name: str) -> bool:
+        return " ".join(name.lower().split()) == cls.objective_name.lower()
+
+    @classmethod
+    def remaining(cls, observation: AllianceHelpObservation) -> Optional[int]:
+        if not observation.recognized or observation.required_progress < 0:
+            return None
+        if observation.current_progress < 0 or observation.current_progress > observation.required_progress:
+            return None
+        return observation.required_progress - observation.current_progress
+
+    @classmethod
+    def authorizeable(cls, observation: AllianceHelpObservation) -> bool:
+        remaining = cls.remaining(observation)
+        return bool(
+            observation.screen_state == RouteType.ALLIANCE.value
+            and cls.matches_objective(observation.objective_name)
+            and remaining is not None and remaining > 0
+            and observation.target_identity == ALLIANCE_HELP_ACTION.name
+            and observation.target_roi == ALLIANCE_HELP_ACTION.roi
+            and observation.zero_cost_evidence
+            and observation.overlay_state == "none_observed"
+            and not observation.forbidden_region_intersects_target
+        )
+
+    @classmethod
+    def transaction_spec(cls, observation: AllianceHelpObservation) -> ActionTransactionSpec:
+        if not cls.authorizeable(observation):
+            raise ValueError("Alliance Help preconditions are not positively recognized")
+        return ActionTransactionSpec(
+            action_kind=cls.action_kind,
+            expected_source_screen=RouteType.ALLIANCE.value,
+            subject=cls.objective_name,
+            quantity=1,
+            resource_or_currency=None,
+            maximum_cost=0,
+            free_only=True,
+            allowed_confirmation_dialogs=(),
+            semantic_preconditions=("exact_alliance_help_request", "explicit_zero_cost_help", "remaining_count_positive"),
+            semantic_postconditions=("help_request_or_count_changes", "daily_objective_progress_increases"),
+        )
+
+    @classmethod
+    def postcondition_verified(cls, before: AllianceHelpObservation, after: AllianceHelpObservation) -> bool:
+        before_remaining = cls.remaining(before)
+        after_remaining = cls.remaining(after)
+        if before_remaining is None or after_remaining is None:
+            return False
+        if not cls.matches_objective(after.objective_name) or after.screen_state != RouteType.ALLIANCE.value:
+            return False
+        return after.current_progress == before.current_progress + 1 and after_remaining < before_remaining
+
+
+@dataclass(frozen=True)
+class QuestHandlerSpec:
+    objective_name: str
+    route_name: str
+    route_type: RouteType
+    handler: type[AllianceHelpHandler]
+
+
+ALLIANCE_HELP_HANDLER = QuestHandlerSpec(
+    objective_name=AllianceHelpHandler.objective_name,
+    route_name=ALLIANCE_HELP_ROUTE,
+    route_type=RouteType.ALLIANCE,
+    handler=AllianceHelpHandler,
+)
+
+QUEST_HANDLERS = (ALLIANCE_HELP_HANDLER,)
+
+
+def handler_for_objective(name: str) -> Optional[QuestHandlerSpec]:
+    normalized = " ".join(name.lower().split())
+    return next((spec for spec in QUEST_HANDLERS if spec.objective_name.lower() == normalized), None)
 
 
 class DailyQuestTask:

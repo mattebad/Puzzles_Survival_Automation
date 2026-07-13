@@ -53,3 +53,14 @@ GAME_BACK = AnchorSpec(
     tap_offset=(0, 0),
     asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/reset-reconcile-current.png",
 )
+
+ALLIANCE_HELP_ACTION = AnchorSpec(
+    "alliance-help-action", (580, 320, 720, 380), 0.92,
+    template="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-go-post-1.png#alliance-help-roi",
+    ocr_rule="Help <current>/<total>",
+    required_confirmation_frames=1,
+    polling_interval_seconds=0.15,
+    timeout_seconds=3.0,
+    tap_offset=(0, 0),
+    asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-go-post-1.png",
+)
