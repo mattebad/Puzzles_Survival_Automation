@@ -554,6 +554,16 @@ quest completion, or Claim. Cleanup left the VM running, game force-stopped, lea
 task worker/ADB/listener/tunnel, and no unresolved/nonterminal action. Resume only after the reset
 boundary passes and the new game day is positively reconciled.
 
+A later read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an already-running
+task-scoped post-reset worker and resumed game activity, but its fresh final-profile frame was a
+purchase/top-up surface rather than a recognized Home/Base, Quest, or Daily Quest state. The Daily
+Quest recognizer abstained, so reset/game-day identity could not be assigned. No lease, journal
+action, transport call, or game input occurred. The worker/image were inspected and removed after
+preserving evidence; the game was force-stopped, no task listener/tunnel remained, and the VM,
+network, RT-019 profile, and RT-017 backup were unchanged. Resume only after a fresh startup
+reconciliation positively recognizes a safe canonical screen and the post-reset game day. Do not
+begin `M6-DQ-TRANSITION-CORPUS`.
+
 `M6-DQ-TRANSITION-CORPUS` depends on a successful supervised trial and promotes its completed-
 unclaimed, Claim-versus-Go, prepared/pre-input, reward, claimed-row, points-before/after,
 postcondition, failure, and ambiguity evidence. M6 passes only when both the bootstrap and

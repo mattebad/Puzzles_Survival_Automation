@@ -184,3 +184,27 @@ stopped the task ADB server, removed the task worker and image tag, and verified
 project listener or external tunnel. VM remains running; RT-017 modes/sizes remain intact. Final
 journal state is zero unresolved, zero prepared/input_sent, and released lease. The task remains
 Blocked only until the reset boundary passes and a new game day is positively reconciled.
+
+
+## Post-reset reconciliation — unknown purchase surface blocker
+
+On 2026-07-12 at remote time `20:31:08-05:00`, read-only reconciliation found an already-running
+task-scoped post-reset worker and an authenticated, resumed game activity. The fresh final-profile
+frame `reset-reconcile-current.png` (`800x1280`, SHA-256
+`71a4134084acf0deb3516dfc25e6f6e2ba38bb55989b084b61cbf0298963b1a8`) was not Home/Base, Quest, or
+Daily Quest. The Daily Quest recognizer abstained; OCR identified purchase/top-up language such as
+`free speedup` and `you can only buy one 1st top-up pack`. Because this was a paid/unknown game
+surface, no dismiss, Back, launch, Quest, Daily Quest, Go, prerequisite, or Claim input was sent.
+Reset/game-day identity was not assigned from this frame.
+
+The worker `mvp-quest-to-claim-postreset-20260712` was inspected before cleanup. Its retained
+identity, logs, ADB log, foreground activity, and window-policy artifacts are under this evidence
+directory. The game was force-stopped, the task worker and image were removed, and the loopback
+ADB server disappeared with them. No unrelated ADB daemon, listener, tunnel, VM XML, qcow2,
+network, or RT-019/RT-017 state was changed. The SQLite journal remains terminal-only with no lease,
+prepared/input_sent/unresolved action, or duplicate key. Full details are in
+`reset-reconciliation-20260712.md`.
+
+This is a new justified blocker. Resume only after a fresh startup observation positively
+recognizes a safe canonical screen and the new game day/reset state; do not begin
+`M6-DQ-TRANSITION-CORPUS`.

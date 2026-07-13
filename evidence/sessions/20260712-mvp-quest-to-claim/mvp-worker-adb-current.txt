@@ -1,0 +1,7 @@
+--- adb starting (pid 13) ---
+07-13 01:11:54.825    13    13 I adb     : main.cpp:66 Android Debug Bridge version 1.0.41
+07-13 01:11:54.825    13    13 I adb     : main.cpp:66 Version 37.0.0-14910828
+07-13 01:11:54.825    13    13 I adb     : main.cpp:66 Installed as /opt/adb
+07-13 01:11:54.825    13    13 I adb     : main.cpp:66 Running on Linux 6.12.54-Unraid (x86_64)
+07-13 01:11:54.825    13    13 I adb     : main.cpp:66 
+07-13 01:11:54.826    13    18 W adb     : usb_linux.cpp:629 Failed to open bus directory '/dev/bus/usb': No such file or directory

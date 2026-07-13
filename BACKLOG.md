@@ -365,6 +365,13 @@ Claim example.
   dispatch before the timestamp-binding correction. Sixty-five tests pass; no unresolved or
   nonterminal action remains. Resume only after the reset boundary has passed and the new game day
   is positively reconciled. Never reuse either cancelled action key.
+- Latest read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an already-running
+  task-scoped worker and resumed game activity, but the fresh `800x1280` frame was a purchase/top-up
+  surface. The Daily Quest recognizer abstained and reset/game-day identity could not be assigned.
+  No lease, journal action, transport call, or game input occurred. The worker/image were inspected,
+  evidence retained, the game force-stopped, and only those task-scoped resources were removed; no
+  task listener/tunnel remained and RT-017 stayed intact. Resume only after a fresh startup
+  reconciliation positively recognizes a safe canonical screen and the post-reset game day.
 - Next: M6-DQ-TRANSITION-CORPUS after a successful trial.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,

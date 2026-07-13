@@ -1,0 +1,367 @@
+TASK 10264:com.farmerbb.taskbar id=141 userId=0
+  ACTIVITY com.farmerbb.taskbar/.activity.HomeActivityDelegate eece8e pid=1987
+    Local Activity 3b65345 State:
+      mResumed=false mStopped=true mFinished=false
+      mIsInMultiWindowMode=false mIsInPictureInPictureMode=false
+      mChangingConfigurations=false
+      mCurrentConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1232dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1256) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}
+      mLoadersStarted=true
+      Active Fragments in 5d9bdb:
+        #0: t{3ba4678 #0 androidx.lifecycle.LifecycleDispatcher.report_fragment_tag}
+          mFragmentId=#0 mContainerId=#0 mTag=androidx.lifecycle.LifecycleDispatcher.report_fragment_tag
+          mState=3 mIndex=0 mWho=android:fragment:0 mBackStackNesting=0
+          mAdded=true mRemoving=false mFromLayout=false mInLayout=false
+          mHidden=false mDetached=false mMenuVisible=true mHasMenu=false
+          mRetainInstance=false mRetaining=false mUserVisibleHint=true
+          mFragmentManager=FragmentManager{5d9bdb in HostCallbacks{98c151}}
+          mHost=android.app.Activity$HostCallbacks@98c151
+          Child FragmentManager{1972db6 in t{3ba4678}}:
+            FragmentManager misc state:
+              mHost=android.app.Activity$HostCallbacks@98c151
+              mContainer=android.app.Fragment$1@e101ab7
+              mParent=t{3ba4678 #0 androidx.lifecycle.LifecycleDispatcher.report_fragment_tag}
+              mCurState=3 mStateSaved=true mDestroyed=false
+      Added Fragments:
+        #0: t{3ba4678 #0 androidx.lifecycle.LifecycleDispatcher.report_fragment_tag}
+      FragmentManager misc state:
+        mHost=android.app.Activity$HostCallbacks@98c151
+        mContainer=android.app.Activity$HostCallbacks@98c151
+        mCurState=3 mStateSaved=true mDestroyed=false
+    ViewRoot:
+      mAdded=true
+      mRemoved=false
+      mStopped=true
+      mPausedForTransition=false
+      mConsumeBatchedInputScheduled=false
+      mConsumeBatchedInputImmediatelyScheduled=false
+      mPendingInputEventCount=0
+      mProcessInputEventsScheduled=false
+      mTraversalScheduled=false
+      mReportNextDraw=false
+      mLastPerformTraversalsFailedReason=view_not_visible
+      mLocalSyncState=3
+      mLastReportedMergedConfiguration={mGlobalConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.70 fontWeightAdjustment=0} mOverrideConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.3 fontWeightAdjustment=0}}
+      mLastConfigurationFromResources={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.3 fontWeightAdjustment=0}
+      mIsAmbientMode=false
+      mUnbufferedInputSource=0
+      mAttachInfo=       AttachInfo:
+        mHasWindowFocus=false
+        mWindowVisibility=8
+        mInTouchMode=true
+        mUnbufferedDispatchRequested=false
+      android.view.ViewRootImpl$NativePreImeInputStage: mQueueLength=0
+      android.view.ViewRootImpl$ImeInputStage: mQueueLength=0
+      android.view.ViewRootImpl$NativePostImeInputStage: mQueueLength=0
+      android.view.ViewRootImpl$WindowInputEventReceiver
+       mInputChannel: 15a5748 com.farmerbb.taskbar/com.farmerbb.taskbar.activity.HomeActivityDelegate (client)
+       mSeqMap: {}
+       mReceiverPtr:
+        mInputConsumer:
+          mResampleTouch = true
+          mChannel = 15a5748 com.farmerbb.taskbar/com.farmerbb.taskbar.activity.HomeActivityDelegate (client)
+          mMsgDeferred: false
+          Batches:
+              <empty>
+          mSeqChains:
+              <empty>
+          mConsumeTimes:
+              <empty>
+          
+        mBatchedInputEventPending: false
+        mOutboundQueue:
+          <empty>
+        
+    Choreographer:
+      mFrameScheduled=false
+      mLastFrameTime=85786700 (1313547 ms ago)
+    InsetsController:
+      InsetsState
+        mDisplayFrame=Rect(0, 0 - 800, 1280)
+        mDisplayCutout=DisplayCutout{insets=Rect(0, 0 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=0 displayHeight=0 physicalDisplayWidth=0 physicalDisplayHeight=0 density={0.0} cutoutSpec={} rotation={0} scale={0.0} physicalPixelDisplaySizeRatio={0.0}}}}
+        mRoundedCorners=RoundedCorners{[RoundedCorner{position=TopLeft, radius=0, center=Point(0, 0)}, RoundedCorner{position=TopRight, radius=0, center=Point(0, 0)}, RoundedCorner{position=BottomRight, radius=0, center=Point(0, 0)}, RoundedCorner{position=BottomLeft, radius=0, center=Point(0, 0)}]}
+        mRoundedCornerFrame=Rect(0, 0 - 800, 1280)
+        mPrivacyIndicatorBounds=PrivacyIndicatorBounds {static bounds=Rect(704, 0 - 786, 24) rotation=0}
+          InsetsSource type=ITYPE_STATUS_BAR frame=[0,0][800,24] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_LEFT_GESTURES frame=[0,0][30,1280] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_RIGHT_GESTURES frame=[770,0][800,1280] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_TOP_MANDATORY_GESTURES frame=[0,0][800,24] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_BOTTOM_MANDATORY_GESTURES frame=[0,1248][800,1280] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_TOP_TAPPABLE_ELEMENT frame=[0,0][800,24] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_BOTTOM_TAPPABLE_ELEMENT frame=[0,0][0,0] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_IME frame=[0,0][0,0] visible=false insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_EXTRA_NAVIGATION_BAR frame=[0,1248][800,1280] visible=true insetsRoundedCornerFrame=false
+    WindowOnBackDispatcher:
+        Top Callback: android.view.ViewRootImpl$$ExternalSyntheticLambda14@cdf7dfa
+        Callbacks: 
+          Callback: android.view.ViewRootImpl$$ExternalSyntheticLambda14@cdf7dfa Priority=0
+    View Hierarchy:
+      DecorView@5895224[HomeActivityDelegate]
+        android.widget.LinearLayout{e57218d V.E...... ........ 0,0-800,1248}
+          android.view.ViewStub{7606f42 G.E...... ......I. 0,0-0,0 #10201c5 android:id/action_mode_bar_stub}
+          android.widget.FrameLayout{501ab53 V.E...... ........ 0,24-800,1248}
+            androidx.appcompat.widget.FitWindowsLinearLayout{91b6c90 V.E...... ........ 0,0-800,1224 #7f090034 app:id/action_bar_root}
+              androidx.appcompat.widget.ViewStubCompat{3214989 G.E...... ......I. 0,0-0,0 #7f09003f app:id/action_mode_bar_stub}
+              androidx.appcompat.widget.ContentFrameLayout{28a3d8e V.E...... ........ 0,0-800,1224 #1020002 android:id/content}
+                com.farmerbb.taskbar.activity.HomeActivityDelegate$c{d71a9af V.E...... ........ 0,0-800,1224}
+                  android.widget.GridLayout{772c1bc V.E...... ........ 0,0-800,1164}
+                    android.widget.FrameLayout{64bf545 V.E...CL. ........ 0,0-114,116}
+                    android.widget.FrameLayout{b70a49a V.E...CL. ........ 0,116-114,232}
+                    android.widget.FrameLayout{a3931cb V.E...CL. ........ 0,232-114,349}
+                    android.widget.FrameLayout{5883da8 V.E...CL. ........ 0,349-114,465}
+                    android.widget.FrameLayout{5bba0c1 V.E...CL. ........ 0,465-114,582}
+                    android.widget.FrameLayout{2247066 V.E...CL. ........ 0,582-114,698}
+                    android.widget.FrameLayout{8a71fa7 V.E...CL. ........ 0,698-114,815}
+                    android.widget.FrameLayout{cf78c54 V.E...CL. ........ 0,815-114,931}
+                    android.widget.FrameLayout{f2087fd V.E...CL. ........ 0,931-114,1048}
+                    android.widget.FrameLayout{4f72cf2 V.E...CL. ........ 0,1048-114,1164}
+                    android.widget.FrameLayout{21c0f43 V.E...CL. ........ 114,0-228,116}
+                    android.widget.FrameLayout{36b19c0 V.E...CL. ........ 114,116-228,232}
+                    android.widget.FrameLayout{f2a6f9 V.E...CL. ........ 114,232-228,349}
+                    android.widget.FrameLayout{3c7263e V.E...CL. ........ 114,349-228,465}
+                    android.widget.FrameLayout{b665c9f V.E...CL. ........ 114,465-228,582}
+                    android.widget.FrameLayout{cc811ec V.E...CL. ........ 114,582-228,698}
+                    android.widget.FrameLayout{f2db9b5 V.E...CL. ........ 114,698-228,815}
+                    android.widget.FrameLayout{c0b684a V.E...CL. ........ 114,815-228,931}
+                    android.widget.FrameLayout{dde23bb V.E...CL. ........ 114,931-228,1048}
+                    android.widget.FrameLayout{41a60d8 V.E...CL. ........ 114,1048-228,1164}
+                    android.widget.FrameLayout{7cd3c31 V.E...CL. ........ 228,0-342,116}
+                    android.widget.FrameLayout{99fbf16 V.E...CL. ........ 228,116-342,232}
+                    android.widget.FrameLayout{6414097 V.E...CL. ........ 228,232-342,349}
+                    android.widget.FrameLayout{740b284 V.E...CL. ........ 228,349-342,465}
+                    android.widget.FrameLayout{3086a6d V.E...CL. ........ 228,465-342,582}
+                    android.widget.FrameLayout{850b6a2 V.E...CL. ........ 228,582-342,698}
+                    android.widget.FrameLayout{54f4f33 V.E...CL. ........ 228,698-342,815}
+                    android.widget.FrameLayout{15872f0 V.E...CL. ........ 228,815-342,931}
+                    android.widget.FrameLayout{b4e4069 V.E...CL. ........ 228,931-342,1048}
+                    android.widget.FrameLayout{2279aee V.E...CL. ........ 228,1048-342,1164}
+                    android.widget.FrameLayout{e25ab8f V.E...CL. ........ 342,0-456,116}
+                    android.widget.FrameLayout{fe9ce1c V.E...CL. ........ 342,116-456,232}
+                    android.widget.FrameLayout{9017a25 V.E...CL. ........ 342,232-456,349}
+                    android.widget.FrameLayout{67677fa V.E...CL. ........ 342,349-456,465}
+                    android.widget.FrameLayout{e5b71ab V.E...CL. ........ 342,465-456,582}
+                    android.widget.FrameLayout{ed3b008 V.E...CL. ........ 342,582-456,698}
+                    android.widget.FrameLayout{df493a1 V.E...CL. ........ 342,698-456,815}
+                    android.widget.FrameLayout{5a419c6 V.E...CL. ........ 342,815-456,931}
+                    android.widget.FrameLayout{bdd7d87 V.E...CL. ........ 342,931-456,1048}
+                    android.widget.FrameLayout{6f7c4b4 V.E...CL. ........ 342,1048-456,1164}
+                    android.widget.FrameLayout{ca5c8dd V.E...CL. ........ 456,0-570,116}
+                    android.widget.FrameLayout{db80c52 V.E...CL. ........ 456,116-570,232}
+                    android.widget.FrameLayout{48a6b23 V.E...CL. ........ 456,232-570,349}
+                    android.widget.FrameLayout{ba67820 V.E...CL. ........ 456,349-570,465}
+                    android.widget.FrameLayout{73b15d9 V.E...CL. ........ 456,465-570,582}
+                    android.widget.FrameLayout{3a69b9e V.E...CL. ........ 456,582-570,698}
+                    android.widget.FrameLayout{b8e967f V.E...CL. ........ 456,698-570,815}
+                    android.widget.FrameLayout{2caf64c V.E...CL. ........ 456,815-570,931}
+                    android.widget.FrameLayout{23e3695 V.E...CL. ........ 456,931-570,1048}
+                    android.widget.FrameLayout{55cd3aa V.E...CL. ........ 456,1048-570,1164}
+                    android.widget.FrameLayout{801b9b V.E...CL. ........ 570,0-685,116}
+                    android.widget.FrameLayout{3d72b38 V.E...CL. ........ 570,116-685,232}
+                    android.widget.FrameLayout{718a711 V.E...CL. ........ 570,232-685,349}
+                    android.widget.FrameLayout{8c8076 V.E...CL. ........ 570,349-685,465}
+                    android.widget.FrameLayout{c3ad677 V.E...CL. ........ 570,465-685,582}
+                    android.widget.FrameLayout{96fc2e4 V.E...CL. ........ 570,582-685,698}
+                    android.widget.FrameLayout{24fa34d V.E...CL. ........ 570,698-685,815}
+                    android.widget.FrameLayout{a382e02 V.E...CL. ........ 570,815-685,931}
+                    android.widget.FrameLayout{f7c6313 V.E...CL. ........ 570,931-685,1048}
+                    android.widget.FrameLayout{1d82950 V.E...CL. ........ 570,1048-685,1164}
+                    android.widget.FrameLayout{9802749 V.E...CL. ........ 685,0-800,116}
+                    android.widget.FrameLayout{2ff284e V.E...CL. ........ 685,116-800,232}
+                    android.widget.FrameLayout{f401d6f V.E...CL. ........ 685,232-800,349}
+                    android.widget.FrameLayout{a1e8a7c V.E...CL. ........ 685,349-800,465}
+                    android.widget.FrameLayout{51aef05 V.E...CL. ........ 685,465-800,582}
+                    android.widget.FrameLayout{4297b5a V.E...CL. ........ 685,582-800,698}
+                    android.widget.FrameLayout{adb218b V.E...CL. ........ 685,698-800,815}
+                    android.widget.FrameLayout{7d268 V.E...CL. ........ 685,815-800,931}
+                    android.widget.FrameLayout{9e07681 V.E...CL. ........ 685,931-800,1048}
+                    android.widget.FrameLayout{173f326 V.E...CL. ........ 685,1048-800,1164}
+                  com.google.android.material.floatingactionbutton.FloatingActionButton{7d84b67 GFED..C.. ......I. 0,0-0,0}
+    Looper (main, tid 2) {6bbad14}
+      (Total messages: 0, polling=false, quitting=false)
+    ResourcesManager:
+      total apks: 4
+      resources: 4
+      resource impls: 4
+    1 dumpables:
+    #0: AutofillManager
+        AutofillManager:
+          sessionId: 2147483647
+          state: UNKNOWN
+          context: com.farmerbb.taskbar.activity.HomeActivityDelegate@3b65345
+          service client: null
+          client: android.view.autofill.AutofillClientController@e1cf9bd (android.os.BinderProxy@d2aa9db)
+          enabled: false
+          enabledAugmentedOnly: false
+          hasService: true
+          hasCallback: false
+          onInvisibleCalled false
+          last autofilled data: null
+          id of last fill UI shown: null
+          tracked views: null
+          fillable ids: null
+          entered ids: null
+          save trigger id: null
+          save on finish(): false
+          options: logLvl=0, compatMode=false, augmented=false, appDisabledExpiration=0
+          compat mode enabled:   fill dialog enabled: false
+          fill dialog enabled hints: []
+        false
+          debug: false verbose: false
+        Autofill Compat Mode: false
+    Local FragmentActivity 3b65345 State:
+      mCreated=true mResumed=false mStopped=true    Back Stack Index: 0
+    FragmentManager misc state:
+      mHost=androidx.fragment.app.e$c@b9c1bb2
+      mContainer=androidx.fragment.app.e$c@b9c1bb2
+      mCurState=4 mStateSaved=true mStopped=true mDestroyed=false
+
+TASK 10286:com.global.ztmslg id=149 userId=0
+  ACTIVITY com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity a4d486c pid=17416
+    Local Activity bcb071c State:
+      mResumed=true mStopped=false mFinished=false
+      mIsInMultiWindowMode=false mIsInPictureInPictureMode=false
+      mChangingConfigurations=false
+      mCurrentConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}
+      mLoadersStarted=true
+      Active Fragments in 7d28a35:
+        #0: ReportFragment{4bf2eca #0 androidx.lifecycle.LifecycleDispatcher.report_fragment_tag}
+          mFragmentId=#0 mContainerId=#0 mTag=androidx.lifecycle.LifecycleDispatcher.report_fragment_tag
+          mState=5 mIndex=0 mWho=android:fragment:0 mBackStackNesting=0
+          mAdded=true mRemoving=false mFromLayout=false mInLayout=false
+          mHidden=false mDetached=false mMenuVisible=true mHasMenu=false
+          mRetainInstance=false mRetaining=false mUserVisibleHint=true
+          mFragmentManager=FragmentManager{7d28a35 in HostCallbacks{fe4a83b}}
+          mHost=android.app.Activity$HostCallbacks@fe4a83b
+          Child FragmentManager{83fcb58 in ReportFragment{4bf2eca}}:
+            FragmentManager misc state:
+              mHost=android.app.Activity$HostCallbacks@fe4a83b
+              mContainer=android.app.Fragment$1@12e94b1
+              mParent=ReportFragment{4bf2eca #0 androidx.lifecycle.LifecycleDispatcher.report_fragment_tag}
+              mCurState=5 mStateSaved=false mDestroyed=false
+        #1: zza{4096d96 #1 LifecycleFragmentImpl}
+          mFragmentId=#0 mContainerId=#0 mTag=LifecycleFragmentImpl
+          mState=5 mIndex=1 mWho=android:fragment:1 mBackStackNesting=0
+          mAdded=true mRemoving=false mFromLayout=false mInLayout=false
+          mHidden=false mDetached=false mMenuVisible=true mHasMenu=false
+          mRetainInstance=false mRetaining=false mUserVisibleHint=true
+          mFragmentManager=FragmentManager{7d28a35 in HostCallbacks{fe4a83b}}
+          mHost=android.app.Activity$HostCallbacks@fe4a83b
+          Child FragmentManager{f6b8d17 in zza{4096d96}}:
+            FragmentManager misc state:
+              mHost=android.app.Activity$HostCallbacks@fe4a83b
+              mContainer=android.app.Fragment$1@c924504
+              mParent=zza{4096d96 #1 LifecycleFragmentImpl}
+              mCurState=5 mStateSaved=false mDestroyed=false
+      Added Fragments:
+        #0: ReportFragment{4bf2eca #0 androidx.lifecycle.LifecycleDispatcher.report_fragment_tag}
+        #1: zza{4096d96 #1 LifecycleFragmentImpl}
+      FragmentManager misc state:
+        mHost=android.app.Activity$HostCallbacks@fe4a83b
+        mContainer=android.app.Activity$HostCallbacks@fe4a83b
+        mCurState=5 mStateSaved=false mDestroyed=false
+    ViewRoot:
+      mAdded=true
+      mRemoved=false
+      mStopped=false
+      mPausedForTransition=false
+      mConsumeBatchedInputScheduled=false
+      mConsumeBatchedInputImmediatelyScheduled=false
+      mPendingInputEventCount=0
+      mProcessInputEventsScheduled=false
+      mTraversalScheduled=false
+      mReportNextDraw=false
+      mLocalSyncState=3
+      mLastReportedMergedConfiguration={mGlobalConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.70 fontWeightAdjustment=0} mOverrideConfig={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}}
+      mLastConfigurationFromResources={1.0 ?mcc?mnc [en_US] ldltr sw800dp w800dp h1224dp 160dpi xlrg port night -touch qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 800, 1280) mAppBounds=Rect(0, 0 - 800, 1248) mMaxBounds=Rect(0, 0 - 800, 1280) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.1 fontWeightAdjustment=0}
+      mIsAmbientMode=false
+      mUnbufferedInputSource=0
+      mAttachInfo=       AttachInfo:
+        mHasWindowFocus=true
+        mWindowVisibility=0
+        mInTouchMode=true
+        mUnbufferedDispatchRequested=false
+      android.view.ViewRootImpl$NativePreImeInputStage: mQueueLength=0
+      android.view.ViewRootImpl$ImeInputStage: mQueueLength=0
+      android.view.ViewRootImpl$NativePostImeInputStage: mQueueLength=0
+      android.view.ViewRootImpl$WindowInputEventReceiver
+       mInputChannel: de49fcf com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity (client)
+       mSeqMap: {}
+       mReceiverPtr:
+        mInputConsumer:
+          mResampleTouch = true
+          mChannel = de49fcf com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity (client)
+          mMsgDeferred: false
+          Batches:
+              <empty>
+          mSeqChains:
+              <empty>
+          mConsumeTimes:
+              <empty>
+          
+        mBatchedInputEventPending: false
+        mOutboundQueue:
+          <empty>
+        
+    Choreographer:
+      mFrameScheduled=false
+      mLastFrameTime=85789164 (1311085 ms ago)
+    InsetsController:
+      InsetsState
+        mDisplayFrame=Rect(0, 0 - 800, 1280)
+        mDisplayCutout=DisplayCutout{insets=Rect(0, 0 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=0 displayHeight=0 physicalDisplayWidth=0 physicalDisplayHeight=0 density={0.0} cutoutSpec={} rotation={0} scale={0.0} physicalPixelDisplaySizeRatio={0.0}}}}
+        mRoundedCorners=RoundedCorners{[RoundedCorner{position=TopLeft, radius=0, center=Point(0, 0)}, RoundedCorner{position=TopRight, radius=0, center=Point(0, 0)}, RoundedCorner{position=BottomRight, radius=0, center=Point(0, 0)}, RoundedCorner{position=BottomLeft, radius=0, center=Point(0, 0)}]}
+        mRoundedCornerFrame=Rect(0, 0 - 800, 1280)
+        mPrivacyIndicatorBounds=PrivacyIndicatorBounds {static bounds=Rect(704, 0 - 786, 24) rotation=0}
+          InsetsSource type=ITYPE_STATUS_BAR frame=[0,0][800,24] visible=false insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_LEFT_GESTURES frame=[0,0][30,1280] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_RIGHT_GESTURES frame=[770,0][800,1280] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_TOP_MANDATORY_GESTURES frame=[0,0][800,24] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_BOTTOM_MANDATORY_GESTURES frame=[0,1248][800,1280] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_TOP_TAPPABLE_ELEMENT frame=[0,0][800,24] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_BOTTOM_TAPPABLE_ELEMENT frame=[0,0][0,0] visible=true insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_IME frame=[0,0][0,0] visible=false insetsRoundedCornerFrame=false
+          InsetsSource type=ITYPE_EXTRA_NAVIGATION_BAR frame=[0,1248][800,1280] visible=false insetsRoundedCornerFrame=false
+    WindowOnBackDispatcher:
+        Top Callback: com.unity3d.player.d@d5afc76
+        Callbacks: 
+          Callback: android.app.Activity$$ExternalSyntheticLambda0@c639311 Priority=-1
+          Callback: com.unity3d.player.d@d5afc76 Priority=1
+    View Hierarchy:
+      DecorView@66caed[AtlasPluginDemoActivity]
+        android.widget.LinearLayout{de6cd22 V.E...... ......I. 0,0-800,1280}
+          android.view.ViewStub{811e3b3 G.E...... ......I. 0,0-0,0 #10201c5 android:id/action_mode_bar_stub}
+          android.widget.FrameLayout{270ad70 V.E...... ......I. 0,0-800,1280 #1020002 android:id/content}
+            com.unity3d.player.UnityPlayer1{37228e9 V.E...... ......I. 0,0-800,1280}
+              com.unity3d.player.i0{d48996e V.E...... ......I. 0,0-800,1280}
+                com.unity3d.player.f{fbd080f VFE...... .F....I. 0,0-800,1280 #7f090307 app:id/unitySurfaceView aid=1073741824}
+    Looper (main, tid 2) {d2290ef}
+      (Total messages: 0, polling=false, quitting=false)
+    ResourcesManager:
+      total apks: 14
+      resources: 7
+      resource impls: 9
+    1 dumpables:
+    #0: AutofillManager
+        AutofillManager:
+          sessionId: 2147483647
+          state: UNKNOWN
+          context: com.games37.sdk.AtlasPluginDemoActivity@bcb071c
+          service client: null
+          client: android.view.autofill.AutofillClientController@68b309c (android.os.BinderProxy@71c0f6d)
+          enabled: false
+          enabledAugmentedOnly: false
+          hasService: true
+          hasCallback: false
+          onInvisibleCalled false
+          last autofilled data: null
+          id of last fill UI shown: null
+          tracked views: null
+          fillable ids: null
+          entered ids: null
+          save trigger id: null
+          save on finish(): false
+          options: logLvl=0, compatMode=false, augmented=false, appDisabledExpiration=0
+          compat mode enabled:   fill dialog enabled: false
+          fill dialog enabled hints: []
+        false
+          debug: false verbose: false
+        Autofill Compat Mode: false

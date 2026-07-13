@@ -15,6 +15,13 @@ Recorded: 2026-07-12, America/Chicago
   proposal/dispatch limits are 3.0/2.0 seconds, exact critical-ROI reuse is fail-closed, and two
   pre-dispatch attempts are audited within one prepared action. No prerequisite, Go,
   quest-completion, spend, or Claim input occurred. M6 and overall M7 remain In Progress.
+- Latest resumed read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an
+  already-running task-scoped post-reset worker and resumed game activity, but the fresh
+  `800x1280` frame was a purchase/top-up surface. Daily Quest recognition abstained, so the new
+  game day/reset state could not be assigned. No lease, journal action, transport call, or game
+  input occurred. The inspected worker/image were removed after preserving identity/log/activity
+  evidence; the game was force-stopped and no task listener/tunnel remained. Details are in
+  `evidence/sessions/20260712-mvp-quest-to-claim/reset-reconciliation-20260712.md`.
 - Independent later task: RT-016A — Pending; stable redacted account/server identity evidence is absent and remains required for M7-AccountGuard, not RT-013.
 - RT-013 dependency: `RT-012 → RT-013`.
 - Tasks completed in the preceding M5 run: M5-CUSTOM-BASELINE passed with 100 replay
@@ -123,8 +130,9 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Blocker and required user action
 
-1. MVP-QUEST-TO-CLAIM must wait until the observed `00:08:33` reset boundary has passed. Resume
-   only after positively reconciling the new game day. No in-game user action is required. RT-016A
+1. MVP-QUEST-TO-CLAIM remains blocked by the reset/game-day reconciliation and the latest unknown
+   purchase/top-up surface. Resume only after fresh startup observation positively recognizes a
+   safe canonical screen and the post-reset game day. No in-game user action is required. RT-016A
    remains a later manual-only account-guard task. If performed, manually navigate the
    already-provisioned authenticated game to expose numeric player/account and server/state
    identity, retaining only minimum redacted or access-restricted evidence. Do not automate login,
@@ -132,9 +140,9 @@ Recorded: 2026-07-12, America/Chicago
 
 ## Exact next command
 
-Resume `MVP-QUEST-TO-CLAIM` after the reset boundary with the corrected freshness contract. Do not begin
-M6-DQ-TRANSITION-CORPUS; the required completed/unclaimed and Claim transition evidence does not
-exist.
+Resume `MVP-QUEST-TO-CLAIM` after a fresh safe-screen and reset/game-day reconciliation with the
+corrected freshness contract. Do not begin M6-DQ-TRANSITION-CORPUS; the required completed/unclaimed
+and Claim transition evidence does not exist.
 
 ## Facts that must not be re-tested
 
