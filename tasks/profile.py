@@ -24,7 +24,10 @@ HOME_RIGHT = AnchorSpec(
     asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
 )
 QUEST_DAILY = AnchorSpec(
-    "quest-daily-tab", (260, 80, 540, 300), 0.90,
+    # The live Main Quest tab label is centered near (400,105). Keep this
+    # local target ROI tight so its center is an actual tab hit point rather
+    # than the middle of the whole header/row region.
+    "quest-daily-tab", (300, 70, 500, 140), 0.90,
     template=f"{M6_ASSET_ROOT}/quest-main-settled.png#daily-tab-roi",
     asset_provenance=f"{M6_ASSET_ROOT}/quest-main-settled.png",
 )

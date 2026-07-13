@@ -12,6 +12,9 @@ class ContractTests(unittest.TestCase):
     def test_profile_anchors_are_fixed_and_provenanced(self):
         self.assertEqual(PROFILE_ID, "pns-blissos-poc-virgl-800x1280-v1")
         self.assertEqual(HOME_QUEST.roi, (250, 1130, 410, 1280))
+        self.assertEqual(QUEST_DAILY.roi, (300, 70, 500, 140))
+        self.assertEqual(((QUEST_DAILY.roi[0] + QUEST_DAILY.roi[2]) // 2,
+                          (QUEST_DAILY.roi[1] + QUEST_DAILY.roi[3]) // 2), (400, 105))
         self.assertTrue(HOME_QUEST.asset_provenance.endswith("home-base-settled.png"))
         self.assertEqual(QUEST_DAILY.required_confirmation_frames, 1)
 

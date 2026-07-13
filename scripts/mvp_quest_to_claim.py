@@ -264,7 +264,7 @@ def critical_rois(mode: str, args: argparse.Namespace) -> Dict[str, tuple[int, i
     elif mode == "quest":
         rois = {
             "source_title": (0, 0, 800, 180),
-            "target_daily_tab": (260, 80, 540, 300),
+            "target_daily_tab": QUEST_TAB_ROI,
         }
     elif mode == "promo":
         rois = {

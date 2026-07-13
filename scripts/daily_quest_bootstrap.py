@@ -38,7 +38,7 @@ ROIS: Dict[str, Tuple[int, int, int, int]] = {
     "home_quest_entry": (250, 1130, 410, 1280),
     "quest_title": (0, 0, 800, 180),
     "quest_tabs": (120, 80, 680, 300),
-    "daily_quest_tab": (260, 80, 540, 300),
+    "daily_quest_tab": (300, 70, 500, 140),
     "daily_header": (0, 0, 800, 450),
     "daily_rows": (0, 400, 800, 1120),
     "daily_bottom": (0, 1080, 800, 1280),
