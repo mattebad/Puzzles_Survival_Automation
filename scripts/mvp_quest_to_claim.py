@@ -36,8 +36,13 @@ from startup_normalization import classify_cash_mall, load_frame
 from promotional_escape import (
     PROMOTIONAL_BACK_TARGET_ROI,
     PROMOTIONAL_FORBIDDEN_REGIONS,
+    PROMOTIONAL_STATE,
     classify_promotional_back,
 )
+
+KNOWN_PROMOTIONAL_SUCCESSORS = frozenset({
+    "CASH_MALL", "HOME_BASE", "QUEST", "DAILY_QUEST", PROMOTIONAL_STATE,
+})
 
 PROFILE_ID = "pns-blissos-poc-virgl-800x1280-v1"
 TASK_ID = "MVP-QUEST-TO-CLAIM"
@@ -192,7 +197,10 @@ def observation_for(
         cost_type=detail.get("cost_type", "none") if is_promo else "none",
         cost_amount=detail.get("cost_amount", 0) if is_promo else 0,
         quantity=detail.get("quantity", 1) if is_promo else args.quantity,
-        expected_postcondition=(getattr(args, "expected_state", None) or detail.get("expected_postcondition")) if is_promo else args.expected_state,
+        expected_postcondition=(
+            "RECOGNIZED_NAVIGATION_STATE" if is_promo
+            else args.expected_state
+        ),
         evidence_refs=(str(frame),),
         critical_roi_hashes=bindings,
         ocr_result_frame_sha256=ocr_frame,
@@ -324,6 +332,17 @@ def execute(args: argparse.Namespace) -> int:
 
     post_paths: List[Path] = []
 
+    def classify_promotional_successor(path: Path) -> Dict[str, Any]:
+        """Classify a bounded known successor without assuming the prior page's state or ROI."""
+        for mode in ("cash", "home", "quest", "daily", "promo"):
+            try:
+                candidate = classify(mode, path, args)
+            except (ValueError, RuntimeError):
+                continue
+            if candidate.get("recognized") and candidate.get("state") in KNOWN_PROMOTIONAL_SUCCESSORS:
+                return candidate
+        return {"state": "UNKNOWN", "recognized": False, "detail": {}}
+
     def post_observe() -> Iterable[Observation]:
         observations = []
         for index, delay in enumerate((1.0, 3.0, 6.0), start=1):
@@ -331,7 +350,11 @@ def execute(args: argparse.Namespace) -> int:
             path = evidence / (args.action_id + "-post-%d.png" % index)
             capture_metadata = transport.capture(path)
             post_paths.append(path)
-            result = classify(args.expected_mode, path, args)
+            result = (
+                classify_promotional_successor(path)
+                if args.source_mode == "promo"
+                else classify(args.expected_mode, path, args)
+            )
             metadata = valid_png_frame(path)
             observations.append(
                 Observation(
@@ -341,7 +364,9 @@ def execute(args: argparse.Namespace) -> int:
                     valid_png=True, corrupt=False, black=False,
                     source_state=result["state"], overlay_state="none_observed" if result["recognized"] else "unknown",
                     target_identity=None, target_roi=None, recognized=bool(result["recognized"]),
-                    expected_postcondition=args.expected_state, evidence_refs=(str(path),),
+                    expected_postcondition=(
+                        "RECOGNIZED_NAVIGATION_STATE" if args.source_mode == "promo" else args.expected_state
+                    ), evidence_refs=(str(path),),
                 )
             )
             if result["recognized"]:
@@ -356,7 +381,11 @@ def execute(args: argparse.Namespace) -> int:
 
     executor = SafeActionExecutor(
         store, CentralPolicy(), args.owner, time.monotonic, dispatch, recapture, post_observe,
-        lambda _intent, item: item.recognized and item.source_state == args.expected_state,
+        lambda _intent, item: (
+            item.recognized and item.source_state in KNOWN_PROMOTIONAL_SUCCESSORS
+            if args.source_mode == "promo"
+            else item.recognized and item.source_state == args.expected_state
+        ),
         wall_clock=time.time,
         max_pre_dispatch_attempts=args.max_pre_dispatch_attempts,
     )
