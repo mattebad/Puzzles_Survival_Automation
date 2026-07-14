@@ -1395,3 +1395,11 @@ is 2,899 files / 609,601,685 bytes; tracked evidence and all protected journals,
 decisive/unresolved evidence, and `.local-reference/` remain intact. The archive verifies 1,761
 entries with no errors. No Git history rewrite or live gameplay input occurred. Continue with offline
 Main Claim work; Phase E dispatch remains evidence-gated.
+
+Offline Main Claim contract (2026-07-14): `tasks/main_quest.py` now models a selected Main Quest
+completed row and its one-dispatch zero-cost Claim transaction without importing image/ADB runtime
+code. Authorization requires an exact row-local `CLAIM`, explicit free semantics, current day,
+locked profile, source hash, and Bliss-native provenance; Go, milestone, clipped, reset, unknown,
+static-reference, and unchanged-postcondition fixtures fail closed. The module is not registered in
+`pnsctl`. This advances offline Phase E coverage only; no Bliss-native Main Claim target or positive
+postcondition evidence exists, so no live handler or dispatch is enabled.

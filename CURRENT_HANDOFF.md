@@ -23,6 +23,22 @@
   full discovery reaches 137 tests but remains locally limited by six pre-existing `cv2` import
   errors. No live runtime worker, lease, or gameplay input was started during cleanup.
 
+## 2026-07-14 offline Phase E Main Claim contract
+
+- Added `tasks/main_quest.py` with a pure Main Quest Claim observation, transaction specification,
+  and positive row/points postcondition contract. It requires selected Main Quest, a complete
+  exact row-local `CLAIM`, explicit free semantics, current game-day identity, locked profile,
+  fresh source SHA-256, and Bliss-native target provenance.
+- Synthetic fixtures cover a completed-but-reference-only Claim, a Go negative, and a semantic
+  contract-positive case. Static/reference provenance, milestone, clipped, unknown-overlay,
+  reset, wrong-profile, malformed-hash, missing-evidence, and unchanged-postcondition cases all
+  fail closed. The module is intentionally not registered in `pnsctl`.
+- The isolated contract plus Phase D/reference tests pass 39/39; the full non-OpenCV suite passes
+  138/138. The authoritative discovery remains limited only by the six existing `cv2` import
+  errors. No image capture, ADB operation, or live gameplay input occurred.
+- The Main Quest target and positive postcondition remain absent from Bliss-native evidence. Phase E
+  dispatch is still disabled; the next permitted step is navigation-only evidence acquisition.
+
 ## 2026-07-14 Phase E evidence gate
 
 - Fresh selected Daily Quest inventory after Phase D shows 5 points, only `Go` rows, and no ready

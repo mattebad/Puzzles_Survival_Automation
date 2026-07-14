@@ -106,7 +106,8 @@ dependency; no dedicated SSH-key task is a production blocker.
   preserved; no live gameplay input occurred.
 - Next: continue Phase E with offline Main Claim contract/detector/fixture work. Do not authorize
   live Main Claim, Daily Claim, milestone, Depot Free, or recruitment Free input without fresh
-  Bliss-native target, free/cost-negative, and positive-postcondition evidence.
+  Bliss-native target, free/cost-negative, and positive-postcondition evidence. The offline Main
+  Claim contract is recorded below; live evidence acquisition remains the next gate.
 
 ## Milestones
 
@@ -565,6 +566,24 @@ Claim example.
   `evidence/sessions/20260713-phase-e-inventory/live-current-001/phase-e-inventory-001.png`.
 - Vendor `GNB-DAILY-*` geometry remains static reference only. No 2x projection, vendor selector,
   blind triple tap, 10x recruitment branch, or broad Claim ROI may authorize input.
+
+### GNB-PHASE-E-MAIN-CLAIM-OFFLINE — Add fail-closed Main Quest Claim contract
+
+- Dependencies: GNB-PHASE-D Passed; fresh Bliss-native Main Quest Claim target evidence is not yet
+  available.
+- Scope: pure semantic contract, exact row-local target containment, explicit free/cost-negative
+  requirements, profile/provenance/hash gates, positive row/points postcondition, and synthetic
+  negatives. No image capture, ADB, pnsctl registration, or live input.
+- Status: Passed (2026-07-14; offline contract and 7 focused tests).
+- Evidence: `tasks/main_quest.py`, `tests/fixtures/phase_e_main_claim_observations.json`, and
+  `tests/test_main_quest_claim.py`.
+- Result: static GnBots/reference provenance, Go, milestone, clipped, unknown-overlay, reset,
+  wrong-profile, malformed-hash, missing-evidence, and unchanged-postcondition cases fail closed.
+  A synthetic Bliss-native semantic case exercises the transaction spec without authorizing a
+  production dispatch.
+- Blocker: no fresh Bliss-native Main Quest Claim target and positive-postcondition pair exists.
+- Next: acquire navigation-only evidence when permitted, then independently promote a real target
+  and postcondition before any Main Claim handler or dispatch is enabled.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded

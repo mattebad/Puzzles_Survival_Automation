@@ -23,6 +23,13 @@ from .daily_quest import (
     claim_authorizeable,
     claim_postcondition_verified,
 )
+from .main_quest import (
+    MainQuestClaimObservation,
+    main_claim_authorizeable,
+    main_claim_perform_one_pulse,
+    main_claim_postcondition_verified,
+    main_claim_transaction_spec,
+)
 from .profile import (
     GAME_BACK,
     HOME_LEFT,
@@ -74,4 +81,9 @@ __all__ = [
     "TaskResult",
     "claim_authorizeable",
     "claim_postcondition_verified",
+    "MainQuestClaimObservation",
+    "main_claim_authorizeable",
+    "main_claim_perform_one_pulse",
+    "main_claim_postcondition_verified",
+    "main_claim_transaction_spec",
 ]
