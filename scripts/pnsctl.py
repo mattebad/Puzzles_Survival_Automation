@@ -9,6 +9,7 @@ call and are never printed, serialized, or written to evidence.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -232,9 +233,22 @@ def capture(cfg: OperatorConfig, name: str) -> str:
 
 
 def observe(cfg: OperatorConfig, name: str) -> str:
+    capture_started = time.time()
     capture(cfg, name)
+    capture_completed = time.time()
     status = run_remote(cfg, _adb_shell(cfg, "shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' | head -2"))
-    return json.dumps({"capture": name, "foreground": status.strip()}, sort_keys=True)
+    return json.dumps(
+        {
+            "capture": name,
+            "capture_started_epoch": capture_started,
+            "capture_completed_epoch": capture_completed,
+            "capture_completed_utc": datetime.fromtimestamp(
+                capture_completed, timezone.utc
+            ).isoformat(),
+            "foreground": status.strip(),
+        },
+        sort_keys=True,
+    )
 
 
 NAVIGATION_STEPS = {

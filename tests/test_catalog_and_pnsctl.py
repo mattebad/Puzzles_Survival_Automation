@@ -102,6 +102,17 @@ class OperatorCliTests(unittest.TestCase):
         self.assertIn("/evidence/actions-nav-quest-daily-", command)
         self.assertNotIn("--database /evidence/actions.sqlite3", command)
 
+    def test_observe_reports_capture_timestamp(self):
+        cfg = pnsctl.OperatorConfig()
+        with patch("scripts.pnsctl.capture"), patch(
+            "scripts.pnsctl.run_remote", return_value="mCurrentFocus=game"
+        ), patch("scripts.pnsctl.time.time", side_effect=(10.0, 11.0)):
+            result = json.loads(pnsctl.observe(cfg, "fresh"))
+        self.assertEqual(result["capture"], "fresh")
+        self.assertEqual(result["capture_started_epoch"], 10.0)
+        self.assertEqual(result["capture_completed_epoch"], 11.0)
+        self.assertEqual(result["capture_completed_utc"], "1970-01-01T00:00:11+00:00")
+
     def test_daily_scroll_uses_bounded_swipe_navigation(self):
         cfg = pnsctl.OperatorConfig()
         with patch("scripts.pnsctl.run_remote", return_value="") as remote:
