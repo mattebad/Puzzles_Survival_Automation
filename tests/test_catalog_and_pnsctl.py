@@ -79,6 +79,14 @@ class OperatorCliTests(unittest.TestCase):
         for asset in pnsctl.PRAISE_REFERENCE_ASSETS:
             self.assertIn(str(cfg.repo_root / asset), transferred_sources)
 
+    def test_navigation_runs_from_synced_workspace(self):
+        cfg = pnsctl.OperatorConfig()
+        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
+            pnsctl.navigate(cfg, "quest-daily")
+        command = remote.call_args.args[1]
+        self.assertIn("-w /workspace", command)
+        self.assertIn("scripts/mvp_quest_to_claim.py", command)
+
     def test_credentials_are_redacted_from_operator_output(self):
         rendered = " ".join(pnsctl.redact_argv(["plink", "-pw", "secret", "root@nas.local", "date"]))
         self.assertNotIn("secret", rendered)
