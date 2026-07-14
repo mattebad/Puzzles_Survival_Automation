@@ -1484,3 +1484,16 @@ Synthetic replay tests cover positive authorization, paid/static-reference rejec
 cost guards, postcondition semantics, and pure one-pulse results. The contract remains
 evidence-gated, unregistered, and scheduler-ineligible; no runtime, journal, lease, task-state, or
 gameplay state changed.
+
+## Daily Quest Nanoweapon offline boundary (2026-07-14)
+
+`DQ-FLOW-NANOWEAPON` now has a pure `tasks/nanoweapon.py` Craft Weapon contract. Authorization
+requires selected Craft Weapon state, known recipe and materials, approved duration policy, exact
+current-frame target containment, explicit zero cost, quantity one, current day, and locked
+runtime-profile provenance. Material Production, Inherit, unknown resources, paid recipes, and
+unapproved durations fail closed. Completion requires a same-day result, count increase, or craft
+timer transition.
+
+Synthetic replay tests cover recipe/resource guards, static-reference rejection, postcondition
+semantics, and pure one-pulse results. The contract remains evidence-gated, unregistered, and
+scheduler-ineligible; no runtime, journal, lease, task-state, or gameplay state changed.

@@ -1,5 +1,16 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 offline Nanoweapon contract
+
+- Completed `DQ-FLOW-NANOWEAPON` as a pure `tasks/nanoweapon.py` Craft Weapon contract. It
+  requires selected Craft Weapon state, known recipe/material availability, approved duration
+  policy, exact current-frame target, explicit zero cost and quantity one, current game day,
+  locked profile provenance, and a positive result, count, or timer postcondition.
+- Added synthetic replay fixtures and five focused tests covering free recipe authorization,
+  Material Production/static-reference rejection, recipe/material/target/policy guards, same-day
+  postconditions, and pure one-pulse results. The module is offline-only, unregistered, and
+  scheduler-ineligible; no runtime or gameplay state changed.
+
 ## 2026-07-14 offline Bioenhancer contract
 
 - Completed `DQ-FLOW-BIOENHANCER` as a pure `tasks/bioenhancer.py` contract for one explicit

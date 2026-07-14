@@ -16,5 +16,8 @@ scheduler dormant.
 Tests: offline recipe/resource contract, replay, cardinality, successor proof, Main negative,
 registration dormancy, scheduler false. Bliss-native evidence required; GnBots geometry never
 authorizes. Future navigation read-only. Prohibit ADB, worker/VM, leases, journal migration, live
-input/evidence, registration, scheduler eligibility. Update docs/matrix/status. Commit:
-`docs(tasks): map every Daily objective to an execution task`. Continue offline.
+input/evidence, registration, scheduler eligibility. Current boundary:
+`tasks/nanoweapon.py` and `tests/test_nanoweapon.py` implement offline recipe/material guards and
+synthetic replay; promotion still requires fresh Bliss-native craft evidence. Update
+docs/matrix/status when contract changes. Continue offline. Commit:
+`feat(tasks): add Nanoweapon offline contract`.

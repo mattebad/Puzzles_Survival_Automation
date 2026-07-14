@@ -58,6 +58,13 @@ from .bioenhancer import (
     bioenhancer_postcondition_verified,
     bioenhancer_transaction_spec,
 )
+from .nanoweapon import (
+    NanoweaponObservation,
+    nanoweapon_authorizeable,
+    nanoweapon_perform_one_pulse,
+    nanoweapon_postcondition_verified,
+    nanoweapon_transaction_spec,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -142,6 +149,11 @@ __all__ = [
     "bioenhancer_perform_one_pulse",
     "bioenhancer_postcondition_verified",
     "bioenhancer_transaction_spec",
+    "NanoweaponObservation",
+    "nanoweapon_authorizeable",
+    "nanoweapon_perform_one_pulse",
+    "nanoweapon_postcondition_verified",
+    "nanoweapon_transaction_spec",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

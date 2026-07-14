@@ -1404,11 +1404,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED`; unlocks after native pair.
 
 ### DQ-FLOW-NANOWEAPON
+- Status: Passed (2026-07-14; offline contract and 5 focused tests).
 - Covered: `craft_nanoweapon`; Craft Weapon variant.
 - Exclusions: Material Production, Inherit Weapon, long/expensive craft, unknown materials.
 - Dependencies/routes: inventory → Gear Factory → Nanoweapon.
 - Source/target/policy: exact Craft Weapon target and free/allowlisted materials.
-- Offline acceptance/tests: recognizer/transaction/postcondition mocks; static reference rejection.
+- Offline acceptance/tests: recognizer/transaction/postcondition mocks; static reference rejection;
+  `tests/test_nanoweapon.py`.
 - Bliss/live boundary: evidence-gated; no registration/input.
 - Transaction/postcondition/recovery: one craft; timer/result and Daily progress; stop on material/cost ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
