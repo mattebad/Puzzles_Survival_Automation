@@ -46,6 +46,8 @@ promotion. Praise completion stops before Claim.
   with unconditional no-research-dispatch guard).
 - Disabled Hero Upgrade contract: `tasks/hero_upgrade_disabled.py` (selected-hero/material/level
   replay with unconditional no-upgrade-dispatch guard).
+- Disabled Purchase contracts: `tasks/purchases_disabled.py` (Box, Ruins, Rare Earth, and
+  Alliance Shop offer/cost replay with unconditional no-purchase-dispatch guard).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

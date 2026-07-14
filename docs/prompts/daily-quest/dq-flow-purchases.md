@@ -9,10 +9,12 @@ Route: Daily row → declared shop. Source: row, shop, item; target: exact purch
 successor: inventory/currency/shop state. Bind all to current frame.
 
 Policy: DISABLED_POLICY; no currency transaction, live input, registration, or scheduler eligibility.
-Postcondition: offline contract proves no purchase. Recovery: fail closed on shop/item/currency/
-stale-frame ambiguity. Daily reconciliation preserves shops; Claim independent. Persistence dormant.
+Parameterized shop/offer/cost contract is implemented in `tasks/purchases_disabled.py` for all four
+variants; every purchase dispatch remains blocked. Postcondition: offline contract proves no
+purchase. Recovery: fail closed on shop/item/currency/stale-frame ambiguity. Daily reconciliation
+preserves shops; Claim independent. Persistence dormant.
 
-Tests: shop-variant separation, disabled validator, no registry, scheduler false, offline cost model,
-Main negative, Claim separation. Bliss/GnBots cannot override policy. Future navigation read-only.
-Update docs/matrix/status. Commit: `docs(tasks): map every Daily objective to an execution task`.
-Continue offline.
+Tests: `tests/test_purchases_disabled.py` covers four-way shop-variant separation, disabled
+validator, no registry, scheduler false, offline cost/inventory arithmetic, Main/ambiguous
+negatives, and Claim separation. Bliss/GnBots cannot override policy. Future navigation read-only.
+Update docs/matrix/status. Commit: `feat(tasks): add disabled purchase contracts`. Continue offline.

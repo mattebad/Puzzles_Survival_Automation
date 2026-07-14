@@ -89,7 +89,8 @@ cannot admit Daily objectives.
 - Hero Upgrade: selected-hero/material/level identity replay complete offline; hero upgrade remains
   policy-disabled with no upgrade transaction.
 - Hero Upgrade and Hero Ownership: separate semantics.
-- Purchases: Box, Ruins Shop, Rare Earth Shop, Alliance Shop variants through one allowlist engine.
+- Purchases: Box, Ruins Shop, Rare Earth Shop, and Alliance Shop variants share offline
+  offer/cost/item replay; purchase remains policy-disabled with no transaction.
 - Donation: Alliance Tech resource policy.
 - Speedups: item/timer allowlist.
 - Challenges: proven Ruins variant only. Ultimate wording is Main-only evidence.

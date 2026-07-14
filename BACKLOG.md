@@ -1588,14 +1588,18 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; product decision required.
 
 ### DQ-FLOW-PURCHASES
+- Status: Passed (2026-07-14; disabled four-variant shop contract and 6 focused tests).
 - Covered: `buy_box`, `ruins_shop_purchase`, `rare_earth_shop_purchase`, `alliance_shop_purchase`.
 - Variants: box, Ruins, Rare Earth, Alliance Shop; shared allowlist engine.
 - Exclusions: premium/unknown offers, auto purchase, static vendor selectors.
 - Dependencies/routes: inventory → shop-specific route.
 - Source/target/policy: exact item, currency, quantity one, allowlisted cost.
-- Offline acceptance/tests: offer/currency/confirmation/postcondition mocks.
+- Offline acceptance/tests: four-way shop identity, offer/cost/currency guards, offline item/cost
+  arithmetic, disabled dispatch, Main/ambiguous negatives, and Claim separation;
+  `tests/test_purchases_disabled.py`.
 - Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: one purchase; item/currency delta; stop on any offer change.
+- Transaction/postcondition/recovery: no transaction path; item/currency arithmetic replay only;
+  every dispatch request blocks; stop on any offer change.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; product purchase policy required.
 

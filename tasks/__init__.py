@@ -136,6 +136,12 @@ from .hero_upgrade_disabled import (
     hero_upgrade_disabled_dispatch,
     hero_upgrade_postcondition_verified,
 )
+from .purchases_disabled import (
+    PurchaseObservation,
+    purchase_authorizeable,
+    purchase_disabled_dispatch,
+    purchase_postcondition_verified,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -274,6 +280,10 @@ __all__ = [
     "hero_upgrade_authorizeable",
     "hero_upgrade_disabled_dispatch",
     "hero_upgrade_postcondition_verified",
+    "PurchaseObservation",
+    "purchase_authorizeable",
+    "purchase_disabled_dispatch",
+    "purchase_postcondition_verified",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

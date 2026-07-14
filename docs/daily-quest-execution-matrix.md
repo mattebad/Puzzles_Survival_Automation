@@ -60,6 +60,10 @@ Research spend remains policy-disabled; the objective is unregistered and schedu
 replay only. Hero material spend remains policy-disabled; the objective is unregistered and
 scheduler-ineligible.
 
+`DQ-FLOW-PURCHASES` uses `tasks/purchases_disabled.py` for Box, Ruins Shop, Rare Earth Shop, and
+Alliance Shop offer/cost/item replay only. Currency spend remains policy-disabled; all four
+objectives are unregistered and scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |

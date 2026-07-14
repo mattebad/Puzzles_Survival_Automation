@@ -1,5 +1,16 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 disabled purchase contracts
+
+- Completed `DQ-FLOW-PURCHASES` as parameterized `tasks/purchases_disabled.py` semantics for Box,
+  Ruins Shop, Rare Earth Shop, and Alliance Shop. Each variant binds selected-Daily objective,
+  exact shop/offer/item, known currency cost, and same-day item/currency successor; purchase
+  dispatch is always blocked.
+- Synthetic replay fixtures and six focused tests cover four-way ownership, cost/currency/reward
+  guards, Main/static/ambiguous rejection, offline arithmetic, Claim separation, and no-dispatch
+  behavior. All four rows remain disabled, unregistered, and scheduler-ineligible; no live or
+  persistent state changed.
+
 ## 2026-07-14 disabled Hero Upgrade contract
 
 - Completed `DQ-FLOW-HERO-UPGRADE` as selected-hero/material/level replay in
