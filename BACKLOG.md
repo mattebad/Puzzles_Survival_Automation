@@ -1394,14 +1394,18 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED`; unlocks runtime gate after native pair.
 
 ### DQ-FLOW-RECRUITMENT
-- Status: Passed (2026-07-14; existing free-recruitment contract and 5 focused tests).
+- Status: Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).
 - Covered: `recruit_noahs_tavern`; free single variant repeated to target quantity.
 - Exclusions: 10x, premium, unknown confirmation, vendor selector.
 - Dependencies/routes: inventory → Noah's Tavern.
 - Source/target/policy: explicit FREE mode/banner, quantity one, zero cost.
-- Offline acceptance/tests: `tests/test_free_recruitment.py` positive/negative/result count.
+- Offline acceptance/tests: `tasks/daily_recruitment.py` and
+  `tests/test_daily_recruitment.py` cover selected-row ownership, exact five one-pulse
+  successors, dispatch cardinality, Main/ambiguous negatives, and Claim separation; the shared
+  free contract remains covered by `tests/test_free_recruitment.py`.
 - Bliss/live boundary: evidence-gated; no registration/input.
-- Transaction/postcondition/recovery: one `RECRUIT_FREE`; result identity/count increase; stop on ambiguity.
+- Transaction/postcondition/recovery: one `RECRUIT_FREE` per pulse, exactly enough pulses to reach
+  5/5; result/count increase required; stop on partial or ambiguous result.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `EVIDENCE_GATED`; unlocks after native pair.
 

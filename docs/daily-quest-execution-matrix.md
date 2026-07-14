@@ -75,6 +75,11 @@ consumption remains policy-disabled; the objective is unregistered and scheduler
 replay only. Challenge entry remains policy-disabled; Ultimate Challenge remains outside Daily
 scope, and the Ruins objective is unregistered and scheduler-ineligible.
 
+`DQ-FLOW-RECRUITMENT` uses `tasks/free_recruitment.py` plus
+`tasks/daily_recruitment.py` for free Noah's Tavern single-recruit replay. The adapter requires
+exactly enough one-pulse successors to reach Daily progress 5/5; fresh native target/result
+evidence remains required, with no registration or scheduler eligibility.
+
 `DQ-FLOW-RESOURCE-BOOST` uses `tasks/resource_boost_disabled.py` for resource-building identity,
 resource, duration, cost, and boost-state replay only. Boost spending remains policy-disabled; the
 objective is unregistered and scheduler-ineligible.

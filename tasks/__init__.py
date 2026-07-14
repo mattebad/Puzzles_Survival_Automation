@@ -51,6 +51,13 @@ from .free_recruitment import (
     free_recruitment_postcondition_verified,
     free_recruitment_transaction_spec,
 )
+from .daily_recruitment import (
+    DailyRecruitmentObservation,
+    daily_recruitment_authorizeable,
+    daily_recruitment_postcondition_verified,
+    daily_recruitment_replay,
+    daily_recruitment_transaction_spec,
+)
 from .bioenhancer import (
     BioenhancerObservation,
     bioenhancer_authorizeable,
@@ -245,6 +252,11 @@ __all__ = [
     "free_recruitment_perform_one_pulse",
     "free_recruitment_postcondition_verified",
     "free_recruitment_transaction_spec",
+    "DailyRecruitmentObservation",
+    "daily_recruitment_authorizeable",
+    "daily_recruitment_postcondition_verified",
+    "daily_recruitment_replay",
+    "daily_recruitment_transaction_spec",
     "BioenhancerObservation",
     "bioenhancer_authorizeable",
     "bioenhancer_perform_one_pulse",

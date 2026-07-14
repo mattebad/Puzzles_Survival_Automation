@@ -1584,3 +1584,16 @@ active boosts, and ambiguous successor states fail closed.
 Synthetic replay tests cover resource-building identity, target binding, duration/cost guards,
 Main/static negatives, boost-state/progress arithmetic, and disabled dispatch. Resource spending
 remains policy-disabled; the objective is unregistered and scheduler-ineligible.
+
+## Daily Quest recruitment offline boundary (2026-07-14)
+
+`DQ-FLOW-RECRUITMENT` now composes `tasks/free_recruitment.py` with
+`tasks/daily_recruitment.py`. The adapter binds the selected Daily `recruit_noahs_tavern` row to
+exact free Noah's Tavern single-recruit evidence and requires one positive count/progress
+successor per pulse until 5/5. Ten-X, premium, Main/static, stale, and partial-result states fail
+closed.
+
+Synthetic replay tests cover selected-row ownership, exact five-count arithmetic, transaction
+specification, zero dispatch cardinality, Main/ambiguous negatives, and Claim separation. Fresh
+Bliss-native Tavern target/result evidence remains required; no registration or scheduler
+eligibility is enabled.

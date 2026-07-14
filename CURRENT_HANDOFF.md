@@ -267,6 +267,15 @@
   capture, ADB operation, or live gameplay input occurred; fresh Bliss-native recruitment evidence
   remains absent.
 
+## 2026-07-14 Daily five-count recruitment adapter
+
+- Added `tasks/daily_recruitment.py` to bind the selected Daily `recruit_noahs_tavern` row to the
+  shared free Tavern contract. It requires exactly one free-single successor per pulse and exact
+  count/progress arithmetic through 5/5.
+- Synthetic replay covers five-count cardinality, selected-row ownership, Main/ambiguous rejection,
+  Claim separation, and zero dispatches. The objective remains evidence-gated, unregistered, and
+  scheduler-ineligible; no live or persistent state changed.
+
 ## 2026-07-14 offline Phase F scheduler contract
 
 - Added `tasks/scheduler.py` with deterministic serializable task state and a one-pulse candidate

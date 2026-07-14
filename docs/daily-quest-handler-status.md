@@ -22,7 +22,8 @@ promotion. Praise completion stops before Claim.
 - Generalized Daily Claim contract: `tasks/available_daily_claim.py`.
 - Milestone Claim contract: `tasks/activity_milestones.py`.
 - Supply Depot free contract: `tasks/supply_depot.py`.
-- Free Recruitment contract: `tasks/free_recruitment.py`.
+- Free Recruitment contract: `tasks/free_recruitment.py` plus Daily five-count adapter
+  `tasks/daily_recruitment.py`.
 - Bioenhancer free-research contract: `tasks/bioenhancer.py`.
 - Nanoweapon Craft Weapon contract: `tasks/nanoweapon.py`.
 - Gear/Chip/Module shared enhancement contract: `tasks/enhancement.py` (all three variants
