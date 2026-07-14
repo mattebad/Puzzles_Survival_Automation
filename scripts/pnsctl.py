@@ -9,6 +9,7 @@ call and are never printed, serialized, or written to evidence.
 from __future__ import annotations
 
 import argparse
+import base64
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -275,6 +276,10 @@ NAVIGATION_STEPS = {
         "daily", "supply_depot", "SUPPLY_DEPOT", "DAILY_SUPPLY_DEPOT_GO", "daily-supply-depot-go",
         (554, 786, 731, 878), "tap", None,
     ),
+    "supply-depot-daily-back": (
+        "supply_depot", "home", "HOME_BASE", "SUPPLY_DEPOT_TO_HOME", "supply-depot-daily-back",
+        (31, 1, 138, 55), "tap", None,
+    ),
 }
 
 
@@ -367,10 +372,40 @@ def validate(cfg: OperatorConfig) -> str:
     return run_remote(cfg, command)
 
 
-def preserve_evidence(cfg: OperatorConfig, destination: Path) -> str:
+def preserve_evidence(cfg: OperatorConfig, destination: Path, names: Sequence[str] = ()) -> str:
+    destination = destination if destination.is_absolute() else (cfg.repo_root / destination)
+    destination = destination.resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    run_pscp(cfg, [cfg.remote_evidence + "/*"], str(destination), recursive=True, local_sources=False, local_destination=True)
+    if names:
+        for name in names:
+            safe_name = _safe_name(name)
+            encoded = run_remote(
+                cfg,
+                f"base64 -w0 {quote(cfg.remote_evidence + '/' + safe_name)}",
+            ).strip()
+            (destination / safe_name).write_bytes(base64.b64decode(encoded))
+        return str(destination)
+    sources = [
+        cfg.remote_evidence + "/" + _safe_name(name)
+        for name in names
+    ] if names else [cfg.remote_evidence + "/*"]
+    for source in sources:
+        run_pscp(
+            cfg,
+            [source],
+            str(destination),
+            recursive=True,
+            local_sources=False,
+            local_destination=True,
+        )
     return str(destination)
+
+
+def evidence_status(cfg: OperatorConfig) -> str:
+    return run_remote(
+        cfg,
+        f"find {quote(cfg.remote_evidence)} -maxdepth 1 -type f -printf '%f\\n' | sort",
+    )
 
 
 def reconcile(args: argparse.Namespace) -> str:
@@ -416,7 +451,7 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     root.add_argument("--run-id", default="help-all-20260713")
     sub = root.add_subparsers(dest="command", required=True)
-    for name in ("preflight", "worker-start", "worker-status", "worker-stop", "adb-start", "launch", "capture", "observe", "navigate", "run-task", "test-focused", "test-full", "validate", "preserve-evidence", "cleanup"):
+    for name in ("preflight", "worker-start", "worker-status", "worker-stop", "adb-start", "launch", "capture", "observe", "navigate", "run-task", "test-focused", "test-full", "validate", "preserve-evidence", "evidence-status", "cleanup"):
         sub.add_parser(name)
     sub.choices["capture"].add_argument("--name", default="current")
     sub.choices["observe"].add_argument("--name", default="observe")
@@ -431,6 +466,7 @@ def parser() -> argparse.ArgumentParser:
     )
     sub.choices["test-focused"].add_argument("--pattern", default="test_task_module.py")
     sub.choices["preserve-evidence"].add_argument("--destination", type=Path, required=True)
+    sub.choices["preserve-evidence"].add_argument("--name", action="append", default=[])
     rec = sub.add_parser("reconcile")
     rec.add_argument("--source", type=Path, required=True)
     rec.add_argument("--output", type=Path, required=True)
@@ -460,7 +496,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "test-focused": lambda: test_command(cfg, True, args.pattern),
         "test-full": lambda: test_command(cfg, False),
         "validate": lambda: validate(cfg),
-        "preserve-evidence": lambda: preserve_evidence(cfg, args.destination),
+        "preserve-evidence": lambda: preserve_evidence(cfg, args.destination, args.name),
+        "evidence-status": lambda: evidence_status(cfg),
         "cleanup": lambda: cleanup(cfg),
     }
     try:
