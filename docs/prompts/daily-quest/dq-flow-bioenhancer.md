@@ -17,5 +17,7 @@ Tests: offline contract, source/target/successor replay, cost guard, dispatch ca
 negative Main recognition, and no registration/scheduler assertions. Bliss-native evidence required;
 GnBots is provenance only. Future navigation read-only until promotion. Prohibit ADB, worker/VM,
 lease/journal changes, live input/evidence, runtime registration, and scheduler eligibility.
-Update matrix/status/docs. Commit: `docs(tasks): map every Daily objective to an execution task`.
-Continue autonomous offline work.
+Current boundary: `tasks/bioenhancer.py` and `tests/test_bioenhancer.py` implement the offline
+contract and synthetic replay; promotion still requires fresh Bliss-native target and positive
+postcondition evidence. Update matrix/status/docs when contract changes. Continue autonomous
+offline work. Commit: `feat(tasks): add Bioenhancer offline contract`.

@@ -23,6 +23,7 @@ promotion. Praise completion stops before Claim.
 - Milestone Claim contract: `tasks/activity_milestones.py`.
 - Supply Depot free contract: `tasks/supply_depot.py`.
 - Free Recruitment contract: `tasks/free_recruitment.py`.
+- Bioenhancer free-research contract: `tasks/bioenhancer.py`.
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

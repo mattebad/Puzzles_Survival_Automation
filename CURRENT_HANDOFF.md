@@ -1,5 +1,18 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 offline Bioenhancer contract
+
+- Completed `DQ-FLOW-BIOENHANCER` as a pure `tasks/bioenhancer.py` contract for one explicit
+  free-single Bioenhancer research action. It requires selected Bioenhancer state, free banner,
+  exact current-frame target, explicit zero cost and quantity one, current game day, locked
+  profile provenance, and a positive result, count, or cooldown postcondition.
+- Added synthetic replay fixtures and five focused tests covering positive authorization, paid and
+  static-reference rejection, target/cost/safety guards, same-day postconditions, and pure
+  one-pulse results. The module is exported for offline use only; it is not registered in
+  `pnsctl`, does not send input, and leaves scheduler eligibility false.
+- Matrix, human-readable status, handler status, backlog, and prompt index now record the offline
+  contract while preserving evidence-gated promotion and the exact 31-objective catalog.
+
 ## 2026-07-14 evidence retention audit and compaction
 
 - Canonical branch remained `main`; the policy/tooling boundary was committed as `fc96e84`.

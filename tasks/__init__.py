@@ -51,6 +51,13 @@ from .free_recruitment import (
     free_recruitment_postcondition_verified,
     free_recruitment_transaction_spec,
 )
+from .bioenhancer import (
+    BioenhancerObservation,
+    bioenhancer_authorizeable,
+    bioenhancer_perform_one_pulse,
+    bioenhancer_postcondition_verified,
+    bioenhancer_transaction_spec,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -130,6 +137,11 @@ __all__ = [
     "free_recruitment_perform_one_pulse",
     "free_recruitment_postcondition_verified",
     "free_recruitment_transaction_spec",
+    "BioenhancerObservation",
+    "bioenhancer_authorizeable",
+    "bioenhancer_perform_one_pulse",
+    "bioenhancer_postcondition_verified",
+    "bioenhancer_transaction_spec",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

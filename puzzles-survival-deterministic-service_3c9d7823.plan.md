@@ -1471,3 +1471,16 @@ and exact Personal Might Daily Claim. All matrix scheduler eligibility is false.
 one-pulse scheduler code remain dormant offline infrastructure. No new registration, worker
 wiring, task-state row, lease, journal migration, ADB operation, evidence capture, or gameplay
 input is part of this planning boundary.
+
+## Daily Quest Bioenhancer offline boundary (2026-07-14)
+
+`DQ-FLOW-BIOENHANCER` now has a pure `tasks/bioenhancer.py` contract for one free-single
+Bioenhancer research action. Authorization requires selected-screen identity, explicit free mode and
+banner, exact current-frame target containment, zero cost, quantity one, current game day, locked
+runtime-profile provenance, and no overlay/reset guard. Completion requires a same-day positive
+research result, count increase, or cooldown transition.
+
+Synthetic replay tests cover positive authorization, paid/static-reference rejection, target and
+cost guards, postcondition semantics, and pure one-pulse results. The contract remains
+evidence-gated, unregistered, and scheduler-ineligible; no runtime, journal, lease, task-state, or
+gameplay state changed.
