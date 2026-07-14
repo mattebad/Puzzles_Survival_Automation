@@ -1382,6 +1382,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED`; unlocks only after native pair.
 
 ### DQ-FLOW-SUPPLY-DEPOT
+- Status: Passed (2026-07-14; existing offline contract and 5 focused tests).
 - Covered: `supply_depot`; free collection variant.
 - Exclusions: premium/unknown reward, vendor selector, blind triple tap.
 - Dependencies/routes: inventory → Supply Depot panel.

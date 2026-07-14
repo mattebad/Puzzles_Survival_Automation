@@ -17,4 +17,6 @@ Tests: offline contract replay, cost guard, dispatch cardinality, successor proo
 dormancy, and Main negative recognition. Bliss-native evidence required; GnBots geometry never
 authorizes. Future navigation read-only. Prohibit ADB, worker/VM, leases, journal migration, live
 input/evidence, registration, and scheduler eligibility. Update docs/matrix/status. Commit:
-`docs(tasks): map every Daily objective to an execution task`. Continue offline.
+`feat(tasks): complete Supply Depot offline contract`. Current boundary: `tasks/supply_depot.py`
+and `tests/test_supply_depot.py` provide pure replay semantics; fresh Bliss-native target and
+positive collection evidence remain required for promotion. Continue offline.
