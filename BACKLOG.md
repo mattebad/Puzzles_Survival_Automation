@@ -1,6 +1,6 @@
 # Canonical execution backlog
 
-Last updated: 2026-07-13 (America/Chicago)
+Last updated: 2026-07-14 (America/Chicago)
 
 This is the single authoritative task/status record. The service plan controls technical
 requirements and measured facts. Evidence records contain observations, not competing status.
@@ -75,6 +75,38 @@ committed, stored in durable plan/evidence files, printed into retained logs, or
 scripts. A process-only `UNRAID_TEMP_PASSWORD` may be used for development execution. The current
 RT-012/RT-014A SSH issue is a development execution blocker, not a production architecture
 dependency; no dedicated SSH-key task is a production blocker.
+
+## Evidence maintenance
+
+### EVIDENCE-RETENTION-HYGIENE — Audit and safely compact local evidence
+
+- Dependencies: canonical repository state, protected evidence inventory, and the existing Git/
+  journal safety boundaries.
+- Objective: distinguish tracked canonical evidence from local raw captures, protect fixtures,
+  templates, decisive/unresolved evidence, journals, and references, then archive only conclusively
+  safe duplicates with verified recoverability.
+- Status: Passed (2026-07-14).
+- Before: 4,660 evidence files totaling 1,888,103,865 bytes; tracked 1,511/425,828,236 bytes;
+  untracked 2,253/1,447,595,565 bytes; ignored 896/14,680,064 bytes. The dry-run identified
+  1,761 exact-duplicate or repeated-identical-frame candidates totaling 1,278,502,180 bytes.
+- Result: policy, narrowed ignore rules, streaming audit/archive/verify tooling, deterministic
+  tests, and a concise report were committed in `fc96e84`. The candidates were copied to the
+  external content-addressed archive at `../Puzzles_Survival_Automation_evidence_archive/`, all
+  1,761 manifest entries verified, and only then removed locally. The archive has 137 unique blobs and
+  1,761 verified path mappings; its measured footprint is 133,173,029 bytes (131,353,624 bytes of
+  deduplicated blobs).
+- After: local evidence is 609,601,685 bytes across 2,899 files; tracked evidence is unchanged;
+  untracked evidence is 169,093,385 bytes and ignored journal sidecars are 14,680,064 bytes.
+  Active-checkout recovery is 1,278,502,180 bytes. Git history was not rewritten, garbage-collected,
+  repacked, or force-pushed; reachable evidence blobs remain 1,001/291,331,222 bytes and the
+  history-only upper bound remains 447,731 bytes.
+- Verification: evidence-hygiene and reference tests pass (17/17), the non-OpenCV suite passes
+  (131/131), and the authoritative discovery reaches 137 tests with only the six existing local
+  `cv2` import errors. `.local-reference/`, protected evidence, journals, and runtime state were
+  preserved; no live gameplay input occurred.
+- Next: continue Phase E with offline Main Claim contract/detector/fixture work. Do not authorize
+  live Main Claim, Daily Claim, milestone, Depot Free, or recruitment Free input without fresh
+  Bliss-native target, free/cost-negative, and positive-postcondition evidence.
 
 ## Milestones
 

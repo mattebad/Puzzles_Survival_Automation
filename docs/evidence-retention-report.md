@@ -1,6 +1,6 @@
 # Evidence retention report
 
-Audit `24b21382a0eaac371b13`; generated 2026-07-14T06:16:22.773755+00:00. The JSON detail is local output at `artifacts/evidence-audit.json` and is intentionally not stored under `evidence/`.
+Audit `cfe49978d993826de152`; generated 2026-07-14T06:26:16.258921+00:00. The JSON detail is local output at `artifacts/evidence-audit.json` and is intentionally not stored under `evidence/`.
 
 This report is a dry-run inventory. No evidence was moved or deleted by the audit.
 
@@ -9,12 +9,12 @@ This report is a dry-run inventory. No evidence was moved or deleted by the audi
 | Git state | Files | Bytes |
 |---|---:|---:|
 | tracked | 1511 | 425,828,236 |
-| untracked | 2253 | 1,447,595,565 |
+| untracked | 492 | 169,093,385 |
 | ignored | 896 | 14,680,064 |
 | unknown | 0 | 0 |
-| **evidence total** | 4660 | 1,888,103,865 |
+| **evidence total** | 2899 | 609,601,685 |
 
-Estimated safe duplicate-compaction recovery: **1,278,502,180 bytes**. Git history savings without a history rewrite: **0 bytes**.
+Estimated safe duplicate-compaction recovery: **0 bytes**. Git history savings without a history rewrite: **0 bytes**.
 
 ## Retention totals
 
@@ -26,63 +26,61 @@ Estimated safe duplicate-compaction recovery: **1,278,502,180 bytes**. Git histo
 | `JOURNAL_SOURCE` | 1341 | 40,542,512 | 0 |
 | `RECONCILED_JOURNAL` | 38 | 12,148,607 | 0 |
 | `REFERENCED_SUPPORTING_EVIDENCE` | 330 | 88,667,932 | 0 |
-| `EXACT_DUPLICATE` | 381 | 1,398,884 | 1,398,884 |
-| `REPEATED_IDENTICAL_FRAME` | 1380 | 1,277,103,296 | 1,277,103,296 |
 
 ## Largest files
 
 | Bytes | Git state | Retention | Path |
 |---:|---|---|---|
 | 2,281,234 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/close-help-webview-1-attempt-1-post-015.png` |
-| 2,281,234 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-daily-claim-evidence-019/close-help-webview-1-attempt-1-post-015.png` |
-| 2,281,234 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/close-help-webview-1-attempt-1-post-015.png` |
-| 2,281,234 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-praise-resume-017-no-input/close-help-webview-1-attempt-1-post-015.png` |
-| 2,281,234 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-praise-success-018/close-help-webview-1-attempt-1-post-015.png` |
-| 2,281,234 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/close-help-webview-1-attempt-1-post-015.png` |
-| 2,281,234 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-route-recovery-013/close-help-webview-1-attempt-1-post-015.png` |
-| 2,281,234 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-route-recovery-014/close-help-webview-1-attempt-1-post-015.png` |
-| 2,281,234 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-phase-e-inventory/live-current-001/close-help-webview-1-attempt-1-post-015.png` |
 | 2,280,642 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-route-recovery-013/home-to-more-attempt-1-immediate-before-1-003.png` |
 | 2,280,409 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/close-help-webview-1-1-attempt-1-post-019.png` |
-| 2,280,409 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-daily-claim-evidence-019/close-help-webview-1-1-attempt-1-post-019.png` |
-| 2,280,409 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/close-help-webview-1-1-attempt-1-post-019.png` |
-| 2,280,409 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-praise-resume-017-no-input/close-help-webview-1-1-attempt-1-post-019.png` |
-| 2,280,409 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-praise-success-018/close-help-webview-1-1-attempt-1-post-019.png` |
-| 2,280,409 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/close-help-webview-1-1-attempt-1-post-019.png` |
-| 2,280,409 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-route-recovery-014/close-help-webview-1-1-attempt-1-post-019.png` |
-| 2,280,409 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-phase-e-inventory/live-current-001/close-help-webview-1-1-attempt-1-post-019.png` |
 | 2,280,303 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/close-help-webview-1-1-attempt-1-post-017.png` |
-| 2,280,303 | untracked | `REPEATED_IDENTICAL_FRAME` | `evidence/sessions/20260713-personal-might-praise/live-daily-claim-evidence-019/close-help-webview-1-1-attempt-1-post-017.png` |
+| 2,280,055 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-route-recovery-014/home-to-more-attempt-1-source-002.png` |
+| 2,280,031 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-route-recovery-013/startup-source-001.png` |
+| 2,279,941 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/home-to-quest-attempt-1-immediate-before-1-018.png` |
+| 2,279,793 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-route-recovery-014/startup-source-001.png` |
+| 2,279,710 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/close-help-webview-1-attempt-1-post-017.png` |
+| 2,279,147 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/home-to-quest-attempt-1-source-017.png` |
+| 2,278,941 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/close-help-webview-1-attempt-1-post-016.png` |
+| 2,278,758 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/close-help-webview-1-1-attempt-1-post-021.png` |
+| 2,278,546 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/close-help-webview-1-1-attempt-1-post-016.png` |
+| 2,278,391 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/rankings-back-to-home-attempt-1-post-016.png` |
+| 2,278,331 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-route-recovery-013/home-to-more-attempt-1-source-002.png` |
+| 2,278,291 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/close-help-webview-1-1-attempt-1-post-020.png` |
+| 2,278,092 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/rankings-back-to-home-attempt-1-post-015.png` |
+| 2,277,628 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-route-recovery-014/home-to-more-attempt-1-immediate-before-1-003.png` |
+| 2,277,156 | tracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260712-mvp-quest-to-claim/live-selected-tab-retest-20260713/after-promo-daily.png` |
+| 2,277,113 | untracked | `UNRESOLVED_ACTION_EVIDENCE` | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/home-to-more-attempt-1-source-007.png` |
 
 ## Largest duplicate groups
 
 | Recoverable bytes | Files | Total bytes | Canonical path | SHA-256 |
 |---:|---:|---:|---|---|
-| 87,496,960 | 137 | 88,140,320 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/close-help-webview-1-1-attempt-1-immediate-before-1-014.png` | `f07d85477165b4080eeaf19e408d5d7ff40840e527d05690d0816f6e648ea7a8` |
-| 56,589,720 | 89 | 57,232,785 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/more-to-rankings-attempt-2-post-017.png` | `3eb1744d266479aef7b5e1a194198652796b57bf441d78158bdedc3e64af3769` |
-| 50,553,732 | 165 | 52,461,420 | `evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006-complete/reset-popup-close-post-004.png` | `c863ba9fedda317191cfcb03af5c191d3f18f2b318d2827bdb1f2280f59e85bf` |
-| 40,061,952 | 203 | 64,544,256 | `evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote/alliance-help-1783986842-immediate-before-1.png` | `ad644936e26a9268e95c35f6a4c3f817d223f5ea5564f3182b2c4d84669ef38b` |
-| 34,995,618 | 180 | 49,993,740 | `evidence/sessions/20260713-personal-might-praise/live-attempt-001/home-to-more-source-001.png` | `73952c7f000dcefcf0fd5c7fe3f47be99eb8037e414fea67d1b116153cb1025e` |
-| 34,156,695 | 16 | 36,433,808 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/home-to-more-attempt-1-source-007.png` | `7cbc00a77c4f1b7d39108c8c6b3208ad3a3129dac913589da7fd40fd466edc6c` |
-| 34,130,595 | 16 | 36,405,968 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/normalize-alliance-to-home-attempt-1-post-006.png` | `1ffbada9c14dee23b868236d0bc29450754c7f76297cdf5dbfc82507a1d2f396` |
-| 34,124,955 | 16 | 36,399,952 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/normalize-alliance-to-home-attempt-1-post-005.png` | `542e5c50f9a2dc588c5ba850252dd6a944646b80f43872a28c36bbffccb236c4` |
-| 34,120,500 | 16 | 36,395,200 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/home-to-more-attempt-1-immediate-before-1-008.png` | `2f2ceebac1277fce99a2d9bce96b2d11f1cac4fb1036261930b5cf16161d2bf6` |
-| 34,012,395 | 16 | 36,279,888 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/normalize-alliance-to-home-attempt-1-post-004.png` | `b119c1a438c45b023c4790a6ced1a692883807d919b16185ef5ceaca76bbefa3` |
-| 33,970,695 | 16 | 36,235,408 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/home-to-more-attempt-1-post-009.png` | `d287aaa0f701bc3e3fc2388a645a4b8eaae6fb45e3f0ea88e30e8d9e17a4efa9` |
-| 33,969,015 | 16 | 36,233,616 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/more-to-rankings-attempt-2-source-014.png` | `aa0d0b725678f83b602824b8cab0675e2c806dd8e8c63088c7618228aab6a598` |
-| 33,951,765 | 16 | 36,215,216 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/home-to-more-attempt-1-post-010.png` | `9d49edd1bb0bf568afcea3fa5ca120473a2bda0b6ce588d4fb47b0e3d7c58811` |
-| 33,938,010 | 16 | 36,200,544 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/more-to-rankings-attempt-2-immediate-before-1-015.png` | `fb1fd4dccd52a011b7fd9f9c014419b2e125a1c56a5d636b61a7c548af0fdb9f` |
-| 33,924,510 | 16 | 36,186,144 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/more-to-rankings-attempt-1-immediate-before-1-013.png` | `709da5207fd4a272b8a3c1f657b35f908072d8f5033a9f50a357287afcdb0f0c` |
-| 33,910,710 | 16 | 36,171,424 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/more-to-rankings-attempt-1-source-012.png` | `c5a35e387e7d27f2b977b830802663b90452445d66f155ec7013d43f3fae3d5e` |
-| 33,904,365 | 16 | 36,164,656 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/home-to-more-attempt-1-post-011.png` | `bebd826a5dc8cbb039863eb7d3c8bcc3b8d4986bb753a58f0a9ff1bc42e01543` |
-| 25,994,094 | 50 | 30,945,350 | `evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-check-attempt-1-post-004.png` | `9e21a14fefd67167d8237801e570ec442948d908e3718834c5fa71f5dd572a8b` |
-| 24,747,120 | 48 | 29,696,544 | `evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-check-attempt-1-immediate-before-1-003.png` | `8a60761c0bd0e0bd3553b03c51327eb22652bc2c2cf1bb04b9935262b6af3a86` |
-| 22,819,830 | 12 | 24,894,360 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/startup-close-help-webview-attempt-1-post-005.png` | `e6565bf5d60c2d5537a574d9315c69e3246841db7ac437812ded7e77f57db680` |
+| 0 | 2 | 568,742 | `evidence/sessions/20260710-rt-007-portrait/home-before-candidate-c.png` | `078e1eb977615e18058248ea8d757790088b2d36223a2e78a2d611ceb424d7a3` |
+| 0 | 22 | 1,171,456 | `evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006-complete/actions-praise-1783990103.sqlite3` | `0c7daf9a3797e88f5ca8f845ee25457e5b6ccc6fd07e229eb3a1f4a930e6e080` |
+| 0 | 2 | 2,952 | `evidence/sessions/20260713-personal-might-praise/live-popup-precheck-004/startup-diagnosis.json` | `11eb48d460afd3a297b7d16485aaf5488ede26ad98a29c3ce978fb7a6a0d34a8` |
+| 0 | 2 | 827,466 | `evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-up-20260713-003-immediate-before-1.png` | `15544d7b1676d444bac691a6a939167cf19428f7f759d2ea458eca93d4c134ca` |
+| 0 | 2 | 52 | `evidence/sessions/20260712-m6-dq-bootstrap/remote-cache/20260712-cash-mall-input/input-before-time.txt` | `1fbf300fd87ddcb54b0a2797abb81bc8d937704de45ec3ff1d33672afb7ab78b` |
+| 0 | 2 | 822,056 | `evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/daily-inventory-005.png` | `26f96cadcf2416f66b36353fc2adf47e17c4a8a12d1815fcc7321f913b9c6f5c` |
+| 0 | 13 | 5,842,083 | `evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png` | `2ab2039bf71458e771a8927400b441d94467546568ce5363714da5b0f3465bda` |
+| 0 | 13 | 5,842,421 | `evidence/sessions/20260712-mvp-quest-to-claim/daily-postreset-observation-20260713.png` | `2af9d0d729fa3d18cf59909b94c15f7165bef715eba808ce665f58f3dbdb6285` |
+| 0 | 3 | 453 | `evidence/sessions/20260710-rt-007-portrait/restart-1-after.txt` | `2b2d224cd24e79c48dafc101cb763b80285c2f88b7c435ef1511daf5b8ca89b2` |
+| 0 | 2 | 1,721,946 | `evidence/sessions/20260710-rt-003-virgl-trial-01/grub.png` | `30ba5f936ada6a4e198ae8894c5c92b0b05f9f3f509423f1b6f966ed06334b67` |
+| 0 | 4 | 192 | `evidence/sessions/20260712-m6-dq-bootstrap/remote-cache/20260712-cash-mall-launch/wm-size.txt` | `33e49ec806b19baec0a672bda92ff80deb04b298ecd98a5c6de0ce288d8f166a` |
+| 0 | 12 | 638,976 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/actions-praise-1783997228.sqlite3` | `3631c870af6fe6158979c47aab2e046a845e9f590e60992e75f2749520f8acd0` |
+| 0 | 6 | 319,488 | `evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/actions-praise-1784002839.sqlite3` | `3cfbf176d172158ffb25677fff23ca7f0e83f3395974662d06e282f69580381f` |
+| 0 | 4 | 425,984 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/actions-praise-1784004097.sqlite3` | `3da100da556cf4750282aa633d7d29f87228d5900387cd74b45ded7d0ab9e17a` |
+| 0 | 7 | 14 | `evidence/sessions/20260711-mvp-startup-normalization/remote-cache/20260711-keyguard-reconcile-observe-2055/boot.txt` | `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865` |
+| 0 | 14 | 745,472 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/actions-praise-1783996977.sqlite3` | `44c607f301562a43b04afead0fb07322aacab81ed70e8edfa19498448e0a27ab` |
+| 0 | 41 | 14,335,117 | `evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-immediate-before-1.png` | `4595bfabe6720c4598ce52484bda65ad188c316cd83ded6072691e8e2924eff6` |
+| 0 | 2 | 106,496 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/actions-praise-1784004992.sqlite3` | `49a2e32ec5a7b75703a638295fd48b47f317dd94d991d5416011348b83467836` |
+| 0 | 2 | 4,523,970 | `evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png` | `4a17de56f2455776ea38fe01416e90c77f7955c76cf2fd07b63a2b82a26ba85c` |
+| 0 | 9 | 811,008 | `evidence/sessions/20260713-personal-might-praise/live-claim-success-020/actions-praise-1783997575.sqlite3` | `4b65da4faba4f3724b442dac0fb496c97940c3f8a42939ae5b1f52d637997743` |
 
 ## Git history
 
 Reachable evidence blobs: 1001 totaling 291,331,222 bytes.
-Current `.git` directory: 433,024,937 bytes; object database: 432,715,996 bytes.
+Current `.git` directory: 433,046,304 bytes; object database: 432,736,703 bytes.
 Potential history-only evidence blob upper bound: 447,731 bytes.
 No history rewrite, reflog expiration, repack, or destructive cleanup was performed.
 

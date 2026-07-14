@@ -1,5 +1,28 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 evidence retention audit and compaction
+
+- Canonical branch remained `main`; the policy/tooling boundary was committed as `fc96e84`.
+- The streaming dry-run classified 4,660 evidence files / 1,888,103,865 bytes: tracked
+  1,511/425,828,236, untracked 2,253/1,447,595,565, and ignored 896/14,680,064. It protected all
+  journals and sidecars, fixtures, Bliss runtime templates, referenced support, unresolved action
+  evidence, and decisive evidence. Only 1,761 exact duplicates or repeated identical frames were
+  eligible, totaling 1,278,502,180 bytes.
+- Those candidates were archived outside the repository at
+  `../Puzzles_Survival_Automation_evidence_archive/`. The archive verification passed with 1,761
+  checked entries and no errors; its measured size is 133,173,029 bytes across 137 unique blobs,
+  including 131,353,624 deduplicated blob bytes. No tracked evidence was removed.
+- After compaction, local `evidence/` is 609,601,685 bytes across 2,899 files. Tracked evidence
+  remains 425,828,236 bytes; 169,093,385 untracked bytes and 14,680,064 ignored journal-sidecar
+  bytes remain. The active-checkout recovery is 1,278,502,180 bytes.
+- Git history was not rewritten, repacked, expired, or force-pushed. Current `.git` is
+  433,046,304 bytes, with 1,001 reachable evidence blobs totaling 291,331,222 bytes and a
+  447,731-byte history-only evidence upper bound. The local audit JSON remains ignored under
+  `artifacts/`; `.local-reference/` and protected local files were unchanged.
+- Focused evidence/reference validation passes 17/17; the non-OpenCV suite passes 131/131. The
+  full discovery reaches 137 tests but remains locally limited by six pre-existing `cv2` import
+  errors. No live runtime worker, lease, or gameplay input was started during cleanup.
+
 ## 2026-07-14 Phase E evidence gate
 
 - Fresh selected Daily Quest inventory after Phase D shows 5 points, only `Go` rows, and no ready

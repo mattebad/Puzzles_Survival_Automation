@@ -1385,3 +1385,13 @@ Phase E is evidence-gated. Fresh post-Claim Daily Quest evidence contains only `
 points and no ready milestone. Main Claim, milestone, Depot Free, and recruitment Free each require
 new Bliss-native exact control, explicit free/cost-negative proof, and positive postcondition
 evidence before handler or dispatch enablement. Static vendor geometry remains non-authorizing.
+
+Evidence retention boundary (2026-07-14): the local evidence footprint was audited with streaming
+SHA-256 hashes, Git-state and repository-reference classification, duplicate grouping, read-only
+journal inspection, and separate reachable-history accounting. The audit found 4,660 files and
+1,888,103,865 bytes; 1,761 exact duplicates/repeated identical frames were archived to the external
+content-addressed archive and removed only after blob verification. Post-compaction local evidence
+is 2,899 files / 609,601,685 bytes; tracked evidence and all protected journals, fixtures, templates,
+decisive/unresolved evidence, and `.local-reference/` remain intact. The archive verifies 1,761
+entries with no errors. No Git history rewrite or live gameplay input occurred. Continue with offline
+Main Claim work; Phase E dispatch remains evidence-gated.
