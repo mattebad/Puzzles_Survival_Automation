@@ -118,6 +118,12 @@ from .building_upgrade_disabled import (
     building_upgrade_disabled_dispatch,
     building_upgrade_postcondition_verified,
 )
+from .hero_duel_disabled import (
+    HeroDuelObservation,
+    hero_duel_authorizeable,
+    hero_duel_disabled_dispatch,
+    hero_duel_postcondition_verified,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -244,6 +250,10 @@ __all__ = [
     "building_upgrade_authorizeable",
     "building_upgrade_disabled_dispatch",
     "building_upgrade_postcondition_verified",
+    "HeroDuelObservation",
+    "hero_duel_authorizeable",
+    "hero_duel_disabled_dispatch",
+    "hero_duel_postcondition_verified",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

@@ -1,5 +1,16 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 disabled Hero Duel contract
+
+- Completed `DQ-FLOW-HERO-DUEL` as event/Join/progress replay in
+  `tasks/hero_duel_disabled.py`. It binds selected-Daily event identity, active attempts, exact
+  Join control, current-day provenance, and participation successor; PvP dispatch is always
+  blocked.
+- Synthetic replay fixtures and five focused tests cover event and target identity, Main/static/
+  ambiguous rejection, participation arithmetic, Claim separation, and no-dispatch behavior.
+  Row remains disabled, unregistered, and scheduler-ineligible; no live or persistent state
+  changed.
+
 ## 2026-07-14 disabled Building Upgrade contract
 
 - Completed `DQ-FLOW-BUILDING-UPGRADE` as generic `tasks/building_upgrade_disabled.py` identity

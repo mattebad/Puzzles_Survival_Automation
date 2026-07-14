@@ -1628,13 +1628,16 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; challenge policy required.
 
 ### DQ-FLOW-HERO-DUEL
+- Status: Passed (2026-07-14; disabled Hero Duel event contract and 5 focused tests).
 - Covered: `join_hero_duel`; three-entry PvP variant.
 - Exclusions: lineup changes, opponent selection, premium, autonomous PvP.
 - Dependencies/routes: inventory → Hero Duel.
 - Source/target/policy: exact entry, opponent/consequence policy.
-- Offline acceptance/tests: identity/entry/postcondition mocks; no live frames.
+- Offline acceptance/tests: event/Join identity, active-attempt guards, participation successor,
+  Main/static negatives, disabled dispatch, and Claim separation; `tests/test_hero_duel_disabled.py`.
 - Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: one entry only if future policy allows; confirmed participation; stop on ambiguity.
+- Transaction/postcondition/recovery: no transaction path; participation arithmetic replay only;
+  every event-entry request blocks; stop on ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; explicit PvP decision required.
 

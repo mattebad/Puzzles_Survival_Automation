@@ -985,6 +985,8 @@ Risk: `R0` observation, `R1` verified no-spend/navigation/claim, `R2` bounded or
 - Recovery/mode/phase: observe-only or disabled. Separate future design approval required; excluded from current executable roadmap.
 - Current Daily implementation boundary: generic building identity/level has offline replay only;
   Vehicle Depot remains Main-only and current policy blocks every upgrade dispatch.
+- Hero Duel has event/Join/progress replay only; PvP entry, lineup changes, and event dispatch
+  remain disabled pending separate product approval.
 
 ## 14. Safety and spend-policy model
 

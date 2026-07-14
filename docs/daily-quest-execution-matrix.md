@@ -50,6 +50,9 @@ unregistered, and scheduler-ineligible.
 and level replay only. Vehicle Depot remains Main-only; product policy blocks every upgrade
 dispatch and the objective remains unregistered and scheduler-ineligible.
 
+`DQ-FLOW-HERO-DUEL` uses `tasks/hero_duel_disabled.py` for event/Join/progress replay only. PvP
+entry remains policy-disabled; the objective is unregistered and scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |
