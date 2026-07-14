@@ -65,6 +65,20 @@ class OperatorCliTests(unittest.TestCase):
         self.assertIn("--network host", command)
         self.assertNotIn(":5037", command)
 
+    def test_workspace_sync_includes_praise_reference_assets(self):
+        cfg = pnsctl.OperatorConfig()
+        with patch("scripts.pnsctl.run_remote", return_value=""), patch(
+            "scripts.pnsctl.run_pscp"
+        ) as transfer:
+            pnsctl.sync_workspace(cfg)
+        transferred_sources = {
+            source
+            for call in transfer.call_args_list
+            for source in call.args[1]
+        }
+        for asset in pnsctl.PRAISE_REFERENCE_ASSETS:
+            self.assertIn(str(cfg.repo_root / asset), transferred_sources)
+
     def test_credentials_are_redacted_from_operator_output(self):
         rendered = " ".join(pnsctl.redact_argv(["plink", "-pw", "secret", "root@nas.local", "date"]))
         self.assertNotIn("secret", rendered)

@@ -40,6 +40,10 @@ REMOTE_EVIDENCE = REMOTE_BASE + "/evidence"
 REMOTE_DB = REMOTE_EVIDENCE + "/actions.sqlite3"
 M6_ASSET_ROOT = "evidence/sessions/20260712-m6-dq-bootstrap/assets"
 CASH_REFERENCE = "evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png"
+PRAISE_REFERENCE_ASSETS = (
+    "evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png",
+    "evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png",
+)
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -153,7 +157,11 @@ def _safe_name(value: str) -> str:
 
 
 def sync_workspace(cfg: OperatorConfig) -> None:
-    run_remote(cfg, f"mkdir -p {quote(cfg.remote_workspace)}/evidence/sessions/20260712-m6-dq-bootstrap/assets {quote(cfg.remote_workspace)}/evidence/sessions/20260711-rt-012-observe-soak {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote")
+    praise_directories = " ".join(
+        quote(cfg.remote_workspace + "/" + asset.rsplit("/", 1)[0])
+        for asset in PRAISE_REFERENCE_ASSETS
+    )
+    run_remote(cfg, f"mkdir -p {quote(cfg.remote_workspace)}/evidence/sessions/20260712-m6-dq-bootstrap/assets {quote(cfg.remote_workspace)}/evidence/sessions/20260711-rt-012-observe-soak {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote {praise_directories}")
     sources = ["scripts", "tasks", "safe_action_core", "runtime-profile", "tests"]
     for source in sources:
         run_pscp(cfg, [str(cfg.repo_root / source)], cfg.remote_workspace, recursive=True)
@@ -166,6 +174,12 @@ def sync_workspace(cfg: OperatorConfig) -> None:
     run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/actions-after-release.sqlite3")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/")
     run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png"), str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-post-1.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/")
     run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote/alliance-help-1783986842-post-1.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote/")
+    for asset in PRAISE_REFERENCE_ASSETS:
+        run_pscp(
+            cfg,
+            [str(cfg.repo_root / asset)],
+            cfg.remote_workspace + "/" + asset.rsplit("/", 1)[0] + "/",
+        )
 
 
 def worker_start(cfg: OperatorConfig) -> str:
