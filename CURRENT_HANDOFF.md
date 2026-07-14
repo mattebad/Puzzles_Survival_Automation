@@ -1,5 +1,16 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 offline Zombie Lair contract
+
+- Completed `DQ-FLOW-ZOMBIE-LAIR` as pure `tasks/zombie_lair.py` semantics composed with the
+  shared World/stamina primitive. Authorization requires exact Lair identity, non-60 allowlisted
+  level, current-frame Join target, available march slot, bounded stamina cost, and no combat/
+  overlay ambiguity.
+- Synthetic replay fixtures and five focused tests cover Lair target and stamina binding,
+  level-60/Main/static/full-march rejection, level/march/budget guards, exact same-day stamina
+  delta plus defeat/result postcondition, and pure one-pulse output. No registration, scheduler
+  eligibility, live input, or gameplay state changed.
+
 ## 2026-07-14 offline World/stamina primitive
 
 - Completed `DQ-FLOW-WORLD-STAMINA-ENGINE` as pure `tasks/world_stamina.py` route and resource

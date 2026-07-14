@@ -86,6 +86,13 @@ from .world_stamina import (
     world_route_postcondition_verified,
     world_stamina_replay_one_pulse,
 )
+from .zombie_lair import (
+    ZombieLairObservation,
+    zombie_lair_authorizeable,
+    zombie_lair_perform_one_pulse,
+    zombie_lair_postcondition_verified,
+    zombie_lair_transaction_spec,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -190,6 +197,11 @@ __all__ = [
     "world_route_authorizeable",
     "world_route_postcondition_verified",
     "world_stamina_replay_one_pulse",
+    "ZombieLairObservation",
+    "zombie_lair_authorizeable",
+    "zombie_lair_perform_one_pulse",
+    "zombie_lair_postcondition_verified",
+    "zombie_lair_transaction_spec",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

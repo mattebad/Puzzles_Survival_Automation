@@ -31,6 +31,7 @@ promotion. Praise completion stops before Claim.
   offline).
 - Shared World/stamina primitive: `tasks/world_stamina.py` (route, resource, and budget replay
   only).
+- Zombie Lair contract: `tasks/zombie_lair.py` (allowlisted Lair, march, and stamina replay only).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

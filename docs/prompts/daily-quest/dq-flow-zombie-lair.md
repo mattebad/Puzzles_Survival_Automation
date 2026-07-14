@@ -17,4 +17,6 @@ Tests: route and resource replay, target identity, budget guard, cardinality, su
 Main negative, registration false, scheduler false. Bliss-native evidence required; GnBots
 geometry is provenance only. Future navigation read-only. Prohibit ADB, worker/VM, leases, journal
 migration, live input/evidence, registration, scheduler eligibility. Update docs/matrix/status.
-Commit: `docs(tasks): map every Daily objective to an execution task`. Continue offline.
+Current boundary: `tasks/zombie_lair.py` composes the shared World/stamina primitive for pure
+Lair level, march, stamina, and result replay; fresh Bliss-native Lair evidence remains required
+for promotion. Commit: `feat(tasks): add Zombie Lair offline contract`. Continue offline.

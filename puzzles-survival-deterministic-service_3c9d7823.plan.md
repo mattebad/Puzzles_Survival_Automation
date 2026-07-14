@@ -1537,3 +1537,16 @@ Synthetic replay tests cover route-family ownership, current and policy budget b
 route postconditions, Main/static negatives, stale-state rejection, and pure replay output. The
 support flow remains offline-only, unregistered, and scheduler-ineligible; it unlocks future Lair
 and gathering contracts without changing their promotion policy.
+
+## Daily Quest Zombie Lair offline boundary (2026-07-14)
+
+`DQ-FLOW-ZOMBIE-LAIR` now composes `tasks/zombie_lair.py` with the shared World/stamina
+primitive. Authorization requires exact current-frame Lair identity and Join control, non-60
+allowlisted level, available march slot, explicit stamina cost within current and policy budgets,
+no combat/overlay ambiguity, current day, and locked Bliss-native provenance. Main Quest wording,
+static references, full march, unknown level, and budget mismatch fail closed.
+
+Synthetic replay tests cover Lair target and stamina binding, level/march/budget guards, Main/static
+negatives, exact same-day stamina delta plus defeat/result postcondition, and pure one-pulse output.
+The contract remains evidence-gated, unregistered, and scheduler-ineligible until fresh native Lair
+level/march/cost/result evidence and separate promotion gates pass.

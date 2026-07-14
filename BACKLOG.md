@@ -1485,11 +1485,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `OFFLINE_ONLY`; unlocks Zombie Lair, Stamina, and proven Gathering.
 
 ### DQ-FLOW-ZOMBIE-LAIR
+- Status: Passed (2026-07-14; offline Lair contract and 5 focused tests).
 - Covered: `defeat_zombie_lair`; Lair variant.
 - Exclusions: level 60, unknown level, arbitrary combat, Claim.
 - Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE → recognized Lair.
 - Source/target/policy: exact row, lair level, stamina, march slot, join.
-- Offline acceptance/tests: level/slot/cost/result mocks and fail-closed negatives.
+- Offline acceptance/tests: Lair level/slot/stamina/result fixtures and fail-closed negatives;
+  `tests/test_zombie_lair.py`.
 - Bliss/live boundary: evidence-gated; no registration/input.
 - Transaction/postcondition/recovery: one join; positive participation/result; unresolved on unknown combat.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.

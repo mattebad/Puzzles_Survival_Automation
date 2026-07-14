@@ -47,7 +47,7 @@ runtime registration, or scheduler eligibility.
 | `train_vehicle` | training / Vehicle | `daily_go_to_training` | disabled | disabled | none | DQ-FLOW-TRAINING |
 | `recruit_noahs_tavern` | recruitment / free single | `daily_go_to_noahs_tavern` | offline contract | evidence-gated | none | DQ-FLOW-RECRUITMENT |
 | `upgrade_hero` | hero_upgrade / upgrade | `daily_go_to_hero` | disabled | disabled | none | DQ-FLOW-HERO-UPGRADE |
-| `defeat_zombie_lair` | zombie_lair / lair | `daily_go_to_zombie_lair` | planned | evidence-gated | none | DQ-FLOW-ZOMBIE-LAIR |
+| `defeat_zombie_lair` | zombie_lair / lair | `daily_go_to_zombie_lair` | offline contract | evidence-gated | none | DQ-FLOW-ZOMBIE-LAIR |
 | `consume_stamina` | stamina / consume | `daily_go_to_stamina_action` | disabled | disabled | none | DQ-FLOW-STAMINA |
 | `consume_ap` | campaign_ap / Sweep, Auto Complete | `daily_go_to_campaign` | offline contract | evidence-gated | none | DQ-FLOW-CAMPAIGN-AP |
 | `help_allies` | alliance_help / Help All, individual | `daily_go_to_speedup_help` | live validated | live validated | `alliance-help` | DQ-FLOW-ALLIANCE-HELP |
