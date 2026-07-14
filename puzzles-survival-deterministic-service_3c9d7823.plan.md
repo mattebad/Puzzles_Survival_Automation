@@ -983,6 +983,8 @@ Risk: `R0` observation, `R1` verified no-spend/navigation/claim, `R2` bounded or
 - Evidence/cost/postcondition: full strategic context, queues/resources/timers or PvP attempts/lineup/rank, plus exact successor and quest credit.
 - Persist/next: observations, queue/attempt state, but no automatic commit under default policy. Stop on any strategic ambiguity, lineup change, paid attempt, premium completion, dependency/resource uncertainty.
 - Recovery/mode/phase: observe-only or disabled. Separate future design approval required; excluded from current executable roadmap.
+- Current Daily implementation boundary: generic building identity/level has offline replay only;
+  Vehicle Depot remains Main-only and current policy blocks every upgrade dispatch.
 
 ## 14. Safety and spend-policy model
 

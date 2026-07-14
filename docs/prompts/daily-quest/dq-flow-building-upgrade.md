@@ -10,11 +10,13 @@ building identity, and current level; target: exact upgrade control; successor: 
 Bind all recognizers to current frame in any future implementation.
 
 Policy: DISABLED_POLICY; no material spend, transaction, registration, scheduler eligibility, or
-live input. Postcondition: offline contract proves no dispatch. Recovery: fail closed on ambiguous
-building, cost, stale frame, or successor. Daily maps `upgrade_building`; Claim separate.
-Persistence dormant.
+live input. Offline generic building identity/level contract is implemented in
+`tasks/building_upgrade_disabled.py`; Vehicle Depot remains Main-only and every dispatch blocks.
+Postcondition: offline contract proves no dispatch. Recovery: fail closed on ambiguous building,
+cost, stale frame, or successor. Daily maps `upgrade_building`; Claim separate. Persistence dormant.
 
-Tests: generic identity reconciliation, Main-negative Vehicle Depot rejection, disabled validator,
-no registry, scheduler false, offline model, Claim separation. Bliss/GnBots cannot override policy. Future
+Tests: `tests/test_building_upgrade_disabled.py` covers generic identity reconciliation, Main-
+negative Vehicle Depot rejection, disabled validator, no registry, scheduler false, offline model,
+and Claim separation. Bliss/GnBots cannot override policy. Future
 navigation read-only. Update docs/matrix/status. Commit:
 `docs(tasks): map every Daily objective to an execution task`. Continue offline.

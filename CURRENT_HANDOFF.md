@@ -1,5 +1,15 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 disabled Building Upgrade contract
+
+- Completed `DQ-FLOW-BUILDING-UPGRADE` as generic `tasks/building_upgrade_disabled.py` identity
+  and level replay. It rejects Vehicle Depot at both identity and Main-Quest source boundaries,
+  requires exact current-frame building/Upgrade/cost/queue evidence, and blocks every dispatch.
+- Synthetic replay fixtures and five focused tests cover generic successor arithmetic, Vehicle
+  Depot/Main/static negatives, stale/cost/queue guards, Claim separation, and no-dispatch
+  behavior. Row remains disabled, unregistered, and scheduler-ineligible; no live or persistent
+  state changed.
+
 ## 2026-07-14 disabled Training contract
 
 - Completed `DQ-FLOW-TRAINING` as counter-only `tasks/training_disabled.py` semantics for

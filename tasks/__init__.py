@@ -112,6 +112,12 @@ from .training_disabled import (
     training_queue_authorizeable,
     training_queue_postcondition_verified,
 )
+from .building_upgrade_disabled import (
+    BuildingUpgradeObservation,
+    building_upgrade_authorizeable,
+    building_upgrade_disabled_dispatch,
+    building_upgrade_postcondition_verified,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -234,6 +240,10 @@ __all__ = [
     "training_disabled_dispatch",
     "training_queue_authorizeable",
     "training_queue_postcondition_verified",
+    "BuildingUpgradeObservation",
+    "building_upgrade_authorizeable",
+    "building_upgrade_disabled_dispatch",
+    "building_upgrade_postcondition_verified",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

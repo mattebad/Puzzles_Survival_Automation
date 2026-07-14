@@ -1543,13 +1543,17 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; product/tier decision required.
 
 ### DQ-FLOW-BUILDING-UPGRADE
+- Status: Passed (2026-07-14; disabled generic building contract and 5 focused tests).
 - Covered: `upgrade_building`; proven generic variant only.
 - Exclusions: automatic resource packs, unknown queue, strategic target without allowlist.
 - Dependencies/routes: inventory → named building/radial menu → Upgrade.
 - Source/target/policy: exact building identity, queue, cost, free/allowlist.
-- Offline acceptance/tests: named target and queue mocks; old-anchor and cost negatives.
+- Offline acceptance/tests: generic identity and level successor, Vehicle Depot Main negative,
+  cost/queue/stale-source guards, disabled dispatch, and Claim separation;
+  `tests/test_building_upgrade_disabled.py`.
 - Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: one upgrade; queue/progress; stop on unexpected resource dialog.
+- Transaction/postcondition/recovery: no transaction path; level arithmetic replay only; every
+  dispatch request blocks; stop on unexpected resource dialog.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; policy decision required. Vehicle Depot is Main-only and
   remains outside Daily ownership.

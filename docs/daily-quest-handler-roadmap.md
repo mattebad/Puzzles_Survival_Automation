@@ -80,7 +80,8 @@ cannot admit Daily objectives.
 
 ### Disabled or strategic
 
-- Building Upgrade: proven generic target only. Vehicle Depot wording is Main-only evidence.
+- Building Upgrade: proven generic target only; offline identity/level contract complete and
+  policy-disabled. Vehicle Depot wording is Main-only evidence.
 - Tech Upgrade: Research target variant.
 - Hero Upgrade and Hero Ownership: separate semantics.
 - Purchases: Box, Ruins Shop, Rare Earth Shop, Alliance Shop variants through one allowlist engine.

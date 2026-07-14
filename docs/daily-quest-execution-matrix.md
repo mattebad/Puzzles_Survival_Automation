@@ -46,6 +46,10 @@ promotion, and no runtime registration or scheduler eligibility is enabled.
 blocks resource spending and training dispatch; all four objective rows remain disabled,
 unregistered, and scheduler-ineligible.
 
+`DQ-FLOW-BUILDING-UPGRADE` uses `tasks/building_upgrade_disabled.py` for generic building identity
+and level replay only. Vehicle Depot remains Main-only; product policy blocks every upgrade
+dispatch and the objective remains unregistered and scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |
