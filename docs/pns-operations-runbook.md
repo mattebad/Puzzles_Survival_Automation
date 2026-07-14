@@ -38,6 +38,8 @@ selected Daily source before dispatch, then requires a fresh selected-Daily succ
 `daily-bioenhancer-go` is a bounded navigation-only tap on the freshly observed selected-Daily
 Bioenhancer row; it requires a positively recognized direct Bioenhancer Research successor and
 never presses Free Research or Research 10x.
+`bioenhancer-daily-back` is the bounded navigation-only return from the exact Bioenhancer
+Research back control to the selected Daily Quest screen.
 `run-task` exposes bounded task adapters only. `praise` first recognizes and attempts one
 task-scoped dismissal of the reset-time `Get Pts` modal through its local Close ROI, then uses
 the named Personal Might route. It is not a general remote shell or arbitrary tap endpoint.
