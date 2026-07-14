@@ -1,5 +1,15 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 offline World/stamina primitive
+
+- Completed `DQ-FLOW-WORLD-STAMINA-ENGINE` as pure `tasks/world_stamina.py` route and resource
+  reconciliation semantics. It recognizes current-frame World destinations, explicit stamina/AP
+  budgets, panel-local targets, stable same-day successors, and Bliss-native provenance; it never
+  authorizes coordinate input or resource dispatch.
+- Synthetic replay fixtures and five focused tests cover Lair/resource family ownership, current
+  and policy budget bounds, Main/static/stale/uncertain rejection, stable route postconditions,
+  and pure replay output. Primitive is a support flow, unregistered, and scheduler-ineligible.
+
 ## 2026-07-14 offline Campaign AP contract
 
 - Completed `DQ-FLOW-CAMPAIGN-AP` as pure `tasks/campaign_ap.py` semantics for one bounded

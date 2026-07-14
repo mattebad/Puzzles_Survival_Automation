@@ -18,5 +18,7 @@ Persistence/scheduler dormant.
 Tests: route fixture replay, counter semantics, budget bounds, stale-day rejection, family ownership,
 and no-runtime-state assertions. Bliss-native evidence only; GnBots geometry cannot authorize.
 Future navigation read-only. Prohibit ADB, worker/VM, leases, journal migration, live input/evidence,
-registration, and scheduler eligibility. Update primitive docs/matrix. Commit:
-`docs(tasks): map every Daily objective to an execution task`. Continue offline.
+registration, and scheduler eligibility. Current boundary: `tasks/world_stamina.py` and
+`tests/test_world_stamina.py` provide pure route/resource replay; no world action is executable.
+Update primitive docs/matrix. Commit: `feat(tasks): add World stamina offline primitive`. Continue
+offline.

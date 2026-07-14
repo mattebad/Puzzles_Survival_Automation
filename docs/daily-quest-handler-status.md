@@ -29,6 +29,8 @@ promotion. Praise completion stops before Claim.
   complete offline).
 - Campaign AP contract: `tasks/campaign_ap.py` (Sweep and Auto Complete variants complete
   offline).
+- Shared World/stamina primitive: `tasks/world_stamina.py` (route, resource, and budget replay
+  only).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

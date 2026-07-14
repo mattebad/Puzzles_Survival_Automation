@@ -133,6 +133,22 @@
       "prompt_path": "docs/prompts/daily-quest/dq-runtime-integration-gate.md",
       "bliss_native_evidence": [],
       "gnbots_provenance": []
+    },
+    {
+      "flow_key": "world_stamina_engine",
+      "flow_type": "support",
+      "route": "world_route_and_resource_reconciliation",
+      "implementation_status": "OFFLINE_IMPLEMENTED",
+      "live_validation_status": "OFFLINE_VALIDATED",
+      "promotion_state": "OFFLINE_ONLY",
+      "current_runtime_registration_status": "NOT_REGISTERED",
+      "scheduler_eligibility": false,
+      "claim_behavior": "none; objective execution and Claim remain separate",
+      "persistence_behavior": "offline replay only; no live task-state rows",
+      "backlog_task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
+      "prompt_path": "docs/prompts/daily-quest/dq-flow-world-stamina-engine.md",
+      "bliss_native_evidence": [],
+      "gnbots_provenance": ["GNB-TILE-DIALOGS", "GNB-TILE-MARCH; static reference only"]
     }
   ],
   "objectives": [

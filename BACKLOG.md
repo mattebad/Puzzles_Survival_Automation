@@ -1471,12 +1471,14 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED`; unlocks Challenge policy review.
 
 ### DQ-FLOW-WORLD-STAMINA-ENGINE
+- Status: Passed (2026-07-14; offline shared primitive and 5 focused tests).
 - Covered: shared world, map, march, stamina, and tile primitives.
 - Variants: map toggle, search, occupancy, march capacity, level recognition.
 - Exclusions: vendor selector, coordinate-only taps, generic popup sweep, unknown level.
 - Dependencies/routes: proven inventory → World; proven Zombie Lair and gathering flows depend on it.
 - Source/target/policy: Bliss-native map/node/march anchors; world/stamina policy.
-- Offline acceptance/tests: replay/mocks for map, tile, march, queue, no-march and stale-state rejection.
+- Offline acceptance/tests: World route/resource replay, family ownership, budget bounds, Main/static
+  rejection, and stale-state fixtures; `tests/test_world_stamina.py`.
 - Bliss/live boundary: no fresh world evidence or live input.
 - Transaction/postcondition/recovery: primitives do not complete objectives; each action requires positive successor; stop after bounded failure.
 - Claim/persistence/registration/scheduler: no Claim; dormant; not registered; false.

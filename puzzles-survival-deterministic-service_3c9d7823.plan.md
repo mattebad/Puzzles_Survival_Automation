@@ -1524,3 +1524,16 @@ Synthetic replay tests cover both action variants, AP/cost/budget guards, route 
 ownership, Main/static negatives, exact postcondition proof, and pure one-pulse output. The
 contract remains offline-only, unregistered, and scheduler-ineligible until fresh Bliss-native
 target/cost/result evidence and separate runtime promotion gates pass.
+
+## Daily Quest World/stamina shared primitive (2026-07-14)
+
+`DQ-FLOW-WORLD-STAMINA-ENGINE` now has pure `tasks/world_stamina.py` route and resource
+reconciliation semantics. It recognizes selected World state, typed Lair/resource/Campaign
+destination families, panel-local current-frame targets, explicit stamina/AP budgets, stable
+same-day successors, and Bliss-native provenance. Main Quest, static-reference, stale, refill,
+overlay, and uncertain states fail closed. No coordinate or resource action is authorized.
+
+Synthetic replay tests cover route-family ownership, current and policy budget bounds, stable
+route postconditions, Main/static negatives, stale-state rejection, and pure replay output. The
+support flow remains offline-only, unregistered, and scheduler-ineligible; it unlocks future Lair
+and gathering contracts without changing their promotion policy.

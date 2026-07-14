@@ -108,9 +108,16 @@ class DailyQuestPlanningTests(unittest.TestCase):
     def test_matrix_has_one_entry_per_catalog_key_and_separate_support_flows(self):
         self.assertEqual(set(self.matrix_by_key), set(self.catalog_by_key))
         self.assertEqual(len(self.matrix_by_key), len(self.catalog_by_key))
-        self.assertEqual(len(self.matrix["support_flows"]), 7)
+        self.assertEqual(len(self.matrix["support_flows"]), 8)
         self.assertTrue(
             all(flow["flow_type"] == "support" for flow in self.matrix["support_flows"])
+        )
+        support_by_task = {
+            flow["backlog_task_id"]: flow for flow in self.matrix["support_flows"]
+        }
+        self.assertEqual(
+            support_by_task["DQ-FLOW-WORLD-STAMINA-ENGINE"]["implementation_status"],
+            "OFFLINE_IMPLEMENTED",
         )
         self.assertEqual(
             self.matrix_by_key["upgrade_building"]["aliases"],

@@ -79,6 +79,13 @@ from .campaign_ap import (
     campaign_ap_postcondition_verified,
     campaign_ap_transaction_spec,
 )
+from .world_stamina import (
+    WorldStaminaObservation,
+    world_resource_budget_authorizeable,
+    world_route_authorizeable,
+    world_route_postcondition_verified,
+    world_stamina_replay_one_pulse,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -178,6 +185,11 @@ __all__ = [
     "campaign_ap_perform_one_pulse",
     "campaign_ap_postcondition_verified",
     "campaign_ap_transaction_spec",
+    "WorldStaminaObservation",
+    "world_resource_budget_authorizeable",
+    "world_route_authorizeable",
+    "world_route_postcondition_verified",
+    "world_stamina_replay_one_pulse",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

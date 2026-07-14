@@ -27,6 +27,13 @@ The audit excludes Vehicle Depot, Ultimate Challenge, Hunt Zombie, and Own Hero 
 Headquarters attack/win as `DOCUMENTATION_ONLY` and Gather Food/Gathered Food as
 `SYNTHETIC_ONLY`. None has a Daily matrix owner or implementation prompt.
 
+## Offline support primitives
+
+`DQ-FLOW-WORLD-STAMINA-ENGINE` is an objective-less shared primitive in matrix support flows.
+`tasks/world_stamina.py` recognizes Bliss-native World routes and explicit stamina/AP budgets for
+future Lair and gathering contracts. It performs no resource transaction, coordinate authorization,
+runtime registration, or scheduler eligibility.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |
