@@ -1662,3 +1662,15 @@ Synthetic replay tests cover selected-row ownership, exact free-research transac
 same-day successor arithmetic, Main/static negatives, Claim separation, and zero dispatch.
 Fresh Bliss-native target/result evidence remains required; no registration or scheduler
 eligibility is enabled.
+
+## Daily Quest Supply Depot selected-row adapter boundary (2026-07-14)
+
+`DQ-FLOW-SUPPLY-DEPOT` now composes `tasks/supply_depot.py` with
+`tasks/daily_supply_depot.py`. The adapter binds the selected Daily `supply_depot` row to one
+known non-premium free collection per pulse and requires exactly enough same-day collection
+successors to reach Daily progress 5/5.
+
+Synthetic replay tests cover selected-row ownership, exact five-count arithmetic, free-reward
+and transaction guards, Main/static negatives, Claim separation, and zero dispatch. Fresh
+Bliss-native target/result evidence remains required; no registration or scheduler eligibility is
+enabled.

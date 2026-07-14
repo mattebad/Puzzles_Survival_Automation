@@ -44,6 +44,13 @@ from .supply_depot import (
     supply_depot_postcondition_verified,
     supply_depot_transaction_spec,
 )
+from .daily_supply_depot import (
+    DailySupplyDepotObservation,
+    daily_supply_depot_authorizeable,
+    daily_supply_depot_postcondition_verified,
+    daily_supply_depot_replay,
+    daily_supply_depot_transaction_spec,
+)
 from .free_recruitment import (
     FreeRecruitmentObservation,
     free_recruitment_authorizeable,
@@ -282,6 +289,11 @@ __all__ = [
     "supply_depot_perform_one_pulse",
     "supply_depot_postcondition_verified",
     "supply_depot_transaction_spec",
+    "DailySupplyDepotObservation",
+    "daily_supply_depot_authorizeable",
+    "daily_supply_depot_postcondition_verified",
+    "daily_supply_depot_replay",
+    "daily_supply_depot_transaction_spec",
     "FreeRecruitmentObservation",
     "free_recruitment_authorizeable",
     "free_recruitment_perform_one_pulse",
