@@ -97,6 +97,10 @@ successor evidence remain gated; the objective is unregistered and scheduler-ine
 `ENHANCE_MODULE` transaction semantics. Exact selected Module, one-star material, and positive
 successor evidence remain gated; the objective is unregistered and scheduler-ineligible.
 
+`DQ-FLOW-CAMPAIGN-AP` uses `tasks/campaign_ap.py` plus `tasks/daily_campaign_ap.py` for one
+bounded Sweep/Auto Complete replay bound to `consume_ap`. Exact AP budget, delta, result, and
+Daily progress remain evidence-gated; the objective is unregistered and scheduler-ineligible.
+
 `DQ-FLOW-RESOURCE-BOOST` uses `tasks/resource_boost_disabled.py` for resource-building identity,
 resource, duration, cost, and boost-state replay only. Boost spending remains policy-disabled; the
 objective is unregistered and scheduler-ineligible.

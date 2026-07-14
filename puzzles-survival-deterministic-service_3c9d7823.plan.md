@@ -1633,3 +1633,16 @@ Synthetic replay tests cover Module/Gear/Chip family separation, material guards
 one-enhancement cardinality, transaction specification, Main/static negatives, Claim separation,
 and zero dispatch. Fresh Bliss-native Module target/material/result evidence remains required; no
 registration or scheduler eligibility is enabled.
+
+## Daily Quest Campaign AP offline boundary (2026-07-14)
+
+`DQ-FLOW-CAMPAIGN-AP` now composes `tasks/campaign_ap.py` with
+`tasks/daily_campaign_ap.py`. The adapter binds selected Daily `consume_ap` to one bounded
+allowlisted Sweep or Auto Complete action and requires exact AP and Daily progress deltas plus a
+same-day stage result. Refill, battle, unknown-cost, Main/static, oversized, stale, and ambiguous
+states fail closed.
+
+Synthetic replay tests cover selected-row ownership, AP budget/cost guards, route/cardinality,
+exact successor arithmetic, Main/static negatives, Claim separation, and zero dispatch. Fresh
+Bliss-native Campaign target/cost/result evidence remains required; no registration or scheduler
+eligibility is enabled.

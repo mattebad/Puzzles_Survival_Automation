@@ -100,6 +100,13 @@ from .campaign_ap import (
     campaign_ap_postcondition_verified,
     campaign_ap_transaction_spec,
 )
+from .daily_campaign_ap import (
+    DailyCampaignAPObservation,
+    daily_campaign_ap_authorizeable,
+    daily_campaign_ap_postcondition_verified,
+    daily_campaign_ap_replay,
+    daily_campaign_ap_transaction_spec,
+)
 from .world_stamina import (
     WorldStaminaObservation,
     world_resource_budget_authorizeable,
@@ -301,6 +308,11 @@ __all__ = [
     "campaign_ap_perform_one_pulse",
     "campaign_ap_postcondition_verified",
     "campaign_ap_transaction_spec",
+    "DailyCampaignAPObservation",
+    "daily_campaign_ap_authorizeable",
+    "daily_campaign_ap_postcondition_verified",
+    "daily_campaign_ap_replay",
+    "daily_campaign_ap_transaction_spec",
     "WorldStaminaObservation",
     "world_resource_budget_authorizeable",
     "world_route_authorizeable",

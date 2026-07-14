@@ -312,6 +312,15 @@
   Main/static rejection, Claim separation, and zero dispatch. All enhancement variants remain
   unregistered and scheduler-ineligible; no live or persistent state changed.
 
+## 2026-07-14 Daily Campaign AP adapter
+
+- Added `tasks/daily_campaign_ap.py` to bind selected Daily `consume_ap` to the shared Campaign
+  Sweep/Auto Complete contract. It requires exact bounded AP cost and matching Daily progress,
+  with one pure replay action and no transport.
+- Five focused tests cover selected-row ownership, AP budget/cost guards, exact delta/progress,
+  Main/static/oversized-action rejection, Claim separation, and zero dispatch. The objective
+  remains evidence-gated, unregistered, and scheduler-ineligible.
+
 ## 2026-07-14 offline Phase F scheduler contract
 
 - Added `tasks/scheduler.py` with deterministic serializable task state and a one-pulse candidate
