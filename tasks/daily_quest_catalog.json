@@ -5,7 +5,9 @@
   "objectives": [
     {
       "objective_key": "upgrade_building",
-      "aliases": ["Upgrade building"],
+      "aliases": [
+        "Upgrade building"
+      ],
       "handler_family": "building_upgrade",
       "route_name": "daily_go_to_building",
       "consequence_class": "spend_or_strategic",
@@ -19,7 +21,9 @@
     },
     {
       "objective_key": "join_hero_duel",
-      "aliases": ["Join Hero Duel"],
+      "aliases": [
+        "Join Hero Duel"
+      ],
       "handler_family": "combat_pvp",
       "route_name": "daily_go_to_hero_duel",
       "consequence_class": "spend_or_strategic",
@@ -33,7 +37,9 @@
     },
     {
       "objective_key": "upgrade_tech",
-      "aliases": ["Upgrade tech"],
+      "aliases": [
+        "Upgrade tech"
+      ],
       "handler_family": "research_or_upgrade",
       "route_name": "daily_go_to_tech",
       "consequence_class": "spend_or_strategic",
@@ -47,7 +53,9 @@
     },
     {
       "objective_key": "train_fighter",
-      "aliases": ["Train Fighter"],
+      "aliases": [
+        "Train Fighter"
+      ],
       "handler_family": "training",
       "route_name": "daily_go_to_training",
       "consequence_class": "spend_or_strategic",
@@ -61,7 +69,9 @@
     },
     {
       "objective_key": "train_rider",
-      "aliases": ["Train Rider"],
+      "aliases": [
+        "Train Rider"
+      ],
       "handler_family": "training",
       "route_name": "daily_go_to_training",
       "consequence_class": "spend_or_strategic",
@@ -75,7 +85,9 @@
     },
     {
       "objective_key": "train_shooter",
-      "aliases": ["Train Shooter"],
+      "aliases": [
+        "Train Shooter"
+      ],
       "handler_family": "training",
       "route_name": "daily_go_to_training",
       "consequence_class": "spend_or_strategic",
@@ -89,7 +101,9 @@
     },
     {
       "objective_key": "train_vehicle",
-      "aliases": ["Train Vehicle"],
+      "aliases": [
+        "Train Vehicle"
+      ],
       "handler_family": "training",
       "route_name": "daily_go_to_training",
       "consequence_class": "spend_or_strategic",
@@ -103,7 +117,10 @@
     },
     {
       "objective_key": "recruit_noahs_tavern",
-      "aliases": ["Recruit 5x in Noah's Tavern", "Recruit in Noah's Tavern"],
+      "aliases": [
+        "Recruit 5x in Noah's Tavern",
+        "Recruit in Noah's Tavern"
+      ],
       "handler_family": "recruitment",
       "route_name": "daily_go_to_noahs_tavern",
       "consequence_class": "spend_or_strategic",
@@ -117,7 +134,9 @@
     },
     {
       "objective_key": "upgrade_hero",
-      "aliases": ["Upgrade hero"],
+      "aliases": [
+        "Upgrade hero"
+      ],
       "handler_family": "hero_upgrade",
       "route_name": "daily_go_to_hero",
       "consequence_class": "spend_or_strategic",
@@ -131,7 +150,10 @@
     },
     {
       "objective_key": "defeat_zombie_lair",
-      "aliases": ["Defeat Zombie Lair", "Hunt Zombie"],
+      "aliases": [
+        "Defeat Zombie Lair",
+        "Hunt Zombie"
+      ],
       "handler_family": "zombie_lair",
       "route_name": "daily_go_to_zombie_lair",
       "consequence_class": "spend_or_strategic",
@@ -145,7 +167,10 @@
     },
     {
       "objective_key": "consume_stamina",
-      "aliases": ["Consume 20 Stamina", "Consume Stamina"],
+      "aliases": [
+        "Consume 20 Stamina",
+        "Consume Stamina"
+      ],
       "handler_family": "stamina",
       "route_name": "daily_go_to_stamina_action",
       "consequence_class": "spend_or_strategic",
@@ -159,7 +184,10 @@
     },
     {
       "objective_key": "consume_ap",
-      "aliases": ["Consume 20 AP", "Consume AP"],
+      "aliases": [
+        "Consume 20 AP",
+        "Consume AP"
+      ],
       "handler_family": "campaign_ap",
       "route_name": "daily_go_to_campaign",
       "consequence_class": "spend_or_strategic",
@@ -173,21 +201,25 @@
     },
     {
       "objective_key": "help_allies",
-      "aliases": ["Help allies"],
+      "aliases": [
+        "Help allies"
+      ],
       "handler_family": "alliance_help",
       "route_name": "daily_go_to_speedup_help",
       "consequence_class": "zero_cost_consequential",
       "policy_mode": "supervised_zero_cost",
       "implementation_status": "LIVE_VALIDATED",
-      "live_validation_status": "ONE_HELP_ALL_TRANSACTION_CONFIRMED",
+      "live_validation_status": "INDIVIDUAL_HELP_AND_HELP_ALL_LIVE_VALIDATED",
       "progress_format": "current/10",
       "claim_support": "ordinary_row_only",
       "next_development_priority": 2,
-      "evidence_provenance": "inventory-20260713.json; live-daily-inventory-20260713/help-go-post-002.png"
+      "evidence_provenance": "inventory-20260713.json; individual Help evidence and lower Help All exact no-request-popup validation in help-all-validation-20260713"
     },
     {
       "objective_key": "buy_box",
-      "aliases": ["Buy box"],
+      "aliases": [
+        "Buy box"
+      ],
       "handler_family": "purchase",
       "route_name": "daily_go_to_purchase",
       "consequence_class": "spend_or_strategic",
@@ -201,7 +233,9 @@
     },
     {
       "objective_key": "gather_wood",
-      "aliases": ["Gather Wood"],
+      "aliases": [
+        "Gather Wood"
+      ],
       "handler_family": "gathering",
       "route_name": "daily_go_to_world",
       "consequence_class": "spend_or_strategic",
@@ -215,7 +249,9 @@
     },
     {
       "objective_key": "gather_steel",
-      "aliases": ["Gather Steel"],
+      "aliases": [
+        "Gather Steel"
+      ],
       "handler_family": "gathering",
       "route_name": "daily_go_to_world",
       "consequence_class": "spend_or_strategic",
@@ -229,7 +265,9 @@
     },
     {
       "objective_key": "gather_gas",
-      "aliases": ["Gather Gas"],
+      "aliases": [
+        "Gather Gas"
+      ],
       "handler_family": "gathering",
       "route_name": "daily_go_to_world",
       "consequence_class": "spend_or_strategic",
@@ -243,7 +281,10 @@
     },
     {
       "objective_key": "boost_resource_building_output",
-      "aliases": ["Boost any resource building's output", "Boost resource-building output"],
+      "aliases": [
+        "Boost any resource building's output",
+        "Boost resource-building output"
+      ],
       "handler_family": "resource_building",
       "route_name": "daily_go_to_resource_building",
       "consequence_class": "spend_or_strategic",
@@ -257,7 +298,10 @@
     },
     {
       "objective_key": "ruins_shop_purchase",
-      "aliases": ["Make purchase 1x in Ruins Shop", "Ruins Shop purchase"],
+      "aliases": [
+        "Make purchase 1x in Ruins Shop",
+        "Ruins Shop purchase"
+      ],
       "handler_family": "purchase",
       "route_name": "daily_go_to_ruins_shop",
       "consequence_class": "spend_or_strategic",
@@ -271,7 +315,10 @@
     },
     {
       "objective_key": "rare_earth_shop_purchase",
-      "aliases": ["Make 1 purchase(s) in Rare Earth Shop", "Rare Earth Shop purchase"],
+      "aliases": [
+        "Make 1 purchase(s) in Rare Earth Shop",
+        "Rare Earth Shop purchase"
+      ],
       "handler_family": "purchase",
       "route_name": "daily_go_to_rare_earth_shop",
       "consequence_class": "spend_or_strategic",
@@ -285,7 +332,10 @@
     },
     {
       "objective_key": "alliance_shop_purchase",
-      "aliases": ["Make 1 purchase(s) in Alliance Shop", "Alliance Shop purchase"],
+      "aliases": [
+        "Make 1 purchase(s) in Alliance Shop",
+        "Alliance Shop purchase"
+      ],
       "handler_family": "purchase",
       "route_name": "daily_go_to_alliance_shop",
       "consequence_class": "spend_or_strategic",
@@ -299,7 +349,10 @@
     },
     {
       "objective_key": "speedup_using_items",
-      "aliases": ["Speedup 180 minutes using items", "Speedup using items"],
+      "aliases": [
+        "Speedup 180 minutes using items",
+        "Speedup using items"
+      ],
       "handler_family": "speedup_item",
       "route_name": "daily_go_to_speedup",
       "consequence_class": "spend_or_strategic",
@@ -313,7 +366,9 @@
     },
     {
       "objective_key": "bioenhancer_research",
-      "aliases": ["Bioenhancer research"],
+      "aliases": [
+        "Bioenhancer research"
+      ],
       "handler_family": "bioenhancer",
       "route_name": "daily_go_to_bioenhancer",
       "consequence_class": "zero_cost_consequential",
@@ -327,7 +382,9 @@
     },
     {
       "objective_key": "craft_nanoweapon",
-      "aliases": ["Craft nanoweapon"],
+      "aliases": [
+        "Craft nanoweapon"
+      ],
       "handler_family": "nanoweapon",
       "route_name": "daily_go_to_nanoweapon",
       "consequence_class": "spend_or_strategic",
@@ -341,7 +398,10 @@
     },
     {
       "objective_key": "personal_might_praise",
-      "aliases": ["Praise 1x in Personal Might rank", "Personal Might praise"],
+      "aliases": [
+        "Praise 1x in Personal Might rank",
+        "Personal Might praise"
+      ],
       "handler_family": "praise",
       "route_name": "daily_go_to_personal_might",
       "consequence_class": "zero_cost_consequential",
@@ -355,7 +415,10 @@
     },
     {
       "objective_key": "enhance_chip",
-      "aliases": ["Enhance a chip", "Enhance chip"],
+      "aliases": [
+        "Enhance a chip",
+        "Enhance chip"
+      ],
       "handler_family": "enhancement",
       "route_name": "daily_go_to_chip",
       "consequence_class": "zero_cost_consequential",
@@ -369,7 +432,10 @@
     },
     {
       "objective_key": "enhance_module",
-      "aliases": ["Enhance a module", "Enhance module"],
+      "aliases": [
+        "Enhance a module",
+        "Enhance module"
+      ],
       "handler_family": "enhancement",
       "route_name": "daily_go_to_module",
       "consequence_class": "zero_cost_consequential",
@@ -383,7 +449,9 @@
     },
     {
       "objective_key": "enhance_gear",
-      "aliases": ["Enhance gear"],
+      "aliases": [
+        "Enhance gear"
+      ],
       "handler_family": "enhancement",
       "route_name": "daily_go_to_gear",
       "consequence_class": "zero_cost_consequential",
@@ -397,7 +465,9 @@
     },
     {
       "objective_key": "donate_alliance_tech",
-      "aliases": ["Donate for alliance tech"],
+      "aliases": [
+        "Donate for alliance tech"
+      ],
       "handler_family": "donation",
       "route_name": "daily_go_to_alliance_technology",
       "consequence_class": "spend_or_strategic",
@@ -411,7 +481,10 @@
     },
     {
       "objective_key": "supply_depot",
-      "aliases": ["Get supplies at Supply Depot", "Supply Depot"],
+      "aliases": [
+        "Get supplies at Supply Depot",
+        "Supply Depot"
+      ],
       "handler_family": "supply_depot",
       "route_name": "daily_go_to_supply_depot",
       "consequence_class": "zero_cost_consequential",
@@ -425,7 +498,10 @@
     },
     {
       "objective_key": "ruins_challenge",
-      "aliases": ["Enter Ruins Challenge", "Ruins Challenge"],
+      "aliases": [
+        "Enter Ruins Challenge",
+        "Ruins Challenge"
+      ],
       "handler_family": "challenge",
       "route_name": "daily_go_to_ruins_challenge",
       "consequence_class": "spend_or_strategic",

@@ -14,7 +14,7 @@ from tasks.daily_quest import (
     RouteType,
     handler_for_objective,
 )
-from tasks.profile import HELP_ALL_ACTION, HOME_QUEST, QUEST_DAILY, PROFILE_ID
+from tasks.profile import HELP_ALL_ACTION, INDIVIDUAL_HELP_ACTION, HOME_QUEST, QUEST_DAILY, PROFILE_ID
 
 
 class ContractTests(unittest.TestCase):
@@ -26,8 +26,9 @@ class ContractTests(unittest.TestCase):
                           (QUEST_DAILY.roi[1] + QUEST_DAILY.roi[3]) // 2), (400, 105))
         self.assertTrue(HOME_QUEST.asset_provenance.endswith("home-base-settled.png"))
         self.assertEqual(QUEST_DAILY.required_confirmation_frames, 1)
-        self.assertEqual(HELP_ALL_ACTION.roi, (556, 274, 727, 330))
-        self.assertTrue(HELP_ALL_ACTION.asset_provenance.endswith("help-go-post-002.png"))
+        self.assertEqual(INDIVIDUAL_HELP_ACTION.roi, (556, 274, 727, 330))
+        self.assertEqual(HELP_ALL_ACTION.roi, (277, 1188, 523, 1268))
+        self.assertEqual(HELP_ALL_ACTION.name, "alliance-help-all")
 
     def test_anchor_thresholds_are_anchor_specific(self):
         a = AnchorSpec("a", (0, 0, 10, 10), 0.81, template="a.png")
@@ -94,6 +95,29 @@ class ContractTests(unittest.TestCase):
                                              "available_request_count": 0,
                                              "request_controls_count": 0, "empty_state": True})
         ))
+
+    def test_alliance_help_prefers_help_all_and_uses_individual_as_fallback(self):
+        both = AllianceHelpObservation(
+            screen_state="SPEEDUP_HELP", objective_name="Help allies", current_progress=0,
+            required_progress=10, target_identity=HELP_ALL_ACTION.name, target_roi=HELP_ALL_ACTION.roi,
+            zero_cost_evidence=True, help_all_visible=True, individual_help_visible=True,
+        )
+        self.assertEqual(AllianceHelpHandler.selected_action_kind(both), "ALLIANCE_HELP_ALL")
+        fallback = AllianceHelpObservation(**{
+            **both.__dict__, "help_all_visible": False, "target_identity": INDIVIDUAL_HELP_ACTION.name,
+            "target_roi": INDIVIDUAL_HELP_ACTION.roi,
+        })
+        self.assertEqual(AllianceHelpHandler.selected_action_kind(fallback), "ALLIANCE_HELP_ONE")
+        self.assertEqual(AllianceHelpHandler.transaction_spec(fallback).action_kind, "ALLIANCE_HELP_ONE")
+        no_requests = AllianceHelpObservation(**{
+            **both.__dict__, "help_all_visible": False, "individual_help_visible": False,
+            "target_identity": "none", "target_roi": (0, 0, 0, 0),
+        })
+        self.assertEqual(AllianceHelpHandler.perform_one_pulse(no_requests).outcome, TaskOutcome.BLOCKED)
+        popup = AllianceHelpObservation(**{**both.__dict__, "no_help_request_visible": True})
+        self.assertEqual(AllianceHelpHandler.perform_one_pulse(both, popup).outcome, TaskOutcome.BLOCKED)
+        self.assertFalse(AllianceHelpHandler.completion_check(popup))
+
 
 
 class RouteTests(unittest.TestCase):

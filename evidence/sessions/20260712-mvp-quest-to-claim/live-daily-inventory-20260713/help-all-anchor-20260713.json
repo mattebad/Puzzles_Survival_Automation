@@ -1,22 +1,58 @@
 {
   "recorded_at": "2026-07-13",
   "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
-  "source_frame": "remote-complete/alliance-help-source-001.png",
-  "post_route_frame": "remote-complete/help-go-post-002.png",
-  "screen_family": "Speedup Help",
-  "help_all_anchor": {
-    "roi": [556, 274, 727, 330],
-    "recognition": "independent Bliss local orange-control geometry plus ROI OCR",
-    "asset_provenance": "remote-complete/help-go-post-002.png",
-    "derived_tap": [641, 302]
+  "semantic_correction": {
+    "historical_action_id": "alliance-help-1783981635",
+    "recorded_kind": "ALLIANCE_HELP_ALL",
+    "correct_kind": "ALLIANCE_HELP_ONE",
+    "anchor": "alliance-help-individual",
+    "visible_label": "Help",
+    "roi": [
+      556,
+      274,
+      727,
+      330
+    ],
+    "tap": [
+      641,
+      302
+    ],
+    "result": "one individual request processed",
+    "historical_sqlite_immutable": true
   },
-  "prior_mistarget": {
-    "input": [650, 350],
-    "historical_roi": [580, 320, 720, 380],
-    "finding": "the input was below the visible orange Help All control on passive Help text",
-    "result": "proven_no_effect_mistarget",
-    "historical_journal_preserved": true,
-    "reconciled_copy": "reconciled-actions-20260713.sqlite3"
+  "actual_help_all": {
+    "action_kind": "ALLIANCE_HELP_ALL",
+    "anchor": "alliance-help-all",
+    "visible_label": "Help All",
+    "roi": [
+      277,
+      1188,
+      523,
+      1268
+    ],
+    "proposed_center": [
+      400,
+      1228
+    ],
+    "geometry": {
+      "top_gt_1100": true,
+      "center_y_gt_1150": true,
+      "center_y_lt_1275": true,
+      "intersects_individual_region_y_200_500": false,
+      "tap_inside_with_margin": true
+    },
+    "live_status": "LIVE_VALIDATED",
+    "live_action_id": "alliance-help-1783986842",
+    "dispatched_tap": [
+      400,
+      1228
+    ],
+    "postcondition_signals": [
+      "NO_HELP_REQUEST_CURRENTLY"
+    ],
+    "task_outcome": "BLOCKED",
+    "task_reason": "NO_HELP_REQUEST_CURRENTLY",
+    "reconciled_journal": "help-all-semantic-fix-20260713/reconciled-actions-help-all-semantic-fix.sqlite3"
   },
-  "policy": "Help All is the only permitted consequential target on this surface; no individual Help coordinate is reused."
+  "evidence": "help-all-validation-20260713/remote/alliance-help-1783981635-source.png"
 }

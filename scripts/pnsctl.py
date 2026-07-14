@@ -103,7 +103,8 @@ def _plink_argv(cfg: OperatorConfig, command: str) -> list[str]:
 def run_remote(cfg: OperatorConfig, command: str) -> str:
     result = subprocess.run(_plink_argv(cfg, command), check=False, capture_output=True, text=True)
     if result.returncode:
-        raise OperatorError("remote command failed: " + result.stderr.strip())
+        detail = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
+        raise OperatorError("remote command failed:\n" + detail)
     return result.stdout
 
 
@@ -152,7 +153,7 @@ def _safe_name(value: str) -> str:
 
 
 def sync_workspace(cfg: OperatorConfig) -> None:
-    run_remote(cfg, f"mkdir -p {quote(cfg.remote_workspace)}/evidence/sessions/20260712-m6-dq-bootstrap/assets {quote(cfg.remote_workspace)}/evidence/sessions/20260711-rt-012-observe-soak {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote")
+    run_remote(cfg, f"mkdir -p {quote(cfg.remote_workspace)}/evidence/sessions/20260712-m6-dq-bootstrap/assets {quote(cfg.remote_workspace)}/evidence/sessions/20260711-rt-012-observe-soak {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote")
     sources = ["scripts", "tasks", "safe_action_core", "runtime-profile", "tests"]
     for source in sources:
         run_pscp(cfg, [str(cfg.repo_root / source)], cfg.remote_workspace, recursive=True)
@@ -162,7 +163,9 @@ def sync_workspace(cfg: OperatorConfig) -> None:
     run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/daily-postreset-observation-20260713.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/")
     run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/reset-reconcile-current.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/")
     run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/help-go-post-002.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/")
+    run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/actions-after-release.sqlite3")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/")
     run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png"), str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-post-1.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/")
+    run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote/alliance-help-1783986842-post-1.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote/")
 
 
 def worker_start(cfg: OperatorConfig) -> str:
@@ -256,8 +259,8 @@ def run_task(cfg: OperatorConfig, task: str) -> str:
     stamp = str(int(time.time()))
     command = (
         f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 {quote(cfg.container)} python3 scripts/alliance_help_live.py "
-        f"--adb /opt/adb --serial {quote(cfg.serial)} --database /evidence/actions.sqlite3 "
-        f"--evidence /evidence --result /evidence/alliance-help-result.json --owner pnsctl-{stamp} "
+        f"--adb /opt/adb --serial {quote(cfg.serial)} --database /evidence/actions-help-all-semantic-fix.sqlite3 "
+        f"--evidence /evidence --result /evidence/alliance-help-semantic-fix-result.json --owner pnsctl-{stamp} "
         f"--action-id alliance-help-{stamp} --action-key alliance-help-{stamp}"
     )
     return run_remote(cfg, command)

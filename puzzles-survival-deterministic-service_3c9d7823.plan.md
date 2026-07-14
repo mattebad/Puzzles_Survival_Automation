@@ -1283,20 +1283,23 @@ post-dispatch evidence; no retry is permitted. This does not authorize Claim or 
 consequential action, and M6-DQ-TRANSITION-CORPUS remains downstream.
 
 
-## 2026-07-13 stable operator and Help All finding
+## 2026-07-13 stable Alliance Help semantic finding
 
-Routine Unraid operations now use the checked-in `scripts/pnsctl.py` interface and
-`docs/pns-operations-runbook.md` for pinned host-key handling, scoped worker lifecycle, private
-ADB, evidence synchronization, tests, validation, and cleanup. Credentials are read only from
-the approved process/environment mechanism and are never logged or persisted. The retained
-2026-07-13 Daily Quest inventory is promoted as the 31-objective catalog in
-`tasks/daily_quest_catalog.json`; unknown runtime aliases cannot alter a cataloged consequence or
-policy. Handler status is tracked separately from automatic enablement.
+Routine operations remain centralized in `scripts/pnsctl.py`; the worker, private ADB, test,
+journal, profile, and catalog architectures are unchanged. The retained upper action at
+`(556,274)-(727,330)`, tap `(641,302)`, is the individual button labeled Help and is represented as
+`ALLIANCE_HELP_ONE`. It processed one request. Historical journal rows and screenshots remain
+immutable.
 
-Alliance Help remains a narrow supervised zero-cost handler using the Speedup Help screen and the
-profile-bound Help All ROI `(556,274)-(727,330)`. The old `(650,350)` mistarget is preserved as
-historical evidence and separately reconciled as proven no effect. A corrected live transaction
-derived tap `(641,302)`, dispatched once, and confirmed the local Help All disappearance with a
-stable local header. This validates one Help All transaction only; no Daily Quest progress or
-Claim postcondition was proven, so MVP-QUEST-TO-CLAIM remains Blocked and no transition corpus
-work is authorized.
+The distinct actual `ALLIANCE_HELP_ALL` target is the bottom-center button at
+`(277,1188)-(523,1268)`, center `(400,1228)`. Authorization requires a positive Help All label or
+retained Bliss template plus hard lower-screen geometry and target-separation invariants. Help All
+is preferred; one individual Help is fallback only. Neither action implies Daily Quest completion,
+and no Claim or transition-corpus work is authorized without the exact Daily row postcondition.
+
+The first exact lower Help All live attempt passed the machine-readable/annotated target gate and
+sent one tap at `(400,1228)`. The first bounded post observation positively contained the
+transient exact message `No help request currently`; later frames returned to Speedup Help. The
+immutable source journal is retained and a reconciled copy confirms the action from that semantic
+postcondition with zero unresolved/nonterminal records. The control is live-validated, but no
+request was available, so Daily Quest completion and Claim remain unproven.

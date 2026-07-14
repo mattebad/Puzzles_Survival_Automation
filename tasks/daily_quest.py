@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Any, Mapping, Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
-from .profile import HELP_ALL_ACTION
+from .profile import HELP_ALL_ACTION, INDIVIDUAL_HELP_ACTION
 
 
 ALLIANCE_HELP_ROUTE = "daily_go_to_alliance_help"
@@ -105,24 +105,37 @@ class AllianceHelpObservation:
     zero_cost_evidence: bool
     available_request_count: Optional[int] = None
     help_all_visible: bool = False
+    individual_help_visible: bool = False
     request_controls_count: Optional[int] = None
     empty_state: bool = False
+    no_help_request_visible: bool = False
     overlay_state: str = "none_observed"
     forbidden_region_intersects_target: bool = False
     recognized: bool = True
 
 
 class AllianceHelpHandler:
-    """Bounded Help All handler; device input remains injected by ActionTransaction."""
+    """Choose one Help All action, or one individual Help fallback, per pulse."""
 
     objective_name = "Help allies"
-    action_kind = "ALLIANCE_HELP_ALL"
     consequence = "alliance_help_zero_cost"
     route_name = "daily_go_to_speedup_help"
 
     @classmethod
     def matches_objective(cls, name: str) -> bool:
         return " ".join(name.lower().split()) == cls.objective_name.lower()
+
+    @classmethod
+    def selected_action_kind(cls, observation: AllianceHelpObservation) -> Optional[str]:
+        if observation.help_all_visible:
+            return "ALLIANCE_HELP_ALL"
+        if observation.individual_help_visible:
+            return "ALLIANCE_HELP_ONE"
+        return None
+
+    @classmethod
+    def expected_anchor(cls, observation: AllianceHelpObservation):
+        return HELP_ALL_ACTION if cls.selected_action_kind(observation) == "ALLIANCE_HELP_ALL" else INDIVIDUAL_HELP_ACTION
 
     @classmethod
     def remaining(cls, observation: AllianceHelpObservation) -> Optional[int]:
@@ -139,9 +152,9 @@ class AllianceHelpHandler:
             observation.screen_state in {RouteType.ALLIANCE.value, "SPEEDUP_HELP"}
             and cls.matches_objective(observation.objective_name)
             and remaining is not None and remaining > 0
-            and observation.target_identity == HELP_ALL_ACTION.name
-            and observation.target_roi == HELP_ALL_ACTION.roi
-            and observation.help_all_visible
+            and cls.selected_action_kind(observation) is not None
+            and observation.target_identity == cls.expected_anchor(observation).name
+            and observation.target_roi == cls.expected_anchor(observation).roi
             and observation.zero_cost_evidence
             and observation.overlay_state in {"none", "none_observed"}
             and not observation.forbidden_region_intersects_target
@@ -150,9 +163,10 @@ class AllianceHelpHandler:
     @classmethod
     def transaction_spec(cls, observation: AllianceHelpObservation) -> ActionTransactionSpec:
         if not cls.authorizeable(observation):
-            raise ValueError("Speedup Help / Help All preconditions are not positively recognized")
+            raise ValueError("Speedup Help action preconditions are not positively recognized")
+        action_kind = cls.selected_action_kind(observation)
         return ActionTransactionSpec(
-            action_kind=cls.action_kind,
+            action_kind=action_kind,
             expected_source_screen="SPEEDUP_HELP",
             subject=cls.objective_name,
             quantity=1,
@@ -160,8 +174,8 @@ class AllianceHelpHandler:
             maximum_cost=0,
             free_only=True,
             allowed_confirmation_dialogs=(),
-            semantic_preconditions=("speedup_help_screen", "help_all_visible", "explicit_zero_cost_help_all", "remaining_count_positive"),
-            semantic_postconditions=("available_help_controls_decrease_or_empty", "daily_objective_progress_increases"),
+            semantic_preconditions=("speedup_help_screen", "exact_help_target", "explicit_zero_cost", "remaining_count_positive"),
+            semantic_postconditions=("selected_help_control_or_request_disappears", "daily_objective_progress_increases"),
         )
 
     @classmethod
@@ -188,20 +202,23 @@ class AllianceHelpHandler:
         empty_state_reached = after.empty_state or (
             after.available_request_count is not None and after.available_request_count == 0
         )
-        return progress_increased or request_count_decreased or control_count_decreased or empty_state_reached
+        return (progress_increased or request_count_decreased or control_count_decreased
+                or empty_state_reached or after.no_help_request_visible)
 
     @classmethod
     def perform_one_pulse(cls, before: AllianceHelpObservation, after: Optional[AllianceHelpObservation] = None) -> TaskResult:
         if not cls.authorizeable(before):
-            return TaskResult(TaskOutcome.FAILED_SAFE, "HELP_ALL_PRECONDITION_NOT_PROVEN", state="SPEEDUP_HELP")
+            return TaskResult(TaskOutcome.BLOCKED, "NO_AUTHORIZED_HELP_TARGET", verified=True, state="SPEEDUP_HELP")
         if after is None:
-            return TaskResult.progress("Help All is authorized; dispatch one ActionTransaction", "SPEEDUP_HELP")
+            return TaskResult.progress(cls.selected_action_kind(before) + " is authorized; dispatch one ActionTransaction", "SPEEDUP_HELP")
         if not cls.postcondition_verified(before, after):
-            return TaskResult(TaskOutcome.FAILED_SAFE, "HELP_ALL_POSTCONDITION_NOT_PROVEN", state="SPEEDUP_HELP")
+            return TaskResult(TaskOutcome.FAILED_SAFE, "HELP_POSTCONDITION_NOT_PROVEN", state="SPEEDUP_HELP")
+        if after.no_help_request_visible:
+            return TaskResult(TaskOutcome.BLOCKED, "NO_HELP_REQUEST_CURRENTLY", verified=True, state="SPEEDUP_HELP")
         remaining = cls.remaining(after)
         if remaining == 0:
             return TaskResult.done("Help allies objective is complete", "daily:help_allies:complete", "SPEEDUP_HELP")
-        return TaskResult.progress("Help All changed the available request state", "SPEEDUP_HELP")
+        return TaskResult.progress("one Help action changed the available request state", "SPEEDUP_HELP")
 
     @classmethod
     def completion_check(cls, observation: AllianceHelpObservation) -> bool:

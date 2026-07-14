@@ -1,27 +1,22 @@
 # Current runtime-proof handoff
 
-## 2026-07-13 operator interface and Help All validation update
+## 2026-07-13 Alliance Help semantic correction
 
-- The retained prior action `alliance-help-20260713-001` remains immutable historical evidence;
-  its `(650,350)` input was below the visible Help All control and a separate copy is reconciled
-  as `proven_no_effect_mistarget`. The historical journal itself was not rewritten.
-- The corrected Alliance Help flow uses the Speedup Help screen, profile-bound Help All ROI
-  `(556,274)-(727,330)`, and derived tap `(641,302)`. One fresh zero-cost transaction dispatched
-  exactly once. The Help All control disappeared while the stable local header remained unchanged;
-  the operational reconciled copy is terminal `confirmed` with zero unresolved/nonterminal actions.
-- `scripts/pnsctl.py` is now the checked-in operator interface for preflight, scoped worker/private
-  ADB lifecycle, launch/capture/observe/navigation/task execution, tests, RT-019/M6 validation,
-  evidence preservation, reconciliation, and cleanup. The 31 retained inventory objectives are
-  cataloged in `tasks/daily_quest_catalog.json`; Help allies is `LIVE_VALIDATED` for one Help All
-  transaction only and is not automatically enabled.
-- Final pinned validation: 114 tests passed; RT-019 passed; all six M6 assets passed. Cleanup
-  removed the scoped worker and task ADB while leaving the approved loopback ADB untouched. The
-  VM is running, no public listener or tunnel remains, and RT-017 is intact.
-- `MVP-QUEST-TO-CLAIM` remains Blocked because no Daily Quest progress or Claim postcondition was
-  proven. No Claim, Go, quest-completion, spend, account, or OS input occurred in this short
-  validation. The next continuation must start with fresh Daily Quest reconciliation; M6 transition
-  corpus work remains downstream.
-
+- The historical `(641,302)` action targeted the upper row-level button labeled Help at
+  `(556,274)-(727,330)`. Its correct semantic kind is `ALLIANCE_HELP_ONE`; the visible request
+  disappeared, proving one individual request was processed. Historical SQLite and screenshots
+  remain immutable.
+- Actual `ALLIANCE_HELP_ALL` is a separate lower-screen target at `(277,1188)-(523,1268)`, center
+  `(400,1228)`. Code requires the literal Help All identity/template plus enforced lower-screen,
+  separation, clipping, and interior-tap geometry. A candidate near `(641,302)` is denied.
+- The Help allies catalog row is `LIVE_VALIDATED` for both individual Help and the actual lower
+  Help All control.
+- The actual lower action `alliance-help-1783986842` passed the pre-dispatch artifact and sent
+  exactly one tap at `(400,1228)`. The first post frame positively contains the transient exact
+  message `No help request currently`; later frames returned to Speedup Help. The immutable source
+  journal is retained and the reconciled copy is confirmed with zero unresolved/nonterminal actions.
+- MVP-QUEST-TO-CLAIM remains Blocked; no Claim or Daily Quest completion is proven, and
+  M6-DQ-TRANSITION-CORPUS remains downstream.
 
 ## 2026-07-13 live Daily Quest inventory and unresolved Alliance Help action
 

@@ -17,7 +17,7 @@ runtime alias can match a catalog row but cannot change its policy or consequenc
 | defeat_zombie_lair | zombie_lair | stamina and level policy | CATALOGED | not started | 13 |
 | consume_stamina | stamina | disabled | DISABLED_POLICY | not started | 12 |
 | consume_ap | campaign_ap | AP budget required | CATALOGED | not started | 11 |
-| help_allies | alliance_help | supervised zero-cost | LIVE_VALIDATED | one Help All transaction confirmed; full MVP still blocked | 2 |
+| help_allies | alliance_help | supervised zero-cost | LIVE_VALIDATED | individual Help validated; lower Help All validated by exact no-request popup | 2 |
 | buy_box | purchase | disabled | DISABLED_POLICY | not started | 27 |
 | gather_wood | gathering | march and World policy | CATALOGED | not started | 14 |
 | gather_steel | gathering | march and World policy | CATALOGED | not started | 15 |

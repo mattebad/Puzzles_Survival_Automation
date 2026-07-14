@@ -6,7 +6,7 @@ from unittest.mock import patch
 from scripts import pnsctl
 from tasks.catalog import EXPECTED_OBJECTIVE_COUNT, catalog_summary, load_catalog, objective_for_text
 from tasks.daily_quest import AllianceHelpHandler, AllianceHelpObservation
-from tasks.profile import HELP_ALL_ACTION
+from tasks.profile import HELP_ALL_ACTION, INDIVIDUAL_HELP_ACTION
 
 
 class CatalogTests(unittest.TestCase):
@@ -79,9 +79,15 @@ class HelpAllContractTests(unittest.TestCase):
         values.update(changes)
         return AllianceHelpObservation(**values)
 
-    def test_old_mistarget_is_not_authorized(self):
-        old = self._observation(target_identity="alliance-help-action", target_roi=(580, 320, 720, 380))
-        self.assertFalse(AllianceHelpHandler.authorizeable(old))
+    def test_upper_button_is_individual_help_not_help_all(self):
+        self.assertTrue(INDIVIDUAL_HELP_ACTION.roi[0] <= 641 < INDIVIDUAL_HELP_ACTION.roi[2])
+        self.assertTrue(INDIVIDUAL_HELP_ACTION.roi[1] <= 302 < INDIVIDUAL_HELP_ACTION.roi[3])
+        self.assertFalse(HELP_ALL_ACTION.roi[1] <= 302 < HELP_ALL_ACTION.roi[3])
+        old = self._observation(target_identity=INDIVIDUAL_HELP_ACTION.name,
+                                target_roi=INDIVIDUAL_HELP_ACTION.roi,
+                                help_all_visible=False, individual_help_visible=True)
+        self.assertTrue(AllianceHelpHandler.authorizeable(old))
+        self.assertEqual(AllianceHelpHandler.transaction_spec(old).action_kind, "ALLIANCE_HELP_ONE")
 
     def test_help_all_disappearance_is_a_positive_postcondition(self):
         before = self._observation()

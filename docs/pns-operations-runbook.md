@@ -29,7 +29,7 @@ python3 scripts/pnsctl.py cleanup
 ```
 
 `navigate` accepts only the checked-in route names and uses the existing safe-action executor.
-`run-task` currently exposes only the corrected Speedup Help / Help All handler. It is not a
+`run-task` exposes the Speedup Help handler, which distinguishes lower Help All from an upper individual Help fallback. It is not a
 general remote shell or arbitrary tap endpoint.
 
 The retained mistarget is reconciled by copying the closed historical database and recording a

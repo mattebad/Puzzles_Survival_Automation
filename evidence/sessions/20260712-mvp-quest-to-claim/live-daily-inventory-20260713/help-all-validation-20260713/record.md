@@ -1,45 +1,29 @@
-# Help All validation — 2026-07-13
+# Alliance Help semantic correction — 2026-07-13
 
-## Scope
+## Historical interpretation correction
 
-This was a short validation of the corrected Alliance Help handler. It did not rerun the full
-MVP, did not select another objective, and did not send Go, Claim, quest-completion, spend,
-account, or OS input.
+The immutable historical action recorded as `ALLIANCE_HELP_ALL` at ROI
+`(556,274)-(727,330)` and tap `(641,302)` visibly targeted the upper row-level orange button
+labeled **Help**. Its correct semantic interpretation is `ALLIANCE_HELP_ONE`: one individual
+request was processed. The lower button labeled **Help All** remained visible in the retained
+post frame. Historical screenshots and SQLite rows are unchanged.
 
-## Reconciliation
+## Separate actual Help All target
 
-The retained prior action `alliance-help-20260713-001` used `(650,350)`, below the visible orange
-Help All control. Its immutable historical journal remains unresolved with reason
-`unexpected_successor`. A separate `reconciled-actions-20260713.sqlite3` copy records
-`proven_no_effect_mistarget` and has no unresolved action.
+The actual `ALLIANCE_HELP_ALL` anchor is the lower orange button at
+`(277,1188)-(523,1268)`, center `(400,1228)`. Authorization requires literal Help All OCR or the
+independently cropped retained template, the fixed lower-screen geometry, an orange rectangular
+button, a complete unclipped target, and an interior tap. A target near `(641,302)` is rejected.
 
-## Corrected live transaction
+## Actual lower Help All live result
 
-- Source: Speedup Help surface, positively recognized from the fixed profile and local header ROI.
-- Help All ROI: `(556,274)-(727,330)`; derived tap: `(641,302)`.
-- Source and immediate-before target ROI: orange control present; immediate-before was fresh and
-  profile-compatible.
-- Policy: `AUTHORIZED_ZERO_COST_R1`; action kind `ALLIANCE_HELP_ALL`.
-- Dispatch: exactly one transport call, `input tap 641 302`.
-- No transport retry occurred.
-- Postcondition evidence: the Help All control disappeared in post frame 1 while the stable local
-  Speedup Help header ROI `(250,0)-(550,120)` remained byte-identical to the source. The original
-  live journal recorded unresolved because its first implementation required noisy whole-header
-  OCR; the reconciled operational copy records positive postcondition confirmation.
+The pnsctl-only action `alliance-help-1783986842` positively matched literal `Help All` at
+`(277,1188)-(523,1268)`, center `(400,1228)`. The mandatory JSON and annotated screenshot proved
+the target top was 1188, center y was greater than 1150, the target did not intersect the
+individual-help region, and the tap was inside the button with margin.
 
-## Validation and cleanup
-
-- SQLite schema: version 1.
-- Reconciled operational journal: zero nonterminal and zero unresolved actions; lease released.
-- Complete pinned suite: 114 tests passed.
-- RT-019: passed with profile `pns-blissos-poc-virgl-800x1280-v1`.
-- Six M6 assets: passed; input lock false.
-- Worker and task ADB removed through `pnsctl cleanup`.
-- Pre-existing loopback ADB was not stopped; no public listener or tunnel remained.
-- VM remained running; RT-017 backup remained intact.
-
-## Task result
-
-MVP-QUEST-TO-CLAIM remains blocked. The Help All transaction was validated, but this short
-handler check did not establish Daily Quest progress or a Claim row, so no Claim input was sent.
-M6-DQ-TRANSITION-CORPUS remains downstream and was not started.
+Exactly one tap at `(400,1228)` was dispatched. The first bounded post observation positively
+contained the transient exact message `No help request currently`; later frames returned to
+Speedup Help. The immutable source journal is preserved, and a reconciled copy confirms the action
+from that positive semantic evidence. Help All is live-validated; no request was available and no
+Daily Quest completion is inferred.

@@ -54,20 +54,18 @@ GAME_BACK = AnchorSpec(
     asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/reset-reconcile-current.png",
 )
 
-ALLIANCE_HELP_ACTION = AnchorSpec(
-    "alliance-help-action", (580, 320, 720, 380), 0.92,
-    template="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-go-post-1.png#alliance-help-roi",
-    ocr_rule="Help <current>/<total>",
+INDIVIDUAL_HELP_ACTION = AnchorSpec(
+    "alliance-help-individual", (556, 274, 727, 330), 0.90,
+    template="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png#individual-help-button",
+    ocr_rule="Help",
     required_confirmation_frames=1,
     polling_interval_seconds=0.15,
     timeout_seconds=3.0,
     tap_offset=(0, 0),
-    asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-go-post-1.png",
+    asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png",
 )
 
-# The retained route evidence shows that the old (580,320)-(720,380) point is passive text,
-# not an action. Help All is the orange control on the independently captured Speedup Help
-# surface. This is intentionally a separate anchor so the old mistarget cannot be reused.
+# Speedup Help is recognized independently from either consequential action target.
 SPEEDUP_HELP_SCREEN = AnchorSpec(
     "speedup-help-screen", (250, 0, 550, 120), 0.88,
     template="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-go-post-002.png#speedup-help-header",
@@ -79,12 +77,12 @@ SPEEDUP_HELP_SCREEN = AnchorSpec(
 )
 
 HELP_ALL_ACTION = AnchorSpec(
-    "speedup-help-all", (556, 274, 727, 330), 0.90,
-    template="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-go-post-002.png#help-all-button",
+    "alliance-help-all", (277, 1188, 523, 1268), 0.92,
+    template="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png#bottom-help-all-button",
     ocr_rule="Help All",
     required_confirmation_frames=1,
     polling_interval_seconds=0.15,
     timeout_seconds=3.0,
     tap_offset=(0, 0),
-    asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/help-go-post-002.png",
+    asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png",
 )

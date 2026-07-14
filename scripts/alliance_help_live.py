@@ -38,12 +38,17 @@ from safe_action_core import (
     TransportResult,
 )
 from tasks.daily_quest import AllianceHelpHandler, AllianceHelpObservation
-from tasks.profile import HELP_ALL_ACTION, PROFILE_ID
+from tasks.profile import HELP_ALL_ACTION, INDIVIDUAL_HELP_ACTION, PROFILE_ID
 
 
 TASK_ID = "MVP-QUEST-TO-CLAIM"
 TARGET_ROI = HELP_ALL_ACTION.roi
+INDIVIDUAL_ROI = INDIVIDUAL_HELP_ACTION.roi
 HEADER_ROI = (250, 0, 550, 120)
+INDIVIDUAL_REGION = (0, 200, 800, 500)
+NO_HELP_MESSAGE_ROI = (80, 500, 720, 1150)
+INTERIOR_MARGIN = 8
+HELP_ALL_REFERENCE = REPO_ROOT / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png"
 ORANGE_LOWER = np.array([3, 90, 120], dtype=np.uint8)
 ORANGE_UPPER = np.array([35, 255, 255], dtype=np.uint8)
 
@@ -65,47 +70,114 @@ def _orange_ratio(image: np.ndarray, box: tuple[int, int, int, int]) -> float:
     return float(cv2.countNonZero(mask)) / float(mask.shape[0] * mask.shape[1])
 
 
+def _ocr_text(image: np.ndarray, box: tuple[int, int, int, int], psm: int = 7) -> str:
+    crop = _roi(image, box)
+    enlarged = cv2.resize(crop, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+    return " ".join(pytesseract.image_to_string(enlarged, config=f"--psm {psm}").casefold().split())
+
+
 def _header_text(image: np.ndarray) -> str:
-    crop = _roi(image, HEADER_ROI)
-    enlarged = cv2.resize(crop, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
-    return " ".join(pytesseract.image_to_string(enlarged, config="--psm 6").casefold().split())
+    return _ocr_text(image, HEADER_ROI, 6)
+
+
+def _template_score(image: np.ndarray, box: tuple[int, int, int, int]) -> float:
+    reference = cv2.imread(str(HELP_ALL_REFERENCE), cv2.IMREAD_COLOR)
+    if reference is None or reference.shape[:2] != image.shape[:2]:
+        return 0.0
+    current = cv2.cvtColor(_roi(image, box), cv2.COLOR_BGR2GRAY)
+    expected = cv2.cvtColor(_roi(reference, box), cv2.COLOR_BGR2GRAY)
+    return float(cv2.matchTemplate(current, expected, cv2.TM_CCOEFF_NORMED)[0, 0])
+
+
+def help_all_geometry(box: tuple[int, int, int, int]) -> Dict[str, Any]:
+    x0, y0, x1, y1 = box
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+    intersects_individual = not (y1 <= 200 or y0 >= 500)
+    tap_inside = x0 + INTERIOR_MARGIN <= cx <= x1 - INTERIOR_MARGIN and y0 + INTERIOR_MARGIN <= cy <= y1 - INTERIOR_MARGIN
+    valid = bool(y0 > 1100 and cy > 1150 and cy < 1275 and y1 < 1280 and not intersects_individual and tap_inside)
+    return {"bounds": box, "center": (cx, cy), "target_top": y0, "center_y": cy,
+            "center_y_gt_1150": cy > 1150, "center_y_lt_1275": cy < 1275,
+            "intersects_individual_region": intersects_individual, "tap_inside_with_margin": tap_inside,
+            "valid": valid}
 
 
 def recognize_help_surface(path: Path, capture_completed_monotonic: float, evidence_ref: str, header_reference: Optional[Path] = None) -> Dict[str, Any]:
     image = cv2.imread(str(path), cv2.IMREAD_COLOR)
     if image is None or image.shape[:2] != (1280, 800):
-        raise ValueError("Help All frame is not the locked 800x1280 PNG")
+        raise ValueError("Help frame is not the locked 800x1280 PNG")
     raw = path.read_bytes()
     frame_hash = hashlib.sha256(raw).hexdigest()
     header = _roi(image, HEADER_ROI)
-    target = _roi(image, TARGET_ROI)
-    target_hash = hashlib.sha256(target.tobytes()).hexdigest()
-    header_hash = hashlib.sha256(header.tobytes()).hexdigest()
-    text = _header_text(image)
-    orange_ratio = _orange_ratio(image, TARGET_ROI)
-    help_all_visible = orange_ratio >= 0.35
+    help_all_crop = _roi(image, TARGET_ROI)
+    individual_crop = _roi(image, INDIVIDUAL_ROI)
+    header_text = _header_text(image)
+    help_all_ocr = _ocr_text(image, TARGET_ROI)
+    individual_ocr = _ocr_text(image, INDIVIDUAL_ROI)
+    transient_message_text = _ocr_text(image, NO_HELP_MESSAGE_ROI, 6)
+    no_help_request_visible = all(word in transient_message_text for word in ("no", "help", "request", "currently"))
+    help_all_orange = _orange_ratio(image, TARGET_ROI)
+    individual_orange = _orange_ratio(image, INDIVIDUAL_ROI)
+    template_score = _template_score(image, TARGET_ROI)
+    geometry = help_all_geometry(TARGET_ROI)
+    literal_help_all = "help all" in help_all_ocr
+    template_help_all = template_score >= HELP_ALL_ACTION.threshold
+    help_all_visible = bool(geometry["valid"] and help_all_orange >= 0.35 and (literal_help_all or template_help_all))
+    individual_help_visible = bool(individual_orange >= 0.35 and "help" in individual_ocr and "help all" not in individual_ocr)
     header_stable = False
     if header_reference is not None:
         reference_image = cv2.imread(str(header_reference), cv2.IMREAD_COLOR)
         if reference_image is not None and reference_image.shape[:2] == (1280, 800):
-            reference_header = _roi(reference_image, HEADER_ROI)
-            header_stable = float(cv2.absdiff(header, reference_header).mean()) <= 2.0
-    # The retained Speedup Help title is OCR-noisy. Post-action recognition therefore binds
-    # to the small stable header ROI, never to whole-screen equality or unrelated OCR.
-    speedup_title = "speed" in text or ("spee" in text and "help" in text)
-    recognized = bool(speedup_title or help_all_visible or header_stable)
+            header_stable = float(cv2.absdiff(header, _roi(reference_image, HEADER_ROI)).mean()) <= 2.0
+    speedup_title = "speed" in header_text or ("spee" in header_text and "help" in header_text)
+    recognized = bool(speedup_title or header_stable or help_all_visible or individual_help_visible)
+    individual_count = 1 if individual_help_visible else 0
     return {
-        "recognized": recognized,
-        "screen_state": "SPEEDUP_HELP" if recognized else "UNKNOWN",
-        "header_stable": header_stable,
-        "header_text": text,
-        "help_all_visible": help_all_visible,
-        "orange_ratio": orange_ratio,
-        "frame_sha256": frame_hash,
-        "capture_completed_monotonic": capture_completed_monotonic,
-        "critical_roi_hashes": (("speedup_help_header", header_hash), ("help_all", target_hash)),
+        "recognized": recognized, "screen_state": "SPEEDUP_HELP" if recognized else "UNKNOWN",
+        "header_stable": header_stable, "header_text": header_text,
+        "help_all_visible": help_all_visible, "individual_help_visible": individual_help_visible,
+        "individual_help_count": individual_count, "empty_state": not help_all_visible and individual_count == 0,
+        "help_all_ocr": help_all_ocr, "individual_help_ocr": individual_ocr,
+        "transient_message_text": transient_message_text,
+        "no_help_request_visible": no_help_request_visible,
+        "matched_text": "Help All" if help_all_visible else None,
+        "identity_basis": "literal_ocr" if literal_help_all else ("retained_template" if template_help_all else None),
+        "help_all_orange_ratio": help_all_orange, "individual_orange_ratio": individual_orange,
+        "help_all_template_score": template_score, "geometry": geometry,
+        "frame_sha256": frame_hash, "capture_completed_monotonic": capture_completed_monotonic,
+        "critical_roi_hashes": (("speedup_help_header", hashlib.sha256(header.tobytes()).hexdigest()),
+                                ("help_all", hashlib.sha256(help_all_crop.tobytes()).hexdigest()),
+                                ("individual_help", hashlib.sha256(individual_crop.tobytes()).hexdigest())),
         "evidence_ref": evidence_ref,
     }
+
+
+def create_predispatch_artifact(source: Path, detail: Dict[str, Any], json_path: Path, annotated_path: Path) -> Dict[str, Any]:
+    geometry = detail["geometry"]
+    artifact = {
+        "target_action": "ALLIANCE_HELP_ALL", "current_screenshot_path": str(source),
+        "recognized_screen": detail["screen_state"], "matched_text": detail["matched_text"],
+        "identity_basis": detail["identity_basis"], "matched_button_bounds": list(geometry["bounds"]),
+        "proposed_center": list(geometry["center"]), "target_top": geometry["target_top"],
+        "target_center_y": geometry["center_y"], "center_y_gt_1150": geometry["center_y_gt_1150"],
+        "center_y_lt_1275": geometry["center_y_lt_1275"],
+        "intersects_individual_help_region": geometry["intersects_individual_region"],
+        "tap_inside_with_margin": geometry["tap_inside_with_margin"],
+        "geometry_valid": geometry["valid"], "help_all_visible": detail["help_all_visible"],
+    }
+    if not (detail["screen_state"] == "SPEEDUP_HELP" and detail["matched_text"] == "Help All"
+            and detail["help_all_visible"] and geometry["valid"]):
+        raise ValueError("pre-dispatch Help All artifact failed the lower-button semantic gate")
+    image = cv2.imread(str(source), cv2.IMREAD_COLOR)
+    x0, y0, x1, y1 = geometry["bounds"]; cx, cy = geometry["center"]
+    cv2.rectangle(image, (x0, y0), (x1, y1), (0, 255, 0), 3)
+    cv2.circle(image, (cx, cy), 8, (0, 0, 255), -1)
+    cv2.putText(image, "ALLIANCE_HELP_ALL", (x0, y0 - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
+    annotated_path.parent.mkdir(parents=True, exist_ok=True)
+    if not cv2.imwrite(str(annotated_path), image):
+        raise ValueError("failed to persist annotated Help All artifact")
+    artifact["annotated_screenshot_path"] = str(annotated_path)
+    write_json(json_path, artifact)
+    return artifact
 
 
 def observation_from(path: Path, metadata: Dict[str, Any], args: argparse.Namespace, header_reference: Optional[Path] = None) -> tuple[Observation, Dict[str, Any]]:
@@ -157,8 +229,11 @@ def run(args: argparse.Namespace) -> int:
         metadata = transport.capture(source_path)
         initial, initial_detail = observation_from(source_path, metadata, args)
         if not initial.recognized or not initial.target_identity:
-            write_json(args.result, {"status": "blocked", "reason": "HELP_ALL_NOT_RECOGNIZED", "detail": initial_detail})
+            write_json(args.result, {"status": "blocked", "reason": "ACTUAL_LOWER_HELP_ALL_NOT_RECOGNIZED", "detail": initial_detail})
             return 2
+        artifact_json = args.evidence / (args.action_id + "-pre-dispatch.json")
+        artifact_png = args.evidence / (args.action_id + "-pre-dispatch-annotated.png")
+        predispatch_artifact = create_predispatch_artifact(source_path, initial_detail, artifact_json, artifact_png)
 
         recapture_count = {"value": 0}
 
@@ -173,6 +248,8 @@ def run(args: argparse.Namespace) -> int:
             return transport.tap((x0 + x1) // 2, (y0 + y1) // 2)
 
         post_counter = {"value": 0}
+        detail_by_hash: Dict[str, Dict[str, Any]] = {initial.frame_sha256: initial_detail}
+        postcondition_signals: set[str] = set()
 
         def post_observe() -> Iterable[Observation]:
             results = []
@@ -181,16 +258,32 @@ def run(args: argparse.Namespace) -> int:
                 post_counter["value"] += 1
                 path = args.evidence / (args.action_id + "-post-%d.png" % post_counter["value"])
                 capture_metadata = transport.capture(path)
-                results.append(observation_from(path, capture_metadata, args, header_reference=source_path)[0])
+                observed, detail = observation_from(path, capture_metadata, args, header_reference=source_path)
+                detail_by_hash[observed.frame_sha256] = detail
+                results.append(observed)
             return results
 
-        before_semantic = AllianceHelpHandlerObservation(initial, args.current_progress, args.required_progress)
+        before_semantic = AllianceHelpHandlerObservation(initial, args.current_progress, args.required_progress, initial_detail)
 
         def reconcile(_intent, observation: Observation) -> bool:
             if not observation.recognized or observation.source_state != "SPEEDUP_HELP":
                 return False
-            after = AllianceHelpHandlerObservation(observation, args.current_progress, args.required_progress)
-            return AllianceHelpHandler.postcondition_verified(before_semantic, after)
+            detail = detail_by_hash.get(observation.frame_sha256, {})
+            after = AllianceHelpHandlerObservation(observation, args.current_progress, args.required_progress, detail)
+            signals = set()
+            if before_semantic.help_all_visible and not after.help_all_visible:
+                signals.add("lower_help_all_disappeared")
+            if (before_semantic.request_controls_count is not None and after.request_controls_count is not None
+                    and after.request_controls_count < before_semantic.request_controls_count):
+                signals.add("individual_help_controls_decreased")
+            if after.empty_state:
+                signals.add("empty_state")
+            if after.no_help_request_visible:
+                signals.add("explicit_no_help_request_popup")
+            postcondition_signals.update(signals)
+            return AllianceHelpHandler.postcondition_verified(before_semantic, after) and (
+                "explicit_no_help_request_popup" in signals or len(signals) >= 2
+            )
 
         request = PolicyRequest(
             action_id=args.action_id,
@@ -227,6 +320,8 @@ def run(args: argparse.Namespace) -> int:
             "result": result.__dict__,
             "action": action,
             "initial": initial_detail,
+            "pre_dispatch_artifact": predispatch_artifact,
+            "postcondition_signals": sorted(postcondition_signals),
             "immediate_before_attempts": recapture_count["value"],
             "post_observation_count": post_counter["value"],
             "audit": store.audit_events(args.action_id),
@@ -241,21 +336,21 @@ def run(args: argparse.Namespace) -> int:
 
 
 class AllianceHelpHandlerObservation(AllianceHelpObservation):
-    """Adapt a safe-core Observation to the task module without duplicating policy."""
+    """Adapt frame-bound detector detail to the task handler."""
 
-    def __init__(self, observation: Observation, current_progress: int, required_progress: int):
+    def __init__(self, observation: Observation, current_progress: int, required_progress: int, detail: Optional[Dict[str, Any]] = None):
+        detail = detail or {}
         super().__init__(
-            screen_state=observation.source_state,
-            objective_name="Help allies",
-            current_progress=current_progress,
-            required_progress=required_progress,
+            screen_state=observation.source_state, objective_name="Help allies",
+            current_progress=current_progress, required_progress=required_progress,
             target_identity=observation.target_identity or HELP_ALL_ACTION.name,
-            target_roi=observation.target_roi or TARGET_ROI,
-            zero_cost_evidence=True,
-            available_request_count=1 if observation.target_identity else 0,
-            help_all_visible=bool(observation.target_identity),
-            request_controls_count=1 if observation.target_identity else 0,
-            empty_state=not bool(observation.target_identity),
+            target_roi=observation.target_roi or TARGET_ROI, zero_cost_evidence=True,
+            available_request_count=detail.get("individual_help_count"),
+            help_all_visible=bool(detail.get("help_all_visible", observation.target_identity == HELP_ALL_ACTION.name)),
+            individual_help_visible=bool(detail.get("individual_help_visible", False)),
+            request_controls_count=detail.get("individual_help_count"),
+            empty_state=bool(detail.get("empty_state", False)),
+            no_help_request_visible=bool(detail.get("no_help_request_visible", False)),
             overlay_state=observation.overlay_state,
             forbidden_region_intersects_target=observation.forbidden_region_intersects_target,
             recognized=observation.recognized,

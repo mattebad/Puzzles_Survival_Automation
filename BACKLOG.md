@@ -363,7 +363,7 @@ Claim example.
 - Rollback: stop at the first unknown or unresolved outcome, preserve the action journal and all
   frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
   fallback is allowed.
-- Status: Blocked (2026-07-13; the corrected Help All transaction is terminally reconciled, but the full quest-to-claim flow remains incomplete).
+- Status: Blocked (2026-07-13; individual Help and actual lower Help All are live-validated, no help request was available, and the full quest-to-claim flow remains incomplete).
 - Blocker: the typed navigation continuation reached Daily Quest and inspected two bounded
   final-runtime list views. The upper view contained Vehicle Depot upgrade, Ultimate Challenge,
   Hunt Zombie, Train Fighter, and Own Lv.211 Hero objectives; the lower view additionally showed
@@ -418,15 +418,17 @@ Claim example.
   preserve the unresolved state, the lease is released, the VM is running, and RT-017 is intact.
 - Next: Resume `MVP-QUEST-TO-CLAIM` after reset/game-day and supported-objective evidence;
   `M6-DQ-TRANSITION-CORPUS` remains downstream.
-- Latest Help All correction and short validation on 2026-07-13: the retained first action at
-  `(650,350)` was below the visible Help All control and remains immutable historical evidence;
-  a separate copy was reconciled as `proven_no_effect_mistarget`. The corrected Speedup Help
-  handler uses the matched Help All ROI `(556,274)-(727,330)` and derived tap `(641,302)`.
-  One fresh zero-cost transaction dispatched exactly once; the Help All control disappeared while
-  the stable local header remained unchanged, and the operational copy was reconciled as
-  `confirmed` with no unresolved or nonterminal action. No Daily Quest progress or Claim row was
-  proven, so the MVP remains Blocked. The reusable `scripts/pnsctl.py` interface, 31-objective
-  catalog, and handler status matrix are retained with the task evidence.
+- Alliance Help semantic correction on 2026-07-13: ROI `(556,274)-(727,330)` and tap
+  `(641,302)` are the upper individual button labeled Help, not Help All. The immutable historical
+  journal remains unchanged; metadata records the action as `ALLIANCE_HELP_ONE` with one request
+  processed. The distinct actual `ALLIANCE_HELP_ALL` target is the lower button at
+  `(277,1188)-(523,1268)`, center `(400,1228)`. The handler now prefers the lower Help All
+  action and permits exactly one individual Help only as fallback. The actual lower action
+  `alliance-help-1783986842` passed its literal-label/geometry artifact, dispatched exactly once
+  at `(400,1228)`, and was positively reconciled from the first post frame's transient exact
+  `No help request currently` message. The immutable source journal is retained; its reconciled
+  copy has zero unresolved/nonterminal actions. No Claim or Daily Quest completion is proven;
+  M6-DQ-TRANSITION-CORPUS remains downstream.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded
