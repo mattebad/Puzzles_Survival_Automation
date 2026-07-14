@@ -1,5 +1,16 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 offline shared enhancement contract
+
+- Completed `DQ-FLOW-ENHANCE-GEAR` with shared `tasks/enhancement.py` semantics and Gear
+  ownership. Authorization requires Commander Info Gear state, equipped selected item, exact
+  current-frame Enhance target, one known available one-star material, quantity one, Auto Select
+  disabled, current day, locked profile provenance, and no overlay/reset guard.
+- Synthetic replay fixtures and five focused tests cover Gear authorization, Chip-versus-Gear
+  family ownership, Main-negative rejection, material/target safety guards, same-item positive
+  postconditions, and pure one-pulse results. Chip and Module remain dependency-gated variants;
+  no registration, scheduler eligibility, journal, task-state, lease, or gameplay state changed.
+
 ## 2026-07-14 offline Nanoweapon contract
 
 - Completed `DQ-FLOW-NANOWEAPON` as a pure `tasks/nanoweapon.py` Craft Weapon contract. It

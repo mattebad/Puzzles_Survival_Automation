@@ -1497,3 +1497,15 @@ timer transition.
 Synthetic replay tests cover recipe/resource guards, static-reference rejection, postcondition
 semantics, and pure one-pulse results. The contract remains evidence-gated, unregistered, and
 scheduler-ineligible; no runtime, journal, lease, task-state, or gameplay state changed.
+
+## Daily Quest shared enhancement offline boundary (2026-07-14)
+
+`DQ-FLOW-ENHANCE-GEAR` now has a shared `tasks/enhancement.py` contract with explicit Gear
+variant ownership. Authorization requires Commander Info and selected Gear identity, an equipped
+item, exact Enhance target, one known available one-star material, quantity one, disabled Auto
+Select, current day, and locked runtime-profile provenance. Chip and Module use the same family
+only when their selected-tab and item-kind identities match; variant mismatch fails closed.
+
+Synthetic replay tests cover family ownership, Main-negative recognition, material/target safety
+guards, same-item positive level/material/result changes, and pure one-pulse results. Gear remains
+evidence-gated, unregistered, and scheduler-ineligible; Chip and Module remain downstream.

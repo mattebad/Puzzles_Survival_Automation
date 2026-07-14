@@ -25,6 +25,7 @@ promotion. Praise completion stops before Claim.
 - Free Recruitment contract: `tasks/free_recruitment.py`.
 - Bioenhancer free-research contract: `tasks/bioenhancer.py`.
 - Nanoweapon Craft Weapon contract: `tasks/nanoweapon.py`.
+- Gear/Chip/Module shared enhancement contract: `tasks/enhancement.py` (Gear variant complete).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

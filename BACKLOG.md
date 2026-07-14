@@ -1417,11 +1417,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED` only if free policy is proven.
 
 ### DQ-FLOW-ENHANCE-GEAR
+- Status: Passed (2026-07-14; shared Gear contract and 5 focused tests).
 - Covered: `enhance_gear`; Gear variant.
 - Exclusions: Auto Select, >1-star materials, Promote/Modify/Replace/Unequip, premium.
 - Dependencies/routes: inventory → Commander Info → Gear.
 - Source/target/policy: equipped Gear, Enhance, one-star material, quantity one, exact Confirm.
-- Offline acceptance/tests: shared enhancement family contract with route-specific fixtures.
+- Offline acceptance/tests: shared enhancement family contract with route-specific fixtures;
+  `tests/test_enhancement.py`.
 - Bliss/live boundary: evidence-gated; no registration/input.
 - Transaction/postcondition/recovery: one enhancement; Gear level/material change; stop on target/material/quantity ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.

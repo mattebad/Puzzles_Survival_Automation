@@ -58,7 +58,7 @@ Headquarters attack/win as `DOCUMENTATION_ONLY` and Gather Food/Gathered Food as
 | `personal_might_praise` | personal_might_praise / one Praise | `daily_go_to_personal_might` | live validated | live validated | `praise` | DQ-FLOW-PERSONAL-MIGHT-PRAISE |
 | `enhance_chip` | enhancement / Chip | `daily_go_to_chip` | planned | evidence-gated | none | DQ-FLOW-ENHANCE-CHIP |
 | `enhance_module` | enhancement / Module | `daily_go_to_module` | planned | evidence-gated | none | DQ-FLOW-ENHANCE-MODULE |
-| `enhance_gear` | enhancement / Gear | `daily_go_to_gear` | planned | evidence-gated | none | DQ-FLOW-ENHANCE-GEAR |
+| `enhance_gear` | enhancement / Gear | `daily_go_to_gear` | offline contract | evidence-gated | none | DQ-FLOW-ENHANCE-GEAR |
 | `donate_alliance_tech` | donation / Alliance Tech | `daily_go_to_alliance_technology` | disabled | disabled | none | DQ-FLOW-DONATION |
 | `supply_depot` | supply_depot / free collection | `daily_go_to_supply_depot` | offline contract | evidence-gated | none | DQ-FLOW-SUPPLY-DEPOT |
 | `ruins_challenge` | challenges / Ruins | `daily_go_to_ruins_challenge` | disabled | disabled | none | DQ-FLOW-CHALLENGES |
