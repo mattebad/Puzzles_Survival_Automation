@@ -121,6 +121,13 @@ from .zombie_lair import (
     zombie_lair_postcondition_verified,
     zombie_lair_transaction_spec,
 )
+from .daily_zombie_lair import (
+    DailyZombieLairObservation,
+    daily_zombie_lair_authorizeable,
+    daily_zombie_lair_postcondition_verified,
+    daily_zombie_lair_replay,
+    daily_zombie_lair_transaction_spec,
+)
 from .stamina_disabled import (
     DisabledStaminaObservation,
     stamina_counter_authorizeable,
@@ -323,6 +330,11 @@ __all__ = [
     "zombie_lair_perform_one_pulse",
     "zombie_lair_postcondition_verified",
     "zombie_lair_transaction_spec",
+    "DailyZombieLairObservation",
+    "daily_zombie_lair_authorizeable",
+    "daily_zombie_lair_postcondition_verified",
+    "daily_zombie_lair_replay",
+    "daily_zombie_lair_transaction_spec",
     "DisabledStaminaObservation",
     "stamina_counter_authorizeable",
     "stamina_counter_postcondition_verified",

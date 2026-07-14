@@ -101,6 +101,11 @@ successor evidence remain gated; the objective is unregistered and scheduler-ine
 bounded Sweep/Auto Complete replay bound to `consume_ap`. Exact AP budget, delta, result, and
 Daily progress remain evidence-gated; the objective is unregistered and scheduler-ineligible.
 
+`DQ-FLOW-ZOMBIE-LAIR` uses `tasks/zombie_lair.py` plus `tasks/daily_zombie_lair.py` for one
+allowlisted Lair join/result replay bound to `defeat_zombie_lair`. Level, march, stamina, and
+defeat evidence remain gated; Hunt Zombie/Main wording stays excluded, with no registration or
+scheduler eligibility.
+
 `DQ-FLOW-RESOURCE-BOOST` uses `tasks/resource_boost_disabled.py` for resource-building identity,
 resource, duration, cost, and boost-state replay only. Boost spending remains policy-disabled; the
 objective is unregistered and scheduler-ineligible.

@@ -321,6 +321,15 @@
   Main/static/oversized-action rejection, Claim separation, and zero dispatch. The objective
   remains evidence-gated, unregistered, and scheduler-ineligible.
 
+## 2026-07-14 Daily Zombie Lair adapter
+
+- Added `tasks/daily_zombie_lair.py` to bind selected Daily `defeat_zombie_lair` to the shared
+  World/stamina and Lair contract. It requires exact allowlisted Lair identity, march slot,
+  bounded stamina, and a same-day Daily 0/1 defeat/result successor.
+- Five focused tests cover selected-row ownership, level/march/stamina guards, exact result,
+  Main/static/combat rejection, Claim separation, and zero dispatch. The objective remains
+  evidence-gated, unregistered, and scheduler-ineligible.
+
 ## 2026-07-14 offline Phase F scheduler contract
 
 - Added `tasks/scheduler.py` with deterministic serializable task state and a one-pulse candidate

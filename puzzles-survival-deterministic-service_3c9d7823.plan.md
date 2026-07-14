@@ -1573,6 +1573,10 @@ negatives, exact same-day stamina delta plus defeat/result postcondition, and pu
 The contract remains evidence-gated, unregistered, and scheduler-ineligible until fresh native Lair
 level/march/cost/result evidence and separate promotion gates pass.
 
+The selected-Daily `defeat_zombie_lair` adapter is `tasks/daily_zombie_lair.py`. It binds the exact
+Daily row to one allowlisted Lair join and requires Daily 0/1 progress without adding transport,
+registration, persistence, or scheduler eligibility.
+
 ## Daily Quest resource-building boost offline boundary (2026-07-14)
 
 `DQ-FLOW-RESOURCE-BOOST` now has pure `tasks/resource_boost_disabled.py` identity, resource,

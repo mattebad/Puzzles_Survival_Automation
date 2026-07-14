@@ -31,6 +31,7 @@ promotion. Praise completion stops before Claim.
   complete offline).
 - Daily Gear/Chip/Module row adapter: `tasks/daily_enhancement.py` (all three variants).
 - Daily Campaign AP adapter: `tasks/daily_campaign_ap.py` (bounded Sweep/Auto Complete replay).
+- Daily Zombie Lair adapter: `tasks/daily_zombie_lair.py` (allowlisted Lair/stamina/result replay).
 - Campaign AP contract: `tasks/campaign_ap.py` (Sweep and Auto Complete variants complete
   offline).
 - Shared World/stamina primitive: `tasks/world_stamina.py` (route, resource, and budget replay
