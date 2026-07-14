@@ -21,6 +21,7 @@ python3 scripts/pnsctl.py navigate --step cash-home
 python3 scripts/pnsctl.py navigate --step home-quest
 python3 scripts/pnsctl.py navigate --step quest-daily
 python3 scripts/pnsctl.py run-task --task alliance-help
+python3 scripts/pnsctl.py run-task --task praise
 python3 scripts/pnsctl.py test-focused --pattern test_task_module.py
 python3 scripts/pnsctl.py test-full
 python3 scripts/pnsctl.py validate
@@ -29,8 +30,9 @@ python3 scripts/pnsctl.py cleanup
 ```
 
 `navigate` accepts only the checked-in route names and uses the existing safe-action executor.
-`run-task` exposes the Speedup Help handler, which distinguishes lower Help All from an upper individual Help fallback. It is not a
-general remote shell or arbitrary tap endpoint.
+`run-task` exposes bounded task adapters only. `praise` first recognizes and attempts one
+task-scoped dismissal of the reset-time `Get Pts` modal through its local Close ROI, then uses
+the named Personal Might route. It is not a general remote shell or arbitrary tap endpoint.
 
 The retained mistarget is reconciled by copying the closed historical database and recording a
 terminal no-effect cancellation in the copy. The original unresolved journal remains immutable:

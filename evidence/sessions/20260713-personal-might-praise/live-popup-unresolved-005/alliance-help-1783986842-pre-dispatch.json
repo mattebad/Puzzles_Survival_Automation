@@ -1,0 +1,26 @@
+{
+  "annotated_screenshot_path": "/evidence/alliance-help-1783986842-pre-dispatch-annotated.png",
+  "center_y_gt_1150": true,
+  "center_y_lt_1275": true,
+  "current_screenshot_path": "/evidence/alliance-help-1783986842-source.png",
+  "geometry_valid": true,
+  "help_all_visible": true,
+  "identity_basis": "literal_ocr",
+  "intersects_individual_help_region": false,
+  "matched_button_bounds": [
+    277,
+    1188,
+    523,
+    1268
+  ],
+  "matched_text": "Help All",
+  "proposed_center": [
+    400,
+    1228
+  ],
+  "recognized_screen": "SPEEDUP_HELP",
+  "tap_inside_with_margin": true,
+  "target_action": "ALLIANCE_HELP_ALL",
+  "target_center_y": 1228,
+  "target_top": 1188
+}

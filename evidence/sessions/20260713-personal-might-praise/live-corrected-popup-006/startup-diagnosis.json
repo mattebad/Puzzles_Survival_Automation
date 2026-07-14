@@ -1,0 +1,97 @@
+{
+  "foreground_assumed_game": true,
+  "ocr_lines": [
+    {
+      "bounds": [
+        66,
+        14,
+        510,
+        55
+      ],
+      "text": "- \u201c= ="
+    },
+    {
+      "bounds": [
+        58,
+        461,
+        741,
+        481
+      ],
+      "text": "y v4"
+    },
+    {
+      "bounds": [
+        147,
+        501,
+        690,
+        544
+      ],
+      "text": ": x log in every day to get vip pts"
+    },
+    {
+      "bounds": [
+        151,
+        542,
+        480,
+        571
+      ],
+      "text": "wyrm,\u2019 obtaind vip pts: 180"
+    },
+    {
+      "bounds": [
+        157,
+        560,
+        208,
+        585
+      ],
+      "text": "nup"
+    },
+    {
+      "bounds": [
+        267,
+        621,
+        534,
+        646
+      ],
+      "text": "log in streak: 5 day(s)"
+    },
+    {
+      "bounds": [
+        243,
+        666,
+        557,
+        690
+      ],
+      "text": "pts to gain tomorrow: 200"
+    }
+  ],
+  "popup": {
+    "body_identity": true,
+    "body_text": "int log in every day to get vip pt yp, obtaind vip pts: 180 up log in streak: 5 day(s) pts to gain tomorrow: 200",
+    "close_region": [
+      260,
+      750,
+      540,
+      870
+    ],
+    "geometry_valid": true,
+    "literal_close": true,
+    "matched_close_text": "close",
+    "panel_present": true,
+    "popup_identity": "VIP_POINTS_GET_PTS",
+    "recognized": true,
+    "target": [
+      277,
+      767,
+      523,
+      847
+    ],
+    "target_center": [
+      400,
+      807
+    ],
+    "target_identity": "reset-popup-close",
+    "title_identity": true,
+    "title_text": "get pts"
+  }
+}

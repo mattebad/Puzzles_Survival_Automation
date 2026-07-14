@@ -29,7 +29,7 @@ runtime alias can match a catalog row but cannot change its policy or consequenc
 | speedup_using_items | speedup_item | disabled | CATALOGED | not started | 19 |
 | bioenhancer_research | bioenhancer | one free daily only | CATALOGED | not started | 5 |
 | craft_nanoweapon | nanoweapon | free-only pending proof | CATALOGED | not started | 10 |
-| personal_might_praise | praise | cooldown bounded | CATALOGED | not started | 4 |
+| personal_might_praise | praise | cooldown bounded | OFFLINE_TESTED | popup dismissed live; Praise not started | 4 |
 | enhance_chip | enhancement | one-star material only | CATALOGED | not started | 8 |
 | enhance_module | enhancement | one-star material only | CATALOGED | not started | 9 |
 | enhance_gear | enhancement | one-star material only | CATALOGED | not started | 7 |

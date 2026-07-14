@@ -1,0 +1,38 @@
+{
+  "action_class": "navigation_only",
+  "annotated_screenshot": "/evidence/reset-popup-pre-dispatch-annotated.png",
+  "game_day_id": "daily-2026-07-13",
+  "proposed_tap": [
+    320,
+    650
+  ],
+  "recognized_popup": {
+    "body_text": "we eee 4 oo \u2014\u2014\u2014\u2014\u2014e uo io $j ane log in every day to get vip pts 1p,\u2019 obtaind vip pts: 180 vp log in streak: 5 day(s) pts to gain tomorrow: 200",
+    "close_ocr": null,
+    "close_region": [
+      200,
+      590,
+      440,
+      710
+    ],
+    "close_text": "",
+    "close_visual_score": 19.089964102564103,
+    "popup_words": true,
+    "recognized": true,
+    "target": [
+      200,
+      590,
+      440,
+      710
+    ],
+    "target_identity": "reset-popup-close"
+  },
+  "source_screenshot": "/evidence/reset-popup-source-002.png",
+  "target_bounds": [
+    200,
+    590,
+    440,
+    710
+  ],
+  "target_identity": "reset-popup-close"
+}

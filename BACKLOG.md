@@ -429,6 +429,22 @@ Claim example.
   `No help request currently` message. The immutable source journal is retained; its reconciled
   copy has zero unresolved/nonterminal actions. No Claim or Daily Quest completion is proven;
   M6-DQ-TRANSITION-CORPUS remains downstream.
+- Personal Might Praise implementation attempt on 2026-07-13: catalog alias matching,
+  `PRAISE_PERSONAL_MIGHT` zero-cost transaction, seven named route steps, selected Daily Quest
+  Claim contracts, and reset-time popup route are offline-tested. Fresh evidence recognized the
+  `Get Pts` popup. Review found prior ROI `(200,590)-(440,710)` and tap `(320,650)` above the
+  actual Close button, over streak text. Correct binding is ROI `(260,750)-(540,870)`, OCR
+  `Close` bounds `(363,795)-(436,817)`, center `(400,810)`. The one prior navigation-only tap
+  was reconciled as proven no-effect in
+  `evidence/sessions/20260713-personal-might-praise/live-popup-unresolved-005/`. No Praise,
+  Claim, or unrelated gameplay input occurred. Do not rerun without new authorization. MVP
+  remains Blocked.
+- Corrected popup validation on 2026-07-13 detected bounds `(277,767)-(523,847)` and dispatched
+  exactly one interior tap at `(400,807)` after the full-frame pre-dispatch artifact passed.
+  Direct operator observation confirmed the popup disappeared. Executor did not classify the
+  resulting startup surface, so retained action `reset-popup-close-1783994269-2` still records
+  unresolved pending manual reconciliation. No second popup tap occurred. Evidence is retained
+  in `evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/`.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded

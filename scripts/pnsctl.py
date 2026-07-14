@@ -254,15 +254,28 @@ def navigate(cfg: OperatorConfig, step: str) -> str:
 
 
 def run_task(cfg: OperatorConfig, task: str) -> str:
-    if task != "alliance-help":
-        raise OperatorError("only the checked-in alliance-help task is enabled by this interface")
     stamp = str(int(time.time()))
-    command = (
-        f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 {quote(cfg.container)} python3 scripts/alliance_help_live.py "
-        f"--adb /opt/adb --serial {quote(cfg.serial)} --database /evidence/actions-help-all-semantic-fix.sqlite3 "
-        f"--evidence /evidence --result /evidence/alliance-help-semantic-fix-result.json --owner pnsctl-{stamp} "
-        f"--action-id alliance-help-{stamp} --action-key alliance-help-{stamp}"
-    )
+    if task == "alliance-help":
+        command = (
+            f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 {quote(cfg.container)} python3 scripts/alliance_help_live.py "
+            f"--adb /opt/adb --serial {quote(cfg.serial)} --database /evidence/actions-help-all-semantic-fix.sqlite3 "
+            f"--evidence /evidence --result /evidence/alliance-help-semantic-fix-result.json --owner pnsctl-{stamp} "
+            f"--action-id alliance-help-{stamp} --action-key alliance-help-{stamp}"
+        )
+    elif task in {"vip-popup", "praise"}:
+        popup_only = " --popup-only" if task == "vip-popup" else ""
+        command = (
+            f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 {quote(cfg.container)} python3 scripts/personal_might_praise_live.py "
+            f"--adb /opt/adb --serial {quote(cfg.serial)} --database /evidence/actions-praise-{stamp}.sqlite3 "
+            f"--evidence /evidence --owner pnsctl-{stamp} --game-day daily-2026-07-13 "
+            "--daily-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png "
+            "--main-quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
+            "--home-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png "
+            "--quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png"
+            + popup_only
+        )
+    else:
+        raise OperatorError("only the checked-in alliance-help, vip-popup, and praise tasks are enabled by this interface")
     return run_remote(cfg, command)
 
 
@@ -344,7 +357,7 @@ def parser() -> argparse.ArgumentParser:
     sub.choices["capture"].add_argument("--name", default="current")
     sub.choices["observe"].add_argument("--name", default="observe")
     sub.choices["navigate"].add_argument("--step", required=True, choices=tuple(NAVIGATION_STEPS))
-    sub.choices["run-task"].add_argument("--task", required=True, choices=("alliance-help",))
+    sub.choices["run-task"].add_argument("--task", required=True, choices=("alliance-help", "vip-popup", "praise"))
     sub.choices["test-focused"].add_argument("--pattern", default="test_task_module.py")
     sub.choices["preserve-evidence"].add_argument("--destination", type=Path, required=True)
     rec = sub.add_parser("reconcile")

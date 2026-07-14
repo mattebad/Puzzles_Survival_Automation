@@ -86,3 +86,69 @@ HELP_ALL_ACTION = AnchorSpec(
     tap_offset=(0, 0),
     asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png",
 )
+
+# Praise route anchors use bounded local ROIs and constrained OCR.  Template references bind
+# these controls to the locked Bliss profile; the live adapter still requires fresh semantic
+# recognition before every input.
+HOME_MORE = AnchorSpec(
+    "home-more-navigation", (680, 1130, 800, 1280), 0.90,
+    template=f"{M6_ASSET_ROOT}/home-base-settled.png#more-navigation-roi",
+    ocr_rule="More",
+    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+)
+RANKINGS_ENTRY = AnchorSpec(
+    "rankings-entry", (0, 180, 800, 700), 0.90,
+    template=f"{M6_ASSET_ROOT}/home-base-settled.png#rankings-entry-roi",
+    ocr_rule="Rankings",
+    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+)
+PERSONAL_MIGHT_ROW = AnchorSpec(
+    "personal-might-rank-row", (0, 180, 800, 1000), 0.92,
+    template=f"{M6_ASSET_ROOT}/home-base-settled.png#personal-might-row-roi",
+    ocr_rule="Personal Might Rank",
+    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+)
+PERSONAL_MIGHT_CHECK = AnchorSpec(
+    "personal-might-rank-check", (560, 180, 800, 1000), 0.92,
+    template=f"{M6_ASSET_ROOT}/home-base-settled.png#personal-might-check-roi",
+    ocr_rule="Check",
+    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+)
+PERSONAL_MIGHT_LEADERBOARD = AnchorSpec(
+    "personal-might-leaderboard", (0, 0, 800, 500), 0.92,
+    template=f"{M6_ASSET_ROOT}/home-base-settled.png#personal-might-leaderboard-roi",
+    ocr_rule="Personal Might",
+    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+)
+MIGHT_PRAISE_ACTION = AnchorSpec(
+    "personal-might-praise", (560, 80, 780, 430), 0.94,
+    template=f"{M6_ASSET_ROOT}/home-base-settled.png#personal-might-praise-roi",
+    ocr_rule="Praise",
+    required_confirmation_frames=1,
+    polling_interval_seconds=0.15,
+    timeout_seconds=3.0,
+    tap_offset=(0, 0),
+    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+)
+PERSONAL_MIGHT_BACK = AnchorSpec(
+    "personal-might-back", (35, 0, 160, 90), 0.90,
+    template=f"{M6_ASSET_ROOT}/home-base-settled.png#personal-might-back-roi",
+    ocr_rule="Back",
+    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+)
+RANKINGS_BACK = AnchorSpec(
+    "rankings-back", (35, 0, 160, 90), 0.90,
+    template=f"{M6_ASSET_ROOT}/home-base-settled.png#rankings-back-roi",
+    ocr_rule="Back",
+    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+)
+RESET_POPUP_CLOSE = AnchorSpec(
+    "reset-popup-close", (260, 750, 540, 870), 0.90,
+    template=f"{M6_ASSET_ROOT}/home-base-settled.png#reset-popup-close-roi",
+    ocr_rule="Close",
+    required_confirmation_frames=1,
+    polling_interval_seconds=0.15,
+    timeout_seconds=3.0,
+    tap_offset=(0, 0),
+    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+)

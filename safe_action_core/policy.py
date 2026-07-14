@@ -21,6 +21,7 @@ ALLOWED_R1_CONSEQUENCES = frozenset(
     {
         "claim_zero_cost_reward",
         "alliance_help_zero_cost",
+        "praise_zero_cost",
         "supply_depot_free_claim",
         "navigate_zero_cost",
     }
@@ -96,7 +97,11 @@ class CentralPolicy:
         if not obs.recognized or not obs.source_state or obs.source_state == "UNKNOWN":
             return deny, "UNKNOWN_SOURCE", "source state is not positively recognized"
         if obs.overlay_state not in ("none", "none_observed"):
-            return deny, "UNKNOWN_OVERLAY", "overlay state is not an exact clear state"
+            if not (
+                req.semantic_action == "DISMISS_RESET_POPUP"
+                and obs.overlay_state == "known_reset_popup"
+            ):
+                return deny, "UNKNOWN_OVERLAY", "overlay state is not an exact clear state"
         if not obs.target_identity or not obs.target_roi:
             return deny, "SEMANTIC_TARGET_REQUIRED", "coordinate-only or unknown targets are denied"
         if len(obs.target_roi) != 4 or obs.target_roi[0] >= obs.target_roi[2] or obs.target_roi[1] >= obs.target_roi[3]:
@@ -120,6 +125,14 @@ class CentralPolicy:
                 return deny, "NAVIGATION_CONTRACT_INVALID", "navigation requires a zero-cost bounded successor"
             if obs.cost_type != "none" or obs.cost_amount != 0 or obs.quantity != 1:
                 return deny, "NAVIGATION_COST_DENIED", "navigation must be one zero-cost input"
+            if req.semantic_action == "DISMISS_RESET_POPUP":
+                if obs.source_state != "RESET_POPUP" or obs.target_identity != "reset-popup-close":
+                    return deny, "RESET_POPUP_CLOSE_REQUIRED", "only the recognized reset popup Close control is allowed"
+                if obs.expected_postcondition != "HOME_BASE":
+                    return deny, "RESET_POPUP_SUCCESSOR_REQUIRED", "reset popup dismissal must return to Home/Base"
+                x0, y0, x1, y1 = obs.target_roi
+                if x0 < 200 or y0 < 700 or x1 > 600 or y1 > 920:
+                    return deny, "RESET_POPUP_CLOSE_ROI_INVALID", "reset popup Close target is outside its bounded ROI"
             return PolicyDecision.AUTHORIZE, "AUTHORIZED_NAVIGATION_ONLY", "local source, target, overlay, and successor guards passed"
         if not obs.consequence or obs.consequence == "unknown":
             return deny, "UNKNOWN_CONSEQUENCE", "consequence must be exact and known"

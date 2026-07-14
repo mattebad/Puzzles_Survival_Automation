@@ -1,0 +1,83 @@
+{
+  "foreground_assumed_game": true,
+  "ocr_lines": [
+    {
+      "bounds": [
+        66,
+        14,
+        510,
+        55
+      ],
+      "text": "- \u201c= ="
+    },
+    {
+      "bounds": [
+        58,
+        461,
+        741,
+        481
+      ],
+      "text": "y v4"
+    },
+    {
+      "bounds": [
+        147,
+        501,
+        690,
+        544
+      ],
+      "text": ": x log in every day to get vip pts"
+    },
+    {
+      "bounds": [
+        151,
+        542,
+        480,
+        571
+      ],
+      "text": "wyrm,\u2019 obtaind vip pts: 180"
+    },
+    {
+      "bounds": [
+        157,
+        560,
+        208,
+        585
+      ],
+      "text": "nup"
+    },
+    {
+      "bounds": [
+        267,
+        621,
+        534,
+        646
+      ],
+      "text": "log in streak: 5 day(s)"
+    },
+    {
+      "bounds": [
+        243,
+        666,
+        557,
+        690
+      ],
+      "text": "pts to gain tomorrow: 200"
+    }
+  ],
+  "popup": {
+    "body_text": "we eee 4 oo \u2014\u2014\u2014\u2014\u2014e uo io $j ane log in every day to get vip pts 1p,\u2019 obtaind vip pts: 180 vp log in streak: 5 day(s) pts to gain tomorrow: 200",
+    "close_ocr": null,
+    "close_region": [
+      650,
+      0,
+      800,
+      260
+    ],
+    "cross_detected": false,
+    "popup_words": false,
+    "recognized": false,
+    "target": null,
+    "target_identity": null
+  }
+}

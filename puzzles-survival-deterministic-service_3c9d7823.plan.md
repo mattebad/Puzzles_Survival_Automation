@@ -590,6 +590,15 @@ record. The corrected live action confirmed the selected Daily Quest successor w
 retest intentionally stopped before reset/game-day or objective inspection; MVP remains Blocked and
 no transition-corpus evidence was promoted.
 
+The 2026-07-13 Personal Might boundary is offline-tested but live-blocked before the task route.
+The fresh startup frame positively identified the logged-in reset-time `Get Pts` modal. Review
+found the prior Close ROI `(200,590)-(440,710)` and proposed tap `(320,650)` above the actual
+button, over streak text. Correct binding is ROI `(260,750)-(540,870)`, OCR `Close` bounds
+`(363,795)-(436,817)`, center `(400,810)`. The one prior navigation-only action was reconciled
+as proven no-effect; no Praise, Claim, or unrelated gameplay input occurred. Do not rerun without
+new authorization. Evidence is retained in
+`evidence/sessions/20260713-personal-might-praise/live-popup-unresolved-005/`.
+
 `M6-DQ-TRANSITION-CORPUS` depends on a successful supervised trial and promotes its completed-
 unclaimed, Claim-versus-Go, prepared/pre-input, reward, claimed-row, points-before/after,
 postcondition, failure, and ambiguity evidence. M6 passes only when both the bootstrap and

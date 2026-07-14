@@ -406,12 +406,12 @@
       "route_name": "daily_go_to_personal_might",
       "consequence_class": "zero_cost_consequential",
       "policy_mode": "cooldown_bounded",
-      "implementation_status": "CATALOGED",
-      "live_validation_status": "NOT_STARTED",
+      "implementation_status": "OFFLINE_TESTED",
+      "live_validation_status": "POPUP_DISMISS_LIVE_CONFIRMED_PRAISE_PENDING",
       "progress_format": "current/1",
       "claim_support": "ordinary_row_only",
       "next_development_priority": 4,
-      "evidence_provenance": "inventory-20260713.json"
+      "evidence_provenance": "inventory-20260713.json; 20260713-personal-might-praise/live-diagnostics-003; live-popup-unresolved-005"
     },
     {
       "objective_key": "enhance_chip",

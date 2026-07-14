@@ -41,6 +41,10 @@ class OperatorCliTests(unittest.TestCase):
                 extra = ["--destination", "/tmp/pnsctl-test-evidence"]
             parsed = pnsctl.parser().parse_args([name] + extra)
             self.assertEqual(parsed.command, name)
+        self.assertEqual(
+            pnsctl.parser().parse_args(["run-task", "--task", "praise"]).task,
+            "praise",
+        )
 
     def test_worker_command_is_private_and_bounded(self):
         cfg = pnsctl.OperatorConfig()
@@ -66,6 +70,15 @@ class OperatorCliTests(unittest.TestCase):
         expected = pnsctl.quote("python3 -m unittest discover -s tests -p 'test_*.py' 2>&1")
         self.assertIn("sh -lc " + expected, command)
         self.assertEqual(command.count("python3 -m unittest discover"), 1)
+
+    def test_praise_task_uses_checked_in_adapter(self):
+        cfg = pnsctl.OperatorConfig()
+        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
+            pnsctl.run_task(cfg, "praise")
+        command = remote.call_args.args[1]
+        self.assertIn("personal_might_praise_live.py", command)
+        self.assertIn("--daily-reference", command)
+        self.assertNotIn("input tap", command)
 
 
 class HelpAllContractTests(unittest.TestCase):

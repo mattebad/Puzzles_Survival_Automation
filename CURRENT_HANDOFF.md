@@ -1,5 +1,30 @@
 # Current runtime-proof handoff
 
+## 2026-07-13 Personal Might Praise popup binding correction
+
+- The narrow `PersonalMightPraiseHandler`, named route contracts, reset-time popup dismissal
+  route, checked-in `pnsctl run-task --task praise` registration, and exact Daily Quest Claim
+  reconciliation contracts are implemented and pass focused offline validation.
+- Fresh runtime evidence positively recognized the logged-in reset popup as `Get Pts` with
+  `Log in every day to get VIP pts`. Review showed the prior ROI `(200,590)-(440,710)` and
+  tap `(320,650)` were above the actual Close button, over streak text. Correct visual binding
+  is button ROI `(260,750)-(540,870)`, OCR `Close` bounds `(363,795)-(436,817)`, proposed
+  center `(400,810)`.
+- One prior navigation-only `DISMISS_RESET_POPUP` transaction was authorized and dispatched
+  exactly once at the misbound ROI. Immediate and three post frames were identical; it was
+  reconciled as proven no-effect in
+  `evidence/sessions/20260713-personal-might-praise/live-popup-unresolved-005/`.
+- Corrected live attempt used detected button bounds `(277,767)-(523,847)` and one tap at
+  `(400,807)`. Mandatory full-frame artifact passed, including literal `Close`, title/body
+  identity, interior margin, center-y gate, and old-point negative. Dispatch succeeded and the
+  operator directly confirmed the popup disappeared. Executor failed to classify the resulting
+  startup surface, so retained action `reset-popup-close-1783994269-2` still records unresolved;
+  no second Close tap was sent.
+- Phase 1 is live-confirmed by direct observation; journal reconciliation remains required.
+  Phase 2 had not started at this handoff point. Evidence:
+  `evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/`. Task worker and
+  private task ADB were removed; VM remains running, backup intact, and no task listener remains.
+
 ## 2026-07-13 Alliance Help semantic correction
 
 - The historical `(641,302)` action targeted the upper row-level button labeled Help at

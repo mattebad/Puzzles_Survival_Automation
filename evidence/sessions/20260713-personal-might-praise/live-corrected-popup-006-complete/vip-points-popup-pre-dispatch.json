@@ -1,0 +1,60 @@
+{
+  "action_class": "navigation_only",
+  "annotated_screenshot": "/evidence/vip-points-popup-pre-dispatch-annotated.png",
+  "center_y_between_780_and_830": true,
+  "coordinate_space": "FULL_FRAME_800X1280",
+  "detected_button_bounds": [
+    277,
+    767,
+    523,
+    847
+  ],
+  "full_frame_dimensions": {
+    "height": 1280,
+    "width": 800
+  },
+  "game_day_id": "daily-2026-07-13",
+  "matched_close_text": "close",
+  "no_overlap_with_streak_or_points_text": true,
+  "old_coordinate_320_650_outside_button": true,
+  "passed": true,
+  "popup_identity": "VIP_POINTS_GET_PTS",
+  "proposed_tap": [
+    400,
+    807
+  ],
+  "recognized_popup": {
+    "body_identity": true,
+    "body_text": "int log in every day to get vip pt yp, obtaind vip pts: 180 up log in streak: 5 day(s) pts to gain tomorrow: 200",
+    "close_region": [
+      260,
+      750,
+      540,
+      870
+    ],
+    "geometry_valid": true,
+    "literal_close": true,
+    "matched_close_text": "close",
+    "panel_present": true,
+    "popup_identity": "VIP_POINTS_GET_PTS",
+    "recognized": true,
+    "target": [
+      277,
+      767,
+      523,
+      847
+    ],
+    "target_center": [
+      400,
+      807
+    ],
+    "target_identity": "reset-popup-close",
+    "title_identity": true,
+    "title_text": "get pts"
+  },
+  "source_screenshot": "/evidence/reset-popup-source-002.png",
+  "tap_inside_button_with_margin": true,
+  "target_action": "DISMISS_VIP_POINTS_POPUP",
+  "target_center_y": 807,
+  "target_control": "Close"
+}

@@ -1,0 +1,19 @@
+{
+  "detail": {
+    "home_recognized": false,
+    "more_template_score": 0.832335,
+    "recognized": false,
+    "target": {
+      "bounds": [
+        680,
+        1130,
+        800,
+        1280
+      ]
+    },
+    "target_id": "home-more-navigation"
+  },
+  "expected_state": "MORE",
+  "source_state": "HOME_BASE",
+  "target_id": null
+}
