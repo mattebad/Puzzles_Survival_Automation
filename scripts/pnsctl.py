@@ -255,7 +255,7 @@ def navigate(cfg: OperatorConfig, step: str) -> str:
         "--quest-reference", "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
         "--daily-reference", "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png",
         "--main-quest-reference", "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
-        "execute", "--database", "/evidence/actions.sqlite3", "--evidence", "/evidence",
+        "execute", "--database", f"/evidence/actions-nav-{step}-{stamp}.sqlite3", "--evidence", "/evidence",
         "--owner", "pnsctl-" + stamp, "--action-id", "nav-" + step + "-" + stamp,
         "--action-key", "nav-" + step + "-" + stamp, "--source-mode", source_mode,
         "--expected-mode", expected_mode, "--expected-state", expected_state, "--target", target,

@@ -87,6 +87,8 @@ class OperatorCliTests(unittest.TestCase):
         self.assertIn("-e PYTHONPATH=/workspace", command)
         self.assertIn("-w /workspace", command)
         self.assertIn("scripts/mvp_quest_to_claim.py", command)
+        self.assertIn("/evidence/actions-nav-quest-daily-", command)
+        self.assertNotIn("--database /evidence/actions.sqlite3", command)
 
     def test_credentials_are_redacted_from_operator_output(self):
         rendered = " ".join(pnsctl.redact_argv(["plink", "-pw", "secret", "root@nas.local", "date"]))
