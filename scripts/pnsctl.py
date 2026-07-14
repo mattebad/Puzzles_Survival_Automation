@@ -268,7 +268,7 @@ NAVIGATION_STEPS = {
         (554, 870, 731, 933), "tap", None,
     ),
     "bioenhancer-daily-back": (
-        "bioenhancer", "daily", "DAILY_QUEST", "BIOENHANCER_TO_DAILY", "bioenhancer-daily-back",
+        "bioenhancer", "home", "HOME_BASE", "BIOENHANCER_TO_HOME", "bioenhancer-daily-back",
         (31, 1, 138, 55), "tap", None,
     ),
 }

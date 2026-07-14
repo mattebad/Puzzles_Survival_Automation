@@ -39,7 +39,8 @@ selected Daily source before dispatch, then requires a fresh selected-Daily succ
 Bioenhancer row; it requires a positively recognized direct Bioenhancer Research successor and
 never presses Free Research or Research 10x.
 `bioenhancer-daily-back` is the bounded navigation-only return from the exact Bioenhancer
-Research back control to the selected Daily Quest screen.
+Research back control to Home/Base; continue through `home-quest` and `quest-daily` to rebind
+selected Daily.
 `observe` records capture start/completion epochs and UTC completion time beside foreground
 identity so retained raw frames have explicit capture timing.
 `run-task` exposes bounded task adapters only. `praise` first recognizes and attempts one
