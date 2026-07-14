@@ -41,6 +41,8 @@ never presses Free Research or Research 10x.
 `bioenhancer-daily-back` is the bounded navigation-only return from the exact Bioenhancer
 Research back control to Home/Base; continue through `home-quest` and `quest-daily` to rebind
 selected Daily.
+`daily-supply-depot-go` is a bounded navigation-only tap on the current selected-Daily Supply
+Depot row; it requires a positively recognized Supply Depot successor and never collects.
 `observe` records capture start/completion epochs and UTC completion time beside foreground
 identity so retained raw frames have explicit capture timing.
 `run-task` exposes bounded task adapters only. `praise` first recognizes and attempts one

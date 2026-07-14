@@ -271,6 +271,10 @@ NAVIGATION_STEPS = {
         "bioenhancer", "home", "HOME_BASE", "BIOENHANCER_TO_HOME", "bioenhancer-daily-back",
         (31, 1, 138, 55), "tap", None,
     ),
+    "daily-supply-depot-go": (
+        "daily", "supply_depot", "SUPPLY_DEPOT", "DAILY_SUPPLY_DEPOT_GO", "daily-supply-depot-go",
+        (554, 786, 731, 878), "tap", None,
+    ),
 }
 
 

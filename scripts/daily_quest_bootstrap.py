@@ -44,6 +44,8 @@ ROIS: Dict[str, Tuple[int, int, int, int]] = {
     "daily_bottom": (0, 1080, 800, 1280),
     "bioenhancer_title": (0, 0, 800, 180),
     "bioenhancer_content": (0, 150, 800, 1120),
+    "supply_depot_title": (0, 0, 800, 180),
+    "supply_depot_content": (0, 150, 800, 1120),
 }
 
 DAILY_GO_BUTTON_BANDS: Tuple[Tuple[int, int, int, int], ...] = tuple(
@@ -263,6 +265,26 @@ def recognize_bioenhancer(frame_path: Path) -> Dict[str, Any]:
         "reason": "Bioenhancer research screen evidence passed"
         if recognized
         else "Bioenhancer research screen evidence is insufficient",
+    }
+
+
+def recognize_supply_depot(frame_path: Path) -> Dict[str, Any]:
+    """Recognize Supply Depot without authorizing collection."""
+    frame = frame_from(frame_path)
+    title = ocr(frame, ROIS["supply_depot_title"], psm=6)
+    content = ocr(frame, ROIS["supply_depot_content"], psm=6)
+    combined = f"{title} {content}"
+    recognized = ocr_has_phrase(combined, "supply", threshold=0.70) and ocr_has_phrase(
+        combined, "depot", threshold=0.70
+    )
+    return {
+        "state": "SUPPLY_DEPOT" if recognized else "UNKNOWN",
+        "recognized": recognized,
+        "title_text": title,
+        "content_text": content,
+        "reason": "Supply Depot screen evidence passed"
+        if recognized
+        else "Supply Depot screen evidence is insufficient",
     }
 
 

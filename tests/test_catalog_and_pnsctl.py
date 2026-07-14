@@ -146,6 +146,17 @@ class OperatorCliTests(unittest.TestCase):
         self.assertIn("--roi 31 1 138 55", command)
         self.assertNotIn("--input-kind swipe", command)
 
+    def test_supply_depot_go_uses_daily_source_and_exact_row_roi(self):
+        cfg = pnsctl.OperatorConfig()
+        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
+            pnsctl.navigate(cfg, "daily-supply-depot-go")
+        command = remote.call_args.args[1]
+        self.assertIn("--source-mode daily", command)
+        self.assertIn("--expected-mode supply_depot", command)
+        self.assertIn("--semantic-action DAILY_SUPPLY_DEPOT_GO", command)
+        self.assertIn("--roi 554 786 731 878", command)
+        self.assertNotIn("--input-kind swipe", command)
+
     def test_credentials_are_redacted_from_operator_output(self):
         rendered = " ".join(pnsctl.redact_argv(["plink", "-pw", "secret", "root@nas.local", "date"]))
         self.assertNotIn("secret", rendered)
