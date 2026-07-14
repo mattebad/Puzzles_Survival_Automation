@@ -453,14 +453,17 @@ profile-validator or worker-path trials without contradictory evidence.
 - Current Daily Quest identity is `tasks/daily_quest_catalog.json`; current implementation,
   evidence, promotion, registration, persistence, and scheduler status is
   `tasks/daily_quest_execution_matrix.json`.
-- Reconciliation proves 36 objective keys. `Gather Food` and `Gathered Food` are
-  `gather_food`, gathering/food, quantity 30,000. Identity provenance points to the retained
-  Daily continuation and generalized Claim fixture; quantity provenance points to the retained
-  `current/30000` observation and catalog planning source. Identity and quantity provenance are
-  stored separately.
-- Vehicle Depot is a parameterized `upgrade_building` variant. Ultimate Challenge, Hunt Zombie,
-  Own Hero, and Headquarters attack/win are distinct keys because their semantics differ from
-  Ruins Challenge, Zombie Lair, Hero Upgrade, and generic building actions.
+- Provenance audit invalidated prior 36-key claim. Catalog now contains 31 keys from the retained
+  selected-Daily inventory record and raw-frame evidence. `tasks/daily_quest_provenance_audit.json`
+  records exact wording, source paths, tab state, row-region availability, classification, and
+  missing evidence for every disputed candidate.
+- `Gather Food`/`Gathered Food` is `SYNTHETIC_ONLY`; Vehicle Depot, Ultimate Challenge, Hunt
+  Zombie, and Own Hero are `PROVEN_MAIN_OBJECTIVE`; Headquarters attack/win is
+  `DOCUMENTATION_ONLY`. None has a Daily catalog key, matrix owner, backlog owner, or prompt.
+- Admission requires raw/lossless Bliss evidence or derived inventory, positive Quest screen,
+  positive selected Daily tab, visible objective-list row, non-Main classification, and exact
+  provenance. Prose, unknown-tab OCR, GnBots definitions, and synthetic fixtures do not admit
+  objectives.
 - Proven current statuses remain: Personal Might Praise live validated; exact Personal Might
   Daily Claim live validated support; individual Help and Help All live validated; canonical Help
   route `daily_go_to_speedup_help`. Existing operator registrations remain unchanged.
@@ -472,13 +475,15 @@ profile-validator or worker-path trials without contradictory evidence.
 
 ## 2026-07-14 Daily Quest prompt and planning validation
 
-- Standalone prompts cover all 35 dependency-ordered Daily Quest backlog tasks. The index is
+- Standalone prompts cover remaining dependency-ordered Daily Quest backlog tasks. The index is
   `docs/prompts/daily-quest/index.json`; prompt authority remains the execution matrix, and
   prompts are future implementation instructions rather than runtime authorization.
-- `tests/test_daily_quest_planning.py` validates catalog-derived count/key parity, reconciliation
-  coverage, matrix fields/enums, family ownership, backlog/prompt bijection, operator registration
-  accuracy, Claim/milestone separation, Main Quest exclusion, and scheduler dormancy.
-- Planning validator passes 9/9. Focused retained offline suites pass 138/144; six evidence-hygiene
-  errors are local Windows Python 3.9 `Path.stat(follow_symlinks=...)` incompatibility or symlink
-  privilege limitations. Full discovery passes 229/237; two additional navigation errors are
-  retained-image absence/read failure. No runtime state was changed to obtain these results.
+- `tests/test_daily_quest_planning.py` validates catalog-derived count/key parity, strict
+  selected-Daily provenance admission/rejection, reconciliation coverage, matrix fields/enums,
+  family ownership, backlog/prompt bijection, operator registration accuracy, Claim/milestone
+  separation, Main Quest exclusion, and scheduler dormancy.
+- Planning validator passes 11/11; focused catalog, planning, and retained-claim suites pass.
+  Full discovery runs 240 tests with 8 known Windows/evidence-fixture errors: six evidence-hygiene
+  errors from Python 3.9 `Path.stat(follow_symlinks=...)` or symlink privilege limitations, and
+  two navigation errors from absent/unreadable retained images. No runtime state was changed to
+  obtain these results.

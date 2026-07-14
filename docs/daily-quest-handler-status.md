@@ -31,7 +31,7 @@ These contracts remain unregistered and evidence-gated where matrix says so.
 ## Evidence-gated planned flows
 
 `bioenhancer_research`, `recruit_noahs_tavern`, `supply_depot`, `craft_nanoweapon`,
-`consume_ap`, `defeat_zombie_lair`, `gather_food`, `gather_wood`, `gather_steel`, `gather_gas`,
+`consume_ap`, `defeat_zombie_lair`, `gather_wood`, `gather_steel`, `gather_gas`,
 `enhance_gear`, `enhance_chip`, and `enhance_module` require fresh Bliss-native target,
 cost/resource, and positive-postcondition evidence before promotion.
 
@@ -40,9 +40,12 @@ cost/resource, and positive-postcondition evidence before promotion.
 `upgrade_building`, `upgrade_tech`, `train_fighter`, `train_rider`, `train_shooter`,
 `train_vehicle`, `upgrade_hero`, `consume_stamina`, `buy_box`, all shop purchases,
 `boost_resource_building_output`, `donate_alliance_tech`, `speedup_using_items`,
-`ruins_challenge`, `ultimate_challenge`, `hunt_zombie`, `own_hero`,
-`attack_headquarters_and_win`, and `join_hero_duel` remain offline-only, unregistered, and
+`ruins_challenge`, and `join_hero_duel` remain offline-only, unregistered, and
 scheduler-ineligible.
+
+The provenance audit excludes Vehicle Depot, Ultimate Challenge, Hunt Zombie, and Own Hero as
+Main-only; Gather Food/Gathered Food as synthetic-only; and Headquarters attack/win as
+documentation-only. These candidates have no Daily handler owner, prompt, or matrix entry.
 
 ## Separation rules
 

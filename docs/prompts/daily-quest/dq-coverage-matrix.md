@@ -4,10 +4,11 @@ Repository authority: catalog owns reconciled Daily objective identity and evide
 matrix owns current status, policy, promotion, registration, persistence, and scheduler fields;
 `BACKLOG.md` owns task ownership. Main Quest Claim is excluded.
 
-Scope: exactly one matrix entry per catalog key, plus typed support flows for selected Daily
+Scope: exactly one matrix entry per proven catalog key, plus typed support flows for selected Daily
 inventory, generalized row Claim, milestone Claim, persistence, one-pulse scheduler, and runtime
-gate. Include all variants: food/wood/steel/gas gathering, training types, shops, challenges,
-Zombie, Hero, Headquarters, and Vehicle Depot wording.
+gate. Include only admitted variants: wood/steel/gas gathering, training types, shops, Ruins
+Challenge, and other rows present in the proven selected-Daily inventory. Exclude Main-only,
+documentation-only, routine-only, ambiguous, and synthetic candidates.
 
 Components: catalog loader, matrix schema, family ownership map. Route: offline cross-document
 mapping. Source recognizer: catalog key; target: matrix entry; successor: no live successor.

@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "purpose": "Conservative Daily Quest admission audit for disputed reconciliation candidates",
+  "allowed_classifications": [
+    "PROVEN_DAILY_OBJECTIVE",
+    "PROVEN_MAIN_OBJECTIVE",
+    "NON_DAILY_ROUTINE_TASK",
+    "AMBIGUOUS_TAB_PROVENANCE",
+    "DOCUMENTATION_ONLY",
+    "SYNTHETIC_ONLY"
+  ],
+  "admission_rule": {
+    "catalog_requires_all": [
+      "raw_or_lossless_bliss_evidence_or_inventory_record_derived_from_it",
+      "quest_screen_positive",
+      "daily_tab_positive",
+      "objective_text_visible_in_objective_list_region",
+      "not_main_chapter_event_activity_or_generic_task_source",
+      "source_path_and_exact_provenance_recorded"
+    ],
+    "accepted_source_types": [
+      "raw_bliss_frame",
+      "lossless_bliss_frame",
+      "inventory_record_derived_from_raw_bliss_frames"
+    ],
+    "rejected_as_independent_proof": [
+      "planning_document",
+      "backlog_prose",
+      "generalized_task_specification",
+      "synthetic_fixture",
+      "gnbots_action_catalog",
+      "unclassified_ocr_capture",
+      "unknown_selected_tab"
+    ]
+  },
+  "proven_daily_inventory": {
+    "classification": "PROVEN_DAILY_OBJECTIVE",
+    "inventory_path": "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/inventory-20260713.json",
+    "source_type": "inventory_record_derived_from_raw_bliss_frames",
+    "quest_screen_positive": true,
+    "daily_tab_positive": true,
+    "selected_tab_record": "daily_selected_positive=true",
+    "objective_list_region": [0, 400, 800, 1120],
+    "row_bounds": null,
+    "row_bounds_note": "Per-row bounds were not retained; exact row names and progress are retained in inventory-20260713.json.",
+    "raw_frame_paths": [
+      "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-20260713-001-source.png",
+      "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-20260713-002-source.png",
+      "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-20260713-003-source.png",
+      "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-20260713-005-source.png",
+      "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-up-20260713-004-source.png"
+    ],
+    "recognizer_records": [
+      "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-inventory-004.json",
+      "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-inventory-005.json"
+    ],
+    "main_negative": true,
+    "non_main_classification": "NON_MAIN"
+  },
+  "records": [
+    {
+      "candidate_key": "gather_food",
+      "exact_wording": ["Gather Food", "Gathered Food"],
+      "evidence_paths": [
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md",
+        "tests/fixtures/phase_e_daily_claim_observations.json",
+        "autonomous_iteration_prompt.md"
+      ],
+      "source_type": ["documentation_only", "synthetic_fixture", "planning_document"],
+      "raw_or_inventory_source": [],
+      "selected_tab_recognizer": {
+        "path": null,
+        "state": "UNKNOWN",
+        "daily_selected": null
+      },
+      "objective_list_region": null,
+      "row_bounds": {
+        "independent": null,
+        "synthetic_fixture": [40, 300, 760, 420]
+      },
+      "proves": "The retained prose reports Gathered Food, but no raw frame or inventory row independently proves selected Daily. Fixture records are synthetic.",
+      "classification": "SYNTHETIC_ONLY",
+      "catalog_admitted": false,
+      "missing_evidence": [
+        "raw or lossless Bliss frame showing exact Food wording",
+        "positive selected Daily tab recognizer on same frame",
+        "objective-list row region and exact progress"
+      ]
+    },
+    {
+      "candidate_key": "upgrade_building.vehicle_depot",
+      "exact_wording": ["Recom'd Upgrade Vehicle Depot to Lv.23", "Upgrade Vehicle Depot to Lv.23"],
+      "evidence_paths": [
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.png",
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.json",
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md"
+      ],
+      "source_type": ["raw_bliss_frame", "unclassified_ocr_capture", "documentation_only"],
+      "raw_or_inventory_source": "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.png",
+      "selected_tab_recognizer": {
+        "path": "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.json",
+        "state": "MAIN_QUEST",
+        "daily_selected": false,
+        "recorded_json_state": "UNKNOWN",
+        "raw_frame_visual_state": "Main Quest selected"
+      },
+      "objective_list_region": [32, 110, 604, 1120],
+      "row_bounds": null,
+      "proves": "Main Quest Rec om'd/building row; not selected Daily.",
+      "classification": "PROVEN_MAIN_OBJECTIVE",
+      "catalog_admitted": false,
+      "missing_evidence": ["selected Daily frame with exact Vehicle Depot row if Daily status is needed"]
+    },
+    {
+      "candidate_key": "ultimate_challenge",
+      "exact_wording": ["Clear Ultimate Challenge Stage 110"],
+      "evidence_paths": [
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.png",
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.json",
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md",
+        "autonomous_iteration_prompt.md"
+      ],
+      "source_type": ["raw_bliss_frame", "unclassified_ocr_capture", "documentation_only", "planning_document"],
+      "raw_or_inventory_source": "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.png",
+      "selected_tab_recognizer": {
+        "path": "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.json",
+        "state": "MAIN_QUEST",
+        "daily_selected": false,
+        "recorded_json_state": "UNKNOWN",
+        "raw_frame_visual_state": "Main Quest selected"
+      },
+      "objective_list_region": [32, 110, 604, 1120],
+      "row_bounds": null,
+      "proves": "Main Quest Battle row; not selected Daily.",
+      "classification": "PROVEN_MAIN_OBJECTIVE",
+      "catalog_admitted": false,
+      "missing_evidence": ["selected Daily frame with exact Ultimate wording if Daily status is needed"]
+    },
+    {
+      "candidate_key": "hunt_zombie",
+      "exact_wording": ["Hunt Lv.5 Zombie x3"],
+      "evidence_paths": [
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.png",
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.json",
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md"
+      ],
+      "source_type": ["raw_bliss_frame", "unclassified_ocr_capture", "documentation_only"],
+      "raw_or_inventory_source": "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.png",
+      "selected_tab_recognizer": {
+        "path": "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.json",
+        "state": "MAIN_QUEST",
+        "daily_selected": false,
+        "recorded_json_state": "UNKNOWN",
+        "raw_frame_visual_state": "Main Quest selected"
+      },
+      "objective_list_region": [32, 110, 604, 1120],
+      "row_bounds": null,
+      "proves": "Main Quest Hunting row; does not prove a Daily row distinct from Defeat Zombie Lair.",
+      "classification": "PROVEN_MAIN_OBJECTIVE",
+      "catalog_admitted": false,
+      "missing_evidence": ["selected Daily frame with exact Hunt wording and progress"]
+    },
+    {
+      "candidate_key": "own_hero",
+      "exact_wording": ["Own Lv.211 hero x3"],
+      "evidence_paths": [
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.png",
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.json",
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md"
+      ],
+      "source_type": ["raw_bliss_frame", "unclassified_ocr_capture", "documentation_only"],
+      "raw_or_inventory_source": "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.png",
+      "selected_tab_recognizer": {
+        "path": "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.json",
+        "state": "MAIN_QUEST",
+        "daily_selected": false,
+        "recorded_json_state": "UNKNOWN",
+        "raw_frame_visual_state": "Main Quest selected"
+      },
+      "objective_list_region": [32, 110, 604, 1120],
+      "row_bounds": null,
+      "proves": "Main Quest Growth row; not selected Daily.",
+      "classification": "PROVEN_MAIN_OBJECTIVE",
+      "catalog_admitted": false,
+      "missing_evidence": ["selected Daily frame with exact Own Hero wording if Daily status is needed"]
+    },
+    {
+      "candidate_key": "attack_headquarters_and_win",
+      "exact_wording": ["Attack a player's Headquarters and win"],
+      "evidence_paths": [
+        "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md"
+      ],
+      "source_type": ["documentation_only"],
+      "raw_or_inventory_source": [],
+      "selected_tab_recognizer": {
+        "path": null,
+        "state": "UNKNOWN",
+        "daily_selected": null
+      },
+      "objective_list_region": null,
+      "row_bounds": null,
+      "proves": "Only retained report prose; no raw frame or inventory row is available for independent admission.",
+      "classification": "DOCUMENTATION_ONLY",
+      "catalog_admitted": false,
+      "missing_evidence": [
+        "raw or lossless Bliss frame showing exact Headquarters wording",
+        "positive selected Daily tab recognizer on same frame",
+        "objective-list row region and progress"
+      ]
+    }
+  ]
+}

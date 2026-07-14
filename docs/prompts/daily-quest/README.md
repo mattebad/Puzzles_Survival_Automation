@@ -15,6 +15,9 @@ Repository authority:
 Every prompt preserves these boundaries:
 
 - Daily Quest only; Main Quest Claim excluded.
+- Catalog admission requires raw/lossless Bliss evidence or derived inventory, positive Quest and
+  selected Daily state, visible objective-list row, non-Main classification, and exact provenance.
+  Prose, OCR with unknown tab, GnBots definitions, and synthetic fixtures cannot admit objectives.
 - Objective execution never implies ordinary row Claim or milestone Claim.
 - Current-frame source/target/successor binding required for consequential work.
 - GnBots coordinates and calibration are research provenance, never authorization.

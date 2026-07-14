@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 import unittest
 from unittest.mock import patch
 
 from scripts import pnsctl
-from tasks.catalog import catalog_summary, load_catalog, objective_for_text
+from tasks.catalog import CATALOG_PATH, catalog_summary, load_catalog, objective_for_text
 from tasks.daily_quest import AllianceHelpHandler, AllianceHelpObservation
 from tasks.profile import HELP_ALL_ACTION, INDIVIDUAL_HELP_ACTION
 
@@ -15,10 +16,7 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(catalog_summary()["count"], len(catalog))
         self.assertEqual(objective_for_text("  Help   allies ").objective_key, "help_allies")
         self.assertEqual(objective_for_text("Gather Gas").progress_format, "current/1500")
-        food = objective_for_text("Gathered Food")
-        self.assertEqual(food.objective_key, "gather_food")
-        self.assertEqual(food.completion_quantity, 30000)
-        self.assertNotEqual(food.identity_provenance, food.quantity_provenance)
+        self.assertIsNone(objective_for_text("Gathered Food"))
 
     def test_disabled_consequences_are_explicit(self):
         by_key = {item.objective_key: item for item in load_catalog()}
@@ -26,6 +24,13 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(by_key["help_allies"].implementation_status, "LIVE_VALIDATED")
         self.assertEqual(by_key["buy_box"].implementation_status, "DISABLED_POLICY")
         self.assertEqual(by_key["gather_wood"].consequence_class, "spend_or_strategic")
+
+    def test_loader_rejects_row_without_selected_daily_provenance(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        raw["objectives"][0]["evidence_provenance"] = "planning-document.md"
+        with patch("tasks.catalog._load_raw", return_value=raw):
+            with self.assertRaisesRegex(ValueError, "selected-Daily provenance"):
+                load_catalog()
 
 
 class OperatorCliTests(unittest.TestCase):

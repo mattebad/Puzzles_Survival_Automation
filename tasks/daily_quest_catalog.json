@@ -1,5 +1,5 @@
 {
-  "catalog_version": 2,
+  "catalog_version": 3,
   "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
   "authority": {
     "identity": "catalog",
@@ -14,10 +14,20 @@
   },
   "source_inventories": [
     "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/inventory-20260713.json",
-    "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md",
-    "tests/fixtures/phase_e_daily_claim_observations.json",
-    "autonomous_iteration_prompt.md"
+    "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-20260713-001-source.png",
+    "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-20260713-002-source.png",
+    "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-20260713-003-source.png",
+    "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-20260713-005-source.png",
+    "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/daily-scroll-up-20260713-004-source.png"
   ],
+  "provenance_audit_path": "tasks/daily_quest_provenance_audit.json",
+  "admission_rule": {
+    "requires_selected_daily_provenance": true,
+    "requires_accepted_evidence_source": true,
+    "requires_objective_list_region": true,
+    "requires_non_main_classification": true,
+    "document_prose_or_synthetic_fixture_is_not_proof": true
+  },
   "reconciliation_records": [
     {"observed_name": "Upgrade building", "classification": "exact_existing_key", "objective_key": "upgrade_building", "source_refs": ["inventory-20260713.json"]},
     {"observed_name": "Join Hero Duel", "classification": "exact_existing_key", "objective_key": "join_hero_duel", "source_refs": ["inventory-20260713.json"]},
@@ -49,17 +59,18 @@
     {"observed_name": "Donate for alliance tech", "classification": "exact_existing_key", "objective_key": "donate_alliance_tech", "source_refs": ["inventory-20260713.json"]},
     {"observed_name": "Get supplies at Supply Depot", "classification": "exact_existing_key", "objective_key": "supply_depot", "source_refs": ["inventory-20260713.json"]},
     {"observed_name": "Enter Ruins Challenge", "classification": "exact_existing_key", "objective_key": "ruins_challenge", "source_refs": ["inventory-20260713.json"]},
-    {"observed_name": "Gather Gas", "classification": "exact_existing_key", "objective_key": "gather_gas", "source_refs": ["inventory-20260713.json"]},
-    {"observed_name": "Recom'd Upgrade Vehicle Depot to Lv.23", "classification": "parameterized_variant", "objective_key": "upgrade_building", "variant": "vehicle_depot", "source_refs": ["live-continuation-20260713.md"]},
-    {"observed_name": "Clear Ultimate Challenge Stage 110", "classification": "new_canonical_objective", "objective_key": "ultimate_challenge", "source_refs": ["live-continuation-20260713.md"]},
-    {"observed_name": "Hunt Lv.5 Zombie x3", "classification": "new_canonical_objective", "objective_key": "hunt_zombie", "source_refs": ["live-continuation-20260713.md"]},
-    {"observed_name": "Own Lv.211 hero x3", "classification": "new_canonical_objective", "objective_key": "own_hero", "source_refs": ["live-continuation-20260713.md"]},
-    {"observed_name": "Gathered Food", "classification": "new_canonical_objective", "objective_key": "gather_food", "source_refs": ["live-continuation-20260713.md", "tests/fixtures/phase_e_daily_claim_observations.json"]},
-    {"observed_name": "Gather Food", "classification": "alias", "objective_key": "gather_food", "source_refs": ["tests/fixtures/phase_e_daily_claim_observations.json", "autonomous_iteration_prompt.md"]},
-    {"observed_name": "Attack a player's Headquarters and win", "classification": "new_canonical_objective", "objective_key": "attack_headquarters_and_win", "source_refs": ["live-continuation-20260713.md"]}
+    {"observed_name": "Gather Gas", "classification": "exact_existing_key", "objective_key": "gather_gas", "source_refs": ["inventory-20260713.json"]}
+  ],
+  "excluded_reconciliation_records": [
+    {"candidate_key": "gather_food", "observed_names": ["Gather Food", "Gathered Food"], "classification": "SYNTHETIC_ONLY", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[gather_food]"]},
+    {"candidate_key": "upgrade_building.vehicle_depot", "observed_names": ["Recom'd Upgrade Vehicle Depot to Lv.23", "Upgrade Vehicle Depot to Lv.23"], "classification": "PROVEN_MAIN_OBJECTIVE", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[upgrade_building.vehicle_depot]"]},
+    {"candidate_key": "ultimate_challenge", "observed_names": ["Clear Ultimate Challenge Stage 110"], "classification": "PROVEN_MAIN_OBJECTIVE", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[ultimate_challenge]"]},
+    {"candidate_key": "hunt_zombie", "observed_names": ["Hunt Lv.5 Zombie x3"], "classification": "PROVEN_MAIN_OBJECTIVE", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[hunt_zombie]"]},
+    {"candidate_key": "own_hero", "observed_names": ["Own Lv.211 hero x3"], "classification": "PROVEN_MAIN_OBJECTIVE", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[own_hero]"]},
+    {"candidate_key": "attack_headquarters_and_win", "observed_names": ["Attack a player's Headquarters and win"], "classification": "DOCUMENTATION_ONLY", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[attack_headquarters_and_win]"]}
   ],
   "observation_metadata": {
-    "upgrade_building": {"observed_variant": "generic", "completion_quantity": 1, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
+    "upgrade_building": {"observed_variant": "generic", "completion_quantity": 1, "identity_provenance": ["inventory-20260713.json#rows[name=Upgrade building]"], "quantity_provenance": ["inventory-20260713.json#rows[name=Upgrade building]"]},
     "join_hero_duel": {"observed_variant": "hero_duel", "completion_quantity": 3, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
     "upgrade_tech": {"observed_variant": "generic", "completion_quantity": 1, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
     "train_fighter": {"observed_variant": "fighter", "completion_quantity": 250, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
@@ -73,7 +84,6 @@
     "consume_ap": {"observed_variant": "ap", "completion_quantity": 20, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
     "help_allies": {"observed_variant": "help_all", "completion_quantity": 10, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
     "buy_box": {"observed_variant": "box", "completion_quantity": 1, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
-    "gather_food": {"observed_variant": "food", "completion_quantity": 30000, "identity_provenance": ["evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md#Gathered Food", "tests/fixtures/phase_e_daily_claim_observations.json#Gather Food"], "quantity_provenance": ["autonomous_iteration_prompt.md#Gather Food x30000", "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md#Gathered Food"]},
     "gather_wood": {"observed_variant": "wood", "completion_quantity": 30000, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
     "gather_steel": {"observed_variant": "steel", "completion_quantity": 6000, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
     "gather_gas": {"observed_variant": "gas", "completion_quantity": 1500, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
@@ -90,19 +100,13 @@
     "enhance_gear": {"observed_variant": "gear", "completion_quantity": 1, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
     "donate_alliance_tech": {"observed_variant": "alliance_tech", "completion_quantity": 10, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
     "supply_depot": {"observed_variant": "free_collection", "completion_quantity": 5, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
-    "ruins_challenge": {"observed_variant": "ruins", "completion_quantity": 1, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},
-    "ultimate_challenge": {"observed_variant": "ultimate", "completion_quantity": 1, "identity_provenance": ["live-continuation-20260713.md#Ultimate Challenge", "autonomous_iteration_prompt.md#Ultimate Challenge"], "quantity_provenance": ["live-continuation-20260713.md#Ultimate Challenge"]},
-    "hunt_zombie": {"observed_variant": "level_5", "completion_quantity": 3, "identity_provenance": ["live-continuation-20260713.md#Hunt Zombie"], "quantity_provenance": ["live-continuation-20260713.md#Hunt Zombie"]},
-    "own_hero": {"observed_variant": "level_211", "completion_quantity": 3, "identity_provenance": ["live-continuation-20260713.md#Own Hero"], "quantity_provenance": ["live-continuation-20260713.md#Own Hero"]},
-    "attack_headquarters_and_win": {"observed_variant": "headquarters_pvp", "completion_quantity": 3, "identity_provenance": ["live-continuation-20260713.md#Headquarters"], "quantity_provenance": ["live-continuation-20260713.md#Headquarters"]}
+    "ruins_challenge": {"observed_variant": "ruins", "completion_quantity": 1, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]}
   },
   "objectives": [
     {
       "objective_key": "upgrade_building",
       "aliases": [
-        "Upgrade building",
-        "Recom'd Upgrade Vehicle Depot to Lv.23",
-        "Vehicle Depot upgrade"
+        "Upgrade building"
       ],
       "handler_family": "building_upgrade",
       "route_name": "daily_go_to_building",
@@ -607,93 +611,6 @@
       "claim_support": "ordinary_row_only",
       "next_development_priority": 18,
       "evidence_provenance": "inventory-20260713.json"
-    },
-    {
-      "objective_key": "ultimate_challenge",
-      "aliases": [
-        "Ultimate Challenge",
-        "Join Ultimate Challenge 1x",
-        "Clear Ultimate Challenge Stage 110"
-      ],
-      "handler_family": "challenge",
-      "route_name": "daily_go_to_campaign_challenge",
-      "consequence_class": "spend_or_strategic",
-      "policy_mode": "disabled",
-      "implementation_status": "CATALOGED",
-      "live_validation_status": "NOT_STARTED",
-      "progress_format": "current/1",
-      "claim_support": "ordinary_row_only",
-      "next_development_priority": 34,
-      "evidence_provenance": "live-continuation-20260713.md; autonomous_iteration_prompt.md"
-    },
-    {
-      "objective_key": "hunt_zombie",
-      "aliases": [
-        "Hunt Zombie",
-        "Hunt Lv.5 Zombie x3"
-      ],
-      "handler_family": "zombie_hunt",
-      "route_name": "daily_go_to_world_zombie_hunt",
-      "consequence_class": "spend_or_strategic",
-      "policy_mode": "stamina_and_level_policy_required",
-      "implementation_status": "CATALOGED",
-      "live_validation_status": "NOT_STARTED",
-      "progress_format": "current/3",
-      "claim_support": "ordinary_row_only",
-      "next_development_priority": 35,
-      "evidence_provenance": "live-continuation-20260713.md"
-    },
-    {
-      "objective_key": "own_hero",
-      "aliases": [
-        "Own Hero",
-        "Own Lv.211 Hero",
-        "Own Lv.211 hero x3"
-      ],
-      "handler_family": "hero_ownership",
-      "route_name": "daily_go_to_hero",
-      "consequence_class": "spend_or_strategic",
-      "policy_mode": "disabled",
-      "implementation_status": "DISABLED_POLICY",
-      "live_validation_status": "NOT_STARTED",
-      "progress_format": "current/3",
-      "claim_support": "ordinary_row_only",
-      "next_development_priority": 36,
-      "evidence_provenance": "live-continuation-20260713.md"
-    },
-    {
-      "objective_key": "gather_food",
-      "aliases": [
-        "Gather Food",
-        "Gathered Food"
-      ],
-      "handler_family": "gathering",
-      "route_name": "daily_go_to_world",
-      "consequence_class": "spend_or_strategic",
-      "policy_mode": "march_and_world_policy_required",
-      "implementation_status": "CATALOGED",
-      "live_validation_status": "NOT_STARTED",
-      "progress_format": "current/30000",
-      "claim_support": "ordinary_row_only",
-      "next_development_priority": 16,
-      "evidence_provenance": "live-continuation-20260713.md; tests/fixtures/phase_e_daily_claim_observations.json; autonomous_iteration_prompt.md"
-    },
-    {
-      "objective_key": "attack_headquarters_and_win",
-      "aliases": [
-        "Attack a player's Headquarters and win",
-        "Attack Headquarters and win"
-      ],
-      "handler_family": "headquarters_pvp",
-      "route_name": "daily_go_to_world_headquarters",
-      "consequence_class": "spend_or_strategic",
-      "policy_mode": "disabled",
-      "implementation_status": "DISABLED_POLICY",
-      "live_validation_status": "NOT_STARTED",
-      "progress_format": "current/3",
-      "claim_support": "ordinary_row_only",
-      "next_development_priority": 37,
-      "evidence_provenance": "live-continuation-20260713.md"
     }
   ]
 }

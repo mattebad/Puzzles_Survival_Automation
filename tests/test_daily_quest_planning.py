@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "tasks" / "daily_quest_catalog.json"
 MATRIX_PATH = ROOT / "tasks" / "daily_quest_execution_matrix.json"
+AUDIT_PATH = ROOT / "tasks" / "daily_quest_provenance_audit.json"
 PROMPT_INDEX_PATH = ROOT / "docs" / "prompts" / "daily-quest" / "index.json"
 BACKLOG_PATH = ROOT / "BACKLOG.md"
 
@@ -22,6 +23,7 @@ class DailyQuestPlanningTests(unittest.TestCase):
     def setUpClass(cls):
         cls.catalog = load_json(CATALOG_PATH)
         cls.matrix = load_json(MATRIX_PATH)
+        cls.audit = load_json(AUDIT_PATH)
         cls.prompt_index = load_json(PROMPT_INDEX_PATH)
         cls.catalog_by_key = {row["objective_key"]: row for row in cls.catalog["objectives"]}
         cls.matrix_by_key = {row["objective_key"]: row for row in cls.matrix["objectives"]}
@@ -33,28 +35,75 @@ class DailyQuestPlanningTests(unittest.TestCase):
                 flags=re.MULTILINE,
             )
         )
+        cls.inventory = load_json(
+            ROOT / cls.audit["proven_daily_inventory"]["inventory_path"]
+        )
 
     def test_catalog_reconciliation_derives_count_and_covers_every_key(self):
-        self.assertEqual(self.catalog["catalog_version"], 2)
+        self.assertEqual(self.catalog["catalog_version"], 3)
         self.assertTrue(self.catalog["authority"]["legacy_status_fields_are_non_authoritative"])
         records = self.catalog["reconciliation_records"]
         self.assertEqual(
             {record["objective_key"] for record in records},
             set(self.catalog_by_key),
         )
-        self.assertEqual(len(self.catalog_by_key), 36)
+        self.assertEqual(len(self.catalog_by_key), len(self.inventory["rows"]))
         self.assertEqual(
             self.catalog["observation_metadata"].keys(),
             self.catalog_by_key.keys(),
         )
+        self.assertTrue(self.catalog["admission_rule"]["requires_selected_daily_provenance"])
+        self.assertTrue(self.catalog["admission_rule"]["requires_objective_list_region"])
+
+    def test_catalog_admission_requires_selected_daily_provenance(self):
+        inventory_proof = self.audit["proven_daily_inventory"]
+        accepted_source_types = set(self.audit["admission_rule"]["accepted_source_types"])
+        self.assertEqual(inventory_proof["classification"], "PROVEN_DAILY_OBJECTIVE")
+        self.assertIn(inventory_proof["source_type"], accepted_source_types)
+        self.assertTrue(inventory_proof["quest_screen_positive"])
+        self.assertTrue(inventory_proof["daily_tab_positive"])
+        self.assertTrue(inventory_proof["main_negative"])
+        self.assertEqual(inventory_proof["non_main_classification"], "NON_MAIN")
+        self.assertTrue(inventory_proof["raw_frame_paths"])
+        self.assertTrue(inventory_proof["objective_list_region"])
+        for objective in self.catalog["objectives"]:
+            self.assertIn(
+                "inventory-20260713.json",
+                objective["evidence_provenance"],
+            )
+        for candidate in self.audit["records"]:
+            self.assertFalse(candidate["catalog_admitted"], candidate["candidate_key"])
+            self.assertIn(
+                candidate["classification"],
+                self.audit["allowed_classifications"],
+            )
+            self.assertTrue(candidate["missing_evidence"], candidate["candidate_key"])
+
+    def test_provenance_audit_rejects_non_daily_sources(self):
+        rejected_sources = set(self.audit["admission_rule"]["rejected_as_independent_proof"])
+        self.assertIn("synthetic_fixture", rejected_sources)
+        self.assertIn("planning_document", rejected_sources)
+        self.assertIn("unclassified_ocr_capture", rejected_sources)
+        audit_by_key = {record["candidate_key"]: record for record in self.audit["records"]}
+        self.assertEqual(audit_by_key["gather_food"]["classification"], "SYNTHETIC_ONLY")
         self.assertEqual(
-            self.catalog_by_key["gather_food"]["aliases"],
-            ["Gather Food", "Gathered Food"],
+            audit_by_key["upgrade_building.vehicle_depot"]["classification"],
+            "PROVEN_MAIN_OBJECTIVE",
         )
         self.assertEqual(
-            self.catalog["observation_metadata"]["gather_food"]["completion_quantity"],
-            30000,
+            audit_by_key["attack_headquarters_and_win"]["classification"],
+            "DOCUMENTATION_ONLY",
         )
+        self.assertFalse(any(
+            key in self.catalog_by_key
+            for key in (
+                "gather_food",
+                "ultimate_challenge",
+                "hunt_zombie",
+                "own_hero",
+                "attack_headquarters_and_win",
+            )
+        ))
 
     def test_matrix_has_one_entry_per_catalog_key_and_separate_support_flows(self):
         self.assertEqual(set(self.matrix_by_key), set(self.catalog_by_key))
@@ -63,9 +112,9 @@ class DailyQuestPlanningTests(unittest.TestCase):
         self.assertTrue(
             all(flow["flow_type"] == "support" for flow in self.matrix["support_flows"])
         )
-        self.assertTrue(
-            set(self.matrix_by_key["gather_food"]["aliases"])
-            == {"Gather Food", "Gathered Food"}
+        self.assertEqual(
+            self.matrix_by_key["upgrade_building"]["aliases"],
+            ["Upgrade building"],
         )
 
     def test_matrix_fields_and_closed_enums_are_complete(self):

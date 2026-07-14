@@ -397,14 +397,13 @@ Claim example.
   frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
   fallback is allowed.
 - Status: Blocked (2026-07-13; individual Help and actual lower Help All are live-validated, no help request was available, and the full quest-to-claim flow remains incomplete).
-- Blocker: the typed navigation continuation reached Daily Quest and inspected two bounded
-  final-runtime list views. The upper view contained Vehicle Depot upgrade, Ultimate Challenge,
-  Hunt Zombie, Train Fighter, and Own Lv.211 Hero objectives; the lower view additionally showed
-  Gathered Food and Attack a player's Headquarters and win. These are strategic, resource,
-  stamina/march, gathering, or combat actions and are outside this MVP. No ordinary Claim row,
-  Alliance Help objective, or explicitly free Supply Depot objective was observed. The local ROI
-  Daily recognizer passed, but the current frame did not expose readable `Daily Quest Pts` or
-  `Reset Time` evidence, so no current `game_day_id` was assigned. No Go or Claim input was sent.
+- Blocker: the typed continuation report named Vehicle Depot, Ultimate Challenge, Hunt Zombie,
+  Own Hero, Gathered Food, and Headquarters wording, but provenance audit found no admissible
+  selected-Daily proof for them. The retained raw frame for the first four visibly has Main Quest
+  selected; Gather Food is synthetic-only and Headquarters is documentation-only. They remain
+  outside this Daily roadmap. No ordinary Claim row, Alliance Help objective, or explicitly free
+  Supply Depot objective was observed. No current `game_day_id` was assigned. No Go or Claim input
+  was sent.
   The schema-v1 live journal has only terminal actions, zero unresolved/nonterminal records, and a
   released lease. The full combined offline suite remains 96 passing tests; RT-019 and all six M6
   assets pass. Resume only after a fresh Daily observation positively establishes reset/game-day
@@ -1246,20 +1245,27 @@ Claim; persistence remains dormant; registration must match checked-in operator 
 must be native; GnBots geometry is provenance only; tests are deterministic offline tests.
 
 ### DQ-CATALOG-RECONCILIATION
-- Covered: all 36 catalog keys; variants include Food, Vehicle Depot, Ultimate, Hunt Zombie, Own Hero, and Headquarters-win wording.
-- Exclusions: Main Quest Claim, unretained names, semantic merging of materially different actions.
+- Covered: 31 objective keys from retained selected-Daily inventory evidence.
+- Exclusions: Main Quest Claim, Main-only Vehicle Depot/Ultimate/Hunt/Own Hero rows, synthetic-only
+  Gather Food/Gathered Food, documentation-only Headquarters wording, and unretained names.
 - Dependencies/routes: retained inventories → normalized catalog; no runtime route.
-- Source/target/policy: source is every retained inventory and provenance record; target is canonical key/alias/variant; consequence and resource policy stay observational.
-- Offline acceptance/tests: unique keys, aliases, 36 evidence records, separate identity/quantity provenance, dynamic count, no literal count constant; `tests/test_catalog_and_pnsctl.py`.
+- Source/target/policy: source is only accepted raw/lossless Bliss evidence or inventory records
+  derived from it; target is canonical key/alias/variant; consequence and resource policy stay
+  observational.
+- Offline acceptance/tests: unique keys, aliases, selected-Daily provenance for every admitted key,
+  rejected-candidate classifications, dynamic count, no literal count constant;
+  `tasks/daily_quest_provenance_audit.json` and `tests/test_daily_quest_planning.py`.
 - Bliss/live boundary: read-only files only; no capture, ADB, worker, lease, journal migration, or input.
-- Transaction/postcondition/recovery: none; rejected conflicts remain explicit records.
+- Transaction/postcondition/recovery: none; rejected candidates remain non-counted reconciliation
+  records with missing-evidence requirements.
 - Claim/persistence/registration/scheduler: Claim separate; no state rows; not registered; false.
 - Promotion/unlocks: `OFFLINE_ONLY`; unlocks coverage matrix and family tasks.
 
 ### DQ-COVERAGE-MATRIX
-- Covered: one matrix owner for every catalog key plus support flows.
+- Covered: one matrix owner for every proven catalog key plus support flows.
 - Variants: reusable family sharing declared; duplicate ownership prohibited unless explicit shared family.
-- Exclusions: support flows counted as objectives, objective completion implying Claim, Main Claim.
+- Exclusions: unproven candidates counted as Daily objectives, support flows counted as objectives,
+  objective completion implying Claim, Main Claim.
 - Dependencies/routes: catalog reconciliation → matrix; route names must match catalog and handler status.
 - Source/target/policy: matrix records recognizers, consequence class, resource policy, transaction, semantic postcondition, and recovery.
 - Offline acceptance/tests: key parity, required field completeness, closed promotion/registration enums, all scheduler flags false; planning tests.
@@ -1454,13 +1460,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Covered: shared world, map, march, stamina, and tile primitives.
 - Variants: map toggle, search, occupancy, march capacity, level recognition.
 - Exclusions: vendor selector, coordinate-only taps, generic popup sweep, unknown level.
-- Dependencies/routes: inventory → World; all zombie/gathering flows depend on it.
+- Dependencies/routes: proven inventory → World; proven Zombie Lair and gathering flows depend on it.
 - Source/target/policy: Bliss-native map/node/march anchors; world/stamina policy.
 - Offline acceptance/tests: replay/mocks for map, tile, march, queue, no-march and stale-state rejection.
 - Bliss/live boundary: no fresh world evidence or live input.
 - Transaction/postcondition/recovery: primitives do not complete objectives; each action requires positive successor; stop after bounded failure.
 - Claim/persistence/registration/scheduler: no Claim; dormant; not registered; false.
-- Promotion/unlocks: `OFFLINE_ONLY`; unlocks Zombie Lair, Hunt Zombie, Stamina, Gathering.
+- Promotion/unlocks: `OFFLINE_ONLY`; unlocks Zombie Lair, Stamina, and proven Gathering.
 
 ### DQ-FLOW-ZOMBIE-LAIR
 - Covered: `defeat_zombie_lair`; Lair variant.
@@ -1485,8 +1491,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; product decision required.
 
 ### DQ-FLOW-GATHERING
-- Covered: `gather_food`, `gather_wood`, `gather_steel`, `gather_gas`.
-- Variants: Food 30000, Wood 30000, Steel 6000, Gas 1500; one parameterized engine.
+- Covered: `gather_wood`, `gather_steel`, `gather_gas`.
+- Variants: Wood 30000, Steel 6000, Gas 1500; one parameterized engine.
 - Exclusions: occupied nodes, existing march override, coordinate-only vendor geometry.
 - Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE → World Search → node → march.
 - Source/target/policy: exact resource row, resource node identity, free/known march policy.
@@ -1494,7 +1500,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Bliss/live boundary: evidence-gated; no registration/input.
 - Transaction/postcondition/recovery: one gather march; outbound/positive gather and Daily progress; stop on weak disappearance.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `EVIDENCE_GATED`; Food provenance explicitly tracked.
+- Promotion/unlocks: `EVIDENCE_GATED`; Food remains excluded pending selected-Daily proof.
 
 ### DQ-FLOW-TRAINING
 - Covered: `train_fighter`, `train_rider`, `train_shooter`, `train_vehicle`.
@@ -1509,7 +1515,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; product/tier decision required.
 
 ### DQ-FLOW-BUILDING-UPGRADE
-- Covered: `upgrade_building`; generic and Vehicle Depot parameterized variants.
+- Covered: `upgrade_building`; proven generic variant only.
 - Exclusions: automatic resource packs, unknown queue, strategic target without allowlist.
 - Dependencies/routes: inventory → named building/radial menu → Upgrade.
 - Source/target/policy: exact building identity, queue, cost, free/allowlist.
@@ -1517,7 +1523,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Bliss/live boundary: disabled; no registration/input.
 - Transaction/postcondition/recovery: one upgrade; queue/progress; stop on unexpected resource dialog.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `DISABLED_POLICY`; policy decision required.
+- Promotion/unlocks: `DISABLED_POLICY`; policy decision required. Vehicle Depot is Main-only and
+  remains outside Daily ownership.
 
 ### DQ-FLOW-TECH-UPGRADE
 - Covered: `upgrade_tech`; Research variant.
@@ -1540,17 +1547,6 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Transaction/postcondition/recovery: one upgrade; hero state changes; stop on ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; product decision required.
-
-### DQ-FLOW-HERO-OWNERSHIP
-- Covered: `own_hero`; level-211 x3 variant.
-- Exclusions: acquisition/summon, Upgrade hero substitution, any consequential input.
-- Dependencies/routes: inventory → read-only Hero roster.
-- Source/target/policy: exact hero identity/level and ownership evidence.
-- Offline acceptance/tests: read-only roster parser and identity negatives.
-- Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: no action planned; positive ownership observation only; stop on unknown.
-- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `DISABLED_POLICY`; explicit product decision required.
 
 ### DQ-FLOW-PURCHASES
 - Covered: `buy_box`, `ruins_shop_purchase`, `rare_earth_shop_purchase`, `alliance_shop_purchase`.
@@ -1589,11 +1585,11 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; allowlist decision required.
 
 ### DQ-FLOW-CHALLENGES
-- Covered: `ruins_challenge`, `ultimate_challenge`; separate Ruins and Ultimate variants.
+- Covered: `ruins_challenge`; Ultimate wording is Main-only evidence and is excluded.
 - Exclusions: treating variants as aliases, uncontrolled combat, AP/premium use.
 - Dependencies/routes: inventory → challenge-specific routes.
 - Source/target/policy: exact challenge identity, entry control, cost/AP policy.
-- Offline acceptance/tests: route/entry/result mocks and cross-variant identity tests.
+- Offline acceptance/tests: route/entry/result mocks and provenance/admission tests.
 - Bliss/live boundary: disabled; no registration/input.
 - Transaction/postcondition/recovery: one entry; positive entry/result; stop on combat/unknown.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
@@ -1620,25 +1616,3 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Transaction/postcondition/recovery: one boost; timer/state change; stop on ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; resource-building boost policy required.
-
-### DQ-FLOW-ZOMBIE-HUNT
-- Covered: `hunt_zombie`; level-5 ×3 variant.
-- Exclusions: Zombie Lair aliasing, level guesses, arbitrary combat, level 60.
-- Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE → World zombie hunt.
-- Source/target/policy: exact Hunt Zombie row, level-5 target, stamina/march policy.
-- Offline acceptance/tests: distinct Hunt-vs-Lair identity, level, march, result mocks.
-- Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: one bounded hunt; positive hunt result; stop on unknown.
-- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `DISABLED_POLICY`; explicit zombie/stamina policy required.
-
-### DQ-FLOW-HEADQUARTERS-PVP
-- Covered: `attack_headquarters_and_win`; attack-and-win ×3 variant.
-- Exclusions: any PvP input, target discovery, march/combat automation.
-- Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE only for future read-only route primitives.
-- Source/target/policy: exact Headquarters identity and PvP consequence policy.
-- Offline acceptance/tests: read-only identity and positive-win contract placeholders.
-- Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: no dispatch planned; future one attack only after explicit authorization; stop on unknown.
-- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `DISABLED_POLICY`; explicit PvP product decision required.

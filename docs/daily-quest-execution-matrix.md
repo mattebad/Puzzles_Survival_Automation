@@ -9,25 +9,29 @@ Catalog `implementation_status`, `live_validation_status`, `next_development_pri
 promotion, registration, or scheduling. Matrix `scheduler_eligibility` is `false` for every
 objective and support flow during this planning run.
 
+## Admission rule
+
+An objective enters catalog and matrix only with raw/lossless Bliss evidence or an inventory record
+derived from such frames, positive Quest recognition, positive selected-Daily recognition, visible
+objective-list text, non-Main classification, and exact source provenance. Backlog/plan prose,
+generic task specifications, GnBots actions, unknown-tab OCR, and synthetic fixtures are
+non-admitting evidence.
+
 ## Reconciled scope
 
-Catalog contains 36 objective keys. Five retained names required distinct semantic treatment:
+Catalog contains 31 objective keys, derived only from the retained selected-Daily inventory.
+Provenance audit: `tasks/daily_quest_provenance_audit.json`.
 
-- `Recom'd Upgrade Vehicle Depot to Lv.23` is a parameterized Vehicle Depot variant of
-  `upgrade_building`.
-- `Clear Ultimate Challenge Stage 110` is `ultimate_challenge`, distinct from Ruins Challenge.
-- `Hunt Lv.5 Zombie x3` is `hunt_zombie`, distinct from Defeat Zombie Lair.
-- `Own Lv.211 hero x3` is `own_hero`, distinct from Upgrade hero.
-- `Attack a player's Headquarters and win` is `attack_headquarters_and_win`.
-
-`Gather Food` and `Gathered Food` reconcile to `gather_food`, gathering/food, target 30,000, with
-identity provenance and quantity provenance recorded separately.
+The audit excludes Vehicle Depot, Ultimate Challenge, Hunt Zombie, and Own Hero as
+`PROVEN_MAIN_OBJECTIVE`; their retained raw frame shows Main Quest selected. It excludes
+Headquarters attack/win as `DOCUMENTATION_ONLY` and Gather Food/Gathered Food as
+`SYNTHETIC_ONLY`. None has a Daily matrix owner or implementation prompt.
 
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |
 |---|---|---|---|---|---|---|
-| `upgrade_building` | building_upgrade / generic, Vehicle Depot | `daily_go_to_building` | disabled | disabled | none | DQ-FLOW-BUILDING-UPGRADE |
+| `upgrade_building` | building_upgrade / generic | `daily_go_to_building` | disabled | disabled | none | DQ-FLOW-BUILDING-UPGRADE |
 | `join_hero_duel` | hero_duel / join | `daily_go_to_hero_duel` | disabled | disabled | none | DQ-FLOW-HERO-DUEL |
 | `upgrade_tech` | tech_upgrade / research | `daily_go_to_tech` | disabled | disabled | none | DQ-FLOW-TECH-UPGRADE |
 | `train_fighter` | training / Fighter | `daily_go_to_training` | disabled | disabled | none | DQ-FLOW-TRAINING |
@@ -41,7 +45,6 @@ identity provenance and quantity provenance recorded separately.
 | `consume_ap` | campaign_ap / Sweep, Auto Complete | `daily_go_to_campaign` | planned | evidence-gated | none | DQ-FLOW-CAMPAIGN-AP |
 | `help_allies` | alliance_help / Help All, individual | `daily_go_to_speedup_help` | live validated | live validated | `alliance-help` | DQ-FLOW-ALLIANCE-HELP |
 | `buy_box` | purchases / box | `daily_go_to_purchase` | disabled | disabled | none | DQ-FLOW-PURCHASES |
-| `gather_food` | gathering / food, 30,000 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
 | `gather_wood` | gathering / wood, 30,000 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
 | `gather_steel` | gathering / steel, 6,000 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
 | `gather_gas` | gathering / gas, 1,500 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
@@ -59,10 +62,6 @@ identity provenance and quantity provenance recorded separately.
 | `donate_alliance_tech` | donation / Alliance Tech | `daily_go_to_alliance_technology` | disabled | disabled | none | DQ-FLOW-DONATION |
 | `supply_depot` | supply_depot / free collection | `daily_go_to_supply_depot` | offline contract | evidence-gated | none | DQ-FLOW-SUPPLY-DEPOT |
 | `ruins_challenge` | challenges / Ruins | `daily_go_to_ruins_challenge` | disabled | disabled | none | DQ-FLOW-CHALLENGES |
-| `ultimate_challenge` | challenges / Ultimate | `daily_go_to_campaign_challenge` | disabled | disabled | none | DQ-FLOW-CHALLENGES |
-| `hunt_zombie` | zombie_hunt / level 5 ×3 | `daily_go_to_world_zombie_hunt` | disabled | disabled | none | DQ-FLOW-ZOMBIE-HUNT |
-| `own_hero` | hero_ownership / level 211 ×3 | `daily_go_to_hero` | disabled | disabled | none | DQ-FLOW-HERO-OWNERSHIP |
-| `attack_headquarters_and_win` | headquarters_pvp / attack and win | `daily_go_to_world_headquarters` | disabled | disabled | none | DQ-FLOW-HEADQUARTERS-PVP |
 
 ## Support flows
 

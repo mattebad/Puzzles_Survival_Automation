@@ -13,11 +13,16 @@ All scheduler eligibility is false. Existing `pnsctl` operator registrations rem
 Alliance Help, Personal Might Praise, and exact Personal Might Daily Claim. Offline modules,
 SQLite task-state persistence, and one-pulse scheduling remain dormant infrastructure.
 
+Catalog admission is strict: raw/lossless Bliss frame or derived inventory, positive Quest screen,
+positive selected Daily tab, visible objective-list row, non-Main classification, and exact source
+path are all required. See `tasks/daily_quest_provenance_audit.json`; prose and synthetic fixtures
+cannot admit Daily objectives.
+
 ## Dependency order
 
 1. Reconcile retained names into catalog identity, aliases, parameterized variants, and explicit
    evidence conflicts.
-2. Freeze catalog/matrix authority split and cross-check all 36 objective keys.
+2. Freeze catalog/matrix authority split and cross-check all 31 proven objective keys.
 3. Validate selected Daily-tab recognition, bounded scroll inventory, row identity, current
    game-day binding, and Main-negative recognition.
 4. Keep generalized row Claim, exact Personal Might Claim, and milestone Claim independent.
@@ -66,23 +71,23 @@ SQLite task-state persistence, and one-pulse scheduling remain dormant infrastru
   recognizers. GnBots geometry remains non-authorizing.
 - Zombie Lair: level/stamina/march policy and positive participation result.
 - Consume Stamina: separate objective using shared primitives.
-- Gathering: Food, Wood, Steel, Gas variants with resource-specific target/quantity. Gather Food
-  provenance covers both `Gather Food` and `Gathered Food`.
+- Gathering: proven Wood, Steel, and Gas variants with resource-specific target/quantity. Gather
+  Food/Gathered Food remains outside scope until selected-Daily evidence qualifies it.
 - Training: Fighter, Rider, Shooter, Vehicle variants with shared queue/quantity engine.
 
 ### Disabled or strategic
 
-- Building Upgrade: generic and Vehicle Depot target variants.
+- Building Upgrade: proven generic target only. Vehicle Depot wording is Main-only evidence.
 - Tech Upgrade: Research target variant.
 - Hero Upgrade and Hero Ownership: separate semantics.
 - Purchases: Box, Ruins Shop, Rare Earth Shop, Alliance Shop variants through one allowlist engine.
 - Donation: Alliance Tech resource policy.
 - Speedups: item/timer allowlist.
-- Challenges: Ruins and Ultimate variants remain distinct.
+- Challenges: proven Ruins variant only. Ultimate wording is Main-only evidence.
 - Hero Duel: PvP entry.
 - Resource-building boost: any resource building target.
-- Zombie Hunt: level-5 ×3 distinct from Zombie Lair.
-- Headquarters PvP: attack/win remains disabled.
+- Zombie Hunt and Headquarters PvP: no Daily owner; retained candidates remain outside catalog and
+  matrix pending qualifying selected-Daily evidence.
 
 ## Family rules
 

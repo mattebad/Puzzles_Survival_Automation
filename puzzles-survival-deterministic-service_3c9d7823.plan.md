@@ -1450,13 +1450,17 @@ The active Daily Quest roadmap is represented by
 `docs/daily-quest-handler-roadmap.md`, and the DQ records appended to `BACKLOG.md`.
 `tasks/daily_quest_catalog.json` owns only reconciled identity, aliases, observed variants,
 progress/quantity, source inventories, and provenance. Its mutable status fields are legacy
-snapshots and are non-authoritative.
+snapshots and are non-authoritative. Admission requires accepted raw/lossless Bliss evidence or
+derived inventory, positive Quest and selected-Daily state, visible objective-list region,
+non-Main classification, and exact source path; prose, synthetic fixtures, and unknown-tab OCR
+cannot admit an objective.
 
-The reconciled catalog contains 36 objective keys. Gather Food/Gathered Food is
-`gather_food`, quantity 30,000, with separate identity and quantity provenance. Vehicle Depot is
-a parameterized building-upgrade variant. Ultimate Challenge, Hunt Zombie, Own Hero, and
-Headquarters attack/win are separate keys because their semantics differ from Ruins Challenge,
-Zombie Lair, Hero Upgrade, and generic building upgrade.
+The provenance-corrected catalog contains 31 objective keys, derived only from the retained
+selected-Daily inventory record and its raw-frame evidence. The prior 36-key claim was invalid.
+Gather Food/Gathered Food is excluded as `SYNTHETIC_ONLY`; Vehicle Depot, Ultimate Challenge,
+Hunt Zombie, and Own Hero are `PROVEN_MAIN_OBJECTIVE`; Headquarters attack/win is
+`DOCUMENTATION_ONLY`. Full records and missing-evidence requirements live in
+`tasks/daily_quest_provenance_audit.json`.
 
 Main Quest Claim remains outside active implementation, plan, backlog, matrix, handler-status,
 registry, scheduler, and prompt scope. Generic Daily Claim, exact Personal Might Daily Claim,

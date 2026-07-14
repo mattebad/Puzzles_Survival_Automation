@@ -3,8 +3,9 @@
 Repository authority: matrix owns shared primitive status/policy; catalog owns only objective identity;
 backlog owns task. Main Quest Claim excluded.
 
-Scope: offline shared world navigation and stamina/AP accounting primitive for Zombie Lair,
-gathering, Zombie Hunt, Headquarters, and future world flows. Reuse world route recognizers,
+Scope: offline shared world navigation and stamina/AP accounting primitive for proven Zombie Lair,
+gathering, and future world flows. Hunt Zombie and Headquarters candidates are not Daily scope.
+Reuse world route recognizers,
 resource counters, safe action core. Route: Daily row → world target. Source: current world/home
 frame and resource state; target: exact world destination; successor: stable destination/resource
 state. Bind current frame before any future consequential input.

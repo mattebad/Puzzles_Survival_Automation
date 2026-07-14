@@ -13,6 +13,7 @@ from typing import Any, Dict, Iterable, Optional
 
 
 CATALOG_PATH = Path(__file__).with_name("daily_quest_catalog.json")
+PROVENANCE_AUDIT_PATH = CATALOG_PATH.with_name("daily_quest_provenance_audit.json")
 VALID_STATES = {
     "CATALOGED",
     "ROUTE_KNOWN",
@@ -54,17 +55,75 @@ def _load_raw(path: Path = CATALOG_PATH) -> Dict[str, Any]:
 
 def load_catalog(path: Path = CATALOG_PATH) -> tuple[ObjectiveSpec, ...]:
     raw = _load_raw(path)
-    if raw.get("catalog_version") != 2:
+    if raw.get("catalog_version") != 3:
         raise ValueError("unsupported Daily Quest catalog version")
+    admission = raw.get("admission_rule")
+    if not isinstance(admission, dict) or not all(
+        admission.get(field) is True
+        for field in (
+            "requires_selected_daily_provenance",
+            "requires_accepted_evidence_source",
+            "requires_objective_list_region",
+            "requires_non_main_classification",
+        )
+    ):
+        raise ValueError("Daily Quest catalog admission rule is incomplete")
+    audit_path = path.with_name(PROVENANCE_AUDIT_PATH.name)
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    audit_admission = audit.get("admission_rule")
+    accepted_source_types = set(
+        audit_admission.get("accepted_source_types", ())
+        if isinstance(audit_admission, dict)
+        else ()
+    )
+    inventory_proof = audit.get("proven_daily_inventory", {})
+    inventory_path = inventory_proof.get("inventory_path")
+    if (
+        inventory_proof.get("classification") != "PROVEN_DAILY_OBJECTIVE"
+        or inventory_proof.get("source_type") not in accepted_source_types
+        or inventory_proof.get("quest_screen_positive") is not True
+        or inventory_proof.get("daily_tab_positive") is not True
+        or inventory_proof.get("main_negative") is not True
+        or inventory_proof.get("non_main_classification") != "NON_MAIN"
+        or not inventory_proof.get("objective_list_region")
+        or not isinstance(inventory_proof.get("raw_frame_paths"), list)
+        or not inventory_proof["raw_frame_paths"]
+        or not isinstance(inventory_path, str)
+    ):
+        raise ValueError("selected-Daily provenance proof is incomplete")
     rows = raw.get("objectives")
     metadata = raw.get("observation_metadata")
     authority = raw.get("authority")
+    source_inventories = raw.get("source_inventories")
+    reconciliation = raw.get("reconciliation_records")
     if not isinstance(rows, list) or not rows:
         raise ValueError("Daily Quest catalog must contain reconciled objectives")
-    if not isinstance(metadata, dict) or not isinstance(authority, dict):
+    if (
+        not isinstance(metadata, dict)
+        or not isinstance(authority, dict)
+        or not isinstance(source_inventories, list)
+        or inventory_path not in source_inventories
+        or not isinstance(reconciliation, list)
+    ):
         raise ValueError("catalog authority and observation metadata are required")
     if authority.get("legacy_status_fields_are_non_authoritative") is not True:
         raise ValueError("catalog legacy status marker is required")
+    inventory_file_name = Path(inventory_path).name
+    inventory_path_on_disk = path.parents[1] / inventory_path
+    try:
+        inventory = json.loads(inventory_path_on_disk.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("selected-Daily inventory provenance is unreadable") from exc
+    inventory_names = {
+        row.get("name")
+        for row in inventory.get("rows", [])
+        if isinstance(row, dict) and isinstance(row.get("name"), str)
+    }
+    reconciliation_by_key = {
+        record.get("objective_key"): record
+        for record in reconciliation
+        if isinstance(record, dict)
+    }
     result = []
     keys = set()
     for row in rows:
@@ -75,6 +134,8 @@ def load_catalog(path: Path = CATALOG_PATH) -> tuple[ObjectiveSpec, ...]:
         }
         if not required.issubset(row):
             raise ValueError("catalog row is missing required metadata")
+        if inventory_file_name not in str(row["evidence_provenance"]):
+            raise ValueError("catalog row lacks accepted selected-Daily provenance")
         if row["objective_key"] in keys:
             raise ValueError("catalog objective keys must be unique")
         if row["implementation_status"] not in VALID_STATES:
@@ -88,6 +149,25 @@ def load_catalog(path: Path = CATALOG_PATH) -> tuple[ObjectiveSpec, ...]:
             raise ValueError("catalog objective requires a positive completion quantity")
         if not row_metadata.get("identity_provenance") or not row_metadata.get("quantity_provenance"):
             raise ValueError("catalog objective requires separate identity and quantity provenance")
+        if not all(
+            inventory_file_name in str(source)
+            for source in (
+                *row_metadata["identity_provenance"],
+                *row_metadata["quantity_provenance"],
+            )
+        ):
+            raise ValueError("catalog objective provenance is not tied to selected-Daily inventory")
+        reconciliation_row = reconciliation_by_key.get(row["objective_key"])
+        if (
+            not isinstance(reconciliation_row, dict)
+            or reconciliation_row.get("classification") != "exact_existing_key"
+            or inventory_file_name not in {
+                Path(str(source)).name
+                for source in reconciliation_row.get("source_refs", ())
+            }
+            or reconciliation_row.get("observed_name") not in inventory_names
+        ):
+            raise ValueError("catalog objective lacks exact selected-Daily row provenance")
         keys.add(row["objective_key"])
         values = {key: row[key] for key in required}
         values["aliases"] = tuple(values["aliases"])
