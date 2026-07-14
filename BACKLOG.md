@@ -585,6 +585,26 @@ Claim example.
 - Next: acquire navigation-only evidence when permitted, then independently promote a real target
   and postcondition before any Main Claim handler or dispatch is enabled.
 
+### GNB-PHASE-E-DAILY-CLAIMS-OFFLINE — Generalize available Daily Claim contract
+
+- Dependencies: GNB-PHASE-D Passed; Main Claim offline contract passed; fresh generalized Daily
+  Claim evidence is not yet available.
+- Scope: ordinary Daily Quest Claim semantics independent of the Personal Might catalog alias,
+  exact row-local target containment, explicit free/cost-negative requirements, profile/provenance/
+  hash gates, positive row/points postcondition, and synthetic Go/static-reference negatives.
+  No image capture, ADB, pnsctl registration, or live input.
+- Status: Passed (2026-07-14; offline contract and 5 focused tests).
+- Evidence: `tasks/available_daily_claim.py`,
+  `tests/fixtures/phase_e_daily_claim_observations.json`, and
+  `tests/test_available_daily_claim.py`.
+- Result: a non-Personal-Might `Gather Food` semantic case exercises the generalized transaction
+  spec; Go, static-reference, wrong-target, non-free, milestone, clipped, overlay, reset, and
+  unchanged-postcondition cases fail closed.
+- Blocker: no fresh Bliss-native generalized Daily Claim target and positive-postcondition pair
+  exists.
+- Next: acquire navigation-only evidence when permitted, then promote a real generalized Daily
+  Claim target before any handler or dispatch is enabled.
+
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded
 supervised task precede the 24-hour gate. The 24-hour locked-runtime validation is not required

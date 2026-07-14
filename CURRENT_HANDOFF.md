@@ -39,6 +39,23 @@
 - The Main Quest target and positive postcondition remain absent from Bliss-native evidence. Phase E
   dispatch is still disabled; the next permitted step is navigation-only evidence acquisition.
 
+## 2026-07-14 offline generalized Daily Claim contract
+
+- Added `tasks/available_daily_claim.py` as a separate generalized contract; the passed Personal
+  Might Claim path remains unchanged. The generalized contract accepts any ordinary completed Daily
+  Quest objective only when the selected Daily screen, exact row-local Claim, explicit
+  `none`/zero/quantity-one cost, current day, locked profile, source hash, and Bliss-native
+  provenance are all present.
+- Synthetic fixtures cover a non-Personal-Might `Gather Food` contract-positive case plus Go and
+  static-reference negatives. Wrong target/ROI, non-free cost or quantity, milestone, clipped,
+  overlay, reset, and unchanged-postcondition cases fail closed. The module is not registered in
+  `pnsctl` and does not send input.
+- Generalized Daily Claim plus Main Claim, Phase D, and reference tests pass 28/28; the full
+  non-OpenCV suite passes 143/143. The authoritative discovery remains limited only by the six
+  existing `cv2` import errors. No image capture, ADB operation, or live gameplay input occurred.
+- Fresh Bliss-native generalized Daily Claim target and positive-postcondition evidence remain
+  absent; Phase E dispatch stays disabled.
+
 ## 2026-07-14 Phase E evidence gate
 
 - Fresh selected Daily Quest inventory after Phase D shows 5 points, only `Go` rows, and no ready

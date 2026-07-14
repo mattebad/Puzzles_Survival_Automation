@@ -30,6 +30,13 @@ from .main_quest import (
     main_claim_postcondition_verified,
     main_claim_transaction_spec,
 )
+from .available_daily_claim import (
+    AvailableDailyClaimObservation,
+    available_daily_claim_authorizeable,
+    available_daily_claim_perform_one_pulse,
+    available_daily_claim_postcondition_verified,
+    available_daily_claim_transaction_spec,
+)
 from .profile import (
     GAME_BACK,
     HOME_LEFT,
@@ -86,4 +93,9 @@ __all__ = [
     "main_claim_perform_one_pulse",
     "main_claim_postcondition_verified",
     "main_claim_transaction_spec",
+    "AvailableDailyClaimObservation",
+    "available_daily_claim_authorizeable",
+    "available_daily_claim_perform_one_pulse",
+    "available_daily_claim_postcondition_verified",
+    "available_daily_claim_transaction_spec",
 ]

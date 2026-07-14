@@ -1403,3 +1403,11 @@ locked profile, source hash, and Bliss-native provenance; Go, milestone, clipped
 static-reference, and unchanged-postcondition fixtures fail closed. The module is not registered in
 `pnsctl`. This advances offline Phase E coverage only; no Bliss-native Main Claim target or positive
 postcondition evidence exists, so no live handler or dispatch is enabled.
+
+Offline generalized Daily Claim contract (2026-07-14): `tasks/available_daily_claim.py` models an
+ordinary completed Daily Quest row without requiring the Personal Might catalog alias. It requires
+the same selected-screen, exact row-local Claim, explicit none/zero/one cost, current-day,
+locked-profile, source-hash, and Bliss-native provenance gates, and verifies same-objective row or
+points change. Go, static-reference, non-free, milestone, clipped, overlay, reset, and unchanged
+fixtures fail closed. The module is not registered in `pnsctl`; generalized Daily Claim dispatch
+remains evidence-gated.
