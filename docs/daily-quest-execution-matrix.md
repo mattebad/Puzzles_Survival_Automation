@@ -77,8 +77,12 @@ scope, and the Ruins objective is unregistered and scheduler-ineligible.
 
 `DQ-FLOW-SUPPLY-DEPOT` uses `tasks/supply_depot.py` plus
 `tasks/daily_supply_depot.py` for free Supply Depot collection replay bound to `supply_depot`.
-The adapter requires exactly enough one-pulse successors to reach Daily progress 5/5; fresh
-native target/result evidence remains required, with no registration or scheduler eligibility.
+Navigation evidence now proves selected Daily `supply_depot` at `0/5`, exact row-local Go
+`(554,786)-(731,878)`, direct Supply Depot successor, four visible Free controls, first
+free-single reward target `(35,1170)-(174,1261)`, no overlay, and bounded return to selected
+Daily. Collection remains `EVIDENCE_ACQUIRED` but `POLICY_GATED`: game-day identity, approved
+known-reward policy, collection postcondition, and Daily reconciliation remain unproven; no
+registration or scheduler eligibility.
 
 `DQ-FLOW-RECRUITMENT` uses `tasks/free_recruitment.py` plus
 `tasks/daily_recruitment.py` for free Noah's Tavern single-recruit replay. The adapter requires
@@ -158,7 +162,7 @@ objective is unregistered and scheduler-ineligible.
 | `enhance_module` | enhancement / Module | `daily_go_to_module` | offline contract | evidence-gated | none | DQ-FLOW-ENHANCE-MODULE |
 | `enhance_gear` | enhancement / Gear | `daily_go_to_gear` | offline contract | evidence-gated | none | DQ-FLOW-ENHANCE-GEAR |
 | `donate_alliance_tech` | donation / Alliance Tech | `daily_go_to_alliance_technology` | disabled | disabled | none | DQ-FLOW-DONATION |
-| `supply_depot` | supply_depot / free collection | `daily_go_to_supply_depot` | offline contract | evidence-gated | none | DQ-FLOW-SUPPLY-DEPOT |
+| `supply_depot` | supply_depot / free collection | `daily_go_to_supply_depot` | evidence acquired / policy-gated | policy-gated | none | DQ-FLOW-SUPPLY-DEPOT |
 | `ruins_challenge` | challenges / Ruins | `daily_go_to_ruins_challenge` | disabled | disabled | none | DQ-FLOW-CHALLENGES |
 
 ## Support flows

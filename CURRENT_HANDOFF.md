@@ -37,8 +37,14 @@
 - The adapter requires one current-frame free collection per pulse and exactly enough same-day
   successors to reach Daily progress 5/5. Five focused tests cover ownership, reward/cost guards,
   five-count arithmetic, Main/static negatives, Claim separation, and zero dispatch.
-- Matrix remains evidence-gated, unregistered, and scheduler-ineligible; no live input, journal,
-  lease, task-state, or gameplay state changed.
+- Navigation-only Bliss evidence now proves selected Daily `0/5`, exact Go
+  `(554,786)-(731,878)`, direct Supply Depot successor, four visible Free controls, annotated
+  first free-single target `(35,1170)-(174,1261)`, observed basic reward, no overlay, and bounded
+  return through Home/Base → Quest → selected Daily. Canonical package:
+  `evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation.json`.
+- No collection input occurred. Matrix is `EVIDENCE_ACQUIRED` / `POLICY_GATED`, unregistered,
+  and scheduler-ineligible. Game-day identity, known-reward policy approval, positive collection
+  postcondition, and Daily reconciliation remain required; Claim remains independent.
 
 ## 2026-07-14 Daily Bioenhancer selected-row adapter
 

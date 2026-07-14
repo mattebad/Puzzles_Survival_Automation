@@ -70,7 +70,7 @@ These contracts remain unregistered and evidence-gated where matrix says so.
 
 ## Evidence-gated planned flows
 
-`recruit_noahs_tavern`, `supply_depot`, `craft_nanoweapon`,
+`recruit_noahs_tavern`, `craft_nanoweapon`,
 `consume_ap`, `defeat_zombie_lair`, `gather_wood`, `gather_steel`, `gather_gas`,
 `enhance_gear`, `enhance_chip`, and `enhance_module` require fresh Bliss-native target,
 cost/resource, and positive-postcondition evidence before promotion.
@@ -85,6 +85,17 @@ Promotion remains `EVIDENCE_GATED`; positive research result, Daily `0→1` reco
 independent game-day identity, and explicit supervised approval remain required. Claim remains
 separate. Evidence package:
 `evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`.
+
+## Evidence acquired, collection policy-gated
+
+`supply_depot` has retained Bliss-native navigation evidence at selected Daily `0/5`: exact
+row-local Go `(554,786)-(731,878)`, direct Supply Depot successor, four visible Free controls,
+annotated first free-single reward target `(35,1170)-(174,1261)`, observed basic reward, no
+overlay, and bounded return through Home/Base → Quest → selected Daily. No collection input
+occurred. Promotion remains `POLICY_GATED`; game-day identity, known-reward approval, positive
+collection postcondition, and Daily progress reconciliation remain required. Claim remains
+separate. Evidence package:
+`evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation.json`.
 
 ## Policy-disabled flows
 

@@ -1,0 +1,192 @@
+{
+  "flow": "supply_depot_collection",
+  "boundary": "EVIDENCE_ACQUIRED",
+  "dispatch_performed": false,
+  "runtime": {
+    "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "resolution": [
+      800,
+      1280
+    ],
+    "package": "com.global.ztmslg",
+    "foreground": "com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity",
+    "capture_completed_utc": "2026-07-14T20:24:35.872000+00:00"
+  },
+  "selected_daily_row": {
+    "objective_key": "supply_depot",
+    "objective_text": "Get supplies 5x at Supply Depot",
+    "progress_before": 0,
+    "target_progress": 5,
+    "selected_tab": true,
+    "row_bounds": [
+      35,
+      766,
+      603,
+      883
+    ],
+    "target_bounds": [
+      554,
+      786,
+      731,
+      878
+    ],
+    "target_provenance": "bliss-native",
+    "source_frame": "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-daily-supply-depot-go-1784060648-immediate-before-1.png",
+    "source_sha256": "9a474b5d597f6093b6252732117c0b787570f0af5d018469f71cf9a2e5dac341"
+  },
+  "source": {
+    "screen": "SUPPLY_DEPOT",
+    "recognizer": "recognize_supply_depot",
+    "recognized": true,
+    "raw_frame": "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/supply-depot-current.png",
+    "raw_sha256": "d2ecd3561d556fb01bcef7c577027ee140819df295eaed8f8190334b17d6f48e",
+    "target_provenance": "bliss-native",
+    "overlay_state": "none_observed",
+    "daily_free_attempts_visible": 9
+  },
+  "target": {
+    "identity": "supply-depot-free",
+    "control_class": "COLLECT",
+    "collection_mode": "FREE_SINGLE",
+    "free_available": true,
+    "free_controls_visible": 4,
+    "target_bounds": [
+      35,
+      1170,
+      174,
+      1261
+    ],
+    "panel_bounds": [
+      35,
+      970,
+      174,
+      1261
+    ],
+    "binding": "immediate raw Bliss frame",
+    "annotated_frame": "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/supply-depot-free-annotated.png",
+    "annotated_sha256": "58784fb0e7f924411ec65653c6ef4d479c66e221650beba1fb573d12e3201f4c",
+    "reward_kind": "food",
+    "reward_amount_observed": 14382,
+    "known_non_premium_observed": true,
+    "cost_type": "none",
+    "cost_amount": 0,
+    "quantity": 1,
+    "cooldown_active": false,
+    "premium": false,
+    "paid_target_rejected": true,
+    "ten_x_target_rejected": true
+  },
+  "route": [
+    {
+      "step": "Daily selected Supply Depot row",
+      "action_id": "nav-daily-supply-depot-go-1784060648",
+      "source_frame": "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-daily-supply-depot-go-1784060648-source.png",
+      "source_sha256": "ac4be5eaa6a91ca11fe6dd3307b1f1ae163e200688121cde85a8c507f611c3b5",
+      "target_bounds": [
+        554,
+        786,
+        731,
+        878
+      ],
+      "successor_frame": "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-daily-supply-depot-go-1784060648-post-1.png",
+      "successor_sha256": "2fe23b1a1bcf039af8aa02f03f181d67c13b5a7c18a6914583f0847dd73c165b",
+      "outcome": "confirmed",
+      "transport_calls": 1
+    },
+    {
+      "step": "Supply Depot back to Home",
+      "action_id": "nav-supply-depot-daily-back-1784061120",
+      "source_frame": "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-supply-depot-daily-back-1784061120-source.png",
+      "source_sha256": "e5382f4f6ca226840c04b4613e10f327ff1abd3f25bec490883e32e49cdf4473",
+      "target_bounds": [
+        31,
+        1,
+        138,
+        55
+      ],
+      "successor_frame": "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-supply-depot-daily-back-1784061120-post-1.png",
+      "successor_sha256": "25523c59f27d59c534046157deae1ba662909ad204f2e8543b7678b2442afd44",
+      "outcome": "confirmed",
+      "transport_calls": 1
+    },
+    {
+      "step": "Home to Quest",
+      "action_id": "nav-home-quest-1784061138",
+      "successor_frame": "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-home-quest-1784061138-post-1.png",
+      "successor_sha256": "ebc027603269d7eed3dd22c18a001041b6b1c50ece2e900b7ce31ede196f7f54",
+      "outcome": "confirmed",
+      "transport_calls": 1
+    },
+    {
+      "step": "Quest to selected Daily",
+      "action_id": "nav-quest-daily-1784061144",
+      "successor_frame": "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-quest-daily-1784061144-post-1.png",
+      "successor_sha256": "b3bcdb782b243afaf1376208436329f51e5d9dd8ba5a683f8d1244e23a33569b",
+      "outcome": "confirmed",
+      "transport_calls": 1
+    }
+  ],
+  "blocking_overlay": "none_observed",
+  "expected_postcondition": {
+    "collection_screen": "SUPPLY_DEPOT",
+    "target": "free target disappears or changes to cooldown/unavailable",
+    "daily_progress": "0->1 per confirmed collection",
+    "terminal_progress": "5/5 only after five independently evidenced pulses",
+    "claim": "independent transaction; not authorized by this package"
+  },
+  "authorization": {
+    "adapter": "tasks.daily_supply_depot.daily_supply_depot_authorizeable",
+    "zero_transport_from_adapter": true,
+    "consequential_transaction_id": null,
+    "policy_state": "POLICY_GATED",
+    "blocking_dependencies": [
+      "game_day_id not positively observable in current frame",
+      "known non-premium reward policy approval remains required",
+      "positive collection/postcondition and Daily reconciliation evidence remain absent"
+    ]
+  },
+  "evidence_refs": [
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-daily-supply-depot-go-1784060648-source.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-daily-supply-depot-go-1784060648-immediate-before-1.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-daily-supply-depot-go-1784060648-post-1.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-supply-depot-daily-back-1784061120-source.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-supply-depot-daily-back-1784061120-immediate-before-1.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-supply-depot-daily-back-1784061120-post-1.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-home-quest-1784061138-source.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-home-quest-1784061138-post-1.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-quest-daily-1784061144-source.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-quest-daily-1784061144-post-1.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/supply-depot-current.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/supply-depot-free-annotated.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-daily-supply-depot-go-1784060648-result.json",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-supply-depot-daily-back-1784061120-result.json",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-home-quest-1784061138-result.json",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/nav-quest-daily-1784061144-result.json"
+  ],
+  "hashes": {
+    "nav-daily-supply-depot-go-1784060648-source.png": "ac4be5eaa6a91ca11fe6dd3307b1f1ae163e200688121cde85a8c507f611c3b5",
+    "nav-daily-supply-depot-go-1784060648-immediate-before-1.png": "9a474b5d597f6093b6252732117c0b787570f0af5d018469f71cf9a2e5dac341",
+    "nav-daily-supply-depot-go-1784060648-post-1.png": "2fe23b1a1bcf039af8aa02f03f181d67c13b5a7c18a6914583f0847dd73c165b",
+    "nav-supply-depot-daily-back-1784061120-source.png": "e5382f4f6ca226840c04b4613e10f327ff1abd3f25bec490883e32e49cdf4473",
+    "nav-supply-depot-daily-back-1784061120-immediate-before-1.png": "f8fbbd10666af6d7fceed32bb0cb40863100dd53dadc091544e31743bab0dfa6",
+    "nav-supply-depot-daily-back-1784061120-post-1.png": "25523c59f27d59c534046157deae1ba662909ad204f2e8543b7678b2442afd44",
+    "nav-home-quest-1784061138-source.png": "eb1c5b56d2bd151983259e8c673cc27d75b63caf8e8c5f4d7ef572127a4b4fe5",
+    "nav-home-quest-1784061138-post-1.png": "ebc027603269d7eed3dd22c18a001041b6b1c50ece2e900b7ce31ede196f7f54",
+    "nav-quest-daily-1784061144-source.png": "bae64fca14d35768343bfff89ca583d31a89e7a88f67618d4d69372d52d42001",
+    "nav-quest-daily-1784061144-post-1.png": "b3bcdb782b243afaf1376208436329f51e5d9dd8ba5a683f8d1244e23a33569b",
+    "supply-depot-current.png": "d2ecd3561d556fb01bcef7c577027ee140819df295eaed8f8190334b17d6f48e",
+    "supply-depot-free-annotated.png": "58784fb0e7f924411ec65653c6ef4d479c66e221650beba1fb573d12e3201f4c"
+  },
+  "transaction_journals": [
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/actions-nav-daily-supply-depot-go-1784060648.sqlite3",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/actions-nav-supply-depot-daily-back-1784061120.sqlite3",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/actions-nav-home-quest-1784061138.sqlite3",
+    "evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation-20260714-152435/actions-nav-quest-daily-1784061144.sqlite3"
+  ],
+  "journal_sha256": {
+    "actions-nav-daily-supply-depot-go-1784060648.sqlite3": "c22290b10adbd257f4a61565a71d5fd1c6572b6a407d18011122bfbc93a3f310",
+    "actions-nav-supply-depot-daily-back-1784061120.sqlite3": "08b1251eececdd4d4130fe6c0b1a9ae110e8ccb2f2b3d74733b2aaae0a370179",
+    "actions-nav-home-quest-1784061138.sqlite3": "8364fadb879904d132eeae7bd2d7702781484f235168f3f205fdd8725e6d778e",
+    "actions-nav-quest-daily-1784061144.sqlite3": "59aeb4227c0c0b6d75620380f40eeaba9e81894e8d0d29d0644ac593cd003d0c"
+  }
+}

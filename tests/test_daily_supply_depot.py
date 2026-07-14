@@ -118,7 +118,7 @@ class DailySupplyDepotContractTests(unittest.TestCase):
             )
         )
 
-    def test_matrix_keeps_supply_depot_evidence_gated_and_dormant(self):
+    def test_matrix_keeps_supply_depot_policy_gated_and_dormant(self):
         matrix = json.loads(MATRIX.read_text(encoding="utf-8"))
         row = next(
             item
@@ -126,7 +126,7 @@ class DailySupplyDepotContractTests(unittest.TestCase):
             if item["objective_key"] == "supply_depot"
         )
         self.assertEqual(row["implementation_status"], "OFFLINE_CONTRACT_ONLY")
-        self.assertEqual(row["promotion_state"], "EVIDENCE_GATED")
+        self.assertEqual(row["promotion_state"], "POLICY_GATED")
         self.assertEqual(row["current_runtime_registration_status"], "NOT_REGISTERED")
         self.assertFalse(row["scheduler_eligibility"])
 

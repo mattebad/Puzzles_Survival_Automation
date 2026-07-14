@@ -63,7 +63,10 @@ dispatch, registration, live input, or scheduler eligibility is implied.
 - Bioenhancer: one free Research action; paid/10x branches blocked. Navigation and immediate
   pre-dispatch evidence are acquired; research dispatch remains policy-gated until approval,
   positive result, Daily `0→1` reconciliation, and game-day binding are proven.
-- Supply Depot: free known non-premium collection until Free disappears.
+- Supply Depot: navigation evidence acquired for selected Daily `0/5`, direct Depot route,
+  four visible Free controls, one annotated free-single reward target, and bounded Daily return.
+  Collection remains policy-gated until game-day binding, known-reward approval, postcondition,
+  and Daily reconciliation are proven.
 - Recruitment: free single recruitment only; no 10x/premium/unknown confirmation.
 - Nanoweapon: Craft Weapon only; Material Production and Inherit are distinct and excluded.
 

@@ -1388,19 +1388,26 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   game-day binding, and Claim separation remain required. No registration or scheduler.
 
 ### DQ-FLOW-SUPPLY-DEPOT
-- Status: Passed (2026-07-14; selected-Daily adapter plus 5 focused tests).
+- Status: `EVIDENCE_ACQUIRED` (2026-07-14; selected-Daily navigation route and free-target
+  observation retained; no collection dispatched).
 - Covered: `supply_depot`; free collection variant.
 - Exclusions: premium/unknown reward, vendor selector, blind triple tap.
-- Dependencies/routes: inventory → Supply Depot panel.
-- Source/target/policy: exact free target, known non-premium reward, zero cost.
+- Dependencies/routes: inventory → selected Daily row → Supply Depot panel → bounded Home/Base
+  return → Quest → selected Daily.
+- Source/target/policy: selected Daily `0/5`, exact Go `(554,786)-(731,878)`, Supply Depot
+  successor, four visible Free controls, annotated first free-single target
+  `(35,1170)-(174,1261)`, observed basic reward, no overlay, zero cost/quantity one.
 - Offline acceptance/tests: `tasks/daily_supply_depot.py` binds selected-row ownership, exact
   five-count progress, one-pulse collection successors, Main/static negatives, dispatch
   cardinality, and Claim separation; `tests/test_daily_supply_depot.py` plus
   `tests/test_supply_depot.py`.
-- Bliss/live boundary: evidence-gated; no registration/input.
+- Bliss/live boundary: `evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation.json`;
+  navigation confirmed, no collection input.
 - Transaction/postcondition/recovery: one free collect; target disappears/confirmation; stop on unchanged/premium.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `EVIDENCE_GATED`; unlocks runtime gate after native pair.
+- Promotion/unlocks: `POLICY_GATED`; game-day identity, known-reward approval, positive
+  collection/postcondition, and Daily reconciliation remain required. No registration or
+  scheduler.
 
 ### DQ-FLOW-RECRUITMENT
 - Status: Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).

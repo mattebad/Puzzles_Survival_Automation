@@ -1440,6 +1440,14 @@ locked-profile, source-hash, and Bliss-native provenance gates. Premium/unknown 
 static-reference, non-free, not-ready, overlay, reset, and unchanged-postcondition fixtures fail
 closed. The module is not registered in `pnsctl`; free Depot dispatch remains evidence-gated.
 
+Supply Depot navigation boundary (2026-07-14): retained Bliss-native evidence proves selected
+Daily `supply_depot` at `0/5`, exact row-local Go `(554,786)-(731,878)`, direct Supply Depot
+successor, four visible Free controls, annotated first free-single reward target
+`(35,1170)-(174,1261)`, no overlay, and bounded return through Home/Base → Quest → selected Daily.
+No collection input occurred. Promotion is `EVIDENCE_ACQUIRED` / `POLICY_GATED`; game-day identity,
+known-reward policy approval, positive collection postcondition, and Daily reconciliation remain
+required. Canonical package: `evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation.json`.
+
 Offline free recruitment contract (2026-07-14): `tasks/free_recruitment.py` models one explicit
 free recruitment with selected-screen, `FREE` mode/banner, exact target, zero/one cost, current-day,
 locked-profile, source-hash, and Bliss-native provenance gates. 10x/premium, static-reference,

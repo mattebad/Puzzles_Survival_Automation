@@ -15,9 +15,12 @@ Daily reconciliation maps `supply_depot`; Claim separate. Persistence/scheduler 
 
 Tests: offline contract replay, cost guard, dispatch cardinality, successor proof, registration
 dormancy, and Main negative recognition. Bliss-native evidence required; GnBots geometry never
-authorizes. Future navigation read-only. Prohibit ADB, worker/VM, leases, journal migration, live
-input/evidence, registration, and scheduler eligibility. Update docs/matrix/status. Commit:
+authorizes. Navigation-only capture is permitted under live-test policy; consequential collection
+input remains prohibited until game-day, reward-policy, target, transaction, and postcondition gates
+pass. No worker/VM changes, lease migration, journal migration, registration, or scheduler
+eligibility. Update docs/matrix/status. Commit:
 `feat(tasks): bind Daily Supply Depot row`. Current boundary: `tasks/supply_depot.py` plus
 `tasks/daily_supply_depot.py` and their focused tests provide pure selected-row replay semantics;
-fresh Bliss-native target and positive collection evidence remain required for promotion. Continue
-offline.
+Bliss-native navigation and free-target evidence is retained in
+`evidence/sessions/20260714-daily-flow-acquisition/supply-depot-navigation.json`; collection
+postcondition and Daily reconciliation remain required. Continue with independent offline work.
