@@ -120,6 +120,17 @@
 - This is persistence infrastructure only; Phase E live promotion and worker integration remain
   gated and the SQLite action journal remains authoritative for consequential outcomes.
 
+## 2026-07-14 persisted scheduler integration
+
+- Added `SQLiteBackedOnePulseScheduler`, a thin adapter that reloads `TaskState` snapshots from the
+  existing repository, persists backoff/result/unresolved/reconciliation mutations, and retains the
+  external lease/unresolved gates. It does not send input or replace the action journal.
+- Restart tests pass persisted due times, completion, unresolved blocking, and positive
+  reconciliation. Focused scheduler/state/core coverage passes 59/59; the full non-OpenCV suite
+  passes 172/172. Full discovery reaches 178 tests with only the six known local `cv2` import errors.
+- Phase F offline state/scheduler integration is complete for this boundary. Worker wiring,
+  handler-policy review, and all Phase E live promotions remain separate gates.
+
 ## 2026-07-14 Phase E evidence gate
 
 - Fresh selected Daily Quest inventory after Phase D shows 5 points, only `Go` rows, and no ready

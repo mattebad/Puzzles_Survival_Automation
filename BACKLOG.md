@@ -694,6 +694,20 @@ Claim example.
 - Next: offline integration review of scheduler state with task handlers, or permitted
   navigation-only Bliss evidence.
 
+### GNB-PHASE-F-INTEGRATION — Couple one-pulse scheduler to persisted task state
+
+- Dependencies: GNB-PHASE-F-OFFLINE and GNB-PHASE-F-SQLITE Passed.
+- Scope: thin repository-backed scheduler adapter, persisted backoff/completion/unresolved state,
+  restart reload, and positive reconciliation tests. No transport, action-journal lifecycle change,
+  pnsctl registration, or live input.
+- Status: Passed (2026-07-14; focused integration and full non-OpenCV validation).
+- Evidence: `tasks/scheduler.py` and `tests/test_scheduler_sqlite.py`.
+- Result: scheduler mutations persist through the existing task-state repository; reload preserves
+  due times and unresolved blocks; only explicit positive reconciliation reaches `DONE`.
+- Blocker: production worker wiring and all Phase E live promotions remain gated. No consequential
+  input is authorized by this adapter.
+- Next: offline handler/scheduler policy review, or permitted navigation-only Bliss evidence.
+
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded
 supervised task precede the 24-hour gate. The 24-hour locked-runtime validation is not required

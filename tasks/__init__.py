@@ -58,7 +58,14 @@ from .free_recruitment import (
     free_recruitment_postcondition_verified,
     free_recruitment_transaction_spec,
 )
-from .scheduler import OnePulseScheduler, PulseCandidate, SchedulerError, TaskState, TaskStateStatus
+from .scheduler import (
+    OnePulseScheduler,
+    PulseCandidate,
+    SQLiteBackedOnePulseScheduler,
+    SchedulerError,
+    TaskState,
+    TaskStateStatus,
+)
 from .profile import (
     GAME_BACK,
     HOME_LEFT,
@@ -137,6 +144,7 @@ __all__ = [
     "free_recruitment_transaction_spec",
     "OnePulseScheduler",
     "PulseCandidate",
+    "SQLiteBackedOnePulseScheduler",
     "SchedulerError",
     "TaskState",
     "TaskStateStatus",

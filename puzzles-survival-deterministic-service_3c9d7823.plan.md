@@ -1443,3 +1443,9 @@ an additive `task_state` table, while `SQLiteTaskStateRepository` stores the Pha
 contract and emits audit events. Revision rollback and completion-key changes fail closed; v1
 action/journal tables survive migration. This does not replace action lifecycle or unresolved-action
 blocking, and it does not authorize Phase E or live input.
+
+Offline scheduler persistence integration (2026-07-14): `SQLiteBackedOnePulseScheduler` reloads the
+Phase F scheduler contract through `SQLiteTaskStateRepository`, persists bounded backoff and result
+state, and preserves unresolved blocking across restart. Only explicit positive reconciliation can
+reach `DONE`. The adapter has no transport path and does not replace the action journal; worker
+wiring and Phase E live promotion remain gated.

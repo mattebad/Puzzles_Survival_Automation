@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 import json
 import math
-from typing import Any, Iterable, Mapping, Optional
+from typing import Any, Iterable, Mapping, Optional, Protocol
 
 from .contracts import TaskOutcome, TaskResult
 
@@ -55,6 +55,14 @@ class PulseCandidate:
     completion_key: str
     game_day_id: str
     due_at_monotonic: float
+
+
+class TaskStateRepository(Protocol):
+    def save(self, state: TaskState, updated_at: float) -> TaskState:
+        ...
+
+    def list(self) -> tuple[TaskState, ...]:
+        ...
 
 
 class OnePulseScheduler:
@@ -206,3 +214,54 @@ class OnePulseScheduler:
             except (KeyError, TypeError, ValueError) as exc:
                 raise SchedulerError("invalid task state entry") from exc
         return cls(states)
+
+
+class SQLiteBackedOnePulseScheduler:
+    """Persist scheduler mutations through a TaskStateRepository and reload deterministically."""
+
+    def __init__(self, repository: TaskStateRepository) -> None:
+        self.repository = repository
+        self.scheduler = OnePulseScheduler(repository.list())
+
+    def refresh(self) -> None:
+        self.scheduler = OnePulseScheduler(self.repository.list())
+
+    def snapshot(self) -> tuple[TaskState, ...]:
+        return self.scheduler.snapshot()
+
+    def next_pulse(
+        self,
+        now_monotonic: float,
+        game_day_id: str,
+        *,
+        lease_valid: bool,
+        unresolved_action: bool,
+    ) -> Optional[PulseCandidate]:
+        return self.scheduler.next_pulse(
+            now_monotonic,
+            game_day_id,
+            lease_valid=lease_valid,
+            unresolved_action=unresolved_action,
+        )
+
+    def record_result(
+        self,
+        task_id: str,
+        result: TaskResult,
+        now_monotonic: float,
+        *,
+        backoff_seconds: float = 60.0,
+    ) -> TaskState:
+        updated = self.scheduler.record_result(task_id, result, now_monotonic, backoff_seconds=backoff_seconds)
+        self.repository.save(updated, now_monotonic)
+        return updated
+
+    def mark_unresolved(self, task_id: str, reason: str, updated_at: float) -> TaskState:
+        updated = self.scheduler.mark_unresolved(task_id, reason)
+        self.repository.save(updated, updated_at)
+        return updated
+
+    def reconcile_unresolved(self, task_id: str, result: TaskResult, updated_at: float) -> TaskState:
+        updated = self.scheduler.reconcile_unresolved(task_id, result)
+        self.repository.save(updated, updated_at)
+        return updated
