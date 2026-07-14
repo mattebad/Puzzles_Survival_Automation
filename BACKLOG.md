@@ -1458,11 +1458,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED`; family-shared implementation.
 
 ### DQ-FLOW-CAMPAIGN-AP
+- Status: Passed (2026-07-14; offline AP contract and 5 focused tests).
 - Covered: `consume_ap`; Sweep/Auto Complete variants.
 - Exclusions: uncontrolled battle, refill, unknown AP cost, Ultimate Challenge dispatch.
 - Dependencies/routes: inventory → Campaign.
 - Source/target/policy: readable AP, allowlisted stage, exact Sweep/Auto Complete.
-- Offline acceptance/tests: AP/cost/result/postcondition mocks; no live stage use.
+- Offline acceptance/tests: AP budget/cost/result/postcondition fixtures;
+  `tests/test_campaign_ap.py`; no live stage use.
 - Bliss/live boundary: evidence-gated; no registration/input.
 - Transaction/postcondition/recovery: one known AP transaction; AP delta/result/Daily progress; unresolved on timeout.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.

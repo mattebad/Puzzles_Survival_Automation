@@ -42,7 +42,7 @@ Headquarters attack/win as `DOCUMENTATION_ONLY` and Gather Food/Gathered Food as
 | `upgrade_hero` | hero_upgrade / upgrade | `daily_go_to_hero` | disabled | disabled | none | DQ-FLOW-HERO-UPGRADE |
 | `defeat_zombie_lair` | zombie_lair / lair | `daily_go_to_zombie_lair` | planned | evidence-gated | none | DQ-FLOW-ZOMBIE-LAIR |
 | `consume_stamina` | stamina / consume | `daily_go_to_stamina_action` | disabled | disabled | none | DQ-FLOW-STAMINA |
-| `consume_ap` | campaign_ap / Sweep, Auto Complete | `daily_go_to_campaign` | planned | evidence-gated | none | DQ-FLOW-CAMPAIGN-AP |
+| `consume_ap` | campaign_ap / Sweep, Auto Complete | `daily_go_to_campaign` | offline contract | evidence-gated | none | DQ-FLOW-CAMPAIGN-AP |
 | `help_allies` | alliance_help / Help All, individual | `daily_go_to_speedup_help` | live validated | live validated | `alliance-help` | DQ-FLOW-ALLIANCE-HELP |
 | `buy_box` | purchases / box | `daily_go_to_purchase` | disabled | disabled | none | DQ-FLOW-PURCHASES |
 | `gather_wood` | gathering / wood, 30,000 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |

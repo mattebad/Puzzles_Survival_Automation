@@ -72,6 +72,13 @@ from .enhancement import (
     enhancement_postcondition_verified,
     enhancement_transaction_spec,
 )
+from .campaign_ap import (
+    CampaignAPObservation,
+    campaign_ap_authorizeable,
+    campaign_ap_perform_one_pulse,
+    campaign_ap_postcondition_verified,
+    campaign_ap_transaction_spec,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -166,6 +173,11 @@ __all__ = [
     "enhancement_perform_one_pulse",
     "enhancement_postcondition_verified",
     "enhancement_transaction_spec",
+    "CampaignAPObservation",
+    "campaign_ap_authorizeable",
+    "campaign_ap_perform_one_pulse",
+    "campaign_ap_postcondition_verified",
+    "campaign_ap_transaction_spec",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

@@ -27,6 +27,8 @@ promotion. Praise completion stops before Claim.
 - Nanoweapon Craft Weapon contract: `tasks/nanoweapon.py`.
 - Gear/Chip/Module shared enhancement contract: `tasks/enhancement.py` (all three variants
   complete offline).
+- Campaign AP contract: `tasks/campaign_ap.py` (Sweep and Auto Complete variants complete
+  offline).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

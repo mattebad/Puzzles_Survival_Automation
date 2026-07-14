@@ -1,5 +1,16 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 offline Campaign AP contract
+
+- Completed `DQ-FLOW-CAMPAIGN-AP` as pure `tasks/campaign_ap.py` semantics for one bounded
+  allowlisted Sweep or Auto Complete action. Authorization requires selected Campaign state,
+  known stage, exact current-frame AP target, readable AP, explicit positive budget, cost within
+  budget, and no refill/battle state.
+- Synthetic replay fixtures and five focused tests cover Sweep/Auto Complete variants, AP budget
+  and resource guards, Main/static-reference rejection, exact same-day AP delta plus result
+  postcondition, and pure one-pulse output. Contract is unregistered and scheduler-ineligible;
+  no live input or gameplay state changed.
+
 ## 2026-07-14 offline shared enhancement contract
 
 - Completed `DQ-FLOW-ENHANCE-GEAR` with shared `tasks/enhancement.py` semantics and Gear

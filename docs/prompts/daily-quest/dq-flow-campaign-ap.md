@@ -17,4 +17,6 @@ Tests: AP budget guard, offline replay, route identity, cardinality, successor p
 registration false, scheduler false. Bliss-native evidence required; GnBots cannot authorize.
 Future navigation read-only. Prohibit ADB, worker/VM, leases, journal migration, live input/evidence,
 registration, scheduler eligibility. Update docs/matrix/status. Commit:
-`docs(tasks): map every Daily objective to an execution task`. Continue offline.
+`feat(tasks): add Campaign AP offline contract`. Current boundary: `tasks/campaign_ap.py` and
+`tests/test_campaign_ap.py` cover bounded Sweep/Auto Complete semantics; fresh Bliss-native
+Campaign target, AP cost, and positive result remain required for promotion. Continue offline.

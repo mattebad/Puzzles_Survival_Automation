@@ -1509,5 +1509,18 @@ the same family only when their selected-tab and item-kind identities match; var
 closed. Module uses same boundary with Module-specific identity and material.
 
 Synthetic replay tests cover family ownership, Main-negative recognition, material/target safety
-guards, same-item positive level/material/result changes, and pure one-pulse results. Gear remains
-evidence-gated, unregistered, and scheduler-ineligible; Chip and Module remain downstream.
+guards, same-item positive level/material/result changes, and pure one-pulse results. All three
+variants remain evidence-gated, unregistered, and scheduler-ineligible.
+
+## Daily Quest Campaign AP offline boundary (2026-07-14)
+
+`DQ-FLOW-CAMPAIGN-AP` now has pure `tasks/campaign_ap.py` semantics for one bounded Campaign
+Sweep or Auto Complete action. Authorization requires selected Campaign state, known allowlisted
+stage, exact current-frame target, readable AP, explicit positive budget, cost within both budget
+and current AP, no refill/battle state, current day, locked profile provenance, and a positive
+same-day result with exact AP delta. Main Quest and static-reference observations fail closed.
+
+Synthetic replay tests cover both action variants, AP/cost/budget guards, route and target
+ownership, Main/static negatives, exact postcondition proof, and pure one-pulse output. The
+contract remains offline-only, unregistered, and scheduler-ineligible until fresh Bliss-native
+target/cost/result evidence and separate runtime promotion gates pass.
