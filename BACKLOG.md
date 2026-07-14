@@ -1394,6 +1394,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED`; unlocks runtime gate after native pair.
 
 ### DQ-FLOW-RECRUITMENT
+- Status: Passed (2026-07-14; existing free-recruitment contract and 5 focused tests).
 - Covered: `recruit_noahs_tavern`; free single variant repeated to target quantity.
 - Exclusions: 10x, premium, unknown confirmation, vendor selector.
 - Dependencies/routes: inventory → Noah's Tavern.

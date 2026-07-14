@@ -17,4 +17,7 @@ Tests: offline free-contract replay, five-count semantics, dispatch cardinality,
 registration/scheduler dormancy, and Main negative recognition. Bliss-native evidence required;
 GnBots is provenance only. Future navigation read-only. Prohibit ADB, worker/VM, lease/journal
 changes, live input/evidence, registration, scheduler eligibility. Update docs/matrix/status.
-Commit: `docs(tasks): map every Daily objective to an execution task`. Continue offline.
+Current boundary: existing `tasks/free_recruitment.py` and `tests/test_free_recruitment.py` provide
+pure free-single replay semantics; fresh Bliss-native Tavern target and positive result remain
+required for promotion. Commit: `feat(tasks): complete free Recruitment offline contract`.
+Continue offline.
