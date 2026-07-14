@@ -69,6 +69,18 @@
   ADB operation, or live gameplay input occurred; the ready milestone target and positive-open/
   points evidence remain absent.
 
+## 2026-07-14 offline free Supply Depot contract
+
+- Added `tasks/supply_depot.py` as a pure contract for a free Supply Depot collection. It requires
+  the exact Depot screen/panel target, ready collection state, known non-premium reward, explicit
+  `none`/zero/quantity-one cost, current day, locked profile, source hash, and Bliss-native
+  provenance.
+- Synthetic fixtures cover known basic supplies, premium reward, and static-reference cases.
+  Unknown reward, non-free, not-ready, wrong-target/panel, overlay, reset, and unchanged collection
+  postconditions fail closed. The module is not registered in `pnsctl` and sends no input.
+- The Supply Depot contract plus all prior Phase E, Phase D, and reference tests pass 38/38. Fresh
+  Bliss-native free Depot target and positive collection evidence remain absent.
+
 ## 2026-07-14 Phase E evidence gate
 
 - Fresh selected Daily Quest inventory after Phase D shows 5 points, only `Go` rows, and no ready

@@ -44,6 +44,13 @@ from .activity_milestones import (
     activity_milestone_postcondition_verified,
     activity_milestone_transaction_spec,
 )
+from .supply_depot import (
+    SupplyDepotObservation,
+    supply_depot_authorizeable,
+    supply_depot_perform_one_pulse,
+    supply_depot_postcondition_verified,
+    supply_depot_transaction_spec,
+)
 from .profile import (
     GAME_BACK,
     HOME_LEFT,
@@ -110,4 +117,9 @@ __all__ = [
     "activity_milestone_perform_one_pulse",
     "activity_milestone_postcondition_verified",
     "activity_milestone_transaction_spec",
+    "SupplyDepotObservation",
+    "supply_depot_authorizeable",
+    "supply_depot_perform_one_pulse",
+    "supply_depot_postcondition_verified",
+    "supply_depot_transaction_spec",
 ]

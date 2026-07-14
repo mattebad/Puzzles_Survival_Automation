@@ -623,6 +623,25 @@ Claim example.
 - Next: acquire navigation-only evidence when permitted, then promote a real milestone chest before
   any handler or dispatch is enabled.
 
+### GNB-PHASE-E-DEPOT-OFFLINE — Add free Supply Depot collection contract
+
+- Dependencies: GNB-PHASE-D Passed; Main Claim, generalized Daily Claim, and milestone contracts
+  passed; fresh free Depot evidence is not yet available.
+- Scope: exact free collection target, known non-premium reward, explicit zero-cost semantics,
+  panel-local target containment, profile/provenance/hash gates, positive collection postcondition,
+  and synthetic premium/static-reference negatives. No image capture, ADB, pnsctl registration, or
+  live input.
+- Status: Passed (2026-07-14; offline contract and 5 focused tests).
+- Evidence: `tasks/supply_depot.py`, `tests/fixtures/phase_e_supply_depot_observations.json`,
+  and `tests/test_supply_depot.py`.
+- Result: the synthetic known-basic-supplies case exercises the transaction spec; premium reward,
+  static-reference, wrong-target/panel, unknown reward, non-free, not-ready, overlay, reset, and
+  unchanged-postcondition cases fail closed.
+- Blocker: no fresh Bliss-native free Depot target with known non-premium reward and positive
+  collection evidence exists.
+- Next: acquire navigation-only evidence when permitted, then promote a real free Depot target
+  before any handler or dispatch is enabled.
+
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded
 supervised task precede the 24-hour gate. The 24-hour locked-runtime validation is not required
