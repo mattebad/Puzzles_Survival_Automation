@@ -84,6 +84,7 @@ class OperatorCliTests(unittest.TestCase):
         with patch("scripts.pnsctl.run_remote", return_value="") as remote:
             pnsctl.navigate(cfg, "quest-daily")
         command = remote.call_args.args[1]
+        self.assertIn("-e PYTHONPATH=/workspace", command)
         self.assertIn("-w /workspace", command)
         self.assertIn("scripts/mvp_quest_to_claim.py", command)
 

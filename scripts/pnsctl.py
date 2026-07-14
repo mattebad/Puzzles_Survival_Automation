@@ -264,7 +264,7 @@ def navigate(cfg: OperatorConfig, step: str) -> str:
     command = _adb_shell(cfg, "")
     # Reuse the worker's interpreter and ADB environment without creating a second transport.
     command = (
-        f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 -w /workspace "
+        f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 -e PYTHONPATH=/workspace -w /workspace "
         f"{quote(cfg.container)} " + " ".join(quote(item) for item in args)
     )
     return run_remote(cfg, command)
