@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Mapping, Optional
 
 from .models import ActionIntent, ActionStatus, PolicyResult, snapshot
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
+TASK_STATE_STATUSES = frozenset({"pending", "done", "blocked", "unresolved"})
 ALLOWED_TRANSITIONS = {
     ActionStatus.PREPARED.value: {
         ActionStatus.INPUT_SENT.value,
@@ -97,7 +99,7 @@ class SafetyStore:
                         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
                         version INTEGER NOT NULL
                     );
-                    INSERT OR REPLACE INTO schema_version(singleton, version) VALUES (1, 1);
+                    INSERT OR REPLACE INTO schema_version(singleton, version) VALUES (1, 2);
                     CREATE TABLE controller_lease (
                         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
                         owner_id TEXT NOT NULL,
@@ -105,6 +107,16 @@ class SafetyStore:
                         heartbeat_at REAL NOT NULL,
                         expires_at REAL NOT NULL,
                         released_at REAL
+                    );
+                    CREATE TABLE task_state (
+                        task_id TEXT PRIMARY KEY,
+                        completion_key TEXT NOT NULL,
+                        game_day_id TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK(status IN ('pending','done','blocked','unresolved')),
+                        next_due_monotonic REAL,
+                        revision INTEGER NOT NULL CHECK(revision >= 0),
+                        last_reason TEXT NOT NULL,
+                        updated_at REAL NOT NULL
                     );
                     CREATE TABLE actions (
                         action_id TEXT PRIMARY KEY,
@@ -151,6 +163,23 @@ class SafetyStore:
                     COMMIT;
                     """
                 )
+        if version == 1:
+            self.connection.executescript(
+                """BEGIN IMMEDIATE;
+                CREATE TABLE IF NOT EXISTS task_state (
+                    task_id TEXT PRIMARY KEY,
+                    completion_key TEXT NOT NULL,
+                    game_day_id TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK(status IN ('pending','done','blocked','unresolved')),
+                    next_due_monotonic REAL,
+                    revision INTEGER NOT NULL CHECK(revision >= 0),
+                    last_reason TEXT NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+                UPDATE schema_version SET version=2 WHERE singleton=1;
+                COMMIT;
+                """
+            )
         if self.schema_version != CURRENT_SCHEMA_VERSION:
             raise SchemaVersionError("database migration did not reach the current schema")
 
@@ -274,6 +303,50 @@ class SafetyStore:
         if row is None:
             raise StoreError("unknown action")
         return dict(row)
+
+    def get_task_state(self, task_id: str) -> Optional[Dict[str, Any]]:
+        row = self.connection.execute("SELECT * FROM task_state WHERE task_id=?", (task_id,)).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_task_states(self) -> List[Dict[str, Any]]:
+        rows = self.connection.execute("SELECT * FROM task_state ORDER BY task_id").fetchall()
+        return [dict(row) for row in rows]
+
+    def upsert_task_state(self, state: Mapping[str, Any], updated_at: float) -> None:
+        try:
+            task_id = str(state["task_id"])
+            completion_key = str(state["completion_key"])
+            game_day_id = str(state["game_day_id"])
+            status = str(state["status"])
+            next_due = state.get("next_due_monotonic")
+            revision = int(state["revision"])
+            last_reason = str(state.get("last_reason", ""))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise StoreError("invalid task state") from exc
+        if not task_id.strip() or not completion_key.strip() or not game_day_id.strip():
+            raise StoreError("task state requires task, completion-key, and game-day identity")
+        if status not in TASK_STATE_STATUSES or revision < 0 or not math.isfinite(float(updated_at)):
+            raise StoreError("invalid task state status, revision, or update time")
+        if next_due is not None and not math.isfinite(float(next_due)):
+            raise StoreError("task state due time must be finite or None")
+        with self.transaction() as db:
+            current = db.execute("SELECT completion_key, revision FROM task_state WHERE task_id=?", (task_id,)).fetchone()
+            if current is not None and current["completion_key"] != completion_key:
+                raise StoreError("task completion key cannot change")
+            if current is not None and revision < int(current["revision"]):
+                raise StoreError("task state revision cannot move backward")
+            db.execute(
+                """INSERT INTO task_state(task_id,completion_key,game_day_id,status,next_due_monotonic,revision,last_reason,updated_at)
+                VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET
+                game_day_id=excluded.game_day_id,status=excluded.status,next_due_monotonic=excluded.next_due_monotonic,
+                revision=excluded.revision,last_reason=excluded.last_reason,updated_at=excluded.updated_at""",
+                (task_id, completion_key, game_day_id, status, next_due, revision, last_reason, updated_at),
+            )
+            self._insert_audit(db, task_id, "task_state_updated", updated_at, {
+                "task_id": task_id, "completion_key": completion_key, "game_day_id": game_day_id,
+                "status": status, "next_due_monotonic": next_due, "revision": revision,
+                "last_reason": last_reason,
+            }, None, None, None)
 
     def list_nonterminal_actions(self) -> List[Dict[str, Any]]:
         rows = self.connection.execute(

@@ -106,6 +106,20 @@
   ADB operation, or gameplay input occurred. Production SQLite-backed task-state integration remains
   a later offline boundary.
 
+## 2026-07-14 SQLite-backed Phase F task state
+
+- Added the v1→v2 forward migration to the existing `SafetyStore`, introducing only a `task_state`
+  table and `SQLiteTaskStateRepository`; action rows, audit lifecycle, lease, and unresolved-action
+  semantics remain unchanged.
+- Task state persists task/game-day/completion identity, status, due time, revision, and reason.
+  Revision rollback and completion-key changes are rejected, and every update emits a deterministic
+  audit event. A v1 database migrates forward without losing the action/journal tables.
+- Persistence/core/scheduler tests pass 57/57; the full non-OpenCV suite passes 170/170. The full
+  discovery reaches 176 tests with only the six known local `cv2` import errors. No image capture,
+  ADB operation, or live gameplay input occurred.
+- This is persistence infrastructure only; Phase E live promotion and worker integration remain
+  gated and the SQLite action journal remains authoritative for consequential outcomes.
+
 ## 2026-07-14 Phase E evidence gate
 
 - Fresh selected Daily Quest inventory after Phase D shows 5 points, only `Go` rows, and no ready

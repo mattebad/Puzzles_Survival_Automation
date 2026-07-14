@@ -676,6 +676,24 @@ Claim example.
 - Next: review SQLite-backed task-state integration offline, or acquire permitted navigation-only
   Bliss evidence; do not dispatch consequential input from synthetic state.
 
+### GNB-PHASE-F-SQLITE — Persist task state alongside the safety journal
+
+- Dependencies: GNB-PHASE-F-OFFLINE; existing SQLite action journal and lifecycle must remain
+  unchanged.
+- Scope: forward schema migration v1→v2, task-state table, typed repository adapter, monotonic
+  revision/completion-key guards, deterministic audit event, and migration tests. No action-row
+  replacement, ADB, pnsctl registration, or live input.
+- Status: Passed (2026-07-14; focused persistence/migration tests and full non-OpenCV validation).
+- Evidence: `safe_action_core/store.py`, `safe_action_core/task_state.py`, and
+  `tests/test_task_state_store.py`.
+- Result: v1 databases migrate forward without losing action/journal tables; task snapshots round
+  trip through SQLite, preserve revision monotonicity, and reject completion-key changes. The core
+  action journal remains authoritative for consequential lifecycle and unresolved blocking.
+- Blocker: Phase E live promotions and a future scheduler/worker integration review remain separate;
+  no live dispatch is authorized by this persistence task.
+- Next: offline integration review of scheduler state with task handlers, or permitted
+  navigation-only Bliss evidence.
+
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded
 supervised task precede the 24-hour gate. The 24-hour locked-runtime validation is not required

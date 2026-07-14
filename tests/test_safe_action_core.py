@@ -131,8 +131,8 @@ class StoreCase(StoreFixture, unittest.TestCase):
         self.assertTrue(self.path.exists())
         self.assertEqual(self.store.schema_version, CURRENT_SCHEMA_VERSION)
 
-    def test_empty_database_migrates_to_v1(self):
-        self.assertEqual(self.store.schema_version, 1)
+    def test_empty_database_migrates_to_current_schema(self):
+        self.assertEqual(self.store.schema_version, CURRENT_SCHEMA_VERSION)
 
     def test_future_schema_rejected(self):
         other = Path(self.temp.name) / "future.sqlite3"

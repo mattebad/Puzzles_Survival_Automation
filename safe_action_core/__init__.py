@@ -19,6 +19,7 @@ from .promotional import (
     PromotionalSequenceError,
 )
 from .store import CURRENT_SCHEMA_VERSION, SafetyStore
+from .task_state import SQLiteTaskStateRepository
 from .popup import PopupController, PopupObservation
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "PopupObservation",
     "SafeActionExecutor",
     "SafetyStore",
+    "SQLiteTaskStateRepository",
     "TransportResult",
     "ocr_reuse_denial",
     "roi_hash_map",

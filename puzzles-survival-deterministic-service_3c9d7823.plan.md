@@ -1437,3 +1437,9 @@ state snapshots and a one-pulse due selector without replacing the SQLite action
 bound to the game day, completion keys, lease/unresolved gates, bounded backoff, and positive
 reconciliation; only one due task is selected and unverified/mismatched completion cannot become
 `DONE`. SQLite-backed integration remains a separate offline task, and no live input is authorized.
+
+Offline SQLite task-state persistence (2026-07-14): `SafetyStore` now migrates schema v1 to v2 with
+an additive `task_state` table, while `SQLiteTaskStateRepository` stores the Phase F snapshot
+contract and emits audit events. Revision rollback and completion-key changes fail closed; v1
+action/journal tables survive migration. This does not replace action lifecycle or unresolved-action
+blocking, and it does not authorize Phase E or live input.
