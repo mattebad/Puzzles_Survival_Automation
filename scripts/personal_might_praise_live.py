@@ -45,6 +45,7 @@ from tasks.daily_quest import (  # noqa: E402
     claim_postcondition_verified,
 )
 from tasks.profile import (  # noqa: E402
+    GAME_BACK,
     HOME_MORE,
     MIGHT_PRAISE_ACTION,
     PERSONAL_MIGHT_BACK,
@@ -54,6 +55,7 @@ from tasks.profile import (  # noqa: E402
     RANKINGS_BACK,
     RANKINGS_ENTRY,
     RESET_POPUP_CLOSE,
+    SPEEDUP_HELP_SCREEN,
 )
 from mvp_quest_to_claim import ADBTransport, load_frame  # noqa: E402
 from navigation_recognition import recognize_daily_selected, recognize_home_quest, recognize_local_state, similarity  # noqa: E402
@@ -74,6 +76,7 @@ CHECK_REGION = PERSONAL_MIGHT_CHECK.roi
 LEADERBOARD_REGION = PERSONAL_MIGHT_LEADERBOARD.roi
 PRAISE_REGION = MIGHT_PRAISE_ACTION.roi
 BACK_REGION = PERSONAL_MIGHT_BACK.roi
+SPEEDUP_SOURCE_REGION = SPEEDUP_HELP_SCREEN.roi
 RESET_POPUP_CLOSE_REGION = RESET_POPUP_CLOSE.roi
 VIP_POPUP_TITLE_REGION = (260, 390, 540, 440)
 VIP_POPUP_BODY_REGION = (120, 480, 680, 720)
@@ -266,11 +269,20 @@ def recognize_route(frame: np.ndarray, state: str) -> dict[str, Any]:
             or "speedup help" in all_text
             or ("help" in all_text and "request" in all_text)
         )
+        back_score = None
+        if state == "ALLIANCE_BACK" and identity:
+            reference = load_frame(REPO_ROOT / GAME_BACK.asset_provenance)
+            back_score = similarity(crop(frame, GAME_BACK.roi), crop(reference, GAME_BACK.roi))
+            if back_score >= GAME_BACK.threshold:
+                item = {"text": "standard game back arrow", "bounds": GAME_BACK.roi, "exact_bounds": True}
+            else:
+                item = None
         return {
             "state": state,
             "recognized": bool(item and identity),
             "target": item,
             "target_id": "standard-game-back-arrow",
+            "back_template_score": back_score,
         }
     raise ValueError("unsupported route source: " + state)
 
@@ -413,8 +425,66 @@ def vip_popup_handled(
 def roi_from_item(item: Optional[dict[str, Any]], fallback: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
     if not item:
         return fallback
+    if item.get("exact_bounds"):
+        return tuple(item["bounds"])
     x0, y0, x1, y1 = item["bounds"]
     return (max(0, x0 - 18), max(0, y0 - 18), min(800, x1 + 18), min(1280, y1 + 18))
+
+
+class InputExecutionError(RuntimeError):
+    def __init__(self, name: str, result: Any):
+        self.name = name
+        self.result = result
+        super().__init__(f"{name}: {result.status.value} ({result.reason}); stopping without retry")
+
+
+class RetryableNavigationFailure(RuntimeError):
+    def __init__(
+        self,
+        reason: str,
+        *,
+        source_frame: Optional[str] = None,
+        target_roi: Optional[tuple[int, int, int, int]] = None,
+        transport_calls: int = 0,
+    ):
+        self.reason = reason
+        self.source_frame = source_frame
+        self.target_roi = target_roi
+        self.transport_calls = transport_calls
+        super().__init__(reason)
+
+
+def run_bounded_navigation_attempts(
+    step_name: str,
+    operation: Callable[[str], Any],
+    *,
+    action_class: ActionClass = ActionClass.NAVIGATION_ONLY,
+    max_attempts: int = 3,
+) -> tuple[Any, list[dict[str, Any]]]:
+    """Retry only zero-transport navigation failures with fresh attempt identities."""
+    if action_class != ActionClass.NAVIGATION_ONLY:
+        return operation(step_name), []
+    failures: list[dict[str, Any]] = []
+    for attempt in range(1, max_attempts + 1):
+        attempt_id = f"{step_name}-attempt-{attempt}"
+        try:
+            return operation(attempt_id), failures
+        except RetryableNavigationFailure as exc:
+            failures.append({
+                "attempt_id": attempt_id,
+                "reason": exc.reason,
+                "source_frame": exc.source_frame,
+                "target_roi": list(exc.target_roi) if exc.target_roi else None,
+                "transport_calls": exc.transport_calls,
+            })
+            if exc.transport_calls != 0:
+                raise
+            if attempt < max_attempts:
+                time.sleep(0.25)
+    raise RuntimeError(
+        f"{step_name}: three fresh navigation attempts failed: "
+        + json.dumps(failures, sort_keys=True)
+    )
 
 
 class LiveAdapter:
@@ -488,6 +558,7 @@ class LiveAdapter:
         post_reader: Callable[[Path], Observation],
         postcondition: Callable[[Observation], bool],
         transport: Callable[[], TransportResult],
+        pre_reader: Optional[Callable[[Path], Observation]] = None,
     ) -> Any:
         action_id = f"{name}-{int(time.time())}-{self.counter}"
         action_key = action_id
@@ -496,7 +567,7 @@ class LiveAdapter:
         def recapture() -> Observation:
             pre_counter["n"] += 1
             path, _ = self.capture(f"{name}-immediate-before-{pre_counter['n']}")
-            return post_reader(path)
+            return (pre_reader or post_reader)(path)
 
         def post_observe() -> Iterable[Observation]:
             results = []
@@ -530,7 +601,7 @@ class LiveAdapter:
             "pre_dispatch_attempts": pre_counter["n"],
         })
         if result.status.value != "confirmed":
-            raise RuntimeError(f"{name}: {result.status.value} ({result.reason}); stopping without retry")
+            raise InputExecutionError(name, result)
         return result
 
     def dismiss_reset_popup(self, detail: dict[str, Any]) -> Any:
@@ -620,18 +691,61 @@ class LiveAdapter:
         detection_state: Optional[str] = None,
         target_id: Optional[str] = None,
     ) -> Any:
+        def operation(attempt_name: str) -> Any:
+            try:
+                return self._run_route_step_attempt(
+                    attempt_name,
+                    source_state,
+                    expected_state,
+                    semantic,
+                    fallback_roi,
+                    detection_state=detection_state,
+                    target_id=target_id,
+                )
+            except InputExecutionError as exc:
+                if exc.result.transport_calls == 0:
+                    raise RetryableNavigationFailure(
+                        exc.result.reason,
+                        target_roi=fallback_roi,
+                        transport_calls=0,
+                    ) from exc
+                raise
+
+        result, failures = run_bounded_navigation_attempts(name, operation)
+        write_json(self.evidence / f"{name}-navigation-summary.json", {
+            "status": "confirmed",
+            "failed_attempts": failures,
+            "transport_calls": result.transport_calls,
+        })
+        return result
+
+    def _run_route_step_attempt(
+        self,
+        name: str,
+        source_state: str,
+        expected_state: str,
+        semantic: str,
+        fallback_roi: tuple[int, int, int, int],
+        *,
+        detection_state: Optional[str] = None,
+        target_id: Optional[str] = None,
+    ) -> Any:
+        def recognize_source(frame: np.ndarray) -> dict[str, Any]:
+            detail = recognize_route(frame, detection_state or source_state)
+            if source_state == "HOME_BASE" and target_id != "home-quest-entry":
+                return recognize_home_more(frame, load_frame(self.args.home_reference))
+            if target_id == "home-quest-entry":
+                home = recognize_home_quest(frame, load_frame(self.args.home_reference))
+                return {
+                    "recognized": home.recognized,
+                    "target": {"bounds": home.target_roi} if home.recognized else None,
+                    "target_id": "home-quest-entry",
+                }
+            return detail
+
         source_path, _ = self.capture(f"{name}-source")
         source_frame = load_frame(source_path)
-        detail = recognize_route(source_frame, detection_state or source_state)
-        if source_state == "HOME_BASE" and target_id != "home-quest-entry":
-            detail = recognize_home_more(source_frame, load_frame(self.args.home_reference))
-        elif target_id == "home-quest-entry":
-            home = recognize_home_quest(source_frame, load_frame(self.args.home_reference))
-            detail = {
-                "recognized": home.recognized,
-                "target": {"bounds": home.target_roi} if home.recognized else None,
-                "target_id": "home-quest-entry",
-            }
+        detail = recognize_source(source_frame)
         if not detail["recognized"]:
             write_json(self.evidence / f"{name}-blocked.json", {
                 "source_state": source_state,
@@ -639,19 +753,42 @@ class LiveAdapter:
                 "target_id": target_id,
                 "detail": detail,
             })
-            raise RuntimeError(f"{name}: source or local target not recognized: {detail}")
+            raise RetryableNavigationFailure(
+                "SOURCE_OR_TARGET_NOT_RECOGNIZED",
+                source_frame=str(source_path),
+                target_roi=fallback_roi,
+            )
         target_roi = roi_from_item(detail["target"], fallback_roi)
-        target_id = target_id or detail["target_id"]
+        bound_target_id = target_id or detail["target_id"]
+        source_identity_roi = SPEEDUP_SOURCE_REGION if source_state == "SPEEDUP_HELP" else fallback_roi
         initial = _observation(
             path=source_path,
             state=source_state,
-            target_identity=target_id,
+            target_identity=bound_target_id,
             target_roi=target_roi,
             expected_postcondition=expected_state,
             consequence="navigate_zero_cost",
             action_class=ActionClass.NAVIGATION_ONLY,
-            critical_rois=(("source", fallback_roi), ("target", target_roi)),
+            critical_rois=(("source_identity", source_identity_roi), ("target", target_roi)),
         )
+
+        def read_pre(path: Path) -> Observation:
+            frame = load_frame(path)
+            fresh = recognize_source(frame)
+            recognized = bool(fresh.get("recognized"))
+            fresh_roi = roi_from_item(fresh.get("target"), fallback_roi) if recognized else target_roi
+            same_target = recognized and fresh_roi == target_roi
+            return _observation(
+                path=path,
+                state=source_state,
+                target_identity=bound_target_id if same_target else None,
+                target_roi=fresh_roi if same_target else None,
+                expected_postcondition=expected_state,
+                consequence="navigate_zero_cost",
+                action_class=ActionClass.NAVIGATION_ONLY,
+                recognized=same_target,
+                critical_rois=(("source_identity", source_identity_roi), ("target", fresh_roi)),
+            )
 
         def read_post(path: Path) -> Observation:
             frame = load_frame(path)
@@ -682,19 +819,19 @@ class LiveAdapter:
             return _observation(
                 path=path,
                 state=expected_state if successor else source_state,
-                target_identity=None if successor else target_id,
+                target_identity=None if successor else bound_target_id,
                 target_roi=None if successor else target_roi,
                 expected_postcondition=expected_state,
                 consequence="navigate_zero_cost",
                 action_class=ActionClass.NAVIGATION_ONLY,
                 recognized=successor,
-                critical_rois=(("source", fallback_roi), ("target", target_roi)),
+                critical_rois=(("source_identity", source_identity_roi), ("target", target_roi)),
             )
 
         return self.execute_input(
             name=name,
             source_state=source_state,
-            target_identity=target_id,
+            target_identity=bound_target_id,
             target_roi=target_roi,
             expected_state=expected_state,
             semantic=semantic,
@@ -702,6 +839,7 @@ class LiveAdapter:
             action_class=ActionClass.NAVIGATION_ONLY,
             initial_path=source_path,
             initial=initial,
+            pre_reader=read_pre,
             post_reader=read_post,
             postcondition=lambda item: item.recognized and item.source_state == expected_state,
             transport=lambda: self.transport.tap((target_roi[0] + target_roi[2]) // 2, (target_roi[1] + target_roi[3]) // 2),
@@ -959,7 +1097,7 @@ class LiveAdapter:
             if "speedup help" in startup_text or ("help" in startup_text and "request" in startup_text):
                 self.run_route_step(
                     "normalize-alliance-to-home", "SPEEDUP_HELP", "HOME_BASE",
-                    "ALLIANCE_BACK", BACK_REGION, detection_state="ALLIANCE_BACK",
+                    "ALLIANCE_BACK", GAME_BACK.roi, detection_state="ALLIANCE_BACK",
                     target_id="standard-game-back-arrow",
                 )
             for name, source, target, semantic, roi in (
