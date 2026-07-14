@@ -48,6 +48,8 @@ promotion. Praise completion stops before Claim.
   replay with unconditional no-upgrade-dispatch guard).
 - Disabled Purchase contracts: `tasks/purchases_disabled.py` (Box, Ruins, Rare Earth, and
   Alliance Shop offer/cost replay with unconditional no-purchase-dispatch guard).
+- Disabled Alliance Technology donation contract: `tasks/donation_disabled.py` (tech/resource/count
+  replay with unconditional no-donation-dispatch guard).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

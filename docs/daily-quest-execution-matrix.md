@@ -64,6 +64,10 @@ scheduler-ineligible.
 Alliance Shop offer/cost/item replay only. Currency spend remains policy-disabled; all four
 objectives are unregistered and scheduler-ineligible.
 
+`DQ-FLOW-DONATION` uses `tasks/donation_disabled.py` for Alliance Technology target/resource/count
+replay only. Resource donation remains policy-disabled; the objective is unregistered and
+scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |

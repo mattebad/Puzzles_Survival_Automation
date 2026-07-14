@@ -1,5 +1,14 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 disabled Alliance Technology donation contract
+
+- Completed `DQ-FLOW-DONATION` as Alliance Technology target/resource/count replay in
+  `tasks/donation_disabled.py`. It binds selected-Daily tech identity, exact Donate control,
+  known resource amount, and same-day successor; donation dispatch is always blocked.
+- Synthetic replay fixtures and five focused tests cover target/resource guards, count/resource
+  arithmetic, Main/static/ambiguous rejection, Claim separation, and no-dispatch behavior. Row
+  remains disabled, unregistered, and scheduler-ineligible; no live or persistent state changed.
+
 ## 2026-07-14 disabled purchase contracts
 
 - Completed `DQ-FLOW-PURCHASES` as parameterized `tasks/purchases_disabled.py` semantics for Box,

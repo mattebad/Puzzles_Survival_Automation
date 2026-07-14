@@ -142,6 +142,12 @@ from .purchases_disabled import (
     purchase_disabled_dispatch,
     purchase_postcondition_verified,
 )
+from .donation_disabled import (
+    DonationObservation,
+    donation_authorizeable,
+    donation_disabled_dispatch,
+    donation_postcondition_verified,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -284,6 +290,10 @@ __all__ = [
     "purchase_authorizeable",
     "purchase_disabled_dispatch",
     "purchase_postcondition_verified",
+    "DonationObservation",
+    "donation_authorizeable",
+    "donation_disabled_dispatch",
+    "donation_postcondition_verified",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

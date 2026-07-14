@@ -1604,14 +1604,17 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; product purchase policy required.
 
 ### DQ-FLOW-DONATION
+- Status: Passed (2026-07-14; disabled Alliance Technology contract and 5 focused tests).
 - Covered: `donate_alliance_tech`.
 - Variants: resource/tech target only after allowlist.
 - Exclusions: unknown resource, broad donation, uncontrolled repeated donation.
 - Dependencies/routes: inventory → Alliance Technology.
 - Source/target/policy: exact tech and resource amount; disabled policy.
-- Offline acceptance/tests: donation count/resource delta mocks.
+- Offline acceptance/tests: target/resource identity, count/resource arithmetic, disabled dispatch,
+  Main/ambiguous negatives, and Claim separation; `tests/test_donation_disabled.py`.
 - Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: one donation; positive count/resource delta; stop on mismatch.
+- Transaction/postcondition/recovery: no transaction path; count/resource arithmetic replay only;
+  every dispatch request blocks; stop on mismatch.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; resource policy decision required.
 

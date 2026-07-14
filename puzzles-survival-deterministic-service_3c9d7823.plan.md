@@ -993,6 +993,8 @@ Risk: `R0` observation, `R1` verified no-spend/navigation/claim, `R2` bounded or
   remain disabled pending separate product approval.
 - Purchases have Box, Ruins Shop, Rare Earth Shop, and Alliance Shop offer/cost/item replay only;
   currency spend and purchase dispatch remain disabled pending separate product approval.
+- Alliance Technology donation has target/resource/count replay only; resource spend and donation
+  dispatch remain disabled pending separate product approval.
 
 ## 14. Safety and spend-policy model
 

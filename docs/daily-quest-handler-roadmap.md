@@ -91,7 +91,8 @@ cannot admit Daily objectives.
 - Hero Upgrade and Hero Ownership: separate semantics.
 - Purchases: Box, Ruins Shop, Rare Earth Shop, and Alliance Shop variants share offline
   offer/cost/item replay; purchase remains policy-disabled with no transaction.
-- Donation: Alliance Tech resource policy.
+- Donation: Alliance Technology target/resource/count replay complete offline; donation remains
+  policy-disabled with no transaction.
 - Speedups: item/timer allowlist.
 - Challenges: proven Ruins variant only. Ultimate wording is Main-only evidence.
 - Hero Duel: PvP entry.
