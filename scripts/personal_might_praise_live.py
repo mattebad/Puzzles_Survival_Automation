@@ -1242,6 +1242,18 @@ class LiveAdapter:
             if current_state == "MORE":
                 self.navigate_more_to_rankings()
                 current_state = "RANKINGS"
+            if self.args.navigation_evidence_only:
+                evidence_path, _ = self.capture("rankings-evidence")
+                detail = recognize_route(load_frame(evidence_path), "RANKINGS")
+                write_json(self.evidence / "rankings-navigation-evidence-result.json", {
+                    "status": "confirmed" if detail["recognized"] else "blocked",
+                    "input_count": self.input_count,
+                    "rankings": detail,
+                    "evidence": str(evidence_path),
+                })
+                if not detail["recognized"]:
+                    raise RuntimeError("corrected Rankings successor was not positively recognized")
+                return 0
             self.run_route_step(
                 "rankings-to-personal-might", "RANKINGS", "PERSONAL_MIGHT_RANK",
                 "RANKINGS_TO_PERSONAL_MIGHT", PERSONAL_ROW_REGION,
@@ -1295,6 +1307,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--home-reference", type=Path, required=True)
     root.add_argument("--quest-reference", type=Path, required=True)
     root.add_argument("--popup-only", action="store_true")
+    root.add_argument("--navigation-evidence-only", action="store_true")
     return root
 
 
