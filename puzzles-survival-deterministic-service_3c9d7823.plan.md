@@ -909,6 +909,8 @@ Risk: `R0` observation, `R1` verified no-spend/navigation/claim, `R2` bounded or
 - Evidence/cost/postcondition: resource identity, node level, unoccupied/not targeted/not already marched, Gather not Attack/Scout, slot count, formation, dispatch confirmation. Cost is march slot/time.
 - Persist/next: resource, node fingerprint, slot, dispatch/expected return, gathering daily progress. Next eligibility at slot return or conservative poll. Stop on occupancy/ownership ambiguity, moving target, no slot, recall/replace, wrong resource.
 - Recovery/mode/phase: unresolved deploy reconciles using active marches before retrying search. Dry-run then automatic-with-limits in Phase 12.
+- Current Daily implementation boundary: Wood, Steel, and Gas have offline node/march replay
+  contracts only; Gather Food/Gathered Food remains outside scope without selected-Daily evidence.
 
 ### 13.6 Shop purchases — R2/R3
 

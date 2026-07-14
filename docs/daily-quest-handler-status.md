@@ -34,6 +34,8 @@ promotion. Praise completion stops before Claim.
 - Zombie Lair contract: `tasks/zombie_lair.py` (allowlisted Lair, march, and stamina replay only).
 - Disabled Stamina contract: `tasks/stamina_disabled.py` (counter replay and unconditional
   no-dispatch guard only).
+- Gathering family contract: `tasks/gathering.py` (Wood, Steel, and Gas node/march variants
+  complete offline; Gather Food excluded).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

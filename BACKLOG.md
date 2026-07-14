@@ -1512,12 +1512,15 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; product decision required.
 
 ### DQ-FLOW-GATHERING
+- Status: Passed (2026-07-14; parameterized Wood/Steel/Gas offline contract and 6 focused tests).
 - Covered: `gather_wood`, `gather_steel`, `gather_gas`.
 - Variants: Wood 30000, Steel 6000, Gas 1500; one parameterized engine.
 - Exclusions: occupied nodes, existing march override, coordinate-only vendor geometry.
 - Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE → World Search → node → march.
 - Source/target/policy: exact resource row, resource node identity, free/known march policy.
-- Offline acceptance/tests: resource-type, node occupancy, march capacity, outbound queue, recovery mocks.
+- Offline acceptance/tests: exact variant ownership, node identity/level, occupancy and march
+  capacity, known formation/duration, outbound queue/result, provenance and Main negatives;
+  `tests/test_gathering.py`.
 - Bliss/live boundary: evidence-gated; no registration/input.
 - Transaction/postcondition/recovery: one gather march; outbound/positive gather and Daily progress; stop on weak disappearance.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.

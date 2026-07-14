@@ -1,5 +1,16 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 offline Gathering family
+
+- Completed `DQ-FLOW-GATHERING` as parameterized `tasks/gathering.py` semantics for proven Wood,
+  Steel, and Gas only. Authorization binds selected-Daily resource identity, exact current-frame
+  node, node level, unoccupied/not-targeted state, available march slot, known formation/duration,
+  and Bliss-native provenance. Gather Food remains outside catalog scope.
+- Synthetic replay fixtures and six focused tests cover variant ownership/cardinality, node and
+  march guards, Main/static/selected-Daily negatives, transaction semantics, positive outbound
+  or result successor, and pure one-pulse output. Contract remains unregistered and
+  scheduler-ineligible; no live input or gameplay state changed.
+
 ## 2026-07-14 disabled Stamina contract
 
 - Completed `DQ-FLOW-STAMINA` as counter-only `tasks/stamina_disabled.py` semantics. It binds

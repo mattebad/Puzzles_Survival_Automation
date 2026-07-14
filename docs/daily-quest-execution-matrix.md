@@ -38,6 +38,10 @@ runtime registration, or scheduler eligibility.
 Current product policy blocks every stamina-spend dispatch; the objective remains unregistered and
 scheduler-ineligible.
 
+`DQ-FLOW-GATHERING` uses `tasks/gathering.py` for parameterized Wood, Steel, and Gas node/march
+replay. Gather Food/Gathered Food remains excluded; live node evidence is still required for
+promotion, and no runtime registration or scheduler eligibility is enabled.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |
@@ -56,9 +60,9 @@ scheduler-ineligible.
 | `consume_ap` | campaign_ap / Sweep, Auto Complete | `daily_go_to_campaign` | offline contract | evidence-gated | none | DQ-FLOW-CAMPAIGN-AP |
 | `help_allies` | alliance_help / Help All, individual | `daily_go_to_speedup_help` | live validated | live validated | `alliance-help` | DQ-FLOW-ALLIANCE-HELP |
 | `buy_box` | purchases / box | `daily_go_to_purchase` | disabled | disabled | none | DQ-FLOW-PURCHASES |
-| `gather_wood` | gathering / wood, 30,000 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
-| `gather_steel` | gathering / steel, 6,000 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
-| `gather_gas` | gathering / gas, 1,500 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
+| `gather_wood` | gathering / wood, 30,000 | `daily_go_to_world` | offline contract | evidence-gated | none | DQ-FLOW-GATHERING |
+| `gather_steel` | gathering / steel, 6,000 | `daily_go_to_world` | offline contract | evidence-gated | none | DQ-FLOW-GATHERING |
+| `gather_gas` | gathering / gas, 1,500 | `daily_go_to_world` | offline contract | evidence-gated | none | DQ-FLOW-GATHERING |
 | `boost_resource_building_output` | resource_building_boost / any resource | `daily_go_to_resource_building` | disabled | disabled | none | DQ-FLOW-RESOURCE-BOOST |
 | `ruins_shop_purchase` | purchases / Ruins Shop | `daily_go_to_ruins_shop` | disabled | disabled | none | DQ-FLOW-PURCHASES |
 | `rare_earth_shop_purchase` | purchases / Rare Earth Shop | `daily_go_to_rare_earth_shop` | disabled | disabled | none | DQ-FLOW-PURCHASES |

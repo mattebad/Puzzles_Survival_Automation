@@ -10,13 +10,15 @@ recognizers, safe action core. Route: Daily row → World Search
 → resource node → march. Source: completed row and resource identity; target: exact node/march;
 successor: resource progress/inventory. Bind current frame.
 
-Policy: evidence-gated material action. Transaction: one exact dispatch, bounded retry, unresolved
-block. Postcondition: requested resource progress confirmed. Recovery: fail closed on node,
-resource, march, budget, stale-frame, or successor ambiguity. Daily reconciliation keeps quantity
-and identity provenance separate; Claim independent. Persistence/scheduler dormant.
+Policy: evidence-gated material action. Offline contract is implemented in `tasks/gathering.py` for
+Wood, Steel, and Gas only. Transaction: one exact dispatch, bounded retry, unresolved block.
+Postcondition: requested resource progress confirmed. Recovery: fail closed on node, resource,
+march, budget, stale-frame, or successor ambiguity. Daily reconciliation keeps quantity and
+identity provenance separate; Claim independent. Persistence/scheduler dormant.
 
-Tests: three-variant family ownership, node identity, budget guard, replay, cardinality, successor
-proof, selected-Daily provenance gate, Main negative, registry false, scheduler false. Bliss-native
+Tests: `tests/test_gathering.py` covers three-variant family ownership, node identity, budget
+guard, replay, cardinality, successor proof, selected-Daily provenance gate, Main negative,
+registry false, and scheduler false. Bliss-native
 evidence required; GnBots geometry never authorizes. Future navigation read-only. Prohibit ADB, worker/VM,
 leases, journal migration, live input/evidence, registration, scheduler eligibility. Update docs/
 matrix/status. Commit: `docs(tasks): map every Daily objective to an execution task`. Continue offline.

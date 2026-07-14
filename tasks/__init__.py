@@ -99,6 +99,13 @@ from .stamina_disabled import (
     stamina_counter_postcondition_verified,
     stamina_disabled_dispatch,
 )
+from .gathering import (
+    GatheringObservation,
+    gathering_authorizeable,
+    gathering_perform_one_pulse,
+    gathering_postcondition_verified,
+    gathering_transaction_spec,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -212,6 +219,11 @@ __all__ = [
     "stamina_counter_authorizeable",
     "stamina_counter_postcondition_verified",
     "stamina_disabled_dispatch",
+    "GatheringObservation",
+    "gathering_authorizeable",
+    "gathering_perform_one_pulse",
+    "gathering_postcondition_verified",
+    "gathering_transaction_spec",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",
