@@ -1619,14 +1619,17 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; resource policy decision required.
 
 ### DQ-FLOW-SPEEDUP
+- Status: Passed (2026-07-14; disabled 180-minute timer/item contract and 5 focused tests).
 - Covered: `speedup_using_items`; 180-minute item variant.
 - Variants: item type and timer target, both allowlisted.
 - Exclusions: premium currency, arbitrary target, item waste.
 - Dependencies/routes: inventory → existing timer/Speedup.
 - Source/target/policy: exact timer, item, quantity, known cost.
-- Offline acceptance/tests: item/timer delta and quantity mocks.
+- Offline acceptance/tests: 180-minute timer/item identity, quantity arithmetic, disabled dispatch,
+  Main/ambiguous negatives, and Claim separation; `tests/test_speedup_disabled.py`.
 - Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: one speedup; timer/inventory change; stop on unknown.
+- Transaction/postcondition/recovery: no transaction path; timer/item arithmetic replay only; every
+  dispatch request blocks; stop on unknown.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; allowlist decision required.
 

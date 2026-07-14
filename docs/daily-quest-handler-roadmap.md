@@ -93,7 +93,8 @@ cannot admit Daily objectives.
   offer/cost/item replay; purchase remains policy-disabled with no transaction.
 - Donation: Alliance Technology target/resource/count replay complete offline; donation remains
   policy-disabled with no transaction.
-- Speedups: item/timer allowlist.
+- Speedups: 180-minute item/timer replay complete offline; item consumption remains
+  policy-disabled with no transaction.
 - Challenges: proven Ruins variant only. Ultimate wording is Main-only evidence.
 - Hero Duel: PvP entry.
 - Resource-building boost: any resource building target.

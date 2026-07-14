@@ -1,5 +1,15 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 disabled Speedup contract
+
+- Completed `DQ-FLOW-SPEEDUP` as 180-minute timer/item replay in `tasks/speedup_disabled.py`. It
+  binds selected-Daily timer identity, exact non-premium item, quantity, and same-day timer
+  successor; item consumption and speedup dispatch are always blocked.
+- Synthetic replay fixtures and five focused tests cover timer/item/quantity guards, exact
+  180-minute arithmetic, Main/static/ambiguous rejection, Claim separation, and no-dispatch
+  behavior. Row remains disabled, unregistered, and scheduler-ineligible; no live or persistent
+  state changed.
+
 ## 2026-07-14 disabled Alliance Technology donation contract
 
 - Completed `DQ-FLOW-DONATION` as Alliance Technology target/resource/count replay in

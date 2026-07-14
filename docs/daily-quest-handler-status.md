@@ -50,6 +50,8 @@ promotion. Praise completion stops before Claim.
   Alliance Shop offer/cost replay with unconditional no-purchase-dispatch guard).
 - Disabled Alliance Technology donation contract: `tasks/donation_disabled.py` (tech/resource/count
   replay with unconditional no-donation-dispatch guard).
+- Disabled Speedup contract: `tasks/speedup_disabled.py` (180-minute timer/item replay with
+  unconditional no-speedup-dispatch guard).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

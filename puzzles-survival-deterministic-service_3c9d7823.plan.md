@@ -995,6 +995,8 @@ Risk: `R0` observation, `R1` verified no-spend/navigation/claim, `R2` bounded or
   currency spend and purchase dispatch remain disabled pending separate product approval.
 - Alliance Technology donation has target/resource/count replay only; resource spend and donation
   dispatch remain disabled pending separate product approval.
+- Speedup has 180-minute timer/item replay only; item consumption and speedup dispatch remain
+  disabled pending separate product approval.
 
 ## 14. Safety and spend-policy model
 

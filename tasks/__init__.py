@@ -148,6 +148,12 @@ from .donation_disabled import (
     donation_disabled_dispatch,
     donation_postcondition_verified,
 )
+from .speedup_disabled import (
+    SpeedupObservation,
+    speedup_authorizeable,
+    speedup_disabled_dispatch,
+    speedup_postcondition_verified,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -294,6 +300,10 @@ __all__ = [
     "donation_authorizeable",
     "donation_disabled_dispatch",
     "donation_postcondition_verified",
+    "SpeedupObservation",
+    "speedup_authorizeable",
+    "speedup_disabled_dispatch",
+    "speedup_postcondition_verified",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

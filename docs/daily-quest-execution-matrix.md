@@ -68,6 +68,9 @@ objectives are unregistered and scheduler-ineligible.
 replay only. Resource donation remains policy-disabled; the objective is unregistered and
 scheduler-ineligible.
 
+`DQ-FLOW-SPEEDUP` uses `tasks/speedup_disabled.py` for 180-minute timer/item replay only. Item
+consumption remains policy-disabled; the objective is unregistered and scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |
