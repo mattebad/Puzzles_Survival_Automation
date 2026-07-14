@@ -36,6 +36,8 @@ promotion. Praise completion stops before Claim.
   no-dispatch guard only).
 - Gathering family contract: `tasks/gathering.py` (Wood, Steel, and Gas node/march variants
   complete offline; Gather Food excluded).
+- Disabled Training contract: `tasks/training_disabled.py` (Fighter, Rider, Shooter, and Vehicle
+  queue replay with unconditional no-dispatch guard).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

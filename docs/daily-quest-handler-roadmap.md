@@ -75,7 +75,8 @@ cannot admit Daily objectives.
 - Gathering: proven Wood, Steel, and Gas variants with resource-specific target/quantity; offline
   node/march contract complete. Gather Food/Gathered Food remains outside scope until selected-
   Daily evidence qualifies it.
-- Training: Fighter, Rider, Shooter, Vehicle variants with shared queue/quantity engine.
+- Training: Fighter, Rider, Shooter, Vehicle variants with shared queue/quantity engine; current
+  implementation is counter-only and policy-disabled, with no training transaction.
 
 ### Disabled or strategic
 

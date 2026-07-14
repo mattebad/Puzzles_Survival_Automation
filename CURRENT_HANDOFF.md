@@ -1,5 +1,16 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 disabled Training contract
+
+- Completed `DQ-FLOW-TRAINING` as counter-only `tasks/training_disabled.py` semantics for
+  Fighter, Rider, Shooter, and Vehicle. It binds each selected-Daily row to exact unit/facility,
+  queue capacity, known cost, tier, and current-day evidence, then blocks every dispatch under
+  `DISABLED_POLICY`.
+- Synthetic replay fixtures and six focused tests cover four-way ownership, queue arithmetic,
+  resource/queue guards, Main/static negatives, Claim separation, and no-dispatch behavior. All
+  four rows remain disabled, unregistered, and scheduler-ineligible; no live or persistent state
+  changed.
+
 ## 2026-07-14 offline Gathering family
 
 - Completed `DQ-FLOW-GATHERING` as parameterized `tasks/gathering.py` semantics for proven Wood,

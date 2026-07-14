@@ -886,6 +886,8 @@ Risk: `R0` observation, `R1` verified no-spend/navigation/claim, `R2` bounded or
 - Evidence/cost/postcondition: family, tier, remaining count, quantity, costs, queue, Train/confirmation, timer. Fighter max tier only if configured; Rider/Shooter/Vehicle generally T1. Cost is ordinary resources plus queue time.
 - Persist/next: daily family completion, queue type/end, resources/spend, cooldown to expected completion. Stop on default bulk, wrong family/tier, unreadable cost/quantity, queue occupied, premium/speedup prompt, reserve breach.
 - Recovery/mode/phase: after start timeout mark unresolved and inspect queue; never start again blindly. Disabled → observe-only → dry-run → automatic-with-limits in Phase 13.
+- Current Daily implementation boundary: Fighter, Rider, Shooter, and Vehicle have queue-only
+  offline replay; current policy blocks every resource spend and training dispatch.
 
 ### 13.3 Stamina and Zombie Lairs — R2
 

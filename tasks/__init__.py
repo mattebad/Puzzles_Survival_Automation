@@ -106,6 +106,12 @@ from .gathering import (
     gathering_postcondition_verified,
     gathering_transaction_spec,
 )
+from .training_disabled import (
+    TrainingObservation,
+    training_disabled_dispatch,
+    training_queue_authorizeable,
+    training_queue_postcondition_verified,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -224,6 +230,10 @@ __all__ = [
     "gathering_perform_one_pulse",
     "gathering_postcondition_verified",
     "gathering_transaction_spec",
+    "TrainingObservation",
+    "training_disabled_dispatch",
+    "training_queue_authorizeable",
+    "training_queue_postcondition_verified",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

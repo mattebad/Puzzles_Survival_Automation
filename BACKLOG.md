@@ -1527,14 +1527,18 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED`; Food remains excluded pending selected-Daily proof.
 
 ### DQ-FLOW-TRAINING
+- Status: Passed (2026-07-14; disabled four-variant queue contract and 6 focused tests).
 - Covered: `train_fighter`, `train_rider`, `train_shooter`, `train_vehicle`.
 - Variants: four troop types, shared queue/quantity engine.
 - Exclusions: automatic resource packs, oversized batches, unknown tier.
 - Dependencies/routes: inventory → troop building/training screen.
 - Source/target/policy: exact troop type, minimum tier, quantity 250, known cost/queue.
-- Offline acceptance/tests: variant recognizers, exact quantity, queue postcondition, no-refill mocks.
+- Offline acceptance/tests: exact four-way ownership, selected-Daily/unit/facility binding, exact
+  quantity and capacity, cost/queue guards, arithmetic successor, Main/static negatives, and
+  unconditional dispatch block; `tests/test_training_disabled.py`.
 - Bliss/live boundary: disabled pending resource policy; no registration/input.
-- Transaction/postcondition/recovery: one bounded train transaction; queue quantity; stop on cost/queue ambiguity.
+- Transaction/postcondition/recovery: no transaction path; queue arithmetic replay only; every
+  dispatch request blocks; stop on cost/queue ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; product/tier decision required.
 

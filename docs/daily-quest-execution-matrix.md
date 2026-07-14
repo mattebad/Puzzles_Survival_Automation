@@ -42,6 +42,10 @@ scheduler-ineligible.
 replay. Gather Food/Gathered Food remains excluded; live node evidence is still required for
 promotion, and no runtime registration or scheduler eligibility is enabled.
 
+`DQ-FLOW-TRAINING` uses `tasks/training_disabled.py` for four-way queue replay only. Product policy
+blocks resource spending and training dispatch; all four objective rows remain disabled,
+unregistered, and scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |
