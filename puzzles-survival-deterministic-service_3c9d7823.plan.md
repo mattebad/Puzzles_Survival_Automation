@@ -1380,3 +1380,8 @@ Phase D passed. The explicit Claim task bound the completed objective row `(40,4
 its local Claim control `(590,438)-(695,495)`, dispatched one tap at `(642,466)`, and confirmed the
 exact row-local Claim disappeared. Praise and Claim each used one separately authorized zero-cost
 transport call with independent fresh-frame evidence and positive postconditions.
+
+Phase E is evidence-gated. Fresh post-Claim Daily Quest evidence contains only `Go` rows at 5
+points and no ready milestone. Main Claim, milestone, Depot Free, and recruitment Free each require
+new Bliss-native exact control, explicit free/cost-negative proof, and positive postcondition
+evidence before handler or dispatch enablement. Static vendor geometry remains non-authorizing.

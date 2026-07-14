@@ -526,7 +526,13 @@ Claim example.
 - Scope: Main claims, Daily claims, milestones, free Depot, free recruitment; then separate task
   persistence and a narrow one-pulse due scheduler. Quiz, resource packs, strategic actions, and
   march families remain excluded from first Daily Activities MVP.
-- Status: Pending.
+- Status: Evidence-gated.
+- Fresh post-Phase-D Daily inventory has 5 points, no visible ordinary Claim row, and no ready
+  milestone. Main Claim, milestone, Depot Free, and recruitment Free controls still lack
+  Bliss-native exact target plus positive postcondition pairs. Evidence:
+  `evidence/sessions/20260713-phase-e-inventory/live-current-001/phase-e-inventory-001.png`.
+- Vendor `GNB-DAILY-*` geometry remains static reference only. No 2x projection, vendor selector,
+  blind triple tap, 10x recruitment branch, or broad Claim ROI may authorize input.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded

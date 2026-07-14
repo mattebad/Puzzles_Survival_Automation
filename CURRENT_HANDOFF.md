@@ -1,5 +1,13 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 Phase E evidence gate
+
+- Fresh selected Daily Quest inventory after Phase D shows 5 points, only `Go` rows, and no ready
+  milestone. No additional input is authorized from this frame.
+- Remaining Main Claim, milestone, Depot Free, and recruitment Free flows lack Bliss-native exact
+  pre/post evidence. Static `GNB-DAILY-*` coordinates remain non-authorizing.
+- Phase E resumes only after a fresh eligible control and its free/cost-negative state are captured.
+
 ## 2026-07-13 Personal Might leaderboard live evidence
 
 - Exact Check ROI `(590,245)-(775,315)` dispatched one tap at `(682,280)`.
