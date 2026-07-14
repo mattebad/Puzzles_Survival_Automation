@@ -642,6 +642,24 @@ Claim example.
 - Next: acquire navigation-only evidence when permitted, then promote a real free Depot target
   before any handler or dispatch is enabled.
 
+### GNB-PHASE-E-RECRUITMENT-OFFLINE — Add free recruitment contract
+
+- Dependencies: GNB-PHASE-D Passed; Main Claim, generalized Daily Claim, milestone, and free Depot
+  contracts passed; fresh free recruitment evidence is not yet available.
+- Scope: explicit single free mode, free banner, exact target, no 10x/premium/unknown confirmation,
+  panel-local target containment, profile/provenance/hash gates, and positive result/count
+  postcondition. No image capture, ADB, pnsctl registration, or live input.
+- Status: Passed (2026-07-14; offline contract and 5 focused tests).
+- Evidence: `tasks/free_recruitment.py`,
+  `tests/fixtures/phase_e_free_recruitment_observations.json`, and
+  `tests/test_free_recruitment.py`.
+- Result: the synthetic free single case exercises the transaction spec; 10x, static-reference,
+  wrong-target/panel, no-free-banner, non-free, unknown-confirmation, and unchanged-result cases
+  fail closed.
+- Blocker: no fresh Bliss-native free recruitment target and positive result/count evidence exists.
+- Next: Phase E live promotion remains evidence-gated; continue with offline Phase F persistence or
+  acquire navigation-only evidence when permitted.
+
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded
 supervised task precede the 24-hour gate. The 24-hour locked-runtime validation is not required

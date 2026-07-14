@@ -1424,3 +1424,10 @@ free collection with exact panel-local target, ready state, selected Depot scree
 locked-profile, source-hash, and Bliss-native provenance gates. Premium/unknown reward,
 static-reference, non-free, not-ready, overlay, reset, and unchanged-postcondition fixtures fail
 closed. The module is not registered in `pnsctl`; free Depot dispatch remains evidence-gated.
+
+Offline free recruitment contract (2026-07-14): `tasks/free_recruitment.py` models one explicit
+free recruitment with selected-screen, `FREE` mode/banner, exact target, zero/one cost, current-day,
+locked-profile, source-hash, and Bliss-native provenance gates. 10x/premium, static-reference,
+unknown-confirmation, and unchanged-result/count fixtures fail closed. The module is not registered
+in `pnsctl`; recruitment dispatch remains evidence-gated. Phase E offline contract coverage is now
+complete; live promotion still requires fresh Bliss-native evidence for every target.

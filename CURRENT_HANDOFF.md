@@ -81,6 +81,18 @@
 - The Supply Depot contract plus all prior Phase E, Phase D, and reference tests pass 38/38. Fresh
   Bliss-native free Depot target and positive collection evidence remain absent.
 
+## 2026-07-14 offline free recruitment contract
+
+- Added `tasks/free_recruitment.py` as a pure contract for one free recruitment. It requires the
+  selected Recruitment screen, explicit `FREE` mode and banner, exact target, zero cost and
+  quantity-one semantics, current day, locked profile, source hash, and Bliss-native provenance.
+- 10x/premium, static-reference, wrong-target/panel, no-free-banner, non-free,
+  unknown-confirmation, and unchanged-result/count fixtures fail closed. A result identity or
+  positive recruitment-count increase is required; the module is not registered in `pnsctl`.
+- Free recruitment plus all prior Phase E, Phase D, and reference tests pass 43/43. No image
+  capture, ADB operation, or live gameplay input occurred; fresh Bliss-native recruitment evidence
+  remains absent.
+
 ## 2026-07-14 Phase E evidence gate
 
 - Fresh selected Daily Quest inventory after Phase D shows 5 points, only `Go` rows, and no ready

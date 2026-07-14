@@ -51,6 +51,13 @@ from .supply_depot import (
     supply_depot_postcondition_verified,
     supply_depot_transaction_spec,
 )
+from .free_recruitment import (
+    FreeRecruitmentObservation,
+    free_recruitment_authorizeable,
+    free_recruitment_perform_one_pulse,
+    free_recruitment_postcondition_verified,
+    free_recruitment_transaction_spec,
+)
 from .profile import (
     GAME_BACK,
     HOME_LEFT,
@@ -122,4 +129,9 @@ __all__ = [
     "supply_depot_perform_one_pulse",
     "supply_depot_postcondition_verified",
     "supply_depot_transaction_spec",
+    "FreeRecruitmentObservation",
+    "free_recruitment_authorizeable",
+    "free_recruitment_perform_one_pulse",
+    "free_recruitment_postcondition_verified",
+    "free_recruitment_transaction_spec",
 ]
