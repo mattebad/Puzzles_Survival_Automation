@@ -33,10 +33,13 @@ from safe_action_core import (  # noqa: E402
     CentralPolicy,
     Observation,
     PolicyRequest,
+    PopupController,
+    PopupObservation,
     SafeActionExecutor,
     SafetyStore,
     TransportResult,
 )
+from tasks.contracts import PopupMode, PopupOutcome  # noqa: E402
 from tasks.daily_quest import (  # noqa: E402
     DailyQuestClaimObservation,
     PersonalMightPraiseHandler,
@@ -85,6 +88,7 @@ OLD_INVALID_CLOSE_POINT = (320, 650)
 VIP_CLOSE_CENTER_Y_RANGE = (780, 830)
 VIP_CLOSE_INTERIOR_MARGIN = 12
 MAX_VIP_POPUP_INPUTS = 1
+HELP_WEBVIEW_CLOSE_REGION = (690, 10, 790, 110)
 CLAIM_CONTROL_RE = re.compile(r"\bclaim\b", re.IGNORECASE)
 PROGRESS_RE = re.compile(r"\b(\d+)\s*/\s*(\d+)\b")
 
@@ -230,11 +234,19 @@ def recognize_route(frame: np.ndarray, state: str) -> dict[str, Any]:
     lines = ocr_lines(frame)
     all_text = " ".join(item["text"] for item in lines)
     if state == "HOME_BASE":
-        item = find_phrase(lines, ("more",))
-        return {"state": "HOME_BASE", "recognized": item is not None, "target": item, "target_id": "home-more-navigation"}
+        item = find_phrase(ocr_lines(frame, HOME_MORE_REGION), ("more",))
+        target = (
+            {"text": item["text"], "bounds": HOME_MORE.roi, "ocr_bounds": item["bounds"], "exact_bounds": True}
+            if item else None
+        )
+        return {"state": "HOME_BASE", "recognized": target is not None, "target": target, "target_id": "home-more-navigation"}
     if state == "MORE":
-        item = find_phrase(lines, ("rankings", "ranking"))
-        return {"state": "MORE", "recognized": item is not None, "target": item, "target_id": "rankings-entry"}
+        item = find_phrase(ocr_lines(frame, RANKINGS_REGION), ("rankings", "ranking"))
+        target = (
+            {"text": item["text"], "bounds": RANKINGS_ENTRY.roi, "ocr_bounds": item["bounds"], "exact_bounds": True}
+            if item else None
+        )
+        return {"state": "MORE", "recognized": target is not None, "target": target, "target_id": "rankings-entry"}
     if state == "RANKINGS":
         item = find_phrase(lines, ("personal might rank", "personal might"))
         return {"state": "RANKINGS", "recognized": item is not None, "target": item, "target_id": "personal-might-rank-row"}
@@ -261,6 +273,33 @@ def recognize_route(frame: np.ndarray, state: str) -> dict[str, Any]:
             "already_praised": cooldown,
             "cooldown_active": cooldown,
             "praise_disabled": identity and not praise_ok and cooldown,
+        }
+    if state == "HELP_WEBVIEW":
+        text_identity = (
+            ("official guide" in all_text and "player guide" in all_text)
+            or ("latest news" in all_text and "q&a" in all_text)
+        )
+        close_crop = frame[
+            HELP_WEBVIEW_CLOSE_REGION[1]:HELP_WEBVIEW_CLOSE_REGION[3],
+            HELP_WEBVIEW_CLOSE_REGION[0]:HELP_WEBVIEW_CLOSE_REGION[2],
+        ]
+        close_hsv = cv2.cvtColor(close_crop, cv2.COLOR_BGR2HSV)
+        red_pixels = cv2.inRange(close_hsv, (0, 120, 120), (12, 255, 255))
+        visual_close = float(np.count_nonzero(red_pixels)) / float(red_pixels.size) >= 0.25
+        partial_text_identity = any(
+            marker in all_text for marker in ("official guide", "player guide", "latest news", "q&a")
+        )
+        identity = text_identity or (visual_close and partial_text_identity)
+        target = (
+            {"text": "help webview close", "bounds": HELP_WEBVIEW_CLOSE_REGION, "exact_bounds": True}
+            if identity else None
+        )
+        return {
+            "state": state,
+            "recognized": identity,
+            "visual_close": visual_close,
+            "target": target,
+            "target_id": "help-webview-close",
         }
     if state in {"RANKINGS_BACK", "PERSONAL_MIGHT_BACK", "ALLIANCE_BACK"}:
         item = find_phrase(lines, ("back",))
@@ -499,6 +538,10 @@ class LiveAdapter:
         self.game_day = args.game_day
         self.input_count = 0
         self.vip_popup_input_count = 0
+        self.popup_controller = PopupController(
+            PopupMode.NAVIGATION,
+            max_rounds=MAX_VIP_POPUP_INPUTS + 3,
+        )
 
     def capture(self, label: str) -> tuple[Path, dict[str, Any]]:
         self.counter += 1
@@ -614,6 +657,15 @@ class LiveAdapter:
         if not artifact["passed"]:
             write_json(self.evidence / "vip-points-popup-pre-dispatch-failed.json", artifact)
             raise RuntimeError("VIP Points popup pre-dispatch artifact failed")
+        popup_outcome = self.popup_controller.inspect(
+            PopupObservation(
+                "vip-points-reset",
+                benign=True,
+                frame_sha256=frame_hash(source_path),
+            )
+        )
+        if popup_outcome != PopupOutcome.HANDLED:
+            raise RuntimeError(f"VIP Points popup blocked by popup policy: {popup_outcome.value}")
         target_roi = tuple(detail["target"])
         proposed_tap = tuple(detail["target_center"])
         cv2.rectangle(image, (target_roi[0], target_roi[1]), (target_roi[2], target_roi[3]), (0, 255, 0), 3)
@@ -690,6 +742,7 @@ class LiveAdapter:
         *,
         detection_state: Optional[str] = None,
         target_id: Optional[str] = None,
+        additional_successors: tuple[str, ...] = (),
     ) -> Any:
         def operation(attempt_name: str) -> Any:
             try:
@@ -701,6 +754,7 @@ class LiveAdapter:
                     fallback_roi,
                     detection_state=detection_state,
                     target_id=target_id,
+                    additional_successors=additional_successors,
                 )
             except InputExecutionError as exc:
                 if exc.result.transport_calls == 0:
@@ -729,6 +783,7 @@ class LiveAdapter:
         *,
         detection_state: Optional[str] = None,
         target_id: Optional[str] = None,
+        additional_successors: tuple[str, ...] = (),
     ) -> Any:
         def recognize_source(frame: np.ndarray) -> dict[str, Any]:
             detail = recognize_route(frame, detection_state or source_state)
@@ -758,6 +813,18 @@ class LiveAdapter:
                 source_frame=str(source_path),
                 target_roi=fallback_roi,
             )
+        if source_state == "HELP_WEBVIEW":
+            popup_outcome = self.popup_controller.inspect(
+                PopupObservation(
+                    "help-webview",
+                    benign=True,
+                    frame_sha256=frame_hash(source_path),
+                )
+            )
+            if popup_outcome != PopupOutcome.HANDLED:
+                raise RuntimeError(
+                    f"Help WebView blocked by popup policy: {popup_outcome.value}"
+                )
         target_roi = roi_from_item(detail["target"], fallback_roi)
         bound_target_id = target_id or detail["target_id"]
         source_identity_roi = SPEEDUP_SOURCE_REGION if source_state == "SPEEDUP_HELP" else fallback_roi
@@ -792,6 +859,7 @@ class LiveAdapter:
 
         def read_post(path: Path) -> Observation:
             frame = load_frame(path)
+            help_webview = recognize_route(frame, "HELP_WEBVIEW")
             post = recognize_route(frame, expected_state) if expected_state in {
                 "MORE", "RANKINGS", "PERSONAL_MIGHT_RANK", "PERSONAL_MIGHT_LEADERBOARD",
                 "RANKINGS_BACK", "PERSONAL_MIGHT_BACK",
@@ -815,10 +883,18 @@ class LiveAdapter:
             elif expected_state == "HOME_BASE":
                 home = recognize_home_quest(frame, load_frame(self.args.home_reference))
                 post = {"recognized": home.recognized}
+            actual_state = expected_state
             successor = bool(post.get("recognized"))
+            if (
+                not successor
+                and "HELP_WEBVIEW" in additional_successors
+                and (help_webview["recognized"] or help_webview["visual_close"])
+            ):
+                successor = True
+                actual_state = "HELP_WEBVIEW"
             return _observation(
                 path=path,
-                state=expected_state if successor else source_state,
+                state=actual_state if successor else source_state,
                 target_identity=None if successor else bound_target_id,
                 target_roi=None if successor else target_roi,
                 expected_postcondition=expected_state,
@@ -841,9 +917,59 @@ class LiveAdapter:
             initial=initial,
             pre_reader=read_pre,
             post_reader=read_post,
-            postcondition=lambda item: item.recognized and item.source_state == expected_state,
-            transport=lambda: self.transport.tap((target_roi[0] + target_roi[2]) // 2, (target_roi[1] + target_roi[3]) // 2),
+            postcondition=lambda item: item.recognized and item.source_state in (expected_state, *additional_successors),
+            transport=lambda: self.transport.tap(
+                (target_roi[0] + target_roi[2]) // 2,
+                (target_roi[1] + target_roi[3]) // 2,
+            ),
         )
+
+    def close_help_webview_with_retry(self, name: str) -> None:
+        for attempt in range(1, 4):
+            self.run_route_step(
+                f"{name}-{attempt}",
+                "HELP_WEBVIEW",
+                "MORE",
+                "CLOSE_HELP_WEBVIEW",
+                HELP_WEBVIEW_CLOSE_REGION,
+                target_id="help-webview-close",
+                additional_successors=("HELP_WEBVIEW",),
+            )
+            check_path, _ = self.capture(f"{name}-{attempt}-successor")
+            frame = load_frame(check_path)
+            if recognize_route(frame, "MORE")["recognized"]:
+                return
+            if not recognize_route(frame, "HELP_WEBVIEW")["recognized"]:
+                raise RuntimeError(f"{name}: unknown successor after close attempt {attempt}")
+        raise RuntimeError(f"{name}: Help webview unchanged after three close taps")
+
+    def navigate_more_to_rankings(self) -> None:
+        failures = []
+        for attempt in range(1, 4):
+            self.run_route_step(
+                f"more-to-rankings-game-attempt-{attempt}",
+                "MORE",
+                "RANKINGS",
+                "MORE_TO_RANKINGS",
+                RANKINGS_REGION,
+                additional_successors=("HELP_WEBVIEW",),
+            )
+            check_path, _ = self.capture(f"more-to-rankings-game-attempt-{attempt}-successor")
+            frame = load_frame(check_path)
+            if recognize_route(frame, "RANKINGS")["recognized"]:
+                return
+            guide = recognize_route(frame, "HELP_WEBVIEW")
+            if guide["recognized"]:
+                failures.append({
+                    "attempt": attempt,
+                    "reason": "GAME_HELP_WEBVIEW_INTERCEPTED_RANKINGS",
+                    "source_frame": str(check_path),
+                    "target_roi": list(RANKINGS_REGION),
+                })
+                self.close_help_webview_with_retry(f"close-help-webview-{attempt}")
+                continue
+            raise RuntimeError(f"more-to-rankings: unknown successor after attempt {attempt}")
+        raise RuntimeError("more-to-rankings: three game Help interceptions: " + json.dumps(failures))
 
     def praise(self) -> tuple[Path, PraiseObservation]:
         source_path, _ = self.capture("praise-source")
@@ -1094,19 +1220,36 @@ class LiveAdapter:
                 })
                 return 0
             startup_text = " ".join(item["text"] for item in ocr_lines(startup_frame))
-            if "speedup help" in startup_text or ("help" in startup_text and "request" in startup_text):
+            current_state = "HOME_BASE"
+            if recognize_route(startup_frame, "HELP_WEBVIEW")["recognized"]:
+                self.close_help_webview_with_retry("startup-close-help-webview")
+                current_state = "MORE"
+            elif "speedup help" in startup_text or ("help" in startup_text and "request" in startup_text):
                 self.run_route_step(
                     "normalize-alliance-to-home", "SPEEDUP_HELP", "HOME_BASE",
                     "ALLIANCE_BACK", GAME_BACK.roi, detection_state="ALLIANCE_BACK",
                     target_id="standard-game-back-arrow",
                 )
-            for name, source, target, semantic, roi in (
-                ("home-to-more", "HOME_BASE", "MORE", "HOME_TO_MORE", HOME_MORE_REGION),
-                ("more-to-rankings", "MORE", "RANKINGS", "MORE_TO_RANKINGS", RANKINGS_REGION),
-                ("rankings-to-personal-might", "RANKINGS", "PERSONAL_MIGHT_RANK", "RANKINGS_TO_PERSONAL_MIGHT", PERSONAL_ROW_REGION),
-                ("personal-might-check", "PERSONAL_MIGHT_RANK", "PERSONAL_MIGHT_LEADERBOARD", "PERSONAL_MIGHT_CHECK", CHECK_REGION),
-            ):
-                self.run_route_step(name, source, target, semantic, roi)
+                current_state = "HOME_BASE"
+            elif recognize_route(startup_frame, "RANKINGS")["recognized"]:
+                current_state = "RANKINGS"
+            elif recognize_route(startup_frame, "MORE")["recognized"]:
+                current_state = "MORE"
+
+            if current_state == "HOME_BASE":
+                self.run_route_step("home-to-more", "HOME_BASE", "MORE", "HOME_TO_MORE", HOME_MORE_REGION)
+                current_state = "MORE"
+            if current_state == "MORE":
+                self.navigate_more_to_rankings()
+                current_state = "RANKINGS"
+            self.run_route_step(
+                "rankings-to-personal-might", "RANKINGS", "PERSONAL_MIGHT_RANK",
+                "RANKINGS_TO_PERSONAL_MIGHT", PERSONAL_ROW_REGION,
+            )
+            self.run_route_step(
+                "personal-might-check", "PERSONAL_MIGHT_RANK", "PERSONAL_MIGHT_LEADERBOARD",
+                "PERSONAL_MIGHT_CHECK", CHECK_REGION,
+            )
             _path, praise_obs = self.praise()
             if praise_obs.already_praised or praise_obs.cooldown_active:
                 raise RuntimeError("ALREADY_PRAISED_OR_COOLDOWN")

@@ -1,5 +1,18 @@
 # Current runtime-proof handoff
 
+## 2026-07-13 GnBots profile/navigation Phase C preparation
+
+- Raw Rankings target is now `(602,1138)-(690,1167)`, center `(646,1152)`. Historical broad center
+  `(400,1152)` is removed from the Personal Might route.
+- Personal Might and Back anchors are explicitly provisional and block with
+  `ANCHOR_EVIDENCE_REQUIRED`; false Home fixture provenance no longer authorizes them.
+- NavigationRunner now enforces declared target/postcondition anchors, old-anchor disappearance,
+  recognized foreground successors, and production-validated anchor gates.
+- Popup handling is limited to VIP Points reset and Help WebView, one handler per frame; unknown,
+  cost, resource, and premium dialogs block.
+- Full suite passes 172 tests. No live input occurred. Phase C remains in progress until corrected
+  Rankings and downstream Personal Might evidence is captured.
+
 ## 2026-07-13 GnBots calibration Phase B
 
 - Development-only `calibration/transform.py` implements all five required candidate models,

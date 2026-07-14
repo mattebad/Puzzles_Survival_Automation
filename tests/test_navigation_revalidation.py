@@ -8,6 +8,7 @@ import cv2
 from safe_action_core import ActionClass
 from scripts.personal_might_praise_live import (
     GAME_BACK,
+    RANKINGS_ENTRY,
     RetryableNavigationFailure,
     recognize_route,
     run_bounded_navigation_attempts,
@@ -19,6 +20,11 @@ SPEEDUP_FRAME = (
     ROOT
     / "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006"
     / "reset-popup-close-post-004.png"
+)
+MORE_FRAME = (
+    ROOT
+    / "evidence/sessions/20260713-personal-might-praise/live-route-recovery-014"
+    / "more-to-rankings-game-attempt-1-attempt-3-source-011.png"
 )
 
 
@@ -55,6 +61,30 @@ class SpeedupHelpBackRecognitionTests(unittest.TestCase):
         x0, y0, x1, y1 = GAME_BACK.roi
         covered[y0:y1, x0:x1] = (240, 150, 60)
         self.assertFalse(recognize_route(covered, "ALLIANCE_BACK")["recognized"])
+
+
+class RankingsEntryRecognitionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.frame = cv2.imread(str(MORE_FRAME))
+        if cls.frame is None:
+            raise RuntimeError("retained More fixture is missing")
+
+    def test_rankings_binding_is_tight_and_not_historical_broad_center(self):
+        detail = recognize_route(self.frame, "MORE")
+        self.assertTrue(detail["recognized"], detail)
+        self.assertEqual(tuple(detail["target"]["bounds"]), RANKINGS_ENTRY.roi)
+        self.assertEqual(RANKINGS_ENTRY.roi, (602, 1138, 690, 1167))
+        self.assertFalse(
+            RANKINGS_ENTRY.roi[0] <= 400 <= RANKINGS_ENTRY.roi[2]
+            and RANKINGS_ENTRY.roi[1] <= 1152 <= RANKINGS_ENTRY.roi[3]
+        )
+
+    def test_rankings_text_outside_local_roi_does_not_bind(self):
+        changed = self.frame.copy()
+        x0, y0, x1, y1 = RANKINGS_ENTRY.roi
+        changed[y0:y1, x0:x1] = 0
+        self.assertFalse(recognize_route(changed, "MORE")["recognized"])
 
 
 class NavigationRetryTests(unittest.TestCase):

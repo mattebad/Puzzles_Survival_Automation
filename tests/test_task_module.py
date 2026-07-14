@@ -14,7 +14,15 @@ from tasks.daily_quest import (
     RouteType,
     handler_for_objective,
 )
-from tasks.profile import HELP_ALL_ACTION, INDIVIDUAL_HELP_ACTION, HOME_QUEST, QUEST_DAILY, PROFILE_ID
+from tasks.profile import (
+    HELP_ALL_ACTION,
+    HOME_QUEST,
+    INDIVIDUAL_HELP_ACTION,
+    PERSONAL_MIGHT_ROW,
+    PROFILE_ID,
+    QUEST_DAILY,
+    RANKINGS_ENTRY,
+)
 
 
 class ContractTests(unittest.TestCase):
@@ -29,11 +37,19 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(INDIVIDUAL_HELP_ACTION.roi, (556, 274, 727, 330))
         self.assertEqual(HELP_ALL_ACTION.roi, (277, 1188, 523, 1268))
         self.assertEqual(HELP_ALL_ACTION.name, "alliance-help-all")
+        self.assertEqual(RANKINGS_ENTRY.roi, (602, 1138, 690, 1167))
+        self.assertIn("GNB-DAILY-LEADERBOARD-PRAISE", RANKINGS_ENTRY.reference_manifest_ids)
+        self.assertFalse(PERSONAL_MIGHT_ROW.production_validated)
+        self.assertTrue(PERSONAL_MIGHT_ROW.evidence_dependency)
 
     def test_anchor_thresholds_are_anchor_specific(self):
         a = AnchorSpec("a", (0, 0, 10, 10), 0.81, template="a.png")
         b = AnchorSpec("b", (0, 0, 10, 10), 0.97, ocr_rule="Daily Quest")
         self.assertNotEqual(a.threshold, b.threshold)
+        with self.assertRaisesRegex(ValueError, "stable GNB"):
+            AnchorSpec("bad", (0, 0, 10, 10), 0.9, template="a.png", reference_manifest_ids=("daily",))
+        with self.assertRaisesRegex(ValueError, "evidence dependency"):
+            AnchorSpec("bad", (0, 0, 10, 10), 0.9, template="a.png", production_validated=False)
 
     def test_navigation_requires_source_and_successor(self):
         step = NavigationStep("home-quest", "HOME_BASE", "HOME_TO_QUEST", ("QUEST",), target_anchor=HOME_QUEST)
@@ -143,13 +159,29 @@ class RouteTests(unittest.TestCase):
 class PopupTests(unittest.TestCase):
     def test_navigation_handles_at_most_one_benign_popup_per_round(self):
         controller = PopupController(PopupMode.NAVIGATION, max_rounds=1)
-        self.assertEqual(controller.inspect(PopupObservation("info", benign=True)), PopupOutcome.HANDLED)
-        self.assertEqual(controller.inspect(PopupObservation("info", benign=True)), PopupOutcome.BLOCKING)
+        self.assertEqual(controller.inspect(PopupObservation("vip-points-reset", benign=True)), PopupOutcome.HANDLED)
+        self.assertEqual(controller.inspect(PopupObservation("help-webview", benign=True)), PopupOutcome.BLOCKING)
+
+    def test_navigation_unknown_benign_popup_is_not_dismissed(self):
+        controller = PopupController(PopupMode.NAVIGATION)
+        self.assertEqual(controller.inspect(PopupObservation("info", benign=True)), PopupOutcome.UNKNOWN)
+
+    def test_only_one_popup_is_handled_from_same_frame(self):
+        controller = PopupController(PopupMode.NAVIGATION)
+        self.assertEqual(
+            controller.inspect(PopupObservation("vip-points-reset", benign=True, frame_sha256="a")),
+            PopupOutcome.HANDLED,
+        )
+        self.assertEqual(
+            controller.inspect(PopupObservation("help-webview", benign=True, frame_sha256="a")),
+            PopupOutcome.BLOCKING,
+        )
 
     def test_action_transaction_does_not_handle_generic_popup(self):
         controller = PopupController(PopupMode.ACTION_TRANSACTION, allowed_dialogs=("known-confirm",))
         self.assertEqual(controller.inspect(PopupObservation("unknown", benign=True)), PopupOutcome.UNKNOWN)
         self.assertEqual(controller.inspect(PopupObservation("purchase", purchase_or_cost=True)), PopupOutcome.BLOCKING)
+        self.assertEqual(controller.inspect(PopupObservation("resource", resource_or_premium=True)), PopupOutcome.BLOCKING)
         self.assertEqual(controller.inspect(PopupObservation("known-confirm")), PopupOutcome.HANDLED)
 
     def test_hard_stop_is_fatal(self):

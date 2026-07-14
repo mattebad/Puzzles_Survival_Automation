@@ -488,7 +488,13 @@ Claim example.
 - Dependencies: GNB-PHASE-B Passed.
 - Scope: Personal Might route only; test-proven gaps in existing NavigationRunner; VIP/reset and
   Help WebView handling; unknown/cost/resource/premium blocking; narrow route perception.
-- Status: Ready.
+- Offline result: Rankings target corrected to `(602,1138)-(690,1167)`; declared navigation
+  anchors/postconditions and provisional evidence gates are enforced; popup registry is limited to
+  VIP Points reset and Help WebView; full suite passes 172 tests.
+- Evidence: `docs/research/bliss_profile_provenance.md` and
+  `evidence/sessions/20260713-gnbots-profile-navigation-prep/record.md`.
+- Status: In progress — corrected live Rankings successor and downstream Personal Might evidence
+  remain required.
 
 ### GNB-PHASE-D — Complete supervised Praise-to-exact-Claim slice
 

@@ -1343,3 +1343,11 @@ cannot authorize production input. Raw 800×1280 evidence shows the Rankings lab
 is not Rankings and explains Help interception. Phase C must replace that broad binding with
 Bliss-native local recognition before another route input. Unsupported Personal Might,
 Claim-positive, Town/world, and march screens remain explicit evidence dependencies.
+
+Phase C offline preparation passes. Rankings is now bound to the raw local word ROI
+`(602,1138)-(690,1167)`. Personal Might/Back anchors are explicitly provisional instead of citing
+false Home fixture provenance. `NavigationRunner` now enforces declared target/postcondition
+anchors, old-anchor disappearance, foreground successor recognition, and non-authorizing evidence
+gates. Popup handling is limited to VIP Points reset and Help WebView; unknown/cost/resource/premium
+dialogs block. Full deterministic validation passes 172 tests. Phase C remains evidence-gated until
+corrected live Rankings navigation and downstream Personal Might screens are retained.

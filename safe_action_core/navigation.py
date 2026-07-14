@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Iterable, Optional, Sequence, Tuple
 
-from tasks.contracts import NavigationStep, TaskOutcome, TaskResult
+from tasks.contracts import AnchorSpec, NavigationStep, TaskOutcome, TaskResult
 from .models import ActionClass, Observation, PolicyDecision, PolicyRequest, TransportResult
 from .policy import CentralPolicy
 from .store import SafetyStore
@@ -52,12 +52,57 @@ class NavigationRunner:
             return "IMMEDIATE_RECAPTURE_NOT_FRESH"
         return None
 
+    @staticmethod
+    def _matches_anchor(observation: Observation, anchor: AnchorSpec) -> bool:
+        return bool(
+            observation.recognized
+            and observation.target_identity == anchor.name
+            and observation.target_roi == anchor.roi
+        )
+
+    def _step_input_matches(self, step: NavigationStep, observation: Observation) -> bool:
+        if not observation.recognized or observation.source_state != step.source_state:
+            return False
+        return step.target_anchor is None or self._matches_anchor(observation, step.target_anchor)
+
+    @staticmethod
+    def _anchors_production_validated(step: NavigationStep) -> bool:
+        return all(
+            anchor is None or anchor.production_validated
+            for anchor in (step.source_anchor, step.target_anchor, step.postcondition_anchor)
+        )
+
+    def _allowed_successor(self, step: NavigationStep, observation: Observation) -> bool:
+        if (
+            not observation.recognized
+            or observation.source_state not in step.expected_successors
+            or not observation.package_foreground
+            or observation.os_surface
+            or observation.hard_stop_detected
+        ):
+            return False
+        if step.postcondition_anchor is not None and not self._matches_anchor(
+            observation, step.postcondition_anchor
+        ):
+            return False
+        if (
+            step.old_anchor_must_disappear
+            and step.source_anchor is not None
+            and self._matches_anchor(observation, step.source_anchor)
+        ):
+            return False
+        return True
+
     def run(self, step: NavigationStep, request: PolicyRequest, recapture: Callable[[], Observation], transport: Callable[[Tuple[int, int, int, int]], TransportResult], observe: Callable[[], Iterable[Observation]]) -> NavigationResult:
         calls = 0
         now = self.clock()
         if not self.store.lease_valid_for(self.owner_id, now):
             return NavigationResult(NavigationStatus.NAVIGATION_FAILED, "LEASE_REQUIRED", 0, 0, outcome=TaskOutcome.BLOCKED)
         request = request.__class__(**{**request.__dict__, "action_class": ActionClass.NAVIGATION_ONLY, "lease_valid": True, "lease_owner": self.owner_id, "monotonic_now": now})
+        if not self._anchors_production_validated(step):
+            return NavigationResult(NavigationStatus.NAVIGATION_FAILED, "ANCHOR_EVIDENCE_REQUIRED", 0, 0, outcome=TaskOutcome.BLOCKED)
+        if not self._step_input_matches(step, request.observation):
+            return NavigationResult(NavigationStatus.NAVIGATION_FAILED, "STEP_TARGET_ANCHOR_MISMATCH", 0, 0)
         first = self.policy.evaluate(request)
         self.store.audit(request.task_id, "navigation_proposed", now, {"step": step,
             "policy": first}, request.action_id)
@@ -70,8 +115,9 @@ class NavigationRunner:
             pre = pre.__class__(**{**pre.__dict__, "action_class": ActionClass.NAVIGATION_ONLY, "lease_valid": True, "lease_owner": self.owner_id})
             decision = self.policy.evaluate(pre)
             changed = self._local_change(request.observation, immediate)
-            if not decision.authorized or changed:
-                return NavigationResult(NavigationStatus.NAVIGATION_FAILED, changed or decision.reason_code, calls, attempt, outcome=TaskOutcome.RETRY if attempt < max_attempts else TaskOutcome.FAILED_SAFE)
+            step_mismatch = not self._step_input_matches(step, immediate)
+            if not decision.authorized or changed or step_mismatch:
+                return NavigationResult(NavigationStatus.NAVIGATION_FAILED, changed or ("STEP_TARGET_ANCHOR_MISMATCH" if step_mismatch else decision.reason_code), calls, attempt, outcome=TaskOutcome.RETRY if attempt < max_attempts else TaskOutcome.FAILED_SAFE)
             calls += 1
             tr = transport(immediate.target_roi)
             self.store.audit(request.task_id, "navigation_dispatched", self.clock(), {"attempt": attempt, "transport": tr}, request.action_id)
@@ -79,7 +125,7 @@ class NavigationRunner:
                 return NavigationResult(NavigationStatus.NAVIGATION_FAILED, "NOT_DISPATCHED", calls, attempt)
             posts = list(observe())
             for post in posts:
-                if post.recognized and post.source_state in step.expected_successors:
+                if self._allowed_successor(step, post):
                     self.store.audit(request.task_id, "navigation_reached_successor", self.clock(), {"state": post.source_state}, request.action_id)
                     return NavigationResult(NavigationStatus.REACHED_SUCCESSOR, "POSITIVE_SUCCESSOR", calls, attempt, successor_state=post.source_state, outcome=TaskOutcome.PROGRESS)
             no_effect = any(p.recognized and p.source_state == step.source_state and p.target_identity == immediate.target_identity and p.overlay_state in ("none", "none_observed") for p in posts)

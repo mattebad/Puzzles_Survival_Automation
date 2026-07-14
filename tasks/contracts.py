@@ -49,6 +49,9 @@ class AnchorSpec:
     attempt_cap: Optional[int] = None
     tap_offset: Tuple[int, int] = (0, 0)
     asset_provenance: str = ""
+    reference_manifest_ids: Tuple[str, ...] = ()
+    production_validated: bool = True
+    evidence_dependency: Optional[str] = None
 
     def __post_init__(self) -> None:
         x0, y0, x1, y1 = self.roi
@@ -64,6 +67,10 @@ class AnchorSpec:
             raise ValueError("anchor polling and timeout must be positive")
         if self.attempt_cap is not None and self.attempt_cap < 1:
             raise ValueError("anchor attempt cap must be positive")
+        if any(not item.startswith("GNB-") for item in self.reference_manifest_ids):
+            raise ValueError("reference manifest IDs must use stable GNB- identifiers")
+        if not self.production_validated and not self.evidence_dependency:
+            raise ValueError("provisional anchor requires an explicit evidence dependency")
 
 
 @dataclass(frozen=True)
