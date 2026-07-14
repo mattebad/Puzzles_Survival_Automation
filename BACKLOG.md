@@ -493,8 +493,11 @@ Claim example.
   VIP Points reset and Help WebView; full suite passes 172 tests.
 - Evidence: `docs/research/bliss_profile_provenance.md` and
   `evidence/sessions/20260713-gnbots-profile-navigation-prep/record.md`.
-- Status: In progress — corrected live Rankings successor and downstream Personal Might evidence
-  remain required.
+- Live result: exact Rankings tap `(646,1152)` confirmed the Leaderboard successor with one
+  transport call and no Help interception. Successor proves Personal Might row and Check coexist;
+  separate row tap was removed. Evidence:
+  `evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/`.
+- Status: In progress — exact Check-to-Personal-Might-leaderboard evidence remains required.
 
 ### GNB-PHASE-D — Complete supervised Praise-to-exact-Claim slice
 

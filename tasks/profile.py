@@ -111,22 +111,18 @@ RANKINGS_ENTRY = AnchorSpec(
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
 )
 PERSONAL_MIGHT_ROW = AnchorSpec(
-    "personal-might-rank-row", (0, 180, 800, 1000), 0.92,
-    template=f"{M6_ASSET_ROOT}/home-base-settled.png#personal-might-row-roi",
+    "personal-might-rank-row", (170, 220, 560, 325), 0.90,
+    template="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png#personal-might-first-row",
     ocr_rule="Personal Might Rank",
-    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
-    production_validated=False,
-    evidence_dependency=PRAISE_EVIDENCE_DEPENDENCY,
 )
 PERSONAL_MIGHT_CHECK = AnchorSpec(
-    "personal-might-rank-check", (560, 180, 800, 1000), 0.92,
-    template=f"{M6_ASSET_ROOT}/home-base-settled.png#personal-might-check-roi",
+    "personal-might-rank-check", (590, 245, 775, 315), 0.90,
+    template="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png#first-row-check",
     ocr_rule="Check",
-    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
-    production_validated=False,
-    evidence_dependency=PRAISE_EVIDENCE_DEPENDENCY,
 )
 PERSONAL_MIGHT_LEADERBOARD = AnchorSpec(
     "personal-might-leaderboard", (0, 0, 800, 500), 0.92,

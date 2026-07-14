@@ -89,7 +89,6 @@ class PraiseContractTests(unittest.TestCase):
             (
                 "home_to_more",
                 "more_to_rankings",
-                "rankings_to_personal_might",
                 "personal_might_check_to_leaderboard",
                 "personal_might_praise",
                 "personal_might_back_to_rankings",
@@ -97,6 +96,10 @@ class PraiseContractTests(unittest.TestCase):
             ),
         )
         self.assertFalse(PRAISE_NAVIGATION_BY_NAME["personal_might_praise"].allow_one_safe_retry)
+        self.assertEqual(
+            PRAISE_NAVIGATION_BY_NAME["personal_might_check_to_leaderboard"].source_state,
+            "RANKINGS",
+        )
         self.assertEqual(PRAISE_NAVIGATION_BY_NAME["personal_might_back_to_rankings"].expected_successors, ("RANKINGS",))
         self.assertEqual(PRAISE_NAVIGATION_BY_NAME["rankings_back_to_home"].expected_successors, ("HOME_BASE", "MORE"))
         self.assertIsNotNone(PRAISE_NAVIGATION_BY_NAME["personal_might_back_to_rankings"].source_anchor)

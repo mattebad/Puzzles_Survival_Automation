@@ -262,9 +262,10 @@ def run_task(cfg: OperatorConfig, task: str) -> str:
             f"--evidence /evidence --result /evidence/alliance-help-semantic-fix-result.json --owner pnsctl-{stamp} "
             f"--action-id alliance-help-{stamp} --action-key alliance-help-{stamp}"
         )
-    elif task in {"vip-popup", "praise", "praise-route-evidence"}:
+    elif task in {"vip-popup", "praise", "praise-route-evidence", "praise-leaderboard-evidence"}:
         popup_only = " --popup-only" if task == "vip-popup" else ""
         navigation_only = " --navigation-evidence-only" if task == "praise-route-evidence" else ""
+        leaderboard_only = " --leaderboard-evidence-only" if task == "praise-leaderboard-evidence" else ""
         command = (
             f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 {quote(cfg.container)} python3 scripts/personal_might_praise_live.py "
             f"--adb /opt/adb --serial {quote(cfg.serial)} --database /evidence/actions-praise-{stamp}.sqlite3 "
@@ -275,9 +276,10 @@ def run_task(cfg: OperatorConfig, task: str) -> str:
             "--quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png"
             + popup_only
             + navigation_only
+            + leaderboard_only
         )
     else:
-        raise OperatorError("only checked-in alliance-help, vip-popup, praise-route-evidence, and praise tasks are enabled")
+        raise OperatorError("requested task is not in the checked-in supervised task allowlist")
     return run_remote(cfg, command)
 
 
@@ -359,7 +361,7 @@ def parser() -> argparse.ArgumentParser:
     sub.choices["capture"].add_argument("--name", default="current")
     sub.choices["observe"].add_argument("--name", default="observe")
     sub.choices["navigate"].add_argument("--step", required=True, choices=tuple(NAVIGATION_STEPS))
-    sub.choices["run-task"].add_argument("--task", required=True, choices=("alliance-help", "vip-popup", "praise-route-evidence", "praise"))
+    sub.choices["run-task"].add_argument("--task", required=True, choices=("alliance-help", "vip-popup", "praise-route-evidence", "praise-leaderboard-evidence", "praise"))
     sub.choices["test-focused"].add_argument("--pattern", default="test_task_module.py")
     sub.choices["preserve-evidence"].add_argument("--destination", type=Path, required=True)
     rec = sub.add_parser("reconcile")

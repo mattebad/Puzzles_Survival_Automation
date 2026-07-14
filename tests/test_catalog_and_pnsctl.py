@@ -49,6 +49,10 @@ class OperatorCliTests(unittest.TestCase):
             pnsctl.parser().parse_args(["run-task", "--task", "praise-route-evidence"]).task,
             "praise-route-evidence",
         )
+        self.assertEqual(
+            pnsctl.parser().parse_args(["run-task", "--task", "praise-leaderboard-evidence"]).task,
+            "praise-leaderboard-evidence",
+        )
 
     def test_worker_command_is_private_and_bounded(self):
         cfg = pnsctl.OperatorConfig()
@@ -91,6 +95,12 @@ class OperatorCliTests(unittest.TestCase):
         command = remote.call_args.args[1]
         self.assertIn("personal_might_praise_live.py", command)
         self.assertIn("--navigation-evidence-only", command)
+
+    def test_leaderboard_evidence_task_stops_before_praise(self):
+        cfg = pnsctl.OperatorConfig()
+        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
+            pnsctl.run_task(cfg, "praise-leaderboard-evidence")
+        self.assertIn("--leaderboard-evidence-only", remote.call_args.args[1])
 
 
 class HelpAllContractTests(unittest.TestCase):

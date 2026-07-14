@@ -14,6 +14,8 @@ Vendor manifest IDs explain semantic lineage only. Production geometry always co
 | standard Back | `(45,5)-(130,60)` | `reset-reconcile-current.png` | `GNB-DAILY-CHAPTER` |
 | Home More | `(680,1130)-(800,1280)` | `home-base-settled.png` | `GNB-DAILY-LEADERBOARD-PRAISE` |
 | Rankings entry | `(602,1138)-(690,1167)` | raw More frame word bounds | `GNB-DAILY-LEADERBOARD-PRAISE` |
+| Personal Might first row | `(170,220)-(560,325)` | corrected Rankings successor | `GNB-DAILY-LEADERBOARD-PRAISE` |
+| first-row Check | `(590,245)-(775,315)` | corrected Rankings successor | `GNB-DAILY-LEADERBOARD-PRAISE` |
 | VIP Points Close | `(260,750)-(540,870)` | corrected popup source | none |
 
 Rankings entry replaces historical broad `(0,1120)-(800,1185)` target. Its current center is
@@ -21,10 +23,8 @@ Rankings entry replaces historical broad `(0,1120)-(800,1185)` target. Its curre
 
 ## Explicitly provisional anchors
 
-These retain provisional search ROIs only and now set `production_validated=False`:
+These retain provisional search ROIs only and set `production_validated=False`:
 
-- Personal Might Rank row;
-- Personal Might Check;
 - Personal Might leaderboard identity;
 - Praise action;
 - Personal Might Back;
@@ -60,11 +60,20 @@ or Help WebView dismissal.
 
 ## Remaining evidence dependencies
 
-- settled Rankings successor produced by the corrected local target;
-- Personal Might row and exact Check;
 - Personal Might leaderboard and Praise pre/postcondition;
 - Rankings/Personal Might Back states;
 - completed-unclaimed Daily Praise row and exact Claim pre/postcondition.
 
 Missing dependencies block only dependent routes. They do not weaken coordinates or permit
 fallback taps.
+
+## Corrected live Rankings result
+
+One supervised navigation-only input at `(646,1152)` targeted exact
+`(602,1138)-(690,1167)`. Immediate binding matched. First post frame positively showed
+Leaderboard with Personal Might Rank first row; journal status is confirmed with one transport
+call. No Help WebView appeared.
+
+The successor proves the list already exposes both Personal Might Rank and its Check control.
+Therefore no separate row tap is valid or needed. Route now recognizes row identity and sends only
+the Check navigation input from Rankings.

@@ -465,8 +465,7 @@ def claim_postcondition_verified(
 PRAISE_NAVIGATION_STEPS = (
     NavigationStep("home_to_more", "HOME_BASE", "HOME_TO_MORE", ("MORE",), source_anchor=HOME_RIGHT, target_anchor=HOME_MORE),
     NavigationStep("more_to_rankings", "MORE", "MORE_TO_RANKINGS", ("RANKINGS",), source_anchor=RANKINGS_ENTRY, target_anchor=RANKINGS_ENTRY),
-    NavigationStep("rankings_to_personal_might", "RANKINGS", "RANKINGS_TO_PERSONAL_MIGHT", ("PERSONAL_MIGHT_RANK",), source_anchor=PERSONAL_MIGHT_ROW, target_anchor=PERSONAL_MIGHT_ROW),
-    NavigationStep("personal_might_check_to_leaderboard", "PERSONAL_MIGHT_RANK", "PERSONAL_MIGHT_CHECK", ("PERSONAL_MIGHT_LEADERBOARD",), source_anchor=PERSONAL_MIGHT_ROW, target_anchor=PERSONAL_MIGHT_CHECK),
+    NavigationStep("personal_might_check_to_leaderboard", "RANKINGS", "PERSONAL_MIGHT_CHECK", ("PERSONAL_MIGHT_LEADERBOARD",), source_anchor=PERSONAL_MIGHT_ROW, target_anchor=PERSONAL_MIGHT_CHECK),
     NavigationStep("personal_might_praise", "PERSONAL_MIGHT_LEADERBOARD", "PRAISE_PERSONAL_MIGHT", ("PERSONAL_MIGHT_LEADERBOARD",), source_anchor=PERSONAL_MIGHT_LEADERBOARD, target_anchor=MIGHT_PRAISE_ACTION, allow_one_safe_retry=False),
     NavigationStep("personal_might_back_to_rankings", "PERSONAL_MIGHT_LEADERBOARD", "PERSONAL_MIGHT_BACK", ("RANKINGS",), source_anchor=PERSONAL_MIGHT_BACK, target_anchor=PERSONAL_MIGHT_BACK),
     NavigationStep("rankings_back_to_home", "RANKINGS", "RANKINGS_BACK", ("HOME_BASE", "MORE"), source_anchor=RANKINGS_BACK, target_anchor=RANKINGS_BACK),

@@ -248,13 +248,20 @@ def recognize_route(frame: np.ndarray, state: str) -> dict[str, Any]:
         )
         return {"state": "MORE", "recognized": target is not None, "target": target, "target_id": "rankings-entry"}
     if state == "RANKINGS":
-        item = find_phrase(lines, ("personal might rank", "personal might"))
-        return {"state": "RANKINGS", "recognized": item is not None, "target": item, "target_id": "personal-might-rank-row"}
+        item = find_phrase(ocr_lines(frame, PERSONAL_ROW_REGION), ("personal might rank", "personal might"))
+        target = (
+            {"text": item["text"], "bounds": PERSONAL_MIGHT_ROW.roi, "ocr_bounds": item["bounds"], "exact_bounds": True}
+            if item else None
+        )
+        return {"state": "RANKINGS", "recognized": target is not None, "target": target, "target_id": "personal-might-rank-row"}
     if state == "PERSONAL_MIGHT_RANK":
-        item = find_phrase(lines, ("check",))
-        personal = find_phrase(lines, ("personal might", "might rank"))
-        associated = bool(item and personal and abs(item["bounds"][1] - personal["bounds"][1]) < 90)
-        return {"state": state, "recognized": associated, "target": item if associated else None, "target_id": "personal-might-rank-check"}
+        item = find_phrase(ocr_lines(frame, CHECK_REGION), ("check",))
+        personal = find_phrase(ocr_lines(frame, PERSONAL_ROW_REGION), ("personal might", "might rank"))
+        target = (
+            {"text": item["text"], "bounds": PERSONAL_MIGHT_CHECK.roi, "ocr_bounds": item["bounds"], "exact_bounds": True}
+            if item and personal else None
+        )
+        return {"state": state, "recognized": target is not None, "target": target, "target_id": "personal-might-rank-check"}
     if state == "PERSONAL_MIGHT_LEADERBOARD":
         leaderboard = find_phrase(lines, ("personal might", "might"))
         praise = find_phrase(lines, ("praise", "thumb"))
@@ -1255,13 +1262,22 @@ class LiveAdapter:
                     raise RuntimeError("corrected Rankings successor was not positively recognized")
                 return 0
             self.run_route_step(
-                "rankings-to-personal-might", "RANKINGS", "PERSONAL_MIGHT_RANK",
-                "RANKINGS_TO_PERSONAL_MIGHT", PERSONAL_ROW_REGION,
+                "personal-might-check", "RANKINGS", "PERSONAL_MIGHT_LEADERBOARD",
+                "PERSONAL_MIGHT_CHECK", CHECK_REGION, detection_state="PERSONAL_MIGHT_RANK",
+                target_id="personal-might-rank-check",
             )
-            self.run_route_step(
-                "personal-might-check", "PERSONAL_MIGHT_RANK", "PERSONAL_MIGHT_LEADERBOARD",
-                "PERSONAL_MIGHT_CHECK", CHECK_REGION,
-            )
+            if self.args.leaderboard_evidence_only:
+                evidence_path, _ = self.capture("personal-might-leaderboard-evidence")
+                detail = recognize_route(load_frame(evidence_path), "PERSONAL_MIGHT_LEADERBOARD")
+                write_json(self.evidence / "personal-might-leaderboard-evidence-result.json", {
+                    "status": "confirmed" if detail["recognized"] else "blocked",
+                    "input_count": self.input_count,
+                    "leaderboard": detail,
+                    "evidence": str(evidence_path),
+                })
+                if not detail["recognized"]:
+                    raise RuntimeError("Personal Might leaderboard was not positively recognized")
+                return 0
             _path, praise_obs = self.praise()
             if praise_obs.already_praised or praise_obs.cooldown_active:
                 raise RuntimeError("ALREADY_PRAISED_OR_COOLDOWN")
@@ -1308,6 +1324,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--quest-reference", type=Path, required=True)
     root.add_argument("--popup-only", action="store_true")
     root.add_argument("--navigation-evidence-only", action="store_true")
+    root.add_argument("--leaderboard-evidence-only", action="store_true")
     return root
 
 

@@ -1,5 +1,15 @@
 # Current runtime-proof handoff
 
+## 2026-07-13 corrected Rankings live navigation
+
+- Exact Rankings ROI `(602,1138)-(690,1167)` dispatched one tap at `(646,1152)`.
+- First post frame positively showed Leaderboard with Personal Might Rank; journal confirmed one
+  transport call. No Help WebView appeared. Praise and Claim inputs were zero.
+- Raw successor binds first-row identity `(170,220)-(560,325)` and Check
+  `(590,245)-(775,315)`.
+- Personal Might row and Check coexist; separate row tap was removed. Next evidence-only action is
+  one Check navigation input, then stop before Praise.
+
 ## 2026-07-13 GnBots profile/navigation Phase C preparation
 
 - Raw Rankings target is now `(602,1138)-(690,1167)`, center `(646,1152)`. Historical broad center

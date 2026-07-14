@@ -39,8 +39,8 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(HELP_ALL_ACTION.name, "alliance-help-all")
         self.assertEqual(RANKINGS_ENTRY.roi, (602, 1138, 690, 1167))
         self.assertIn("GNB-DAILY-LEADERBOARD-PRAISE", RANKINGS_ENTRY.reference_manifest_ids)
-        self.assertFalse(PERSONAL_MIGHT_ROW.production_validated)
-        self.assertTrue(PERSONAL_MIGHT_ROW.evidence_dependency)
+        self.assertEqual(PERSONAL_MIGHT_ROW.roi, (170, 220, 560, 325))
+        self.assertTrue(PERSONAL_MIGHT_ROW.production_validated)
 
     def test_anchor_thresholds_are_anchor_specific(self):
         a = AnchorSpec("a", (0, 0, 10, 10), 0.81, template="a.png")

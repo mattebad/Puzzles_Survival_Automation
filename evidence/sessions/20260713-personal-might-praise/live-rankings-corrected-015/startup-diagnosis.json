@@ -1,0 +1,224 @@
+{
+  "foreground_assumed_game": true,
+  "ocr_lines": [
+    {
+      "bounds": [
+        5,
+        7,
+        792,
+        46
+      ],
+      "text": "b214mm 214m 789k 494k 8h 25.4k +"
+    },
+    {
+      "bounds": [
+        12,
+        54,
+        702,
+        133
+      ],
+      "text": "eae #$.90,722,088 fe nay"
+    },
+    {
+      "bounds": [
+        4,
+        177,
+        785,
+        230
+      ],
+      "text": "plies ~ zo a oo ite ak"
+    },
+    {
+      "bounds": [
+        14,
+        210,
+        768,
+        230
+      ],
+      "text": "aomo - a \u2018top- ups <4) |"
+    },
+    {
+      "bounds": [
+        93,
+        212,
+        789,
+        252
+      ],
+      "text": "ee ti s225 watch tower 952.52 1 y"
+    },
+    {
+      "bounds": [
+        8,
+        235,
+        728,
+        286
+      ],
+      "text": "ben ab fies c =) =\\."
+    },
+    {
+      "bounds": [
+        0,
+        265,
+        728,
+        307
+      ],
+      "text": "fm de aa \u201c(peay ex"
+    },
+    {
+      "bounds": [
+        0,
+        292,
+        789,
+        320
+      ],
+      "text": "build \u201c\u201czens = 2 an -\u2014 |s"
+    },
+    {
+      "bounds": [
+        14,
+        387,
+        774,
+        418
+      ],
+      "text": "rescarch ing da nt aa) ee ; \\ es"
+    },
+    {
+      "bounds": [
+        36,
+        394,
+        790,
+        431
+      ],
+      "text": "0/1) les => se. fy eee,"
+    },
+    {
+      "bounds": [
+        7,
+        414,
+        798,
+        465
+      ],
+      "text": "(0/1) _ # ~~, a i wie 7 researe be w7s"
+    },
+    {
+      "bounds": [
+        7,
+        498,
+        799,
+        529
+      ],
+      "text": "idle ae daa swag nye re a"
+    },
+    {
+      "bounds": [
+        0,
+        524,
+        720,
+        566
+      ],
+      "text": "ov a clg ae ae"
+    },
+    {
+      "bounds": [
+        6,
+        579,
+        799,
+        640
+      ],
+      "text": "ssi aw \u2018pe, ~ headquarters me ys"
+    },
+    {
+      "bounds": [
+        7,
+        716,
+        789,
+        747
+      ],
+      "text": "noah's tavern * 3s > sa > , es warehouse"
+    },
+    {
+      "bounds": [
+        109,
+        893,
+        747,
+        926
+      ],
+      "text": "(os sy 9 23) << \\} =f ee"
+    },
+    {
+      "bounds": [
+        176,
+        919,
+        775,
+        967
+      ],
+      "text": "hs ae 7 er ue rider camp )"
+    },
+    {
+      "bounds": [
+        116,
+        950,
+        613,
+        988
+      ],
+      "text": "fighter camp sm, i kier *"
+    },
+    {
+      "bounds": [
+        1,
+        1050,
+        694,
+        1090
+      ],
+      "text": "mm upgrade vehicle depotito depot 1 zb,"
+    },
+    {
+      "bounds": [
+        19,
+        1120,
+        789,
+        1142
+      ],
+      "text": "> in this alliance trial event, your alliance has achieved 1-phase rewards."
+    },
+    {
+      "bounds": [
+        30,
+        1146,
+        789,
+        1166
+      ],
+      "text": "#1\" in this alliance trial event, your alliance has achieved 3-phase rewards."
+    },
+    {
+      "bounds": [
+        30,
+        1244,
+        774,
+        1269
+      ],
+      "text": "\u2018world ~\u2014* hero quest bag mail\u201d allian\u00e9 more"
+    }
+  ],
+  "popup": {
+    "body_identity": false,
+    "body_text": "7 ' a cae \u00ab ee ss 8 es ee > pe sa: ws ~ headquarters 6a an ae ate > o> ri gy see ss",
+    "close_region": [
+      260,
+      750,
+      540,
+      870
+    ],
+    "geometry_valid": false,
+    "literal_close": false,
+    "matched_close_text": ": =\" 2",
+    "panel_present": true,
+    "popup_identity": null,
+    "recognized": false,
+    "target": null,
+    "target_center": null,
+    "target_identity": null,
+    "title_identity": false,
+    "title_text": "2 ~~ | : ~ ch - a | ad"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "evidence": "/evidence/rankings-evidence-013.png",
+  "input_count": 2,
+  "rankings": {
+    "recognized": true,
+    "state": "RANKINGS",
+    "target": {
+      "bounds": [
+        80,
+        229,
+        736,
+        279
+      ],
+      "text": "ty 5 personal might rank o)"
+    },
+    "target_id": "personal-might-rank-row"
+  },
+  "status": "confirmed"
+}

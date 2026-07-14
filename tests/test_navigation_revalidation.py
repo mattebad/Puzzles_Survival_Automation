@@ -26,6 +26,11 @@ MORE_FRAME = (
     / "evidence/sessions/20260713-personal-might-praise/live-route-recovery-014"
     / "more-to-rankings-game-attempt-1-attempt-3-source-011.png"
 )
+RANKINGS_FRAME = (
+    ROOT
+    / "evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015"
+    / "rankings-evidence-013.png"
+)
 
 
 class SpeedupHelpBackRecognitionTests(unittest.TestCase):
@@ -85,6 +90,28 @@ class RankingsEntryRecognitionTests(unittest.TestCase):
         x0, y0, x1, y1 = RANKINGS_ENTRY.roi
         changed[y0:y1, x0:x1] = 0
         self.assertFalse(recognize_route(changed, "MORE")["recognized"])
+
+
+class PersonalMightCheckRecognitionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.frame = cv2.imread(str(RANKINGS_FRAME))
+        if cls.frame is None:
+            raise RuntimeError("retained Rankings fixture is missing")
+
+    def test_rankings_and_check_bind_distinct_local_rois(self):
+        rankings = recognize_route(self.frame, "RANKINGS")
+        check = recognize_route(self.frame, "PERSONAL_MIGHT_RANK")
+        self.assertTrue(rankings["recognized"], rankings)
+        self.assertTrue(check["recognized"], check)
+        self.assertEqual(tuple(rankings["target"]["bounds"]), (170, 220, 560, 325))
+        self.assertEqual(tuple(check["target"]["bounds"]), (590, 245, 775, 315))
+
+    def test_missing_check_blocks_check_without_invalidating_row(self):
+        changed = self.frame.copy()
+        changed[245:315, 590:775] = 0
+        self.assertTrue(recognize_route(changed, "RANKINGS")["recognized"])
+        self.assertFalse(recognize_route(changed, "PERSONAL_MIGHT_RANK")["recognized"])
 
 
 class NavigationRetryTests(unittest.TestCase):

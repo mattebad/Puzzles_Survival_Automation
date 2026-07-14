@@ -1351,3 +1351,9 @@ anchors, old-anchor disappearance, foreground successor recognition, and non-aut
 gates. Popup handling is limited to VIP Points reset and Help WebView; unknown/cost/resource/premium
 dialogs block. Full deterministic validation passes 172 tests. Phase C remains evidence-gated until
 corrected live Rankings navigation and downstream Personal Might screens are retained.
+
+Corrected Rankings live navigation now passes: exact target `(602,1138)-(690,1167)`, tap
+`(646,1152)`, one transport call, first positive Leaderboard successor, no Help interception.
+The raw successor proves Personal Might Rank and its Check button coexist on one row. The previous
+two-input row-then-Check model was wrong; route now performs no row tap and treats one exact Check
+input as the next harmless navigation transition. Praise and Claim inputs remained zero.
