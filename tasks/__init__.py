@@ -23,13 +23,6 @@ from .daily_quest import (
     claim_authorizeable,
     claim_postcondition_verified,
 )
-from .main_quest import (
-    MainQuestClaimObservation,
-    main_claim_authorizeable,
-    main_claim_perform_one_pulse,
-    main_claim_postcondition_verified,
-    main_claim_transaction_spec,
-)
 from .available_daily_claim import (
     AvailableDailyClaimObservation,
     available_daily_claim_authorizeable,
@@ -117,11 +110,6 @@ __all__ = [
     "TaskResult",
     "claim_authorizeable",
     "claim_postcondition_verified",
-    "MainQuestClaimObservation",
-    "main_claim_authorizeable",
-    "main_claim_perform_one_pulse",
-    "main_claim_postcondition_verified",
-    "main_claim_transaction_spec",
     "AvailableDailyClaimObservation",
     "available_daily_claim_authorizeable",
     "available_daily_claim_perform_one_pulse",

@@ -104,10 +104,10 @@ dependency; no dedicated SSH-key task is a production blocker.
   (131/131), and the authoritative discovery reaches 137 tests with only the six existing local
   `cv2` import errors. `.local-reference/`, protected evidence, journals, and runtime state were
   preserved; no live gameplay input occurred.
-- Next: continue Phase E with offline Main Claim contract/detector/fixture work. Do not authorize
-  live Main Claim, Daily Claim, milestone, Depot Free, or recruitment Free input without fresh
-  Bliss-native target, free/cost-negative, and positive-postcondition evidence. The offline Main
-  Claim contract is recorded below; live evidence acquisition remains the next gate.
+- Next: continue Phase E with generalized Daily Claim, milestone, Depot Free, and recruitment Free
+  contract/evidence work. Do not authorize Daily Claim, milestone, Depot Free, or recruitment Free
+  input without fresh Bliss-native target, free/cost-negative, and positive-postcondition evidence.
+  Live evidence acquisition remains the next gate.
 
 ## Milestones
 
@@ -556,39 +556,20 @@ Claim example.
 ### GNB-PHASE-E/F — Free Daily Activities, then persistence/scheduler
 
 - Dependencies: GNB-PHASE-D Passed.
-- Scope: Main claims, Daily claims, milestones, free Depot, free recruitment; then separate task
+- Scope: Daily claims, milestones, free Depot, free recruitment; then separate task
   persistence and a narrow one-pulse due scheduler. Quiz, resource packs, strategic actions, and
   march families remain excluded from first Daily Activities MVP.
 - Status: Evidence-gated.
 - Fresh post-Phase-D Daily inventory has 5 points, no visible ordinary Claim row, and no ready
-  milestone. Main Claim, milestone, Depot Free, and recruitment Free controls still lack
+  milestone. Milestone, Depot Free, and recruitment Free controls still lack
   Bliss-native exact target plus positive postcondition pairs. Evidence:
   `evidence/sessions/20260713-phase-e-inventory/live-current-001/phase-e-inventory-001.png`.
 - Vendor `GNB-DAILY-*` geometry remains static reference only. No 2x projection, vendor selector,
   blind triple tap, 10x recruitment branch, or broad Claim ROI may authorize input.
 
-### GNB-PHASE-E-MAIN-CLAIM-OFFLINE — Add fail-closed Main Quest Claim contract
-
-- Dependencies: GNB-PHASE-D Passed; fresh Bliss-native Main Quest Claim target evidence is not yet
-  available.
-- Scope: pure semantic contract, exact row-local target containment, explicit free/cost-negative
-  requirements, profile/provenance/hash gates, positive row/points postcondition, and synthetic
-  negatives. No image capture, ADB, pnsctl registration, or live input.
-- Status: Passed (2026-07-14; offline contract and 7 focused tests).
-- Evidence: `tasks/main_quest.py`, `tests/fixtures/phase_e_main_claim_observations.json`, and
-  `tests/test_main_quest_claim.py`.
-- Result: static GnBots/reference provenance, Go, milestone, clipped, unknown-overlay, reset,
-  wrong-profile, malformed-hash, missing-evidence, and unchanged-postcondition cases fail closed.
-  A synthetic Bliss-native semantic case exercises the transaction spec without authorizing a
-  production dispatch.
-- Blocker: no fresh Bliss-native Main Quest Claim target and positive-postcondition pair exists.
-- Next: acquire navigation-only evidence when permitted, then independently promote a real target
-  and postcondition before any Main Claim handler or dispatch is enabled.
-
 ### GNB-PHASE-E-DAILY-CLAIMS-OFFLINE — Generalize available Daily Claim contract
 
-- Dependencies: GNB-PHASE-D Passed; Main Claim offline contract passed; fresh generalized Daily
-  Claim evidence is not yet available.
+- Dependencies: GNB-PHASE-D Passed; fresh generalized Daily Claim evidence is not yet available.
 - Scope: ordinary Daily Quest Claim semantics independent of the Personal Might catalog alias,
   exact row-local target containment, explicit free/cost-negative requirements, profile/provenance/
   hash gates, positive row/points postcondition, and synthetic Go/static-reference negatives.
@@ -625,8 +606,8 @@ Claim example.
 
 ### GNB-PHASE-E-DEPOT-OFFLINE — Add free Supply Depot collection contract
 
-- Dependencies: GNB-PHASE-D Passed; Main Claim, generalized Daily Claim, and milestone contracts
-  passed; fresh free Depot evidence is not yet available.
+- Dependencies: GNB-PHASE-D Passed; generalized Daily Claim and milestone contracts passed; fresh
+  free Depot evidence is not yet available.
 - Scope: exact free collection target, known non-premium reward, explicit zero-cost semantics,
   panel-local target containment, profile/provenance/hash gates, positive collection postcondition,
   and synthetic premium/static-reference negatives. No image capture, ADB, pnsctl registration, or
@@ -644,8 +625,8 @@ Claim example.
 
 ### GNB-PHASE-E-RECRUITMENT-OFFLINE — Add free recruitment contract
 
-- Dependencies: GNB-PHASE-D Passed; Main Claim, generalized Daily Claim, milestone, and free Depot
-  contracts passed; fresh free recruitment evidence is not yet available.
+- Dependencies: GNB-PHASE-D Passed; generalized Daily Claim, milestone, and free Depot contracts
+  passed; fresh free recruitment evidence is not yet available.
 - Scope: explicit single free mode, free banner, exact target, no 10x/premium/unknown confirmation,
   panel-local target containment, profile/provenance/hash gates, and positive result/count
   postcondition. No image capture, ADB, pnsctl registration, or live input.

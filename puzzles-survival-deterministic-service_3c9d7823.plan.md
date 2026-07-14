@@ -1382,9 +1382,9 @@ exact row-local Claim disappeared. Praise and Claim each used one separately aut
 transport call with independent fresh-frame evidence and positive postconditions.
 
 Phase E is evidence-gated. Fresh post-Claim Daily Quest evidence contains only `Go` rows at 5
-points and no ready milestone. Main Claim, milestone, Depot Free, and recruitment Free each require
-new Bliss-native exact control, explicit free/cost-negative proof, and positive postcondition
-evidence before handler or dispatch enablement. Static vendor geometry remains non-authorizing.
+points and no ready milestone. Milestone, Depot Free, and recruitment Free each require new
+Bliss-native exact control, explicit free/cost-negative proof, and positive postcondition evidence
+before handler or dispatch enablement. Static vendor geometry remains non-authorizing.
 
 Evidence retention boundary (2026-07-14): the local evidence footprint was audited with streaming
 SHA-256 hashes, Git-state and repository-reference classification, duplicate grouping, read-only
@@ -1393,16 +1393,9 @@ journal inspection, and separate reachable-history accounting. The audit found 4
 content-addressed archive and removed only after blob verification. Post-compaction local evidence
 is 2,899 files / 609,601,685 bytes; tracked evidence and all protected journals, fixtures, templates,
 decisive/unresolved evidence, and `.local-reference/` remain intact. The archive verifies 1,761
-entries with no errors. No Git history rewrite or live gameplay input occurred. Continue with offline
-Main Claim work; Phase E dispatch remains evidence-gated.
-
-Offline Main Claim contract (2026-07-14): `tasks/main_quest.py` now models a selected Main Quest
-completed row and its one-dispatch zero-cost Claim transaction without importing image/ADB runtime
-code. Authorization requires an exact row-local `CLAIM`, explicit free semantics, current day,
-locked profile, source hash, and Bliss-native provenance; Go, milestone, clipped, reset, unknown,
-static-reference, and unchanged-postcondition fixtures fail closed. The module is not registered in
-`pnsctl`. This advances offline Phase E coverage only; no Bliss-native Main Claim target or positive
-postcondition evidence exists, so no live handler or dispatch is enabled.
+entries with no errors. No Git history rewrite or live gameplay input occurred. Continue with
+offline generalized Daily Claim, milestone, Depot, and recruitment contract work; Phase E dispatch
+remains evidence-gated.
 
 Offline generalized Daily Claim contract (2026-07-14): `tasks/available_daily_claim.py` models an
 ordinary completed Daily Quest row without requiring the Personal Might catalog alias. It requires
