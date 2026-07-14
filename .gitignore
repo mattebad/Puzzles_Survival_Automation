@@ -22,3 +22,14 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 Thumbs.db
+
+# Future raw captures are local by default; canonical evidence, fixtures, templates, and manifests
+# remain explicitly trackable under evidence/.
+/evidence/sessions/*/raw/
+/evidence/sessions/*/worker-copy/
+/evidence/sessions/*/transfer/
+/evidence/sessions/*/generated/
+/evidence/**/*.sqlite3-wal
+/evidence/**/*.sqlite3-shm
+/artifacts/evidence-audit*.json
+/artifacts/evidence-audit*.md
