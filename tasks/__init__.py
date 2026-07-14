@@ -93,6 +93,12 @@ from .zombie_lair import (
     zombie_lair_postcondition_verified,
     zombie_lair_transaction_spec,
 )
+from .stamina_disabled import (
+    DisabledStaminaObservation,
+    stamina_counter_authorizeable,
+    stamina_counter_postcondition_verified,
+    stamina_disabled_dispatch,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -202,6 +208,10 @@ __all__ = [
     "zombie_lair_perform_one_pulse",
     "zombie_lair_postcondition_verified",
     "zombie_lair_transaction_spec",
+    "DisabledStaminaObservation",
+    "stamina_counter_authorizeable",
+    "stamina_counter_postcondition_verified",
+    "stamina_disabled_dispatch",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

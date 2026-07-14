@@ -1498,13 +1498,16 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED`; requires explicit level/stamina policy.
 
 ### DQ-FLOW-STAMINA
+- Status: Passed (2026-07-14; disabled counter-only contract and 5 focused tests).
 - Covered: `consume_stamina`; shared stamina-consume variant.
 - Exclusions: implicit substitution by Lair, unknown action, resource refill.
 - Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE.
 - Source/target/policy: exact Daily row, known stamina cost, approved action.
-- Offline acceptance/tests: stamina delta and objective progress mocks.
+- Offline acceptance/tests: selected-Daily counter recognition, same-day stamina delta arithmetic,
+  disabled dispatch guard, Main/static negatives, and Claim separation; `tests/test_stamina_disabled.py`.
 - Bliss/live boundary: disabled until explicit policy; no registration/input.
-- Transaction/postcondition/recovery: one known stamina action; positive stamina delta; stop on cost/result ambiguity.
+- Transaction/postcondition/recovery: no transaction path; counter-only replay verifies arithmetic;
+  every dispatch request blocks under policy; stop on cost/result ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; product decision required.
 

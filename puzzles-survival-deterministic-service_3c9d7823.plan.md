@@ -893,6 +893,8 @@ Risk: `R0` observation, `R1` verified no-spend/navigation/claim, `R2` bounded or
 - Evidence/cost/postcondition: exact lair level from stable frames, hard `level != 60`, stamina/cost, free slot, countdown, Join not Attack/Start, formation/preset, dispatch/march result. Cost is stamina, march slot, troop commitment/time.
 - Persist/next: stamina before/after, lair identity/level, march slot, dispatch/return estimate, quest credit, next stamina/lair poll. Stop on 60/unreadable level, full/expired rally, no slot, changed target, refill, unknown troops/cost.
 - Recovery/mode/phase: unresolved Join reconciles via march/stamina/quest state; no repeat. Quick Join disabled until full filtering chain is captured. Dry-run then automatic-with-limits in Phase 12.
+- Current Daily implementation boundary: `consume_stamina` has counter-only offline replay and
+  arithmetic verification; product policy blocks every stamina-spend dispatch until approval.
 
 ### 13.4 Campaign and AP — R2/R3
 

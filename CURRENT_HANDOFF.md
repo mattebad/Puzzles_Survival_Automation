@@ -1,5 +1,15 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 disabled Stamina contract
+
+- Completed `DQ-FLOW-STAMINA` as counter-only `tasks/stamina_disabled.py` semantics. It binds
+  selected-Daily stamina-counter observations to current-day Bliss-native evidence and verifies
+  exact offline counter arithmetic; it has no transaction specification or executable spend path.
+- Synthetic replay fixtures and five focused tests cover valid counter replay, same-day delta,
+  Main/static/uncertain rejection, Claim separation, and unconditional disabled-policy dispatch
+  blocking. Matrix remains `DISABLED_POLICY`, unregistered, and scheduler-ineligible. No live
+  input, journal, lease, task-state, or gameplay state changed.
+
 ## 2026-07-14 offline Zombie Lair contract
 
 - Completed `DQ-FLOW-ZOMBIE-LAIR` as pure `tasks/zombie_lair.py` semantics composed with the

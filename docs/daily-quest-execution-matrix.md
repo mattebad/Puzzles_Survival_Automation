@@ -34,6 +34,10 @@ Headquarters attack/win as `DOCUMENTATION_ONLY` and Gather Food/Gathered Food as
 future Lair and gathering contracts. It performs no resource transaction, coordinate authorization,
 runtime registration, or scheduler eligibility.
 
+`DQ-FLOW-STAMINA` uses `tasks/stamina_disabled.py` for counter-only replay and same-day arithmetic.
+Current product policy blocks every stamina-spend dispatch; the objective remains unregistered and
+scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |

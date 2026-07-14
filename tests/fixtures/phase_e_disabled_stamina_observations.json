@@ -1,0 +1,54 @@
+{
+  "schema": "phase-e-disabled-stamina-observations-v1",
+  "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "observations": {
+    "daily_counter_synthetic": {
+      "screen_state": "WORLD",
+      "selected_daily_row": true,
+      "objective_key": "consume_stamina",
+      "current_stamina": 80,
+      "target_roi": [180, 80, 360, 140],
+      "panel_bounds": [40, 40, 760, 220],
+      "game_day_id": "synthetic-day-1",
+      "target_provenance": "bliss-native",
+      "source_frame_sha256": "1717171717171717171717171717171717171717171717171717171717171717",
+      "evidence_refs": ["synthetic:disabled-stamina-counter"],
+      "overlay_state": "none",
+      "reset_guard_active": false,
+      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "recognized": true
+    },
+    "main_negative": {
+      "screen_state": "MAIN_QUEST",
+      "selected_daily_row": false,
+      "objective_key": "consume_stamina",
+      "current_stamina": 80,
+      "target_roi": [180, 80, 360, 140],
+      "panel_bounds": [40, 40, 760, 220],
+      "game_day_id": "synthetic-day-1",
+      "target_provenance": "bliss-native",
+      "source_frame_sha256": "1818181818181818181818181818181818181818181818181818181818181818",
+      "evidence_refs": ["synthetic:disabled-stamina-main-negative"],
+      "overlay_state": "none",
+      "reset_guard_active": false,
+      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "recognized": true
+    },
+    "static_reference_negative": {
+      "screen_state": "WORLD",
+      "selected_daily_row": true,
+      "objective_key": "consume_stamina",
+      "current_stamina": 80,
+      "target_roi": [180, 80, 360, 140],
+      "panel_bounds": [40, 40, 760, 220],
+      "game_day_id": "synthetic-day-1",
+      "target_provenance": "gnbots-reference",
+      "source_frame_sha256": "1919191919191919191919191919191919191919191919191919191919191919",
+      "evidence_refs": ["synthetic:disabled-stamina-static-reference"],
+      "overlay_state": "none",
+      "reset_guard_active": false,
+      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "recognized": true
+    }
+  }
+}

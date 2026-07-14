@@ -32,6 +32,8 @@ promotion. Praise completion stops before Claim.
 - Shared World/stamina primitive: `tasks/world_stamina.py` (route, resource, and budget replay
   only).
 - Zombie Lair contract: `tasks/zombie_lair.py` (allowlisted Lair, march, and stamina replay only).
+- Disabled Stamina contract: `tasks/stamina_disabled.py` (counter replay and unconditional
+  no-dispatch guard only).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 
@@ -47,7 +49,8 @@ cost/resource, and positive-postcondition evidence before promotion.
 ## Policy-disabled flows
 
 `upgrade_building`, `upgrade_tech`, `train_fighter`, `train_rider`, `train_shooter`,
-`train_vehicle`, `upgrade_hero`, `consume_stamina`, `buy_box`, all shop purchases,
+`train_vehicle`, `upgrade_hero`, `consume_stamina` (counter-only contract; spend remains blocked),
+`buy_box`, all shop purchases,
 `boost_resource_building_output`, `donate_alliance_tech`, `speedup_using_items`,
 `ruins_challenge`, and `join_hero_duel` remain offline-only, unregistered, and
 scheduler-ineligible.

@@ -70,7 +70,8 @@ cannot admit Daily objectives.
 - World/stamina engine: map state, tile search, occupancy, march capacity, stamina, and result
   recognizers. GnBots geometry remains non-authorizing.
 - Zombie Lair: level/stamina/march policy and positive participation result.
-- Consume Stamina: separate objective using shared primitives.
+- Consume Stamina: separate objective using shared primitives; current implementation is
+  counter-only and policy-disabled, with no spend transaction.
 - Gathering: proven Wood, Steel, and Gas variants with resource-specific target/quantity. Gather
   Food/Gathered Food remains outside scope until selected-Daily evidence qualifies it.
 - Training: Fighter, Rider, Shooter, Vehicle variants with shared queue/quantity engine.
