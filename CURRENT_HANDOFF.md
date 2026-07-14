@@ -294,6 +294,15 @@
   proof, Main/static rejection, Claim separation, and zero dispatch. Chip and Module remain
   downstream variants; no live or persistent state changed.
 
+## 2026-07-14 Daily Chip enhancement adapter
+
+- Extended `tasks/daily_enhancement.py` with selected Daily `enhance_chip` ownership over the
+  shared Chip contract. It requires exact equipped Chip/one-star-material semantics and a same-day
+  Daily 0/1 successor; enhancement transport remains evidence-gated.
+- Five focused tests cover Chip/Gear distinction, material guards, successor proof, Main/static
+  rejection, Claim separation, and zero dispatch. Module remains downstream; no live or persistent
+  state changed.
+
 ## 2026-07-14 offline Phase F scheduler contract
 
 - Added `tasks/scheduler.py` with deterministic serializable task state and a one-pulse candidate

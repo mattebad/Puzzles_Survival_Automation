@@ -16,6 +16,7 @@ from .enhancement import (
 
 DAILY_ENHANCEMENT_OBJECTIVES = {
     "gear": "enhance_gear",
+    "chip": "enhance_chip",
 }
 
 
@@ -73,6 +74,7 @@ def daily_enhancement_postcondition_verified(
         and after.objective_key == DAILY_ENHANCEMENT_OBJECTIVES.get(str(variant).lower())
         and after.daily_progress_after == 1
         and after.successor_state == f"DAILY_{str(variant).upper()}_ENHANCEMENT_COMPLETE"
+        and enhancement_authorizeable(after.enhancement, variant=variant)
         and after.enhancement.game_day_id == before.enhancement.game_day_id
         and enhancement_postcondition_verified(
             before.enhancement,

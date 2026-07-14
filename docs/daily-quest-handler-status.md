@@ -29,8 +29,8 @@ promotion. Praise completion stops before Claim.
   `tasks/daily_nanoweapon.py`.
 - Gear/Chip/Module shared enhancement contract: `tasks/enhancement.py` (all three variants
   complete offline).
-- Daily Gear row adapter: `tasks/daily_enhancement.py` (Gear variant; Chip and Module remain
-  downstream objective adapters).
+- Daily Gear/Chip row adapter: `tasks/daily_enhancement.py` (Gear and Chip variants; Module
+  remains downstream objective adapter).
 - Campaign AP contract: `tasks/campaign_ap.py` (Sweep and Auto Complete variants complete
   offline).
 - Shared World/stamina primitive: `tasks/world_stamina.py` (route, resource, and budget replay

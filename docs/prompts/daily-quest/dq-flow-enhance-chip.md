@@ -17,6 +17,9 @@ Tests: shared-family ownership, chip/gear distinction, cost guard, replay, cardi
 Main negative, registration false, scheduler false. Bliss-native evidence required; GnBots never
 authorizes. Future navigation read-only. Prohibit ADB, worker/VM, leases, journal migration, live
 input/evidence, registration, scheduler eligibility. Current boundary: shared
-`tasks/enhancement.py` now implements Chip ownership and one-star material guards; promotion still
-requires fresh Bliss-native Chip evidence. Update docs/matrix/status when contract changes.
+`tasks/enhancement.py` plus `tasks/daily_enhancement.py` now implement selected-Daily Chip
+ownership, one-star material guards, one-enhancement replay, and Daily 0/1 successor proof;
+promotion still requires fresh Bliss-native Chip evidence. Tests:
+`tests/test_enhance_chip.py` and `tests/test_daily_enhancement_chip.py`. Update docs/matrix/status
+when contract changes.
 Continue offline. Commit: `feat(tasks): complete Chip enhancement variant`.

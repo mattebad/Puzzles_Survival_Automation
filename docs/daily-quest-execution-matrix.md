@@ -89,6 +89,10 @@ selected-Daily Gear enhancement replay. Exact equipped item, one-star material, 
 successor evidence remain gated; Chip and Module stay separate variants, with no registration or
 scheduler eligibility.
 
+`DQ-FLOW-ENHANCE-CHIP` uses the same adapter with explicit Chip objective ownership and
+`ENHANCE_CHIP` transaction semantics. Exact selected Chip, one-star material, and positive
+successor evidence remain gated; the objective is unregistered and scheduler-ineligible.
+
 `DQ-FLOW-RESOURCE-BOOST` uses `tasks/resource_boost_disabled.py` for resource-building identity,
 resource, duration, cost, and boost-state replay only. Boost spending remains policy-disabled; the
 objective is unregistered and scheduler-ineligible.
