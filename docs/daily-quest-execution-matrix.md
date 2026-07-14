@@ -56,7 +56,7 @@ Headquarters attack/win as `DOCUMENTATION_ONLY` and Gather Food/Gathered Food as
 | `bioenhancer_research` | bioenhancer / one free | `daily_go_to_bioenhancer` | offline contract | evidence-gated | none | DQ-FLOW-BIOENHANCER |
 | `craft_nanoweapon` | nanoweapon / Craft Weapon | `daily_go_to_nanoweapon` | offline contract | evidence-gated | none | DQ-FLOW-NANOWEAPON |
 | `personal_might_praise` | personal_might_praise / one Praise | `daily_go_to_personal_might` | live validated | live validated | `praise` | DQ-FLOW-PERSONAL-MIGHT-PRAISE |
-| `enhance_chip` | enhancement / Chip | `daily_go_to_chip` | planned | evidence-gated | none | DQ-FLOW-ENHANCE-CHIP |
+| `enhance_chip` | enhancement / Chip | `daily_go_to_chip` | offline contract | evidence-gated | none | DQ-FLOW-ENHANCE-CHIP |
 | `enhance_module` | enhancement / Module | `daily_go_to_module` | planned | evidence-gated | none | DQ-FLOW-ENHANCE-MODULE |
 | `enhance_gear` | enhancement / Gear | `daily_go_to_gear` | offline contract | evidence-gated | none | DQ-FLOW-ENHANCE-GEAR |
 | `donate_alliance_tech` | donation / Alliance Tech | `daily_go_to_alliance_technology` | disabled | disabled | none | DQ-FLOW-DONATION |

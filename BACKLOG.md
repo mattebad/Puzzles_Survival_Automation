@@ -1430,11 +1430,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED`; unlocks other enhancement variants through family sharing.
 
 ### DQ-FLOW-ENHANCE-CHIP
+- Status: Passed (2026-07-14; shared Chip contract and 5 focused tests).
 - Covered: `enhance_chip`; Chip variant.
 - Exclusions: same enhancement unsafe actions and materials as Gear.
 - Dependencies/routes: DQ-FLOW-ENHANCE-GEAR shared engine → Commander Info → Chip.
 - Source/target/policy: equipped Chip, one-star material, quantity one.
-- Offline acceptance/tests: shared engine plus Chip recognizer/postcondition fixture.
+- Offline acceptance/tests: shared engine plus Chip recognizer/postcondition fixture;
+  `tests/test_enhance_chip.py`.
 - Bliss/live boundary: evidence-gated; no registration/input.
 - Transaction/postcondition/recovery: one enhancement; Chip state changes; stop on ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
