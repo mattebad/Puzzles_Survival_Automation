@@ -12,6 +12,11 @@
 - First Phase D resume attempt sent zero inputs: startup omitted the already-open Personal Might
   leaderboard and defaulted to Home, then three Home recognitions failed before transport. Startup
   now recognizes explicit resume states and treats every other screen as `UNKNOWN`.
+- Phase D Praise is live-confirmed: one tap at `(722,187)`, zero cost, one transport call, and
+  positive postcondition. Evidence: `live-praise-success-018/praise-{pre-dispatch,result}.json`.
+- Selected Daily Quest now shows exact first-row `Praise 1x in Personal Might Rank (1/1)` with a
+  row-local gold `Claim`. Evidence: `live-daily-claim-evidence-019/`. Claim remains a separate
+  explicit transaction through `run-task --task personal-might-claim`.
 
 ## 2026-07-13 corrected Rankings live navigation
 

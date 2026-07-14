@@ -1369,3 +1369,9 @@ First Phase D resume attempt produced no transport call because startup omitted 
 already-open Personal Might leaderboard and then failed three bounded Home recognitions. Startup
 now positively classifies Personal Might leaderboard, Rankings, More, or Home; every other state is
 `UNKNOWN` and blocks. This preserves immediate Praise authorization without replaying navigation.
+
+Phase D Praise is now confirmed from fresh unchanged leaderboard evidence: exactly one zero-cost
+tap at `(722,187)`, one transport call, and a positive control-change postcondition. Subsequent
+bounded navigation exposed selected Daily Quest with the exact Personal Might objective at `(1/1)`
+and a row-local gold Claim. Praise now terminates before Claim; only the explicit
+`personal-might-claim` task may evaluate and dispatch that separate exact-row transaction.

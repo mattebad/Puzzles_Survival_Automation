@@ -91,6 +91,10 @@ MAX_VIP_POPUP_INPUTS = 1
 HELP_WEBVIEW_CLOSE_REGION = (690, 10, 790, 110)
 CLAIM_CONTROL_RE = re.compile(r"\bclaim\b", re.IGNORECASE)
 PROGRESS_RE = re.compile(r"\b(\d+)\s*/\s*(\d+)\b")
+DAILY_ROW_X_BOUNDS = (40, 760)
+DAILY_CLAIM_X_BOUNDS = (540, 750)
+DAILY_ROW_TOP_PADDING = 30
+DAILY_ROW_BOTTOM_PADDING = 70
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -1166,10 +1170,29 @@ class LiveAdapter:
         ).recognized
         row_text = objective_line["text"] if objective_line else ""
         progress = parse_progress(row_text) or (0, 1)
-        claim_line = find_phrase(lines, ("claim",))
-        row_bounds = roi_from_item(objective_line, (0, 400, 800, 1120))
-        claim_roi = roi_from_item(claim_line, (530, row_bounds[1], 750, min(1280, row_bounds[3])))
-        claim_visible = bool(claim_line and row_bounds[1] <= claim_roi[1] < row_bounds[3])
+        if objective_line:
+            objective_bounds = objective_line["bounds"]
+            row_bounds = (
+                DAILY_ROW_X_BOUNDS[0],
+                max(400, objective_bounds[1] - DAILY_ROW_TOP_PADDING),
+                DAILY_ROW_X_BOUNDS[1],
+                min(1120, objective_bounds[3] + DAILY_ROW_BOTTOM_PADDING),
+            )
+        else:
+            row_bounds = (DAILY_ROW_X_BOUNDS[0], 400, DAILY_ROW_X_BOUNDS[1], 1120)
+        claim_search_roi = (
+            DAILY_CLAIM_X_BOUNDS[0],
+            row_bounds[1],
+            DAILY_CLAIM_X_BOUNDS[1],
+            row_bounds[3],
+        )
+        claim_line = find_phrase(ocr_lines(frame, claim_search_roi), ("claim",))
+        claim_roi = roi_from_item(claim_line, claim_search_roi)
+        claim_visible = bool(
+            claim_line
+            and CLAIM_CONTROL_RE.search(claim_line["text"])
+            and row_bounds[1] <= claim_roi[1] < claim_roi[3] <= row_bounds[3]
+        )
         result = DailyQuestClaimObservation(
             screen_state="DAILY_QUEST",
             selected_daily_quest=selected,
@@ -1281,6 +1304,21 @@ class LiveAdapter:
                     "popup_inputs": self.vip_popup_input_count,
                 })
                 return 0
+            if self.args.claim_only:
+                daily = recognize_daily_selected(
+                    startup_frame,
+                    load_frame(self.args.daily_reference),
+                    load_frame(self.args.main_quest_reference),
+                )
+                if not daily.recognized:
+                    raise RuntimeError("Claim-only task requires positively selected Daily Quest")
+                claim_result = self.claim()
+                write_json(self.evidence / "personal-might-claim-task-result.json", {
+                    "status": "confirmed",
+                    "input_count": self.input_count,
+                    "claim_result": claim_result.__dict__,
+                })
+                return 0 if claim_result.status.value == "confirmed" else 3
             startup_text = " ".join(item["text"] for item in ocr_lines(startup_frame))
             current_state = "UNKNOWN"
             if recognize_route(startup_frame, "HELP_WEBVIEW")["recognized"]:
@@ -1343,27 +1381,12 @@ class LiveAdapter:
             _path, praise_obs = self.praise()
             if praise_obs.already_praised or praise_obs.cooldown_active:
                 raise RuntimeError("ALREADY_PRAISED_OR_COOLDOWN")
-            self.run_route_step(
-                "personal-might-back-to-rankings", "PERSONAL_MIGHT_LEADERBOARD", "RANKINGS",
-                "PERSONAL_MIGHT_BACK", BACK_REGION, detection_state="PERSONAL_MIGHT_BACK",
-            )
-            self.run_route_step(
-                "rankings-back-to-home", "RANKINGS", "HOME_BASE", "RANKINGS_BACK",
-                BACK_REGION, detection_state="RANKINGS_BACK",
-            )
-            # Existing bounded Quest navigation remains the only route to selected Daily Quest.
-            self.run_route_step(
-                "home-to-quest", "HOME_BASE", "QUEST", "HOME_TO_QUEST",
-                (250, 1130, 410, 1280), target_id="home-quest-entry",
-            )
-            self.run_route_step("quest-to-daily", "QUEST", "DAILY_QUEST", "QUEST_TO_DAILY", (300, 70, 500, 140))
-            claim_result = self.claim()
             write_json(self.evidence / "praise-task-result.json", {
                 "status": "confirmed",
                 "input_count": self.input_count,
-                "claim_result": claim_result.__dict__,
+                "claim_pending": True,
             })
-            return 0 if claim_result.status.value == "confirmed" else 3
+            return 0
         finally:
             lease = self.store.get_lease(time.time())
             if lease and lease.get("valid") and lease.get("owner_id") == self.owner:
@@ -1387,6 +1410,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--popup-only", action="store_true")
     root.add_argument("--navigation-evidence-only", action="store_true")
     root.add_argument("--leaderboard-evidence-only", action="store_true")
+    root.add_argument("--claim-only", action="store_true")
     return root
 
 

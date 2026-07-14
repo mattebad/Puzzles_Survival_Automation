@@ -53,6 +53,10 @@ class OperatorCliTests(unittest.TestCase):
             pnsctl.parser().parse_args(["run-task", "--task", "praise-leaderboard-evidence"]).task,
             "praise-leaderboard-evidence",
         )
+        self.assertEqual(
+            pnsctl.parser().parse_args(["run-task", "--task", "personal-might-claim"]).task,
+            "personal-might-claim",
+        )
 
     def test_worker_command_is_private_and_bounded(self):
         cfg = pnsctl.OperatorConfig()
@@ -112,6 +116,14 @@ class OperatorCliTests(unittest.TestCase):
         self.assertIn("personal_might_praise_live.py", command)
         self.assertIn("--daily-reference", command)
         self.assertNotIn("input tap", command)
+
+    def test_personal_might_claim_uses_explicit_claim_only_mode(self):
+        cfg = pnsctl.OperatorConfig()
+        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
+            pnsctl.run_task(cfg, "personal-might-claim")
+        command = remote.call_args.args[1]
+        self.assertIn("personal_might_praise_live.py", command)
+        self.assertIn("--claim-only", command)
 
     def test_route_evidence_task_stops_before_praise(self):
         cfg = pnsctl.OperatorConfig()

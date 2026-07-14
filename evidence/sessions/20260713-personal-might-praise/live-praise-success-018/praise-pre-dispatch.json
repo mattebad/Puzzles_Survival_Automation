@@ -1,0 +1,47 @@
+{
+  "annotated_screenshot": "/evidence/praise-pre-dispatch-annotated.png",
+  "cooldown_or_already_praised": false,
+  "game_day_id": "daily-2026-07-13",
+  "might_region_bounds": [
+    300,
+    0,
+    800,
+    500
+  ],
+  "personal_might_leaderboard_proof": {
+    "already_praised": false,
+    "cooldown_active": false,
+    "gold_ratio": 0.216094674556213,
+    "leaderboard_identity": true,
+    "might_region_identity": true,
+    "praise_disabled": false,
+    "praise_score": 1.0,
+    "recognized": true,
+    "state": "PERSONAL_MIGHT_LEADERBOARD",
+    "target": {
+      "bounds": [
+        690,
+        155,
+        755,
+        220
+      ],
+      "exact_bounds": true,
+      "text": "rank-one enabled gold thumbs-up"
+    },
+    "target_id": "personal-might-praise"
+  },
+  "proposed_tap": [
+    722,
+    187
+  ],
+  "source_screenshot": "/evidence/praise-source-002.png",
+  "tap_inside_praise_control": true,
+  "target_action": "PRAISE_PERSONAL_MIGHT",
+  "thumbs_up_target_bounds": [
+    690,
+    155,
+    755,
+    220
+  ],
+  "zero_cost_classification": "praise_zero_cost"
+}

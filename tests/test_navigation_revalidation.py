@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 import cv2
 
 from safe_action_core import ActionClass
 from scripts.personal_might_praise_live import (
     GAME_BACK,
+    LiveAdapter,
     MIGHT_PRAISE_ACTION,
     PERSONAL_MIGHT_BACK,
     RANKINGS_ENTRY,
@@ -43,6 +45,13 @@ HOME_FRAME = (
     ROOT
     / "evidence/sessions/20260712-m6-dq-bootstrap/assets"
     / "home-base-settled.png"
+)
+DAILY_REFERENCE = ROOT / "evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png"
+MAIN_QUEST_REFERENCE = ROOT / "evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png"
+PERSONAL_MIGHT_CLAIM_FRAME = (
+    ROOT
+    / "evidence/sessions/20260713-personal-might-praise/live-daily-claim-evidence-019"
+    / "praise-daily-claim-evidence-019.png"
 )
 
 
@@ -177,6 +186,28 @@ class PraiseStartupRecognitionTests(unittest.TestCase):
             recognize_praise_start_state(self.home * 0, self.home),
             "UNKNOWN",
         )
+
+
+class PersonalMightClaimRecognitionTests(unittest.TestCase):
+    def test_exact_completed_row_binds_local_claim_control(self):
+        adapter = LiveAdapter.__new__(LiveAdapter)
+        adapter.args = SimpleNamespace(
+            daily_reference=DAILY_REFERENCE,
+            main_quest_reference=MAIN_QUEST_REFERENCE,
+        )
+        adapter.game_day = "daily-2026-07-13"
+        observation, detail = adapter._daily_claim_observation(PERSONAL_MIGHT_CLAIM_FRAME)
+        self.assertTrue(observation.recognized)
+        self.assertTrue(observation.selected_daily_quest)
+        self.assertEqual((observation.current_progress, observation.required_progress), (1, 1))
+        self.assertEqual(observation.target_identity, "daily-quest-claim")
+        self.assertEqual(observation.control_class, "CLAIM")
+        self.assertTrue(observation.row_fully_visible)
+        self.assertTrue(observation.claim_fully_visible)
+        self.assertIsNotNone(detail["claim_line"])
+        rx0, ry0, rx1, ry1 = observation.row_bounds
+        tx0, ty0, tx1, ty1 = observation.target_roi
+        self.assertTrue(rx0 <= tx0 < tx1 <= rx1 and ry0 <= ty0 < ty1 <= ry1)
 
 
 class NavigationRetryTests(unittest.TestCase):

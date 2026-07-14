@@ -1,0 +1,39 @@
+{
+  "action": {
+    "action_id": "praise-1784004112-2",
+    "action_key": "praise-1784004112-2",
+    "consequence": "praise_zero_cost",
+    "consequential": 1,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/praise-source-002.png\"]",
+    "expected_postcondition": "praise_control_changes_or_disables",
+    "final_reason": "positive_postcondition",
+    "final_status": "confirmed",
+    "game_day_id": "daily-2026-07-13",
+    "input_attempt_at": 1784004114.8593876,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_ZERO_COST_R1",
+    "policy_request_json": "{\"action_class\":\"zero_cost_consequential\",\"action_id\":\"praise-1784004112-2\",\"action_key\":\"praise-1784004112-2\",\"action_kind\":\"PRAISE_PERSONAL_MIGHT\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":true,\"game_day_id\":\"daily-2026-07-13\",\"lease_owner\":\"pnsctl-1784004097\",\"lease_valid\":true,\"maximum_cost\":0,\"monotonic_now\":4449544.876447186,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4449544.873654598,\"clipped\":false,\"consequence\":\"praise_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"leaderboard\",\"023266d2c7fed42a7332da5ebbb6f38bb635538e1aa226ef197ce5270959ca0f\"],[\"might\",\"c54be18ce0b36c2644f55d87f4fb61998e3ceeb3f21bfe9442ce7207c87bb55b\"],[\"praise\",\"442cb5dd0178568f1919bd2973c3114b4f698036e649529709caef2cfe924930\"]],\"evidence_refs\":[\"/evidence/praise-source-002.png\"],\"expected_postcondition\":\"praise_control_changes_or_disables\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"9e21a14fefd67167d8237801e570ec442948d908e3718834c5fa71f5dd572a8b\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4449544.873654598,\"ocr_result_frame_sha256\":\"9e21a14fefd67167d8237801e570ec442948d908e3718834c5fa71f5dd572a8b\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"PERSONAL_MIGHT_LEADERBOARD\",\"target_identity\":\"personal-might-praise\",\"target_isolated\":false,\"target_roi\":[690,155,755,220],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"PRAISE_PERSONAL_MIGHT\",\"semantic_postconditions\":[\"PERSONAL_MIGHT_LEADERBOARD\"],\"semantic_preconditions\":[\"PERSONAL_MIGHT_LEADERBOARD\",\"personal-might-praise\"],\"subject\":\"PRAISE_PERSONAL_MIGHT\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1784004112.4144747,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":true,\"evidence_refs\":[\"/evidence/praise-post-004.png\"],\"frame_sha256\":\"9c8de903de5e7c45edbfefdd939f533c018eb5b52596dceb3bb080b6c3f62b85\"}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "PRAISE_PERSONAL_MIGHT",
+    "source_frame_captured_at": 4449544.873654598,
+    "source_frame_sha256": "9e21a14fefd67167d8237801e570ec442948d908e3718834c5fa71f5dd572a8b",
+    "source_state": "PERSONAL_MIGHT_LEADERBOARD",
+    "target_identity": "personal-might-praise",
+    "target_roi_json": "[690,155,755,220]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input tap 722 187\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1784004129.674691
+  },
+  "pre_dispatch_attempts": 1,
+  "result": {
+    "action_id": "praise-1784004112-2",
+    "reason": "positive_postcondition",
+    "status": "confirmed",
+    "transport_calls": 1
+  }
+}

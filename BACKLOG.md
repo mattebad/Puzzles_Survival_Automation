@@ -513,6 +513,10 @@ Claim example.
 - Resume correction: first Praise run sent zero inputs because startup omitted the valid already-open
   Personal Might leaderboard state. Startup now recognizes only explicit route states and never
   defaults unknown to Home. Evidence: `live-praise-resume-017-no-input/`.
+- Praise confirmed with exactly one transport call and positive postcondition. Fresh Daily evidence
+  now proves the exact Personal Might row is complete `(1/1)` and its local control is `Claim`.
+  Normal Praise execution stops before reconciliation; `personal-might-claim` is the only explicit
+  Claim entrypoint. Evidence: `live-praise-success-018/`, `live-daily-claim-evidence-019/`.
 
 ### GNB-PHASE-E/F — Free Daily Activities, then persistence/scheduler
 
