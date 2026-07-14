@@ -86,7 +86,8 @@ cannot admit Daily objectives.
   no event-entry path.
 - Tech Upgrade: prerequisite/level identity replay complete offline; research remains
   policy-disabled with no upgrade transaction.
-- Tech Upgrade: Research target variant.
+- Hero Upgrade: selected-hero/material/level identity replay complete offline; hero upgrade remains
+  policy-disabled with no upgrade transaction.
 - Hero Upgrade and Hero Ownership: separate semantics.
 - Purchases: Box, Ruins Shop, Rare Earth Shop, Alliance Shop variants through one allowlist engine.
 - Donation: Alliance Tech resource policy.

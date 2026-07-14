@@ -1,5 +1,14 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 disabled Hero Upgrade contract
+
+- Completed `DQ-FLOW-HERO-UPGRADE` as selected-hero/material/level replay in
+  `tasks/hero_upgrade_disabled.py`. It binds selected-Daily hero identity, exact Upgrade target,
+  known material/cost state, and same-day successor; hero upgrade dispatch is always blocked.
+- Synthetic replay fixtures and five focused tests cover hero/material identity guards, level
+  arithmetic, Main/static/ambiguous rejection, Claim separation, and no-dispatch behavior. Row
+  remains disabled, unregistered, and scheduler-ineligible; no live or persistent state changed.
+
 ## 2026-07-14 disabled Tech Upgrade contract
 
 - Completed `DQ-FLOW-TECH-UPGRADE` as prerequisite/level replay in

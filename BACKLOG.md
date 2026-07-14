@@ -1574,13 +1574,16 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; policy decision required.
 
 ### DQ-FLOW-HERO-UPGRADE
+- Status: Passed (2026-07-14; disabled selected-hero/material/level contract and 5 focused tests).
 - Covered: `upgrade_hero`; upgrade variant.
 - Exclusions: hero acquisition, premium/material guess, unrelated ownership objective.
 - Dependencies/routes: inventory → Hero screen.
 - Source/target/policy: exact hero, upgrade control, known materials/cost.
-- Offline acceptance/tests: target/material/level postcondition mocks.
+- Offline acceptance/tests: selected hero/material identity, level successor, disabled dispatch,
+  Main/ambiguous negatives, and Claim separation; `tests/test_hero_upgrade_disabled.py`.
 - Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: one upgrade; hero state changes; stop on ambiguity.
+- Transaction/postcondition/recovery: no transaction path; level arithmetic replay only; every
+  dispatch request blocks; stop on ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; product decision required.
 

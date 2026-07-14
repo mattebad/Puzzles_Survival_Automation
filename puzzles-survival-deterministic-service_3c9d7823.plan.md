@@ -989,6 +989,8 @@ Risk: `R0` observation, `R1` verified no-spend/navigation/claim, `R2` bounded or
   remain disabled pending separate product approval.
 - Tech Upgrade has prerequisite/level replay only; research spend and upgrade dispatch remain
   disabled pending separate product approval.
+- Hero Upgrade has selected-hero/material/level replay only; material spend and upgrade dispatch
+  remain disabled pending separate product approval.
 
 ## 14. Safety and spend-policy model
 

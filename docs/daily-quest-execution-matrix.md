@@ -56,6 +56,10 @@ entry remains policy-disabled; the objective is unregistered and scheduler-ineli
 `DQ-FLOW-TECH-UPGRADE` uses `tasks/tech_upgrade_disabled.py` for prerequisite/level replay only.
 Research spend remains policy-disabled; the objective is unregistered and scheduler-ineligible.
 
+`DQ-FLOW-HERO-UPGRADE` uses `tasks/hero_upgrade_disabled.py` for selected-hero/material/level
+replay only. Hero material spend remains policy-disabled; the objective is unregistered and
+scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |

@@ -130,6 +130,12 @@ from .tech_upgrade_disabled import (
     tech_upgrade_disabled_dispatch,
     tech_upgrade_postcondition_verified,
 )
+from .hero_upgrade_disabled import (
+    HeroUpgradeObservation,
+    hero_upgrade_authorizeable,
+    hero_upgrade_disabled_dispatch,
+    hero_upgrade_postcondition_verified,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -264,6 +270,10 @@ __all__ = [
     "tech_upgrade_authorizeable",
     "tech_upgrade_disabled_dispatch",
     "tech_upgrade_postcondition_verified",
+    "HeroUpgradeObservation",
+    "hero_upgrade_authorizeable",
+    "hero_upgrade_disabled_dispatch",
+    "hero_upgrade_postcondition_verified",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

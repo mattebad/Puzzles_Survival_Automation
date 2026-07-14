@@ -44,6 +44,8 @@ promotion. Praise completion stops before Claim.
   unconditional no-PvP-dispatch guard).
 - Disabled Tech Upgrade contract: `tasks/tech_upgrade_disabled.py` (prerequisite/level replay
   with unconditional no-research-dispatch guard).
+- Disabled Hero Upgrade contract: `tasks/hero_upgrade_disabled.py` (selected-hero/material/level
+  replay with unconditional no-upgrade-dispatch guard).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 
