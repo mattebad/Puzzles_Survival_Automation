@@ -71,6 +71,10 @@ scheduler-ineligible.
 `DQ-FLOW-SPEEDUP` uses `tasks/speedup_disabled.py` for 180-minute timer/item replay only. Item
 consumption remains policy-disabled; the objective is unregistered and scheduler-ineligible.
 
+`DQ-FLOW-CHALLENGES` uses `tasks/challenge_disabled.py` for Ruins Challenge identity/cost/result
+replay only. Challenge entry remains policy-disabled; Ultimate Challenge remains outside Daily
+scope, and the Ruins objective is unregistered and scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |

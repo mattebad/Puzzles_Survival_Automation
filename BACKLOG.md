@@ -1634,13 +1634,16 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; allowlist decision required.
 
 ### DQ-FLOW-CHALLENGES
+- Status: Passed (2026-07-14; disabled Ruins Challenge contract and 5 focused tests).
 - Covered: `ruins_challenge`; Ultimate wording is Main-only evidence and is excluded.
 - Exclusions: treating variants as aliases, uncontrolled combat, AP/premium use.
 - Dependencies/routes: inventory → challenge-specific routes.
 - Source/target/policy: exact challenge identity, entry control, cost/AP policy.
-- Offline acceptance/tests: route/entry/result mocks and provenance/admission tests.
+- Offline acceptance/tests: Ruins identity, entry cost/AP guards, result replay, Ultimate/Main and
+  ambiguous negatives, disabled dispatch, and Claim separation; `tests/test_challenge_disabled.py`.
 - Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: one entry; positive entry/result; stop on combat/unknown.
+- Transaction/postcondition/recovery: no transaction path; result/progress replay only; every entry
+  request blocks; stop on combat/unknown.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; challenge policy required.
 

@@ -52,6 +52,8 @@ promotion. Praise completion stops before Claim.
   replay with unconditional no-donation-dispatch guard).
 - Disabled Speedup contract: `tasks/speedup_disabled.py` (180-minute timer/item replay with
   unconditional no-speedup-dispatch guard).
+- Disabled Ruins Challenge contract: `tasks/challenge_disabled.py` (challenge identity/cost/result
+  replay with unconditional no-entry-dispatch guard).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

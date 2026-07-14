@@ -95,7 +95,8 @@ cannot admit Daily objectives.
   policy-disabled with no transaction.
 - Speedups: 180-minute item/timer replay complete offline; item consumption remains
   policy-disabled with no transaction.
-- Challenges: proven Ruins variant only. Ultimate wording is Main-only evidence.
+- Challenges: Ruins identity/cost/result replay complete offline; entry remains policy-disabled.
+  Ultimate wording is Main-only evidence.
 - Hero Duel: PvP entry.
 - Resource-building boost: any resource building target.
 - Zombie Hunt and Headquarters PvP: no Daily owner; retained candidates remain outside catalog and

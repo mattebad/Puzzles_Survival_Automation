@@ -154,6 +154,12 @@ from .speedup_disabled import (
     speedup_disabled_dispatch,
     speedup_postcondition_verified,
 )
+from .challenge_disabled import (
+    ChallengeObservation,
+    challenge_authorizeable,
+    challenge_disabled_dispatch,
+    challenge_postcondition_verified,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -304,6 +310,10 @@ __all__ = [
     "speedup_authorizeable",
     "speedup_disabled_dispatch",
     "speedup_postcondition_verified",
+    "ChallengeObservation",
+    "challenge_authorizeable",
+    "challenge_disabled_dispatch",
+    "challenge_postcondition_verified",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

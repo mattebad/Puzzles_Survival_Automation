@@ -1,5 +1,15 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 disabled Ruins Challenge contract
+
+- Completed `DQ-FLOW-CHALLENGES` as Ruins Challenge identity/cost/result replay in
+  `tasks/challenge_disabled.py`. It binds selected-Daily challenge identity, exact Enter control,
+  known AP cost, and same-day result; challenge entry is always blocked.
+- Synthetic replay fixtures and five focused tests cover Ruins versus Ultimate/Main separation,
+  cost/AP guards, result arithmetic, ambiguous rejection, Claim separation, and no-dispatch
+  behavior. Row remains disabled, unregistered, and scheduler-ineligible; no live or persistent
+  state changed.
+
 ## 2026-07-14 disabled Speedup contract
 
 - Completed `DQ-FLOW-SPEEDUP` as 180-minute timer/item replay in `tasks/speedup_disabled.py`. It

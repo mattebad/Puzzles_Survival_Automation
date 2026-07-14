@@ -997,6 +997,8 @@ Risk: `R0` observation, `R1` verified no-spend/navigation/claim, `R2` bounded or
   dispatch remain disabled pending separate product approval.
 - Speedup has 180-minute timer/item replay only; item consumption and speedup dispatch remain
   disabled pending separate product approval.
+- Ruins Challenge has identity/cost/result replay only; challenge entry and combat dispatch remain
+  disabled, while Ultimate Challenge remains Main-only.
 
 ## 14. Safety and spend-policy model
 
