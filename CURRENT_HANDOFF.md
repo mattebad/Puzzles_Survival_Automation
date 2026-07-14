@@ -469,3 +469,16 @@ profile-validator or worker-path trials without contradictory evidence.
 - Every matrix objective and support flow remains scheduler-ineligible. No worker, VM, ADB, lease,
   journal migration, live task-state row, evidence capture, or gameplay input is authorized in
   this planning run.
+
+## 2026-07-14 Daily Quest prompt and planning validation
+
+- Standalone prompts cover all 35 dependency-ordered Daily Quest backlog tasks. The index is
+  `docs/prompts/daily-quest/index.json`; prompt authority remains the execution matrix, and
+  prompts are future implementation instructions rather than runtime authorization.
+- `tests/test_daily_quest_planning.py` validates catalog-derived count/key parity, reconciliation
+  coverage, matrix fields/enums, family ownership, backlog/prompt bijection, operator registration
+  accuracy, Claim/milestone separation, Main Quest exclusion, and scheduler dormancy.
+- Planning validator passes 9/9. Focused retained offline suites pass 138/144; six evidence-hygiene
+  errors are local Windows Python 3.9 `Path.stat(follow_symlinks=...)` incompatibility or symlink
+  privilege limitations. Full discovery passes 229/237; two additional navigation errors are
+  retained-image absence/read failure. No runtime state was changed to obtain these results.

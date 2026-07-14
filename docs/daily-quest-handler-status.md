@@ -46,7 +46,7 @@ scheduler-ineligible.
 
 ## Separation rules
 
-- Main Quest Claim is outside active scope.
+- Main Quest Claim is explicitly excluded from active scope.
 - Generic Daily row Claim, Personal Might Claim, and milestone Claim are separate flows.
 - Objective completion never authorizes Claim.
 - Static GnBots geometry and calibration output never authorize input.
