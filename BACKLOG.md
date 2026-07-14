@@ -605,6 +605,24 @@ Claim example.
 - Next: acquire navigation-only evidence when permitted, then promote a real generalized Daily
   Claim target before any handler or dispatch is enabled.
 
+### GNB-PHASE-E-MILESTONES-OFFLINE — Add activity milestone-chest contract
+
+- Dependencies: GNB-PHASE-D Passed; Main and generalized Daily Claim contracts passed; ready
+  milestone evidence is not yet available.
+- Scope: exact ready activity milestone chest, explicit free/cost-negative semantics, panel-local
+  target containment, profile/provenance/hash gates, positive chest-open/points postcondition, and
+  synthetic locked/static-reference negatives. No image capture, ADB, pnsctl registration, or live
+  input.
+- Status: Passed (2026-07-14; offline contract and 5 focused tests).
+- Evidence: `tasks/activity_milestones.py`,
+  `tests/fixtures/phase_e_activity_milestone_observations.json`, and
+  `tests/test_activity_milestones.py`.
+- Result: ready synthetic chest exercises the free transaction spec; not-ready, static-reference,
+  wrong-target/panel, non-free, overlay, reset, and unchanged-postcondition cases fail closed.
+- Blocker: no fresh Bliss-native ready milestone chest and positive-open/points pair exists.
+- Next: acquire navigation-only evidence when permitted, then promote a real milestone chest before
+  any handler or dispatch is enabled.
+
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded
 supervised task precede the 24-hour gate. The 24-hour locked-runtime validation is not required

@@ -1411,3 +1411,10 @@ locked-profile, source-hash, and Bliss-native provenance gates, and verifies sam
 points change. Go, static-reference, non-free, milestone, clipped, overlay, reset, and unchanged
 fixtures fail closed. The module is not registered in `pnsctl`; generalized Daily Claim dispatch
 remains evidence-gated.
+
+Offline activity milestone-chest contract (2026-07-14): `tasks/activity_milestones.py` models a
+ready free chest with exact panel-local target, selected milestone screen, current-day, locked
+profile, source-hash, and Bliss-native provenance gates. Locked/static-reference, wrong-panel,
+non-free, overlay, reset, and unchanged-postcondition fixtures fail closed. The module is not
+registered in `pnsctl`; milestone dispatch remains evidence-gated until a fresh Bliss-native ready
+chest and positive-open/points pair is captured.

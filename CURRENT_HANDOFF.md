@@ -56,6 +56,19 @@
 - Fresh Bliss-native generalized Daily Claim target and positive-postcondition evidence remain
   absent; Phase E dispatch stays disabled.
 
+## 2026-07-14 offline activity milestone-chest contract
+
+- Added `tasks/activity_milestones.py` as a separate pure contract for a ready activity milestone
+  chest. It requires the exact milestone screen/panel, ready state, `MILESTONE_CHEST` target,
+  explicit `none`/zero/quantity-one cost, current day, locked profile, source hash, and
+  Bliss-native provenance.
+- Synthetic fixtures cover a ready chest, a locked/not-ready chest, and static-reference evidence.
+  Wrong target/panel, non-free cost or quantity, overlay, reset, and unchanged chest/points
+  postconditions fail closed. The module is not registered in `pnsctl` and sends no input.
+- Activity milestone plus prior Phase E, Phase D, and reference tests pass 33/33. No image capture,
+  ADB operation, or live gameplay input occurred; the ready milestone target and positive-open/
+  points evidence remain absent.
+
 ## 2026-07-14 Phase E evidence gate
 
 - Fresh selected Daily Quest inventory after Phase D shows 5 points, only `Go` rows, and no ready

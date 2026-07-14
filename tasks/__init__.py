@@ -37,6 +37,13 @@ from .available_daily_claim import (
     available_daily_claim_postcondition_verified,
     available_daily_claim_transaction_spec,
 )
+from .activity_milestones import (
+    ActivityMilestoneObservation,
+    activity_milestone_authorizeable,
+    activity_milestone_perform_one_pulse,
+    activity_milestone_postcondition_verified,
+    activity_milestone_transaction_spec,
+)
 from .profile import (
     GAME_BACK,
     HOME_LEFT,
@@ -98,4 +105,9 @@ __all__ = [
     "available_daily_claim_perform_one_pulse",
     "available_daily_claim_postcondition_verified",
     "available_daily_claim_transaction_spec",
+    "ActivityMilestoneObservation",
+    "activity_milestone_authorizeable",
+    "activity_milestone_perform_one_pulse",
+    "activity_milestone_postcondition_verified",
+    "activity_milestone_transaction_spec",
 ]
