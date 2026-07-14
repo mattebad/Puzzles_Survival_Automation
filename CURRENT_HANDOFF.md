@@ -93,6 +93,19 @@
   capture, ADB operation, or live gameplay input occurred; fresh Bliss-native recruitment evidence
   remains absent.
 
+## 2026-07-14 offline Phase F scheduler contract
+
+- Added `tasks/scheduler.py` with deterministic serializable task state and a one-pulse candidate
+  selector. It binds state to `game_day_id`, selects at most one due task, and requires the external
+  lease-valid/no-unresolved gates before selection.
+- Verified matching completion keys are the only path to `DONE`; failed-safe, unresolved,
+  mismatched/unverified completion, wrong-day, lease, and backoff cases fail closed. JSON snapshot
+  round-tripping is deterministic. The module does not replace the SQLite action journal and is not
+  registered in `pnsctl`.
+- Focused scheduler tests pass 8/8. Phase E offline contract tests remain passing; no image capture,
+  ADB operation, or gameplay input occurred. Production SQLite-backed task-state integration remains
+  a later offline boundary.
+
 ## 2026-07-14 Phase E evidence gate
 
 - Fresh selected Daily Quest inventory after Phase D shows 5 points, only `Go` rows, and no ready

@@ -1431,3 +1431,9 @@ locked-profile, source-hash, and Bliss-native provenance gates. 10x/premium, sta
 unknown-confirmation, and unchanged-result/count fixtures fail closed. The module is not registered
 in `pnsctl`; recruitment dispatch remains evidence-gated. Phase E offline contract coverage is now
 complete; live promotion still requires fresh Bliss-native evidence for every target.
+
+Offline Phase F scheduler contract (2026-07-14): `tasks/scheduler.py` supplies deterministic task
+state snapshots and a one-pulse due selector without replacing the SQLite action journal. State is
+bound to the game day, completion keys, lease/unresolved gates, bounded backoff, and positive
+reconciliation; only one due task is selected and unverified/mismatched completion cannot become
+`DONE`. SQLite-backed integration remains a separate offline task, and no live input is authorized.

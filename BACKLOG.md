@@ -660,6 +660,22 @@ Claim example.
 - Next: Phase E live promotion remains evidence-gated; continue with offline Phase F persistence or
   acquire navigation-only evidence when permitted.
 
+### GNB-PHASE-F-OFFLINE — Define serializable task state and one-pulse scheduler
+
+- Dependencies: Phase E offline contracts passed; existing SQLite action journal, lease, and
+  unresolved-action semantics remain authoritative.
+- Scope: deterministic task-state snapshot serialization, game-day binding, verified completion-key
+  handling, bounded backoff, one-candidate selection, lease/unresolved gates, and explicit positive
+  reconciliation. No action-journal replacement, ADB, pnsctl registration, or live input.
+- Status: Passed (2026-07-14; offline contract and 8 focused tests).
+- Evidence: `tasks/scheduler.py` and `tests/test_scheduler.py`.
+- Result: state round-trips deterministically; only one due task is selected; wrong day, expired
+  lease, unresolved action, failed-safe, mismatched completion, and unverified completion fail closed.
+- Blocker: production persistence integration and all Phase E live promotions still require their
+  separate evidence/promotion gates.
+- Next: review SQLite-backed task-state integration offline, or acquire permitted navigation-only
+  Bliss evidence; do not dispatch consequential input from synthetic state.
+
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded
 supervised task precede the 24-hour gate. The 24-hour locked-runtime validation is not required
