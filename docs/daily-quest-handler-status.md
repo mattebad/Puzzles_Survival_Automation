@@ -25,7 +25,8 @@ promotion. Praise completion stops before Claim.
 - Free Recruitment contract: `tasks/free_recruitment.py` plus Daily five-count adapter
   `tasks/daily_recruitment.py`.
 - Bioenhancer free-research contract: `tasks/bioenhancer.py`.
-- Nanoweapon Craft Weapon contract: `tasks/nanoweapon.py`.
+- Nanoweapon Craft Weapon contract: `tasks/nanoweapon.py` plus Daily row adapter
+  `tasks/daily_nanoweapon.py`.
 - Gear/Chip/Module shared enhancement contract: `tasks/enhancement.py` (all three variants
   complete offline).
 - Campaign AP contract: `tasks/campaign_ap.py` (Sweep and Auto Complete variants complete

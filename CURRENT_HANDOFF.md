@@ -276,6 +276,15 @@
   Claim separation, and zero dispatches. The objective remains evidence-gated, unregistered, and
   scheduler-ineligible; no live or persistent state changed.
 
+## 2026-07-14 Daily Nanoweapon adapter
+
+- Added `tasks/daily_nanoweapon.py` to bind selected Daily `craft_nanoweapon` to the shared Craft
+  Weapon contract. It requires one exact free known-recipe craft and a same-day Daily 0/1
+  successor; craft transport remains evidence-gated.
+- Five focused tests cover selected-row ownership, recipe/material/tab guards, one-craft
+  cardinality, Main/static/ambiguous rejection, Claim separation, and zero dispatch. The objective
+  remains unregistered and scheduler-ineligible; no live or persistent state changed.
+
 ## 2026-07-14 offline Phase F scheduler contract
 
 - Added `tasks/scheduler.py` with deterministic serializable task state and a one-pulse candidate

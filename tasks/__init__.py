@@ -72,6 +72,13 @@ from .nanoweapon import (
     nanoweapon_postcondition_verified,
     nanoweapon_transaction_spec,
 )
+from .daily_nanoweapon import (
+    DailyNanoweaponObservation,
+    daily_nanoweapon_authorizeable,
+    daily_nanoweapon_postcondition_verified,
+    daily_nanoweapon_replay,
+    daily_nanoweapon_transaction_spec,
+)
 from .enhancement import (
     EnhancementObservation,
     enhancement_authorizeable,
@@ -267,6 +274,11 @@ __all__ = [
     "nanoweapon_perform_one_pulse",
     "nanoweapon_postcondition_verified",
     "nanoweapon_transaction_spec",
+    "DailyNanoweaponObservation",
+    "daily_nanoweapon_authorizeable",
+    "daily_nanoweapon_postcondition_verified",
+    "daily_nanoweapon_replay",
+    "daily_nanoweapon_transaction_spec",
     "EnhancementObservation",
     "enhancement_authorizeable",
     "enhancement_perform_one_pulse",

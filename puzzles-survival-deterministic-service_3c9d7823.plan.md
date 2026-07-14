@@ -1597,3 +1597,16 @@ Synthetic replay tests cover selected-row ownership, exact five-count arithmetic
 specification, zero dispatch cardinality, Main/ambiguous negatives, and Claim separation. Fresh
 Bliss-native Tavern target/result evidence remains required; no registration or scheduler
 eligibility is enabled.
+
+## Daily Quest Nanoweapon offline boundary (2026-07-14)
+
+`DQ-FLOW-NANOWEAPON` now composes `tasks/nanoweapon.py` with
+`tasks/daily_nanoweapon.py`. The adapter binds the selected Daily `craft_nanoweapon` row to one
+exact free Craft Weapon recipe and requires a same-day craft result/timer plus Daily 0/1
+successor. Material Production, Inherit Weapon, unknown recipe/materials, premium cost, stale
+frames, and ambiguous successors fail closed.
+
+Synthetic replay tests cover selected-row ownership, recipe/material/tab guards, one-craft
+cardinality, transaction specification, Main/static negatives, Claim separation, and zero
+dispatch. Fresh Bliss-native craft target/material/result evidence remains required; no
+registration or scheduler eligibility is enabled.
