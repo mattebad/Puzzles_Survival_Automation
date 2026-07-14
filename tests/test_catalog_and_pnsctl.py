@@ -102,6 +102,17 @@ class OperatorCliTests(unittest.TestCase):
         self.assertIn("/evidence/actions-nav-quest-daily-", command)
         self.assertNotIn("--database /evidence/actions.sqlite3", command)
 
+    def test_daily_scroll_uses_bounded_swipe_navigation(self):
+        cfg = pnsctl.OperatorConfig()
+        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
+            pnsctl.navigate(cfg, "daily-scroll-up")
+        command = remote.call_args.args[1]
+        self.assertIn("--source-mode daily", command)
+        self.assertIn("--expected-mode daily", command)
+        self.assertIn("--semantic-action SCROLL_DAILY_QUEST", command)
+        self.assertIn("--input-kind swipe --swipe 400 1000 400 500 350", command)
+        self.assertNotIn("--consequence spend_or_strategic", command)
+
     def test_credentials_are_redacted_from_operator_output(self):
         rendered = " ".join(pnsctl.redact_argv(["plink", "-pw", "secret", "root@nas.local", "date"]))
         self.assertNotIn("secret", rendered)

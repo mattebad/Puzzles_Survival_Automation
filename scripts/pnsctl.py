@@ -238,16 +238,24 @@ def observe(cfg: OperatorConfig, name: str) -> str:
 
 
 NAVIGATION_STEPS = {
-    "cash-home": ("cash", "home", "HOME_BASE", "CASH_MALL_BACK", "standard-game-back-arrow", (45, 5, 130, 60)),
-    "home-quest": ("home", "quest", "QUEST", "HOME_TO_QUEST", "home-quest-entry", (250, 1130, 410, 1280)),
-    "quest-daily": ("quest", "daily", "DAILY_QUEST", "QUEST_TO_DAILY", "quest-daily-tab", (300, 70, 500, 140)),
+    "cash-home": ("cash", "home", "HOME_BASE", "CASH_MALL_BACK", "standard-game-back-arrow", (45, 5, 130, 60), "tap", None),
+    "home-quest": ("home", "quest", "QUEST", "HOME_TO_QUEST", "home-quest-entry", (250, 1130, 410, 1280), "tap", None),
+    "quest-daily": ("quest", "daily", "DAILY_QUEST", "QUEST_TO_DAILY", "quest-daily-tab", (300, 70, 500, 140), "tap", None),
+    "daily-scroll-up": (
+        "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST", "daily-scroll-viewport",
+        (100, 520, 700, 1120), "swipe", (400, 1000, 400, 500, 350),
+    ),
+    "daily-scroll-down": (
+        "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST", "daily-scroll-viewport",
+        (100, 160, 700, 760), "swipe", (400, 500, 400, 1000, 350),
+    ),
 }
 
 
 def navigate(cfg: OperatorConfig, step: str) -> str:
     if step not in NAVIGATION_STEPS:
         raise OperatorError("navigate accepts only the checked-in route names: " + ", ".join(sorted(NAVIGATION_STEPS)))
-    source_mode, expected_mode, expected_state, semantic, target, roi = NAVIGATION_STEPS[step]
+    source_mode, expected_mode, expected_state, semantic, target, roi, input_kind, swipe = NAVIGATION_STEPS[step]
     stamp = str(int(time.time()))
     args = [
         "python3", "scripts/mvp_quest_to_claim.py", "--cash-reference", "/workspace/evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png",
@@ -261,6 +269,10 @@ def navigate(cfg: OperatorConfig, step: str) -> str:
         "--expected-mode", expected_mode, "--expected-state", expected_state, "--target", target,
         "--roi", *map(str, roi), "--semantic-action", semantic,
     ]
+    if input_kind == "swipe":
+        if swipe is None:
+            raise OperatorError("swipe navigation step is missing its bounded gesture")
+        args.extend(["--input-kind", "swipe", "--swipe", *map(str, swipe)])
     command = _adb_shell(cfg, "")
     # Reuse the worker's interpreter and ADB environment without creating a second transport.
     command = (
