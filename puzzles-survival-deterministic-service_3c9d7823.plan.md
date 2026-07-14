@@ -1357,3 +1357,10 @@ Corrected Rankings live navigation now passes: exact target `(602,1138)-(690,116
 The raw successor proves Personal Might Rank and its Check button coexist on one row. The previous
 two-input row-then-Check model was wrong; route now performs no row tap and treats one exact Check
 input as the next harmless navigation transition. Praise and Claim inputs remained zero.
+
+Phase C passes after one exact Check input at `(682,280)` produced the Personal Might Rank
+leaderboard. Raw evidence binds the screen header, generic game Back, and icon-only rank-one Praise
+target. Praise recognition combines screen identity, local template similarity, and constrained
+gold HSV occupancy; no broad right-column fallback exists. Phase D may authorize one Praise only
+from a fresh unchanged frame. Claim remains a separate later transaction requiring exact Daily row
+evidence.

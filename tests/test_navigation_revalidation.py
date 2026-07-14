@@ -8,6 +8,8 @@ import cv2
 from safe_action_core import ActionClass
 from scripts.personal_might_praise_live import (
     GAME_BACK,
+    MIGHT_PRAISE_ACTION,
+    PERSONAL_MIGHT_BACK,
     RANKINGS_ENTRY,
     RetryableNavigationFailure,
     recognize_route,
@@ -30,6 +32,11 @@ RANKINGS_FRAME = (
     ROOT
     / "evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015"
     / "rankings-evidence-013.png"
+)
+PERSONAL_MIGHT_FRAME = (
+    ROOT
+    / "evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016"
+    / "personal-might-leaderboard-evidence-007.png"
 )
 
 
@@ -112,6 +119,31 @@ class PersonalMightCheckRecognitionTests(unittest.TestCase):
         changed[245:315, 590:775] = 0
         self.assertTrue(recognize_route(changed, "RANKINGS")["recognized"])
         self.assertFalse(recognize_route(changed, "PERSONAL_MIGHT_RANK")["recognized"])
+
+
+class PersonalMightLeaderboardRecognitionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.frame = cv2.imread(str(PERSONAL_MIGHT_FRAME))
+        if cls.frame is None:
+            raise RuntimeError("retained Personal Might fixture is missing")
+
+    def test_identity_praise_and_back_are_local(self):
+        leaderboard = recognize_route(self.frame, "PERSONAL_MIGHT_LEADERBOARD")
+        back = recognize_route(self.frame, "PERSONAL_MIGHT_BACK")
+        self.assertTrue(leaderboard["recognized"], leaderboard)
+        self.assertEqual(tuple(leaderboard["target"]["bounds"]), MIGHT_PRAISE_ACTION.roi)
+        self.assertGreaterEqual(leaderboard["praise_score"], MIGHT_PRAISE_ACTION.threshold)
+        self.assertTrue(back["recognized"], back)
+        self.assertEqual(tuple(back["target"]["bounds"]), PERSONAL_MIGHT_BACK.roi)
+
+    def test_changed_praise_target_blocks_action_but_preserves_screen_identity(self):
+        changed = self.frame.copy()
+        x0, y0, x1, y1 = MIGHT_PRAISE_ACTION.roi
+        changed[y0:y1, x0:x1] = 0
+        detail = recognize_route(changed, "PERSONAL_MIGHT_LEADERBOARD")
+        self.assertTrue(detail["recognized"])
+        self.assertIsNone(detail["target"])
 
 
 class NavigationRetryTests(unittest.TestCase):

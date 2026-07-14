@@ -497,14 +497,19 @@ Claim example.
   transport call and no Help interception. Successor proves Personal Might row and Check coexist;
   separate row tap was removed. Evidence:
   `evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/`.
-- Status: In progress — exact Check-to-Personal-Might-leaderboard evidence remains required.
+- Live Check result: exact `(590,245)-(775,315)` target, tap `(682,280)`, one transport call,
+  confirmed Personal Might Rank leaderboard. Header, icon-only rank-one Praise, and Back are bound
+  from raw evidence. Praise and Claim inputs remained zero. Evidence:
+  `evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/`.
+- Status: Passed (2026-07-13).
 
 ### GNB-PHASE-D — Complete supervised Praise-to-exact-Claim slice
 
 - Dependencies: GNB-PHASE-C Passed and required Bliss route/Claim evidence.
 - Boundary: Praise and Claim are each current-frame-bound, one-dispatch consequential actions.
   Objective execution never implies Claim readiness.
-- Status: Pending.
+- Status: Ready — immediate Praise authorization still requires current unchanged leaderboard
+  target; exact Claim remains separately evidence-gated.
 
 ### GNB-PHASE-E/F — Free Daily Activities, then persistence/scheduler
 

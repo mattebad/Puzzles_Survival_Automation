@@ -263,23 +263,42 @@ def recognize_route(frame: np.ndarray, state: str) -> dict[str, Any]:
         )
         return {"state": state, "recognized": target is not None, "target": target, "target_id": "personal-might-rank-check"}
     if state == "PERSONAL_MIGHT_LEADERBOARD":
-        leaderboard = find_phrase(lines, ("personal might", "might"))
-        praise = find_phrase(lines, ("praise", "thumb"))
-        top_lines = [item for item in lines if item["bounds"][1] < 500]
-        text = " ".join(item["text"] for item in top_lines)
-        identity = bool(leaderboard and ("might" in text or "power" in text))
-        praise_ok = bool(praise and praise["bounds"][0] >= 500)
+        leaderboard = find_phrase(
+            ocr_lines(frame, PERSONAL_MIGHT_LEADERBOARD.roi),
+            ("personal might rank", "personal might"),
+        )
+        reference = load_frame(REPO_ROOT / MIGHT_PRAISE_ACTION.asset_provenance)
+        praise_score = similarity(
+            crop(frame, MIGHT_PRAISE_ACTION.roi),
+            crop(reference, MIGHT_PRAISE_ACTION.roi),
+        )
+        praise_crop = crop(frame, MIGHT_PRAISE_ACTION.roi)
+        praise_hsv = cv2.cvtColor(praise_crop, cv2.COLOR_BGR2HSV)
+        gold = cv2.inRange(praise_hsv, (15, 120, 120), (40, 255, 255))
+        gold_ratio = float(np.count_nonzero(gold)) / float(gold.size)
+        identity = leaderboard is not None
+        praise_ok = identity and praise_score >= MIGHT_PRAISE_ACTION.threshold and gold_ratio >= 0.08
         cooldown = any(token in all_text for token in ("already praised", "praised today", "cooldown"))
+        target = (
+            {
+                "text": "rank-one enabled gold thumbs-up",
+                "bounds": MIGHT_PRAISE_ACTION.roi,
+                "exact_bounds": True,
+            }
+            if praise_ok else None
+        )
         return {
             "state": state,
             "recognized": identity,
             "leaderboard_identity": identity,
-            "might_region_identity": identity and bool(top_lines),
-            "target": praise if praise_ok else None,
+            "might_region_identity": identity and "might" in all_text,
+            "target": target,
             "target_id": "personal-might-praise" if praise_ok else "",
             "already_praised": cooldown,
             "cooldown_active": cooldown,
             "praise_disabled": identity and not praise_ok and cooldown,
+            "praise_score": praise_score,
+            "gold_ratio": gold_ratio,
         }
     if state == "HELP_WEBVIEW":
         text_identity = (
@@ -323,11 +342,34 @@ def recognize_route(frame: np.ndarray, state: str) -> dict[str, Any]:
                 item = {"text": "standard game back arrow", "bounds": GAME_BACK.roi, "exact_bounds": True}
             else:
                 item = None
+        elif state in {"RANKINGS_BACK", "PERSONAL_MIGHT_BACK"}:
+            anchor = RANKINGS_BACK if state == "RANKINGS_BACK" else PERSONAL_MIGHT_BACK
+            reference = load_frame(REPO_ROOT / anchor.asset_provenance)
+            back_score = similarity(crop(frame, anchor.roi), crop(reference, anchor.roi))
+            identity = (
+                find_phrase(
+                    ocr_lines(frame, PERSONAL_ROW_REGION),
+                    ("personal might rank", "personal might"),
+                ) is not None
+                if state == "RANKINGS_BACK"
+                else find_phrase(
+                    ocr_lines(frame, PERSONAL_MIGHT_LEADERBOARD.roi),
+                    ("personal might rank", "personal might"),
+                ) is not None
+            )
+            item = (
+                {"text": anchor.name, "bounds": anchor.roi, "exact_bounds": True}
+                if identity and back_score >= anchor.threshold else None
+            )
         return {
             "state": state,
             "recognized": bool(item and identity),
             "target": item,
-            "target_id": "standard-game-back-arrow",
+            "target_id": (
+                "standard-game-back-arrow"
+                if state == "ALLIANCE_BACK"
+                else (RANKINGS_BACK.name if state == "RANKINGS_BACK" else PERSONAL_MIGHT_BACK.name)
+            ),
             "back_template_score": back_score,
         }
     raise ValueError("unsupported route source: " + state)

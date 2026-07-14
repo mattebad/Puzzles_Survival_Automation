@@ -125,44 +125,34 @@ PERSONAL_MIGHT_CHECK = AnchorSpec(
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
 )
 PERSONAL_MIGHT_LEADERBOARD = AnchorSpec(
-    "personal-might-leaderboard", (0, 0, 800, 500), 0.92,
-    template=f"{M6_ASSET_ROOT}/home-base-settled.png#personal-might-leaderboard-roi",
-    ocr_rule="Personal Might",
-    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+    "personal-might-leaderboard", (150, 0, 650, 70), 0.90,
+    template="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png#header",
+    ocr_rule="Personal Might Rank",
+    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
-    production_validated=False,
-    evidence_dependency=PRAISE_EVIDENCE_DEPENDENCY,
 )
 MIGHT_PRAISE_ACTION = AnchorSpec(
-    "personal-might-praise", (560, 80, 780, 430), 0.94,
-    template=f"{M6_ASSET_ROOT}/home-base-settled.png#personal-might-praise-roi",
-    ocr_rule="Praise",
+    "personal-might-praise", (690, 155, 755, 220), 0.90,
+    template="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png#rank-one-thumbs-up",
+    ocr_rule="rank-one enabled gold thumbs-up",
     required_confirmation_frames=1,
     polling_interval_seconds=0.15,
     timeout_seconds=3.0,
     tap_offset=(0, 0),
-    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
-    production_validated=False,
-    evidence_dependency=PRAISE_EVIDENCE_DEPENDENCY,
 )
 PERSONAL_MIGHT_BACK = AnchorSpec(
-    "personal-might-back", (35, 0, 160, 90), 0.90,
-    template=f"{M6_ASSET_ROOT}/home-base-settled.png#personal-might-back-roi",
-    ocr_rule="Back",
-    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+    "personal-might-back", (45, 5, 130, 60), 0.90,
+    template="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png#back-arrow",
+    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
-    production_validated=False,
-    evidence_dependency=PRAISE_EVIDENCE_DEPENDENCY,
 )
 RANKINGS_BACK = AnchorSpec(
-    "rankings-back", (35, 0, 160, 90), 0.90,
-    template=f"{M6_ASSET_ROOT}/home-base-settled.png#rankings-back-roi",
-    ocr_rule="Back",
-    asset_provenance=f"{M6_ASSET_ROOT}/home-base-settled.png",
+    "rankings-back", (45, 5, 130, 60), 0.90,
+    template="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png#back-arrow",
+    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
-    production_validated=False,
-    evidence_dependency="raw Bliss Rankings Back state",
 )
 RESET_POPUP_CLOSE = AnchorSpec(
     "reset-popup-close", (260, 750, 540, 870), 0.90,

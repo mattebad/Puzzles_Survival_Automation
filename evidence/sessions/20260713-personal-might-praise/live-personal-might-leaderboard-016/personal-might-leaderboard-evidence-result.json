@@ -1,0 +1,16 @@
+{
+  "evidence": "/evidence/personal-might-leaderboard-evidence-007.png",
+  "input_count": 1,
+  "leaderboard": {
+    "already_praised": false,
+    "cooldown_active": false,
+    "leaderboard_identity": true,
+    "might_region_identity": true,
+    "praise_disabled": false,
+    "recognized": true,
+    "state": "PERSONAL_MIGHT_LEADERBOARD",
+    "target": null,
+    "target_id": ""
+  },
+  "status": "confirmed"
+}

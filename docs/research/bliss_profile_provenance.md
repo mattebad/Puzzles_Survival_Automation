@@ -16,23 +16,20 @@ Vendor manifest IDs explain semantic lineage only. Production geometry always co
 | Rankings entry | `(602,1138)-(690,1167)` | raw More frame word bounds | `GNB-DAILY-LEADERBOARD-PRAISE` |
 | Personal Might first row | `(170,220)-(560,325)` | corrected Rankings successor | `GNB-DAILY-LEADERBOARD-PRAISE` |
 | first-row Check | `(590,245)-(775,315)` | corrected Rankings successor | `GNB-DAILY-LEADERBOARD-PRAISE` |
+| Personal Might header | `(150,0)-(650,70)` | Check successor | `GNB-DAILY-LEADERBOARD-PRAISE` |
+| rank-one Praise icon | `(690,155)-(755,220)` | Check successor | `GNB-DAILY-LEADERBOARD-PRAISE` |
+| Personal Might Back | `(45,5)-(130,60)` | Check successor | `GNB-DAILY-LEADERBOARD-PRAISE` |
+| Rankings Back | `(45,5)-(130,60)` | Rankings successor | `GNB-DAILY-LEADERBOARD-PRAISE` |
 | VIP Points Close | `(260,750)-(540,870)` | corrected popup source | none |
 
 Rankings entry replaces historical broad `(0,1120)-(800,1185)` target. Its current center is
 `(646,1152)`, not `(400,1152)`.
 
-## Explicitly provisional anchors
+## Provisional-anchor gate
 
-These retain provisional search ROIs only and set `production_validated=False`:
-
-- Personal Might leaderboard identity;
-- Praise action;
-- Personal Might Back;
-- Rankings Back.
-
-Each carries stable `GNB-DAILY-LEADERBOARD-PRAISE` lineage and an explicit raw Bliss evidence
-dependency. `NavigationRunner` returns `ANCHOR_EVIDENCE_REQUIRED` before policy evaluation or
-transport whenever a route step declares any provisional source, target, or postcondition anchor.
+Current Praise route anchors now have raw Bliss evidence. `NavigationRunner` still returns
+`ANCHOR_EVIDENCE_REQUIRED` before policy evaluation or transport whenever any future route declares
+a provisional source, target, or postcondition anchor.
 
 ## NavigationRunner audit
 
@@ -60,8 +57,8 @@ or Help WebView dismissal.
 
 ## Remaining evidence dependencies
 
-- Personal Might leaderboard and Praise pre/postcondition;
-- Rankings/Personal Might Back states;
+- Praise semantic postcondition after exactly one input;
+- Rankings/Personal Might Back transition successors;
 - completed-unclaimed Daily Praise row and exact Claim pre/postcondition.
 
 Missing dependencies block only dependent routes. They do not weaken coordinates or permit
@@ -77,3 +74,10 @@ call. No Help WebView appeared.
 The successor proves the list already exposes both Personal Might Rank and its Check control.
 Therefore no separate row tap is valid or needed. Route now recognizes row identity and sends only
 the Check navigation input from Rankings.
+
+## Personal Might leaderboard result
+
+One exact Check tap `(682,280)` from ROI `(590,245)-(775,315)` produced the Personal Might Rank
+leaderboard with one transport call. The raw screen binds header, Back, and the rank-one gold
+thumbs-up. Praise is icon-only: recognition requires header identity, local template similarity,
+and constrained gold HSV occupancy. No broad right-column or OCR-only target is allowed.

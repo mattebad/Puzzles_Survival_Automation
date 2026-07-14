@@ -1,0 +1,260 @@
+{
+  "foreground_assumed_game": true,
+  "ocr_lines": [
+    {
+      "bounds": [
+        71,
+        12,
+        86,
+        21
+      ],
+      "text": "yf"
+    },
+    {
+      "bounds": [
+        68,
+        17,
+        502,
+        51
+      ],
+      "text": "ram leaderboard"
+    },
+    {
+      "bounds": [
+        239,
+        94,
+        561,
+        118
+      ],
+      "text": "(updated once every hour)"
+    },
+    {
+      "bounds": [
+        315,
+        162,
+        486,
+        181
+      ],
+      "text": "personal rank"
+    },
+    {
+      "bounds": [
+        80,
+        229,
+        736,
+        279
+      ],
+      "text": "ty 5 personal might rank o)"
+    },
+    {
+      "bounds": [
+        105,
+        258,
+        490,
+        316
+      ],
+      "text": "pa [loy] wx 4\u201d ramirez~eta"
+    },
+    {
+      "bounds": [
+        81,
+        302,
+        426,
+        329
+      ],
+      "text": "( ie might: 4,281,855,879"
+    },
+    {
+      "bounds": [
+        80,
+        359,
+        410,
+        408
+      ],
+      "text": "ay a0, personal kill rank"
+    },
+    {
+      "bounds": [
+        107,
+        390,
+        490,
+        445
+      ],
+      "text": "& [loy] sm 4\u201d ramirez~eta"
+    },
+    {
+      "bounds": [
+        87,
+        431,
+        423,
+        460
+      ],
+      "text": "\" kills: 21,917,734,323"
+    },
+    {
+      "bounds": [
+        97,
+        498,
+        410,
+        531
+      ],
+      "text": "was personal hq rank"
+    },
+    {
+      "bounds": [
+        96,
+        506,
+        461,
+        582
+      ],
+      "text": "oe) lookingforasugarmama"
+    },
+    {
+      "bounds": [
+        78,
+        561,
+        330,
+        590
+      ],
+      "text": "yar hq level: 42"
+    },
+    {
+      "bounds": [
+        78,
+        616,
+        495,
+        674
+      ],
+      "text": "pe 7 personal gathering rank"
+    },
+    {
+      "bounds": [
+        103,
+        638,
+        391,
+        706
+      ],
+      "text": ", [loy] kanaf otte"
+    },
+    {
+      "bounds": [
+        79,
+        682,
+        516,
+        720
+      ],
+      "text": "us ty resources gathered: 19,348,817,974"
+    },
+    {
+      "bounds": [
+        119,
+        758,
+        534,
+        783
+      ],
+      "text": "\u00ab= .) personal ruins challenge rank"
+    },
+    {
+      "bounds": [
+        99,
+        768,
+        310,
+        822
+      ],
+      "text": "a conse"
+    },
+    {
+      "bounds": [
+        90,
+        818,
+        461,
+        847
+      ],
+      "text": "\u20184,4 ruins total floors: 1,560"
+    },
+    {
+      "bounds": [
+        81,
+        886,
+        497,
+        926
+      ],
+      "text": "y ry | personal campaign rank"
+    },
+    {
+      "bounds": [
+        90,
+        937,
+        411,
+        979
+      ],
+      "text": "le ay stages cleared: 586"
+    },
+    {
+      "bounds": [
+        82,
+        1016,
+        492,
+        1042
+      ],
+      "text": "| \u00ab=. ultimate challenge rank"
+    },
+    {
+      "bounds": [
+        99,
+        1028,
+        310,
+        1082
+      ],
+      "text": "ay cows"
+    },
+    {
+      "bounds": [
+        164,
+        1079,
+        412,
+        1100
+      ],
+      "text": ".4 stages cleared: 278"
+    },
+    {
+      "bounds": [
+        82,
+        1140,
+        448,
+        1175
+      ],
+      "text": "i training center rank"
+    },
+    {
+      "bounds": [
+        81,
+        1204,
+        412,
+        1236
+      ],
+      "text": "\"sj stages cleared: 169"
+    }
+  ],
+  "popup": {
+    "body_identity": false,
+    "body_text": "ta personal hq rank <) lookingforasugarmama ae hq level: 42 a personal gathering rank ya [loy] kanaf oe = ey resources gathered: 19,348,817,974",
+    "close_region": [
+      260,
+      750,
+      540,
+      870
+    ],
+    "geometry_valid": false,
+    "literal_close": false,
+    "matched_close_text": "le : . . ; _ _",
+    "panel_present": true,
+    "popup_identity": null,
+    "recognized": false,
+    "target": null,
+    "target_center": null,
+    "target_identity": null,
+    "title_identity": false,
+    "title_text": ""
+  }
+}

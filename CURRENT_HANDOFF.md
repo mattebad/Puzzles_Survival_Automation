@@ -1,5 +1,15 @@
 # Current runtime-proof handoff
 
+## 2026-07-13 Personal Might leaderboard live evidence
+
+- Exact Check ROI `(590,245)-(775,315)` dispatched one tap at `(682,280)`.
+- First post frame positively showed Personal Might Rank leaderboard; journal confirmed one
+  transport call.
+- Raw leaderboard binds header `(150,0)-(650,70)`, rank-one enabled gold thumbs-up
+  `(690,155)-(755,220)`, and Back `(45,5)-(130,60)`.
+- Praise target is icon-only and requires header + local template + gold HSV occupancy.
+- Praise and Claim inputs remained zero. Phase C passed; Phase D is ready.
+
 ## 2026-07-13 corrected Rankings live navigation
 
 - Exact Rankings ROI `(602,1138)-(690,1167)` dispatched one tap at `(646,1152)`.
