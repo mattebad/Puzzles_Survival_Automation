@@ -1443,11 +1443,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `EVIDENCE_GATED`; family-shared implementation.
 
 ### DQ-FLOW-ENHANCE-MODULE
+- Status: Passed (2026-07-14; shared Module contract and 5 focused tests).
 - Covered: `enhance_module`; Module variant.
 - Exclusions: same enhancement unsafe actions and materials as Gear.
 - Dependencies/routes: DQ-FLOW-ENHANCE-GEAR shared engine → Commander Info → Module.
 - Source/target/policy: equipped Module, one-star material, quantity one.
-- Offline acceptance/tests: shared engine plus Module recognizer/postcondition fixture.
+- Offline acceptance/tests: shared engine plus Module recognizer/postcondition fixture;
+  `tests/test_enhance_module.py`.
 - Bliss/live boundary: evidence-gated; no registration/input.
 - Transaction/postcondition/recovery: one enhancement; Module state changes; stop on ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.

@@ -8,9 +8,9 @@
   disabled, current day, locked profile provenance, and no overlay/reset guard.
 - Synthetic replay fixtures and five focused tests cover Gear authorization, Chip-versus-Gear
   family ownership, Main-negative rejection, material/target safety guards, same-item positive
-  postconditions, and pure one-pulse results. Gear and Chip variant contracts are now complete;
-  Module remains downstream. No registration, scheduler eligibility, journal, task-state, lease,
-  or gameplay state changed.
+  postconditions, and pure one-pulse results. Gear, Chip, and Module variant contracts are now
+  complete offline. No registration, scheduler eligibility, journal, task-state, lease, or
+  gameplay state changed.
 
 ## 2026-07-14 offline Nanoweapon contract
 
