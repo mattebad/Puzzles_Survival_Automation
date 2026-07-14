@@ -1,5 +1,35 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 Bioenhancer Bliss evidence boundary
+
+- Verified repository at `main`, ending implementation HEAD currently recorded by this boundary
+  after route/timestamp commits; worktree tracked files were clean before evidence metadata edits.
+  Protected runtime evidence remains intentionally untracked.
+- Runtime gate passed through `pnsctl`: VM `PnS-BlissOS-PoC` running, worker
+  `pns-mvp-help-all-20260713` already up and synced, private ADB connected at
+  `192.168.122.79:5555` through loopback `127.0.0.1:5042`, package foreground
+  `com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity`, profile
+  `pns-blissos-poc-virgl-800x1280-v1`, 800×1280.
+- Bounded route evidence passed: Home→Quest, Quest→selected Daily, two Daily scroll-up
+  successors, and Daily Bioenhancer Go. Exact selected row was `bioenhancer_research 0/1`;
+  Daily Go target was `(554,870)-(731,933)`, one navigation tap, direct successor
+  `BIOENHANCER` confirmed by `nav-daily-bioenhancer-go-1784059479`.
+- The app opens Bioenhancer Research directly. No Nova screen or Nova Research intermediary was
+  observed. A historical attempt expecting `NOVA` remains an unresolved navigation-only record;
+  it is not consequential and is not treated as an active consequential blocker.
+- Fresh timestamped pre-dispatch frame proves Bioenhancer Research, Free Research 1x target
+  `(94,1133)-(345,1216)`, separate Research 10x `(455,1133)-(706,1216)`, single quantity,
+  visible free state, no observed overlay, and zero cost. Exact target is annotated on a copy;
+  raw source remains unchanged.
+- No Free Research or Research 10x input occurred. No research transaction, Daily progress
+  change, Claim, task-state row, runtime registration, or scheduler eligibility changed.
+  Evidence boundary is `PRE_DISPATCH_READY` / matrix `EVIDENCE_GATED`; game-day identity was not
+  independently observable, so explicit supervised approval and positive `0→1` reconciliation
+  remain required.
+- Canonical package:
+  `evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`
+  and `.sha256`. Claim remains an independent action.
+
 ## 2026-07-14 Daily Supply Depot selected-row adapter
 
 - Completed `DQ-FLOW-SUPPLY-DEPOT` as `tasks/daily_supply_depot.py`, composing the existing

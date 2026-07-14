@@ -1,0 +1,97 @@
+{
+  "flow": "bioenhancer_research",
+  "boundary": "PRE_DISPATCH_READY",
+  "dispatch_performed": false,
+  "runtime": {
+    "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "resolution": [800, 1280],
+    "package": "com.global.ztmslg",
+    "foreground": "com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity",
+    "capture_started_epoch": 1784059805.8246017,
+    "capture_completed_epoch": 1784059809.173977,
+    "capture_completed_utc": "2026-07-14T20:10:09.173977+00:00"
+  },
+  "source": {
+    "screen": "BIOENHANCER",
+    "recognizer": "recognize_bioenhancer",
+    "recognized": true,
+    "raw_frame": "evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-pre-dispatch-1784059800/bioenhancer-pre-dispatch-1784059700.png",
+    "raw_sha256": "52420f4ef2341f2d757313d15932f4043857535589d7503756e4b6bcd77a046d",
+    "evidence_provenance": "bliss-native",
+    "overlay_state": "none_observed",
+    "reset_text": "Reset: 5d 03:49:51",
+    "game_day_id": null,
+    "game_day_id_observable": false
+  },
+  "selected_daily_row": {
+    "objective_key": "bioenhancer_research",
+    "progress_before": 0,
+    "target_progress": 1,
+    "selected_tab": true,
+    "raw_frame": "evidence/sessions/20260714-daily-flow-acquisition/remote-bioenhancer-retry-source/nav-daily-scroll-up-1784059426-post-1.png",
+    "raw_sha256": "9ff467b7f5686bf454d3b0ac09b99edf07c2415f72908371c412ce1a40ef9306",
+    "scroll_action_id": "nav-daily-scroll-up-1784059426",
+    "capture_completed_monotonic": 4504863.143594872
+  },
+  "target": {
+    "identity": "bioenhancer-free-research",
+    "control_class": "RESEARCH_FREE",
+    "research_mode": "FREE_SINGLE",
+    "free_available": true,
+    "free_banner_visible": true,
+    "research_ready": true,
+    "cost_type": "none",
+    "cost_amount": 0,
+    "quantity": 1,
+    "cooldown_active": false,
+    "premium": false,
+    "bounds": [94, 1133, 345, 1216],
+    "binding": "immediate raw Bliss frame",
+    "annotated_frame": "evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-pre-dispatch-1784059800/bioenhancer-pre-dispatch-annotated.png",
+    "annotated_sha256": "c6807a841c3d90007390a62f0decb220ddb7ca77fa7dc34304d4c5258adb5f4c",
+    "paid_research_10x_bounds": [455, 1133, 706, 1216],
+    "paid_target_rejected": true
+  },
+  "route": [
+    {
+      "step": "Daily selected row",
+      "action_id": "nav-daily-scroll-up-1784059426",
+      "outcome": "confirmed"
+    },
+    {
+      "step": "Daily Bioenhancer Go",
+      "action_id": "nav-daily-bioenhancer-go-1784059479",
+      "source_frame_sha256": "98080550a7161de61ef58905044a223a40e66c920e8a724b242e17b045316dc0",
+      "successor_frame": "evidence/sessions/20260714-daily-flow-acquisition/remote-bioenhancer-navigation-success/nav-daily-bioenhancer-go-1784059479-post-1.png",
+      "successor_sha256": "27ce3c9e56be7cd6555ad73be5f10304b205da5867b5188a212a6c45b4c5cd2e",
+      "target_bounds": [554, 870, 731, 933],
+      "outcome": "confirmed",
+      "transport_calls": 1
+    }
+  ],
+  "expected_postcondition": {
+    "research_screen": "BIOENHANCER",
+    "research_count_increases_or_result_visible": true,
+    "selected_daily_progress": "0->1",
+    "daily_row_state": "DAILY_BIOENHANCER_COMPLETE",
+    "claim": "independent transaction; not authorized by this package"
+  },
+  "authorization": {
+    "adapter": "tasks.daily_bioenhancer.daily_bioenhancer_authorizeable",
+    "zero_transport_from_adapter": true,
+    "consequential_transaction_id": null,
+    "policy_state": "POLICY_GATED",
+    "blocking_dependencies": [
+      "game_day_id not positively observable in current frame",
+      "explicit supervised zero-cost research approval remains unrecorded"
+    ]
+  },
+  "evidence_refs": [
+    "evidence/sessions/20260714-daily-flow-acquisition/remote-bioenhancer-retry-source/nav-daily-scroll-up-1784059426-post-1.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/remote-bioenhancer-navigation-success/nav-daily-bioenhancer-go-1784059479-result.json",
+    "evidence/sessions/20260714-daily-flow-acquisition/remote-bioenhancer-navigation-success/nav-daily-bioenhancer-go-1784059479-source.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/remote-bioenhancer-navigation-success/nav-daily-bioenhancer-go-1784059479-post-1.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-pre-dispatch-1784059800/bioenhancer-pre-dispatch-1784059700.png",
+    "evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-pre-dispatch-1784059800/bioenhancer-pre-dispatch-annotated.png"
+  ]
+}

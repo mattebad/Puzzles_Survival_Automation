@@ -87,9 +87,13 @@ evidence remains required, with no registration or scheduler eligibility.
 
 `DQ-FLOW-BIOENHANCER` uses `tasks/bioenhancer.py` plus
 `tasks/daily_bioenhancer.py` for one free Bioenhancer research replay bound to
-`bioenhancer_research`. The adapter requires selected-row ownership and a same-day Daily 0/1
-successor; fresh native target/result evidence remains required, with no registration or
-scheduler eligibility.
+`bioenhancer_research`. Navigation evidence now proves the selected row, direct Daily Go →
+Bioenhancer Research successor, and immediate-frame Free Research 1x target
+`[94,1133,345,1216]`; the separate Research 10x target is rejected. The flow is
+`PRE_DISPATCH_READY` but remains matrix `EVIDENCE_GATED`: no research input occurred, positive
+research/Daily 0→1 result is missing, current game-day identity is not independently observable,
+and no registration or scheduler eligibility is enabled. See
+`evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`.
 
 `DQ-FLOW-NANOWEAPON` uses `tasks/nanoweapon.py` plus `tasks/daily_nanoweapon.py` for one exact
 Craft Weapon replay bound to `craft_nanoweapon`. Recipe/material/result evidence remains gated;
@@ -147,7 +151,7 @@ objective is unregistered and scheduler-ineligible.
 | `rare_earth_shop_purchase` | purchases / Rare Earth Shop | `daily_go_to_rare_earth_shop` | disabled | disabled | none | DQ-FLOW-PURCHASES |
 | `alliance_shop_purchase` | purchases / Alliance Shop | `daily_go_to_alliance_shop` | disabled | disabled | none | DQ-FLOW-PURCHASES |
 | `speedup_using_items` | speedups / 180 minutes | `daily_go_to_speedup` | disabled | disabled | none | DQ-FLOW-SPEEDUP |
-| `bioenhancer_research` | bioenhancer / one free | `daily_go_to_bioenhancer` | offline contract | evidence-gated | none | DQ-FLOW-BIOENHANCER |
+| `bioenhancer_research` | bioenhancer / one free | `daily_go_to_bioenhancer` | pre-dispatch ready | evidence-gated | none | DQ-FLOW-BIOENHANCER |
 | `craft_nanoweapon` | nanoweapon / Craft Weapon | `daily_go_to_nanoweapon` | offline contract | evidence-gated | none | DQ-FLOW-NANOWEAPON |
 | `personal_might_praise` | personal_might_praise / one Praise | `daily_go_to_personal_might` | live validated | live validated | `praise` | DQ-FLOW-PERSONAL-MIGHT-PRAISE |
 | `enhance_chip` | enhancement / Chip | `daily_go_to_chip` | offline contract | evidence-gated | none | DQ-FLOW-ENHANCE-CHIP |

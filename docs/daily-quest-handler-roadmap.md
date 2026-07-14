@@ -60,7 +60,9 @@ dispatch, registration, live input, or scheduler eligibility is implied.
 
 ### Free or evidence-gated
 
-- Bioenhancer: one free Research action; paid/10x branches blocked.
+- Bioenhancer: one free Research action; paid/10x branches blocked. Navigation and immediate
+  pre-dispatch evidence are acquired; research dispatch remains policy-gated until approval,
+  positive result, Daily `0→1` reconciliation, and game-day binding are proven.
 - Supply Depot: free known non-premium collection until Free disappears.
 - Recruitment: free single recruitment only; no 10x/premium/unknown confirmation.
 - Nanoweapon: Craft Weapon only; Material Production and Inherit are distinct and excluded.
@@ -121,4 +123,6 @@ and separate Claim authorization.
 `AUTOMATIC_ENABLED` is closed. `DISABLED_POLICY` is terminal until explicit policy change.
 Promotion requires Bliss-native evidence, profile/hash compatibility, positive postconditions,
 fresh game-day identity, central policy approval, and no unresolved action. GnBots manifest facts
-may guide research but never authorize runtime input.
+may guide research but never authorize runtime input. Current Bioenhancer evidence package is
+`evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`; it does
+not authorize research or Claim.

@@ -70,10 +70,21 @@ These contracts remain unregistered and evidence-gated where matrix says so.
 
 ## Evidence-gated planned flows
 
-`bioenhancer_research`, `recruit_noahs_tavern`, `supply_depot`, `craft_nanoweapon`,
+`recruit_noahs_tavern`, `supply_depot`, `craft_nanoweapon`,
 `consume_ap`, `defeat_zombie_lair`, `gather_wood`, `gather_steel`, `gather_gas`,
 `enhance_gear`, `enhance_chip`, and `enhance_module` require fresh Bliss-native target,
 cost/resource, and positive-postcondition evidence before promotion.
+
+## Pre-dispatch ready, still policy-gated
+
+`bioenhancer_research` has retained Bliss-native navigation and pre-dispatch evidence:
+selected-Daily `bioenhancer_research` at `0/1`, direct Daily Go → Bioenhancer Research,
+current-frame Free Research 1x bounds `(94,1133)-(345,1216)`, separate paid 10x rejection,
+no overlay, zero cost, and single quantity. No consequential research input occurred.
+Promotion remains `EVIDENCE_GATED`; positive research result, Daily `0→1` reconciliation,
+independent game-day identity, and explicit supervised approval remain required. Claim remains
+separate. Evidence package:
+`evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`.
 
 ## Policy-disabled flows
 

@@ -1369,18 +1369,23 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `LIVE_VALIDATED`; unlocks only future unattended gate.
 
 ### DQ-FLOW-BIOENHANCER
-- Status: Passed (2026-07-14; selected-Daily adapter plus 5 focused tests).
+- Status: `PRE_DISPATCH_READY` (2026-07-14; Bliss navigation and immediate pre-dispatch
+  evidence acquired; consequential research not dispatched).
 - Covered: `bioenhancer_research`; one free research variant.
 - Exclusions: paid/10x research, Nova Praise, premium actions.
-- Dependencies/routes: inventory → Bioenhancer route.
-- Source/target/policy: selected row, free Research 1x, known zero cost.
+- Dependencies/routes: inventory → selected Daily row → direct Bioenhancer Research screen.
+- Source/target/policy: selected row `0/1`, current-frame Free Research 1x
+  `(94,1133)-(345,1216)`, separate paid 10x rejected, known zero cost and quantity one.
 - Offline acceptance/tests: `tasks/daily_bioenhancer.py` binds selected-row ownership, exact
   0/1 Daily progress, same-day result, dispatch cardinality, Main/static negatives, and Claim
   separation; `tests/test_daily_bioenhancer.py` plus `tests/test_bioenhancer.py`.
-- Bliss/live boundary: evidence-gated; no registration/input.
+- Bliss/live boundary: navigation and pre-dispatch package retained in
+  `evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`;
+  explicit supervised approval and consequential input remain pending.
 - Transaction/postcondition/recovery: one free research; result/cooldown and Daily progress; stop on free disappearance.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `EVIDENCE_GATED`; unlocks only after native pair.
+- Promotion/unlocks: remains `EVIDENCE_GATED`; positive research result, Daily `0→1`,
+  game-day binding, and Claim separation remain required. No registration or scheduler.
 
 ### DQ-FLOW-SUPPLY-DEPOT
 - Status: Passed (2026-07-14; selected-Daily adapter plus 5 focused tests).

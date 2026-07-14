@@ -1660,8 +1660,14 @@ transition with Daily 0/1 progress.
 
 Synthetic replay tests cover selected-row ownership, exact free-research transaction semantics,
 same-day successor arithmetic, Main/static negatives, Claim separation, and zero dispatch.
-Fresh Bliss-native target/result evidence remains required; no registration or scheduler
-eligibility is enabled.
+Fresh Bliss-native navigation and pre-dispatch evidence is retained at
+`evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`. It proves
+the selected row, direct Daily Go → Bioenhancer Research successor, immediate-frame Free Research
+1x bounds `(94,1133)-(345,1216)`, separate paid 10x rejection, single quantity, zero cost, and
+no observed overlay. The flow is `PRE_DISPATCH_READY` but remains matrix `EVIDENCE_GATED`: no
+research input occurred, positive research/Daily `0→1` reconciliation and independent game-day
+identity remain missing, Claim stays separate, and no registration or scheduler eligibility is
+enabled.
 
 ## Daily Quest Supply Depot selected-row adapter boundary (2026-07-14)
 

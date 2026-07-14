@@ -942,20 +942,27 @@
       "claim_behavior": "independent ordinary Daily row Claim only",
       "persistence_behavior": "offline only",
       "implementation_status": "OFFLINE_CONTRACT_ONLY",
-      "live_validation_status": "EVIDENCE_MISSING",
+      "live_validation_status": "PRE_DISPATCH_READY",
       "promotion_state": "EVIDENCE_GATED",
       "current_runtime_registration_status": "NOT_REGISTERED",
       "scheduler_eligibility": false,
       "existing_implementation": "tasks/bioenhancer.py semantic contract plus tasks/daily_bioenhancer.py selected-Daily row adapter",
       "existing_tests": ["tests/test_bioenhancer.py", "tests/test_daily_bioenhancer.py"],
-      "bliss_native_evidence": [],
+      "bliss_native_evidence": [
+        "evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json",
+        "evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.sha256"
+      ],
       "gnbots_provenance": [],
-      "missing_work": "fresh Bliss-native target/postcondition evidence; no runtime dispatch",
-      "missing_evidence": "Bliss free research target and result",
-      "required_product_or_policy_decisions": "free-only semantics",
+      "missing_work": "one supervised free research dispatch, semantic result, and selected-Daily 0/1 reconciliation; no Claim",
+      "missing_evidence": "positive research postcondition, Daily progress 0->1, and independently observed game-day identity",
+      "required_product_or_policy_decisions": "explicit supervised zero-cost research approval",
       "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY"],
       "backlog_task_id": "DQ-FLOW-BIOENHANCER",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-bioenhancer.md"
+      "prompt_path": "docs/prompts/daily-quest/dq-flow-bioenhancer.md",
+      "evidence_boundary": "PRE_DISPATCH_READY",
+      "policy_state": "POLICY_GATED",
+      "consequential_dispatch_count": 0,
+      "claim_separation": "independent; no Claim dispatched"
     },
     {
       "objective_key": "craft_nanoweapon",
