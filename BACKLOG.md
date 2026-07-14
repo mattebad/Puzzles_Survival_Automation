@@ -1,6 +1,6 @@
 # Canonical execution backlog
 
-Last updated: 2026-07-12 (America/Chicago)
+Last updated: 2026-07-13 (America/Chicago)
 
 This is the single authoritative task/status record. The service plan controls technical
 requirements and measured facts. Evidence records contain observations, not competing status.
@@ -445,6 +445,61 @@ Claim example.
   resulting startup surface, so retained action `reset-popup-close-1783994269-2` still records
   unresolved pending manual reconciliation. No second popup tap occurred. Evidence is retained
   in `evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/`.
+- Phase 2 then stopped after two equivalent `normalize-alliance-to-home` pnsctl failures from
+  the positively identified Speedup Help surface. First failure could not bind the icon-only Back
+  control; second attempt bound the fixed ROI but cancelled at immediate revalidation with
+  `OVERLAY_STATE_CHANGED` and no transport call. No Praise or Claim input occurred. Evidence:
+  `live-phase2-route-007/` and `live-phase2-route-008/`.
+
+## GnBots static-reference bootstrap phases
+
+### GNB-PHASE-A — Complete normalized authorized-trial manifest
+
+- Dependencies: existing M1–M7 work preserved; authorized static reference present locally.
+- Scope: static text/image metadata inspection only; no vendor execution, source copying, vendor
+  runtime dependency, or vendor image promotion.
+- Acceptance: all 12 modules covered by stable IDs; source xywh and normalized xyxy ROIs retained;
+  points, thresholds, tries, confirms, waits, swipes, loops, recovery, completion semantics,
+  weaknesses, unresolved helpers, and direct/inferred status recorded; production runtime contains
+  no `.local-reference` dependency; focused tests pass.
+- Evidence: `docs/research/gnbots_trial_reference_manifest.{md,json}` and
+  `evidence/sessions/20260713-gnbots-reference-manifest/record.md`.
+- Status: Passed (2026-07-13).
+- Next: GNB-PHASE-B.
+
+### GNB-PHASE-B — Calibrate reference geometry to Bliss
+
+- Dependencies: GNB-PHASE-A Passed.
+- Scope: development-only transform candidates, raw 800×1280 retained correspondences, residuals,
+  safe-containment checks, and explicit missing-evidence dependencies. Provisional coordinates
+  cannot authorize production input.
+- Acceptance: direct 2×, top/bottom 12-logical-pixel inset, independent axis scaling, and affine
+  fitting are tested; points and normalized ROIs transform correctly; report cites raw Bliss
+  evidence and records unsupported screens without guessing.
+- Status: Ready.
+- Next: GNB-PHASE-C after a focused passing commit.
+
+### GNB-PHASE-C — Prepare Bliss profile, navigation, and required popups
+
+- Dependencies: GNB-PHASE-B Passed.
+- Scope: Personal Might route only; test-proven gaps in existing NavigationRunner; VIP/reset and
+  Help WebView handling; unknown/cost/resource/premium blocking; narrow route perception.
+- Status: Pending.
+
+### GNB-PHASE-D — Complete supervised Praise-to-exact-Claim slice
+
+- Dependencies: GNB-PHASE-C Passed and required Bliss route/Claim evidence.
+- Boundary: Praise and Claim are each current-frame-bound, one-dispatch consequential actions.
+  Objective execution never implies Claim readiness.
+- Status: Pending.
+
+### GNB-PHASE-E/F — Free Daily Activities, then persistence/scheduler
+
+- Dependencies: GNB-PHASE-D Passed.
+- Scope: Main claims, Daily claims, milestones, free Depot, free recruitment; then separate task
+  persistence and a narrow one-pulse due scheduler. Quiz, resource packs, strategic actions, and
+  march families remain excluded from first Daily Activities MVP.
+- Status: Pending.
 
 Validation duration progression: 4 hours is the Bliss runtime-selection gate; offline replay,
 observe-only, dry-run, supervised navigation, one validated supervised action, and one bounded

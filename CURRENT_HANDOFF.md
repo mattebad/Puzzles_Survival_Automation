@@ -1,5 +1,19 @@
 # Current runtime-proof handoff
 
+## 2026-07-13 GnBots static-reference Phase A
+
+- `.local-reference/` is excluded only in `.git/info/exclude`; it remains read-only, unstaged, and
+  unavailable to production runtime.
+- `docs/research/gnbots_trial_reference_manifest.md` and `.json` normalize relevant flows across all
+  12 authorized modules with stable IDs, both source xywh and normalized xyxy ROIs, matcher
+  settings, waits, swipes, loop bounds, recovery/completion semantics, direct/inferred status,
+  unresolved helpers, and vendor weaknesses.
+- No vendor JavaScript, binary, service, selector, or PNG was executed or promoted.
+- `tests.test_reference_manifest` passes 5 tests, including exact ROI endpoint normalization and
+  production dependency rejection.
+- Phase A passed. Next unblocked item is Phase B coordinate calibration. Existing Personal Might,
+  popup, backlog, handoff, tests, and retained evidence changes remain preserved.
+
 ## 2026-07-13 Personal Might Praise popup binding correction
 
 - The narrow `PersonalMightPraiseHandler`, named route contracts, reset-time popup dismissal
@@ -21,9 +35,13 @@
   startup surface, so retained action `reset-popup-close-1783994269-2` still records unresolved;
   no second Close tap was sent.
 - Phase 1 is live-confirmed by direct observation; journal reconciliation remains required.
-  Phase 2 had not started at this handoff point. Evidence:
+  Phase 2 started from the retained Speedup Help surface but stopped after two equivalent
+  `normalize-alliance-to-home` failures: first source target recognition failed; after binding
+  the fixed-profile Back ROI to positive Speedup Help identity, immediate revalidation cancelled
+  with `OVERLAY_STATE_CHANGED` before transport. No Praise or Claim input occurred. Evidence:
   `evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/`. Task worker and
   private task ADB were removed; VM remains running, backup intact, and no task listener remains.
+  Phase 2 blocker evidence is retained in `live-phase2-route-007/` and `live-phase2-route-008/`.
 
 ## 2026-07-13 Alliance Help semantic correction
 

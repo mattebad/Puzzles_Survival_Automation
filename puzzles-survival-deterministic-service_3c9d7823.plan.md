@@ -1312,3 +1312,25 @@ transient exact message `No help request currently`; later frames returned to Sp
 immutable source journal is retained and a reconciled copy confirms the action from that semantic
 postcondition with zero unresolved/nonterminal records. The control is live-validated, but no
 request was available, so Daily Quest completion and Claim remain unproven.
+
+## 2026-07-13 GnBots static-reference bootstrap phases
+
+Authorized trial material is static development input only. `.local-reference/` is machine-locally
+excluded through `.git/info/exclude`; production never imports it, vendor JavaScript is never
+executed, and vendor images are never runtime assets.
+
+Dependency order is:
+
+1. Phase A — normalized 12-module reference manifest.
+2. Phase B — 400×652-to-800×1280 calibration and residual report.
+3. Phase C — Bliss profile provenance, test-proven NavigationRunner gaps, required VIP/Help popup
+   handling, and Personal Might route preparation.
+4. Phase D — supervised Personal Might Praise-to-exact-Daily-Claim vertical slice.
+5. Phase E — remaining approved free Daily Activities.
+6. Phase F — persistent task state and narrow one-pulse scheduler.
+
+Phase A is complete. `docs/research/gnbots_trial_reference_manifest.{md,json}` assigns stable IDs
+to relevant flows in all 12 authorized modules, records source xywh and normalized xyxy ROIs,
+distinguishes direct observations from inference, and preserves anomalies/weaknesses without
+copying source or assets. Focused validation proves module coverage, stable IDs, ROI normalization,
+fail-closed restrictions, and no production `.local-reference` dependency. Phase B is next.

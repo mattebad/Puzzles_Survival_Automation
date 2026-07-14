@@ -1,0 +1,544 @@
+{
+  "schema_version": 1,
+  "scope": "Authorized Puzzles & Survival free-trial modules; static research facts only",
+  "restrictions": {
+    "execute_vendor_code": false,
+    "runtime_dependency_allowed": false,
+    "copy_vendor_images_to_runtime": false,
+    "vendor_selector_allowed": false
+  },
+  "source_profile": {"width": 400, "height": 652, "dpi": 120},
+  "target_profile": {"width": 800, "height": 1280, "package": "com.global.ztmslg"},
+  "roi_convention": {
+    "source": "[x,y,width,height]",
+    "normalized": "[x1,y1,x2,y2]",
+    "normalization": "[x,y,x+width,y+height]"
+  },
+  "modules": [
+    "puzzlebot.base.alliancebase",
+    "puzzlebot.base.base",
+    "puzzlebot.base.dailies",
+    "puzzlebot.base.gameconfig",
+    "puzzlebot.base.gathervip",
+    "puzzlebot.base.launchlib",
+    "puzzlebot.base.recruitment",
+    "puzzlebot.base.tilebase",
+    "puzzlebot.base.townbase",
+    "puzzlebot.base.townpaths",
+    "puzzlebot.base.wall",
+    "puzzlebot.base.worldbase"
+  ],
+  "entries": [
+    {
+      "id": "GNB-ALLIANCE-MENU-OPEN",
+      "module": "puzzlebot.base.alliancebase",
+      "flow": "allianceMenu",
+      "basis": "direct",
+      "points": [[337, 610]],
+      "rois": [{"template": "IndicatorAllianceMenu", "source_xywh": [236, 598, 51, 48], "normalized_xyxy": [236, 598, 287, 646], "threshold": 0.90}],
+      "tries": 3, "confirms": 1, "waits_ms": [1000], "loop_bound": 1,
+      "source_state": "town or unknown", "expected_destination": "alliance menu indicator present",
+      "recovery": "none", "completion": "returns true only when local menu indicator is found",
+      "unresolved_helpers": ["Image.tap", "Image.find"]
+    },
+    {
+      "id": "GNB-ALLIANCE-SECTION-ENTRY",
+      "module": "puzzlebot.base.alliancebase",
+      "flow": "allianceAction",
+      "basis": "direct",
+      "points": [],
+      "rois": [
+        {"template": "AllianceTerritory", "source_xywh": [1, 265, 396, 383], "normalized_xyxy": [1, 265, 397, 648], "threshold": 0.90},
+        {"template": "AllianceTreasury", "source_xywh": [1, 265, 396, 383], "normalized_xyxy": [1, 265, 397, 648], "threshold": 0.90},
+        {"template": "AllianceGift", "source_xywh": [1, 265, 396, 383], "normalized_xyxy": [1, 265, 397, 648], "threshold": 0.90},
+        {"template": "AllianceWar", "source_xywh": [1, 265, 396, 383], "normalized_xyxy": [1, 265, 397, 648], "threshold": 0.90},
+        {"template": "AllianceStore", "source_xywh": [1, 265, 396, 383], "normalized_xyxy": [1, 265, 397, 648], "threshold": 0.90},
+        {"template": "AllianceTech", "source_xywh": [-1300, 265, 396, 383], "normalized_xyxy": [-1300, 265, -904, 648], "threshold": 0.90, "anomaly": "outside source profile"}
+      ],
+      "tries": 2, "confirms": 2, "waits_ms": [1000], "loop_bound": 1,
+      "source_state": "alliance menu", "expected_destination": "old alliance menu indicator disappears",
+      "recovery": "none", "completion": "negative-only postcondition; requested section is not positively recognized",
+      "weaknesses": ["old-anchor disappearance alone is weak for section identity"]
+    },
+    {
+      "id": "GNB-BASE-LAUNCH-PULSE",
+      "module": "puzzlebot.base.base",
+      "flow": "launch",
+      "basis": "direct",
+      "points": [], "rois": [], "tries": 4, "confirms": null, "waits_ms": [], "loop_bound": 4,
+      "source_state": "first module pulse", "expected_destination": "none",
+      "recovery": "none", "completion": "may return true because launch is inapplicable or after four pulses; no game-state proof",
+      "weaknesses": ["early return recorded as completion"], "unresolved_helpers": ["LaunchLib.pulse", "LaunchLib.pulseStart"]
+    },
+    {
+      "id": "GNB-BASE-MAP-STATE",
+      "module": "puzzlebot.base.base",
+      "flow": "getMap/mapTry/townCheck/worldCheck",
+      "basis": "direct",
+      "points": [],
+      "rois": [
+        {"template": "TownButton1", "source_xywh": [11, 594, 48, 48], "normalized_xyxy": [11, 594, 59, 642], "threshold": 0.89},
+        {"template": "TownButton2", "source_xywh": [2, 595, 61, 50], "normalized_xyxy": [2, 595, 63, 645], "threshold": 0.90},
+        {"template": "WorldButton1", "source_xywh": [9, 593, 51, 48], "normalized_xyxy": [9, 593, 60, 641], "threshold": 0.89},
+        {"template": "WorldButton2", "source_xywh": [2, 594, 59, 51], "normalized_xyxy": [2, 594, 61, 645], "threshold": 0.90, "basis": "manifest-normalized from anomalous expression"}
+      ],
+      "tries": 1, "confirms": 1, "waits_ms": [], "loop_bound": 10,
+      "source_state": "unknown/town/world", "expected_destination": "World button means town; Town button means world",
+      "recovery": "Android Back after 10 unknown observations; counter resets",
+      "completion": "townCheck/worldCheck return whether pre-transition state already matched; change result ignored",
+      "weaknesses": ["transition success not returned"]
+    },
+    {
+      "id": "GNB-BASE-MAP-TOGGLE",
+      "module": "puzzlebot.base.base",
+      "flow": "changeMap",
+      "basis": "direct",
+      "points": [], "rois": [], "tries": 1, "confirms": 1, "waits_ms": [500, 2000], "loop_bound": 1,
+      "source_state": "recognized opposite map", "expected_destination": "not verified",
+      "recovery": "outer pulse reacquires", "completion": "true after a toggle template tap, without destination proof"
+    },
+    {
+      "id": "GNB-BASE-POPUP-SWEEP",
+      "module": "puzzlebot.base.base",
+      "flow": "closeDialogs/closeAllDialogs",
+      "basis": "direct",
+      "points": [], "rois": [], "tries": null, "confirms": null, "waits_ms": [984, 2000], "loop_bound": 3,
+      "source_state": "any navigation state", "expected_destination": "popup absent",
+      "recovery": "up to three registry sweeps", "completion": "a sweep can continue after one callback fires",
+      "weaknesses": ["generic popup handling during consequential actions", "more than one popup may be handled per frame"],
+      "unresolved_helpers": ["GameConfig.popups"]
+    },
+    {
+      "id": "GNB-BASE-TOWN-SWIPE-MACROS",
+      "module": "puzzlebot.base.base",
+      "flow": "move.town",
+      "basis": "direct",
+      "points": [],
+      "rois": [],
+      "swipes": [
+        {"name": "up", "from": [200, 320], "to": [200, 520], "duration_ms": 1000},
+        {"name": "right", "from": [200, 320], "to": [50, 320], "duration_ms": 1000},
+        {"name": "down", "from": [200, 352], "to": [200, 120], "duration_ms": 1000},
+        {"name": "left", "from": [200, 320], "to": [350, 320], "duration_ms": 1000},
+        {"name": "fastTopLeft-1", "from": [73, 131], "to": [325, 431], "duration_ms": 600},
+        {"name": "fastTopLeft-2", "from": [151, 95], "to": [351, 425], "duration_ms": 600},
+        {"name": "fastTopRight-1", "from": [303, 127], "to": [92, 428], "duration_ms": 600},
+        {"name": "fastTopRight-2", "from": [223, 143], "to": [36, 429], "duration_ms": 600},
+        {"name": "fastBottomRight-1", "from": [313, 453], "to": [73, 143], "duration_ms": 600},
+        {"name": "fastBottomRight-2", "from": [334, 350], "to": [73, 85], "duration_ms": 600},
+        {"name": "fastBottomLeft-1", "from": [348, 230], "to": [1200, 230], "duration_ms": 600, "anomaly": "destination outside source profile"},
+        {"name": "fastBottomLeft-2", "from": [200, 230], "to": [200, 524], "duration_ms": 600}
+      ],
+      "tries": null, "confirms": null, "waits_ms": [], "loop_bound": 2,
+      "source_state": "normalized town camera family", "expected_destination": "named camera reference family",
+      "recovery": "later pulse rescans reference", "completion": "blind movement macro; no phase postcondition"
+    },
+    {
+      "id": "GNB-DAILY-LIFECYCLE",
+      "module": "puzzlebot.base.dailies",
+      "flow": "Start/Pulse/settings",
+      "basis": "direct",
+      "points": [[26, 262]], "rois": [], "tries": null, "confirms": null, "waits_ms": [], "loop_bound": 8,
+      "source_state": "due Daily Activities task", "expected_destination": "finish after chapter, recruit, quest, quiz, depot, leaderboard flags",
+      "recovery": "outer pulse", "completion": "each subtask flag is set after return, including early failure",
+      "weaknesses": ["early return recorded as completion", "attempted action recorded as completion"]
+    },
+    {
+      "id": "GNB-DAILY-CHAPTER",
+      "module": "puzzlebot.base.dailies",
+      "flow": "chapter",
+      "basis": "direct",
+      "points": [[27, 495], [196, 573], [45, 48]],
+      "rois": [
+        {"template": "IndicatorChapterMenu", "source_xywh": [13, 186, 57, 49], "normalized_xyxy": [13, 186, 70, 235], "threshold": 0.90},
+        {"template": "ChapterClaimBtn", "source_xywh": [287, 280, 77, 143], "normalized_xyxy": [287, 280, 364, 423], "threshold": 0.90}
+      ],
+      "tries": 3, "confirms": 2, "waits_ms": [1000, 2000], "loop_bound": 10,
+      "source_state": "town/home", "expected_destination": "chapter menu, then no claim template",
+      "recovery": "exit tap then two blind Back taps", "completion": "bounded absence of claim template; reward state not otherwise verified"
+    },
+    {
+      "id": "GNB-DAILY-QUEST-CLAIMS",
+      "module": "puzzlebot.base.dailies",
+      "flow": "quest main/daily claims",
+      "basis": "direct",
+      "points": [[158, 621], [66, 60], [200, 57]],
+      "rois": [
+        {"template": "MainQuestClaimBtn", "source_xywh": [286, 107, 103, 532], "normalized_xyxy": [286, 107, 389, 639], "threshold": 0.90},
+        {"template": "DailyClaimBtn", "source_xywh": [282, 202, 103, 308], "normalized_xyxy": [282, 202, 385, 510], "threshold": 0.90}
+      ],
+      "tries": 2, "confirms": 2, "waits_ms": [2000, 250], "loop_bound": 20,
+      "source_state": "town/home", "expected_destination": "quest tab then claim controls exhausted",
+      "recovery": "none", "completion": "absence after bounded claim attempts; row identity/post-claim state not verified",
+      "weaknesses": ["claim inputs are not reacquired semantically by exact row"]
+    },
+    {
+      "id": "GNB-DAILY-MILESTONES",
+      "module": "puzzlebot.base.dailies",
+      "flow": "quest activity milestone loop",
+      "basis": "direct",
+      "points": [[48, 125], [125, 125], [202, 125], [282, 125], [361, 125]],
+      "rois": [
+        {"template": "IndicatorBlueBar", "source_xywh": [48, 162, 9, 10], "normalized_xyxy": [48, 162, 57, 172], "threshold": 0.90},
+        {"template": "IndicatorBlueBar", "source_xywh": [125, 163, 11, 8], "normalized_xyxy": [125, 163, 136, 171], "threshold": 0.90},
+        {"template": "IndicatorBlueBar", "source_xywh": [202, 165, 10, 7], "normalized_xyxy": [202, 165, 212, 172], "threshold": 0.90},
+        {"template": "IndicatorBlueBar", "source_xywh": [282, 163, 10, 10], "normalized_xyxy": [282, 163, 292, 173], "threshold": 0.90},
+        {"template": "IndicatorBlueBar", "source_xywh": [361, 161, 10, 11], "normalized_xyxy": [361, 161, 371, 172], "threshold": 0.90}
+      ],
+      "tries": null, "confirms": null, "waits_ms": [2000], "loop_bound": 5,
+      "source_state": "Daily Quest", "expected_destination": "present milestone markers tapped in order",
+      "recovery": "stop at first missing marker", "completion": "no chest/reward postcondition"
+    },
+    {
+      "id": "GNB-DAILY-LEADERBOARD-PRAISE",
+      "module": "puzzlebot.base.dailies",
+      "flow": "leaderboard",
+      "basis": "direct",
+      "points": [[376, 623], [312, 569]],
+      "dynamic_points": [{"x": 350, "y": "markerY + 10"}],
+      "rois": [
+        {"template": "IndicatorLeaderboard", "source_xywh": [140, 4, 105, 26], "normalized_xyxy": [140, 4, 245, 30], "threshold": 0.90},
+        {"template": "IndicatorLeaderRed", "source_xywh": [369, 124, 22, 195], "normalized_xyxy": [369, 124, 391, 319], "threshold": 0.90},
+        {"template": "PraiseBtn", "source_xywh": [354, 66, 41, 283], "normalized_xyxy": [354, 66, 395, 349], "threshold": 0.90}
+      ],
+      "tries": 4, "confirms": 2, "waits_ms": [2000, 1000], "loop_bound": 4,
+      "source_state": "town/home", "expected_destination": "leaderboard then leader detail with Praise",
+      "recovery": "Back when Praise absent", "completion": "Praise tap attempted; eligibility change not verified",
+      "weaknesses": ["attempted consequential action recorded as completion"]
+    },
+    {
+      "id": "GNB-DAILY-DEPOT-FREE",
+      "module": "puzzlebot.base.dailies",
+      "flow": "depot",
+      "basis": "direct",
+      "points": [[50, 550], [150, 550], [250, 550], [350, 550]],
+      "rois": [{"template": "IndicatorDepotFree", "source_xywh": [31, 602, 36, 29], "normalized_xyxy": [31, 602, 67, 631], "threshold": 0.92}],
+      "tries": 2, "confirms": 2, "waits_ms": [], "loop_bound": 5,
+      "source_state": "vendor-selected depot", "expected_destination": "Free marker absent",
+      "recovery": "stop when marker absent", "completion": "vendor triple-taps selected resource each round",
+      "weaknesses": ["blind triple taps", "no local postcondition", "vendor selector dependency"],
+      "unresolved_helpers": ["setprop qo.comd.cua 1024_ope", "getprop qo.comd.ret"]
+    },
+    {
+      "id": "GNB-DAILY-QUIZ",
+      "module": "puzzlebot.base.dailies",
+      "flow": "quiz",
+      "basis": "direct",
+      "points": [[104, 189], [52, 279], [199, 536]], "rois": [],
+      "tries": null, "confirms": null, "waits_ms": [500, 1000, 1500], "loop_bound": 1,
+      "source_state": "vendor-selected quiz", "expected_destination": "unknown",
+      "recovery": "Android Back after coordinate macro", "completion": "phase transitions unverified",
+      "weaknesses": ["coordinate-only phases without local verification", "vendor selector dependency"],
+      "unresolved_helpers": ["setprop qo.comd.cua 13_po"]
+    },
+    {
+      "id": "GNB-DAILY-FREE-RECRUIT",
+      "module": "puzzlebot.base.dailies",
+      "flow": "recruit",
+      "basis": "direct",
+      "points": [],
+      "rois": [
+        {"template": "RecruitFreeBtn", "source_xywh": [23, 437, 342, 98], "normalized_xyxy": [23, 437, 365, 535], "threshold": 0.90},
+        {"template": "IndicatorFreeRecruitLabel", "source_xywh": [2, 541, 394, 42], "normalized_xyxy": [2, 541, 396, 583], "threshold": 0.90}
+      ],
+      "tries": 3, "confirms": 2, "waits_ms": [1000, 1500], "loop_bound": 3,
+      "source_state": "vendor-selected recruitment", "expected_destination": "free recruit result then next free category",
+      "recovery": "Back after each result", "completion": "stops when next free label absent; result identity not verified",
+      "weaknesses": ["vendor selector dependency", "10x branch is not free-only"],
+      "unresolved_helpers": ["setprop qo.comd.cua 5008_ope"]
+    },
+    {
+      "id": "GNB-GAMECONFIG-POPUP-REGISTRY",
+      "module": "puzzlebot.base.gameconfig",
+      "flow": "popups",
+      "basis": "direct",
+      "points": [],
+      "rois": [
+        {"template": "ServerMaintance", "source_xywh": [165, 136, 61, 31], "normalized_xyxy": [165, 136, 226, 167], "threshold": 0.93},
+        {"template": "ExitCampaign", "source_xywh": [346, 7, 30, 31], "normalized_xyxy": [346, 7, 376, 38], "threshold": 0.90},
+        {"template": "AllianceJoinCancel", "source_xywh": [60, 180, 31, 34], "normalized_xyxy": [60, 180, 91, 214], "threshold": 0.90},
+        {"template": "PuzzleBackButton", "source_xywh": [342, 515, 34, 35], "normalized_xyxy": [342, 515, 376, 550], "threshold": 0.90},
+        {"template": "WelcomeBack", "source_xywh": [157, 427, 65, 29], "normalized_xyxy": [157, 427, 222, 456], "threshold": 0.90},
+        {"template": "ClaimLevel", "source_xywh": [175, 494, 43, 22], "normalized_xyxy": [175, 494, 218, 516], "threshold": 0.90},
+        {"template": "HelpMe", "source_xywh": [17, 150, 27, 81], "normalized_xyxy": [17, 150, 44, 231], "threshold": 0.88},
+        {"template": "HelpMe2", "source_xywh": [4, 135, 46, 147], "normalized_xyxy": [4, 135, 50, 282], "threshold": 0.92},
+        {"template": "FreeFinish", "source_xywh": [6, 138, 41, 90], "normalized_xyxy": [6, 138, 47, 228], "threshold": 0.90},
+        {"template": "VipMenuClose", "source_xywh": [168, 606, 43, 32], "normalized_xyxy": [168, 606, 211, 638], "threshold": 0.90},
+        {"template": "AttackMenu", "source_xywh": [344, 239, 31, 29], "normalized_xyxy": [344, 239, 375, 268], "threshold": 0.90},
+        {"template": "NewPopupClose01", "source_xywh": [310, 1, 28, 27], "normalized_xyxy": [310, 1, 338, 28], "threshold": 0.96}
+      ],
+      "tries": null, "confirms": null, "waits_ms": [1000, 1500, 2000, 2500], "loop_bound": 1,
+      "source_state": "popup overlay", "expected_destination": "varies by callback",
+      "recovery": "template tap, Back, or short fixed macro", "completion": "handler-specific and often lacks semantic successor",
+      "weaknesses": ["resource collection and generic cleanup share one registry", "unsafe during action transactions"],
+      "unresolved_helpers": ["ReconnectButton geometry", "several obfuscated popup ROIs"]
+    },
+    {
+      "id": "GNB-GATHERVIP-LIFECYCLE",
+      "module": "puzzlebot.base.gathervip",
+      "flow": "Start/Pulse/check",
+      "basis": "direct",
+      "points": [], "rois": [], "tries": 3, "confirms": null, "waits_ms": [], "loop_bound": 3,
+      "source_state": "world", "expected_destination": "configured marches reached or tile list exhausted",
+      "recovery": "disable failed tile type; lower level; stop after intended three menu failures",
+      "completion": "Finish after gather flag becomes false",
+      "weaknesses": ["tries is uninitialized, so intended retry cutoff can become NaN", "success not domain-verified"],
+      "unresolved_helpers": ["Util.fy ordering"]
+    },
+    {
+      "id": "GNB-LAUNCH-DONT-SHOW",
+      "module": "puzzlebot.base.launchlib",
+      "flow": "pulseStart/pulse",
+      "basis": "direct",
+      "points": [[200, 551]],
+      "rois": [{"template": "DontShowAgainBtn", "source_xywh": [123, 507, 47, 18], "normalized_xyxy": [123, 507, 170, 525], "threshold": 0.90}],
+      "tries": 2, "confirms": 1, "waits_ms": [1000], "loop_bound": 4,
+      "source_state": "launch popup or startup", "expected_destination": "not verified",
+      "recovery": "pulse returns done after more than three tries", "completion": "time/pulse based, not screen based",
+      "unresolved_helpers": ["first encoded tap"]
+    },
+    {
+      "id": "GNB-RECRUITMENT-TRAIN",
+      "module": "puzzlebot.base.recruitment",
+      "flow": "Start/Pulse/recruit/train/amount",
+      "basis": "direct",
+      "points": [[111, 550], [192, 550], [155, 550], [117, 550]],
+      "rois": [
+        {"template": "IndicatorProgress", "source_xywh": [157, 598, 87, 37], "normalized_xyxy": [157, 598, 244, 635], "threshold": 0.90},
+        {"template": "IndicatorRecruitMenu", "source_xywh": [342, 89, 45, 46], "normalized_xyxy": [342, 89, 387, 135], "threshold": 0.90},
+        {"template": "TrainBtn", "source_xywh": [211, 550, 148, 95], "normalized_xyxy": [211, 550, 359, 645], "threshold": 0.94}
+      ],
+      "swipes": [{"name": "amount-100-percent", "from": [111, 550], "to": [311, 550], "duration_ms": 800}],
+      "tries": 3, "confirms": 2, "waits_ms": [500, 1000, 1500], "loop_bound": 12,
+      "source_state": "vendor-selected troop building", "expected_destination": "training progress indicator",
+      "recovery": "none", "completion": "work item removed before menu/action success; final progress not checked",
+      "weaknesses": ["automatic resource-pack consumption", "attempted action recorded as completion"],
+      "unresolved_helpers": ["townMode.action recruit", "townMode.useResources"]
+    },
+    {
+      "id": "GNB-TILE-VIP-SEARCH",
+      "module": "puzzlebot.base.tilebase",
+      "flow": "openVip/selectVip/levelVip/tileFoundVip",
+      "basis": "direct",
+      "points": [[96, 541], [36, 469], [40, 480], [120, 480], [200, 480], [280, 480], [360, 480], [270, 480], [113, 561], [66, 562], [287, 561]],
+      "rois": [
+        {"template": "VipSearchBtn", "source_xywh": [158, 607, 81, 33], "normalized_xyxy": [158, 607, 239, 640], "threshold": 0.90},
+        {"template": "IndicatorTileFound", "source_xywh": [189, 168, 53, 169], "normalized_xyxy": [189, 168, 242, 337], "threshold": 0.88},
+        {"template": "IndicatorNoTileFound", "source_xywh": [46, 167, 26, 27], "normalized_xyxy": [46, 167, 72, 194], "threshold": 0.90},
+        {"template": "TileResourceOrMonster", "source_xywh": [4, 427, 395, 99], "normalized_xyxy": [4, 427, 399, 526], "threshold": 0.92}
+      ],
+      "swipes": [{"name": "steel-gas-category", "from": [294, 468], "to": [12, 470], "duration_ms": 800}],
+      "tries": 4, "confirms": 2, "waits_ms": [500, 1500, 3938], "loop_bound": 15,
+      "source_state": "world", "expected_destination": "tile-found indicator and selected tile",
+      "recovery": "lower requested level; disable type after exhaustion", "completion": "several functions return true without verifying selected type/level",
+      "weaknesses": ["coordinate fallback after template failure", "off-profile decoded points"]
+    },
+    {
+      "id": "GNB-TILE-DIALOGS",
+      "module": "puzzlebot.base.tilebase",
+      "flow": "gatherDialog/attackDialog",
+      "basis": "direct",
+      "points": [[202, 321], [170, 275], [340, 275], [170, 340], [340, 340], [220, 10]],
+      "rois": [
+        {"template": "GatherDialog", "source_xywh": [246, 394, 85, 38], "normalized_xyxy": [246, 394, 331, 432], "threshold": 0.88},
+        {"template": "GatherDialog2", "source_xywh": [253, 323, 88, 61], "normalized_xyxy": [253, 323, 341, 384], "threshold": 0.90},
+        {"template": "AttackGoDialog", "source_xywh": [134, 417, 88, 53], "normalized_xyxy": [134, 417, 222, 470], "threshold": 0.90},
+        {"template": "AttackDialog", "source_xywh": [111, 421, 84, 56], "normalized_xyxy": [111, 421, 195, 477], "threshold": 0.89},
+        {"template": "AttackDialog2", "source_xywh": [141, 409, 122, 76], "normalized_xyxy": [141, 409, 263, 485], "threshold": 0.89},
+        {"template": "RallyDialog", "source_xywh": [228, 411, 126, 61], "normalized_xyxy": [228, 411, 354, 472], "threshold": 0.90}
+      ],
+      "tries": 3, "confirms": 2, "waits_ms": [1000, 1500, 2500], "loop_bound": 3,
+      "source_state": "selected world tile", "expected_destination": "gather/attack/rally dialog accepted",
+      "recovery": "generic center tap; top-edge exit after exhaustion", "completion": "dialog disappearance/handler return, not action result"
+    },
+    {
+      "id": "GNB-TILE-MARCH",
+      "module": "puzzlebot.base.tilebase",
+      "flow": "march/marchMenuCheck/marching/selectTroops/select_savedFormation",
+      "basis": "direct",
+      "points": [[201, 610], [195, 609], [99, 604], [225, 218], [224, 372], [212, 523], [218, 392]],
+      "rois": [
+        {"template": "IndicatorNoMarches", "source_xywh": [203, 167, 52, 25], "normalized_xyxy": [203, 167, 255, 192], "threshold": 0.90},
+        {"template": "IndicatorMarchMenu1", "source_xywh": [220, 544, 62, 53], "normalized_xyxy": [220, 544, 282, 597], "threshold": 0.89},
+        {"template": "IndicatorMarchMenu2", "source_xywh": [78, 586, 56, 45], "normalized_xyxy": [78, 586, 134, 631], "threshold": 0.89},
+        {"template": "IndicatorTroops", "source_xywh": [326, 223, 41, 210], "normalized_xyxy": [326, 223, 367, 433], "threshold": 0.90},
+        {"template": "MarchBtn", "source_xywh": [142, 593, 100, 36], "normalized_xyxy": [142, 593, 242, 629], "threshold": 0.96},
+        {"template": "ClearHeroesBtn", "source_xywh": [153, 140, 61, 40], "normalized_xyxy": [153, 140, 214, 180], "threshold": 0.90},
+        {"template": "FullAntiserumContinueBtn", "source_xywh": [235, 319, 69, 0], "normalized_xyxy": [235, 319, 304, 319], "threshold": 0.90, "anomaly": "zero-height ROI"}
+      ],
+      "tries": 5, "confirms": 1, "waits_ms": [500, 800, 1000, 1500, 3000], "loop_bound": 5,
+      "source_state": "gather/attack/rally accepted", "expected_destination": "March button disappears; stronger queue/outbound proof absent",
+      "recovery": "Back during troop selection; bounded menu checks; no-more-marches abort",
+      "completion": "button disappearance used as vendor success",
+      "weaknesses": ["weak negative-only action postcondition", "march menu inner loop never executes due anomalous initializer", "off-profile coordinates"]
+    },
+    {
+      "id": "GNB-TOWN-VENDOR-SELECTOR",
+      "module": "puzzlebot.base.townbase",
+      "flow": "townMode.action",
+      "basis": "direct",
+      "points": [[99, 50]], "rois": [], "tries": null, "confirms": null, "waits_ms": [1000], "loop_bound": 1,
+      "source_state": "town", "expected_destination": "vendor-reported selected building/menu",
+      "recovery": "returns false on vendor 'nope'", "completion": "vendor property result only; no local UI proof",
+      "weaknesses": ["setprop qo.comd.* injected selector dependency"],
+      "unresolved_helpers": ["setprop qo.comd.cua", "getprop qo.comd.ret"]
+    },
+    {
+      "id": "GNB-TOWN-REFERENCE-CAMERA",
+      "module": "puzzlebot.base.townbase",
+      "flow": "scanReference/goToReferencePoint/check",
+      "basis": "direct",
+      "points": [],
+      "rois": [
+        {"template": "TopLeftRef1", "source_xywh": [234, 135, 49, 44], "normalized_xyxy": [234, 135, 283, 179], "threshold": 0.94},
+        {"template": "TopLeftRef2", "source_xywh": [136, 180, 39, 47], "normalized_xyxy": [136, 180, 175, 227], "threshold": 0.94},
+        {"template": "RefLeftBot1", "source_xywh": [184, 299, 145, 124], "normalized_xyxy": [184, 299, 329, 423], "threshold": 0.92}
+      ],
+      "tries": null, "confirms": null, "waits_ms": [2000], "loop_bound": 2,
+      "source_state": "town camera unknown", "expected_destination": "one configured reference anchor",
+      "recovery": "apply named two-swipe macro and rescan next pulse", "completion": "true when reference template found",
+      "weaknesses": ["several other reference ROIs decode outside profile", "recenter called with boolean rather than town/world"],
+      "unresolved_helpers": ["configured startRef", "out-of-profile reference expressions"]
+    },
+    {
+      "id": "GNB-TOWN-UPGRADE-BUILD",
+      "module": "puzzlebot.base.townbase",
+      "flow": "upgrade.check/checkMenu/upgrading/upgradeButtons/build",
+      "basis": "direct",
+      "points": [[24, 97], [13, 80]],
+      "rois": [
+        {"template": "UpgradeDialog", "source_xywh": [62, 139, 231, 302], "normalized_xyxy": [62, 139, 293, 441], "threshold": 0.90},
+        {"template": "IndicatorUpgradeMenu", "source_xywh": [349, 240, 48, 148], "normalized_xyxy": [349, 240, 397, 388], "threshold": 0.90},
+        {"template": "IndicatorUpgradeMenu2", "source_xywh": [179, 268, 64, 85], "normalized_xyxy": [179, 268, 243, 353], "threshold": 0.90},
+        {"template": "BuildBtn", "source_xywh": [246, 600, 75, 8], "normalized_xyxy": [246, 600, 321, 608], "threshold": 0.90},
+        {"template": "ConfirmLevel10Upgrade", "source_xywh": [234, 338, 102, 45], "normalized_xyxy": [234, 338, 336, 383], "threshold": 0.90},
+        {"template": "FreeBuildBtn", "source_xywh": [98, 588, 45, 25], "normalized_xyxy": [98, 588, 143, 613], "threshold": 0.92}
+      ],
+      "tries": 3, "confirms": 2, "waits_ms": [100, 1000, 1500, 2000], "loop_bound": 5,
+      "source_state": "building menu", "expected_destination": "upgrade/build started",
+      "recovery": "limited loops only", "completion": "attempt or button return; queue/progress not verified",
+      "weaknesses": ["automatic resource-pack consumption", "missing queueAvailable template", "multiple anomalous decoded ROIs/taps"]
+    },
+    {
+      "id": "GNB-TOWN-RESOURCE-CONFIRM",
+      "module": "puzzlebot.base.townbase",
+      "flow": "resources.useResources",
+      "basis": "direct",
+      "points": [],
+      "rois": [
+        {"template": "IndicatorResourcePackMenu", "source_xywh": [147, 100, 96, 33], "normalized_xyxy": [147, 100, 243, 133], "threshold": 0.90},
+        {"template": "ConfirmUseResourcesBtn", "source_xywh": [242, 1282, 64, 52], "normalized_xyxy": [242, 1282, 306, 1334], "threshold": 0.90, "anomaly": "outside source profile"}
+      ],
+      "tries": 2, "confirms": 1, "waits_ms": [500, 1000, 3000], "loop_bound": 1,
+      "source_state": "upgrade/research/training resource dialog", "expected_destination": "resources refilled",
+      "recovery": "none", "completion": "absence of dialog is true; presence triggers automatic confirmation",
+      "weaknesses": ["automatic resource-pack consumption", "no quantity/cost/budget policy"]
+    },
+    {
+      "id": "GNB-TOWN-RESEARCH",
+      "module": "puzzlebot.base.townbase",
+      "flow": "research.researching",
+      "basis": "direct",
+      "points": [],
+      "rois": [
+        {"template": "IndicatorResearchMenu", "source_xywh": [106, 397, 32, -580], "normalized_xyxy": [106, 397, 138, -183], "threshold": 0.90, "anomaly": "negative height"},
+        {"template": "ResearchGoUpgradeBtn", "source_xywh": [289, 454, 82, -885], "normalized_xyxy": [289, 454, 371, -431], "threshold": 0.90, "anomaly": "negative height"},
+        {"template": "ResearchBtn", "source_xywh": [957, 608, 77, 27], "normalized_xyxy": [957, 608, 1034, 635], "threshold": 0.90, "anomaly": "outside source profile"}
+      ],
+      "tries": 3, "confirms": 2, "waits_ms": [1000, 2000], "loop_bound": 1,
+      "source_state": "research menu", "expected_destination": "research queue started",
+      "recovery": "optional building-upgrade branch", "completion": "returns true after tap sequence; queue not verified",
+      "weaknesses": ["automatic resource-pack consumption", "invalid decoded geometry"]
+    },
+    {
+      "id": "GNB-TOWNPATH-HOSPITAL",
+      "module": "puzzlebot.base.townpaths",
+      "flow": "hospital",
+      "basis": "direct",
+      "points": [], "rois": [], "tries": null, "confirms": null, "waits_ms": [], "loop_bound": 2,
+      "source_state": "normalized town camera", "expected_destination": "hospital callback target",
+      "recovery": "none", "completion": "callback invoked twice; return values ignored"
+    },
+    {
+      "id": "GNB-TOWNPATH-MANSION",
+      "module": "puzzlebot.base.townpaths",
+      "flow": "mansion",
+      "basis": "direct",
+      "points": [], "rois": [], "tries": null, "confirms": null, "waits_ms": [], "loop_bound": 6,
+      "source_state": "normalized town camera", "expected_destination": "mansion callback target",
+      "recovery": "none", "completion": "two fastTopLeft macros then callback four times; phases unverified"
+    },
+    {
+      "id": "GNB-TOWNPATH-PRODUCTIONS",
+      "module": "puzzlebot.base.townpaths",
+      "flow": "productions",
+      "basis": "direct",
+      "points": [], "rois": [], "tries": null, "confirms": null, "waits_ms": [], "loop_bound": 14,
+      "source_state": "normalized town camera", "expected_destination": "production-building callbacks across fixed route",
+      "recovery": "none", "completion": "blind fast/directional movement sequence; callback results ignored"
+    },
+    {
+      "id": "GNB-TOWNPATH-WALL",
+      "module": "puzzlebot.base.townpaths",
+      "flow": "wall",
+      "basis": "direct",
+      "points": [], "rois": [], "tries": null, "confirms": null, "waits_ms": [], "loop_bound": 4,
+      "source_state": "normalized town camera", "expected_destination": "wall callback target",
+      "recovery": "none", "completion": "two fastBottomRight macros then callback twice; phases unverified"
+    },
+    {
+      "id": "GNB-WALL-REPAIR",
+      "module": "puzzlebot.base.wall",
+      "flow": "Pulse/repair",
+      "basis": "direct",
+      "points": [[196, 203], [238, 289], [339, 616], [326, 464], [185, 2]],
+      "rois": [{"template": "IndicatorWall", "source_xywh": [200, 374, 342, 51], "normalized_xyxy": [200, 374, 542, 425], "threshold": 0.90}],
+      "tries": 4, "confirms": 2, "waits_ms": [1000], "loop_bound": 1,
+      "source_state": "vendor-selected wall menu", "expected_destination": "wall repaired",
+      "recovery": "none", "completion": "wall flag cleared regardless repair result; next pulse finishes",
+      "weaknesses": ["attempted action recorded as completion", "no healthy-wall postcondition", "off-profile ROI"],
+      "unresolved_helpers": ["townMode.action 1002_ope"]
+    },
+    {
+      "id": "GNB-WORLD-CHECK",
+      "module": "puzzlebot.base.worldbase",
+      "flow": "check",
+      "basis": "direct",
+      "points": [], "rois": [], "tries": null, "confirms": null, "waits_ms": [], "loop_bound": 2,
+      "source_state": "unknown map", "expected_destination": "world",
+      "recovery": "generic popup cleanup and base worldCheck", "completion": "true after worldCheck and launch helpers; no specific world destination anchor"
+    },
+    {
+      "id": "GNB-WORLD-COORDINATE-MENU",
+      "module": "puzzlebot.base.worldbase",
+      "flow": "jumpPlace/cordsMenu",
+      "basis": "direct",
+      "points": [[130, 540], [130, 496], [201, 255], [292, 417], [316, 254]],
+      "rois": [{"template": "IndicatorCoordMenu", "source_xywh": [166, 295, 740, 45], "normalized_xyxy": [166, 295, 906, 340], "threshold": null, "anomaly": "width outside source profile and decoded scale anomalous"}],
+      "tries": 5, "confirms": 2, "waits_ms": [30, 800, 1000, 1500, 2500], "loop_bound": 3,
+      "source_state": "world", "expected_destination": "entered coordinates/place result",
+      "recovery": "none", "completion": "jumpPlace may return true when place button is absent and undefined on apparent success",
+      "weaknesses": ["off-profile digit points", "loop initializers decode to large negative values", "success semantics inverted"],
+      "unresolved_helpers": ["digit keypad geometry", "placeGoBtn", "indicatorTextField"]
+    }
+  ],
+  "vendor_weaknesses": [
+    "early return recorded as completion",
+    "attempted action recorded as completion",
+    "blind triple taps",
+    "coordinate-only phases without local verification",
+    "automatic resource-pack consumption",
+    "generic popup handling during consequential actions",
+    "weak negative-only action postconditions",
+    "setprop qo.comd.* injected selector dependency"
+  ],
+  "evidence_dependencies": [
+    "raw Bliss Town/world toggle correspondence",
+    "raw Bliss standalone More target correspondence",
+    "raw Bliss Rankings and Personal Might route screens",
+    "raw Bliss Praise pre/postcondition screens",
+    "raw Bliss completed-unclaimed Daily Praise objective row",
+    "raw Bliss Claim pre/postcondition screens",
+    "raw Bliss march menu/button/queue screens"
+  ]
+}
