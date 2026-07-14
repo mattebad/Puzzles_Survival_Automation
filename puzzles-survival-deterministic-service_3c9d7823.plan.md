@@ -1364,3 +1364,8 @@ target. Praise recognition combines screen identity, local template similarity, 
 gold HSV occupancy; no broad right-column fallback exists. Phase D may authorize one Praise only
 from a fresh unchanged frame. Claim remains a separate later transaction requiring exact Daily row
 evidence.
+
+First Phase D resume attempt produced no transport call because startup omitted the valid
+already-open Personal Might leaderboard and then failed three bounded Home recognitions. Startup
+now positively classifies Personal Might leaderboard, Rankings, More, or Home; every other state is
+`UNKNOWN` and blocks. This preserves immediate Praise authorization without replaying navigation.

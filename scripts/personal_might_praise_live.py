@@ -375,6 +375,19 @@ def recognize_route(frame: np.ndarray, state: str) -> dict[str, Any]:
     raise ValueError("unsupported route source: " + state)
 
 
+def recognize_praise_start_state(frame: np.ndarray, home_reference: np.ndarray) -> str:
+    """Return only positively recognized entry states for the Praise route."""
+    if recognize_route(frame, "PERSONAL_MIGHT_LEADERBOARD")["recognized"]:
+        return "PERSONAL_MIGHT_LEADERBOARD"
+    if recognize_route(frame, "RANKINGS")["recognized"]:
+        return "RANKINGS"
+    if recognize_route(frame, "MORE")["recognized"]:
+        return "MORE"
+    if recognize_home_quest(frame, home_reference).recognized:
+        return "HOME_BASE"
+    return "UNKNOWN"
+
+
 def recognize_home_more(frame: np.ndarray, reference: np.ndarray) -> dict[str, Any]:
     """Bind More to Home/Base plus its fixed local template ROI."""
     home = recognize_home_quest(frame, reference)
@@ -1269,7 +1282,7 @@ class LiveAdapter:
                 })
                 return 0
             startup_text = " ".join(item["text"] for item in ocr_lines(startup_frame))
-            current_state = "HOME_BASE"
+            current_state = "UNKNOWN"
             if recognize_route(startup_frame, "HELP_WEBVIEW")["recognized"]:
                 self.close_help_webview_with_retry("startup-close-help-webview")
                 current_state = "MORE"
@@ -1280,10 +1293,13 @@ class LiveAdapter:
                     target_id="standard-game-back-arrow",
                 )
                 current_state = "HOME_BASE"
-            elif recognize_route(startup_frame, "RANKINGS")["recognized"]:
-                current_state = "RANKINGS"
-            elif recognize_route(startup_frame, "MORE")["recognized"]:
-                current_state = "MORE"
+            else:
+                current_state = recognize_praise_start_state(
+                    startup_frame,
+                    load_frame(self.args.home_reference),
+                )
+            if current_state == "UNKNOWN":
+                raise RuntimeError("Praise route startup state is not positively recognized")
 
             if current_state == "HOME_BASE":
                 self.run_route_step("home-to-more", "HOME_BASE", "MORE", "HOME_TO_MORE", HOME_MORE_REGION)
@@ -1303,11 +1319,15 @@ class LiveAdapter:
                 if not detail["recognized"]:
                     raise RuntimeError("corrected Rankings successor was not positively recognized")
                 return 0
-            self.run_route_step(
-                "personal-might-check", "RANKINGS", "PERSONAL_MIGHT_LEADERBOARD",
-                "PERSONAL_MIGHT_CHECK", CHECK_REGION, detection_state="PERSONAL_MIGHT_RANK",
-                target_id="personal-might-rank-check",
-            )
+            if current_state == "RANKINGS":
+                self.run_route_step(
+                    "personal-might-check", "RANKINGS", "PERSONAL_MIGHT_LEADERBOARD",
+                    "PERSONAL_MIGHT_CHECK", CHECK_REGION, detection_state="PERSONAL_MIGHT_RANK",
+                    target_id="personal-might-rank-check",
+                )
+                current_state = "PERSONAL_MIGHT_LEADERBOARD"
+            if current_state != "PERSONAL_MIGHT_LEADERBOARD":
+                raise RuntimeError(f"unexpected pre-Praise route state: {current_state}")
             if self.args.leaderboard_evidence_only:
                 evidence_path, _ = self.capture("personal-might-leaderboard-evidence")
                 detail = recognize_route(load_frame(evidence_path), "PERSONAL_MIGHT_LEADERBOARD")

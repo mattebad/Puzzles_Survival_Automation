@@ -1,0 +1,269 @@
+{
+  "foreground_assumed_game": true,
+  "ocr_lines": [
+    {
+      "bounds": [
+        71,
+        12,
+        419,
+        22
+      ],
+      "text": "7 -"
+    },
+    {
+      "bounds": [
+        138,
+        17,
+        566,
+        45
+      ],
+      "text": "j persona t rank"
+    },
+    {
+      "bounds": [
+        76,
+        94,
+        718,
+        122
+      ],
+      "text": "rank commander might"
+    },
+    {
+      "bounds": [
+        97,
+        156,
+        563,
+        184
+      ],
+      "text": "~ \"a \\? [loy] wa 47 ramirez~eta"
+    },
+    {
+      "bounds": [
+        69,
+        156,
+        740,
+        230
+      ],
+      "text": "yar a & \u2018 [loy]loyal family 4,281,855,879 \u00a9"
+    },
+    {
+      "bounds": [
+        86,
+        268,
+        438,
+        294
+      ],
+      "text": "zn 4 _ [loy] hells hope"
+    },
+    {
+      "bounds": [
+        72,
+        270,
+        687,
+        336
+      ],
+      "text": "or <j \u00a2 [loy]loyal family 3,530,210,571"
+    },
+    {
+      "bounds": [
+        170,
+        375,
+        384,
+        403
+      ],
+      "text": "\\ \u00bb) [loy] ~luc~"
+    },
+    {
+      "bounds": [
+        176,
+        379,
+        691,
+        446
+      ],
+      "text": "> [loy]loyal family 3,518,214,188"
+    },
+    {
+      "bounds": [
+        164,
+        477,
+        252,
+        496
+      ],
+      "text": "\u2014e et"
+    },
+    {
+      "bounds": [
+        168,
+        486,
+        535,
+        537
+      ],
+      "text": "ie ir [lna] harley quinns:, .*"
+    },
+    {
+      "bounds": [
+        94,
+        506,
+        691,
+        551
+      ],
+      "text": "4 ch ie [lnajmoon base c*, 3,209,226,318"
+    },
+    {
+      "bounds": [
+        168,
+        591,
+        536,
+        635
+      ],
+      "text": "iy ay [wow] the_last_sultan"
+    },
+    {
+      "bounds": [
+        95,
+        618,
+        690,
+        666
+      ],
+      "text": "5 & [wow world of warriors3,993,868,997"
+    },
+    {
+      "bounds": [
+        171,
+        707,
+        461,
+        787
+      ],
+      "text": "ig | [lna] &< #z 10263"
+    },
+    {
+      "bounds": [
+        170,
+        724,
+        440,
+        741
+      ],
+      "text": "ica t aw)"
+    },
+    {
+      "bounds": [
+        94,
+        738,
+        690,
+        770
+      ],
+      "text": "6 [lnajmoon base c*, 3,075,749,197"
+    },
+    {
+      "bounds": [
+        166,
+        817,
+        251,
+        826
+      ],
+      "text": "awit"
+    },
+    {
+      "bounds": [
+        168,
+        822,
+        435,
+        858
+      ],
+      "text": "| (faa = [lna] quicpechi"
+    },
+    {
+      "bounds": [
+        94,
+        832,
+        691,
+        893
+      ],
+      "text": "7 ee [lna]moon base c*, 3,075,263,978"
+    },
+    {
+      "bounds": [
+        168,
+        929,
+        471,
+        974
+      ],
+      "text": "| way [pfg] nightmare2.0"
+    },
+    {
+      "bounds": [
+        94,
+        958,
+        690,
+        1000
+      ],
+      "text": "8 | tt [pfg]prepare for glory 3,034,911,477"
+    },
+    {
+      "bounds": [
+        174,
+        1046,
+        242,
+        1058
+      ],
+      "text": "do)"
+    },
+    {
+      "bounds": [
+        170,
+        1056,
+        362,
+        1084
+      ],
+      "text": "| ag\\) [lna] ds"
+    },
+    {
+      "bounds": [
+        94,
+        1076,
+        691,
+        1114
+      ],
+      "text": "9 8} ff [lna]jmoon base (*, 2,557,909,182"
+    },
+    {
+      "bounds": [
+        215,
+        1190,
+        434,
+        1224
+      ],
+      "text": "sy) [fta] icarly101"
+    },
+    {
+      "bounds": [
+        74,
+        1200,
+        691,
+        1263
+      ],
+      "text": "666 s [fta] fromthe ashes 90,722,088"
+    }
+  ],
+  "popup": {
+    "body_identity": false,
+    "body_text": "hee |g [lna] harley quinnsx, . * mi i\u201d [lnajmoon base c*, 3,209,226,31 p ~ 4 [wow] the_last_ sultan i & \u00a2 [woww]world of warriors3,093,868,99 \u2014,",
+    "close_region": [
+      260,
+      750,
+      540,
+      870
+    ],
+    "geometry_valid": false,
+    "literal_close": false,
+    "matched_close_text": "",
+    "panel_present": true,
+    "popup_identity": null,
+    "recognized": false,
+    "target": null,
+    "target_center": null,
+    "target_identity": null,
+    "title_identity": false,
+    "title_text": "[loy|loyal family 3"
+  }
+}

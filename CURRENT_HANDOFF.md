@@ -9,6 +9,9 @@
   `(690,155)-(755,220)`, and Back `(45,5)-(130,60)`.
 - Praise target is icon-only and requires header + local template + gold HSV occupancy.
 - Praise and Claim inputs remained zero. Phase C passed; Phase D is ready.
+- First Phase D resume attempt sent zero inputs: startup omitted the already-open Personal Might
+  leaderboard and defaulted to Home, then three Home recognitions failed before transport. Startup
+  now recognizes explicit resume states and treats every other screen as `UNKNOWN`.
 
 ## 2026-07-13 corrected Rankings live navigation
 

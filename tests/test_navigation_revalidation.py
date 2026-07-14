@@ -12,6 +12,7 @@ from scripts.personal_might_praise_live import (
     PERSONAL_MIGHT_BACK,
     RANKINGS_ENTRY,
     RetryableNavigationFailure,
+    recognize_praise_start_state,
     recognize_route,
     run_bounded_navigation_attempts,
 )
@@ -37,6 +38,11 @@ PERSONAL_MIGHT_FRAME = (
     ROOT
     / "evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016"
     / "personal-might-leaderboard-evidence-007.png"
+)
+HOME_FRAME = (
+    ROOT
+    / "evidence/sessions/20260712-m6-dq-bootstrap/assets"
+    / "home-base-settled.png"
 )
 
 
@@ -144,6 +150,33 @@ class PersonalMightLeaderboardRecognitionTests(unittest.TestCase):
         detail = recognize_route(changed, "PERSONAL_MIGHT_LEADERBOARD")
         self.assertTrue(detail["recognized"])
         self.assertIsNone(detail["target"])
+
+
+class PraiseStartupRecognitionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.home = cv2.imread(str(HOME_FRAME))
+
+    def test_resume_states_are_positive_and_specific(self):
+        self.assertEqual(
+            recognize_praise_start_state(cv2.imread(str(PERSONAL_MIGHT_FRAME)), self.home),
+            "PERSONAL_MIGHT_LEADERBOARD",
+        )
+        self.assertEqual(
+            recognize_praise_start_state(cv2.imread(str(RANKINGS_FRAME)), self.home),
+            "RANKINGS",
+        )
+        self.assertEqual(
+            recognize_praise_start_state(cv2.imread(str(MORE_FRAME)), self.home),
+            "MORE",
+        )
+        self.assertEqual(recognize_praise_start_state(self.home, self.home), "HOME_BASE")
+
+    def test_unknown_startup_does_not_default_to_home(self):
+        self.assertEqual(
+            recognize_praise_start_state(self.home * 0, self.home),
+            "UNKNOWN",
+        )
 
 
 class NavigationRetryTests(unittest.TestCase):

@@ -510,6 +510,9 @@ Claim example.
   Objective execution never implies Claim readiness.
 - Status: Ready — immediate Praise authorization still requires current unchanged leaderboard
   target; exact Claim remains separately evidence-gated.
+- Resume correction: first Praise run sent zero inputs because startup omitted the valid already-open
+  Personal Might leaderboard state. Startup now recognizes only explicit route states and never
+  defaults unknown to Home. Evidence: `live-praise-resume-017-no-input/`.
 
 ### GNB-PHASE-E/F — Free Daily Activities, then persistence/scheduler
 

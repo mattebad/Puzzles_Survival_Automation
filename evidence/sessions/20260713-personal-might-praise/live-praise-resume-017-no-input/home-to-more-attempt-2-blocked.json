@@ -1,0 +1,32 @@
+{
+  "detail": {
+    "home_detail": {
+      "anchor_scores": [
+        0.800714,
+        0.834558
+      ],
+      "dangerous_intersects": false,
+      "overlay_intersects": false,
+      "recognized": false,
+      "state": "UNKNOWN",
+      "target_identity": null,
+      "target_roi": null,
+      "target_score": 0.820406
+    },
+    "home_recognized": false,
+    "more_template_score": 0.862458,
+    "recognized": false,
+    "target": {
+      "bounds": [
+        680,
+        1130,
+        800,
+        1280
+      ]
+    },
+    "target_id": "home-more-navigation"
+  },
+  "expected_state": "MORE",
+  "source_state": "HOME_BASE",
+  "target_id": null
+}
