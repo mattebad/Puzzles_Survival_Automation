@@ -42,6 +42,8 @@ promotion. Praise completion stops before Claim.
   level replay; Vehicle Depot remains Main-only and no-dispatch guard is unconditional).
 - Disabled Hero Duel contract: `tasks/hero_duel_disabled.py` (event/Join/progress replay with
   unconditional no-PvP-dispatch guard).
+- Disabled Tech Upgrade contract: `tasks/tech_upgrade_disabled.py` (prerequisite/level replay
+  with unconditional no-research-dispatch guard).
 - Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
   `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 

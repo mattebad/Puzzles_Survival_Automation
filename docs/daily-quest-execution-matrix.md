@@ -53,6 +53,9 @@ dispatch and the objective remains unregistered and scheduler-ineligible.
 `DQ-FLOW-HERO-DUEL` uses `tasks/hero_duel_disabled.py` for event/Join/progress replay only. PvP
 entry remains policy-disabled; the objective is unregistered and scheduler-ineligible.
 
+`DQ-FLOW-TECH-UPGRADE` uses `tasks/tech_upgrade_disabled.py` for prerequisite/level replay only.
+Research spend remains policy-disabled; the objective is unregistered and scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |

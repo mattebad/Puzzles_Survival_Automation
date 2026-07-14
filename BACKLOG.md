@@ -1559,13 +1559,17 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   remains outside Daily ownership.
 
 ### DQ-FLOW-TECH-UPGRADE
+- Status: Passed (2026-07-14; disabled prerequisite/level contract and 5 focused tests).
 - Covered: `upgrade_tech`; Research variant.
 - Exclusions: automatic resource packs, unknown geometry, strategic research without allowlist.
 - Dependencies/routes: inventory → research route.
 - Source/target/policy: exact technology, queue, cost, resource policy.
-- Offline acceptance/tests: research target/queue/cost mocks.
+- Offline acceptance/tests: technology/prerequisite identity, level successor, queue/cost/source
+  guards, disabled dispatch, Main/static negatives, and Claim separation;
+  `tests/test_tech_upgrade_disabled.py`.
 - Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: one upgrade; research queue/progress; stop on ambiguity.
+- Transaction/postcondition/recovery: no transaction path; level arithmetic replay only; every
+  dispatch request blocks; stop on ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; policy decision required.
 

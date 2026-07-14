@@ -84,6 +84,8 @@ cannot admit Daily objectives.
   policy-disabled. Vehicle Depot wording is Main-only evidence.
 - Hero Duel: event/Join/progress identity replay complete offline; PvP remains policy-disabled with
   no event-entry path.
+- Tech Upgrade: prerequisite/level identity replay complete offline; research remains
+  policy-disabled with no upgrade transaction.
 - Tech Upgrade: Research target variant.
 - Hero Upgrade and Hero Ownership: separate semantics.
 - Purchases: Box, Ruins Shop, Rare Earth Shop, Alliance Shop variants through one allowlist engine.
