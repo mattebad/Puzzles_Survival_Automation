@@ -303,6 +303,15 @@
   rejection, Claim separation, and zero dispatch. Module remains downstream; no live or persistent
   state changed.
 
+## 2026-07-14 Daily Module enhancement adapter
+
+- Extended `tasks/daily_enhancement.py` with selected Daily `enhance_module` ownership over the
+  shared Module contract. It requires exact equipped Module/one-star-material semantics and a
+  same-day Daily 0/1 successor; enhancement transport remains evidence-gated.
+- Five focused tests cover Module/Gear/Chip distinction, material guards, successor proof,
+  Main/static rejection, Claim separation, and zero dispatch. All enhancement variants remain
+  unregistered and scheduler-ineligible; no live or persistent state changed.
+
 ## 2026-07-14 offline Phase F scheduler contract
 
 - Added `tasks/scheduler.py` with deterministic serializable task state and a one-pulse candidate

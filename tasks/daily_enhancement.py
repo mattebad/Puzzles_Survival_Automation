@@ -17,6 +17,7 @@ from .enhancement import (
 DAILY_ENHANCEMENT_OBJECTIVES = {
     "gear": "enhance_gear",
     "chip": "enhance_chip",
+    "module": "enhance_module",
 }
 
 

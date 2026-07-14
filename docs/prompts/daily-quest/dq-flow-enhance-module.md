@@ -17,7 +17,9 @@ Tests: family sharing without duplicate ownership, module/gear/chip distinction,
 replay, cardinality, successor proof, Main negative, registration and scheduler dormancy. Bliss
 native evidence required; GnBots is provenance only. Future navigation read-only. Prohibit ADB,
 worker/VM, leases, journal migration, live input/evidence, registration, scheduler eligibility.
-Current boundary: shared `tasks/enhancement.py` now implements Module ownership and one-star
-material guards; promotion still requires fresh Bliss-native Module evidence. Update docs/matrix/
+Current boundary: shared `tasks/enhancement.py` plus `tasks/daily_enhancement.py` now implement
+selected-Daily Module ownership, one-star material guards, one-enhancement replay, and Daily 0/1
+successor proof; promotion still requires fresh Bliss-native Module evidence. Tests:
+`tests/test_enhance_module.py` and `tests/test_daily_enhancement_module.py`. Update docs/matrix/
 status when contract changes. Continue offline. Commit: `feat(tasks): complete Module enhancement
 variant`.

@@ -1621,3 +1621,15 @@ Synthetic replay tests cover Chip/Gear family separation, material guards, exact
 cardinality, transaction specification, Main/static negatives, Claim separation, and zero
 dispatch. Fresh Bliss-native Chip target/material/result evidence remains required; no
 registration or scheduler eligibility is enabled.
+
+## Daily Quest Module enhancement offline boundary (2026-07-14)
+
+`DQ-FLOW-ENHANCE-MODULE` now uses the shared `tasks/daily_enhancement.py` adapter with explicit
+`enhance_module` ownership. It binds one equipped Module, one-star material, exact Enhance
+control, and a same-day positive Module/material successor with Daily 0/1 progress. Gear and Chip
+ownership remain distinct.
+
+Synthetic replay tests cover Module/Gear/Chip family separation, material guards, exact
+one-enhancement cardinality, transaction specification, Main/static negatives, Claim separation,
+and zero dispatch. Fresh Bliss-native Module target/material/result evidence remains required; no
+registration or scheduler eligibility is enabled.
