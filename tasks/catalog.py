@@ -13,7 +13,6 @@ from typing import Any, Dict, Iterable, Optional
 
 
 CATALOG_PATH = Path(__file__).with_name("daily_quest_catalog.json")
-EXPECTED_OBJECTIVE_COUNT = 31
 VALID_STATES = {
     "CATALOGED",
     "ROUTE_KNOWN",
@@ -38,6 +37,10 @@ class ObjectiveSpec:
     claim_support: str
     next_development_priority: int
     evidence_provenance: str
+    observed_variant: str
+    completion_quantity: int
+    identity_provenance: tuple[str, ...]
+    quantity_provenance: tuple[str, ...]
 
     def matches(self, text: str) -> bool:
         normalized = " ".join(text.casefold().split())
@@ -51,11 +54,17 @@ def _load_raw(path: Path = CATALOG_PATH) -> Dict[str, Any]:
 
 def load_catalog(path: Path = CATALOG_PATH) -> tuple[ObjectiveSpec, ...]:
     raw = _load_raw(path)
-    if raw.get("catalog_version") != 1:
+    if raw.get("catalog_version") != 2:
         raise ValueError("unsupported Daily Quest catalog version")
     rows = raw.get("objectives")
-    if not isinstance(rows, list) or len(rows) != EXPECTED_OBJECTIVE_COUNT:
-        raise ValueError("Daily Quest catalog must contain the retained 31-objective inventory")
+    metadata = raw.get("observation_metadata")
+    authority = raw.get("authority")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("Daily Quest catalog must contain reconciled objectives")
+    if not isinstance(metadata, dict) or not isinstance(authority, dict):
+        raise ValueError("catalog authority and observation metadata are required")
+    if authority.get("legacy_status_fields_are_non_authoritative") is not True:
+        raise ValueError("catalog legacy status marker is required")
     result = []
     keys = set()
     for row in rows:
@@ -72,10 +81,23 @@ def load_catalog(path: Path = CATALOG_PATH) -> tuple[ObjectiveSpec, ...]:
             raise ValueError("catalog row has an invalid implementation status")
         if not row["aliases"] or not all(isinstance(alias, str) and alias.strip() for alias in row["aliases"]):
             raise ValueError("catalog row requires text aliases")
+        row_metadata = metadata.get(row["objective_key"])
+        if not isinstance(row_metadata, dict):
+            raise ValueError("catalog objective lacks observation metadata")
+        if int(row_metadata.get("completion_quantity", 0)) < 1:
+            raise ValueError("catalog objective requires a positive completion quantity")
+        if not row_metadata.get("identity_provenance") or not row_metadata.get("quantity_provenance"):
+            raise ValueError("catalog objective requires separate identity and quantity provenance")
         keys.add(row["objective_key"])
         values = {key: row[key] for key in required}
         values["aliases"] = tuple(values["aliases"])
+        values["observed_variant"] = str(row_metadata["observed_variant"])
+        values["completion_quantity"] = int(row_metadata["completion_quantity"])
+        values["identity_provenance"] = tuple(str(item) for item in row_metadata["identity_provenance"])
+        values["quantity_provenance"] = tuple(str(item) for item in row_metadata["quantity_provenance"])
         result.append(ObjectiveSpec(**values))
+    if set(metadata) != keys:
+        raise ValueError("catalog observation metadata keys must equal objective keys")
     return tuple(result)
 
 

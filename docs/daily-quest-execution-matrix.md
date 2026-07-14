@@ -1,0 +1,90 @@
+# Daily Quest execution matrix
+
+Source of current status: `tasks/daily_quest_execution_matrix.json`.
+Source of objective identity and retained observations:
+`tasks/daily_quest_catalog.json`.
+
+Catalog `implementation_status`, `live_validation_status`, `next_development_priority`, and
+`policy_mode` fields remain legacy observation snapshots. They do not drive implementation,
+promotion, registration, or scheduling. Matrix `scheduler_eligibility` is `false` for every
+objective and support flow during this planning run.
+
+## Reconciled scope
+
+Catalog contains 36 objective keys. Five retained names required distinct semantic treatment:
+
+- `Recom'd Upgrade Vehicle Depot to Lv.23` is a parameterized Vehicle Depot variant of
+  `upgrade_building`.
+- `Clear Ultimate Challenge Stage 110` is `ultimate_challenge`, distinct from Ruins Challenge.
+- `Hunt Lv.5 Zombie x3` is `hunt_zombie`, distinct from Defeat Zombie Lair.
+- `Own Lv.211 hero x3` is `own_hero`, distinct from Upgrade hero.
+- `Attack a player's Headquarters and win` is `attack_headquarters_and_win`.
+
+`Gather Food` and `Gathered Food` reconcile to `gather_food`, gathering/food, target 30,000, with
+identity provenance and quantity provenance recorded separately.
+
+## Current objective state
+
+| Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |
+|---|---|---|---|---|---|---|
+| `upgrade_building` | building_upgrade / generic, Vehicle Depot | `daily_go_to_building` | disabled | disabled | none | DQ-FLOW-BUILDING-UPGRADE |
+| `join_hero_duel` | hero_duel / join | `daily_go_to_hero_duel` | disabled | disabled | none | DQ-FLOW-HERO-DUEL |
+| `upgrade_tech` | tech_upgrade / research | `daily_go_to_tech` | disabled | disabled | none | DQ-FLOW-TECH-UPGRADE |
+| `train_fighter` | training / Fighter | `daily_go_to_training` | disabled | disabled | none | DQ-FLOW-TRAINING |
+| `train_rider` | training / Rider | `daily_go_to_training` | disabled | disabled | none | DQ-FLOW-TRAINING |
+| `train_shooter` | training / Shooter | `daily_go_to_training` | disabled | disabled | none | DQ-FLOW-TRAINING |
+| `train_vehicle` | training / Vehicle | `daily_go_to_training` | disabled | disabled | none | DQ-FLOW-TRAINING |
+| `recruit_noahs_tavern` | recruitment / free single | `daily_go_to_noahs_tavern` | offline contract | evidence-gated | none | DQ-FLOW-RECRUITMENT |
+| `upgrade_hero` | hero_upgrade / upgrade | `daily_go_to_hero` | disabled | disabled | none | DQ-FLOW-HERO-UPGRADE |
+| `defeat_zombie_lair` | zombie_lair / lair | `daily_go_to_zombie_lair` | planned | evidence-gated | none | DQ-FLOW-ZOMBIE-LAIR |
+| `consume_stamina` | stamina / consume | `daily_go_to_stamina_action` | disabled | disabled | none | DQ-FLOW-STAMINA |
+| `consume_ap` | campaign_ap / Sweep, Auto Complete | `daily_go_to_campaign` | planned | evidence-gated | none | DQ-FLOW-CAMPAIGN-AP |
+| `help_allies` | alliance_help / Help All, individual | `daily_go_to_speedup_help` | live validated | live validated | `alliance-help` | DQ-FLOW-ALLIANCE-HELP |
+| `buy_box` | purchases / box | `daily_go_to_purchase` | disabled | disabled | none | DQ-FLOW-PURCHASES |
+| `gather_food` | gathering / food, 30,000 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
+| `gather_wood` | gathering / wood, 30,000 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
+| `gather_steel` | gathering / steel, 6,000 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
+| `gather_gas` | gathering / gas, 1,500 | `daily_go_to_world` | planned | evidence-gated | none | DQ-FLOW-GATHERING |
+| `boost_resource_building_output` | resource_building_boost / any resource | `daily_go_to_resource_building` | disabled | disabled | none | DQ-FLOW-RESOURCE-BOOST |
+| `ruins_shop_purchase` | purchases / Ruins Shop | `daily_go_to_ruins_shop` | disabled | disabled | none | DQ-FLOW-PURCHASES |
+| `rare_earth_shop_purchase` | purchases / Rare Earth Shop | `daily_go_to_rare_earth_shop` | disabled | disabled | none | DQ-FLOW-PURCHASES |
+| `alliance_shop_purchase` | purchases / Alliance Shop | `daily_go_to_alliance_shop` | disabled | disabled | none | DQ-FLOW-PURCHASES |
+| `speedup_using_items` | speedups / 180 minutes | `daily_go_to_speedup` | disabled | disabled | none | DQ-FLOW-SPEEDUP |
+| `bioenhancer_research` | bioenhancer / one free | `daily_go_to_bioenhancer` | planned | evidence-gated | none | DQ-FLOW-BIOENHANCER |
+| `craft_nanoweapon` | nanoweapon / Craft Weapon | `daily_go_to_nanoweapon` | planned | evidence-gated | none | DQ-FLOW-NANOWEAPON |
+| `personal_might_praise` | personal_might_praise / one Praise | `daily_go_to_personal_might` | live validated | live validated | `praise` | DQ-FLOW-PERSONAL-MIGHT-PRAISE |
+| `enhance_chip` | enhancement / Chip | `daily_go_to_chip` | planned | evidence-gated | none | DQ-FLOW-ENHANCE-CHIP |
+| `enhance_module` | enhancement / Module | `daily_go_to_module` | planned | evidence-gated | none | DQ-FLOW-ENHANCE-MODULE |
+| `enhance_gear` | enhancement / Gear | `daily_go_to_gear` | planned | evidence-gated | none | DQ-FLOW-ENHANCE-GEAR |
+| `donate_alliance_tech` | donation / Alliance Tech | `daily_go_to_alliance_technology` | disabled | disabled | none | DQ-FLOW-DONATION |
+| `supply_depot` | supply_depot / free collection | `daily_go_to_supply_depot` | offline contract | evidence-gated | none | DQ-FLOW-SUPPLY-DEPOT |
+| `ruins_challenge` | challenges / Ruins | `daily_go_to_ruins_challenge` | disabled | disabled | none | DQ-FLOW-CHALLENGES |
+| `ultimate_challenge` | challenges / Ultimate | `daily_go_to_campaign_challenge` | disabled | disabled | none | DQ-FLOW-CHALLENGES |
+| `hunt_zombie` | zombie_hunt / level 5 ×3 | `daily_go_to_world_zombie_hunt` | disabled | disabled | none | DQ-FLOW-ZOMBIE-HUNT |
+| `own_hero` | hero_ownership / level 211 ×3 | `daily_go_to_hero` | disabled | disabled | none | DQ-FLOW-HERO-OWNERSHIP |
+| `attack_headquarters_and_win` | headquarters_pvp / attack and win | `daily_go_to_world_headquarters` | disabled | disabled | none | DQ-FLOW-HEADQUARTERS-PVP |
+
+## Support flows
+
+Support flows are not objective keys and do not affect the catalog count:
+
+- selected Daily-tab recognition and bounded inventory;
+- generalized ordinary Daily row Claim;
+- exact Personal Might Daily Claim;
+- activity milestone-chest Claim;
+- SQLite task-state persistence;
+- one-pulse scheduler;
+- future runtime-integration gate.
+
+Praise, Personal Might Claim, individual Help, and Help All remain live-validated at their proven
+effective boundaries. Existing operator registrations are recorded from checked-in `pnsctl.py`; no
+offline contract is treated as registration. No scheduler eligibility is enabled.
+
+## Per-entry contract
+
+Every matrix entry supplies: route and recognizers; consequence/resource policy; completion target;
+one-dispatch transaction boundary; semantic postcondition; fail-closed recovery; Daily
+reconciliation; independent Claim behavior; dormant persistence; implementation/live/promotion
+state; actual registration; scheduler state; existing implementation/tests; Bliss evidence;
+GnBots provenance; missing work/evidence; product decisions; dependencies; backlog owner; and
+standalone prompt path.

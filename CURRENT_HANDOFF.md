@@ -447,3 +447,25 @@ evidence is discovered. Do not repeat the graphics, display, ADB-isolation, capt
 input-fidelity, restart-matrix, or four-hour observe-only experiments, and do not run RT-014A
 concurrently with any live runtime task. RT-019 and RT-021 are also closed; do not rerun the
 profile-validator or worker-path trials without contradictory evidence.
+
+## 2026-07-14 Daily Quest scope and planning authority
+
+- Current Daily Quest identity is `tasks/daily_quest_catalog.json`; current implementation,
+  evidence, promotion, registration, persistence, and scheduler status is
+  `tasks/daily_quest_execution_matrix.json`.
+- Reconciliation proves 36 objective keys. `Gather Food` and `Gathered Food` are
+  `gather_food`, gathering/food, quantity 30,000. Identity provenance points to the retained
+  Daily continuation and generalized Claim fixture; quantity provenance points to the retained
+  `current/30000` observation and catalog planning source. Identity and quantity provenance are
+  stored separately.
+- Vehicle Depot is a parameterized `upgrade_building` variant. Ultimate Challenge, Hunt Zombie,
+  Own Hero, and Headquarters attack/win are distinct keys because their semantics differ from
+  Ruins Challenge, Zombie Lair, Hero Upgrade, and generic building actions.
+- Proven current statuses remain: Personal Might Praise live validated; exact Personal Might
+  Daily Claim live validated support; individual Help and Help All live validated; canonical Help
+  route `daily_go_to_speedup_help`. Existing operator registrations remain unchanged.
+- Generalized Daily Claim, milestone Claim, Supply Depot, free Recruitment, persistence, and
+  scheduler are offline contracts/infrastructure. No offline contract implies registration.
+- Every matrix objective and support flow remains scheduler-ineligible. No worker, VM, ADB, lease,
+  journal migration, live task-state row, evidence capture, or gameplay input is authorized in
+  this planning run.

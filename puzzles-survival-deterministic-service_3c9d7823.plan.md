@@ -1442,3 +1442,28 @@ Phase F scheduler contract through `SQLiteTaskStateRepository`, persists bounded
 state, and preserves unresolved blocking across restart. Only explicit positive reconciliation can
 reach `DONE`. The adapter has no transport path and does not replace the action journal; worker
 wiring and Phase E live promotion remain gated.
+
+## Daily Quest planning authority correction (2026-07-14)
+
+The active Daily Quest roadmap is represented by
+`tasks/daily_quest_execution_matrix.json`, `docs/daily-quest-execution-matrix.md`,
+`docs/daily-quest-handler-roadmap.md`, and the DQ records appended to `BACKLOG.md`.
+`tasks/daily_quest_catalog.json` owns only reconciled identity, aliases, observed variants,
+progress/quantity, source inventories, and provenance. Its mutable status fields are legacy
+snapshots and are non-authoritative.
+
+The reconciled catalog contains 36 objective keys. Gather Food/Gathered Food is
+`gather_food`, quantity 30,000, with separate identity and quantity provenance. Vehicle Depot is
+a parameterized building-upgrade variant. Ultimate Challenge, Hunt Zombie, Own Hero, and
+Headquarters attack/win are separate keys because their semantics differ from Ruins Challenge,
+Zombie Lair, Hero Upgrade, and generic building upgrade.
+
+Main Quest Claim remains outside active implementation, plan, backlog, matrix, handler-status,
+registry, scheduler, and prompt scope. Generic Daily Claim, exact Personal Might Daily Claim,
+milestone Claim, and objective execution remain separate contracts.
+
+Existing validated operator registrations are preserved for Alliance Help, Personal Might Praise,
+and exact Personal Might Daily Claim. All matrix scheduler eligibility is false. Persistence and
+one-pulse scheduler code remain dormant offline infrastructure. No new registration, worker
+wiring, task-state row, lease, journal migration, ADB operation, evidence capture, or gameplay
+input is part of this planning boundary.

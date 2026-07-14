@@ -1,42 +1,55 @@
-# Daily Quest handler status matrix
+# Daily Quest handler status
 
-Source: `tasks/daily_quest_catalog.json`, seeded from the complete 2026-07-13 inventory. A
-runtime alias can match a catalog row but cannot change its policy or consequence class.
+Current status authority: `tasks/daily_quest_execution_matrix.json`.
+Objective identity authority: `tasks/daily_quest_catalog.json`.
 
-| Objective key | Handler family | Policy | Implementation | Live status | Priority |
-|---|---|---|---|---|---:|
-| upgrade_building | building_upgrade | disabled | CATALOGED | not started | 31 |
-| join_hero_duel | combat_pvp | disabled | DISABLED_POLICY | not started | 30 |
-| upgrade_tech | research_or_upgrade | disabled | DISABLED_POLICY | not started | 29 |
-| train_fighter | training | disabled | CATALOGED | not started | 20 |
-| train_rider | training | disabled | CATALOGED | not started | 21 |
-| train_shooter | training | disabled | CATALOGED | not started | 22 |
-| train_vehicle | training | disabled | CATALOGED | not started | 23 |
-| recruit_noahs_tavern | recruitment | free-only pending proof | CATALOGED | not started | 6 |
-| upgrade_hero | hero_upgrade | disabled | DISABLED_POLICY | not started | 28 |
-| defeat_zombie_lair | zombie_lair | stamina and level policy | CATALOGED | not started | 13 |
-| consume_stamina | stamina | disabled | DISABLED_POLICY | not started | 12 |
-| consume_ap | campaign_ap | AP budget required | CATALOGED | not started | 11 |
-| help_allies | alliance_help | supervised zero-cost | LIVE_VALIDATED | individual Help validated; lower Help All validated by exact no-request popup | 2 |
-| buy_box | purchase | disabled | DISABLED_POLICY | not started | 27 |
-| gather_wood | gathering | march and World policy | CATALOGED | not started | 14 |
-| gather_steel | gathering | march and World policy | CATALOGED | not started | 15 |
-| gather_gas | gathering | march and World policy | CATALOGED | not started | 17 |
-| boost_resource_building_output | resource_building | disabled | CATALOGED | not started | 26 |
-| ruins_shop_purchase | purchase | disabled | DISABLED_POLICY | not started | 24 |
-| rare_earth_shop_purchase | purchase | disabled | DISABLED_POLICY | not started | 25 |
-| alliance_shop_purchase | purchase | disabled | DISABLED_POLICY | not started | 23 |
-| speedup_using_items | speedup_item | disabled | CATALOGED | not started | 19 |
-| bioenhancer_research | bioenhancer | one free daily only | CATALOGED | not started | 5 |
-| craft_nanoweapon | nanoweapon | free-only pending proof | CATALOGED | not started | 10 |
-| personal_might_praise | praise | cooldown bounded | OFFLINE_TESTED | popup dismissed live; Praise not started | 4 |
-| enhance_chip | enhancement | one-star material only | CATALOGED | not started | 8 |
-| enhance_module | enhancement | one-star material only | CATALOGED | not started | 9 |
-| enhance_gear | enhancement | one-star material only | CATALOGED | not started | 7 |
-| donate_alliance_tech | donation | disabled | DISABLED_POLICY | not started | 32 |
-| supply_depot | supply_depot | free-only; stop when Free disappears | CATALOGED | not started | 3 |
-| ruins_challenge | challenge | disabled | CATALOGED | not started | 18 |
+Catalog status values are retained legacy observation snapshots only. This file mirrors matrix
+status; it must not become an independent status source. All scheduler eligibility is false.
 
-The ordinary completed-row Claim transaction is handled by the existing safe-action core and is
-not a new inventory row. Tier-4 spending, PvP, uncontrolled upgrades, purchases, and unknown-cost
-actions remain disabled regardless of their Go route.
+## Live-validated
+
+- `help_allies`: individual Help and actual lower Help All; canonical route
+  `daily_go_to_speedup_help`; existing operator task `alliance-help`.
+- `personal_might_praise`: exact current-frame Praise route; existing operator task `praise`.
+- Support flow `personal_might_daily_claim`: exact row-local Claim; existing operator task
+  `personal-might-claim`.
+
+These registrations are preserved. They do not imply scheduler eligibility or unattended
+promotion. Praise completion stops before Claim.
+
+## Offline implemented
+
+- Generalized Daily Claim contract: `tasks/available_daily_claim.py`.
+- Milestone Claim contract: `tasks/activity_milestones.py`.
+- Supply Depot free contract: `tasks/supply_depot.py`.
+- Free Recruitment contract: `tasks/free_recruitment.py`.
+- Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
+  `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
+
+These contracts remain unregistered and evidence-gated where matrix says so.
+
+## Evidence-gated planned flows
+
+`bioenhancer_research`, `recruit_noahs_tavern`, `supply_depot`, `craft_nanoweapon`,
+`consume_ap`, `defeat_zombie_lair`, `gather_food`, `gather_wood`, `gather_steel`, `gather_gas`,
+`enhance_gear`, `enhance_chip`, and `enhance_module` require fresh Bliss-native target,
+cost/resource, and positive-postcondition evidence before promotion.
+
+## Policy-disabled flows
+
+`upgrade_building`, `upgrade_tech`, `train_fighter`, `train_rider`, `train_shooter`,
+`train_vehicle`, `upgrade_hero`, `consume_stamina`, `buy_box`, all shop purchases,
+`boost_resource_building_output`, `donate_alliance_tech`, `speedup_using_items`,
+`ruins_challenge`, `ultimate_challenge`, `hunt_zombie`, `own_hero`,
+`attack_headquarters_and_win`, and `join_hero_duel` remain offline-only, unregistered, and
+scheduler-ineligible.
+
+## Separation rules
+
+- Main Quest Claim is outside active scope.
+- Generic Daily row Claim, Personal Might Claim, and milestone Claim are separate flows.
+- Objective completion never authorizes Claim.
+- Static GnBots geometry and calibration output never authorize input.
+- Existing runtime registrations are not inferred from offline modules.
+- No new runtime registration, scheduler eligibility, worker wiring, live task-state row, lease,
+  journal migration, ADB operation, or gameplay input occurs in this planning run.

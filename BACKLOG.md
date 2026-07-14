@@ -1230,3 +1230,415 @@ repository or command history. Launching `com.global.ztmslg` normally opens the 
 Mall screen; startup normalization must positively recognize Cash Mall, recapture immediately,
 send at most one authorized no-spend top-left back-arrow input, and positively recognize Home/Base
 afterward. Cash Mall is not an authentication hard stop.
+
+## Daily Quest execution backlog — matrix authority
+
+Added 2026-07-14. `tasks/daily_quest_execution_matrix.json` owns current implementation, evidence,
+promotion, registration, persistence, and scheduler status. Catalog status fields are legacy
+observations only. Every task below is offline-first, preserves Claim separation, and has
+`scheduler_eligibility: false`. No task authorizes ADB, worker wiring, live state, or gameplay input
+during this planning boundary.
+
+Each record uses this acceptance vocabulary: source/target identities must be current-frame-bound;
+transaction means exactly one bounded dispatch; postcondition must be semantic and positive;
+recovery stops on ambiguity and reconciles unresolved state; Daily reconciliation never implies
+Claim; persistence remains dormant; registration must match checked-in operator state; Bliss evidence
+must be native; GnBots geometry is provenance only; tests are deterministic offline tests.
+
+### DQ-CATALOG-RECONCILIATION
+- Covered: all 36 catalog keys; variants include Food, Vehicle Depot, Ultimate, Hunt Zombie, Own Hero, and Headquarters-win wording.
+- Exclusions: Main Quest Claim, unretained names, semantic merging of materially different actions.
+- Dependencies/routes: retained inventories → normalized catalog; no runtime route.
+- Source/target/policy: source is every retained inventory and provenance record; target is canonical key/alias/variant; consequence and resource policy stay observational.
+- Offline acceptance/tests: unique keys, aliases, 36 evidence records, separate identity/quantity provenance, dynamic count, no literal count constant; `tests/test_catalog_and_pnsctl.py`.
+- Bliss/live boundary: read-only files only; no capture, ADB, worker, lease, journal migration, or input.
+- Transaction/postcondition/recovery: none; rejected conflicts remain explicit records.
+- Claim/persistence/registration/scheduler: Claim separate; no state rows; not registered; false.
+- Promotion/unlocks: `OFFLINE_ONLY`; unlocks coverage matrix and family tasks.
+
+### DQ-COVERAGE-MATRIX
+- Covered: one matrix owner for every catalog key plus support flows.
+- Variants: reusable family sharing declared; duplicate ownership prohibited unless explicit shared family.
+- Exclusions: support flows counted as objectives, objective completion implying Claim, Main Claim.
+- Dependencies/routes: catalog reconciliation → matrix; route names must match catalog and handler status.
+- Source/target/policy: matrix records recognizers, consequence class, resource policy, transaction, semantic postcondition, and recovery.
+- Offline acceptance/tests: key parity, required field completeness, closed promotion/registration enums, all scheduler flags false; planning tests.
+- Bliss/live boundary: matrix construction only; no runtime registration or task-state creation.
+- Transaction/postcondition/recovery: every consequential entry has all three fields; no dispatch permitted by matrix.
+- Claim/persistence/registration/scheduler: separate Claim support; dormant persistence; actual registration snapshot; false.
+- Promotion/unlocks: `OFFLINE_ONLY`; unlocks roadmap and prompts.
+
+### DQ-FOUNDATION-DAILY-INVENTORY
+- Covered: selected Daily-tab recognition, bounded inventory, overlap reconciliation, current game-day evidence.
+- Variants: selected tab, Main-negative, clipped-row abstention, scroll overlap.
+- Exclusions: Main Quest Claim, row Claim, Go dispatch, gameplay completion.
+- Dependencies/routes: M6 assets; Home → Quest → selected Daily; local ROI source/target/successor.
+- Source/target/policy: Bliss Daily header/tab and row identities; zero consequential action policy.
+- Offline acceptance/tests: replay selected Daily and negative frames; no duplicate rows; current reset identity required; `tests/test_daily_quest_planning.py` and existing M6 tests.
+- Bliss/live boundary: preserve existing evidence only; no fresh runtime interaction.
+- Transaction/postcondition/recovery: navigation-only contracts; stop on unknown/ambiguous frame.
+- Claim/persistence/registration/scheduler: Claim separate; dormant state; no registration; false.
+- Promotion/unlocks: `LIVE_VALIDATED` support; unlocks Claim and objective owners.
+
+### DQ-CLAIM-DAILY
+- Covered: generalized ordinary Daily row Claim and exact Personal Might Claim support.
+- Variants: generalized row-local Claim; Personal Might exact row.
+- Exclusions: Main Quest Claim, milestone chest, Go, objective completion as Claim proof.
+- Dependencies/routes: selected Daily inventory → exact row-local control.
+- Source/target/policy: selected Daily, complete same objective, exact `CLAIM`, free/zero/one cost, row-local target; no static geometry.
+- Offline acceptance/tests: synthetic positive/Go/milestone/clipped/cost/overlay/reset/postcondition cases; existing Claim tests and planning tests.
+- Bliss/live boundary: generalized evidence-gated; Personal Might registration preserved; no new registration/input.
+- Transaction/postcondition/recovery: `CLAIM_DAILY_QUEST`, one input; same row disappears or points increase; unresolved blocks retry.
+- Claim/persistence/registration/scheduler: this is Claim support, never implied by objective; journal authoritative; actual operator registration only for Personal Might; false.
+- Promotion/unlocks: generalized `EVIDENCE_GATED`; Personal Might `LIVE_VALIDATED`; unlocks runtime gate.
+
+### DQ-CLAIM-MILESTONE
+- Covered: ready activity milestone chest support.
+- Variants: each observed point threshold remains a milestone variant, not row Claim.
+- Exclusions: ordinary row Claim, Main Claim, locked/static chest, unknown reward.
+- Dependencies/routes: Daily inventory → activity milestone panel.
+- Source/target/policy: exact ready chest, panel-local target, explicit zero cost, current day/profile.
+- Offline acceptance/tests: ready/locked/static/wrong-panel/cost/overlay/reset/unchanged cases; `tests/test_activity_milestones.py`.
+- Bliss/live boundary: no fresh ready chest evidence; no registration or input.
+- Transaction/postcondition/recovery: `CLAIM_ACTIVITY_MILESTONE`, one input; chest opens or points increase; stop/reconcile otherwise.
+- Claim/persistence/registration/scheduler: separate milestone Claim; dormant state; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED`; unlocks runtime gate only after Bliss pair.
+
+### DQ-PERSISTENCE
+- Covered: task-state persistence alongside SafetyStore.
+- Variants: schema-v1/v2 forward migration, revision/completion-key guards, audit event.
+- Exclusions: action-journal replacement, live migration, worker wiring, task row creation.
+- Dependencies/routes: DQ-SCHEDULER contract → `safe_action_core/store.py` and `task_state.py`.
+- Source/target/policy: serialized task snapshot and repository; no gameplay consequence policy.
+- Offline acceptance/tests: round-trip, migration, monotonic revision, completion-key rejection; `tests/test_task_state_store.py`.
+- Bliss/live boundary: offline SQLite fixtures only; no authoritative journal touched.
+- Transaction/postcondition/recovery: repository mutation is deterministic; crash/restart reload preserves unresolved block.
+- Claim/persistence/registration/scheduler: persistence support only; no registry; false.
+- Promotion/unlocks: `OFFLINE_ONLY`; unlocks future integration gate.
+
+### DQ-SCHEDULER
+- Covered: one-pulse deterministic selector and persisted adapter.
+- Variants: due, backoff, blocked, unresolved, positive reconciliation.
+- Exclusions: scheduler daemon, eligibility enablement, transport, live task rows.
+- Dependencies/routes: DQ-PERSISTENCE; state snapshot → one candidate.
+- Source/target/policy: game-day, lease-valid, unresolved-free gates; no action authorization.
+- Offline acceptance/tests: deterministic ordering, one candidate, wrong day, lease, unresolved, failed-safe, completion key; `tests/test_scheduler.py`, `tests/test_scheduler_sqlite.py`.
+- Bliss/live boundary: dormant offline infrastructure; no worker or lease.
+- Transaction/postcondition/recovery: records result only; DONE requires verified matching key; unresolved remains globally blocking.
+- Claim/persistence/registration/scheduler: no Claim authority; persisted support; not registered; false.
+- Promotion/unlocks: `OFFLINE_ONLY`; unlocks runtime gate review.
+
+### DQ-RUNTIME-INTEGRATION-GATE
+- Covered: future explicit registration, fresh game-day, journal compatibility, lease, unresolved blocking, first-live migration/rollback, per-flow promotion.
+- Variants: operator registration versus runtime registration.
+- Exclusions: all live integration during this run, new registration, task rows, scheduler enablement.
+- Dependencies/routes: all promoted flow tasks → worker integration gate.
+- Source/target/policy: checked-in registry/pnsctl entry, current game-day, locked profile, central policy.
+- Offline acceptance/tests: mocked registration parity, schema-v1/v2, lease and unresolved matrices, rollback; planning tests.
+- Bliss/live boundary: future gate only; no ADB/worker/VM interaction.
+- Transaction/postcondition/recovery: no transaction now; future dispatch requires exact source/target/successor and rollback on mismatch.
+- Claim/persistence/registration/scheduler: Claim independently authorized; no migration now; no current registration; false.
+- Promotion/unlocks: `OFFLINE_ONLY`; unlocks only after explicit future authorization.
+
+### DQ-FLOW-ALLIANCE-HELP
+- Covered: `help_allies`; individual Help and Help All variants.
+- Exclusions: Claim, donation, purchase, generic popup, retry after unresolved.
+- Dependencies/routes: inventory → `daily_go_to_speedup_help` → Alliance Help.
+- Source/target/policy: literal Help All lower target preferred; individual Help fallback; zero-cost.
+- Offline acceptance/tests: exact ROI separation, action kind, one-pulse postcondition, no-effect/unresolved; `tests/test_alliance_help.py`.
+- Bliss/live boundary: live validated evidence preserved; no new input in this run.
+- Transaction/postcondition/recovery: one `ALLIANCE_HELP_ALL` or `ALLIANCE_HELP_ONE`; request/control/no-request state changes; unresolved stops.
+- Claim/persistence/registration/scheduler: completion never implies Claim; existing journal; `REGISTERED_OPERATOR`; false.
+- Promotion/unlocks: `LIVE_VALIDATED`; unlocks future Daily progress review.
+
+### DQ-FLOW-PERSONAL-MIGHT-PRAISE
+- Covered: `personal_might_praise`, one Praise variant.
+- Exclusions: Claim inside Praise handler, static GnBots geometry, repeat/cooldown.
+- Dependencies/routes: inventory → `daily_go_to_personal_might`; existing route anchors.
+- Source/target/policy: current Personal Might leaderboard and rank-one gold Praise; zero cost/cooldown bound.
+- Offline acceptance/tests: route, popup, target, postcondition, selected Daily reconciliation; `tests/test_personal_might_praise.py`.
+- Bliss/live boundary: live validated operator flow preserved; no rerun or new input.
+- Transaction/postcondition/recovery: one `PRAISE_PERSONAL_MIGHT`; control/count/Daily progress changes; stop on ambiguity.
+- Claim/persistence/registration/scheduler: explicit separate Claim; action journal; `REGISTERED_OPERATOR`; false.
+- Promotion/unlocks: `LIVE_VALIDATED`; unlocks only future unattended gate.
+
+### DQ-FLOW-BIOENHANCER
+- Covered: `bioenhancer_research`; one free research variant.
+- Exclusions: paid/10x research, Nova Praise, premium actions.
+- Dependencies/routes: inventory → Bioenhancer route.
+- Source/target/policy: selected row, free Research 1x, known zero cost.
+- Offline acceptance/tests: semantic free/cost/overlay/postcondition contract and replay.
+- Bliss/live boundary: evidence-gated; no registration/input.
+- Transaction/postcondition/recovery: one free research; result/cooldown and Daily progress; stop on free disappearance.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED`; unlocks only after native pair.
+
+### DQ-FLOW-SUPPLY-DEPOT
+- Covered: `supply_depot`; free collection variant.
+- Exclusions: premium/unknown reward, vendor selector, blind triple tap.
+- Dependencies/routes: inventory → Supply Depot panel.
+- Source/target/policy: exact free target, known non-premium reward, zero cost.
+- Offline acceptance/tests: `tests/test_supply_depot.py` positive/negative contract suite.
+- Bliss/live boundary: evidence-gated; no registration/input.
+- Transaction/postcondition/recovery: one free collect; target disappears/confirmation; stop on unchanged/premium.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED`; unlocks runtime gate after native pair.
+
+### DQ-FLOW-RECRUITMENT
+- Covered: `recruit_noahs_tavern`; free single variant repeated to target quantity.
+- Exclusions: 10x, premium, unknown confirmation, vendor selector.
+- Dependencies/routes: inventory → Noah's Tavern.
+- Source/target/policy: explicit FREE mode/banner, quantity one, zero cost.
+- Offline acceptance/tests: `tests/test_free_recruitment.py` positive/negative/result count.
+- Bliss/live boundary: evidence-gated; no registration/input.
+- Transaction/postcondition/recovery: one `RECRUIT_FREE`; result identity/count increase; stop on ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED`; unlocks after native pair.
+
+### DQ-FLOW-NANOWEAPON
+- Covered: `craft_nanoweapon`; Craft Weapon variant.
+- Exclusions: Material Production, Inherit Weapon, long/expensive craft, unknown materials.
+- Dependencies/routes: inventory → Gear Factory → Nanoweapon.
+- Source/target/policy: exact Craft Weapon target and free/allowlisted materials.
+- Offline acceptance/tests: recognizer/transaction/postcondition mocks; static reference rejection.
+- Bliss/live boundary: evidence-gated; no registration/input.
+- Transaction/postcondition/recovery: one craft; timer/result and Daily progress; stop on material/cost ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED` only if free policy is proven.
+
+### DQ-FLOW-ENHANCE-GEAR
+- Covered: `enhance_gear`; Gear variant.
+- Exclusions: Auto Select, >1-star materials, Promote/Modify/Replace/Unequip, premium.
+- Dependencies/routes: inventory → Commander Info → Gear.
+- Source/target/policy: equipped Gear, Enhance, one-star material, quantity one, exact Confirm.
+- Offline acceptance/tests: shared enhancement family contract with route-specific fixtures.
+- Bliss/live boundary: evidence-gated; no registration/input.
+- Transaction/postcondition/recovery: one enhancement; Gear level/material change; stop on target/material/quantity ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED`; unlocks other enhancement variants through family sharing.
+
+### DQ-FLOW-ENHANCE-CHIP
+- Covered: `enhance_chip`; Chip variant.
+- Exclusions: same enhancement unsafe actions and materials as Gear.
+- Dependencies/routes: DQ-FLOW-ENHANCE-GEAR shared engine → Commander Info → Chip.
+- Source/target/policy: equipped Chip, one-star material, quantity one.
+- Offline acceptance/tests: shared engine plus Chip recognizer/postcondition fixture.
+- Bliss/live boundary: evidence-gated; no registration/input.
+- Transaction/postcondition/recovery: one enhancement; Chip state changes; stop on ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED`; family-shared implementation.
+
+### DQ-FLOW-ENHANCE-MODULE
+- Covered: `enhance_module`; Module variant.
+- Exclusions: same enhancement unsafe actions and materials as Gear.
+- Dependencies/routes: DQ-FLOW-ENHANCE-GEAR shared engine → Commander Info → Module.
+- Source/target/policy: equipped Module, one-star material, quantity one.
+- Offline acceptance/tests: shared engine plus Module recognizer/postcondition fixture.
+- Bliss/live boundary: evidence-gated; no registration/input.
+- Transaction/postcondition/recovery: one enhancement; Module state changes; stop on ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED`; family-shared implementation.
+
+### DQ-FLOW-CAMPAIGN-AP
+- Covered: `consume_ap`; Sweep/Auto Complete variants.
+- Exclusions: uncontrolled battle, refill, unknown AP cost, Ultimate Challenge dispatch.
+- Dependencies/routes: inventory → Campaign.
+- Source/target/policy: readable AP, allowlisted stage, exact Sweep/Auto Complete.
+- Offline acceptance/tests: AP/cost/result/postcondition mocks; no live stage use.
+- Bliss/live boundary: evidence-gated; no registration/input.
+- Transaction/postcondition/recovery: one known AP transaction; AP delta/result/Daily progress; unresolved on timeout.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED`; unlocks Challenge policy review.
+
+### DQ-FLOW-WORLD-STAMINA-ENGINE
+- Covered: shared world, map, march, stamina, and tile primitives.
+- Variants: map toggle, search, occupancy, march capacity, level recognition.
+- Exclusions: vendor selector, coordinate-only taps, generic popup sweep, unknown level.
+- Dependencies/routes: inventory → World; all zombie/gathering flows depend on it.
+- Source/target/policy: Bliss-native map/node/march anchors; world/stamina policy.
+- Offline acceptance/tests: replay/mocks for map, tile, march, queue, no-march and stale-state rejection.
+- Bliss/live boundary: no fresh world evidence or live input.
+- Transaction/postcondition/recovery: primitives do not complete objectives; each action requires positive successor; stop after bounded failure.
+- Claim/persistence/registration/scheduler: no Claim; dormant; not registered; false.
+- Promotion/unlocks: `OFFLINE_ONLY`; unlocks Zombie Lair, Hunt Zombie, Stamina, Gathering.
+
+### DQ-FLOW-ZOMBIE-LAIR
+- Covered: `defeat_zombie_lair`; Lair variant.
+- Exclusions: level 60, unknown level, arbitrary combat, Claim.
+- Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE → recognized Lair.
+- Source/target/policy: exact row, lair level, stamina, march slot, join.
+- Offline acceptance/tests: level/slot/cost/result mocks and fail-closed negatives.
+- Bliss/live boundary: evidence-gated; no registration/input.
+- Transaction/postcondition/recovery: one join; positive participation/result; unresolved on unknown combat.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED`; requires explicit level/stamina policy.
+
+### DQ-FLOW-STAMINA
+- Covered: `consume_stamina`; shared stamina-consume variant.
+- Exclusions: implicit substitution by Lair, unknown action, resource refill.
+- Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE.
+- Source/target/policy: exact Daily row, known stamina cost, approved action.
+- Offline acceptance/tests: stamina delta and objective progress mocks.
+- Bliss/live boundary: disabled until explicit policy; no registration/input.
+- Transaction/postcondition/recovery: one known stamina action; positive stamina delta; stop on cost/result ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; product decision required.
+
+### DQ-FLOW-GATHERING
+- Covered: `gather_food`, `gather_wood`, `gather_steel`, `gather_gas`.
+- Variants: Food 30000, Wood 30000, Steel 6000, Gas 1500; one parameterized engine.
+- Exclusions: occupied nodes, existing march override, coordinate-only vendor geometry.
+- Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE → World Search → node → march.
+- Source/target/policy: exact resource row, resource node identity, free/known march policy.
+- Offline acceptance/tests: resource-type, node occupancy, march capacity, outbound queue, recovery mocks.
+- Bliss/live boundary: evidence-gated; no registration/input.
+- Transaction/postcondition/recovery: one gather march; outbound/positive gather and Daily progress; stop on weak disappearance.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `EVIDENCE_GATED`; Food provenance explicitly tracked.
+
+### DQ-FLOW-TRAINING
+- Covered: `train_fighter`, `train_rider`, `train_shooter`, `train_vehicle`.
+- Variants: four troop types, shared queue/quantity engine.
+- Exclusions: automatic resource packs, oversized batches, unknown tier.
+- Dependencies/routes: inventory → troop building/training screen.
+- Source/target/policy: exact troop type, minimum tier, quantity 250, known cost/queue.
+- Offline acceptance/tests: variant recognizers, exact quantity, queue postcondition, no-refill mocks.
+- Bliss/live boundary: disabled pending resource policy; no registration/input.
+- Transaction/postcondition/recovery: one bounded train transaction; queue quantity; stop on cost/queue ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; product/tier decision required.
+
+### DQ-FLOW-BUILDING-UPGRADE
+- Covered: `upgrade_building`; generic and Vehicle Depot parameterized variants.
+- Exclusions: automatic resource packs, unknown queue, strategic target without allowlist.
+- Dependencies/routes: inventory → named building/radial menu → Upgrade.
+- Source/target/policy: exact building identity, queue, cost, free/allowlist.
+- Offline acceptance/tests: named target and queue mocks; old-anchor and cost negatives.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: one upgrade; queue/progress; stop on unexpected resource dialog.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; policy decision required.
+
+### DQ-FLOW-TECH-UPGRADE
+- Covered: `upgrade_tech`; Research variant.
+- Exclusions: automatic resource packs, unknown geometry, strategic research without allowlist.
+- Dependencies/routes: inventory → research route.
+- Source/target/policy: exact technology, queue, cost, resource policy.
+- Offline acceptance/tests: research target/queue/cost mocks.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: one upgrade; research queue/progress; stop on ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; policy decision required.
+
+### DQ-FLOW-HERO-UPGRADE
+- Covered: `upgrade_hero`; upgrade variant.
+- Exclusions: hero acquisition, premium/material guess, unrelated ownership objective.
+- Dependencies/routes: inventory → Hero screen.
+- Source/target/policy: exact hero, upgrade control, known materials/cost.
+- Offline acceptance/tests: target/material/level postcondition mocks.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: one upgrade; hero state changes; stop on ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; product decision required.
+
+### DQ-FLOW-HERO-OWNERSHIP
+- Covered: `own_hero`; level-211 x3 variant.
+- Exclusions: acquisition/summon, Upgrade hero substitution, any consequential input.
+- Dependencies/routes: inventory → read-only Hero roster.
+- Source/target/policy: exact hero identity/level and ownership evidence.
+- Offline acceptance/tests: read-only roster parser and identity negatives.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: no action planned; positive ownership observation only; stop on unknown.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; explicit product decision required.
+
+### DQ-FLOW-PURCHASES
+- Covered: `buy_box`, `ruins_shop_purchase`, `rare_earth_shop_purchase`, `alliance_shop_purchase`.
+- Variants: box, Ruins, Rare Earth, Alliance Shop; shared allowlist engine.
+- Exclusions: premium/unknown offers, auto purchase, static vendor selectors.
+- Dependencies/routes: inventory → shop-specific route.
+- Source/target/policy: exact item, currency, quantity one, allowlisted cost.
+- Offline acceptance/tests: offer/currency/confirmation/postcondition mocks.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: one purchase; item/currency delta; stop on any offer change.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; product purchase policy required.
+
+### DQ-FLOW-DONATION
+- Covered: `donate_alliance_tech`.
+- Variants: resource/tech target only after allowlist.
+- Exclusions: unknown resource, broad donation, uncontrolled repeated donation.
+- Dependencies/routes: inventory → Alliance Technology.
+- Source/target/policy: exact tech and resource amount; disabled policy.
+- Offline acceptance/tests: donation count/resource delta mocks.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: one donation; positive count/resource delta; stop on mismatch.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; resource policy decision required.
+
+### DQ-FLOW-SPEEDUP
+- Covered: `speedup_using_items`; 180-minute item variant.
+- Variants: item type and timer target, both allowlisted.
+- Exclusions: premium currency, arbitrary target, item waste.
+- Dependencies/routes: inventory → existing timer/Speedup.
+- Source/target/policy: exact timer, item, quantity, known cost.
+- Offline acceptance/tests: item/timer delta and quantity mocks.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: one speedup; timer/inventory change; stop on unknown.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; allowlist decision required.
+
+### DQ-FLOW-CHALLENGES
+- Covered: `ruins_challenge`, `ultimate_challenge`; separate Ruins and Ultimate variants.
+- Exclusions: treating variants as aliases, uncontrolled combat, AP/premium use.
+- Dependencies/routes: inventory → challenge-specific routes.
+- Source/target/policy: exact challenge identity, entry control, cost/AP policy.
+- Offline acceptance/tests: route/entry/result mocks and cross-variant identity tests.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: one entry; positive entry/result; stop on combat/unknown.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; challenge policy required.
+
+### DQ-FLOW-HERO-DUEL
+- Covered: `join_hero_duel`; three-entry PvP variant.
+- Exclusions: lineup changes, opponent selection, premium, autonomous PvP.
+- Dependencies/routes: inventory → Hero Duel.
+- Source/target/policy: exact entry, opponent/consequence policy.
+- Offline acceptance/tests: identity/entry/postcondition mocks; no live frames.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: one entry only if future policy allows; confirmed participation; stop on ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; explicit PvP decision required.
+
+### DQ-FLOW-RESOURCE-BOOST
+- Covered: `boost_resource_building_output`; any-resource-building variant.
+- Exclusions: unknown building, premium boost, uncontrolled duration.
+- Dependencies/routes: inventory → resource building.
+- Source/target/policy: exact building, boost control, duration/cost.
+- Offline acceptance/tests: boost timer/target/postcondition mocks.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: one boost; timer/state change; stop on ambiguity.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; resource-building boost policy required.
+
+### DQ-FLOW-ZOMBIE-HUNT
+- Covered: `hunt_zombie`; level-5 ×3 variant.
+- Exclusions: Zombie Lair aliasing, level guesses, arbitrary combat, level 60.
+- Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE → World zombie hunt.
+- Source/target/policy: exact Hunt Zombie row, level-5 target, stamina/march policy.
+- Offline acceptance/tests: distinct Hunt-vs-Lair identity, level, march, result mocks.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: one bounded hunt; positive hunt result; stop on unknown.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; explicit zombie/stamina policy required.
+
+### DQ-FLOW-HEADQUARTERS-PVP
+- Covered: `attack_headquarters_and_win`; attack-and-win ×3 variant.
+- Exclusions: any PvP input, target discovery, march/combat automation.
+- Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE only for future read-only route primitives.
+- Source/target/policy: exact Headquarters identity and PvP consequence policy.
+- Offline acceptance/tests: read-only identity and positive-win contract placeholders.
+- Bliss/live boundary: disabled; no registration/input.
+- Transaction/postcondition/recovery: no dispatch planned; future one attack only after explicit authorization; stop on unknown.
+- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Promotion/unlocks: `DISABLED_POLICY`; explicit PvP product decision required.

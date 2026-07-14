@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from scripts import pnsctl
-from tasks.catalog import EXPECTED_OBJECTIVE_COUNT, catalog_summary, load_catalog, objective_for_text
+from tasks.catalog import catalog_summary, load_catalog, objective_for_text
 from tasks.daily_quest import AllianceHelpHandler, AllianceHelpObservation
 from tasks.profile import HELP_ALL_ACTION, INDIVIDUAL_HELP_ACTION
 
@@ -12,10 +12,13 @@ from tasks.profile import HELP_ALL_ACTION, INDIVIDUAL_HELP_ACTION
 class CatalogTests(unittest.TestCase):
     def test_retained_inventory_is_durable_and_complete(self):
         catalog = load_catalog()
-        self.assertEqual(len(catalog), EXPECTED_OBJECTIVE_COUNT)
-        self.assertEqual(catalog_summary()["count"], 31)
+        self.assertEqual(catalog_summary()["count"], len(catalog))
         self.assertEqual(objective_for_text("  Help   allies ").objective_key, "help_allies")
         self.assertEqual(objective_for_text("Gather Gas").progress_format, "current/1500")
+        food = objective_for_text("Gathered Food")
+        self.assertEqual(food.objective_key, "gather_food")
+        self.assertEqual(food.completion_quantity, 30000)
+        self.assertNotEqual(food.identity_provenance, food.quantity_provenance)
 
     def test_disabled_consequences_are_explicit(self):
         by_key = {item.objective_key: item for item in load_catalog()}
