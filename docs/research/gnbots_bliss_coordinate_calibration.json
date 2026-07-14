@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "status": "development-only provisional calibration",
+  "source_profile": {"width": 400, "height": 652, "dpi": 120},
+  "destination_profile": {"width": 800, "height": 1280, "profile_id": "pns-blissos-poc-virgl-800x1280-v1"},
+  "production_authorized": false,
+  "candidate_models": [
+    {"name": "direct-2x", "scale": [2.0, 2.0], "offset": [0.0, 0.0], "rmse_px": 43.294},
+    {"name": "source-top-inset-12", "source_insets": [0, 12, 0, 0], "scale": [2.0, 2.0], "offset": [0.0, 0.0], "rmse_px": 32.385},
+    {"name": "source-bottom-inset-12", "source_insets": [0, 0, 0, 12], "scale": [2.0, 2.0], "offset": [0.0, 0.0], "rmse_px": 43.294},
+    {"name": "independent-axis", "scale": [2.0, 1.963190184], "offset": [0.0, 0.0], "rmse_px": 37.959},
+    {"name": "axis-affine", "scale": [1.976743017, 2.017040381], "offset": [7.474673628, -35.736690231], "rmse_px": 31.422}
+  ],
+  "selection": {
+    "global_model": "direct-2x",
+    "reason": "simplest starting transform; only global candidate that places the Rankings reference point inside its raw OCR target bounds",
+    "limitations": [
+      "global residuals are too large for production authorization",
+      "standard Back requires Bliss-native geometry",
+      "Rankings candidate touches target boundary and is not a safe interior tap",
+      "screen-family corrections require at least two corresponding anchors"
+    ]
+  },
+  "screen_family_corrections": [
+    {
+      "name": "bottom-navigation",
+      "offset": [-3.5, -43.5],
+      "supporting_anchor_ids": ["quest-open", "more-open"],
+      "residual_range_after_px": {"x": [-17.5, 17.5], "y": [-6.5, 6.5]},
+      "production_authorized": false
+    }
+  ],
+  "correspondences": [
+    {
+      "anchor_id": "quest-open",
+      "manifest_id": "GNB-DAILY-QUEST-CLAIMS",
+      "source_point": [158, 621],
+      "observed_bliss_point": [330, 1205],
+      "transformed_global": [316.0, 1242.0],
+      "transformed_with_family_correction": [312.5, 1198.5],
+      "residual": [17.5, 6.5],
+      "total_error_px": 18.668,
+      "bliss_control_roi": [250, 1130, 410, 1280],
+      "inside_control": true,
+      "safely_inside_with_10px_margin": true,
+      "raw_evidence": "evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png",
+      "live_result": "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/home-quest-20260713-002-result.json"
+    },
+    {
+      "anchor_id": "daily-tab",
+      "manifest_id": "GNB-DAILY-QUEST-CLAIMS",
+      "source_point": [200, 57],
+      "observed_bliss_point": [400, 105],
+      "transformed_global": [400.0, 114.0],
+      "residual": [0.0, -9.0],
+      "total_error_px": 9.0,
+      "bliss_control_roi": [300, 70, 500, 140],
+      "inside_control": true,
+      "safely_inside_with_10px_margin": true,
+      "raw_evidence": "evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
+      "live_result": "evidence/sessions/20260712-mvp-quest-to-claim/live-selected-tab-retest-20260713"
+    },
+    {
+      "anchor_id": "more-open",
+      "manifest_id": "GNB-DAILY-LEADERBOARD-PRAISE",
+      "source_point": [376, 623],
+      "observed_bliss_point": [731, 1196],
+      "transformed_global": [752.0, 1246.0],
+      "transformed_with_family_correction": [748.5, 1202.5],
+      "residual": [-17.5, -6.5],
+      "total_error_px": 18.668,
+      "bliss_control_roi": [680, 1130, 800, 1280],
+      "inside_control": true,
+      "safely_inside_with_10px_margin": true,
+      "raw_evidence": "evidence/sessions/20260713-personal-might-praise/live-route-recovery-014/home-to-more-attempt-1-source-002.png",
+      "live_result": "evidence/sessions/20260713-personal-might-praise/live-route-recovery-014/home-to-more-attempt-1-result.json"
+    },
+    {
+      "anchor_id": "rankings-entry",
+      "manifest_id": "GNB-DAILY-LEADERBOARD-PRAISE",
+      "source_point": [312, 569],
+      "observed_bliss_point": [646, 1152],
+      "transformed_global": [624.0, 1138.0],
+      "residual": [22.0, 14.0],
+      "total_error_px": 26.077,
+      "bliss_control_roi": [602, 1138, 690, 1167],
+      "inside_control": true,
+      "safely_inside_with_6px_margin": false,
+      "raw_evidence": "evidence/sessions/20260713-personal-might-praise/live-route-recovery-014/more-to-rankings-game-attempt-1-attempt-3-source-011.png",
+      "measurement": "raw 800x1280 word-level local OCR; bounds [602,1138,690,1167]",
+      "dependency": "Bliss-native target must replace broad [0,1120,800,1185] binding before another input"
+    },
+    {
+      "anchor_id": "standard-back",
+      "manifest_id": "GNB-DAILY-CHAPTER",
+      "source_point": [45, 48],
+      "observed_bliss_point": [87, 32],
+      "transformed_global": [90.0, 96.0],
+      "residual": [-3.0, -64.0],
+      "total_error_px": 64.07,
+      "bliss_control_roi": [45, 5, 130, 60],
+      "inside_control": false,
+      "safely_inside_with_6px_margin": false,
+      "raw_evidence": "evidence/sessions/20260712-mvp-quest-to-claim/reset-reconcile-current.png",
+      "dependency": "use validated Bliss-native Back anchor; one source correspondence cannot justify a screen-family correction"
+    }
+  ],
+  "provisional_roi_examples": [
+    {
+      "manifest_id": "GNB-DAILY-LEADERBOARD-PRAISE",
+      "template": "PraiseBtn",
+      "source_xywh": [354, 66, 41, 283],
+      "source_normalized_xyxy": [354, 66, 395, 349],
+      "transformed_xyxy_direct_2x": [708.0, 132.0, 790.0, 698.0],
+      "production_authorized": false
+    },
+    {
+      "manifest_id": "GNB-DAILY-QUEST-CLAIMS",
+      "template": "DailyClaimBtn",
+      "source_xywh": [282, 202, 103, 308],
+      "source_normalized_xyxy": [282, 202, 385, 510],
+      "transformed_xyxy_direct_2x": [564.0, 404.0, 770.0, 1020.0],
+      "production_authorized": false
+    }
+  ],
+  "evidence_dependencies": [
+    "settled Bliss Town/world toggle",
+    "settled Bliss Rankings successor",
+    "Personal Might Rank row",
+    "Personal Might Check destination",
+    "Personal Might leaderboard and Praise pre/postcondition",
+    "completed-unclaimed Daily Praise row and Claim pre/postcondition",
+    "march menu/button/capacity/queue states"
+  ]
+}

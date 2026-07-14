@@ -1334,3 +1334,12 @@ to relevant flows in all 12 authorized modules, records source xywh and normaliz
 distinguishes direct observations from inference, and preserves anomalies/weaknesses without
 copying source or assets. Focused validation proves module coverage, stable IDs, ROI normalization,
 fail-closed restrictions, and no production `.local-reference` dependency. Phase B is next.
+
+Phase B is complete. `calibration/transform.py` implements the five required candidate families,
+normalized ROI/point conversion, axis-aligned affine fitting, residual reporting, safe containment,
+and evidence-supported named screen-family corrections. All outputs are explicitly provisional and
+cannot authorize production input. Raw 800×1280 evidence shows the Rankings label at
+`(602,1138)-(690,1167)`, center `(646,1152)`; the historical broad target centered at `(400,1152)`
+is not Rankings and explains Help interception. Phase C must replace that broad binding with
+Bliss-native local recognition before another route input. Unsupported Personal Might,
+Claim-positive, Town/world, and march screens remain explicit evidence dependencies.

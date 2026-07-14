@@ -1,5 +1,18 @@
 # Current runtime-proof handoff
 
+## 2026-07-13 GnBots calibration Phase B
+
+- Development-only `calibration/transform.py` implements all five required candidate models,
+  point/normalized-ROI transforms, viewport insets, affine fitting, residuals, safe containment,
+  and multi-anchor screen-family correction validation.
+- Direct 2× remains simplest global starting candidate; a provisional bottom-navigation correction
+  is supported by Quest and More. No transformed output can authorize production input.
+- Raw 800×1280 Rankings OCR bounds are `(602,1138)-(690,1167)`, center `(646,1152)`. Existing
+  broad target center `(400,1152)` is a wrong binding and explains Help WebView interception.
+- Calibration/reference focused suite passes 16 tests. Phase B passed; Phase C is ready.
+- Missing Personal Might, Claim-positive, Town/world, and march screens remain explicit evidence
+  dependencies. No live input occurred.
+
 ## 2026-07-13 GnBots static-reference Phase A
 
 - `.local-reference/` is excluded only in `.git/info/exclude`; it remains read-only, unstaged, and

@@ -476,7 +476,11 @@ Claim example.
 - Acceptance: direct 2×, top/bottom 12-logical-pixel inset, independent axis scaling, and affine
   fitting are tested; points and normalized ROIs transform correctly; report cites raw Bliss
   evidence and records unsupported screens without guessing.
-- Status: Ready.
+- Evidence: `docs/research/gnbots_bliss_coordinate_calibration.{md,json}` and
+  `evidence/sessions/20260713-gnbots-coordinate-calibration/record.md`.
+- Result: raw Rankings bounds are `(602,1138)-(690,1167)`, center `(646,1152)`; historical broad
+  center `(400,1152)` is not a valid Rankings target. All transformed outputs are non-authorizing.
+- Status: Passed (2026-07-13).
 - Next: GNB-PHASE-C after a focused passing commit.
 
 ### GNB-PHASE-C — Prepare Bliss profile, navigation, and required popups
@@ -484,7 +488,7 @@ Claim example.
 - Dependencies: GNB-PHASE-B Passed.
 - Scope: Personal Might route only; test-proven gaps in existing NavigationRunner; VIP/reset and
   Help WebView handling; unknown/cost/resource/premium blocking; narrow route perception.
-- Status: Pending.
+- Status: Ready.
 
 ### GNB-PHASE-D — Complete supervised Praise-to-exact-Claim slice
 
