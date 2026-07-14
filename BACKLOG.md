@@ -508,8 +508,7 @@ Claim example.
 - Dependencies: GNB-PHASE-C Passed and required Bliss route/Claim evidence.
 - Boundary: Praise and Claim are each current-frame-bound, one-dispatch consequential actions.
   Objective execution never implies Claim readiness.
-- Status: Ready — immediate Praise authorization still requires current unchanged leaderboard
-  target; exact Claim remains separately evidence-gated.
+- Status: Passed (2026-07-13).
 - Resume correction: first Praise run sent zero inputs because startup omitted the valid already-open
   Personal Might leaderboard state. Startup now recognizes only explicit route states and never
   defaults unknown to Home. Evidence: `live-praise-resume-017-no-input/`.
@@ -517,6 +516,9 @@ Claim example.
   now proves the exact Personal Might row is complete `(1/1)` and its local control is `Claim`.
   Normal Praise execution stops before reconciliation; `personal-might-claim` is the only explicit
   Claim entrypoint. Evidence: `live-praise-success-018/`, `live-daily-claim-evidence-019/`.
+- Exact Claim confirmed separately: tap `(642,466)` inside row-local `(590,438)-(695,495)`, one
+  transport call, zero cost, and positive row-disappearance postcondition. Evidence:
+  `live-claim-success-020/{claim-pre-dispatch,claim-result,personal-might-claim-task-result}.json`.
 
 ### GNB-PHASE-E/F — Free Daily Activities, then persistence/scheduler
 

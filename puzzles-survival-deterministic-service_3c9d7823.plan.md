@@ -1375,3 +1375,8 @@ tap at `(722,187)`, one transport call, and a positive control-change postcondit
 bounded navigation exposed selected Daily Quest with the exact Personal Might objective at `(1/1)`
 and a row-local gold Claim. Praise now terminates before Claim; only the explicit
 `personal-might-claim` task may evaluate and dispatch that separate exact-row transaction.
+
+Phase D passed. The explicit Claim task bound the completed objective row `(40,408)-(760,529)` to
+its local Claim control `(590,438)-(695,495)`, dispatched one tap at `(642,466)`, and confirmed the
+exact row-local Claim disappeared. Praise and Claim each used one separately authorized zero-cost
+transport call with independent fresh-frame evidence and positive postconditions.

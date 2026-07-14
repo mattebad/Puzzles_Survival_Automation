@@ -1,0 +1,23 @@
+{
+  "claim_bounds": [
+    590,
+    438,
+    695,
+    495
+  ],
+  "control_class": "CLAIM",
+  "game_day_id": "daily-2026-07-13",
+  "objective_name": "Praise 1x in Personal Might rank",
+  "progress": [
+    1,
+    1
+  ],
+  "row_bounds": [
+    40,
+    408,
+    760,
+    529
+  ],
+  "selected_daily_quest": true,
+  "source_screenshot": "/evidence/claim-source-002.png"
+}

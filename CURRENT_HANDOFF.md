@@ -8,15 +8,17 @@
 - Raw leaderboard binds header `(150,0)-(650,70)`, rank-one enabled gold thumbs-up
   `(690,155)-(755,220)`, and Back `(45,5)-(130,60)`.
 - Praise target is icon-only and requires header + local template + gold HSV occupancy.
-- Praise and Claim inputs remained zero. Phase C passed; Phase D is ready.
+- Phase C route validation passed with zero Praise/Claim inputs.
 - First Phase D resume attempt sent zero inputs: startup omitted the already-open Personal Might
   leaderboard and defaulted to Home, then three Home recognitions failed before transport. Startup
   now recognizes explicit resume states and treats every other screen as `UNKNOWN`.
 - Phase D Praise is live-confirmed: one tap at `(722,187)`, zero cost, one transport call, and
   positive postcondition. Evidence: `live-praise-success-018/praise-{pre-dispatch,result}.json`.
 - Selected Daily Quest now shows exact first-row `Praise 1x in Personal Might Rank (1/1)` with a
-  row-local gold `Claim`. Evidence: `live-daily-claim-evidence-019/`. Claim remains a separate
-  explicit transaction through `run-task --task personal-might-claim`.
+  row-local gold `Claim`. Evidence: `live-daily-claim-evidence-019/`.
+- Separate Claim confirmed: exact ROI `(590,438)-(695,495)`, tap `(642,466)`, one zero-cost
+  transport call, and positive row-disappearance postcondition. Phase D passed. Evidence:
+  `live-claim-success-020/`.
 
 ## 2026-07-13 corrected Rankings live navigation
 

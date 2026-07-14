@@ -1,0 +1,39 @@
+{
+  "action": {
+    "action_id": "claim-1784005000-2",
+    "action_key": "claim-1784005000-2",
+    "consequence": "claim_zero_cost_reward",
+    "consequential": 1,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/claim-source-002.png\"]",
+    "expected_postcondition": "exact_praise_row_claimed",
+    "final_reason": "positive_postcondition",
+    "final_status": "confirmed",
+    "game_day_id": "daily-2026-07-13",
+    "input_attempt_at": 1784005001.7044828,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_ZERO_COST_R1",
+    "policy_request_json": "{\"action_class\":\"zero_cost_consequential\",\"action_id\":\"claim-1784005000-2\",\"action_key\":\"claim-1784005000-2\",\"action_kind\":\"CLAIM_DAILY_QUEST\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":true,\"game_day_id\":\"daily-2026-07-13\",\"lease_owner\":\"pnsctl-1784004992\",\"lease_valid\":true,\"maximum_cost\":0,\"monotonic_now\":4450432.50407335,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4450432.502398791,\"clipped\":false,\"consequence\":\"claim_zero_cost_reward\",\"control_class\":\"CLAIM\",\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"daily_header\",\"5461e2cb94b6aa7dca225696c01de7b3814cde6e5fbcdc7033a565302b2e1127\"],[\"claim_row\",\"7be9976fa684615482b19be6cbd741dcd1ce33f1485df4a69e900852ce8c0805\"]],\"evidence_refs\":[\"/evidence/claim-source-002.png\"],\"expected_postcondition\":\"exact_praise_row_claimed\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"a5729bb191722310df7372ed51be6fb9ed96f5c702b637d5a91ac62634036dc7\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4450432.502398791,\"ocr_result_frame_sha256\":\"a5729bb191722310df7372ed51be6fb9ed96f5c702b637d5a91ac62634036dc7\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"DAILY_QUEST\",\"target_identity\":\"daily-quest-claim\",\"target_isolated\":false,\"target_roi\":[590,438,695,495],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"CLAIM_DAILY_QUEST\",\"semantic_postconditions\":[\"DAILY_QUEST\"],\"semantic_preconditions\":[\"DAILY_QUEST\",\"daily-quest-claim\"],\"subject\":\"CLAIM_DAILY_QUEST\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1784005000.0421007,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":true,\"evidence_refs\":[\"/evidence/claim-post-004.png\"],\"frame_sha256\":\"38d298af185031f7715625773da41df402a2a759793ab01c6c5670a29e754612\"}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "CLAIM_DAILY_QUEST",
+    "source_frame_captured_at": 4450432.502398791,
+    "source_frame_sha256": "a5729bb191722310df7372ed51be6fb9ed96f5c702b637d5a91ac62634036dc7",
+    "source_state": "DAILY_QUEST",
+    "target_identity": "daily-quest-claim",
+    "target_roi_json": "[590,438,695,495]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input tap 642 466\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1784005014.0200636
+  },
+  "pre_dispatch_attempts": 1,
+  "result": {
+    "action_id": "claim-1784005000-2",
+    "reason": "positive_postcondition",
+    "status": "confirmed",
+    "transport_calls": 1
+  }
+}

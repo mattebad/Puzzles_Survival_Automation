@@ -1,0 +1,10 @@
+{
+  "claim_result": {
+    "action_id": "claim-1784005000-2",
+    "reason": "positive_postcondition",
+    "status": "confirmed",
+    "transport_calls": 1
+  },
+  "input_count": 1,
+  "status": "confirmed"
+}
