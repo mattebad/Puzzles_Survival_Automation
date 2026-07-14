@@ -160,6 +160,12 @@ from .challenge_disabled import (
     challenge_disabled_dispatch,
     challenge_postcondition_verified,
 )
+from .resource_boost_disabled import (
+    ResourceBoostObservation,
+    resource_boost_authorizeable,
+    resource_boost_disabled_dispatch,
+    resource_boost_postcondition_verified,
+)
 from .scheduler import (
     OnePulseScheduler,
     PulseCandidate,
@@ -314,6 +320,10 @@ __all__ = [
     "challenge_authorizeable",
     "challenge_disabled_dispatch",
     "challenge_postcondition_verified",
+    "ResourceBoostObservation",
+    "resource_boost_authorizeable",
+    "resource_boost_disabled_dispatch",
+    "resource_boost_postcondition_verified",
     "OnePulseScheduler",
     "PulseCandidate",
     "SQLiteBackedOnePulseScheduler",

@@ -1572,3 +1572,15 @@ Synthetic replay tests cover Lair target and stamina binding, level/march/budget
 negatives, exact same-day stamina delta plus defeat/result postcondition, and pure one-pulse output.
 The contract remains evidence-gated, unregistered, and scheduler-ineligible until fresh native Lair
 level/march/cost/result evidence and separate promotion gates pass.
+
+## Daily Quest resource-building boost offline boundary (2026-07-14)
+
+`DQ-FLOW-RESOURCE-BOOST` now has pure `tasks/resource_boost_disabled.py` identity, resource,
+duration, cost, and boost-state replay semantics. Authorization requires selected-Daily evidence,
+an exact current-frame resource-building boost control, known positive duration/cost, same-day
+identity, and a sufficient offline budget. Main Quest wording, static references, stale frames,
+active boosts, and ambiguous successor states fail closed.
+
+Synthetic replay tests cover resource-building identity, target binding, duration/cost guards,
+Main/static negatives, boost-state/progress arithmetic, and disabled dispatch. Resource spending
+remains policy-disabled; the objective is unregistered and scheduler-ineligible.

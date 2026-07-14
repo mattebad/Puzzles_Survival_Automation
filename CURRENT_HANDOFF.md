@@ -1,5 +1,15 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 disabled resource-building boost contract
+
+- Completed `DQ-FLOW-RESOURCE-BOOST` as resource-building identity, resource, duration, and cost
+  replay in `tasks/resource_boost_disabled.py`. It binds the exact current-frame boost control and
+  same-day boost successor; resource-building boost dispatch is always blocked.
+- Synthetic replay fixtures and five focused tests cover building/resource/duration/cost guards,
+  Main/static/ambiguous rejection, boost-state arithmetic, Claim separation, and no-dispatch
+  behavior. Row remains disabled, unregistered, and scheduler-ineligible; no live or persistent
+  state changed.
+
 ## 2026-07-14 disabled Ruins Challenge contract
 
 - Completed `DQ-FLOW-CHALLENGES` as Ruins Challenge identity/cost/result replay in

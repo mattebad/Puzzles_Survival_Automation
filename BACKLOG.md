@@ -1662,12 +1662,16 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `DISABLED_POLICY`; explicit PvP decision required.
 
 ### DQ-FLOW-RESOURCE-BOOST
+- Status: Passed (2026-07-14; disabled resource-building boost contract and 5 focused tests).
 - Covered: `boost_resource_building_output`; any-resource-building variant.
 - Exclusions: unknown building, premium boost, uncontrolled duration.
 - Dependencies/routes: inventory → resource building.
 - Source/target/policy: exact building, boost control, duration/cost.
-- Offline acceptance/tests: boost timer/target/postcondition mocks.
+- Offline acceptance/tests: `tests/test_resource_boost_disabled.py` covers building/resource
+  identity, duration/cost guards, boost-state postcondition replay, Main/ambiguous negatives,
+  disabled dispatch, and Claim separation.
 - Bliss/live boundary: disabled; no registration/input.
-- Transaction/postcondition/recovery: one boost; timer/state change; stop on ambiguity.
+- Transaction/postcondition/recovery: no transaction path; timer/state replay only; stop on
+  building, cost, duration, stale-frame, or successor ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; resource-building boost policy required.

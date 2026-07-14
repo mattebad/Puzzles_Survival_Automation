@@ -75,6 +75,10 @@ consumption remains policy-disabled; the objective is unregistered and scheduler
 replay only. Challenge entry remains policy-disabled; Ultimate Challenge remains outside Daily
 scope, and the Ruins objective is unregistered and scheduler-ineligible.
 
+`DQ-FLOW-RESOURCE-BOOST` uses `tasks/resource_boost_disabled.py` for resource-building identity,
+resource, duration, cost, and boost-state replay only. Boost spending remains policy-disabled; the
+objective is unregistered and scheduler-ineligible.
+
 ## Current objective state
 
 | Key | Family / variant | Route | Matrix status | Promotion | Operator registration | Backlog |

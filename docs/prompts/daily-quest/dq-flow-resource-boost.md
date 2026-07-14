@@ -8,10 +8,13 @@ Route: Daily row → selected resource building → boost. Source: row/building/
 target: exact boost control; successor: output boost state/timer. Bind current frame.
 
 Policy: DISABLED_POLICY; no item/resource transaction, registration, scheduler eligibility, or live
-input. Postcondition: offline contract proves no dispatch. Recovery: fail closed on building,
-resource, duration, stale frame, or successor ambiguity. Daily maps `boost_resource_building_output`;
-Claim independent. Persistence dormant.
+input. Resource-building identity/duration replay is implemented in
+`tasks/resource_boost_disabled.py`; every boost dispatch remains blocked. Postcondition: offline
+contract proves no dispatch. Recovery: fail closed on building, resource, duration, stale frame, or
+successor ambiguity. Daily maps `boost_resource_building_output`; Claim independent. Persistence
+dormant.
 
-Tests: resource-building identity, disabled validator, no registry, scheduler false, Main negative,
-Claim separation. Bliss/GnBots cannot override policy. Future navigation read-only. Update docs/
-matrix/status. Commit: `docs(tasks): map every Daily objective to an execution task`. Continue offline.
+Tests: `tests/test_resource_boost_disabled.py` covers resource-building identity, duration/cost
+guards, disabled dispatch, no registry, scheduler false, Main/ambiguous negatives, and Claim
+separation. Bliss/GnBots cannot override policy. Future navigation read-only. Update docs/matrix/
+status. Commit: `feat(tasks): add disabled resource boost contract`. Continue offline.

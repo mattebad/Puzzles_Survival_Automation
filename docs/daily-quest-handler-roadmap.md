@@ -34,6 +34,10 @@ cannot admit Daily objectives.
 10. Review dormant persistence/scheduler integration.
 11. Pass separate runtime-integration gate before any live state or new registration.
 
+Resource-building output boost is specified by `tasks/resource_boost_disabled.py` as an
+offline-only identity/duration/cost/boost-state contract. Its policy remains disabled; no boost
+dispatch, registration, live input, or scheduler eligibility is implied.
+
 ## Reusable families
 
 ### Foundation and support
