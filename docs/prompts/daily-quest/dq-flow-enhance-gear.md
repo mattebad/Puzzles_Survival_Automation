@@ -16,7 +16,9 @@ on selected-item ambiguity, resource mismatch, stale frame, or absent successor.
 Tests: family-ownership boundaries, cost guard, replay, cardinality, successor proof, Main negative,
 registration/scheduler dormancy. Bliss-native evidence required; GnBots is provenance only. Future
 navigation read-only. Prohibit ADB, worker/VM, leases, journal migration, live input/evidence,
-registration, scheduler eligibility. Current boundary: shared `tasks/enhancement.py` implements
-Gear ownership and one-star material guards; Chip and Module remain downstream variants.
+registration, scheduler eligibility. Current boundary: shared `tasks/enhancement.py` plus
+`tasks/daily_enhancement.py` implement selected-Daily Gear ownership, one-star material guards,
+one-enhancement replay, and Daily 0/1 successor proof; Chip and Module remain downstream variants.
+Tests: `tests/test_enhancement.py` and `tests/test_daily_enhancement.py`.
 Update docs/matrix/status when contract changes. Continue offline. Commit:
 `feat(tasks): add shared enhancement offline contract`.

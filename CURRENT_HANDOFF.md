@@ -285,6 +285,15 @@
   cardinality, Main/static/ambiguous rejection, Claim separation, and zero dispatch. The objective
   remains unregistered and scheduler-ineligible; no live or persistent state changed.
 
+## 2026-07-14 Daily Gear enhancement adapter
+
+- Added `tasks/daily_enhancement.py` to bind selected Daily `enhance_gear` to the shared Gear
+  enhancement contract. It requires exact equipped Gear/one-star-material semantics and a same-day
+  Daily 0/1 successor; enhancement transport remains evidence-gated.
+- Five focused tests cover Gear ownership, family boundaries, material/cost guards, successor
+  proof, Main/static rejection, Claim separation, and zero dispatch. Chip and Module remain
+  downstream variants; no live or persistent state changed.
+
 ## 2026-07-14 offline Phase F scheduler contract
 
 - Added `tasks/scheduler.py` with deterministic serializable task state and a one-pulse candidate

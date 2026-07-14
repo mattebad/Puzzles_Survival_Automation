@@ -86,6 +86,13 @@ from .enhancement import (
     enhancement_postcondition_verified,
     enhancement_transaction_spec,
 )
+from .daily_enhancement import (
+    DailyEnhancementObservation,
+    daily_enhancement_authorizeable,
+    daily_enhancement_postcondition_verified,
+    daily_enhancement_replay,
+    daily_enhancement_transaction_spec,
+)
 from .campaign_ap import (
     CampaignAPObservation,
     campaign_ap_authorizeable,
@@ -284,6 +291,11 @@ __all__ = [
     "enhancement_perform_one_pulse",
     "enhancement_postcondition_verified",
     "enhancement_transaction_spec",
+    "DailyEnhancementObservation",
+    "daily_enhancement_authorizeable",
+    "daily_enhancement_postcondition_verified",
+    "daily_enhancement_replay",
+    "daily_enhancement_transaction_spec",
     "CampaignAPObservation",
     "campaign_ap_authorizeable",
     "campaign_ap_perform_one_pulse",

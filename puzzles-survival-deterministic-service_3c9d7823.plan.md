@@ -1610,3 +1610,15 @@ Synthetic replay tests cover selected-row ownership, recipe/material/tab guards,
 cardinality, transaction specification, Main/static negatives, Claim separation, and zero
 dispatch. Fresh Bliss-native craft target/material/result evidence remains required; no
 registration or scheduler eligibility is enabled.
+
+## Daily Quest Gear enhancement offline boundary (2026-07-14)
+
+`DQ-FLOW-ENHANCE-GEAR` now composes `tasks/enhancement.py` with
+`tasks/daily_enhancement.py`. The adapter binds selected Daily `enhance_gear` to one equipped Gear
+item, one-star material, exact Enhance control, and a same-day positive level/material successor
+with Daily 0/1 progress. Chip and Module ownership remains separate.
+
+Synthetic replay tests cover selected-row and family ownership, one-star material/cost guards,
+exact one-enhancement cardinality, transaction specification, Main/static negatives, Claim
+separation, and zero dispatch. Fresh Bliss-native Gear target/material/result evidence remains
+required; no registration or scheduler eligibility is enabled.

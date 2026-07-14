@@ -84,6 +84,11 @@ evidence remains required, with no registration or scheduler eligibility.
 Craft Weapon replay bound to `craft_nanoweapon`. Recipe/material/result evidence remains gated;
 the objective is unregistered and scheduler-ineligible.
 
+`DQ-FLOW-ENHANCE-GEAR` uses `tasks/enhancement.py` plus `tasks/daily_enhancement.py` for one
+selected-Daily Gear enhancement replay. Exact equipped item, one-star material, and positive
+successor evidence remain gated; Chip and Module stay separate variants, with no registration or
+scheduler eligibility.
+
 `DQ-FLOW-RESOURCE-BOOST` uses `tasks/resource_boost_disabled.py` for resource-building identity,
 resource, duration, cost, and boost-state replay only. Boost spending remains policy-disabled; the
 objective is unregistered and scheduler-ineligible.
