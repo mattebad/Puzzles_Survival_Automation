@@ -113,6 +113,17 @@ class OperatorCliTests(unittest.TestCase):
         self.assertIn("--input-kind swipe --swipe 400 1000 400 500 350", command)
         self.assertNotIn("--consequence spend_or_strategic", command)
 
+    def test_bioenhancer_go_uses_nova_successor_and_exact_row_roi(self):
+        cfg = pnsctl.OperatorConfig()
+        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
+            pnsctl.navigate(cfg, "daily-bioenhancer-go")
+        command = remote.call_args.args[1]
+        self.assertIn("--source-mode daily", command)
+        self.assertIn("--expected-mode nova", command)
+        self.assertIn("--semantic-action DAILY_BIOENHANCER_GO", command)
+        self.assertIn("--roi 554 870 731 933", command)
+        self.assertNotIn("--input-kind swipe", command)
+
     def test_credentials_are_redacted_from_operator_output(self):
         rendered = " ".join(pnsctl.redact_argv(["plink", "-pw", "secret", "root@nas.local", "date"]))
         self.assertNotIn("secret", rendered)

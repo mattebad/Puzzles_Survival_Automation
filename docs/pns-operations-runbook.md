@@ -22,6 +22,7 @@ python3 scripts/pnsctl.py navigate --step home-quest
 python3 scripts/pnsctl.py navigate --step quest-daily
 python3 scripts/pnsctl.py navigate --step daily-scroll-up
 python3 scripts/pnsctl.py navigate --step daily-scroll-down
+python3 scripts/pnsctl.py navigate --step daily-bioenhancer-go
 python3 scripts/pnsctl.py run-task --task alliance-help
 python3 scripts/pnsctl.py run-task --task praise
 python3 scripts/pnsctl.py test-focused --pattern test_task_module.py
@@ -34,6 +35,8 @@ python3 scripts/pnsctl.py cleanup
 `navigate` accepts only the checked-in route names and uses the existing safe-action executor.
 The Daily scroll routes are bounded navigation-only swipes; each captures and revalidates the
 selected Daily source before dispatch, then requires a fresh selected-Daily successor.
+`daily-bioenhancer-go` is a bounded navigation-only tap on the freshly observed selected-Daily
+Bioenhancer row; it requires a positively recognized Nova successor and never enters Research.
 `run-task` exposes bounded task adapters only. `praise` first recognizes and attempts one
 task-scoped dismissal of the reset-time `Get Pts` modal through its local Close ROI, then uses
 the named Personal Might route. It is not a general remote shell or arbitrary tap endpoint.

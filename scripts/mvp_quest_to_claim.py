@@ -32,7 +32,14 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from daily_quest_bootstrap import recognize_daily_quest, recognize_home, recognize_quest, valid_png_frame
+from daily_quest_bootstrap import (
+    recognize_bioenhancer,
+    recognize_daily_quest,
+    recognize_home,
+    recognize_nova,
+    recognize_quest,
+    valid_png_frame,
+)
 from navigation_recognition import (
     QUEST_TAB_ROI,
     recognize_daily_selected,
@@ -156,6 +163,10 @@ def classify(mode: str, frame: Path, args: argparse.Namespace) -> Dict[str, Any]
             "recognized": False,
             "detail": {"reason": "selected Daily Quest reference pair is required"},
         }
+    if mode == "nova":
+        return recognize_nova(frame)
+    if mode == "bioenhancer":
+        return recognize_bioenhancer(frame)
     if mode == "promo":
         decision = classify_promotional_back(load_frame(frame), load_frame(args.cash_reference))
         return {"state": decision.state, "recognized": decision.recognized, "detail": decision.as_dict()}
@@ -270,6 +281,16 @@ def critical_rois(mode: str, args: argparse.Namespace) -> Dict[str, tuple[int, i
         rois = {
             "arrow_target": PROMOTIONAL_BACK_TARGET_ROI,
             **{name: roi for name, roi in PROMOTIONAL_FORBIDDEN_REGIONS},
+        }
+    elif mode == "nova":
+        rois = {
+            "source_title": (0, 0, 800, 180),
+            "source_content": (0, 150, 800, 1120),
+        }
+    elif mode == "bioenhancer":
+        rois = {
+            "source_title": (0, 0, 800, 180),
+            "source_content": (0, 150, 800, 1120),
         }
     else:
         rois = {"source_header": (0, 0, 800, 450), "source_rows": (0, 400, 800, 1120)}
@@ -459,7 +480,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--policy-file", type=Path)
     sub = root.add_subparsers(dest="command", required=True)
     obs = sub.add_parser("observe")
-    obs.add_argument("--mode", choices=("cash", "home", "quest", "daily", "promo"), required=True)
+    obs.add_argument("--mode", choices=("cash", "home", "quest", "daily", "nova", "bioenhancer", "promo"), required=True)
     obs.add_argument("--output", type=Path, required=True)
     obs.add_argument("--result", type=Path, required=True)
     obs.set_defaults(handler=observe)
@@ -477,8 +498,8 @@ def parser() -> argparse.ArgumentParser:
     act.add_argument("--action-id", required=True)
     act.add_argument("--action-key", required=True)
     act.add_argument("--game-day")
-    act.add_argument("--source-mode", choices=("cash", "home", "quest", "daily", "promo"), required=True)
-    act.add_argument("--expected-mode", choices=("cash", "home", "quest", "daily", "promo"), required=True)
+    act.add_argument("--source-mode", choices=("cash", "home", "quest", "daily", "nova", "bioenhancer", "promo"), required=True)
+    act.add_argument("--expected-mode", choices=("cash", "home", "quest", "daily", "nova", "bioenhancer", "promo"), required=True)
     act.add_argument("--expected-state", required=True)
     act.add_argument("--target", required=True)
     act.add_argument("--roi", type=int, nargs=4, required=True)

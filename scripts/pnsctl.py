@@ -249,6 +249,10 @@ NAVIGATION_STEPS = {
         "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST", "daily-scroll-viewport",
         (100, 160, 700, 760), "swipe", (400, 500, 400, 1000, 350),
     ),
+    "daily-bioenhancer-go": (
+        "daily", "nova", "NOVA", "DAILY_BIOENHANCER_GO", "daily-bioenhancer-go",
+        (554, 870, 731, 933), "tap", None,
+    ),
 }
 
 
