@@ -1,5 +1,26 @@
 # Current runtime-proof handoff
 
+## 2026-07-14 Daily Supply Depot selected-row adapter
+
+- Completed `DQ-FLOW-SUPPLY-DEPOT` as `tasks/daily_supply_depot.py`, composing the existing
+  free, known non-premium Supply Depot contract with selected-Daily `supply_depot` row binding.
+- The adapter requires one current-frame free collection per pulse and exactly enough same-day
+  successors to reach Daily progress 5/5. Five focused tests cover ownership, reward/cost guards,
+  five-count arithmetic, Main/static negatives, Claim separation, and zero dispatch.
+- Matrix remains evidence-gated, unregistered, and scheduler-ineligible; no live input, journal,
+  lease, task-state, or gameplay state changed.
+
+## 2026-07-14 Daily Bioenhancer selected-row adapter
+
+- Completed `DQ-FLOW-BIOENHANCER` as `tasks/daily_bioenhancer.py`, composing the existing
+  free-single Bioenhancer research contract with selected-Daily `bioenhancer_research` row
+  binding.
+- The adapter requires one current-frame free research action and a same-day positive result or
+  cooldown transition with Daily progress 0/1. Five focused tests cover ownership, transaction
+  guards, successor arithmetic, Main/static negatives, Claim separation, and zero dispatch.
+- Matrix remains evidence-gated, unregistered, and scheduler-ineligible; no live input, journal,
+  lease, task-state, or gameplay state changed.
+
 ## 2026-07-14 disabled resource-building boost contract
 
 - Completed `DQ-FLOW-RESOURCE-BOOST` as resource-building identity, resource, duration, and cost
