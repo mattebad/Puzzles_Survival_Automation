@@ -65,6 +65,13 @@ from .bioenhancer import (
     bioenhancer_postcondition_verified,
     bioenhancer_transaction_spec,
 )
+from .daily_bioenhancer import (
+    DailyBioenhancerObservation,
+    daily_bioenhancer_authorizeable,
+    daily_bioenhancer_postcondition_verified,
+    daily_bioenhancer_replay,
+    daily_bioenhancer_transaction_spec,
+)
 from .nanoweapon import (
     NanoweaponObservation,
     nanoweapon_authorizeable,
@@ -290,6 +297,11 @@ __all__ = [
     "bioenhancer_perform_one_pulse",
     "bioenhancer_postcondition_verified",
     "bioenhancer_transaction_spec",
+    "DailyBioenhancerObservation",
+    "daily_bioenhancer_authorizeable",
+    "daily_bioenhancer_postcondition_verified",
+    "daily_bioenhancer_replay",
+    "daily_bioenhancer_transaction_spec",
     "NanoweaponObservation",
     "nanoweapon_authorizeable",
     "nanoweapon_perform_one_pulse",

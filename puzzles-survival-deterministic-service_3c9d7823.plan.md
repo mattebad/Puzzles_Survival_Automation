@@ -1650,3 +1650,15 @@ Synthetic replay tests cover selected-row ownership, AP budget/cost guards, rout
 exact successor arithmetic, Main/static negatives, Claim separation, and zero dispatch. Fresh
 Bliss-native Campaign target/cost/result evidence remains required; no registration or scheduler
 eligibility is enabled.
+
+## Daily Quest Bioenhancer selected-row adapter boundary (2026-07-14)
+
+`DQ-FLOW-BIOENHANCER` now composes `tasks/bioenhancer.py` with
+`tasks/daily_bioenhancer.py`. The adapter binds the selected Daily `bioenhancer_research` row to
+one free-single research action and requires a same-day positive research result or cooldown
+transition with Daily 0/1 progress.
+
+Synthetic replay tests cover selected-row ownership, exact free-research transaction semantics,
+same-day successor arithmetic, Main/static negatives, Claim separation, and zero dispatch.
+Fresh Bliss-native target/result evidence remains required; no registration or scheduler
+eligibility is enabled.

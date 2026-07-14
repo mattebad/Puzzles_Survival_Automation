@@ -1369,13 +1369,14 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `LIVE_VALIDATED`; unlocks only future unattended gate.
 
 ### DQ-FLOW-BIOENHANCER
-- Status: Passed (2026-07-14; offline contract and 5 focused tests).
+- Status: Passed (2026-07-14; selected-Daily adapter plus 5 focused tests).
 - Covered: `bioenhancer_research`; one free research variant.
 - Exclusions: paid/10x research, Nova Praise, premium actions.
 - Dependencies/routes: inventory → Bioenhancer route.
 - Source/target/policy: selected row, free Research 1x, known zero cost.
-- Offline acceptance/tests: semantic free/cost/overlay/postcondition contract and replay;
-  `tests/test_bioenhancer.py`.
+- Offline acceptance/tests: `tasks/daily_bioenhancer.py` binds selected-row ownership, exact
+  0/1 Daily progress, same-day result, dispatch cardinality, Main/static negatives, and Claim
+  separation; `tests/test_daily_bioenhancer.py` plus `tests/test_bioenhancer.py`.
 - Bliss/live boundary: evidence-gated; no registration/input.
 - Transaction/postcondition/recovery: one free research; result/cooldown and Daily progress; stop on free disappearance.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.

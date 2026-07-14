@@ -24,7 +24,8 @@ promotion. Praise completion stops before Claim.
 - Supply Depot free contract: `tasks/supply_depot.py`.
 - Free Recruitment contract: `tasks/free_recruitment.py` plus Daily five-count adapter
   `tasks/daily_recruitment.py`.
-- Bioenhancer free-research contract: `tasks/bioenhancer.py`.
+- Bioenhancer free-research contract and selected-Daily adapter:
+  `tasks/bioenhancer.py` plus `tasks/daily_bioenhancer.py`.
 - Nanoweapon Craft Weapon contract: `tasks/nanoweapon.py` plus Daily row adapter
   `tasks/daily_nanoweapon.py`.
 - Gear/Chip/Module shared enhancement contract: `tasks/enhancement.py` (all three variants

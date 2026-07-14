@@ -80,6 +80,12 @@ scope, and the Ruins objective is unregistered and scheduler-ineligible.
 exactly enough one-pulse successors to reach Daily progress 5/5; fresh native target/result
 evidence remains required, with no registration or scheduler eligibility.
 
+`DQ-FLOW-BIOENHANCER` uses `tasks/bioenhancer.py` plus
+`tasks/daily_bioenhancer.py` for one free Bioenhancer research replay bound to
+`bioenhancer_research`. The adapter requires selected-row ownership and a same-day Daily 0/1
+successor; fresh native target/result evidence remains required, with no registration or
+scheduler eligibility.
+
 `DQ-FLOW-NANOWEAPON` uses `tasks/nanoweapon.py` plus `tasks/daily_nanoweapon.py` for one exact
 Craft Weapon replay bound to `craft_nanoweapon`. Recipe/material/result evidence remains gated;
 the objective is unregistered and scheduler-ineligible.
