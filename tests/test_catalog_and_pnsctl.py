@@ -119,7 +119,7 @@ class OperatorCliTests(unittest.TestCase):
             pnsctl.navigate(cfg, "daily-bioenhancer-go")
         command = remote.call_args.args[1]
         self.assertIn("--source-mode daily", command)
-        self.assertIn("--expected-mode nova", command)
+        self.assertIn("--expected-mode bioenhancer", command)
         self.assertIn("--semantic-action DAILY_BIOENHANCER_GO", command)
         self.assertIn("--roi 554 870 731 933", command)
         self.assertNotIn("--input-kind swipe", command)

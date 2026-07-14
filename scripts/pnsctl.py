@@ -250,7 +250,7 @@ NAVIGATION_STEPS = {
         (100, 160, 700, 760), "swipe", (400, 500, 400, 1000, 350),
     ),
     "daily-bioenhancer-go": (
-        "daily", "nova", "NOVA", "DAILY_BIOENHANCER_GO", "daily-bioenhancer-go",
+        "daily", "bioenhancer", "BIOENHANCER", "DAILY_BIOENHANCER_GO", "daily-bioenhancer-go",
         (554, 870, 731, 933), "tap", None,
     ),
 }

@@ -42,8 +42,6 @@ ROIS: Dict[str, Tuple[int, int, int, int]] = {
     "daily_header": (0, 0, 800, 450),
     "daily_rows": (0, 400, 800, 1120),
     "daily_bottom": (0, 1080, 800, 1280),
-    "nova_title": (0, 0, 800, 180),
-    "nova_content": (0, 150, 800, 1120),
     "bioenhancer_title": (0, 0, 800, 180),
     "bioenhancer_content": (0, 150, 800, 1120),
 }
@@ -245,26 +243,6 @@ def recognize_daily_quest(
         "reason": "Daily Quest header and points/reset evidence passed"
         if recognized
         else "Daily Quest title/header or points/reset evidence is insufficient",
-    }
-
-
-def recognize_nova(frame_path: Path) -> Dict[str, Any]:
-    """Recognize the Nova destination without authorizing any child action."""
-    frame = frame_from(frame_path)
-    title = ocr(frame, ROIS["nova_title"], psm=6)
-    content = ocr(frame, ROIS["nova_content"], psm=6)
-    combined = f"{title} {content}"
-    recognized = ocr_has_phrase(combined, "nova", threshold=0.80) and ocr_has_phrase(
-        combined, "research", threshold=0.80
-    )
-    return {
-        "state": "NOVA" if recognized else "UNKNOWN",
-        "recognized": recognized,
-        "title_text": title,
-        "content_text": content,
-        "reason": "Nova screen and Research entry evidence passed"
-        if recognized
-        else "Nova screen or Research entry evidence is insufficient",
     }
 
 

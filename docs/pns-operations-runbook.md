@@ -36,7 +36,8 @@ python3 scripts/pnsctl.py cleanup
 The Daily scroll routes are bounded navigation-only swipes; each captures and revalidates the
 selected Daily source before dispatch, then requires a fresh selected-Daily successor.
 `daily-bioenhancer-go` is a bounded navigation-only tap on the freshly observed selected-Daily
-Bioenhancer row; it requires a positively recognized Nova successor and never enters Research.
+Bioenhancer row; it requires a positively recognized direct Bioenhancer Research successor and
+never presses Free Research or Research 10x.
 `run-task` exposes bounded task adapters only. `praise` first recognizes and attempts one
 task-scoped dismissal of the reset-time `Get Pts` modal through its local Close ROI, then uses
 the named Personal Might route. It is not a general remote shell or arbitrary tap endpoint.
