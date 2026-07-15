@@ -41,6 +41,15 @@ restrictions`.
 
 ### Evidence and verification
 
+`Evidence requirement` must be one of:
+
+- `REQUIRED` for runtime or live-evidence tasks; the handoff names an exact canonical manifest and
+  the validator checks its task identity, paths, and hashes.
+- `TASK_LOCAL` for offline tasks that require a tracked task-local manifest; the handoff names that
+  repository-relative manifest and the validator checks it.
+- `NOT_APPLICABLE — <reason>` for offline tasks that produce no canonical evidence; the handoff
+  uses a null active manifest and records the reason explicitly.
+
 `Active evidence manifest`, `Required artifacts`, `Immediate-before/immediate-post/result/journal`,
 `Additional task-specific artifacts`, `Focused tests`, `Integration tests`, `Transitive regression
 tests`, `Full-suite requirement`, `Validators`, and `Known baseline failures`.

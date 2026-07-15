@@ -18,10 +18,6 @@ HANDOFF_PATH = ROOT / "CURRENT_HANDOFF.md"
 BACKLOG_PATH = ROOT / "BACKLOG.md"
 MANIFEST_PATH = ROOT / "evidence" / "current-evidence-manifest.json"
 INDEXING_IGNORE_PATH = ROOT / ".cursorindexingignore"
-CURRENT_TASK_ID = "GOV-DURABLE-STATE"
-NEXT_TASK_ID = "MVP-QUEST-TO-CLAIM"
-MVP_TASK_ID = "MVP-QUEST-TO-CLAIM"
-MVP_SUCCESSOR_TASK_ID = "M6-DQ-TRANSITION-CORPUS"
 
 CURRENT_TASK_STATES = {"pending", "in_progress", "blocked", "completed"}
 NEXT_TASK_ACTIVATION_STATES = {
@@ -114,6 +110,8 @@ HANDOFF_NESTED_KEYS = {
         "last_relevant_focused_tests",
     },
     "evidence": {
+        "evidence_requirement",
+        "evidence_requirement_reason",
         "active_evidence_manifest",
         "raw_source",
         "immediate_before",
@@ -177,6 +175,7 @@ TASK_REQUIRED_LABELS = (
     "Full-suite requirement",
     "Validators",
     "Known baseline failures",
+    "Evidence requirement",
     "Valid blocked outcomes",
     "Blocked-result commit policy",
     "Commit policy",
@@ -242,33 +241,15 @@ def parse_handoff(path: Path = HANDOFF_PATH) -> Dict[str, Any]:
         raise GovernanceValidationError("invalid current_task_state")
     if state["next_task_activation_status"] not in NEXT_TASK_ACTIVATION_STATES:
         raise GovernanceValidationError("invalid next_task_activation_status")
+    if not isinstance(state["current_task_id"], str) or not state["current_task_id"].strip():
+        raise GovernanceValidationError("current_task_id must be a non-empty string")
+    if state["next_task_id"] is not None and not isinstance(state["next_task_id"], str):
+        raise GovernanceValidationError("next_task_id must be a string or null")
     if state["current_task_id"] == state["next_task_id"]:
         raise GovernanceValidationError("current and next task IDs must be distinct")
-    if state["current_task_id"] == CURRENT_TASK_ID:
-        if state["next_task_id"] != NEXT_TASK_ID:
-            raise GovernanceValidationError(
-                "GOV-DURABLE-STATE must retain MVP-QUEST-TO-CLAIM as next task"
-            )
-        if state["next_task_activation_status"] != "contract_migration_required":
-            raise GovernanceValidationError(
-                "GOV-DURABLE-STATE requires contract_migration_required next status"
-            )
-    elif state["current_task_id"] == MVP_TASK_ID:
-        if state["current_task_state"] != "pending":
-            raise GovernanceValidationError(
-                "MVP-QUEST-TO-CLAIM activation must remain pending"
-            )
-        if state["next_task_id"] != MVP_SUCCESSOR_TASK_ID:
-            raise GovernanceValidationError(
-                "MVP-QUEST-TO-CLAIM must retain its established successor"
-            )
-        if state["next_task_activation_status"] != "not_applicable":
-            raise GovernanceValidationError(
-                "MVP successor must use not_applicable activation status"
-            )
-    else:
+    if state["next_task_id"] is None and state["next_task_activation_status"] != "not_applicable":
         raise GovernanceValidationError(
-            "current_task_id must be GOV-DURABLE-STATE or MVP-QUEST-TO-CLAIM"
+            "null next_task_id requires not_applicable activation status"
         )
     if state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"] is not True:
         raise GovernanceValidationError("handoff must prohibit recursive evidence inspection")
@@ -287,17 +268,122 @@ def task_block(backlog_text: str, task_id: str) -> str:
     return backlog_text[match.start() : end]
 
 
-def validate_task_contract(block: str, task_id: str = CURRENT_TASK_ID) -> None:
+def _contract_fields(block: str, task_id: str) -> Dict[str, str]:
+    fields: Dict[str, str] = {}
     for label in TASK_REQUIRED_LABELS:
-        if not re.search(rf"^\s*-\s+{re.escape(label)}:", block, flags=re.MULTILINE):
+        match = re.search(
+            rf"^\s*-\s+{re.escape(label)}:\s*(.*)$",
+            block,
+            flags=re.MULTILINE,
+        )
+        if match is None:
             raise GovernanceValidationError(f"{task_id} missing contract field: {label}")
+        value = match.group(1).strip()
+        if not value:
+            raise GovernanceValidationError(f"{task_id} contract field is empty: {label}")
+        fields[label] = value
+    return fields
+
+
+def validate_task_contract(block: str, task_id: str) -> Dict[str, str]:
+    fields = _contract_fields(block, task_id)
     if f"`{task_id}`" not in block:
         raise GovernanceValidationError(f"{task_id} contract does not identify its task ID")
     if "allowed paths" not in block:
         raise GovernanceValidationError(f"{task_id} missing per-commit allowed paths")
-    if "No push" not in block:
+    if "no push" not in block.casefold():
         raise GovernanceValidationError(f"{task_id} must prohibit push by default")
+    requirement = fields["Evidence requirement"].split(None, 1)[0].rstrip(":,.;").upper()
+    if requirement not in {"REQUIRED", "TASK_LOCAL", "NOT_APPLICABLE"}:
+        raise GovernanceValidationError(
+            f"{task_id} has invalid evidence requirement: {fields['Evidence requirement']}"
+        )
+    if requirement == "NOT_APPLICABLE" and len(fields["Evidence requirement"].split(None, 1)) == 1:
+        raise GovernanceValidationError(
+            f"{task_id} NOT_APPLICABLE evidence requirement needs a reason"
+        )
+    return fields
 
+
+def _evidence_requirement(fields: Dict[str, str], task_id: str) -> str:
+    value = fields["Evidence requirement"].split(None, 1)[0].rstrip(":,.;").upper()
+    if value not in {"REQUIRED", "TASK_LOCAL", "NOT_APPLICABLE"}:
+        raise GovernanceValidationError(f"{task_id} has invalid evidence requirement: {value}")
+    return value
+
+
+def _canonical_status(value: str) -> Optional[str]:
+    lowered = value.casefold()
+    if lowered.startswith("pending"):
+        return "pending"
+    if lowered.startswith("in progress") or lowered.startswith("in_progress"):
+        return "in_progress"
+    if lowered.startswith("blocked"):
+        return "blocked"
+    if lowered.startswith("completed") or lowered.startswith("passed"):
+        return "completed"
+    return None
+
+
+def validate_active_task_state(state: Dict[str, Any], fields: Dict[str, str], task_id: str) -> None:
+    backlog_status = _canonical_status(fields["Status"])
+    if backlog_status is not None and backlog_status != state["current_task_state"]:
+        raise GovernanceValidationError(
+            f"{task_id} backlog status {backlog_status} disagrees with handoff state "
+            f"{state['current_task_state']}"
+        )
+
+
+def _safe_manifest_path(root: Path, value: Any) -> Path:
+    if not isinstance(value, str) or not value:
+        raise GovernanceValidationError("active evidence manifest path must be a non-empty string")
+    relative = Path(value)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise GovernanceValidationError("active evidence manifest path must be repository-relative")
+    candidate = (root / relative).resolve()
+    resolved_root = root.resolve()
+    if candidate != resolved_root and resolved_root not in candidate.parents:
+        raise GovernanceValidationError("active evidence manifest path escapes repository root")
+    return candidate
+
+
+def validate_task_evidence(
+    state: Dict[str, Any],
+    fields: Dict[str, str],
+    task_id: str,
+    root: Path,
+) -> Optional[Dict[str, Any]]:
+    requirement = _evidence_requirement(fields, task_id)
+    evidence = state["evidence"]
+    if evidence.get("evidence_requirement") != requirement:
+        raise GovernanceValidationError(
+            f"{task_id} handoff evidence requirement must be {requirement}"
+        )
+    reason = evidence.get("evidence_requirement_reason")
+    if not isinstance(reason, str) or not reason.strip():
+        raise GovernanceValidationError(f"{task_id} handoff evidence requirement needs a reason")
+    manifest_value = evidence.get("active_evidence_manifest")
+    if requirement == "NOT_APPLICABLE":
+        if manifest_value is not None:
+            raise GovernanceValidationError(
+                f"{task_id} NOT_APPLICABLE evidence must not name an active manifest"
+            )
+        return None
+    manifest_path = _safe_manifest_path(root, manifest_value)
+    return validate_manifest(
+        manifest_path,
+        expected_active_task_id=task_id,
+        expected_next_task_id=state["next_task_id"],
+    )
+
+
+def validate_successor(backlog: str, state: Dict[str, Any]) -> None:
+    successor = state["next_task_id"]
+    if successor is None:
+        return
+    block = task_block(backlog, successor)
+    if not block.strip():
+        raise GovernanceValidationError("declared successor task is empty")
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -444,19 +530,17 @@ def validate_repository(root: Path = ROOT) -> Tuple[List[str], List[str]]:
     state = parse_handoff(root / "CURRENT_HANDOFF.md")
     backlog = _read(root / "BACKLOG.md")
     active_block = task_block(backlog, state["current_task_id"])
-    validate_task_contract(active_block, state["current_task_id"])
-    validate_manifest(
-        root / state["evidence"]["active_evidence_manifest"],
-        expected_active_task_id=state["current_task_id"],
-        expected_next_task_id=state["next_task_id"],
-    )
+    fields = validate_task_contract(active_block, state["current_task_id"])
+    validate_active_task_state(state, fields, state["current_task_id"])
+    validate_task_evidence(state, fields, state["current_task_id"], root)
+    validate_successor(backlog, state)
     validate_indexing_rules(root / ".cursorindexingignore")
     warnings: List[str] = []
     for match in re.finditer(
         r"^### ([A-Z0-9-]+)(?:\s+—.*)?$", backlog, flags=re.MULTILINE
     ):
         task_id = match.group(1)
-        if task_id in {CURRENT_TASK_ID, state["current_task_id"], state["next_task_id"]}:
+        if task_id in {state["current_task_id"], state["next_task_id"]}:
             continue
         block = task_block(backlog, task_id)
         status_match = re.search(r"^- Status:\s*(.+)$", block, flags=re.MULTILINE)
