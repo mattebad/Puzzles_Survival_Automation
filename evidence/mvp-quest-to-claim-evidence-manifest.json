@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "manifest_id": "mvp-quest-to-claim-contract",
+  "active_task_id": "MVP-QUEST-TO-CLAIM",
+  "next_task_id": "M6-DQ-TRANSITION-CORPUS",
+  "source_manifest": "evidence/current-evidence-manifest.json",
+  "relevant_transaction_action_ids": [
+    "alliance-help-1783986842",
+    "reset-popup-close-1783994269-2"
+  ],
+  "canonical_evidence_session": "evidence/sessions/20260712-mvp-quest-to-claim",
+  "read_first": [
+    "evidence/current-evidence-manifest.json",
+    "evidence/sessions/20260712-mvp-quest-to-claim",
+    "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md",
+    "evidence/sessions/20260712-mvp-quest-to-claim/live-selected-tab-retest-20260713",
+    "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713"
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "mvp-live-continuation-record",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md",
+      "expected_sha256": "c4ae5dff3157048dcf2e9f452453374244050ef0e0c1de2361af4e807b466ee3",
+      "actual_sha256": "c4ae5dff3157048dcf2e9f452453374244050ef0e0c1de2361af4e807b466ee3",
+      "reason": "Exact MVP continuation record named by the existing backlog entry."
+    },
+    {
+      "artifact_id": "mvp-evidence-session",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": "evidence/sessions/20260712-mvp-quest-to-claim",
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "Exact retained MVP session directory named by the existing backlog entry; this activation did not recursively inspect or revalidate it."
+    },
+    {
+      "artifact_id": "mvp-selected-tab-retest",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": "evidence/sessions/20260712-mvp-quest-to-claim/live-selected-tab-retest-20260713",
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "Exact selected-Daily retest directory named by the existing backlog entry; no replacement evidence was selected."
+    },
+    {
+      "artifact_id": "mvp-daily-inventory",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713",
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "Exact bounded Daily inventory directory named by the existing backlog entry; no replacement evidence was selected."
+    },
+    {
+      "artifact_id": "mvp-popup-unresolved",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": "evidence/sessions/20260713-personal-might-praise/live-popup-unresolved-005",
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "Exact retained unresolved popup directory named by the existing backlog entry; no replacement evidence was selected."
+    },
+    {
+      "artifact_id": "mvp-corrected-popup",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006",
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "Exact retained corrected-popup directory named by the existing backlog entry; no replacement evidence was selected."
+    },
+    {
+      "artifact_id": "mvp-phase2-route-007",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": "evidence/sessions/20260713-personal-might-praise/live-phase2-route-007",
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "Exact retained phase-2 route directory named by the existing backlog entry; no replacement evidence was selected."
+    },
+    {
+      "artifact_id": "mvp-phase2-route-008",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": "evidence/sessions/20260713-personal-might-praise/live-phase2-route-008",
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "Exact retained phase-2 route directory named by the existing backlog entry; no replacement evidence was selected."
+    },
+    {
+      "artifact_id": "mvp-immediate-before",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": null,
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "A future execution requires a fresh immediate-before frame; activation performed no capture."
+    },
+    {
+      "artifact_id": "mvp-immediate-post",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": null,
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "A future execution requires an immediate-post frame; activation performed no capture."
+    },
+    {
+      "artifact_id": "mvp-semantic-result",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": null,
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "A future execution must prove the exact claimed-row, reward, and points postcondition; activation performed no runtime work."
+    },
+    {
+      "artifact_id": "mvp-operational-journal",
+      "status": "NOT_VERIFIED_THIS_RUN",
+      "path": null,
+      "expected_sha256": null,
+      "actual_sha256": null,
+      "reason": "A future execution must create or reference its task-scoped journal; no journal or lease was touched during activation."
+    }
+  ],
+  "unresolved_evidence": [
+    "evidence/sessions/20260713-personal-might-praise/live-popup-unresolved-005",
+    "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006",
+    "evidence/sessions/20260713-personal-might-praise/live-phase2-route-007",
+    "evidence/sessions/20260713-personal-might-praise/live-phase2-route-008"
+  ],
+  "integrity": {
+    "algorithm": "SHA-256",
+    "all_present_verified_entries_hashed": true,
+    "missing_or_not_located_entries_have_no_substitute": true
+  },
+  "must_not_be_compacted": [
+    "mvp-live-continuation-record",
+    "mvp-evidence-session",
+    "mvp-selected-tab-retest",
+    "mvp-daily-inventory",
+    "mvp-popup-unresolved",
+    "mvp-corrected-popup",
+    "mvp-phase2-route-007",
+    "mvp-phase2-route-008"
+  ],
+  "allowed_historical_references": [],
+  "do_not_recursively_inspect_parent_evidence_tree": true
+}

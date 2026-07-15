@@ -21,15 +21,12 @@ class GovernanceValidationTests(unittest.TestCase):
 
     def test_handoff_has_distinct_current_and_next_task_fields(self):
         state = validate_governance.parse_handoff()
-        self.assertEqual(state["current_task_id"], "GOV-DURABLE-STATE")
-        self.assertIn(
-            state["current_task_state"],
-            {"in_progress", "completed"},
-        )
-        self.assertEqual(state["next_task_id"], "MVP-QUEST-TO-CLAIM")
+        self.assertEqual(state["current_task_id"], "MVP-QUEST-TO-CLAIM")
+        self.assertEqual(state["current_task_state"], "pending")
+        self.assertEqual(state["next_task_id"], "M6-DQ-TRANSITION-CORPUS")
         self.assertEqual(
             state["next_task_activation_status"],
-            "contract_migration_required",
+            "not_applicable",
         )
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
 
@@ -85,6 +82,25 @@ class GovernanceValidationTests(unittest.TestCase):
                 state["next_task_id"],
             )
         validate_governance.validate_repository(ROOT)
+
+    def test_active_mvp_contract_is_complete(self):
+        state = validate_governance.parse_handoff()
+        backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
+        active_block = validate_governance.task_block(backlog, state["current_task_id"])
+        validate_governance.validate_task_contract(
+            active_block,
+            state["current_task_id"],
+        )
+        manifest = validate_governance.validate_manifest(
+            ROOT / state["evidence"]["active_evidence_manifest"],
+            expected_active_task_id=state["current_task_id"],
+            expected_next_task_id=state["next_task_id"],
+        )
+        self.assertEqual(manifest["active_task_id"], "MVP-QUEST-TO-CLAIM")
+        self.assertIn(
+            "NOT_VERIFIED_THIS_RUN",
+            {item["status"] for item in manifest["artifacts"]},
+        )
 
 
 if __name__ == "__main__":

@@ -20,6 +20,8 @@ MANIFEST_PATH = ROOT / "evidence" / "current-evidence-manifest.json"
 INDEXING_IGNORE_PATH = ROOT / ".cursorindexingignore"
 CURRENT_TASK_ID = "GOV-DURABLE-STATE"
 NEXT_TASK_ID = "MVP-QUEST-TO-CLAIM"
+MVP_TASK_ID = "MVP-QUEST-TO-CLAIM"
+MVP_SUCCESSOR_TASK_ID = "M6-DQ-TRANSITION-CORPUS"
 
 CURRENT_TASK_STATES = {"pending", "in_progress", "blocked", "completed"}
 NEXT_TASK_ACTIVATION_STATES = {
@@ -34,6 +36,7 @@ MANIFEST_STATUSES = {
     "MISSING",
     "NOT_LOCATED",
     "UNKNOWN",
+    "NOT_VERIFIED_THIS_RUN",
     "NOT_APPLICABLE",
 }
 
@@ -239,12 +242,34 @@ def parse_handoff(path: Path = HANDOFF_PATH) -> Dict[str, Any]:
         raise GovernanceValidationError("invalid current_task_state")
     if state["next_task_activation_status"] not in NEXT_TASK_ACTIVATION_STATES:
         raise GovernanceValidationError("invalid next_task_activation_status")
-    if state["current_task_id"] != CURRENT_TASK_ID:
-        raise GovernanceValidationError("current_task_id must be GOV-DURABLE-STATE")
-    if state["next_task_id"] != NEXT_TASK_ID:
-        raise GovernanceValidationError("next_task_id must be MVP-QUEST-TO-CLAIM")
     if state["current_task_id"] == state["next_task_id"]:
         raise GovernanceValidationError("current and next task IDs must be distinct")
+    if state["current_task_id"] == CURRENT_TASK_ID:
+        if state["next_task_id"] != NEXT_TASK_ID:
+            raise GovernanceValidationError(
+                "GOV-DURABLE-STATE must retain MVP-QUEST-TO-CLAIM as next task"
+            )
+        if state["next_task_activation_status"] != "contract_migration_required":
+            raise GovernanceValidationError(
+                "GOV-DURABLE-STATE requires contract_migration_required next status"
+            )
+    elif state["current_task_id"] == MVP_TASK_ID:
+        if state["current_task_state"] != "pending":
+            raise GovernanceValidationError(
+                "MVP-QUEST-TO-CLAIM activation must remain pending"
+            )
+        if state["next_task_id"] != MVP_SUCCESSOR_TASK_ID:
+            raise GovernanceValidationError(
+                "MVP-QUEST-TO-CLAIM must retain its established successor"
+            )
+        if state["next_task_activation_status"] != "not_applicable":
+            raise GovernanceValidationError(
+                "MVP successor must use not_applicable activation status"
+            )
+    else:
+        raise GovernanceValidationError(
+            "current_task_id must be GOV-DURABLE-STATE or MVP-QUEST-TO-CLAIM"
+        )
     if state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"] is not True:
         raise GovernanceValidationError("handoff must prohibit recursive evidence inspection")
     return state
@@ -268,16 +293,10 @@ def validate_task_contract(block: str, task_id: str = CURRENT_TASK_ID) -> None:
             raise GovernanceValidationError(f"{task_id} missing contract field: {label}")
     if f"`{task_id}`" not in block:
         raise GovernanceValidationError(f"{task_id} contract does not identify its task ID")
-    if "docs(agent): define durable execution policy" not in block:
-        raise GovernanceValidationError(f"{task_id} missing docs commit allowlist")
-    if "docs(handoff): standardize current operational state" not in block:
-        raise GovernanceValidationError(f"{task_id} missing handoff commit allowlist")
-    if "chore(governance): validate durable state contracts" not in block:
-        raise GovernanceValidationError(f"{task_id} missing validator commit allowlist")
     if "allowed paths" not in block:
         raise GovernanceValidationError(f"{task_id} missing per-commit allowed paths")
-    if "MVP-QUEST-TO-CLAIM" not in block:
-        raise GovernanceValidationError(f"{task_id} must preserve the next product task")
+    if "No push" not in block:
+        raise GovernanceValidationError(f"{task_id} must prohibit push by default")
 
 
 def _sha256(path: Path) -> str:
@@ -288,7 +307,11 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def validate_manifest(path: Path = MANIFEST_PATH) -> Dict[str, Any]:
+def validate_manifest(
+    path: Path = MANIFEST_PATH,
+    expected_active_task_id: Optional[str] = None,
+    expected_next_task_id: Optional[str] = None,
+) -> Dict[str, Any]:
     try:
         manifest = json.loads(_read(path))
     except json.JSONDecodeError as exc:
@@ -313,10 +336,20 @@ def validate_manifest(path: Path = MANIFEST_PATH) -> Dict[str, Any]:
         raise GovernanceValidationError(
             "evidence manifest missing keys: " + ", ".join(sorted(missing))
         )
-    if manifest["active_task_id"] != CURRENT_TASK_ID:
-        raise GovernanceValidationError("manifest active_task_id must be GOV-DURABLE-STATE")
-    if manifest["next_task_id"] != NEXT_TASK_ID:
-        raise GovernanceValidationError("manifest next_task_id must be MVP-QUEST-TO-CLAIM")
+    if (
+        expected_active_task_id is not None
+        and manifest["active_task_id"] != expected_active_task_id
+    ):
+        raise GovernanceValidationError(
+            f"manifest active_task_id must be {expected_active_task_id}"
+        )
+    if (
+        expected_next_task_id is not None
+        and manifest["next_task_id"] != expected_next_task_id
+    ):
+        raise GovernanceValidationError(
+            f"manifest next_task_id must be {expected_next_task_id}"
+        )
     if manifest["do_not_recursively_inspect_parent_evidence_tree"] is not True:
         raise GovernanceValidationError("manifest must prohibit recursive evidence inspection")
     if not manifest["integrity"].get("all_present_verified_entries_hashed"):
@@ -362,6 +395,21 @@ def validate_manifest(path: Path = MANIFEST_PATH) -> Dict[str, Any]:
                 raise GovernanceValidationError(
                     f"{status} artifact {artifact['artifact_id']} must not invent a path"
                 )
+        elif status == "NOT_VERIFIED_THIS_RUN":
+            if artifact["path"] is not None:
+                if not isinstance(artifact["path"], str) or not artifact["path"]:
+                    raise GovernanceValidationError(
+                        f"{status} artifact {artifact['artifact_id']} needs a valid path"
+                    )
+                target = ROOT / artifact["path"]
+                if not target.exists():
+                    raise GovernanceValidationError(
+                        f"not-verified artifact path does not exist: {artifact['path']}"
+                    )
+            if artifact["expected_sha256"] is not None or artifact["actual_sha256"] is not None:
+                raise GovernanceValidationError(
+                    f"{status} artifact {artifact['artifact_id']} must not claim a hash"
+                )
         elif status == "PRESENT_HASH_MISMATCH":
             if not isinstance(artifact["path"], str) or not artifact["path"]:
                 raise GovernanceValidationError(
@@ -397,14 +445,18 @@ def validate_repository(root: Path = ROOT) -> Tuple[List[str], List[str]]:
     backlog = _read(root / "BACKLOG.md")
     active_block = task_block(backlog, state["current_task_id"])
     validate_task_contract(active_block, state["current_task_id"])
-    validate_manifest(root / state["evidence"]["active_evidence_manifest"])
+    validate_manifest(
+        root / state["evidence"]["active_evidence_manifest"],
+        expected_active_task_id=state["current_task_id"],
+        expected_next_task_id=state["next_task_id"],
+    )
     validate_indexing_rules(root / ".cursorindexingignore")
     warnings: List[str] = []
     for match in re.finditer(
         r"^### ([A-Z0-9-]+)(?:\s+—.*)?$", backlog, flags=re.MULTILINE
     ):
         task_id = match.group(1)
-        if task_id in {CURRENT_TASK_ID, NEXT_TASK_ID}:
+        if task_id in {CURRENT_TASK_ID, state["current_task_id"], state["next_task_id"]}:
             continue
         block = task_block(backlog, task_id)
         status_match = re.search(r"^- Status:\s*(.+)$", block, flags=re.MULTILINE)

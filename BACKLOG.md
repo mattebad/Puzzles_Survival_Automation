@@ -487,50 +487,191 @@ Claim example.
 
 ### MVP-QUEST-TO-CLAIM — Complete one supervised Daily Quest vertical slice
 
-- Dependencies: M6-DQ-BOOTSTRAP Passed, M7-SAFE-ACTION-CORE Passed,
-  MVP-STARTUP-NORMALIZATION Passed, and no unresolved action.
-- Objective: prove one bounded, supervised Daily Quest quest-to-claim transition using the
-  selected runtime and the minimum safety core.
-- Scope:
-  1. Navigate to Daily Quest.
-  2. Determine whether a completed, unclaimed row already exists.
-  3. If none exists, complete exactly one approved zero-cost R1 objective.
-  4. Verify that the corresponding row becomes Claim.
-  5. Claim exactly that one row.
-  6. Prove the postcondition.
-  7. Stop.
-- Prerequisite policy: prefer Alliance Help only when the exact zero-cost action is positively
-  recognized. A proven-free Supply Depot action may be the fallback. No resource-consuming
-  substitute is permitted without explicit user authorization.
-- Boundary: this is agent-driven supervised development input, not unattended automatic gameplay.
-  RT-016A and M7-AccountGuard remain required before unattended automatic gameplay, but do not
-  block this one supervised trial when the task-specific source, target, consequence, cost,
-  evidence, journal, and unresolved-action requirements are satisfied.
-- Acceptance: exactly one approved zero-cost prerequisite, if needed, produces one positively
-  identified Claim row; exactly one Claim input is sent through the central policy/executor path;
-  the claimed-row/reward/points postcondition is positively verified; all before/action/after and
-  failure evidence is retained; and any ambiguity becomes unresolved without retry.
-- Verification: offline replay and dry-run coverage from M6-DQ-BOOTSTRAP, then one supervised
-  live trial with immediate pre-input recapture, one input, bounded postcondition observation,
-  and independent reconciliation. Do not continue into Daily Quest claims or other gameplay after
-  this trial.
-- Evidence: `evidence/sessions/20260712-mvp-quest-to-claim/`.
-- Rollback: stop at the first unknown or unresolved outcome, preserve the action journal and all
-  frames, disable further claim input, and reconcile manually; no blind retry or resource-consuming
-  fallback is allowed.
-- Status: Blocked (2026-07-13; individual Help and actual lower Help All are live-validated, no help request was available, and the full quest-to-claim flow remains incomplete).
+- Task ID: `MVP-QUEST-TO-CLAIM`
+- Title: Complete one supervised Daily Quest vertical slice.
+- Status: Pending; contract-ready activation completed, product execution has not started. The
+  product status remains Blocked by the retained 2026-07-13 prerequisite/evidence conclusion.
+- Milestone: M8 claim-only MVP validation.
+- Dependencies: `M6-DQ-BOOTSTRAP` Passed, `M7-SAFE-ACTION-CORE` Passed,
+  `MVP-STARTUP-NORMALIZATION` Passed, and no active unresolved action.
+- Blocked by: fresh Daily reset/game-day identity plus a supported zero-cost objective or existing
+  ordinary Claim row; the retained proof did not establish one, and no current `game_day_id` was
+  assigned. Any unresolved action also blocks consequential input.
+- Objective: prove one bounded, supervised Daily Quest quest-to-claim transition using the selected
+  runtime and the minimum safety core, then stop.
+- Established facts:
+  - The original scope is exactly: navigate to Daily Quest; determine whether one completed,
+    unclaimed row exists; if none exists, complete exactly one approved zero-cost R1 objective;
+    verify that row becomes Claim; claim exactly that row; prove the postcondition; stop.
+  - This is agent-driven supervised development input, not unattended automatic gameplay. RT-016A
+    and M7-AccountGuard remain required before unattended automatic gameplay.
+  - The product entry remains Blocked: the typed continuation report had no admissible selected-
+    Daily proof for its named objectives; the retained first-four frame was Main Quest, Gather Food
+    was synthetic-only, and Headquarters was documentation-only.
+  - No ordinary Claim row, admissible Alliance Help objective, or explicitly free fallback objective
+    was established in the retained blocker evidence. No Go or Claim input was sent in that state.
+  - The retained schema-v1 journal was terminal-only with no unresolved/nonterminal records and a
+    released lease at that observation. The prior Help attempt and later retained unresolved
+    diagnostic records remain evidence conclusions and must not be repeated.
+  - Selected-Daily correction/retest, bounded inventory, local-row handling, startup escape policy,
+    and central safety-core behavior were validated in the existing evidence conclusions. Existing
+    records cite both a 96-test dependency-complete suite and a later 100-test selected-tab retest;
+    this activation does not revalidate either.
+  - Alliance Help geometry was corrected: the upper `(556,274)-(727,330)` target is individual
+    Help, while the lower `(277,1188)-(523,1268)` target is Help All. The retained
+    `alliance-help-1783986842` action was dispatched once and reconciled positively, but no Claim
+    or Daily Quest completion was proven.
+  - Personal Might Praise and Claim work is a separate completed/validated area and is not part of
+    this task. The retained popup and phase-2 route records remain unresolved or diagnostic.
+  - Runtime registration remains `NOT_REGISTERED_UNCHANGED` and scheduler state remains
+    `DISABLED/INELIGIBLE`; this task does not promote either state.
+- Status: Blocked (2026-07-13; individual Help and actual lower Help All are live-validated, no
+  help request was available, and the full quest-to-claim flow remains incomplete). The migrated
+  task state is pending because this activation did not begin product execution.
 - Blocker: the typed continuation report named Vehicle Depot, Ultimate Challenge, Hunt Zombie,
   Own Hero, Gathered Food, and Headquarters wording, but provenance audit found no admissible
   selected-Daily proof for them. The retained raw frame for the first four visibly has Main Quest
-  selected; Gather Food is synthetic-only and Headquarters is documentation-only. They remain
-  outside this Daily roadmap. No ordinary Claim row, Alliance Help objective, or explicitly free
-  Supply Depot objective was observed. No current `game_day_id` was assigned. No Go or Claim input
-  was sent.
-  The schema-v1 live journal has only terminal actions, zero unresolved/nonterminal records, and a
-  released lease. The full combined offline suite remains 96 passing tests; RT-019 and all six M6
-  assets pass. Resume only after a fresh Daily observation positively establishes reset/game-day
-  identity and a supported zero-cost objective or existing ordinary Claim row. Never reuse prior
-  action keys.
+  selected; Gather Food is synthetic-only and Headquarters is documentation-only. No ordinary
+  Claim row or supported zero-cost prerequisite was established, no current `game_day_id` was
+  assigned, and no Go or Claim input was sent. Resume only after fresh Daily reset/game-day and
+  supported-objective or existing-Claim evidence. Never reuse prior action keys.
+- Direct implementation files: `NOT_YET_VERIFIED_THIS_RUN`; the legacy entry names no exact
+  implementation-file allowlist. A future execution chat must resolve and allowlist exact files
+  before product edits; activation authorizes no product-file change.
+- Shared dependencies: `M6-DQ-BOOTSTRAP`, `M7-SAFE-ACTION-CORE`,
+  `MVP-STARTUP-NORMALIZATION`, RT-019 profile evidence, the central policy/executor path, and the
+  persistent action journal/lease contracts.
+- Transitive regression set: M6 corpus recognition and six-asset validation, M7 safety-core and
+  journal crash-boundary tests, RT-019 profile checks, focused Daily planning tests, and any exact
+  task-module tests named by a future implementation allowlist.
+- Allowed changes: this contract, its exact task-specific evidence manifest, persisted handoff
+  activation, and focused governance validator/test changes required to validate this migration.
+  Future execution may only perform the seven original bounded scope steps, through the central
+  policy/executor path, with exact current-frame binding and retained evidence.
+- Prohibited changes: Bioenhancer research; Supply Depot; recruitment; unrelated Daily objectives;
+  generalized framework redesign; evidence hygiene; scheduler activation; runtime registration
+  changes; downstream backlog work; push; production modules not directly allowlisted by a future
+  execution contract; and any runtime, worker, ADB, SSH, Docker, emulator, or game operation during
+  this activation.
+- Authorized runtime action: none during activation. A fresh execution chat may authorize only the
+  existing supervised Daily Quest vertical slice after all source, game-day, target, cost, journal,
+  lease, and unresolved-action gates pass. Its only possible consequential actions are one
+  positively recognized zero-cost Alliance Help prerequisite and one exact Claim; Supply Depot is
+  not authorized by this contract.
+- Maximum transport inputs: activation navigation-only `0`, consequential `0`, Claim `0`, all
+  runtime inputs `0`. Future navigation-only maximum is `UNKNOWN` because the legacy entry did not
+  specify a numeric cap; future consequential maximum is `2` total (`1` prerequisite if needed and
+  `1` Claim), with Claim maximum `1`.
+- Navigation-only recovery: forbidden during activation. Future recovery may use only a fresh,
+  evidence-supported narrow policy; no identical retry, generic popup cleanup, or recovery after an
+  ambiguous consequence.
+- Consequential action: Claim is separately journaled, current-frame validated, row-locally bound,
+  sent once through the central executor, and independently reconciled. Any unknown or unresolved
+  result is terminal for this task; no blind retry.
+- Registration changes: forbidden; preserve `NOT_REGISTERED_UNCHANGED`.
+- Scheduler changes: forbidden; preserve `DISABLED/INELIGIBLE` and no eligible flows.
+- Actions that must not be repeated: Bioenhancer research or actions
+  `bioenhancer-free-1784069057` and `bioenhancer-free-1784079616`; any prior validated Praise or
+  Daily Claim transaction; `alliance-help-1783986842`; `reset-popup-close-1783994269-2`; any
+  gameplay input; Supply Depot, recruitment, or unrelated Daily work; evidence movement or
+  collection; and any action key from retained sessions.
+- Required source: fresh raw full-frame `800x1280` evidence after startup reconciliation with
+  selected Daily Quest positively recognized, no forbidden overlay, positively assigned current
+  reset/game-day identity, and either an ordinary completed-unclaimed row or a supported zero-cost
+  objective.
+- Exact target semantics: the exact completed row's local `Claim` control, not `Go`, Main Quest,
+  another row, a generic button, or a coordinate-only target. If a prerequisite is needed, its
+  exact zero-cost target must be recognized from the same current frame and remain within the
+  existing MVP objective.
+- Required local association: selected Daily tab, objective row, local control, source frame,
+  immediate-before frame, action journal, and game-day identity must all refer to the same current
+  task cycle. No stale or cross-session association is valid.
+- Negative controls: Main Quest selected as Daily; typed or synthetic objective wording without
+  admissible selected-Daily proof; stale/scaled/partial frames; missing game-day identity; unknown
+  overlays; purchase, premium, reward, quantity, or offer controls; Supply Depot; recruitment;
+  unrelated Daily objectives; Go mistaken for Claim; and any active unresolved action.
+- Coordinate space: raw full-frame `800x1280` evidence at the expected `160 dpi` profile
+  `pns-blissos-poc-virgl-800x1280-v1`; never scaled previews, stale captures, crops, or vendor
+  coordinates.
+- Accepted signals: fresh source recognition; selected Daily tab; exact local target recognition;
+  reset/game-day binding; immediate-before revalidation; exactly one authorized transport input per
+  consequential action; and positive claimed-row/reward/points postcondition.
+- Rejected weak signals: transport success alone; a visually similar or stale frame; text without
+  selected-Daily provenance; a generic Claim-looking control; row disappearance without the required
+  independent postcondition; or a command result without journal/evidence reconciliation.
+- Ambiguous-result behavior: stop immediately, preserve all available frames and the journal,
+  classify the action unresolved, block further consequential input, release or preserve lease
+  state according to policy, and require manual reconciliation. Never retry blindly.
+- Game-day requirements: future execution must freshly establish reset identity and bind all task
+  state, evidence, and authorization to that game day. Current runtime and game day are
+  `NOT_VERIFIED_THIS_RUN`; recorded historical identities do not authorize execution.
+- Journal and lease requirements: use the central persistent journal and exclusive lease; require no
+  active prepared, input-sent, or unresolved consequential action before dispatch; persist
+  prepared/input-sent/confirmed-or-unresolved transitions; and leave no action between prepared and
+  terminal state at handoff. Activation touched neither journal nor lease.
+- Zero-cost requirement: the prerequisite, if needed, must be positively proven zero-cost before
+  dispatch; no resource, currency, premium item, or strategic state may be consumed.
+- Quantity limits: at most one approved prerequisite if needed and exactly one Claim; no additional
+  Daily, quest, reward, or gameplay action.
+- Resource consumption policy: no resource-consuming substitute, purchase, reward, quantity, or
+  strategic action is permitted.
+- Premium or strategic restrictions: premium, paid, strategic, recruitment, Supply Depot, and
+  unrelated objective actions are forbidden.
+- Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`, sourced from
+  `evidence/current-evidence-manifest.json` and exact references named by this task.
+- Required artifacts: fresh source, immediate-before, transport/journal record, immediate-post,
+  semantic result, unresolved proof when applicable, and exact task-cycle/game-day evidence for a
+  future execution. Current activation has no fresh runtime artifacts.
+- Immediate-before/immediate-post/result/journal: all are `NOT_VERIFIED_THIS_RUN` for activation;
+  future execution must capture and hash exact references without replacing retained evidence.
+- Additional task-specific artifacts: the exact retained paths in the MVP manifest, including
+  `live-continuation-20260713.md`, selected-tab retest, Daily inventory, popup diagnostics, and
+  phase-2 route directories; no recursive evidence inspection is permitted.
+- Focused tests: `tests/test_governance_validation.py` plus the task-contract, handoff identity,
+  manifest path/hash, indexing-boundary, JSON, secret-scan, and `git diff --check` validations
+  required for this activation. No product/runtime test is authorized here.
+- Integration tests: future supervised trial only, after offline replay and dry-run gates; none in
+  this activation.
+- Transitive regression tests: existing M6, M7, RT-019, and affected Daily planning validators;
+  report prior evidence-hygiene environment failures separately.
+- Full-suite requirement: none for this documentation-only activation; production code must remain
+  unchanged.
+- Validators: `scripts/validate_governance.py`, focused governance unittest, JSON parsing, exact
+  manifest path/hash validation, indexing-boundary validation, secret scan of touched files, and
+  `git diff --check`.
+- Known baseline failures: six accepted evidence-hygiene environment-specific failures and any
+  previously recorded cv2/evidence-fixture failures; a new failure in touched governance code
+  blocks completion.
+- Valid blocked outcomes: unresolved product decision; missing exact source/target/game-day proof;
+  active unresolved action; unknown overlay or cost; unavailable exact evidence identity; protected
+  work ownership ambiguity; validator failure; or any request for runtime/production mutation.
+- Blocked-result commit policy: if migration cannot be completed without an unresolved product
+  decision, do not activate; preserve `GOV-DURABLE-STATE` as completed current, retain this task as
+  next with `contract_migration_required` or `dependency_blocked`, record the exact missing field,
+  and commit only the noncontroversial blocked-state documentation permitted by the existing
+  policy. This activation has no such unresolved contract field.
+- Commit policy: one focused activation commit; stage only `BACKLOG.md`, `CURRENT_HANDOFF.md`,
+  `evidence/mvp-quest-to-claim-evidence-manifest.json`, `scripts/validate_governance.py`, and
+  `tests/test_governance_validation.py`. Protected evidence and unrelated paths are never staged.
+- Expected focused commits: `docs(tasks): activate MVP quest-to-claim contract` allowed paths:
+  `BACKLOG.md` (this task section only), `CURRENT_HANDOFF.md`, the exact MVP evidence manifest,
+  and directly affected governance validator/test hunks. No push unless explicitly authorized.
+- Completion criteria: the original bounded objective, dependencies, status, safety boundaries,
+  Claim separation, evidence conclusions, registration state, and scheduler state remain explicit;
+  this contract validates; the handoff identifies this task as current `pending`; no runtime or
+  product operation occurs; no active consequential action exists; and one focused commit records
+  the migration and activation.
+- Stop conditions: stop on any validator failure, protected-work ambiguity, evidence identity
+  ambiguity, unresolved contract decision, runtime request, unexpected product-file change, active
+  prepared/input-sent action, or any need to broaden the original objective.
+- Final reporting requirements: report starting/ending HEAD, branch/worktree state, task ID,
+  contract fields added or corrected, preserved scope and status, handoff state, manifest, tests and
+  validators, changed files, commit hash, zero runtime operations, journal/lease state, registration
+  and scheduler state, unresolved actions, exact next permitted action, prohibited repeats, and
+  push status.
+- Next permitted action: start a fresh execution chat for `MVP-QUEST-TO-CLAIM`; do not execute its
+  first implementation or runtime step in this activation.
+- Historical evidence conclusions retained:
 - Latest read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an already-running
   task-scoped worker and resumed game activity, but the fresh `800x1280` frame was a purchase/top-up
   surface. The Daily Quest recognizer abstained and reset/game-day identity could not be assigned.
