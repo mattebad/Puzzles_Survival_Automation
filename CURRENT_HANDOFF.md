@@ -56,9 +56,9 @@
 
 ## 2026-07-15 Bioenhancer live confirmation and Daily reset boundary
 
-- Repository is on `main`; current implementation and evidence changes remain uncommitted.
-  Protected runtime evidence remains intentionally untracked unless explicitly selected for a
-  focused evidence commit.
+- Repository is on `main`; closure documentation and classification are committed in
+  `f1307b5662afb5f175bd36d16cc8d4361e8873bd`. Protected raw runtime evidence remains intentionally
+  untracked unless explicitly selected for a focused evidence commit.
 - Runtime gate passed through `pnsctl`: VM `PnS-BlissOS-PoC` running, worker
   `pns-mvp-help-all-20260713` already up and synced, private ADB connected at
   `192.168.122.79:5555` through loopback `127.0.0.1:5042`, package foreground
