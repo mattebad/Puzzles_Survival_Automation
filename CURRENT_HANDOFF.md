@@ -19,16 +19,17 @@
     ]
   },
   "current_task_id": "GOV-DURABLE-STATE",
-  "current_task_state": "in_progress",
+  "current_task_state": "completed",
   "next_task_id": "MVP-QUEST-TO-CLAIM",
   "next_task_activation_status": "contract_migration_required",
-  "phase": "implementation",
+  "phase": "reconciliation",
   "objective": "Establish durable agent governance and state contracts without runtime or production changes.",
-  "last_safe_completed_step": "Read-only repository, task, policy, exact evidence, and protected-worktree inventory completed.",
-  "next_permitted_action": "Finish governance documentation, exact evidence manifest, indexing controls, focused validation, and allowlisted commits only.",
+  "last_safe_completed_step": "Governance policy, handoff schema, exact evidence manifest, indexing controls, and focused validators passed and were committed.",
+  "next_permitted_action": "Migrate and validate the MVP-QUEST-TO-CLAIM contract in a separate task before activating it; no governance-task runtime action is permitted.",
   "actions_already_performed": [
     "Read-only Git status, history, governance files, exact Bioenhancer summaries, and exact referenced evidence.",
-    "No runtime, worker, ADB, scheduler, registration, evidence collection, or gameplay operation."
+    "No runtime, worker, ADB, scheduler, registration, evidence collection, or gameplay operation.",
+    "Focused governance, Daily planning, and exact manifest validators passed; evidence-hygiene baseline errors remain environment-specific."
   ],
   "actions_not_to_repeat": [
     "Do not start workers or runtime processes.",
@@ -86,7 +87,7 @@
     "last_full_suite_count": "NOT_RUN_THIS_RUN; prior result not revalidated",
     "known_accepted_baseline_failures": "Report prior cv2/evidence-fixture environment failures separately if encountered",
     "new_regressions": [],
-    "last_relevant_focused_tests": "Not run yet for GOV-DURABLE-STATE"
+    "last_relevant_focused_tests": "governance 6/6; Daily planning 11/11; evidence hygiene 6 environment-specific baseline errors"
   },
   "evidence": {
     "active_evidence_manifest": "evidence/current-evidence-manifest.json",
@@ -107,9 +108,8 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Complete GOV-DURABLE-STATE documentation and validator implementation.",
-      "Run focused offline governance and affected planning/evidence validators.",
-      "Stage only the named commit allowlists and create non-empty focused commits."
+      "Migrate and validate MVP-QUEST-TO-CLAIM's backlog contract in a separate persisted task transition.",
+      "Use exact current handoff, backlog, journal, and evidence references before any future product work."
     ],
     "prohibited_actions": [
       "Runtime, ADB, worker, remote, scheduler, registration, journal, lease, or gameplay operations.",
@@ -138,14 +138,14 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Current task
 - Task ID: `GOV-DURABLE-STATE`
-- Current task state: `in_progress`
+- Current task state: `completed`
 - Next task ID: `MVP-QUEST-TO-CLAIM`
 - Next task activation status: `contract_migration_required`
-- Phase: `implementation`
+- Phase: `reconciliation`
 - Objective: establish durable policy, handoff, evidence-manifest, indexing, and validation contracts
-- Last safe completed step: read-only repository and exact evidence inventory
-- Exact next permitted step: finish offline governance changes and focused validation
-- Actions already performed: repository inspection and governance-only documentation edits
+- Last safe completed step: governance policy, handoff, manifest, indexing, and validators passed and were committed
+- Exact next permitted step: migrate and validate `MVP-QUEST-TO-CLAIM` in a separate persisted task transition
+- Actions already performed: repository inspection, governance-only edits, and focused validation
 - Actions that must not be repeated: runtime/ADB/worker operations, evidence movement, protected staging, or product-task activation
 
 ## Runtime
@@ -185,7 +185,7 @@ This document is a volatile operational boundary, not a complete project history
 - Last full-suite count: `NOT_RUN_THIS_RUN`
 - Known accepted baseline failures: report prior environment failures separately
 - New regressions: none observed yet
-- Last relevant focused tests: not run yet
+- Last relevant focused tests: governance 6/6; Daily planning 11/11; evidence hygiene has 6 environment-specific baseline errors
 
 ## Evidence
 - Active evidence manifest: `evidence/current-evidence-manifest.json`
@@ -199,7 +199,7 @@ This document is a volatile operational boundary, not a complete project history
 - Must-retain artifacts: current manifest, canonical result/summary, operational and historical journals
 
 ## Next action
-- Permitted actions: complete governance docs, exact manifest, indexing controls, focused validators, and allowlisted commits
+- Permitted actions: migrate and validate the MVP contract in a separate task transition
 - Prohibited actions: runtime/ADB/worker/remote operations, evidence changes, product activation, or production behavior changes
 - Exact stop condition: any protected ownership, journal/evidence identity, or validator ambiguity
 - Expected next atomic task: `MVP-QUEST-TO-CLAIM`

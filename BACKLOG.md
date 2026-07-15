@@ -11,7 +11,7 @@ requirements and measured facts. Evidence records contain observations, not comp
 
 - Task ID: `GOV-DURABLE-STATE`
 - Title: Establish durable agent governance and state contracts.
-- Status: In Progress (2026-07-15; governance implementation boundary).
+- Status: Completed (2026-07-15; durable governance and state contracts validated and committed).
 - Milestone: Repository governance and durable-state architecture.
 - Dependencies: repository authority files identified; protected untracked evidence preserved;
   no runtime or production dependency.
