@@ -134,6 +134,7 @@ class DailyBioenhancerContractTests(unittest.TestCase):
         )
         self.assertEqual(row["consequential_dispatch_count"], 1)
         self.assertEqual(row["research_10x_dispatch_count"], 0)
+        self.assertEqual(row["lease_release_status"], "EXPIRED_BY_POLICY")
         self.assertEqual(row["claim_execution_status"], "NOT_PERFORMED")
         self.assertEqual(row["current_runtime_registration_status"], "NOT_REGISTERED")
         self.assertFalse(row["scheduler_eligibility"])

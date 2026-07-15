@@ -972,6 +972,7 @@
       "research_cost_amount": 0,
       "research_quantity": 1,
       "research_10x_dispatch_count": 0,
+      "lease_release_status": "EXPIRED_BY_POLICY",
       "claim_execution_status": "NOT_PERFORMED",
       "claim_separation": "independent; no Claim dispatched"
     },

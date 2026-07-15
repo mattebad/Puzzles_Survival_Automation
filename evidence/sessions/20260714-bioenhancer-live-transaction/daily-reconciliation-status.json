@@ -7,6 +7,7 @@
   "dispatch_audit": {
     "confirmed_transaction_action_rows": 1,
     "confirmed_transport_calls": 1,
+    "lease_release_status": "EXPIRED_BY_POLICY",
     "prior_attempt_action_id": "bioenhancer-free-1784068961",
     "prior_attempt_action_rows": 0,
     "prior_attempt_transport_calls": 0,

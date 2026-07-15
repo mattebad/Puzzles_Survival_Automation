@@ -12,8 +12,8 @@
   `pns-blissos-poc-virgl-800x1280-v1`, 800×1280.
 - The live consequential transaction `bioenhancer-free-1784069057` is terminally confirmed:
   one transport input, Bioenhancer Research source, exact Free Research 1x target, zero cost,
-  quantity one, positive research/cooldown postcondition, Research 10x untouched, lease released,
-  and no active consequential unresolved action.
+  quantity one, positive research/cooldown postcondition, Research 10x untouched. Its lease
+  expired under the recorded policy TTL; no active consequential unresolved action remains.
 - Canonical result/journal:
   `evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json`
   and `actions-bioenhancer-free-1784069057.sqlite3`. Claim, milestone, Supply Depot,
