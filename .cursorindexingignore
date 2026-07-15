@@ -1,0 +1,24 @@
+# Broad indexing exclusions only; these patterns do not delete evidence or block exact-path access.
+evidence/**/*.png
+evidence/**/*.jpg
+evidence/**/*.jpeg
+evidence/**/*.webp
+evidence/**/*.sqlite
+evidence/**/*.sqlite3
+evidence/**/*.db
+evidence/**/raw/**
+evidence/**/duplicate-frame*/
+evidence/**/duplicates/**
+evidence/**/transfer/**
+evidence/**/remote-cache/**
+evidence/**/*.zip
+evidence/**/*.zip.*
+evidence/**/*transcript*.md
+
+# Retained conversation/transcript material is historical context, not broad indexed authority.
+**/*conversation-transcript*.md
+**/*agent-transcript*.md
+
+# Keep lightweight authoritative artifacts indexable:
+# evidence/current-evidence-manifest.json, evidence summaries, result JSON,
+# reconciliation reports, hash manifests, and canonical status Markdown.

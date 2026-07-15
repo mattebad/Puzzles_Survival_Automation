@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "manifest_id": "current-governance-boundary",
+  "active_task_id": "GOV-DURABLE-STATE",
+  "next_task_id": "MVP-QUEST-TO-CLAIM",
+  "relevant_transaction_action_ids": [
+    "bioenhancer-free-1784079616",
+    "bioenhancer-free-1784069057",
+    "nav-daily-bioenhancer-go-1784079563",
+    "reset-popup-close-1784079185-2"
+  ],
+  "canonical_evidence_session": "evidence/sessions/20260714-bioenhancer-e2e-validation",
+  "read_first": [
+    "docs/research/bioenhancer_e2e_validation_manifest.json",
+    "evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-free-1784079616-result.json",
+    "evidence/sessions/20260714-bioenhancer-e2e-validation/nav-daily-bioenhancer-go-1784079563-result.json",
+    "evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json"
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "bioenhancer-e2e-validation-manifest",
+      "status": "PRESENT_VERIFIED",
+      "path": "docs/research/bioenhancer_e2e_validation_manifest.json",
+      "expected_sha256": "47e6b4541f8e71c0c261a0a369aa15c89f0bf381df65e9471f23974d6365a5a2",
+      "actual_sha256": "47e6b4541f8e71c0c261a0a369aa15c89f0bf381df65e9471f23974d6365a5a2",
+      "reason": "Canonical lightweight same-day Bioenhancer result manifest."
+    },
+    {
+      "artifact_id": "bioenhancer-daily-source",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-rerun-source-20260714-2038.png",
+      "expected_sha256": "657ec88b3a280948d2b793e6ec5e88ad4f7f8a2c7f0d22f2265555724185cd22",
+      "actual_sha256": "657ec88b3a280948d2b793e6ec5e88ad4f7f8a2c7f0d22f2265555724185cd22",
+      "reason": "Exact selected-Daily 0/1 source frame named by the canonical manifest."
+    },
+    {
+      "artifact_id": "bioenhancer-navigation-result",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/nav-daily-bioenhancer-go-1784079563-result.json",
+      "expected_sha256": "4ec4bb7639e89c0e49ba80d15cf06dff137c4da1babbc67f2c13441480de6e98",
+      "actual_sha256": "4ec4bb7639e89c0e49ba80d15cf06dff137c4da1babbc67f2c13441480de6e98",
+      "reason": "Exact navigation action result referenced by the same-day validation manifest."
+    },
+    {
+      "artifact_id": "bioenhancer-navigation-immediate-before",
+      "status": "NOT_LOCATED",
+      "path": null,
+      "expected_sha256": "cea993ccda71d0ec2ace52135a3686d1609d7bda32bcd7066c5671d924769556",
+      "actual_sha256": null,
+      "reason": "Exact journal reference /evidence/nav-daily-bioenhancer-go-1784079563-immediate-before-1.png was not located in the named session; no substitute selected."
+    },
+    {
+      "artifact_id": "bioenhancer-research-source",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-free-1784079616-source.png",
+      "expected_sha256": "80badf0b7171ca4e0bec1b3fcdb1ad6e8947b4e398bfe42ca95399f764f4ddd2",
+      "actual_sha256": "80badf0b7171ca4e0bec1b3fcdb1ad6e8947b4e398bfe42ca95399f764f4ddd2",
+      "reason": "Exact raw Bioenhancer Research source frame."
+    },
+    {
+      "artifact_id": "bioenhancer-research-immediate-before",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-free-1784079616-immediate-before-1.png",
+      "expected_sha256": "d344ca777bfe9e9aefb1c437bcb7b8ba68057a56114219e8a7d743220e7142f9",
+      "actual_sha256": "d344ca777bfe9e9aefb1c437bcb7b8ba68057a56114219e8a7d743220e7142f9",
+      "reason": "Exact immediate-before frame for the one Free Research 1x dispatch."
+    },
+    {
+      "artifact_id": "bioenhancer-research-immediate-post",
+      "status": "NOT_LOCATED",
+      "path": null,
+      "expected_sha256": "58c669371654852a6da31ffb2f3432e69e4e9a27021709c7de9ef18cfe56c3fe",
+      "actual_sha256": null,
+      "reason": "Canonical result records this postcondition hash but no exact local path was located in the named session; no visually similar replacement selected."
+    },
+    {
+      "artifact_id": "bioenhancer-research-result",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-free-1784079616-result.json",
+      "expected_sha256": "7ff87110857e68eda55fb172fada489f7dc40c68fc3f67a6bedd173029024a32",
+      "actual_sha256": "7ff87110857e68eda55fb172fada489f7dc40c68fc3f67a6bedd173029024a32",
+      "reason": "Canonical confirmed action result with one transport call and positive postcondition."
+    },
+    {
+      "artifact_id": "bioenhancer-operational-journal",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/actions-bioenhancer-free-1784079616.sqlite3",
+      "expected_sha256": "b04a2a33539fd0a46e076f199ff2fa29c40c8a0a91e60381db79211b3f6e6218",
+      "actual_sha256": "b04a2a33539fd0a46e076f199ff2fa29c40c8a0a91e60381db79211b3f6e6218",
+      "reason": "Exact operational journal named by the canonical result manifest."
+    },
+    {
+      "artifact_id": "bioenhancer-daily-result",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-rerun-daily-post-20260714-2040.png",
+      "expected_sha256": "08776f2e9ae20c89b1d928d62335a231d7272d73ff73c444780b1822e0f37d8b",
+      "actual_sha256": "08776f2e9ae20c89b1d928d62335a231d7272d73ff73c444780b1822e0f37d8b",
+      "reason": "Exact Daily 1/1 Claim-visible result frame named by the canonical manifest."
+    },
+    {
+      "artifact_id": "navigation-diagnostic",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json",
+      "expected_sha256": "3b5281d80c9a79c719540f7fc8befebc11ddd3bf296599cbabffe1ad56d01315",
+      "actual_sha256": "3b5281d80c9a79c719540f7fc8befebc11ddd3bf296599cbabffe1ad56d01315",
+      "reason": "Terminal benign navigation-only diagnostic; it did not alter the consequential research transaction."
+    },
+    {
+      "artifact_id": "historical-research-result",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json",
+      "expected_sha256": "5c3712db86a98730ed6729e583d3aa1a20bd6638a1b34ce0fb976fb71b37212e",
+      "actual_sha256": "5c3712db86a98730ed6729e583d3aa1a20bd6638a1b34ce0fb976fb71b37212e",
+      "reason": "Immutable historical/source result retained for prior transaction identity and non-repeat proof."
+    },
+    {
+      "artifact_id": "historical-source-journal",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-live-transaction/actions-bioenhancer-free-1784069057.sqlite3",
+      "expected_sha256": "fbb821c095022c62f26979202bba28d48a2af4700c494c42c55b3ae119e92650",
+      "actual_sha256": "fbb821c095022c62f26979202bba28d48a2af4700c494c42c55b3ae119e92650",
+      "reason": "Immutable historical/source journal; do not edit or delete."
+    },
+    {
+      "artifact_id": "historical-reconciliation-status",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260714-bioenhancer-live-transaction/daily-reconciliation-status.json",
+      "expected_sha256": "441c8c43a5f52744e4baae4d136590c8ff4ace75989fa02106dc65ee29c2bed0",
+      "actual_sha256": "441c8c43a5f52744e4baae4d136590c8ff4ace75989fa02106dc65ee29c2bed0",
+      "reason": "Historical reset-boundary classification retained for context and non-repeat handling."
+    }
+  ],
+  "unresolved_evidence": [
+    "evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json"
+  ],
+  "integrity": {
+    "algorithm": "SHA-256",
+    "all_present_verified_entries_hashed": true,
+    "missing_or_not_located_entries_have_no_substitute": true
+  },
+  "must_not_be_compacted": [
+    "bioenhancer-e2e-validation-manifest",
+    "bioenhancer-research-result",
+    "bioenhancer-operational-journal",
+    "bioenhancer-daily-result",
+    "navigation-diagnostic",
+    "historical-research-result",
+    "historical-source-journal",
+    "historical-reconciliation-status"
+  ],
+  "allowed_historical_references": [
+    "evidence/sessions/20260714-bioenhancer-live-transaction/actions-bioenhancer-free-1784069057.sqlite3",
+    "evidence/sessions/20260714-bioenhancer-live-transaction/daily-reconciliation-status.json",
+    "evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json"
+  ],
+  "do_not_recursively_inspect_parent_evidence_tree": true
+}
