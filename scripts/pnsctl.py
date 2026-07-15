@@ -260,12 +260,24 @@ NAVIGATION_STEPS = {
         "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST", "daily-scroll-viewport",
         (100, 520, 700, 1120), "swipe", (400, 1000, 400, 500, 350),
     ),
+    "daily-scroll-up-fine": (
+        "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST_FINE", "daily-scroll-viewport",
+        (100, 520, 700, 1120), "swipe", (400, 800, 400, 700, 250),
+    ),
+    "daily-scroll-up-micro": (
+        "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST_MICRO", "daily-scroll-viewport",
+        (100, 520, 700, 1120), "swipe", (400, 760, 400, 710, 200),
+    ),
     "daily-scroll-down": (
         "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST", "daily-scroll-viewport",
         (100, 160, 700, 760), "swipe", (400, 500, 400, 1000, 350),
     ),
+    "daily-scroll-down-fine": (
+        "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST_FINE", "daily-scroll-viewport",
+        (100, 160, 700, 760), "swipe", (400, 700, 400, 800, 250),
+    ),
     "daily-bioenhancer-go": (
-        "daily", "bioenhancer", "BIOENHANCER", "DAILY_BIOENHANCER_GO", "daily-bioenhancer-go",
+        "daily_bioenhancer", "bioenhancer", "BIOENHANCER", "DAILY_BIOENHANCER_GO", "daily-bioenhancer-go",
         (554, 870, 731, 933), "tap", None,
     ),
     "bioenhancer-daily-back": (
@@ -279,6 +291,11 @@ NAVIGATION_STEPS = {
     "supply-depot-daily-back": (
         "supply_depot", "home", "HOME_BASE", "SUPPLY_DEPOT_TO_HOME", "supply-depot-daily-back",
         (31, 1, 138, 55), "tap", None,
+    ),
+    "alliance-fort-dismiss": (
+        "alliance_fort", "home", "ALLIANCE_FORT_DISMISSED",
+        "DISMISS_ALLIANCE_FORT_WAVE", "alliance-fort-wave-dismiss-x",
+        (620, 360, 735, 455), "tap", None,
     ),
 }
 
@@ -304,6 +321,8 @@ def navigate(cfg: OperatorConfig, step: str) -> str:
         if swipe is None:
             raise OperatorError("swipe navigation step is missing its bounded gesture")
         args.extend(["--input-kind", "swipe", "--swipe", *map(str, swipe)])
+    if source_mode == "home":
+        args.extend(["--observation-max-age", "15", "--dispatch-max-age", "15"])
     command = _adb_shell(cfg, "")
     # Reuse the worker's interpreter and ADB environment without creating a second transport.
     command = (
@@ -313,9 +332,27 @@ def navigate(cfg: OperatorConfig, step: str) -> str:
     return run_remote(cfg, command)
 
 
-def run_task(cfg: OperatorConfig, task: str) -> str:
+def run_task(cfg: OperatorConfig, task: str, game_day: str = "") -> str:
     stamp = str(int(time.time()))
-    if task == "alliance-help":
+    if task == "bioenhancer-free-research":
+        if not game_day:
+            raise OperatorError("Bioenhancer research requires an explicit current game-day identity")
+        command = (
+            f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 -e PYTHONPATH=/workspace -w /workspace {quote(cfg.container)} "
+            f"python3 scripts/mvp_quest_to_claim.py "
+            "--cash-reference /workspace/evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png "
+            "--home-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png "
+            "--quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
+            "--daily-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png "
+            "--main-quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
+            f"execute --database /evidence/actions-bioenhancer-free-{stamp}.sqlite3 --evidence /evidence "
+            f"--owner pnsctl-{stamp} --action-id bioenhancer-free-{stamp} --action-key bioenhancer-free-{stamp} "
+            f"--game-day {quote(game_day)} --source-mode bioenhancer_free --expected-mode bioenhancer_free "
+            "--expected-state BIOENHANCER_RESEARCH_SUCCESS --target bioenhancer-free-research "
+            "--roi 94 1133 345 1216 --semantic-action RESEARCH_BIOENHANCER_FREE "
+            "--consequence bioenhancer_research_free --control-class RESEARCH_FREE --quantity 1"
+        )
+    elif task == "alliance-help":
         command = (
             f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 {quote(cfg.container)} python3 scripts/alliance_help_live.py "
             f"--adb /opt/adb --serial {quote(cfg.serial)} --database /evidence/actions-help-all-semantic-fix.sqlite3 "
@@ -462,8 +499,10 @@ def parser() -> argparse.ArgumentParser:
         choices=(
             "alliance-help", "vip-popup", "praise-route-evidence",
             "praise-leaderboard-evidence", "praise", "personal-might-claim",
+            "bioenhancer-free-research",
         ),
     )
+    sub.choices["run-task"].add_argument("--game-day", default="")
     sub.choices["test-focused"].add_argument("--pattern", default="test_task_module.py")
     sub.choices["preserve-evidence"].add_argument("--destination", type=Path, required=True)
     sub.choices["preserve-evidence"].add_argument("--name", action="append", default=[])
@@ -492,7 +531,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "capture": lambda: capture(cfg, args.name),
         "observe": lambda: observe(cfg, args.name),
         "navigate": lambda: navigate(cfg, args.step),
-        "run-task": lambda: run_task(cfg, args.task),
+        "run-task": lambda: run_task(cfg, args.task, args.game_day),
         "test-focused": lambda: test_command(cfg, True, args.pattern),
         "test-full": lambda: test_command(cfg, False),
         "validate": lambda: validate(cfg),
