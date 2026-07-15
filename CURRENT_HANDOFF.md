@@ -17,6 +17,8 @@
   unchanged.
 - Canonical parity/evidence artifact:
   `docs/research/bioenhancer_gnbots_parity_manifest.json`.
+- Parity boundary committed as `16b7b8537829e6ab5b8114dfd777bdea79229eb9` on `main`. The four
+  parity paths are committed; pre-existing runtime evidence remains untracked and untouched.
 - No implementation or test correction was justified. The confirmed research transaction remains
   `bioenhancer-free-1784069057`; the later post-reset selected-Daily row at `0/1` remains
   `BIOENHANCER_DAILY_RECONCILIATION_PENDING`, not a proven flow mismatch.
