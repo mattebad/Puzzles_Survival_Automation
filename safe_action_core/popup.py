@@ -8,6 +8,63 @@ from typing import Callable, Optional, Tuple
 from tasks.contracts import PopupMode, PopupOutcome
 
 
+ALLIANCE_FORT_WAVE_ALERT = "ALLIANCE_FORT_WAVE_ALERT"
+UPDATE_RESTART_ALERT = "UPDATE_RESTART_ALERT"
+
+
+def _popup_text(value: str) -> str:
+    return " ".join(str(value or "").lower().split())
+
+
+def classify_popup_semantics(title: str, body: str) -> Optional[str]:
+    """Classify only explicitly known popup semantics; button text is insufficient."""
+    text = _popup_text(f"{title} {body}")
+    update_terms = (
+        "update available",
+        "new version",
+        "client update",
+        "patch",
+        "download update",
+        "restart required",
+        "restarting the game",
+    )
+    if any(term in text for term in update_terms):
+        return UPDATE_RESTART_ALERT
+    alliance_terms = (
+        "next wave",
+        "mutant zombie",
+        "alliance fort",
+        "send your army",
+        "defend it",
+    )
+    if all(term in text for term in alliance_terms):
+        return ALLIANCE_FORT_WAVE_ALERT
+    return None
+
+
+def alliance_fort_dismissal_allowed(popup_identity: str, control: str) -> bool:
+    """Permit only X/Confirm on the exact Alliance Fort wave alert."""
+    return bool(
+        popup_identity == ALLIANCE_FORT_WAVE_ALERT
+        and _popup_text(control) in {"x", "confirm"}
+    )
+
+
+def popup_dismissal_verified(
+    popup_identity: str,
+    before_present: bool,
+    after_present: bool,
+    successor_recognized: bool,
+) -> bool:
+    """Require exact known popup disappearance and a recognized successor."""
+    return bool(
+        popup_identity == ALLIANCE_FORT_WAVE_ALERT
+        and before_present
+        and not after_present
+        and successor_recognized
+    )
+
+
 @dataclass(frozen=True)
 class PopupObservation:
     name: Optional[str]
@@ -24,7 +81,11 @@ class PopupController:
         mode: PopupMode,
         allowed_dialogs: Tuple[str, ...] = (),
         max_rounds: int = 3,
-        known_navigation_popups: Tuple[str, ...] = ("vip-points-reset", "help-webview"),
+        known_navigation_popups: Tuple[str, ...] = (
+            "vip-points-reset",
+            "help-webview",
+            ALLIANCE_FORT_WAVE_ALERT,
+        ),
     ):
         if max_rounds < 1:
             raise ValueError("popup round cap must be positive")

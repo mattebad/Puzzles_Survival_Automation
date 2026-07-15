@@ -20,10 +20,19 @@ from .promotional import (
 )
 from .store import CURRENT_SCHEMA_VERSION, SafetyStore
 from .task_state import SQLiteTaskStateRepository
-from .popup import PopupController, PopupObservation
+from .popup import (
+    ALLIANCE_FORT_WAVE_ALERT,
+    UPDATE_RESTART_ALERT,
+    PopupController,
+    PopupObservation,
+    alliance_fort_dismissal_allowed,
+    classify_popup_semantics,
+    popup_dismissal_verified,
+)
 
 __all__ = [
     "ActionClass",
+    "ALLIANCE_FORT_WAVE_ALERT",
     "ActionTransaction",
     "ActionIntent",
     "ActionStatus",
@@ -43,7 +52,11 @@ __all__ = [
     "SafetyStore",
     "SQLiteTaskStateRepository",
     "TransportResult",
+    "UPDATE_RESTART_ALERT",
+    "alliance_fort_dismissal_allowed",
+    "classify_popup_semantics",
     "ocr_reuse_denial",
+    "popup_dismissal_verified",
     "roi_hash_map",
     "sha256_bytes",
 ]

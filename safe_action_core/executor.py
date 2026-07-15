@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable, Iterable, Optional
 
 from .freshness import ocr_reuse_denial
@@ -142,7 +142,16 @@ class SafeActionExecutor:
                 semantic_postconditions=pre_request.semantic_postconditions,
             )
             pre_policy = self.policy.evaluate(pre_request)
-            changed = self._changed(request.observation, immediate)
+            changed = self._changed(
+                request.observation,
+                immediate,
+                allow_target_roi_change=(
+                    request.semantic_action in {
+                        "DISMISS_ALLIANCE_FORT_WAVE",
+                        "RESEARCH_BIOENHANCER_FREE",
+                    }
+                ),
+            )
             reuse_denial = ocr_reuse_denial(request.observation, immediate)
             self.store.audit(
                 request.task_id,
@@ -195,9 +204,25 @@ class SafeActionExecutor:
 
         assert immediate is not None
 
+        dispatch_intent = intent
+        if (
+            request.semantic_action in {
+                "DISMISS_ALLIANCE_FORT_WAVE",
+                "RESEARCH_BIOENHANCER_FREE",
+            }
+            and immediate.target_roi is not None
+        ):
+            dispatch_intent = replace(
+                intent,
+                target_roi=immediate.target_roi,
+                source_frame_sha256=immediate.frame_sha256,
+                source_frame_captured_at=immediate.capture_completed_monotonic,
+                evidence_refs=immediate.evidence_refs,
+            )
+
         try:
             calls += 1
-            transport_result = self.transport(intent)
+            transport_result = self.transport(dispatch_intent)
         except BaseException as exc:
             # A transport exception cannot prove the device did not receive the input.
             self._best_effort_unresolved(request.action_id, "ambiguous_transport_exception", exc)
@@ -257,13 +282,17 @@ class SafeActionExecutor:
             pass
 
     @staticmethod
-    def _changed(first: Observation, second: Observation) -> Optional[str]:
+    def _changed(
+        first: Observation,
+        second: Observation,
+        *,
+        allow_target_roi_change: bool = False,
+    ) -> Optional[str]:
         fields = (
             ("runtime_profile_id", first.runtime_profile_id, second.runtime_profile_id),
             ("source_state", first.source_state, second.source_state),
             ("overlay_state", first.overlay_state, second.overlay_state),
             ("target_identity", first.target_identity, second.target_identity),
-            ("target_roi", first.target_roi, second.target_roi),
             ("consequence", first.consequence, second.consequence),
             ("cost_type", first.cost_type, second.cost_type),
             ("cost_amount", first.cost_amount, second.cost_amount),
@@ -281,6 +310,8 @@ class SafeActionExecutor:
         for name, before, after in fields:
             if before != after:
                 return name.upper() + "_CHANGED"
+        if not allow_target_roi_change and first.target_roi != second.target_roi:
+            return "TARGET_ROI_CHANGED"
         if second.capture_completed_monotonic <= first.capture_completed_monotonic:
             return "IMMEDIATE_RECAPTURE_NOT_FRESH"
         return None

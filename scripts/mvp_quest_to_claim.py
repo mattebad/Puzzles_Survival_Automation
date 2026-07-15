@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import time
@@ -17,8 +18,10 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence
 
 import cv2
+import pytesseract
 
 from safe_action_core import (
+    ALLIANCE_FORT_WAVE_ALERT,
     ActionClass,
     CentralPolicy,
     Observation,
@@ -26,6 +29,8 @@ from safe_action_core import (
     SafeActionExecutor,
     SafetyStore,
     TransportResult,
+    alliance_fort_dismissal_allowed,
+    classify_popup_semantics,
 )
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -60,6 +65,109 @@ KNOWN_PROMOTIONAL_SUCCESSORS = frozenset({
 
 PROFILE_ID = "pns-blissos-poc-virgl-800x1280-v1"
 TASK_ID = "MVP-QUEST-TO-CLAIM"
+ALLIANCE_FORT_POPUP_REGION = (60, 300, 740, 760)
+ALLIANCE_FORT_X_REGION = (620, 360, 735, 455)
+ALLIANCE_FORT_X_TARGET = "alliance-fort-wave-dismiss-x"
+ALLIANCE_FORT_SUCCESSOR = "ALLIANCE_FORT_DISMISSED"
+DAILY_BIOENHANCER_GO_TARGET = "daily-bioenhancer-go"
+
+
+def recognize_alliance_fort_wave(frame: Any) -> Dict[str, Any]:
+    """Recognize exact Alliance Fort wave semantics and bind its X control."""
+    if getattr(frame, "shape", ()) != (1280, 800, 3):
+        return {"recognized": False, "reason": "profile_dimensions_mismatch"}
+    x0, y0, x1, y1 = ALLIANCE_FORT_POPUP_REGION
+    body = cv2.resize(frame[y0:y1, x0:x1], None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+    body_text = " ".join(pytesseract.image_to_string(body, config="--psm 6").lower().split())
+    popup_identity = classify_popup_semantics("", body_text)
+    x0, y0, x1, y1 = ALLIANCE_FORT_X_REGION
+    x_crop = frame[y0:y1, x0:x1]
+    gray = cv2.cvtColor(x_crop, cv2.COLOR_BGR2GRAY)
+    white = cv2.inRange(gray, 210, 255)
+    count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(white)
+    candidates = [
+        tuple(int(value) for value in stats[index])
+        for index in range(1, count)
+        if stats[index, 4] >= 250
+        and 20 <= stats[index, 2] <= 60
+        and 20 <= stats[index, 3] <= 60
+    ]
+    component = max(candidates, key=lambda item: item[4], default=None)
+    x_bounds = None
+    if component:
+        left, top, width, height, _area = component
+        x_bounds = (x0 + left - 10, y0 + top - 10, x0 + left + width + 10, y0 + top + height + 10)
+    semantic_match = popup_identity == ALLIANCE_FORT_WAVE_ALERT
+    geometry_valid = bool(
+        x_bounds
+        and x_bounds[0] >= 0
+        and x_bounds[1] >= 0
+        and x_bounds[2] <= 800
+        and x_bounds[3] <= 1280
+        and x_bounds[0] < x_bounds[2]
+        and x_bounds[1] < x_bounds[3]
+    )
+    recognized = bool(
+        semantic_match
+        and geometry_valid
+        and alliance_fort_dismissal_allowed(ALLIANCE_FORT_WAVE_ALERT, "x")
+    )
+    return {
+        "recognized": recognized,
+        "popup_identity": popup_identity if semantic_match else None,
+        "body_text": body_text,
+        "body_identity": semantic_match,
+        "target": x_bounds if recognized else None,
+        "target_center": (
+            ((x_bounds[0] + x_bounds[2]) // 2, (x_bounds[1] + x_bounds[3]) // 2)
+            if recognized else None
+        ),
+        "target_identity": ALLIANCE_FORT_X_TARGET if recognized else None,
+        "control_class": "POPUP_DISMISS_X" if recognized else None,
+        "overlay_state": "alliance_fort_wave_alert" if recognized else "unknown",
+        "consequence": "navigate_zero_cost" if recognized else None,
+        "cost_type": "none" if recognized else None,
+        "cost_amount": 0 if recognized else None,
+        "quantity": 1 if recognized else None,
+        "expected_postcondition": ALLIANCE_FORT_SUCCESSOR if recognized else None,
+        "popup_bounds": ALLIANCE_FORT_POPUP_REGION,
+        "x_region": ALLIANCE_FORT_X_REGION,
+        "x_geometry_valid": geometry_valid,
+    }
+
+
+def recognize_home_semantic(frame: Any) -> Dict[str, Any]:
+    """Fallback Home identity for animated base frames rejected by template similarity."""
+    if getattr(frame, "shape", ()) != (1280, 800, 3):
+        return {"state": "UNKNOWN", "recognized": False}
+    nav = " ".join(
+        pytesseract.image_to_string(
+            cv2.resize(frame[1120:1280, 0:800], None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC),
+            config="--psm 6",
+        ).lower().split()
+    )
+    content = " ".join(
+        pytesseract.image_to_string(
+            cv2.resize(frame[0:1120, 0:800], None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC),
+            config="--psm 6",
+        ).lower().split()
+    )
+    nav_compact = re.sub(r"[^a-z]", "", nav)
+    content_compact = re.sub(r"[^a-z]", "", content)
+    nav_labels = ("world", "hero", "quest", "bag", "mail", "allian", "more")
+    building_labels = ("researchlab", "warehouse", "arena")
+    recognized = bool(
+        sum(label in nav_compact for label in nav_labels) >= 6
+        and any(label in content_compact for label in building_labels)
+    )
+    return {
+        "state": "HOME_BASE" if recognized else "UNKNOWN",
+        "recognized": recognized,
+        "nav_text": nav,
+        "content_text": content,
+        "quest_entry_target": (250, 1130, 410, 1280),
+        "method": "semantic_home_nav_and_buildings",
+    }
 
 
 class ADBTransport:
@@ -124,7 +232,12 @@ def classify(mode: str, frame: Path, args: argparse.Namespace) -> Dict[str, Any]
     if mode == "home":
         if getattr(args, "home_reference", None):
             local = recognize_home_quest(load_frame(frame), load_frame(args.home_reference))
-            return {"state": local.state, "recognized": local.recognized, "detail": local.as_dict()}
+            if local.recognized:
+                return {"state": local.state, "recognized": True, "detail": local.as_dict()}
+            fallback = recognize_home_semantic(load_frame(frame))
+            if fallback["recognized"]:
+                return fallback
+            return {"state": local.state, "recognized": False, "detail": local.as_dict()}
         return recognize_home(frame, args.cash_reference, args.policy_file)
     if mode == "quest":
         if getattr(args, "quest_reference", None):
@@ -163,14 +276,194 @@ def classify(mode: str, frame: Path, args: argparse.Namespace) -> Dict[str, Any]
             "recognized": False,
             "detail": {"reason": "selected Daily Quest reference pair is required"},
         }
+    if mode == "daily_bioenhancer":
+        detail = recognize_daily_bioenhancer_go(load_frame(frame), frame, args)
+        return {
+            "state": "DAILY_QUEST" if detail["recognized"] else "UNKNOWN",
+            "recognized": detail["recognized"],
+            "detail": detail,
+        }
     if mode == "bioenhancer":
         return recognize_bioenhancer(frame)
+    if mode == "bioenhancer_free":
+        detail = recognize_bioenhancer_free_research(
+            load_frame(frame),
+            frame,
+            require_free=True,
+        )
+        return {
+            "state": "BIOENHANCER" if detail["recognized"] else "UNKNOWN",
+            "recognized": detail["recognized"],
+            "detail": detail,
+        }
     if mode == "supply_depot":
         return recognize_supply_depot(frame)
+    if mode == "alliance_fort":
+        detail = recognize_alliance_fort_wave(load_frame(frame))
+        return {
+            "state": ALLIANCE_FORT_WAVE_ALERT if detail["recognized"] else "UNKNOWN",
+            "recognized": detail["recognized"],
+            "detail": detail,
+        }
     if mode == "promo":
         decision = classify_promotional_back(load_frame(frame), load_frame(args.cash_reference))
         return {"state": decision.state, "recognized": decision.recognized, "detail": decision.as_dict()}
     raise ValueError("unsupported classifier: " + mode)
+
+
+def recognize_daily_bioenhancer_go(
+    frame: Any,
+    frame_path: Path,
+    args: argparse.Namespace,
+) -> Dict[str, Any]:
+    """Bind visible selected-Daily Bioenhancer row and its local Go control."""
+    if getattr(frame, "shape", ()) != (1280, 800, 3):
+        return {"recognized": False, "reason": "profile_dimensions_mismatch"}
+    selected = classify("daily", frame_path, args)
+    data = pytesseract.image_to_data(
+        frame,
+        config="--psm 6",
+        output_type=pytesseract.Output.DICT,
+    )
+    bio_y = None
+    for index, raw in enumerate(data.get("text", ())):
+        if " ".join(str(raw).lower().split()) == "bioenhancer":
+            bio_y = int(data["top"][index])
+            break
+    orange = cv2.inRange(
+        cv2.cvtColor(frame, cv2.COLOR_BGR2HSV),
+        (0, 60, 80),
+        (25, 255, 240),
+    )
+    count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(orange)
+    candidates = []
+    for index in range(1, count):
+        left, top, width, height, area = (int(value) for value in stats[index])
+        center_y = top + height // 2
+        if (
+            area > 1000
+            and left >= 500
+            and width >= 120
+            and 35 <= height <= 80
+            and bio_y is not None
+            and abs(center_y - (bio_y + 45)) <= 85
+        ):
+            candidates.append((left, top, width, height, area))
+    button = max(candidates, key=lambda item: item[4], default=None)
+    target = (
+        (button[0], button[1], button[0] + button[2], button[1] + button[3])
+        if button else None
+    )
+    recognized = bool(selected.get("recognized") and bio_y is not None and target)
+    return {
+        "recognized": recognized,
+        "selected_daily": selected,
+        "bioenhancer_row_y": bio_y,
+        "target": target if recognized else None,
+        "target_identity": DAILY_BIOENHANCER_GO_TARGET if recognized else None,
+        "control_class": "GO" if recognized else None,
+        "overlay_state": "none_observed" if recognized else "unknown",
+        "consequence": "navigate_zero_cost" if recognized else None,
+        "cost_type": "none" if recognized else None,
+        "cost_amount": 0 if recognized else None,
+        "quantity": 1 if recognized else None,
+        "expected_postcondition": "BIOENHANCER" if recognized else None,
+    }
+
+
+def recognize_bioenhancer_free_research(
+    frame: Any,
+    frame_path: Path,
+    *,
+    require_free: bool,
+) -> Dict[str, Any]:
+    """Bind Free Research 1x and reject the distinct Research 10x control."""
+    if getattr(frame, "shape", ()) != (1280, 800, 3):
+        return {"recognized": False, "reason": "profile_dimensions_mismatch"}
+    source = recognize_bioenhancer(frame_path)
+    left_crop = cv2.resize(
+        frame[1125:1225, 80:360],
+        None,
+        fx=5.0,
+        fy=5.0,
+        interpolation=cv2.INTER_CUBIC,
+    )
+    right_crop = cv2.resize(
+        frame[1125:1225, 440:720],
+        None,
+        fx=5.0,
+        fy=5.0,
+        interpolation=cv2.INTER_CUBIC,
+    )
+    left_text = " ".join(pytesseract.image_to_string(left_crop, config="--psm 6").lower().split())
+    right_text = " ".join(pytesseract.image_to_string(right_crop, config="--psm 6").lower().split())
+    free_label = "free" in left_text and "research" in left_text and "1x" in left_text
+    ten_label = "research" in right_text and "10x" in right_text
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    masks = {
+        "free": cv2.inRange(hsv, (125, 40, 40), (170, 255, 255)),
+        "ten": cv2.inRange(hsv, (0, 60, 80), (35, 255, 240)),
+    }
+    bounds = {}
+    for name, mask in masks.items():
+        count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(mask)
+        candidates = [
+            tuple(int(value) for value in stats[index])
+            for index in range(1, count)
+            if stats[index, 4] > 5000
+            and stats[index, 0] >= (50 if name == "free" else 400)
+            and stats[index, 1] >= 1100
+            and stats[index, 2] >= 180
+            and stats[index, 3] >= 60
+        ]
+        if candidates:
+            left, top, width, height, _area = max(candidates, key=lambda item: item[4])
+            bounds[name] = (left, top, left + width, top + height)
+    source_recognized = bool(source.get("recognized"))
+    free_cost_proof = bool(
+        free_label
+        and not any(token in left_text for token in ("token", "gem", "premium", "cost"))
+    )
+    free_available = bool(source_recognized and free_label and "free" in bounds)
+    ten_distinct = bool(ten_label and "ten" in bounds)
+    recognized = bool(
+        source_recognized
+        and free_available
+        and free_cost_proof
+        and ten_distinct
+        and bounds["free"][2] <= bounds["ten"][0]
+    )
+    if require_free:
+        state = "BIOENHANCER" if recognized else "UNKNOWN"
+    else:
+        state = (
+            "BIOENHANCER_RESEARCH_SUCCESS"
+            if source_recognized and not free_available
+            else ("BIOENHANCER" if recognized else "UNKNOWN")
+        )
+    return {
+        "recognized": recognized if require_free else state == "BIOENHANCER_RESEARCH_SUCCESS",
+        "source_recognized": source_recognized,
+        "source": source,
+        "left_text": left_text,
+        "right_text": right_text,
+        "free_label": free_label,
+        "ten_label": ten_label,
+        "free_available": free_available,
+        "free_cost_proof": free_cost_proof,
+        "quantity": 1,
+        "cost_type": "none",
+        "cost_amount": 0,
+        "ten_distinct": ten_distinct,
+        "free_bounds": bounds.get("free"),
+        "ten_bounds": bounds.get("ten"),
+        "target": bounds.get("free") if recognized else None,
+        "target_identity": "bioenhancer-free-research" if recognized else None,
+        "control_class": "RESEARCH_FREE" if recognized else None,
+        "overlay_state": "none_observed" if source_recognized else "unknown",
+        "consequence": "bioenhancer_research_free" if recognized else None,
+        "expected_postcondition": "BIOENHANCER_RESEARCH_SUCCESS" if recognized else None,
+    }
 
 
 def observation_for(
@@ -212,9 +505,28 @@ def observation_for(
     detail = result.get("detail", {})
     recognized = bool(result["recognized"])
     is_promo = mode == "promo"
-    roi = tuple(detail.get("target_roi")) if is_promo and detail.get("target_roi") else (tuple(args.roi) if args.roi else None)
-    target_identity = detail.get("target_identity") if is_promo else (args.target if recognized else None)
-    overlay_state = detail.get("overlay_state", "unknown") if is_promo else ("none_observed" if recognized else "unknown")
+    is_alliance_fort = mode == "alliance_fort"
+    is_daily_bio = mode == "daily_bioenhancer"
+    is_bio_free = mode == "bioenhancer_free"
+    roi = (
+        tuple(detail.get("target"))
+        if (is_alliance_fort or is_daily_bio or is_bio_free) and detail.get("target")
+        else (
+            tuple(detail.get("target_roi"))
+            if is_promo and detail.get("target_roi")
+            else (tuple(args.roi) if args.roi else None)
+        )
+    )
+    target_identity = (
+        detail.get("target_identity")
+        if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free)
+        else (args.target if recognized else None)
+    )
+    overlay_state = (
+        detail.get("overlay_state", "unknown")
+        if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free)
+        else ("none_observed" if recognized else "unknown")
+    )
     ocr_frame = None if is_promo else (prior.frame_sha256 if reuse and prior else metadata["sha256"])
     ocr_time = None if is_promo else (prior.capture_completed_monotonic if reuse and prior else capture_completed_monotonic)
     return Observation(
@@ -233,13 +545,14 @@ def observation_for(
         recognized=recognized,
         clipped=args.clipped,
         ambiguous=args.ambiguous,
-        control_class=detail.get("control_class") if is_promo else args.control_class,
-        consequence=detail.get("consequence") if is_promo else args.consequence,
-        cost_type=detail.get("cost_type", "none") if is_promo else "none",
-        cost_amount=detail.get("cost_amount", 0) if is_promo else 0,
-        quantity=detail.get("quantity", 1) if is_promo else args.quantity,
+        control_class=detail.get("control_class") if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free) else args.control_class,
+        consequence=detail.get("consequence") if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free) else args.consequence,
+        cost_type=detail.get("cost_type", "none") if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free) else "none",
+        cost_amount=detail.get("cost_amount", 0) if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free) else 0,
+        quantity=detail.get("quantity", 1) if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free) else args.quantity,
         expected_postcondition=(
             "RECOGNIZED_NAVIGATION_STATE" if is_promo
+            else detail.get("expected_postcondition") if (is_alliance_fort or is_daily_bio or is_bio_free)
             else args.expected_state
         ),
         evidence_refs=(str(frame),),
@@ -291,6 +604,22 @@ def critical_rois(mode: str, args: argparse.Namespace) -> Dict[str, tuple[int, i
         rois = {
             "source_title": (0, 0, 800, 180),
             "source_content": (0, 150, 800, 1120),
+        }
+    elif mode == "alliance_fort":
+        rois = {
+            "popup_body": ALLIANCE_FORT_POPUP_REGION,
+            "dismiss_x": ALLIANCE_FORT_X_REGION,
+        }
+    elif mode == "daily_bioenhancer":
+        rois = {
+            "daily_rows": (0, 300, 800, 1120),
+            "daily_bioenhancer_target_band": (500, 850, 780, 1120),
+        }
+    elif mode == "bioenhancer_free":
+        rois = {
+            "source_title": (0, 0, 800, 180),
+            "free_control": (50, 1100, 380, 1240),
+            "ten_control": (420, 1100, 760, 1240),
         }
     else:
         rois = {"source_header": (0, 0, 800, 450), "source_rows": (0, 400, 800, 1120)}
@@ -393,6 +722,45 @@ def execute(args: argparse.Namespace) -> int:
                 return candidate
         return {"state": "UNKNOWN", "recognized": False, "detail": {}}
 
+    def classify_alliance_fort_successor(path: Path) -> Dict[str, Any]:
+        """Require popup disappearance plus a recognized non-strategic game screen."""
+        popup = classify("alliance_fort", path, args)
+        if popup.get("recognized"):
+            return {"state": ALLIANCE_FORT_WAVE_ALERT, "recognized": False, "detail": popup.get("detail", {})}
+        for mode in ("home", "quest", "daily", "bioenhancer", "supply_depot"):
+            try:
+                candidate = classify(mode, path, args)
+            except (ValueError, RuntimeError):
+                continue
+            if candidate.get("recognized"):
+                return {
+                    "state": ALLIANCE_FORT_SUCCESSOR,
+                    "recognized": True,
+                    "detail": {
+                        "underlying_mode": mode,
+                        "underlying_state": candidate.get("state"),
+                    },
+                }
+        return {"state": "UNKNOWN", "recognized": False, "detail": {}}
+
+    def classify_bioenhancer_successor(path: Path) -> Dict[str, Any]:
+        detail = recognize_bioenhancer_free_research(
+            load_frame(path),
+            path,
+            require_free=False,
+        )
+        if detail.get("source_recognized") and not detail.get("free_available"):
+            return {
+                "state": "BIOENHANCER_RESEARCH_SUCCESS",
+                "recognized": True,
+                "detail": detail,
+            }
+        return {
+            "state": "BIOENHANCER",
+            "recognized": False,
+            "detail": detail,
+        }
+
     def post_observe() -> Iterable[Observation]:
         observations = []
         for index, delay in enumerate((1.0, 3.0, 6.0), start=1):
@@ -403,6 +771,10 @@ def execute(args: argparse.Namespace) -> int:
             result = (
                 classify_promotional_successor(path)
                 if args.source_mode == "promo"
+                else classify_alliance_fort_successor(path)
+                if args.source_mode == "alliance_fort"
+                else classify_bioenhancer_successor(path)
+                if args.source_mode == "bioenhancer_free"
                 else classify(args.expected_mode, path, args)
             )
             metadata = valid_png_frame(path)
@@ -415,7 +787,9 @@ def execute(args: argparse.Namespace) -> int:
                     source_state=result["state"], overlay_state="none_observed" if result["recognized"] else "unknown",
                     target_identity=None, target_roi=None, recognized=bool(result["recognized"]),
                     expected_postcondition=(
-                        "RECOGNIZED_NAVIGATION_STATE" if args.source_mode == "promo" else args.expected_state
+                        "RECOGNIZED_NAVIGATION_STATE"
+                        if args.source_mode == "promo"
+                        else args.expected_state
                     ), evidence_refs=(str(path),),
                 )
             )
@@ -425,7 +799,7 @@ def execute(args: argparse.Namespace) -> int:
 
     def dispatch(_intent) -> TransportResult:
         if args.input_kind == "tap":
-            x0, y0, x1, y1 = args.roi
+            x0, y0, x1, y1 = _intent.target_roi
             return transport.tap((x0 + x1) // 2, (y0 + y1) // 2)
         return transport.swipe(*args.swipe)
 
@@ -434,6 +808,8 @@ def execute(args: argparse.Namespace) -> int:
         lambda _intent, item: (
             item.recognized and item.source_state in KNOWN_PROMOTIONAL_SUCCESSORS
             if args.source_mode == "promo"
+            else item.recognized and item.source_state == args.expected_state
+            if args.source_mode == "alliance_fort"
             else item.recognized and item.source_state == args.expected_state
         ),
         wall_clock=time.time,
@@ -480,7 +856,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--policy-file", type=Path)
     sub = root.add_subparsers(dest="command", required=True)
     obs = sub.add_parser("observe")
-    obs.add_argument("--mode", choices=("cash", "home", "quest", "daily", "bioenhancer", "supply_depot", "promo"), required=True)
+    obs.add_argument("--mode", choices=("cash", "home", "quest", "daily", "daily_bioenhancer", "bioenhancer", "bioenhancer_free", "supply_depot", "alliance_fort", "promo"), required=True)
     obs.add_argument("--output", type=Path, required=True)
     obs.add_argument("--result", type=Path, required=True)
     obs.set_defaults(handler=observe)
@@ -498,8 +874,8 @@ def parser() -> argparse.ArgumentParser:
     act.add_argument("--action-id", required=True)
     act.add_argument("--action-key", required=True)
     act.add_argument("--game-day")
-    act.add_argument("--source-mode", choices=("cash", "home", "quest", "daily", "bioenhancer", "supply_depot", "promo"), required=True)
-    act.add_argument("--expected-mode", choices=("cash", "home", "quest", "daily", "bioenhancer", "supply_depot", "promo"), required=True)
+    act.add_argument("--source-mode", choices=("cash", "home", "quest", "daily", "daily_bioenhancer", "bioenhancer", "bioenhancer_free", "supply_depot", "alliance_fort", "promo"), required=True)
+    act.add_argument("--expected-mode", choices=("cash", "home", "quest", "daily", "daily_bioenhancer", "bioenhancer", "bioenhancer_free", "supply_depot", "alliance_fort", "promo"), required=True)
     act.add_argument("--expected-state", required=True)
     act.add_argument("--target", required=True)
     act.add_argument("--roi", type=int, nargs=4, required=True)

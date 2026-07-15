@@ -23,6 +23,7 @@ ALLOWED_R1_CONSEQUENCES = frozenset(
         "alliance_help_zero_cost",
         "praise_zero_cost",
         "supply_depot_free_claim",
+        "bioenhancer_research_free",
         "navigate_zero_cost",
     }
 )
@@ -100,6 +101,9 @@ class CentralPolicy:
             if not (
                 req.semantic_action == "DISMISS_RESET_POPUP"
                 and obs.overlay_state == "known_reset_popup"
+            ) and not (
+                req.semantic_action == "DISMISS_ALLIANCE_FORT_WAVE"
+                and obs.overlay_state == "alliance_fort_wave_alert"
             ):
                 return deny, "UNKNOWN_OVERLAY", "overlay state is not an exact clear state"
         if not obs.target_identity or not obs.target_roi:
@@ -121,6 +125,17 @@ class CentralPolicy:
                 return lock, "NAVIGATION_HARD_STOP", "foreground, OS, or account/session safety is not proven"
             if obs.forbidden_region_intersects_target:
                 return deny, "NAVIGATION_TARGET_DANGEROUS", "the local target intersects a dangerous control"
+            if req.semantic_action == "DISMISS_ALLIANCE_FORT_WAVE":
+                if (
+                    obs.source_state != "ALLIANCE_FORT_WAVE_ALERT"
+                    or obs.target_identity not in {
+                        "alliance-fort-wave-dismiss-x",
+                        "alliance-fort-wave-dismiss-confirm",
+                    }
+                    or obs.control_class not in {"POPUP_DISMISS_X", "POPUP_DISMISS_CONFIRM"}
+                    or obs.expected_postcondition != "ALLIANCE_FORT_DISMISSED"
+                ):
+                    return deny, "ALLIANCE_FORT_DISMISSAL_NOT_EXACT", "only exact Alliance Fort X or Confirm dismissal is allowed"
             if obs.consequence != "navigate_zero_cost" or not obs.expected_postcondition:
                 return deny, "NAVIGATION_CONTRACT_INVALID", "navigation requires a zero-cost bounded successor"
             if obs.cost_type != "none" or obs.cost_amount != 0 or obs.quantity != 1:
@@ -134,6 +149,16 @@ class CentralPolicy:
                 if x0 < 200 or y0 < 700 or x1 > 600 or y1 > 920:
                     return deny, "RESET_POPUP_CLOSE_ROI_INVALID", "reset popup Close target is outside its bounded ROI"
             return PolicyDecision.AUTHORIZE, "AUTHORIZED_NAVIGATION_ONLY", "local source, target, overlay, and successor guards passed"
+        if req.semantic_action == "RESEARCH_BIOENHANCER_FREE":
+            if not req.game_day_id:
+                return deny, "GAME_DAY_REQUIRED", "Bioenhancer research requires a current game-day identity"
+            if (
+                obs.source_state != "BIOENHANCER"
+                or obs.target_identity != "bioenhancer-free-research"
+                or obs.control_class != "RESEARCH_FREE"
+                or obs.expected_postcondition != "BIOENHANCER_RESEARCH_SUCCESS"
+            ):
+                return deny, "BIOENHANCER_TARGET_NOT_EXACT", "only the exact current-frame Free Research 1x target is allowed"
         if not obs.consequence or obs.consequence == "unknown":
             return deny, "UNKNOWN_CONSEQUENCE", "consequence must be exact and known"
         if not obs.expected_postcondition:
