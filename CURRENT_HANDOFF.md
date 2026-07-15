@@ -27,13 +27,13 @@
     ]
   },
   "current_task_id": "TOOLS-BLUESTACKS-FLOW-CAPTURE",
-  "current_task_state": "pending",
+  "current_task_state": "completed",
   "next_task_id": "MVP-QUEST-TO-CLAIM",
   "next_task_activation_status": "not_applicable",
-  "phase": "contract_ready_pending_execution",
-  "objective": "Repair generic durable task activation and stop before implementing the collector.",
-  "last_safe_completed_step": "Generic task-contract, canonical-state, conditional-evidence, and successor validation repaired and checked offline; no runtime action occurred.",
-  "next_permitted_action": "Start a fresh execution chat for TOOLS-BLUESTACKS-FLOW-CAPTURE; do not implement it in this governance task.",
+  "phase": "offline_collector_implemented_and_verified",
+  "objective": "Implement the standalone user-driven Windows/BlueStacks flow collector for later Bliss translation.",
+  "last_safe_completed_step": "Collector source, guide, ignored local storage, mock capture, coordinate translation, manifest inventory, and verified ZIP export completed offline; no runtime action occurred.",
+  "next_permitted_action": "Run the collector locally on Windows against BlueStacks and capture the first missing quest flow.",
   "actions_already_performed": [
     "Read-only Git status, required governance files, the exact MVP backlog section, direct dependencies, and exact evidence references.",
     "Migrated and validated the MVP durable contract and created its compact task-specific evidence manifest from exact named references.",
@@ -97,7 +97,7 @@
     "scheduler_eligible_flows": [],
     "live_task_state_row_count": "NOT_VERIFIED_THIS_RUN",
     "pending_promotion_gates": [
-      "MVP-QUEST-TO-CLAIM contract migration and activation transition",
+      "Run the collector locally on Windows against BlueStacks before any later Bliss translation",
       "No governance task may change runtime registration or scheduler state"
     ]
   },
@@ -106,7 +106,7 @@
     "last_full_suite_count": "NOT_RUN_THIS_RUN; prior result not revalidated",
     "known_accepted_baseline_failures": "Report prior cv2/evidence-fixture environment failures separately if encountered",
     "new_regressions": [],
-    "last_relevant_focused_tests": "124 focused MVP/safety/governance tests passed; 71 transitive journal/navigation tests passed; 2 navigation-revalidation errors remain the known missing retained Personal Might fixture baseline"
+    "last_relevant_focused_tests": "Collector compile, --help, --self-check, synthetic mock manifest/ZIP checks, and four-action mock recorder verification passed; tkinter/OpenCV unavailable for GUI verification."
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -127,16 +127,27 @@
     "evidence_requirement_reason": "Governance-only offline activation produces no canonical runtime evidence; prior MVP references remain preserved below.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
+  "collector": {
+    "command": "python scripts/bluestacks_flow_collector.py --serial 127.0.0.1:5555 --flow-id consume-ap-campaign --daily-objective Consume AP",
+    "mock_verification_command": "python3 scripts/bluestacks_flow_collector.py --mock-image /tmp/bluestacks-collector-synthetic.png --flow-id collector-smoke-test --daily-objective Collector smoke test --post-action-delay 0 --output-directory /tmp/bluestacks-collector-check --no-gui",
+    "temporary_verified_output": "/tmp/bluestacks-collector-check/bluestacks/collector-smoke-test/20260715T211220540935Z/",
+    "supported_modes": ["mock", "live-record-only", "live-dispatch"],
+    "supported_action_types": ["tap", "swipe", "android_back", "wait", "observation-only"],
+    "safety_gates": ["explicit exact serial confirmation", "local loopback BlueStacks endpoint", "reachable device", "portrait 800x1280 frame", "foreground package com.global.ztmslg", "record-only and per-action confirmation controls"],
+    "verification": ["python3 -m py_compile", "--help", "--self-check", "synthetic mock session", "manifest and SHA-256 verification", "deterministic ZIP member and archived-hash verification"],
+    "gui_verification": "WSL limitation: tkinter and OpenCV are unavailable. Windows manual smoke command: python scripts/bluestacks_flow_collector.py --mock-image path/to/800x1280.png --flow-id collector-smoke-test --daily-objective Collector smoke test",
+    "runtime_inputs": {"gameplay": 0, "bliss": 0, "unraid": 0, "adb": 0, "dispatch": 0}
+  },
   "next_action": {
     "permitted_actions": [
-      "Start a fresh execution chat for TOOLS-BLUESTACKS-FLOW-CAPTURE.",
+      "Run the collector locally on Windows against BlueStacks and capture the first missing quest flow."
     ],
     "prohibited_actions": [
       "Any new consequential or substitute gameplay input while alliance-help-1783981635 remains unresolved.",
       "Evidence deletion, movement, compaction, or broad evidence search.",
       "MVP implementation, Claim validation, or any production behavior change in this activation."
     ],
-    "exact_stop_condition": "Stop after the validator and focused governance checks pass; no runtime action is authorized.",
+    "exact_stop_condition": "Stop before any Bliss/Unraid/production operation; the next permitted action is the documented local Windows BlueStacks capture.",
     "expected_next_atomic_task": "MVP-QUEST-TO-CLAIM",
     "expected_next_activation_status": "not_applicable"
   }
@@ -157,18 +168,16 @@ This document is a volatile operational boundary, not a complete project history
 - Most recent task-scoped commits: `435774c`, `f1307b5`, `f9fbd4c`
 
 ## Current task
-- Task ID: `MVP-QUEST-TO-CLAIM`
-- Current task state: `pending`
-- Next task ID: `M6-DQ-TRANSITION-CORPUS`
-- Next task activation status: `not_applicable`
-- Phase: `execution_blocked_unresolved_action_gate`
-- Objective: complete one bounded, supervised Daily Quest quest-to-claim transition and stop
-- Last safe completed step: supported pnsctl preflight, private ADB verification, and read-only inspection of the authoritative journal, which found terminal unresolved `alliance-help-1783981635` before any MVP input
-- Exact next permitted step: obtain separate policy-compliant reconciliation of `alliance-help-1783981635`, then establish fresh Daily reset/game-day and admissible source/target evidence
-- Actions already performed: offline inspection, contract/manifest validation, supported runtime preflight, private ADB verification, and read-only journal gate inspection
-- Actions that must not be repeated: any new input while the unresolved action remains, evidence movement, protected staging,
-  Bioenhancer research, prior Praise/Daily Claim/gameplay inputs, Supply Depot, recruitment, unrelated
-  Daily work, scheduler/registration changes, and downstream backlog work
+- Task ID: TOOLS-BLUESTACKS-FLOW-CAPTURE
+- Current task state: completed
+- Next task ID: MVP-QUEST-TO-CLAIM
+- Next task activation status: not_applicable
+- Phase: offline_collector_implemented_and_verified
+- Objective: implement the standalone user-driven Windows/BlueStacks flow collector
+- Last safe completed step: compile, help, coordinate, mock action, manifest, SHA-256, and ZIP checks passed; GUI deferred because tkinter/OpenCV are unavailable in WSL
+- Exact next permitted step: run the collector locally on Windows against BlueStacks and capture the first missing quest flow
+- Runtime, ADB, gameplay, registration, scheduler, journals, leases, and production evidence were not operated or changed by this task
+- M6-DQ-TRANSITION-CORPUS remains the successor declared by the existing MVP task
 
 ## Runtime
 - VM state: `running` (pnsctl preflight)
@@ -223,8 +232,8 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: separately reconcile `alliance-help-1783981635` under journal policy without new gameplay input; then resume MVP only after fresh game-day/source gates pass
-- Prohibited actions: any new consequential or substitute gameplay input while the unresolved action remains, evidence changes, product implementation,
-  Claim validation, registration, scheduler changes, or downstream backlog work
-- Exact stop condition: unresolved-action gate, protected ownership, journal/evidence identity, validator, or contract ambiguity
-- Expected next atomic task: `MVP-QUEST-TO-CLAIM` remains active; do not begin `M6-DQ-TRANSITION-CORPUS`
+- Permitted action: run the collector locally on Windows against BlueStacks and capture the first missing quest flow
+- Prohibited actions: Bliss, Unraid, production, scheduler, registration, journal, lease, evidence, or gameplay changes; do not stage .local-captures
+- Exact stop condition: stop before any production/runtime operation; the next permitted action is the documented local Windows BlueStacks capture
+- Expected next atomic task: MVP-QUEST-TO-CLAIM
+- Expected next activation status: not_applicable

@@ -22,3 +22,4 @@ evidence/**/*transcript*.md
 # Keep lightweight authoritative artifacts indexable:
 # evidence/current-evidence-manifest.json, evidence summaries, result JSON,
 # reconciliation reports, hash manifests, and canonical status Markdown.
+.local-captures/**

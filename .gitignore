@@ -17,6 +17,7 @@ id_ed25519*
 *.vdi
 
 # Local tooling and OS files
+.local-captures/
 .venv/
 __pycache__/
 .pytest_cache/
