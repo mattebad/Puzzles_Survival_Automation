@@ -51,6 +51,23 @@ identity so retained raw frames have explicit capture timing.
 task-scoped dismissal of the reset-time `Get Pts` modal through its local Close ROI, then uses
 the named Personal Might route. It is not a general remote shell or arbitrary tap endpoint.
 
+## Canonical governance references
+
+This runbook is an operational entry point, not a duplicate authority. Permanent invariants are in
+[`../AGENTS.md`](../AGENTS.md); detailed procedures are in:
+
+- [`runtime-input-safety-policy.md`](runtime-input-safety-policy.md) for raw-frame recognition,
+  coordinate translation, rebinding, input limits, and semantic postconditions;
+- [`journal-lease-policy.md`](journal-lease-policy.md) for operational versus historical journals,
+  lifecycle, leases, unresolved gates, and reconciliation;
+- [`chat-execution-ownership-policy.md`](chat-execution-ownership-policy.md) for singleton
+  ownership and safe handoffs;
+- [`evidence-retention-policy.md`](evidence-retention-policy.md) for exact manifests, hashes,
+  indexing exclusion, and archive-before-removal.
+
+The current task and exact next action are authoritative only in `CURRENT_HANDOFF.md` and
+`BACKLOG.md`. Offline contracts do not authorize registration or scheduler eligibility.
+
 The retained mistarget is reconciled by copying the closed historical database and recording a
 terminal no-effect cancellation in the copy. The original unresolved journal remains immutable:
 

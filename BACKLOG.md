@@ -5,6 +5,128 @@ Last updated: 2026-07-14 (America/Chicago)
 This is the single authoritative task/status record. The service plan controls technical
 requirements and measured facts. Evidence records contain observations, not competing status.
 
+## Repository governance migration
+
+### GOV-DURABLE-STATE — Establish durable agent governance and state contracts
+
+- Task ID: `GOV-DURABLE-STATE`
+- Title: Establish durable agent governance and state contracts.
+- Status: In Progress (2026-07-15; governance implementation boundary).
+- Milestone: Repository governance and durable-state architecture.
+- Dependencies: repository authority files identified; protected untracked evidence preserved;
+  no runtime or production dependency.
+- Blocked by: none known; stop if protected-work ownership, authoritative journal state, or exact
+  evidence identity cannot be determined without prohibited operations.
+- Objective: establish compact permanent policy, a deterministic volatile handoff schema, a
+  self-contained backlog task contract, an exact current-evidence manifest, Cursor indexing
+  controls, and focused structural validation without changing runtime behavior.
+- Established facts:
+  - `AGENTS.md`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, exact local evidence references, and Git
+    state are the governing repository sources.
+  - `MVP-QUEST-TO-CLAIM` remains the next product task; its product status, runtime authorization,
+    evidence conclusions, and implementation state are not changed by this task.
+  - Raw retained evidence and protected untracked paths must not be moved, deleted, compacted, or
+    staged.
+- Scope:
+  - Direct implementation files: `AGENTS.md`, `CURRENT_HANDOFF.md`, this task section,
+    `docs/runtime-input-safety-policy.md`, `docs/journal-lease-policy.md`,
+    `docs/chat-execution-ownership-policy.md`, `docs/backlog-task-contract.md`,
+    `docs/evidence-retention-policy.md`, `docs/pns-operations-runbook.md`,
+    `evidence/current-evidence-manifest.json`, `.cursorindexingignore`,
+    `scripts/validate_governance.py`, and `tests/test_governance_validation.py`.
+  - Shared dependencies: Python standard library, existing unittest conventions, existing
+    evidence-retention policy, and exact local canonical summaries.
+  - Transitive regression set: governance validator tests, active Daily planning validation,
+    evidence-reference/hygiene tests, and documentation consistency checks directly affected by
+    the changed policy references.
+  - Allowed changes: only the named governance files, exact task section, and direct runbook/policy
+    cross-references.
+  - Prohibited changes: production modules, `safe_action_core`, task implementations, registration,
+    scheduler state, runtime files, journals, evidence content, `.local-reference/`, historical
+    backlog entries, plan files, or prompt templates.
+- Live authorization:
+  - Authorized runtime action: none; repository documentation and offline validation only.
+  - Maximum transport inputs: navigation-only `0`; consequential `0`; recovery `0`.
+  - Navigation-only recovery: forbidden.
+  - Consequential action: forbidden.
+  - Registration changes: forbidden.
+  - Scheduler changes: forbidden.
+  - Actions that must not be repeated: no runtime operation, ADB operation, worker startup, evidence
+    collection, journal migration, lease mutation, gameplay input, or production validation.
+- Recognition contract:
+  - Required source: exact repository files named by this task and exact evidence paths already
+    referenced by the handoff, task, transaction result, or journal records.
+  - Exact target semantics: deterministic governance fields and exact evidence artifact identity;
+    no visual or approximate evidence substitution.
+  - Required local association: `GOV-DURABLE-STATE` must be the handoff current task and
+    `MVP-QUEST-TO-CLAIM` must be a declared, not-yet-active next task.
+  - Negative controls: no recursive `evidence/` search, no transcript loading, no runtime process
+    discovery, no production-file edits, and no inferred journal/lease facts.
+  - Coordinate space: not applicable; no runtime input is authorized.
+- Semantic postcondition:
+  - Accepted signals: exact handoff schema parses, current task and backlog contract agree, all
+    required policy sections exist, exact manifest statuses/hashes validate, indexing exclusions
+    preserve lightweight authorities, and focused tests pass.
+  - Rejected weak signals: Markdown prose alone, a transport or command result, approximate path
+    matching, a missing hash, or a visually similar artifact.
+  - Ambiguous-result behavior: record `UNKNOWN`, `NOT_VERIFIED_THIS_RUN`, `MISSING`, or
+    `NOT_LOCATED` as applicable; stop before staging or committing disputed files.
+- Product resource policy:
+  - Zero-cost requirement: no product action is authorized.
+  - Quantity limits: zero runtime inputs.
+  - Resource consumption policy: no resources, currency, premium items, or game state may change.
+  - Premium or strategic restrictions: all prohibited.
+- Evidence contract:
+  - Active evidence manifest: `evidence/current-evidence-manifest.json`.
+  - Required artifacts: exact governance files, validator output, and only exact Bioenhancer
+    summaries/results/journals named by the manifest.
+  - Immediate-before/immediate-post/result/journal: preserve existing references; do not collect,
+    move, normalize, or replace evidence.
+  - Additional task-specific artifacts: validator test output and final Git status/diff review.
+- Verification:
+  - Focused tests: `tests/test_governance_validation.py`.
+  - Integration tests: affected `tests/test_daily_quest_planning.py` and evidence-reference tests.
+  - Transitive regression tests: existing evidence-hygiene and planning validators touched by the
+    new policy/indexing contract.
+  - Full-suite requirement: none; production code is unchanged.
+  - Validators: `scripts/validate_governance.py`, `git diff --check`, exact manifest path/hash
+    validation, and indexing-rule validation.
+  - Known baseline failures: report existing environment or `cv2`/evidence-fixture failures
+    separately; any new failure in touched governance code blocks completion.
+- Valid blocked outcomes:
+  - protected-work ownership cannot be determined;
+  - exact journal/lease/unresolved state cannot be represented without runtime access;
+  - an evidence hash/path cannot be classified without approximation;
+  - a validator requires production behavior changes;
+  - a protected file would need to be staged or moved.
+- Blocked-result commit policy: evidence/status boundary commit is permitted only for
+  noncontroversial governance structure when this task cannot complete; otherwise no commit.
+- Commit policy:
+  - Expected focused commits: up to three, only when non-empty and dependency boundaries are clear.
+  - `docs(agent): define durable execution policy` allowed paths:
+    `AGENTS.md`, `BACKLOG.md` (this task section only),
+    `docs/runtime-input-safety-policy.md`, `docs/journal-lease-policy.md`,
+    `docs/chat-execution-ownership-policy.md`, `docs/backlog-task-contract.md`,
+    `docs/evidence-retention-policy.md`, and `docs/pns-operations-runbook.md`.
+  - `docs(handoff): standardize current operational state` allowed paths:
+    `CURRENT_HANDOFF.md`, `evidence/current-evidence-manifest.json`, and
+    `.cursorindexingignore`.
+  - `chore(governance): validate durable state contracts` allowed paths:
+    `scripts/validate_governance.py`, `tests/test_governance_validation.py`, plus reviewed
+    handoff/task-status hunks required for the terminal state transition.
+  - Shared files require reviewed hunk-level staging or the affected commits must be collapsed;
+    never stage a complete shared file for one unrelated hunk.
+  - No unrelated commits and no push.
+- Completion criteria:
+  - `GOV-DURABLE-STATE` is terminally committed;
+  - `AGENTS.md` is compact and invariant-only;
+  - the handoff contains deterministic current/next task fields and fixed sections;
+  - the exact manifest and indexing policy validate;
+  - the active task and validator tests pass;
+  - `MVP-QUEST-TO-CLAIM` remains the next task with activation status
+    `contract_migration_required` unless separately migrated and validated;
+  - no runtime or production behavior changed and no protected evidence was moved or staged.
+
 ## Production boundary
 
 The complete production system runs on the Unraid NAS: Android or BlueStacks runtime, controller,

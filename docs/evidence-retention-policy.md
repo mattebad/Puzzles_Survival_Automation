@@ -83,3 +83,45 @@ and after bytes. No credentials, private keys, or login/tutorial/CAPTCHA materia
 This policy does not rewrite Git history. The audit reports active-checkout savings separately from
 reachable historical evidence blobs and the upper bound of history-only blobs. Any future history
 rewrite would require a separately approved, reviewed migration and is not part of routine hygiene.
+
+## Current-evidence manifests
+
+The canonical current manifest is a compact checked-in index, not a copy of the evidence tree.
+References must be reached from the current handoff, active task, direct dependency, named
+transaction, exact journal record, or exact evidence session. Do not recursively inspect
+`evidence/`, enumerate unrelated sessions, or choose approximate or visually similar artifacts.
+
+Each manifest artifact entry contains:
+
+```json
+{
+  "artifact_id": "stable-name",
+  "status": "PRESENT_VERIFIED",
+  "path": "evidence/sessions/example/result.json",
+  "expected_sha256": "hex-or-null",
+  "actual_sha256": "hex-or-null",
+  "reason": "exact local artifact verified"
+}
+```
+
+Allowed artifact statuses are `PRESENT_VERIFIED`, `PRESENT_HASH_MISMATCH`, `MISSING`,
+`NOT_LOCATED`, `UNKNOWN`, and `NOT_APPLICABLE`. A `PRESENT_VERIFIED` entry requires an existing
+exact path and matching SHA-256. Missing or not-located entries must not invent a path; use `null`
+when no exact local path is available and explain the exact source reference in `reason`.
+
+The manifest must identify the active task, relevant action IDs, canonical session, result/summary
+artifacts to read first, source/immediate-before/immediate-post/result artifacts, operational and
+historical/source journals, unresolved evidence, integrity data, must-retain artifacts, and exact
+historical references that may be followed. It must explicitly prohibit recursive inspection of
+the parent evidence tree.
+
+## Indexing is not deletion
+
+`.cursorindexingignore` reduces broad semantic indexing of high-volume raw captures, databases,
+duplicate frames, transfer copies, and retained transcripts. It does not delete, archive, untrack,
+or compact evidence and does not prevent exact-path access to an authoritative artifact. Lightweight
+manifests, summaries, result JSON, reconciliation reports, hash manifests, and canonical status
+Markdown remain indexable.
+
+Evidence deletion or compaction remains governed only by the dry-run, archive-before-removal, and
+verification workflow above.

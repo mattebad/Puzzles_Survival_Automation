@@ -1,197 +1,110 @@
-# Agent execution rules
+# Permanent agent invariants
 
-## Authoritative state
+## Authority and context discipline
 
-- The repository, Git history, current working tree, retained evidence, and runtime journals are
-  authoritative.
-- BACKLOG.md is the sole authority for task status, dependencies, blockers, and task ordering.
-- CURRENT_HANDOFF.md is the primary entry point for the current execution state.
-- The canonical service plan defines architecture and milestone intent, but unrelated plan sections
-  do not need to be read during routine atomic execution.
-- Conversation transcripts are historical context only and may contain superseded conclusions.
-
-## Initial context loading
-
-Begin every execution iteration with:
-
-1. `git status --short --branch`
-2. `git diff --stat`
-3. `CURRENT_HANDOFF.md`
-4. the exact current backlog item identified by CURRENT_HANDOFF.md
-5. the directly relevant implementation files, tests, journals, and evidence referenced by that item
-
-Do not read BACKLOG.md or the canonical service plan in full during routine execution.
-
-Locate and read only:
-
-- the current backlog task;
-- its direct dependencies;
-- its explicit acceptance criteria;
-- its blocker or completion entry;
-- any exact plan section referenced by the current task.
-
-BACKLOG.md remains authoritative without requiring unrelated historical sections to be loaded.
-
-If CURRENT_HANDOFF.md does not clearly identify the current atomic task, inspect targeted backlog
-headings or identifiers until the next unblocked task is established. Do not perform a broad
-repository reconstruction first.
+- Repository state, Git history, the working tree, authoritative operational journals, and canonical
+  retained evidence are authoritative.
+- `BACKLOG.md` is authoritative for task status, ordering, dependencies, blockers, authorization,
+  verification, and completion criteria.
+- `CURRENT_HANDOFF.md` is the primary entry point for volatile current state and is not project
+  history. Conversation transcripts are historical context only.
+- Do not read `BACKLOG.md` or the canonical plan in full during routine work. Locate only the active
+  task, direct dependencies, and exact referenced plan sections.
+- Do not recursively explore `evidence/` or reread unchanged files. Stop context gathering when
+  state, task, authorization, dependencies, and acceptance criteria are established.
 
 ## Atomic execution
 
-- Complete exactly one atomic backlog task per execution iteration.
-- Do not combine unrelated implementation, generalized research, historical cleanup, evidence
-  compaction, or downstream task preparation into the same iteration.
-- Continue within the same iteration only through the implementation, verification, evidence,
-  documentation, and commit work required to close that one task.
-- Preserve all previously passed tasks and retained evidence.
-- Never repeat a passed experiment without contradictory evidence.
-- Do not restart completed research or reconstruct already-proven state.
-- Do not discard or overwrite valid uncommitted work.
-- Update only the evidence and canonical state files directly affected by the current task.
-- Commit each passed atomic task separately.
-- Do not amend, squash, reset, rebase, or rewrite prior history unless the user explicitly directs
-  it.
-- Do not push unless the user explicitly directs it.
+- Complete only the active atomic backlog task. Do not begin downstream or unrelated work after
+  completion or a valid blocker.
+- Preserve passed experiments, valid uncommitted work, retained evidence, and Git history. Do not
+  repeat passed experiments without contradictory evidence.
+- Update and stage only files directly attributable to the active task.
 
-## Context discipline
+## Runtime singleton and interface
 
-- Do not recursively explore the repository before identifying the current atomic task.
-- Do not reread unchanged files already inspected during the current iteration.
-- Prefer targeted searches within directly relevant files and directories.
-- Avoid repository-wide searches when the current task names the relevant module, symbol, action
-  ID, evidence session, or test.
-- Stop gathering context once all of the following are known:
-  - current authoritative state;
-  - current atomic task;
-  - permitted actions;
-  - prohibited actions;
-  - directly relevant implementation;
-  - acceptance criteria;
-  - required verification.
+- Exactly one live runtime operator may exist. No concurrent chat, agent, worker, collector,
+  automation, or test may prepare or issue runtime input.
+- Use `scripts/pnsctl.py` as the sole supported operational interface when a command exists. Do not
+  bypass policy with ad hoc ADB, plink, Docker, remote shell, or temporary runtime scripts.
+- ADB must remain private and non-public.
 
-- Do not load historical conversation transcripts during routine execution.
-- Read a transcript only when current canonical files identify a specific unresolved contradiction
-  that cannot be resolved from repository state, evidence, journals, or Git history.
+## Fixed runtime and manual-only states
 
-## Evidence access
+- Production runtime is the Unraid-hosted Bliss OS VM, package `com.global.ztmslg`, logical profile
+  800×1280 at 160 dpi. Live coordinates use raw full-frame 800×1280 evidence only.
+- Never derive coordinates from scaled previews, stale captures, untranslated crops, or vendor
+  coordinates.
+- Login, tutorial, CAPTCHA, account selection/switching, credential entry, and other explicitly
+  manual-only account states must never be automated.
 
-- Do not recursively search `evidence/`.
-- Read only exact evidence sessions, transaction IDs, action IDs, or artifact paths referenced by:
-  - CURRENT_HANDOFF.md;
-  - the current backlog item;
-  - the active journal record;
-  - a directly relevant test or status file.
+## Live target and action safety
 
-- Begin evidence inspection with the smallest authoritative artifact available, such as:
-  - summary JSON;
-  - result JSON;
-  - manifest;
-  - journal query output;
-  - reconciliation report.
+- Positively recognize the source, bind the exact local target from a current raw frame, capture and
+  revalidate immediately before dispatch, and require full-frame bounds/overlay checks.
+- Rebind a moved target only through a narrow evidence-supported policy; generic rebinding is
+  forbidden. Transport success never proves semantic success.
+- Navigation-only and consequential actions are distinct. Consequential actions normally allow one
+  authorized transport input; ambiguous results become unresolved and are never blindly retried.
+- Do not issue identical retries. Continue diagnosis only with a concrete new hypothesis, corrected
+  logic, or materially different conditions. Disable generic popup cleanup during consequential
+  preparation and dispatch.
+- See [`docs/runtime-input-safety-policy.md`](docs/runtime-input-safety-policy.md) for the complete
+  procedure.
 
-- Open individual screenshots only when visual verification is required for:
-  - control geometry;
-  - screen identity;
-  - source or destination recognition;
-  - input placement;
-  - semantic postconditions;
-  - contradictory evidence.
+## Journals, leases, and game-day binding
 
-- Do not inspect historical evidence sessions merely for background or comparison.
-- Do not enumerate all evidence files unless the current atomic task is specifically evidence
-  reconciliation or evidence hygiene.
-- Do not perform duplicate detection, evidence compaction, archive analysis, or broad evidence
-  classification during ordinary implementation tasks.
-- Preserve unique and decisive evidence.
-- Never delete evidence unless a separately authorized evidence-hygiene task requires it.
+- Preserve the established journal lifecycle and lease policy. Check the global active-unresolved
+  gate before consequential dispatch.
+- Keep operational journal authority distinct from immutable historical/source evidence. Reconcile
+  navigation-only records without changing consequential records; historical unresolved snapshots
+  do not permanently block a properly reconciled operational copy.
+- Bind Daily tasks, state, evidence, and authorization to a positively established game-day/reset
+  identity. Unknown or stale cycles do not authorize work.
+- See [`docs/journal-lease-policy.md`](docs/journal-lease-policy.md).
 
-## Live and runtime operations
+## Registration and scheduler promotion
 
-- Use the checked-in operator interface and established runtime workflow.
-- Do not bypass established runtime controls with ad hoc direct commands when a supported operator
-  command exists.
-- Before live input, verify:
-  - the expected source state;
-  - the exact local target;
-  - target geometry in the correct coordinate space;
-  - applicable authorization gates;
-  - absence of unresolved consequential actions;
-  - required immediate-before evidence.
+- Offline contracts, adapters, tests, and evidence do not authorize live registration. Registration
+  and scheduler eligibility require explicit task promotion and authorization.
+- Preserve not-registered and scheduler-disabled states unless the active backlog task explicitly
+  authorizes changing them.
 
-- Transport success alone never proves semantic success.
-- Polling and frame reacquisition are not transport retries.
-- Unknown consequential outcome means stop and reconcile, never retry blindly.
-- Navigation-only ambiguity must remain distinct from consequential ambiguity.
-- Do not infer completion from a function return, command exit code, screen change, or full-screen
-  hash alone.
+## GnBots and local reference material
 
-## Verification
+- GnBots material is static research only. Vendor code, assets, coordinates, and methods are
+  non-authorizing; never execute or read it at production runtime.
+- `.local-reference/` remains read-only, untracked, unstaged, and inaccessible from production
+  modules. Never commit decoded vendor scripts or vendor PNGs.
 
-- Run focused tests first.
-- Run only the validators required by the current backlog item.
-- Run the authoritative full suite once when required by the task.
-- Do not repeatedly run the full suite unless:
-  - it failed because of a defect introduced by the current task; and
-  - a specific correction has been made.
+## Git, tests, and evidence
 
-- Classify failures as:
-  - newly introduced regression;
-  - unchanged known baseline;
-  - fixed baseline failure;
-  - environment-specific blocker.
+- Never reset, clean, restore, rebase, amend, squash, rewrite, or force-push valid work. Stage only
+  active-task files; never stage protected evidence or unrelated untracked files.
+- Run focused tests first. Do not redefine the authoritative suite to manufacture a pass. Report
+  baseline failures separately; any new failure in a touched component blocks completion.
+- Preserve the minimum evidence sequence: source, immediate-before, transport, immediate-post,
+  semantic result, journal reference, and unresolved proof when applicable.
+- Do not delete or compact evidence during ordinary work. Evidence hygiene requires dry-run
+  classification, archive-before-removal, and verification through its dedicated workflow. See
+  [`docs/evidence-retention-policy.md`](docs/evidence-retention-policy.md).
 
-- Any new failure in touched components is blocking.
-- Review the final diff before live input and before commit.
-- Verify protected and unrelated files are not staged.
+## Chat ownership and handoff
 
-## Documentation and handoff
+- Hand off only after no action is between prepared and terminal state, evidence is flushed and
+  referenced, journal and lease state are recorded, staged/uncommitted ownership is listed, the
+  exact next permitted action and prohibited repeats are in `CURRENT_HANDOFF.md`, and runtime is
+  left recognized and task-authorized.
+- Recovery handoffs record the failed operation, whether transport occurred, action class/id,
+  journal record, current frame, diagnosis, retry eligibility, and prohibited repeated input.
+- Parallel live-runtime chats are prohibited. Planning-only work may coexist only when it cannot
+  touch the same working tree or runtime. See
+  [`docs/chat-execution-ownership-policy.md`](docs/chat-execution-ownership-policy.md).
 
-After the current task reaches a terminal result:
+## Hard infrastructure boundaries
 
-- update the exact backlog item;
-- update CURRENT_HANDOFF.md;
-- update directly affected status, plan, matrix, or runbook sections only when their state changed;
-- reference the canonical evidence and journal result;
-- record the next atomic task;
-- avoid rewriting unrelated historical sections.
-
-Keep CURRENT_HANDOFF.md focused on:
-
-- current HEAD and branch;
-- working-tree state;
-- most recent proven result;
-- unresolved actions;
-- exact active blocker;
-- exact current evidence paths;
-- next atomic task;
-- immediate permitted and prohibited actions.
-
-Do not turn CURRENT_HANDOFF.md into a complete project history.
-
-## Stop conditions
-
-Stop and report the exact blocker when:
-
-- a product or architecture decision is required;
-- credentials or unsafe permissions are required;
-- live interaction would violate the current authorization policy;
-- a consequential action remains unresolved;
-- journal or evidence integrity is uncertain;
-- verification repeatedly fails without a new diagnosis;
-- the runtime enters an unsafe or unknown state;
-- a destructive operation would be required;
-- usage limits prevent completion.
-
-Do not broaden scope to unrelated work after reaching a valid blocked outcome.
-
-## Hard boundaries
-
-- Production remains entirely on Unraid.
-- Never reboot or shut down the Unraid host autonomously.
-- Never delete or overwrite the Bliss qcow2.
-- Never modify unrelated VMs, containers, storage, or services.
-- Never expose ADB or a viewer publicly.
-- Never store credentials in files, scripts, logs, evidence, or command history.
-- Never automate login, tutorial, account switching, credentials, or CAPTCHA handling.
-- Never perform gameplay input before the relevant promotion and authorization gates.
-- Unknown consequential outcome means stop and reconcile, never retry blindly.
+- Production remains on Unraid. Never autonomously reboot/shut down the host, replace the Bliss
+  qcow2, or modify unrelated VMs, containers, storage, networking, or services.
+- Never expose ADB/viewers publicly or place credentials in files, code, logs, evidence, prompts, or
+  shell history.
+- Do not create generic execution, live-action, or recovery prompt templates.
