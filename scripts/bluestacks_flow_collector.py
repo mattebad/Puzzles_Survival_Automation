@@ -33,6 +33,7 @@ RAW_SIZE = (RAW_WIDTH, RAW_HEIGHT)
 EXPECTED_PACKAGE = "com.global.ztmslg"
 MANIFEST_SCHEMA_VERSION = 1
 KNOWN_BLUESTACKS_PRODUCTION_SERIALS = frozenset({"192.168.122.79:5555"})
+LOCAL_EMULATOR_SERIAL_RE = re.compile(r"^emulator-\d+$")
 FLOW_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -413,6 +414,8 @@ def coordinate_self_check() -> dict[str, Any]:
 def is_permitted_local_bluestacks_serial(serial: str) -> bool:
     if serial in KNOWN_BLUESTACKS_PRODUCTION_SERIALS:
         return False
+    if LOCAL_EMULATOR_SERIAL_RE.fullmatch(serial):
+        return True
     if serial.startswith("localhost:"):
         return True
     if serial.startswith("127.0.0.1:"):
