@@ -128,6 +128,8 @@ class Win32:
         self.user32.IsWindow.argtypes = [wintypes.HWND]
         self.user32.IsWindowVisible.argtypes = [wintypes.HWND]
         self.user32.GetForegroundWindow.restype = wintypes.HWND
+        self.user32.WindowFromPoint.argtypes = [POINT]
+        self.user32.WindowFromPoint.restype = wintypes.HWND
         self.user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
         self.user32.GetAncestor.restype = wintypes.HWND
         self.user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
@@ -174,6 +176,14 @@ class Win32:
             return False
         root = self.user32.GetAncestor(foreground, GA_ROOT)
         return int(root or foreground) == int(hwnd)
+
+    def root_window_at(self, screen: tuple[int, int]) -> int:
+        point = POINT(screen[0], screen[1])
+        window = self.user32.WindowFromPoint(point)
+        if not window:
+            return 0
+        root = self.user32.GetAncestor(window, GA_ROOT)
+        return int(root or window)
 
     def client_point(self, hwnd: int, screen: tuple[int, int]) -> tuple[float, float]:
         point = POINT(screen[0], screen[1])
@@ -340,6 +350,15 @@ class PassiveRecorder:
         self.stop_requested = False
         self.mouse_state: MouseState | None = None
         self.sequence = 0
+        self.input_counters = {
+            "mouse_down_messages": 0,
+            "mouse_up_messages": 0,
+            "mouse_moves_while_tracking": 0,
+            "ignored_not_selected_window": 0,
+            "ignored_outside_rendered_frame": 0,
+            "actions_queued": 0,
+            "keyboard_back_actions_queued": 0,
+        }
         self.mouse_callback: Any = None
         self.keyboard_callback: Any = None
         self.mouse_hook: Any = None
@@ -353,6 +372,8 @@ class PassiveRecorder:
             "swipe_distance_threshold": session.args.swipe_distance_threshold,
             "swipe_duration_threshold": session.args.swipe_duration_threshold,
             "input_dispatch": False,
+            "active_window_filter": "foreground selected root or selected root under cursor",
+            "input_counters": self.input_counters,
             "state": "waiting",
         }
         session._append_log("passive_window_selected", self.session.manifest["passive_recording"]["selected_window"])
@@ -372,36 +393,52 @@ class PassiveRecorder:
         bounds, client_size = self._rendered_bounds()
         return screen, client, bounds, client_size
 
-    def _active_and_inside(self, client: tuple[float, float], bounds: tuple[float, float, float, float]) -> bool:
-        return self.win32.is_active(self.target.hwnd) and self.collector.point_inside_rendered_image(*client, bounds)
+    def _active_and_inside(self, screen: tuple[int, int], client: tuple[float, float], bounds: tuple[float, float, float, float]) -> bool:
+        inside = self.collector.point_inside_rendered_image(*client, bounds)
+        if not inside:
+            self.input_counters["ignored_outside_rendered_frame"] += 1
+            return False
+        selected_at_point = self.win32.root_window_at(screen) == self.target.hwnd
+        if not self.win32.is_active(self.target.hwnd) and not selected_at_point:
+            self.input_counters["ignored_not_selected_window"] += 1
+            return False
+        return True
 
     def _handle_mouse(self, message: int, data: MSLLHOOKSTRUCT) -> None:
         now = time.monotonic()
         if message in MOUSE_BUTTONS:
-            if not self.recording or not self.win32.is_active(self.target.hwnd):
+            if self.recording:
+                self.input_counters["mouse_down_messages"] += 1
+            if not self.recording:
                 return
             screen, client, bounds, client_size = self._screen_and_client(data)
-            if not self._active_and_inside(client, bounds):
+            if not self._active_and_inside(screen, client, bounds):
                 return
             button, _ = MOUSE_BUTTONS[message]
             started_at = self.collector.utc_now()
             self.mouse_state = MouseState(button, screen, client, screen, client, now, started_at, bounds, client_size)
             return
         if message == WM_MOUSEMOVE and self.mouse_state is not None:
-            if not self.recording or not self.win32.is_active(self.target.hwnd):
+            if not self.recording:
                 self.mouse_state = None
                 return
-            screen, client, _bounds, _client_size = self._screen_and_client(data)
+            self.input_counters["mouse_moves_while_tracking"] += 1
+            screen, client, bounds, _client_size = self._screen_and_client(data)
+            if not self._active_and_inside(screen, client, bounds):
+                self.mouse_state = None
+                return
             self.mouse_state.end_screen = screen
             self.mouse_state.end_client = client
             return
         if message in MOUSE_UP_TO_BUTTON and self.mouse_state is not None:
             state = self.mouse_state
             self.mouse_state = None
-            if not self.recording or not self.win32.is_active(self.target.hwnd):
+            if self.recording:
+                self.input_counters["mouse_up_messages"] += 1
+            if not self.recording:
                 return
             screen, client, bounds, client_size = self._screen_and_client(data)
-            if not self._active_and_inside(client, bounds):
+            if not self._active_and_inside(screen, client, bounds):
                 return
             state.end_screen = screen
             state.end_client = client
@@ -414,6 +451,7 @@ class PassiveRecorder:
             except ValueError:
                 return
             self.sequence += 1
+            self.input_counters["actions_queued"] += 1
             self.events.put({
                 "sequence": self.sequence,
                 "action_type": "swipe" if is_swipe else "tap",
@@ -456,6 +494,7 @@ class PassiveRecorder:
         elif key == self.back_vk and self.recording and self.win32.is_active(self.target.hwnd):
             self.sequence += 1
             now = time.monotonic()
+            self.input_counters["keyboard_back_actions_queued"] += 1
             self.events.put({
                 "sequence": self.sequence,
                 "action_type": "android_back",
@@ -639,6 +678,8 @@ class PassiveRecorder:
             raise
         finally:
             self.recording = False
+            self.session.manifest["passive_recording"]["input_counters"] = dict(self.input_counters)
+            self.session._persist_manifest()
             self.buffer.stop()
             self.events.put(None)
             self.events.join()
