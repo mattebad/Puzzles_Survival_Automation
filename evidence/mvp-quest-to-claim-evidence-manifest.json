@@ -6,7 +6,8 @@
   "source_manifest": "evidence/current-evidence-manifest.json",
   "relevant_transaction_action_ids": [
     "alliance-help-1783986842",
-    "reset-popup-close-1783994269-2"
+    "reset-popup-close-1783994269-2",
+    "alliance-help-1783981635"
   ],
   "canonical_evidence_session": "evidence/sessions/20260712-mvp-quest-to-claim",
   "read_first": [
@@ -124,6 +125,26 @@
     "algorithm": "SHA-256",
     "all_present_verified_entries_hashed": true,
     "missing_or_not_located_entries_have_no_substitute": true
+  },
+  "execution_gate": {
+    "attempt_date": "2026-07-14",
+    "status": "BLOCKED",
+    "failed_gate": "active unresolved consequential action",
+    "authoritative_operational_journal": "/mnt/cache/puzzle-survival-runtime/mvp-quest-to-claim/20260713-help-all/evidence/actions.sqlite3",
+    "blocking_action_id": "alliance-help-1783981635",
+    "blocking_action_status": "unresolved",
+    "blocking_action_reason": "unexpected_successor",
+    "lease_status": "released; unresolved action remains gate-blocking",
+    "runtime_preflight": {
+      "vm_state": "running",
+      "worker_state": "pns-mvp-help-all-20260713 up",
+      "adb_state": "private device connected",
+      "fixed_profile": "not freshly verified",
+      "game_day_id": null
+    },
+    "product_blocker": "not authoritatively resolved; no fresh admissible Daily game-day and Claim or supported zero-cost objective proof selected",
+    "actual_live_input_count": 0,
+    "generated_task_evidence": []
   },
   "must_not_be_compacted": [
     "mvp-live-continuation-record",

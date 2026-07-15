@@ -489,8 +489,9 @@ Claim example.
 
 - Task ID: `MVP-QUEST-TO-CLAIM`
 - Title: Complete one supervised Daily Quest vertical slice.
-- Status: Pending; contract-ready activation completed, product execution has not started. The
-  product status remains Blocked by the retained 2026-07-13 prerequisite/evidence conclusion.
+- Status: Pending; contract-ready activation completed, product execution remains blocked. The
+  retained product blocker remains unresolved, and the 2026-07-14 execution preflight found an
+  additional active global unresolved-action gate before any MVP input could be authorized.
 - Milestone: M8 claim-only MVP validation.
 - Dependencies: `M6-DQ-BOOTSTRAP` Passed, `M7-SAFE-ACTION-CORE` Passed,
   `MVP-STARTUP-NORMALIZATION` Passed, and no active unresolved action.
@@ -525,16 +526,22 @@ Claim example.
     this task. The retained popup and phase-2 route records remain unresolved or diagnostic.
   - Runtime registration remains `NOT_REGISTERED_UNCHANGED` and scheduler state remains
     `DISABLED/INELIGIBLE`; this task does not promote either state.
-- Status: Blocked (2026-07-13; individual Help and actual lower Help All are live-validated, no
-  help request was available, and the full quest-to-claim flow remains incomplete). The migrated
-  task state is pending because this activation did not begin product execution.
+- Status: Blocked (2026-07-14; individual Help and actual lower Help All remain historical
+  evidence conclusions, no admissible current Claim row or supported zero-cost prerequisite has
+  been promoted, and the full quest-to-claim flow remains incomplete). The task state remains
+  pending because execution stopped at the global unresolved-action gate.
 - Blocker: the typed continuation report named Vehicle Depot, Ultimate Challenge, Hunt Zombie,
   Own Hero, Gathered Food, and Headquarters wording, but provenance audit found no admissible
   selected-Daily proof for them. The retained raw frame for the first four visibly has Main Quest
   selected; Gather Food is synthetic-only and Headquarters is documentation-only. No ordinary
   Claim row or supported zero-cost prerequisite was established, no current `game_day_id` was
-  assigned, and no Go or Claim input was sent. Resume only after fresh Daily reset/game-day and
-  supported-objective or existing-Claim evidence. Never reuse prior action keys.
+  assigned, and no Go or Claim input was sent. The authoritative live operational journal
+  (`pnsctl` `REMOTE_DB`, `/mnt/cache/puzzle-survival-runtime/mvp-quest-to-claim/20260713-help-all/evidence/actions.sqlite3`)
+  also contains terminal `unresolved` action `alliance-help-1783981635` with reason
+  `unexpected_successor`; its lease is released, but the global unresolved-action gate still
+  blocks all consequential input. Resume only after that exact action is separately reconciled
+  under journal policy and a fresh Daily reset/game-day plus supported-objective or existing-Claim
+  evidence is established. Never reuse prior action keys.
 - Direct implementation files: `NOT_YET_VERIFIED_THIS_RUN`; the legacy entry names no exact
   implementation-file allowlist. A future execution chat must resolve and allowlist exact files
   before product edits; activation authorizes no product-file change.
