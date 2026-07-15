@@ -75,16 +75,22 @@ These contracts remain unregistered and evidence-gated where matrix says so.
 `enhance_gear`, `enhance_chip`, and `enhance_module` require fresh Bliss-native target,
 cost/resource, and positive-postcondition evidence before promotion.
 
-## Pre-dispatch ready, still policy-gated
+## Bioenhancer research confirmed; Daily Claim reconciliation pending
 
-`bioenhancer_research` has retained Bliss-native navigation and pre-dispatch evidence:
-selected-Daily `bioenhancer_research` at `0/1`, direct Daily Go → Bioenhancer Research,
-current-frame Free Research 1x bounds `(94,1133)-(345,1216)`, separate paid 10x rejection,
-no overlay, zero cost, and single quantity. No consequential research input occurred.
-Promotion remains `EVIDENCE_GATED`; positive research result, Daily `0→1` reconciliation,
-independent game-day identity, and explicit supervised approval remain required. Claim remains
-separate. Evidence package:
-`evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`.
+`bioenhancer_research` has one terminally confirmed supervised transaction:
+`bioenhancer-free-1784069057`. Its journal proves one transport call from Bioenhancer Research
+to the Free Research 1x target, zero cost, quantity one, a positive research/cooldown
+postcondition, and no Research 10x or Claim input. The action is therefore
+`BIOENHANCER_RESEARCH_CONFIRMED` / `LIVE_VALIDATED` under supervised validation, not globally
+evidence-gated.
+
+Daily reconciliation remains independent and pending. After the transaction's
+`daily-2026-07-14` game day had reset, the selected Daily screen was positively recognized and
+the exact Bioenhancer row was observed at `0/1`; no same-day Claim-ready row can be asserted from
+that post-reset viewport. Claim execution remains `NOT_PERFORMED`; registration and scheduler
+eligibility remain unchanged. Canonical evidence:
+`evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json`,
+`actions-bioenhancer-free-1784069057.sqlite3`, and the retained bounded Daily scroll frames.
 
 ## Evidence acquired, collection policy-gated
 

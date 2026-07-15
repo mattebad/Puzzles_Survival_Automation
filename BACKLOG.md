@@ -1369,8 +1369,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `LIVE_VALIDATED`; unlocks only future unattended gate.
 
 ### DQ-FLOW-BIOENHANCER
-- Status: `PRE_DISPATCH_READY` (2026-07-14; Bliss navigation and immediate pre-dispatch
-  evidence acquired; consequential research not dispatched).
+- Status: split boundary (2026-07-14/15): `BIOENHANCER_RESEARCH_CONFIRMED`, with
+  `BIOENHANCER_DAILY_RECONCILIATION_PENDING`; no Claim.
 - Covered: `bioenhancer_research`; one free research variant.
 - Exclusions: paid/10x research, Nova Praise, premium actions.
 - Dependencies/routes: inventory → selected Daily row → direct Bioenhancer Research screen.
@@ -1379,13 +1379,17 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Offline acceptance/tests: `tasks/daily_bioenhancer.py` binds selected-row ownership, exact
   0/1 Daily progress, same-day result, dispatch cardinality, Main/static negatives, and Claim
   separation; `tests/test_daily_bioenhancer.py` plus `tests/test_bioenhancer.py`.
-- Bliss/live boundary: navigation and pre-dispatch package retained in
-  `evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`;
-  explicit supervised approval and consequential input remain pending.
-- Transaction/postcondition/recovery: one free research; result/cooldown and Daily progress; stop on free disappearance.
+- Bliss/live boundary: transaction `bioenhancer-free-1784069057` is terminally confirmed in
+  `evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json`
+  with one transport call, zero cost, quantity one, Free Research 1x binding, positive result/
+  cooldown postcondition, and Research 10x untouched.
+- Transaction/postcondition/recovery: live research result is confirmed. The later selected-Daily
+  inspection occurred after the `daily-2026-07-14` reset and observed the exact Bioenhancer row at
+  `0/1`; same-day Claim-ready reconciliation remains pending.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: remains `EVIDENCE_GATED`; positive research result, Daily `0→1`,
-  game-day binding, and Claim separation remain required. No registration or scheduler.
+- Promotion/unlocks: `LIVE_VALIDATED` under `SUPERVISED_VALIDATION` for research; Claim remains
+  independently unperformed. No registration or scheduler eligibility. Next task is a future
+  same-game-day Claim-ready observation, never a Claim dispatch during reconciliation.
 
 ### DQ-FLOW-SUPPLY-DEPOT
 - Status: `EVIDENCE_ACQUIRED` (2026-07-14; selected-Daily navigation route and free-target

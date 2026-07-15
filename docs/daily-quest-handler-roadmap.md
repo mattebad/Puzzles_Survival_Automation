@@ -60,9 +60,11 @@ dispatch, registration, live input, or scheduler eligibility is implied.
 
 ### Free or evidence-gated
 
-- Bioenhancer: one free Research action; paid/10x branches blocked. Navigation and immediate
-  pre-dispatch evidence are acquired; research dispatch remains policy-gated until approval,
-  positive result, Daily `0→1` reconciliation, and game-day binding are proven.
+- Bioenhancer: one free Research action; paid/10x branches blocked. The supervised live action is
+  confirmed by `bioenhancer-free-1784069057` with zero cost, quantity one, one transport call,
+  and a positive result/cooldown postcondition. Daily Claim remains a separate pending boundary:
+  the later selected-Daily inspection occurred after the `daily-2026-07-14` reset and showed the
+  Bioenhancer row at `0/1`, so no same-day Claim-ready state is asserted.
 - Supply Depot: navigation evidence acquired for selected Daily `0/5`, direct Depot route,
   four visible Free controls, one annotated free-single reward target, and bounded Daily return.
   Collection remains policy-gated until game-day binding, known-reward approval, postcondition,
@@ -126,6 +128,8 @@ and separate Claim authorization.
 `AUTOMATIC_ENABLED` is closed. `DISABLED_POLICY` is terminal until explicit policy change.
 Promotion requires Bliss-native evidence, profile/hash compatibility, positive postconditions,
 fresh game-day identity, central policy approval, and no unresolved action. GnBots manifest facts
-may guide research but never authorize runtime input. Current Bioenhancer evidence package is
-`evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`; it does
-not authorize research or Claim.
+may guide research but never authorize runtime input. Current Bioenhancer status is split:
+`BIOENHANCER_RESEARCH_CONFIRMED` for the single supervised research transaction, with
+`BIOENHANCER_DAILY_RECONCILIATION_PENDING` and Claim unperformed. The canonical action result is
+`evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json`;
+it does not authorize Claim.

@@ -493,6 +493,13 @@ and ambiguous-row abstention, and stale/mismatched-profile/corrupt/black fixture
 bounded upward list scroll revealed additional incomplete rows without selecting Go or Claim.
 Cash Mall remains development/reference-only and no Claim-positive asset was created.
 
+The 2026-07-14 supervised Bioenhancer slice is now split at the live evidence boundary:
+`bioenhancer-free-1784069057` proves one zero-cost Free Research 1x dispatch, quantity one, a
+positive research/cooldown postcondition, and no Research 10x input. Daily Claim remains a
+separate future evidence boundary. The selected Daily inspection occurred after the transaction's
+`daily-2026-07-14` reset and showed Bioenhancer `0/1`; it does not authorize Claim or promote
+registration/scheduler behavior.
+
 `M7-SAFE-ACTION-CORE` depends on the bootstrap corpus and implements only the minimum supervised
 action safety boundary: central policy, one exclusive executor, a persistent SQLite journal with
 `prepared → input_sent → confirmed/unresolved`, source hash/time, profile and freshness guards,

@@ -1,0 +1,94 @@
+{
+  "schema": "bioenhancer-daily-reconciliation-v1",
+  "transaction_id": "bioenhancer-free-1784069057",
+  "research_status": "BIOENHANCER_RESEARCH_CONFIRMED",
+  "daily_reconciliation_status": "BIOENHANCER_DAILY_RECONCILIATION_PENDING",
+  "daily_reconciliation_outcome": "DAILY_RECONCILIATION_UNRESOLVED",
+  "dispatch_audit": {
+    "confirmed_transaction_action_rows": 1,
+    "confirmed_transport_calls": 1,
+    "prior_attempt_action_id": "bioenhancer-free-1784068961",
+    "prior_attempt_action_rows": 0,
+    "prior_attempt_transport_calls": 0,
+    "research_10x_transport_calls": 0
+  },
+  "transaction_game_day_id": "daily-2026-07-14",
+  "current_daily_reset_identity": {
+    "selected_tab": "Daily Quest",
+    "selected_tab_recognized": true,
+    "activity_points": 0,
+    "reset_text_observed": [
+      "23:54:33",
+      "23:53:25",
+      "23:52:12",
+      "23:51:10",
+      "23:50:23"
+    ],
+    "post_reset_day_mismatch": true
+  },
+  "bioenhancer_row": {
+    "objective_text": "Bioenhancer Research x1",
+    "progress_text": "0/1",
+    "state": "INCOMPLETE",
+    "row_control": null,
+    "claim_control_bounds": null,
+    "claimed_control_observed": false,
+    "ocr_union_bounds": [98, 906, 433, 928]
+  },
+  "upper_section_inspection": {
+    "strategy": "one checked-in daily-scroll-up route per frame",
+    "frames": [
+      {
+        "action_id": "nav-daily-scroll-up-1784073990",
+        "post_frame": "nav-daily-scroll-up-1784073990-post-1.png",
+        "sha256": "4f3075a016696ca42ea36349e797024ba75e1893d0e9bab8f5fda89573b032d3",
+        "recognized": true,
+        "bioenhancer_visible": false,
+        "claim_observed": false
+      },
+      {
+        "action_id": "nav-daily-scroll-up-1784074062",
+        "post_frame": "nav-daily-scroll-up-1784074062-post-1.png",
+        "sha256": "6fc99e805d6f4af7307367b9171f4cffc95cf6ffd39483daf86f75b528d7390c",
+        "recognized": true,
+        "bioenhancer_visible": true,
+        "bioenhancer_progress": "0/1",
+        "claim_observed": false
+      },
+      {
+        "action_id": "nav-daily-scroll-up-1784074123",
+        "post_frame": "nav-daily-scroll-up-1784074123-post-1.png",
+        "sha256": "840e8e0c7a0b7870fc3871bb166ef371d13d907f2ce2180044b8a3490c39dd8f",
+        "recognized": true,
+        "upper_boundary": true,
+        "claim_observed": false
+      },
+      {
+        "action_id": "nav-daily-scroll-up-1784074171",
+        "post_frame": "nav-daily-scroll-up-1784074171-post-1.png",
+        "sha256": "3e5449f173ec571fbe12501e6653f75bde28461b29820766cf1b860de12afde8",
+        "recognized": true,
+        "upper_boundary": true,
+        "same_row_identity_set": true,
+        "claim_observed": false
+      }
+    ]
+  },
+  "current_frame": {
+    "path": "bioenhancer-reconcile-current-1784073xxx.png",
+    "sha256": "97d81f2dd31601e77de864b141faca6f80397be40cb32846369e590dc2bad385",
+    "runtime_profile": "pns-blissos-poc-virgl-800x1280-v1",
+    "dimensions": [800, 1280],
+    "claim_input_dispatched": false
+  },
+  "reconciliation_reason": "The action was confirmed on daily-2026-07-14. The selected Daily inspection followed the reset and showed the same objective at 0/1; it does not establish a same-day Claim-ready row.",
+  "prohibited_inputs_confirmed_absent": [
+    "Claim",
+    "bulk Claim",
+    "milestone chest",
+    "Research 10x",
+    "Supply Depot collection",
+    "recruitment",
+    "paid or strategic action"
+  ]
+}

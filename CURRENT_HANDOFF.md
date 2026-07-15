@@ -1,34 +1,31 @@
 # Current runtime-proof handoff
 
-## 2026-07-14 Bioenhancer Bliss evidence boundary
+## 2026-07-15 Bioenhancer live confirmation and Daily reset boundary
 
-- Verified repository at `main`, ending implementation HEAD currently recorded by this boundary
-  after route/timestamp commits; worktree tracked files were clean before evidence metadata edits.
-  Protected runtime evidence remains intentionally untracked.
+- Repository is on `main`; current implementation and evidence changes remain uncommitted.
+  Protected runtime evidence remains intentionally untracked unless explicitly selected for a
+  focused evidence commit.
 - Runtime gate passed through `pnsctl`: VM `PnS-BlissOS-PoC` running, worker
   `pns-mvp-help-all-20260713` already up and synced, private ADB connected at
   `192.168.122.79:5555` through loopback `127.0.0.1:5042`, package foreground
   `com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity`, profile
   `pns-blissos-poc-virgl-800x1280-v1`, 800×1280.
-- Bounded route evidence passed: Home→Quest, Quest→selected Daily, two Daily scroll-up
-  successors, and Daily Bioenhancer Go. Exact selected row was `bioenhancer_research 0/1`;
-  Daily Go target was `(554,870)-(731,933)`, one navigation tap, direct successor
-  `BIOENHANCER` confirmed by `nav-daily-bioenhancer-go-1784059479`.
-- The app opens Bioenhancer Research directly. No Nova screen or Nova Research intermediary was
-  observed. A historical attempt expecting `NOVA` remains an unresolved navigation-only record;
-  it is not consequential and is not treated as an active consequential blocker.
-- Fresh timestamped pre-dispatch frame proves Bioenhancer Research, Free Research 1x target
-  `(94,1133)-(345,1216)`, separate Research 10x `(455,1133)-(706,1216)`, single quantity,
-  visible free state, no observed overlay, and zero cost. Exact target is annotated on a copy;
-  raw source remains unchanged.
-- No Free Research or Research 10x input occurred. No research transaction, Daily progress
-  change, Claim, task-state row, runtime registration, or scheduler eligibility changed.
-  Evidence boundary is `PRE_DISPATCH_READY` / matrix `EVIDENCE_GATED`; game-day identity was not
-  independently observable, so explicit supervised approval and positive `0→1` reconciliation
-  remain required.
-- Canonical package:
-  `evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`
-  and `.sha256`. Claim remains an independent action.
+- The live consequential transaction `bioenhancer-free-1784069057` is terminally confirmed:
+  one transport input, Bioenhancer Research source, exact Free Research 1x target, zero cost,
+  quantity one, positive research/cooldown postcondition, Research 10x untouched, lease released,
+  and no active consequential unresolved action.
+- Canonical result/journal:
+  `evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json`
+  and `actions-bioenhancer-free-1784069057.sqlite3`. Claim, milestone, Supply Depot,
+  recruitment, paid, premium, and strategic actions were not performed.
+- Navigation-only reconciliation retained the original records. Bioenhancer Back's unexpected
+  successor was terminally classified as a navigation diagnostic; later Home→Quest and
+  Quest→selected-Daily routes were independently confirmed. Bounded upward Daily scrolling
+  reached a stable upper row set without any objective-control input.
+- Current selected Daily evidence is positively recognized with activity points `0` and a reset
+  countdown near `23:50`. The exact Bioenhancer row is visible at `0/1` after the transaction's
+  `daily-2026-07-14` reset; therefore same-day Claim-ready state is not asserted. This is
+  `BIOENHANCER_DAILY_RECONCILIATION_PENDING`, not a downgrade of the confirmed research.
 
 ## 2026-07-14 Daily Supply Depot selected-row adapter
 

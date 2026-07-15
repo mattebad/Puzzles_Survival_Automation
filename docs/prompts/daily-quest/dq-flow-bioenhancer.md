@@ -9,9 +9,10 @@ Source: selected `bioenhancer_research` row at 0/1 and research target; target: 
 single research action; successor: research level/count changed and Daily 0→1 reconciliation.
 Bind all recognizers to current frame.
 
-Policy: evidence-gated; declare any resource cost before future promotion. Transaction: one exact
-dispatch with bounded retry and unresolved-action block. Postcondition: requested research
-confirmed. Recovery: fail closed on stale, missing resource, ambiguous target, or mismatch.
+Policy: supervised validation for the proven zero-cost single action; declare any resource cost
+before future promotion. Transaction: one exact dispatch with bounded retry and unresolved-action
+block. Postcondition: requested research confirmed. Recovery: fail closed on stale, missing
+resource, ambiguous target, or mismatch.
 Daily reconciliation maps `bioenhancer_research`; Claim independent. Persistence/scheduler dormant.
 
 Tests: offline contract, source/target/successor replay, cost guard, dispatch cardinality,
@@ -19,11 +20,15 @@ negative Main recognition, and no registration/scheduler assertions. Bliss-nativ
 GnBots is provenance only. Navigation-only evidence may proceed through `pnsctl`; consequential
 input for research requires explicit current-frame authorization and policy approval. Do not touch Research
 10x, premium, paid, or Claim controls. No runtime registration or scheduler eligibility.
-Current boundary: `tasks/bioenhancer.py` plus `tasks/daily_bioenhancer.py` implement the offline
-contract and selected-Daily row binding. Bliss-native navigation and pre-dispatch evidence is
-retained at `evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`;
-the flow is `PRE_DISPATCH_READY` but matrix promotion remains `EVIDENCE_GATED` pending game-day
-identity, explicit approval, one supervised free-research result, and Daily 0→1 reconciliation.
-Claim remains independent. Continue with Supply Depot navigation-only evidence if approval is
-unavailable. Commit:
-`docs(evidence): capture Bioenhancer free-action pre-dispatch boundary`.
+Current boundary: `tasks/bioenhancer.py` plus `tasks/daily_bioenhancer.py` implement the contract
+and selected-Daily row binding. The supervised action
+`bioenhancer-free-1784069057` is live confirmed: one Free Research 1x dispatch, zero cost,
+quantity one, positive result/cooldown postcondition, and Research 10x untouched. Matrix status
+is split as `BIOENHANCER_RESEARCH_CONFIRMED` and
+`BIOENHANCER_DAILY_RECONCILIATION_PENDING`. The later selected-Daily inspection followed the
+`daily-2026-07-14` reset and showed the exact row at `0/1`, so no same-day Claim-ready state is
+asserted. Claim remains independent and unperformed; no registration or scheduler eligibility.
+Canonical action evidence:
+`evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json`.
+Commit:
+`feat(tasks): validate Bioenhancer free research`.

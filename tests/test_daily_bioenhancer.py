@@ -117,15 +117,24 @@ class DailyBioenhancerContractTests(unittest.TestCase):
             )
         )
 
-    def test_matrix_keeps_bioenhancer_evidence_gated_and_dormant(self):
+    def test_matrix_splits_confirmed_research_from_pending_daily_reconciliation(self):
         matrix = json.loads(MATRIX.read_text(encoding="utf-8"))
         row = next(
             item
             for item in matrix["objectives"]
             if item["objective_key"] == "bioenhancer_research"
         )
-        self.assertEqual(row["implementation_status"], "OFFLINE_CONTRACT_ONLY")
-        self.assertEqual(row["promotion_state"], "EVIDENCE_GATED")
+        self.assertEqual(row["implementation_status"], "LIVE_VALIDATED")
+        self.assertEqual(row["live_validation_status"], "LIVE_VALIDATED")
+        self.assertEqual(row["promotion_state"], "SUPERVISED_VALIDATION")
+        self.assertEqual(row["research_action_status"], "BIOENHANCER_RESEARCH_CONFIRMED")
+        self.assertEqual(
+            row["daily_reconciliation_status"],
+            "BIOENHANCER_DAILY_RECONCILIATION_PENDING",
+        )
+        self.assertEqual(row["consequential_dispatch_count"], 1)
+        self.assertEqual(row["research_10x_dispatch_count"], 0)
+        self.assertEqual(row["claim_execution_status"], "NOT_PERFORMED")
         self.assertEqual(row["current_runtime_registration_status"], "NOT_REGISTERED")
         self.assertFalse(row["scheduler_eligibility"])
 
