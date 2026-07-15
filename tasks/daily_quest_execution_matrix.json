@@ -956,6 +956,9 @@
         "evidence/sessions/20260714-bioenhancer-live-transaction/nav-daily-scroll-up-1784074171-post-1.png"
       ],
       "gnbots_provenance": [],
+      "gnbots_parity_status": "GNBOTS_REFERENCE_DOES_NOT_IMPLEMENT_BIOENHANCER",
+      "gnbots_parity_manifest": "docs/research/bioenhancer_gnbots_parity_manifest.json",
+      "gnbots_parity_notes": "Decoded GnBots Daily and generic town-research modules contain no Bioenhancer routine, Free Research 1x/10x branch, Bioenhancer target, or Daily reconciliation.",
       "missing_work": "same-game-day Daily Claim-ready reconciliation; no Claim",
       "missing_evidence": "a Claim-ready Bioenhancer row for game day daily-2026-07-14; current post-reset Daily evidence is daily-day-mismatched",
       "required_product_or_policy_decisions": "independent ordinary-row Claim authorization remains unperformed",

@@ -1,0 +1,297 @@
+{
+  "schema_version": 1,
+  "artifact": "bioenhancer_gnbots_parity",
+  "task_id": "BIOENHANCER-GNBOTS-PARITY",
+  "backlog_task_id": "DQ-FLOW-BIOENHANCER",
+  "review_date": "2026-07-15",
+  "primary_outcome": "GNBOTS_REFERENCE_DOES_NOT_IMPLEMENT_BIOENHANCER",
+  "question": "Does the checked-in Bioenhancer implementation perform the same game flow and target the same control as the calibrated GnBots Bioenhancer implementation?",
+  "answer": "No equivalence can be proven because the decoded GnBots reference contains no Bioenhancer implementation.",
+  "scope": {
+    "reference_root": ".local-reference/gnbots-trial/",
+    "reference_profile": [400, 652],
+    "runtime_profile": "pns-blissos-poc-virgl-800x1280-v1",
+    "runtime_dimensions": [800, 1280],
+    "vendor_execution": false,
+    "vendor_assets_copied": false,
+    "production_reads_reference": false
+  },
+  "vendor_extraction": {
+    "search_scope": ".local-reference/gnbots-trial/decoded/",
+    "bioenhancer_specific_matches": [],
+    "daily_module": {
+      "path": ".local-reference/gnbots-trial/decoded/scripts/puzzlebot.base.dailies.js",
+      "routines_reviewed": ["Pulse", "quest", "chapter", "depot", "leaderboard", "quiz", "recruit"],
+      "direct_behavior": "Pulse runs recenter, town check, Chapter, recruit, Quest, Quiz, Depot, leaderboard, then finish. quest opens Quest, processes Main Claim and Daily Claim image loops, then probes five generic Daily milestone markers.",
+      "bioenhancer_behavior": "No Bioenhancer string, objective key, screen, route, research action, or Bioenhancer reconciliation routine is present.",
+      "related_source_coordinates": {
+        "quest_open": [158, 621],
+        "main_claim_roi_xywh": [286, 107, 103, 532],
+        "daily_tab": [200, 57],
+        "daily_claim_roi_xywh": [282, 202, 103, 308]
+      },
+      "related_templates": [
+        "IndicatorChapterMenu",
+        "ChapterClaimBtn",
+        "MainQuestClaimBtn",
+        "DailyClaimBtn",
+        "IndicatorLeaderboard",
+        "IndicatorLeaderRed",
+        "PraiseBtn",
+        "IndicatorFreeRecruitLabel",
+        "RecruitFreeBtn",
+        "IndicatorDepotFree"
+      ],
+      "success_semantics": "The Daily claim loop stops on template exhaustion; it does not identify a Bioenhancer row or prove a row-local postcondition."
+    },
+    "generic_research_module": {
+      "path": ".local-reference/gnbots-trial/decoded/scripts/puzzlebot.base.townbase.js",
+      "routine": "research.researching",
+      "manifest_id": "GNB-TOWN-RESEARCH",
+      "direct_behavior": "Generic town research menu matching may follow an optional building-upgrade branch and tap a Research button.",
+      "source_state": "research menu",
+      "expected_destination": "research queue started",
+      "source_rois": [
+        {
+          "template": "IndicatorResearchMenu",
+          "source_xywh": [106, 397, 32, -580],
+          "normalized_xyxy": [106, 397, 138, -183],
+          "anomaly": "negative height"
+        },
+        {
+          "template": "ResearchGoUpgradeBtn",
+          "source_xywh": [289, 454, 82, -885],
+          "normalized_xyxy": [289, 454, 371, -431],
+          "anomaly": "negative height"
+        },
+        {
+          "template": "ResearchBtn",
+          "source_xywh": [957, 608, 77, 27],
+          "normalized_xyxy": [957, 608, 1034, 635],
+          "anomaly": "outside source profile"
+        }
+      ],
+      "cost_or_availability_check": "No Bioenhancer, Free Research 1x, Research 10x, zero-cost, quantity, cooldown, or budget check is established.",
+      "vendor_success": "The routine returns after the tap sequence; queue/progress is not verified.",
+      "return_route": "No Bioenhancer return route is established.",
+      "relationship_to_task": "Related generic town research only; it is not a matching Bioenhancer implementation."
+    }
+  },
+  "calibration_verification": {
+    "canonical_manifest": "docs/research/gnbots_bliss_coordinate_calibration.json",
+    "canonical_mapping_method": "direct-2x is the selected provisional global model; bottom-navigation has a named provisional correction. Neither is production-authorizing.",
+    "bioenhancer_source_coordinates": [],
+    "bioenhancer_mapping_artifact": null,
+    "result": "No GnBots Bioenhancer coordinate exists to transform. The generic town-research ROIs are malformed or off-profile and have no valid Bliss mapping.",
+    "overlap_verification": "Not applicable to a nonexistent vendor Bioenhancer target. Existing Bliss evidence independently proves the checked-in Free target is separated from Research 10x and has no forbidden-region intersection."
+  },
+  "current_implementation": {
+    "route": {
+      "path": "scripts/pnsctl.py",
+      "route_name": "daily-bioenhancer-go",
+      "behavior": "Selected Daily row to Bioenhancer screen; the current-frame recognizer supplies the row-local target.",
+      "static_route_roi": [554, 870, 731, 933],
+      "successor": "BIOENHANCER"
+    },
+    "daily_row_recognizer": {
+      "path": "scripts/mvp_quest_to_claim.py",
+      "routine": "recognize_daily_bioenhancer_go",
+      "behavior": "Requires selected Daily recognition, OCR Bioenhancer row identity, and a current-frame orange Go candidate near the OCR row.",
+      "target_identity": "daily-bioenhancer-go"
+    },
+    "screen_recognizers": {
+      "path": "scripts/daily_quest_bootstrap.py",
+      "routines": ["recognize_bioenhancer", "recognize_bioenhancer_free_research"],
+      "behavior": "Recognizes Bioenhancer plus Research text, then requires a left Free Research 1x label and distinct right Research 10x control; cost/premium text and overlays fail closed.",
+      "current_frame_binding": true,
+      "free_target_from_existing_evidence": [94, 1133, 345, 1216],
+      "research_10x_exclusion": "The right-side 10x control must be separately recognized and the Free ROI must end before it begins."
+    },
+    "adapter": {
+      "path": "tasks/daily_bioenhancer.py",
+      "routines": [
+        "daily_bioenhancer_authorizeable",
+        "daily_bioenhancer_transaction_spec",
+        "daily_bioenhancer_postcondition_verified",
+        "daily_bioenhancer_replay"
+      ],
+      "behavior": "Requires selected bioenhancer_research row, progress 0/1, one free single action, same-day positive research result, and separate Claim handling."
+    },
+    "contract": {
+      "path": "tasks/bioenhancer.py",
+      "routines": [
+        "bioenhancer_authorizeable",
+        "bioenhancer_transaction_spec",
+        "bioenhancer_postcondition_verified",
+        "bioenhancer_perform_one_pulse"
+      ],
+      "action": "RESEARCH_BIOENHANCER_FREE",
+      "target_identity": "bioenhancer-free-research",
+      "cost": 0,
+      "quantity": 1,
+      "semantic_postcondition": "research result, count increase, or cooldown transition"
+    },
+    "dispatch_definition": {
+      "path": "scripts/pnsctl.py",
+      "routine": "run_task",
+      "task": "bioenhancer-free-research",
+      "dispatch_target": [94, 1133, 345, 1216],
+      "semantic_action": "RESEARCH_BIOENHANCER_FREE"
+    }
+  },
+  "parity_comparison": [
+    {
+      "flow_step": "flow entry",
+      "gnbots_behavior": "Daily Pulse includes generic Quest work, but no Bioenhancer entry.",
+      "gnbots_source_coordinate_or_recognizer": "puzzlebot.base.dailies.js: Pulse; no Bioenhancer routine",
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "Selected Daily row route via daily-bioenhancer-go.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "decoded/scripts/puzzlebot.base.dailies.js; scripts/pnsctl.py:NAVIGATION_STEPS"
+    },
+    {
+      "flow_step": "Daily objective identification",
+      "gnbots_behavior": "quest handles generic Main/Daily Claim image loops and milestone markers, not objective keys or Bioenhancer rows.",
+      "gnbots_source_coordinate_or_recognizer": "DailyClaimBtn [282,202,103,308]; no Bioenhancer row recognizer",
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "recognize_daily_bioenhancer_go requires selected Daily state, OCR Bioenhancer text, and row-local Go binding.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "decoded/scripts/puzzlebot.base.dailies.js: quest; scripts/mvp_quest_to_claim.py:314-371"
+    },
+    {
+      "flow_step": "route to Bioenhancer Research",
+      "gnbots_behavior": "No Bioenhancer route. Generic town research is unrelated.",
+      "gnbots_source_coordinate_or_recognizer": "GNB-TOWN-RESEARCH: research.researching",
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "Daily row Go target reaches BIOENHANCER.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "docs/research/gnbots_trial_reference_manifest.json:GNB-TOWN-RESEARCH; nav-daily-bioenhancer-go-1784068541-result.json"
+    },
+    {
+      "flow_step": "expected destination screen",
+      "gnbots_behavior": "Generic town research expects a research queue, not a Bioenhancer screen.",
+      "gnbots_source_coordinate_or_recognizer": "IndicatorResearchMenu / ResearchBtn; malformed source geometry",
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "BIOENHANCER recognized by title/content OCR.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "scripts/daily_quest_bootstrap.py:251-268; GNB-TOWN-RESEARCH"
+    },
+    {
+      "flow_step": "Free Research 1x target",
+      "gnbots_behavior": "No Free Research 1x branch or target.",
+      "gnbots_source_coordinate_or_recognizer": null,
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "Current-frame Free Research 1x target [94,1133,345,1216].",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "scripts/daily_quest_bootstrap.py:374-466; bioenhancer-free-1784069057-result.json"
+    },
+    {
+      "flow_step": "Research 10x exclusion",
+      "gnbots_behavior": "No Bioenhancer 10x branch or exclusion.",
+      "gnbots_source_coordinate_or_recognizer": null,
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "Requires distinct right-side Research 10x recognition and keeps it outside the Free target.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "scripts/daily_quest_bootstrap.py:391-435; result critical_roi_hashes include free_control and ten_control"
+    },
+    {
+      "flow_step": "zero-cost or availability semantics",
+      "gnbots_behavior": "Generic town research has no Free Research cost/quantity/cooldown proof.",
+      "gnbots_source_coordinate_or_recognizer": "research.researching; no cost guard",
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "Explicit cost none, amount 0, quantity 1, free banner, and readiness guards.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "tasks/bioenhancer.py:76-97; bioenhancer-free-1784069057-result.json"
+    },
+    {
+      "flow_step": "immediate-before target confirmation",
+      "gnbots_behavior": "Generic Image matching precedes vendor taps but no Bioenhancer target exists.",
+      "gnbots_source_coordinate_or_recognizer": null,
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "Fresh current-frame target and frame hash are required before dispatch.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "scripts/daily_quest_bootstrap.py:374-435; bioenhancer-free-1784069057-result.json: policy snapshot"
+    },
+    {
+      "flow_step": "action dispatch target",
+      "gnbots_behavior": "No matching Bioenhancer action.",
+      "gnbots_source_coordinate_or_recognizer": null,
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "One RESEARCH_BIOENHANCER_FREE dispatch at the Bliss-native target.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "scripts/pnsctl.py:337-353; bioenhancer-free-1784069057-result.json"
+    },
+    {
+      "flow_step": "semantic success condition",
+      "gnbots_behavior": "Generic town research returns after taps without queue/progress proof.",
+      "gnbots_source_coordinate_or_recognizer": "GNB-TOWN-RESEARCH completion field",
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "Requires same-day result identity, count increase, or cooldown transition.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "tasks/bioenhancer.py:124-146; bioenhancer-free-1784069057-result.json"
+    },
+    {
+      "flow_step": "return route",
+      "gnbots_behavior": "No Bioenhancer return route.",
+      "gnbots_source_coordinate_or_recognizer": null,
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "Checked-in Back route expects HOME_BASE; the retained navigation record had an unexpected successor and remains diagnostic.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "scripts/pnsctl.py:283-285; nav-bioenhancer-daily-back-1784069111-result.json"
+    },
+    {
+      "flow_step": "Daily objective reconciliation",
+      "gnbots_behavior": "Daily Claim loop is generic and has no Bioenhancer objective mapping or row-local postcondition.",
+      "gnbots_source_coordinate_or_recognizer": "quest: DailyClaimBtn; no Bioenhancer reconciliation",
+      "calibrated_bliss_target": null,
+      "current_checked_in_implementation": "Adapter requires Daily 0→1, while retained post-reset evidence is 0/1; Claim remains separate.",
+      "parity_result": "NOT_IMPLEMENTED_BY_GNBOTS",
+      "evidence_or_code_reference": "tasks/daily_bioenhancer.py:54-71; evidence/sessions/20260714-bioenhancer-live-transaction/daily-reconciliation-status.json"
+    }
+  ],
+  "decisive_existing_evidence": {
+    "navigation_to_screen": "evidence/sessions/20260714-bioenhancer-live-transaction/nav-daily-bioenhancer-go-1784068541-result.json",
+    "research_transaction": "evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json",
+    "daily_reconciliation": "evidence/sessions/20260714-bioenhancer-live-transaction/daily-reconciliation-status.json",
+    "transaction_facts": {
+      "dispatch_count": 1,
+      "target": [94, 1133, 345, 1216],
+      "tap": [219, 1174],
+      "cost": 0,
+      "quantity": 1,
+      "research_count": "0/100 to 1/100",
+      "research_10x_dispatch_count": 0,
+      "claim_dispatch_count": 0,
+      "forbidden_region_intersects_target": false
+    },
+    "daily_facts": {
+      "transaction_game_day": "daily-2026-07-14",
+      "later_selected_daily_progress": "0/1",
+      "post_reset_day_mismatch": true,
+      "claim_observed": false
+    }
+  },
+  "discrepancy_assessment": {
+    "remaining_discrepancy": "The later selected-Daily Bioenhancer row is 0/1 after the daily-2026-07-14 reset; same-day Claim-ready state is not proven.",
+    "explained_by_concrete_flow_mismatch": false,
+    "reason": "No GnBots Bioenhancer flow exists to provide a route or target mismatch. The retained evidence identifies a game-day/reset boundary, while the research transaction itself is confirmed."
+  },
+  "implementation_change": {
+    "changed": false,
+    "reason": "No vendor-to-current Bioenhancer mismatch can be proven when the vendor implementation is absent.",
+    "live_validation_performed": false
+  },
+  "runtime_state": {
+    "registration": "NOT_REGISTERED",
+    "scheduler_eligibility": false,
+    "gameplay_input_during_this_task": false,
+    "actions_not_repeated": [
+      "bioenhancer-free-1784069057",
+      "Bioenhancer Free Research 1x",
+      "Bioenhancer Research 10x",
+      "Bioenhancer Claim",
+      "any other Daily Claim or milestone Claim"
+    ]
+  },
+  "next_permitted_atomic_task": "Future same-game-day Daily reconciliation observation for a Claim-ready Bioenhancer row; no Claim dispatch during reconciliation and no repeat research transaction."
+}

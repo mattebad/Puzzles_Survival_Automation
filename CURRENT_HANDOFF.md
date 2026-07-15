@@ -1,5 +1,32 @@
 # Current runtime-proof handoff
 
+## 2026-07-15 Bioenhancer GnBots parity boundary
+
+- Active task `BIOENHANCER-GNBOTS-PARITY` is complete as an offline static comparison under the
+  canonical backlog item `DQ-FLOW-BIOENHANCER`.
+- Primary outcome: `GNBOTS_REFERENCE_DOES_NOT_IMPLEMENT_BIOENHANCER`. The exact decoded Daily
+  module is `.local-reference/gnbots-trial/decoded/scripts/puzzlebot.base.dailies.js` (`Pulse`,
+  `quest`, and related routines); it has no Bioenhancer objective, route, research action, or
+  reconciliation. The only related research routine is generic
+  `.local-reference/gnbots-trial/decoded/scripts/puzzlebot.base.townbase.js`
+  (`research.researching` / `GNB-TOWN-RESEARCH`) with malformed or off-profile ROIs and no
+  Bioenhancer semantics.
+- No GnBots Bioenhancer coordinate exists, so no source-to-Bliss mapping can be verified or
+  promoted. The canonical calibration manifest remains authoritative and unchanged. Existing
+  checked-in Bliss-native implementation targets and Free Research 1x/10x exclusion remain
+  unchanged.
+- Canonical parity/evidence artifact:
+  `docs/research/bioenhancer_gnbots_parity_manifest.json`.
+- No implementation or test correction was justified. The confirmed research transaction remains
+  `bioenhancer-free-1784069057`; the later post-reset selected-Daily row at `0/1` remains
+  `BIOENHANCER_DAILY_RECONCILIATION_PENDING`, not a proven flow mismatch.
+- No gameplay input, registration change, scheduler change, Claim, Research 1x repeat, or Research
+  10x action occurred during this task. Registration remains `NOT_REGISTERED`; scheduler
+  eligibility remains false.
+- Next permitted atomic task: future same-game-day Daily reconciliation observation for a
+  Claim-ready Bioenhancer row, with no Claim dispatch during reconciliation and no repeat research
+  transaction.
+
 ## 2026-07-15 Bioenhancer live confirmation and Daily reset boundary
 
 - Repository is on `main`; current implementation and evidence changes remain uncommitted.

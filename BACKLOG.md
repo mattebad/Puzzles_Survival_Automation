@@ -1371,6 +1371,12 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### DQ-FLOW-BIOENHANCER
 - Status: split boundary (2026-07-14/15): `BIOENHANCER_RESEARCH_CONFIRMED`, with
   `BIOENHANCER_DAILY_RECONCILIATION_PENDING`; no Claim.
+- Active parity subtask: `BIOENHANCER-GNBOTS-PARITY` completed offline on 2026-07-15 with
+  primary outcome `GNBOTS_REFERENCE_DOES_NOT_IMPLEMENT_BIOENHANCER`. The decoded GnBots reference
+  has generic Daily claim/recruit/depot/leaderboard behavior and malformed generic town research,
+  but no Bioenhancer routine, Free Research 1x/10x branch, Bioenhancer target, or Daily
+  reconciliation. Canonical artifact:
+  `docs/research/bioenhancer_gnbots_parity_manifest.json`.
 - Covered: `bioenhancer_research`; one free research variant.
 - Exclusions: paid/10x research, Nova Praise, premium actions.
 - Dependencies/routes: inventory → selected Daily row → direct Bioenhancer Research screen.
@@ -1390,6 +1396,9 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `LIVE_VALIDATED` under `SUPERVISED_VALIDATION` for research; Claim remains
   independently unperformed. No registration or scheduler eligibility. Next task is a future
   same-game-day Claim-ready observation, never a Claim dispatch during reconciliation.
+- Parity conclusion: no implementation change; the post-reset `0/1` state is not explained by a
+  concrete vendor-flow mismatch because GnBots does not implement this objective. Do not repeat
+  research or begin live validation from this task.
 
 ### DQ-FLOW-SUPPLY-DEPOT
 - Status: `EVIDENCE_ACQUIRED` (2026-07-14; selected-Daily navigation route and free-target
