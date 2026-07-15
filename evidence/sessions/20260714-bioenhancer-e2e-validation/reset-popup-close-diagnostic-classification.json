@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "classification": "BENIGN_NAVIGATION_DIAGNOSTIC",
+  "action_id": "reset-popup-close-1784079185-2",
+  "source_result": "evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-result.json",
+  "source_result_sha256": "2cc984b59854ec39caa0c787b33564d7d788ac044f9dc535fc29ee4d6d0ac5be",
+  "source_final_status": "unresolved",
+  "terminal_disposition": "TERMINALLY_CLASSIFIED_NAVIGATION_ONLY",
+  "reason": "The reset-popup close tap was zero-cost navigation-only input. Its unexpected successor is retained as a diagnostic and is not a consequential action outcome.",
+  "consequential": false,
+  "cost": 0,
+  "research_transaction_affected": false,
+  "confirmed_bioenhancer_transaction": "bioenhancer-free-1784079616",
+  "active_consequential_action": false,
+  "retry_authorized": false
+}

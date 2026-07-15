@@ -1,5 +1,31 @@
 # Current runtime-proof handoff
 
+## 2026-07-15 Bioenhancer same-day reconciliation proof
+
+- The user explicitly authorized a rerun after a new Daily reset. Fresh pre-dispatch evidence
+  showed `Bioenhancer Research x1 (0/1)` with reset time `22:21:02`; runtime identity was
+  `daily-2026-07-15`.
+- The selected-row Go route was confirmed:
+  `evidence/sessions/20260714-bioenhancer-e2e-validation/nav-daily-bioenhancer-go-1784079563-result.json`.
+- Exactly one zero-cost Free Research 1x transaction was dispatched and terminally confirmed:
+  `bioenhancer-free-1784079616`. It used one transport call, quantity one, cost zero, target
+  `[94,1133,345,1216]`, and positive research postcondition. Research 10x was untouched.
+- The research screen visibly advanced from `1/100` to `2/100` and displayed a cooldown.
+  Returning through Back → Home → Quest → Daily was navigation-only and positively confirmed.
+- Fresh post-research Daily evidence shows `Bioenhancer Research x1 (1/1)` with `Claim` visible.
+  Claim was not clicked, and Daily points remain `0`.
+- Canonical rerun artifact:
+  `docs/research/bioenhancer_e2e_validation_manifest.json`.
+- Terminal outcome: `BIOENHANCER_SAME_DAY_END_TO_END_CONFIRMED`; execution and Daily
+  reconciliation are validated. Implementation is unchanged; Claim execution was not performed,
+  registration remains unchanged, and scheduler eligibility remains false.
+- Both research transactions are non-repeatable:
+  `bioenhancer-free-1784069057` and `bioenhancer-free-1784079616`.
+- The reset-popup unexpected-successor record is terminally classified as a benign navigation
+  diagnostic at `evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json`;
+  it did not alter the confirmed transaction and no active consequential action remains.
+- Next atomic backlog task: `DQ-CLAIM-DAILY`, separate supervised ordinary-row Claim validation.
+
 ## 2026-07-15 Bioenhancer GnBots parity boundary
 
 - Active task `BIOENHANCER-GNBOTS-PARITY` is complete as an offline static comparison under the
@@ -19,15 +45,14 @@
   `docs/research/bioenhancer_gnbots_parity_manifest.json`.
 - Parity boundary committed as `16b7b8537829e6ab5b8114dfd777bdea79229eb9` on `main`. The four
   parity paths are committed; pre-existing runtime evidence remains untracked and untouched.
-- No implementation or test correction was justified. The confirmed research transaction remains
-  `bioenhancer-free-1784069057`; the later post-reset selected-Daily row at `0/1` remains
-  `BIOENHANCER_DAILY_RECONCILIATION_PENDING`, not a proven flow mismatch.
+- No implementation or test correction was justified by parity. The earlier `0/1` observation was
+  a historical pre-rerun game-day boundary snapshot; it is superseded by the confirmed same-day
+  `1/1` reconciliation recorded above.
 - No gameplay input, registration change, scheduler change, Claim, Research 1x repeat, or Research
   10x action occurred during this task. Registration remains `NOT_REGISTERED`; scheduler
   eligibility remains false.
-- Next permitted atomic task: future same-game-day Daily reconciliation observation for a
-  Claim-ready Bioenhancer row, with no Claim dispatch during reconciliation and no repeat research
-  transaction.
+- Historical next-task note superseded by the completed same-day reconciliation. The next atomic
+  backlog task is `DQ-CLAIM-DAILY`; no Claim dispatch occurred during this task.
 
 ## 2026-07-15 Bioenhancer live confirmation and Daily reset boundary
 
@@ -51,10 +76,8 @@
   successor was terminally classified as a navigation diagnostic; later Home→Quest and
   Quest→selected-Daily routes were independently confirmed. Bounded upward Daily scrolling
   reached a stable upper row set without any objective-control input.
-- Current selected Daily evidence is positively recognized with activity points `0` and a reset
-  countdown near `23:50`. The exact Bioenhancer row is visible at `0/1` after the transaction's
-  `daily-2026-07-14` reset; therefore same-day Claim-ready state is not asserted. This is
-  `BIOENHANCER_DAILY_RECONCILIATION_PENDING`, not a downgrade of the confirmed research.
+- Historical selected-Daily evidence recorded a post-reset `0/1` boundary snapshot. It is
+  superseded by the fresh `daily-2026-07-15` run, which verified `0/1 → 1/1` with Claim visible.
 
 ## 2026-07-14 Daily Supply Depot selected-row adapter
 
@@ -80,8 +103,8 @@
 - The adapter requires one current-frame free research action and a same-day positive result or
   cooldown transition with Daily progress 0/1. Five focused tests cover ownership, transaction
   guards, successor arithmetic, Main/static negatives, Claim separation, and zero dispatch.
-- Matrix remains evidence-gated, unregistered, and scheduler-ineligible; no live input, journal,
-  lease, task-state, or gameplay state changed.
+- The contract remains unregistered and scheduler-ineligible; its live execution and Daily
+  reconciliation are now validated by the canonical same-day evidence manifest.
 
 ## 2026-07-14 disabled resource-building boost contract
 

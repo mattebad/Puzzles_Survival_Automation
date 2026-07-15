@@ -117,7 +117,7 @@ class DailyBioenhancerContractTests(unittest.TestCase):
             )
         )
 
-    def test_matrix_splits_confirmed_research_from_pending_daily_reconciliation(self):
+    def test_matrix_records_confirmed_same_day_daily_reconciliation(self):
         matrix = json.loads(MATRIX.read_text(encoding="utf-8"))
         row = next(
             item
@@ -127,17 +127,26 @@ class DailyBioenhancerContractTests(unittest.TestCase):
         self.assertEqual(row["implementation_status"], "LIVE_VALIDATED")
         self.assertEqual(row["live_validation_status"], "LIVE_VALIDATED")
         self.assertEqual(row["promotion_state"], "SUPERVISED_VALIDATION")
+        self.assertEqual(row["authoritative_status"], "BIOENHANCER_SAME_DAY_END_TO_END_CONFIRMED")
+        self.assertEqual(row["execution_validation_status"], "VALIDATED")
+        self.assertEqual(row["daily_reconciliation_validation_status"], "VALIDATED")
         self.assertEqual(row["research_action_status"], "BIOENHANCER_RESEARCH_CONFIRMED")
         self.assertEqual(
             row["daily_reconciliation_status"],
-            "BIOENHANCER_DAILY_RECONCILIATION_PENDING",
+            "BIOENHANCER_DAILY_RECONCILIATION_CONFIRMED_CLAIM_READY",
         )
-        self.assertEqual(row["consequential_dispatch_count"], 1)
+        self.assertEqual(row["daily_reconciliation_outcome"], "DAILY_RESEARCH_ADVANCED_TO_1_OF_1_CLAIM_READY")
+        self.assertEqual(row["consequential_dispatch_count"], 2)
         self.assertEqual(row["research_10x_dispatch_count"], 0)
         self.assertEqual(row["lease_release_status"], "EXPIRED_BY_POLICY")
         self.assertEqual(row["claim_execution_status"], "NOT_PERFORMED")
         self.assertEqual(row["current_runtime_registration_status"], "NOT_REGISTERED")
         self.assertFalse(row["scheduler_eligibility"])
+        self.assertEqual(
+            row["non_repeatable_actions"],
+            ["bioenhancer-free-1784069057", "bioenhancer-free-1784079616"],
+        )
+        self.assertEqual(row["next_atomic_backlog_task"], "DQ-CLAIM-DAILY")
 
 
 if __name__ == "__main__":

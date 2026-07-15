@@ -1369,8 +1369,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `LIVE_VALIDATED`; unlocks only future unattended gate.
 
 ### DQ-FLOW-BIOENHANCER
-- Status: split boundary (2026-07-14/15): `BIOENHANCER_RESEARCH_CONFIRMED`, with
-  `BIOENHANCER_DAILY_RECONCILIATION_PENDING`; no Claim.
+- Status: `BIOENHANCER_SAME_DAY_END_TO_END_CONFIRMED` (2026-07-15 UTC); execution validated;
+  Daily reconciliation validated; Claim execution not performed.
 - Active parity subtask: `BIOENHANCER-GNBOTS-PARITY` completed offline on 2026-07-15 with
   primary outcome `GNBOTS_REFERENCE_DOES_NOT_IMPLEMENT_BIOENHANCER`. The decoded GnBots reference
   has generic Daily claim/recruit/depot/leaderboard behavior and malformed generic town research,
@@ -1391,14 +1391,26 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   cooldown postcondition, and Research 10x untouched.
 - Transaction/postcondition/recovery: live research result is confirmed. The later selected-Daily
   inspection occurred after the `daily-2026-07-14` reset and observed the exact Bioenhancer row at
-  `0/1`; same-day Claim-ready reconciliation remains pending.
+  `0/1`; after the verified `daily-2026-07-15` reset, exactly one new Free Research 1x advanced
+  the row to `1/1` with Claim visible. Canonical rerun artifact:
+  `docs/research/bioenhancer_e2e_validation_manifest.json`.
+- Terminal journal/lease: `bioenhancer-free-1784079616` is terminally `confirmed` with
+  `positive_postcondition`; its lease is `EXPIRED_BY_POLICY` and no active consequential action
+  remains. The benign reset-popup navigation diagnostic is terminally classified in
+  `evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json`
+  without altering either research transaction.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `LIVE_VALIDATED` under `SUPERVISED_VALIDATION` for research; Claim remains
-  independently unperformed. No registration or scheduler eligibility. Next task is a future
-  same-game-day Claim-ready observation, never a Claim dispatch during reconciliation.
-- Parity conclusion: no implementation change; the post-reset `0/1` state is not explained by a
-  concrete vendor-flow mismatch because GnBots does not implement this objective. Do not repeat
-  research or begin live validation from this task.
+- Promotion/unlocks: `LIVE_VALIDATED` under `SUPERVISED_VALIDATION` for research and same-day
+  reconciliation; Claim remains independently unperformed. No registration or scheduler
+  eligibility. Next atomic backlog task is `DQ-CLAIM-DAILY`; no Claim dispatch is authorized in
+  this closure.
+- Parity conclusion: no implementation change; GnBots does not implement this objective. The
+  verified new reset removed the prior day-boundary ambiguity, and the same-day objective
+  progression is now proven. Research 10x and Claim were not dispatched.
+- Non-repeatable actions: `bioenhancer-free-1784069057` and `bioenhancer-free-1784079616`.
+- Reset-inference disposition: no shared game-day/reset implementation defect was established;
+  the earlier discrepancy was corrected by fresh reset verification. No shared reset code changed
+  and no separate reset-defect task was opened.
 
 ### DQ-FLOW-SUPPLY-DEPOT
 - Status: `EVIDENCE_ACQUIRED` (2026-07-14; selected-Daily navigation route and free-target

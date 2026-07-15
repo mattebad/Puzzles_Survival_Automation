@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "artifact": "bioenhancer_e2e_validation",
+  "task_id": "DQ-FLOW-BIOENHANCER",
+  "run_date_utc": "2026-07-15",
+  "authoritative_status": "BIOENHANCER_SAME_DAY_END_TO_END_CONFIRMED",
+  "primary_outcome": "BIOENHANCER_SAME_DAY_END_TO_END_CONFIRMED",
+  "answer": "Yes. After the verified Daily reset, exactly one zero-cost Free Research 1x advanced the selected Bioenhancer objective from 0/1 to 1/1 Claim-ready in the same game-day cycle.",
+  "validation_state": {
+    "execution": "VALIDATED",
+    "daily_reconciliation": "VALIDATED",
+    "claim_execution": "NOT_PERFORMED",
+    "registration": "NOT_REGISTERED_UNCHANGED",
+    "scheduler_eligibility": false
+  },
+  "runtime": {
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "dimensions": [800, 1280],
+    "foreground": "com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity",
+    "game_day_id": "daily-2026-07-15",
+    "reset_verified": true
+  },
+  "evidence": {
+    "daily_pre_reset_frame": {
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-rerun-source-20260714-2038.png",
+      "sha256": "657ec88b3a280948d2b793e6ec5e88ad4f7f8a2c7f0d22f2265555724185cd22",
+      "observed": "Daily Quest, reset timer 22:21:02, Bioenhancer Research x1 (0/1)"
+    },
+    "route_to_research": {
+      "result_path": "evidence/sessions/20260714-bioenhancer-e2e-validation/nav-daily-bioenhancer-go-1784079563-result.json",
+      "result_sha256": "4ec4bb7639e89c0e49ba80d15cf06dff137c4da1babbc67f2c13441480de6e98",
+      "status": "confirmed",
+      "transport_calls": 1
+    },
+    "research_source_frame": {
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-free-1784079616-source.png",
+      "sha256": "80badf0b7171ca4e0bec1b3fcdb1ad6e8947b4e398bfe42ca95399f764f4ddd2",
+      "target_roi": [94, 1133, 345, 1216],
+      "controls": ["Free Research 1x", "Research 10x"]
+    },
+    "research_transaction": {
+      "result_path": "evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-free-1784079616-result.json",
+      "result_sha256": "7ff87110857e68eda55fb172fada489f7dc40c68fc3f67a6bedd173029024a32",
+      "journal_path": "evidence/sessions/20260714-bioenhancer-e2e-validation/actions-bioenhancer-free-1784079616.sqlite3",
+      "journal_sha256": "b04a2a33539fd0a46e076f199ff2fa29c40c8a0a91e60381db79211b3f6e6218",
+      "action_id": "bioenhancer-free-1784079616",
+      "game_day_id": "daily-2026-07-15",
+      "status": "confirmed",
+      "transport_calls": 1,
+      "cost": 0,
+      "quantity": 1,
+      "semantic_postcondition": "BIOENHANCER_RESEARCH_SUCCESS",
+      "research_count": "1/100 to 2/100",
+      "post_frame_sha256": "58c669371654852a6da31ffb2f3432e69e4e9a27021709c7de9ef18cfe56c3fe"
+    },
+    "popup_navigation_diagnostic": {
+      "classification_path": "evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json",
+      "classification": "BENIGN_NAVIGATION_DIAGNOSTIC",
+      "terminal_disposition": "TERMINALLY_CLASSIFIED_NAVIGATION_ONLY",
+      "research_transaction_affected": false
+    },
+    "daily_post_frame": {
+      "path": "evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-rerun-daily-post-20260714-2040.png",
+      "sha256": "08776f2e9ae20c89b1d928d62335a231d7272d73ff73c444780b1822e0f37d8b",
+      "observed": "Daily Quest Pts 0, Bioenhancer Research x1 (1/1), Claim visible"
+    }
+  },
+  "guard_results": {
+    "new_reset_confirmed_before_dispatch": true,
+    "free_research_target_confirmed": true,
+    "research_10x_dispatch_count": 0,
+    "claim_dispatch_count": 0,
+    "registration_changed": false,
+    "scheduler_eligibility_changed": false
+  },
+  "journal_verification": {
+    "journal_path": "evidence/sessions/20260714-bioenhancer-e2e-validation/actions-bioenhancer-free-1784079616.sqlite3",
+    "action_id": "bioenhancer-free-1784079616",
+    "final_status": "confirmed",
+    "final_reason": "positive_postcondition",
+    "transport_calls": 1,
+    "lease_state": "EXPIRED_BY_POLICY",
+    "active_consequential_action": false
+  },
+  "non_repeatable_actions": [
+    "bioenhancer-free-1784069057",
+    "bioenhancer-free-1784079616"
+  ],
+  "reset_inference": {
+    "shared_reset_implementation_defect_established": false,
+    "disposition": "No shared implementation change or separate reset-defect backlog task; the earlier discrepancy was a game-day boundary inference corrected by fresh reset verification."
+  },
+  "conclusion": {
+    "same_day_progression_proven": true,
+    "claim_ready_proven": true,
+    "claim_performed": false,
+    "implementation_change": false,
+    "next_permitted_atomic_task": "DQ-CLAIM-DAILY: separate supervised ordinary-row Claim validation; do not infer Claim persistence from this observation."
+  }
+}
