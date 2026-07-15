@@ -114,8 +114,10 @@ class Win32:
     def __init__(self) -> None:
         if os.name != "nt":
             raise _collector_module().CollectorError("passive recording requires Windows")
-        self.user32 = ctypes.windll.user32
-        self.kernel32 = ctypes.windll.kernel32
+        self.user32 = ctypes.WinDLL('user32', use_last_error=True)
+        self.kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        self.kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+        self.kernel32.GetModuleHandleW.restype = ctypes.c_void_p
         self.enum_proc_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         self.hook_proc_type = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
         self.user32.EnumWindows.argtypes = [self.enum_proc_type, wintypes.LPARAM]
@@ -186,9 +188,19 @@ class Win32:
         return max(0, int(rect.right - rect.left)), max(0, int(rect.bottom - rect.top))
 
     def install_hook(self, hook_type: int, callback: Any) -> Any:
-        handle = self.user32.SetWindowsHookExW(hook_type, callback, self.kernel32.GetModuleHandleW(None), 0)
+        module = self.kernel32.GetModuleHandleW(None)
+        if not module:
+            error_code = ctypes.get_last_error()
+            raise _collector_module().CollectorError(
+                f"GetModuleHandleW failed: {ctypes.WinError(error_code)}"
+            )
+        ctypes.set_last_error(0)
+        handle = self.user32.SetWindowsHookExW(hook_type, callback, module, 0)
         if not handle:
-            raise _collector_module().CollectorError(f"SetWindowsHookEx failed for hook {hook_type}")
+            error_code = ctypes.get_last_error()
+            raise _collector_module().CollectorError(
+                f"SetWindowsHookEx failed for hook {hook_type}: {ctypes.WinError(error_code)}"
+            )
         return handle
 
 
@@ -619,6 +631,12 @@ class PassiveRecorder:
         except KeyboardInterrupt:
             self.stop_requested = False
             self.session.interrupt()
+        except Exception:
+            self.session.manifest["session_status"] = "failed"
+            self.session.manifest["completed_at_utc"] = c.utc_now()
+            self.session._append_log("passive_runtime_failed")
+            self.session._persist_manifest()
+            raise
         finally:
             self.recording = False
             self.buffer.stop()
