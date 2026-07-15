@@ -8,7 +8,8 @@ does not discover routes, decide what to tap, retry actions, or execute quests a
 
 Use a local Windows BlueStacks instance with the game displayed in portrait at `800x1280`. Set
 approximately `160 DPI` when BlueStacks exposes that setting. Enable BlueStacks local ADB and note
-the exact loopback serial, normally something like `127.0.0.1:5555` or `localhost:5555`.
+the exact local serial, normally something like `127.0.0.1:5555`, `localhost:5555`, or the
+local emulator transport reported by BlueStacks HD-Adb such as `emulator-5554`.
 
 Keep the Bliss runtime, Unraid worker, other automation, and any second recorder isolated. Do not
 use the same game account concurrently from BlueStacks and Bliss. The collector never runs `adb
@@ -34,21 +35,42 @@ Add `--record-only` to live sessions when the user will perform every action man
 `--no-gui` only for a temporary mock manifest/ZIP check. Sessions are written beneath
 `.local-captures\bluestacks\<flow-id>\<UTC-session-id>\` and are intentionally ignored by Git.
 
+### Passive recording (recommended for route capture)
+
+For chronological route capture, select the BlueStacks window or process and run passive mode. The
+collector observes only while that selected window is foreground, records normal mouse taps and
+drags/swipes without blocking or replaying them, and keeps a rolling clean-frame buffer for the
+pre-action image. Press `F8` to start and `F9` to stop by default; `--start-hotkey`,
+`--stop-hotkey`, and `--back-hotkey` are configurable. Screen labels, target names, successors,
+notes, and semantic results remain optional metadata.
+
+```powershell
+python scripts\bluestacks_flow_collector.py --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --passive --window-title "BlueStacks" --flow-id consume-ap-campaign --daily-objective "Consume AP"
+```
+
+Use `--window-handle 0x...` or `--process-id <pid>` when title matching is ambiguous. The passive
+mode captures client coordinates, maps them through the portrait 800x1280 letterboxed frame,
+classifies movement using configurable distance and duration thresholds, captures the delayed
+after frame, and exports the ordered manifest and verified ZIP when stopped. It never sends ADB
+input. The existing collector GUI remains available as an optional manual annotation/fallback
+workflow.
+
 ## Demonstrate a flow
 
 1. Confirm the displayed serial and safety state.
-2. Use **Capture current frame** whenever the current screen needs a fresh observation.
-3. Label the current screen, selected target, and expected successor before recording the step.
-4. Use **Tap**, **Swipe**, **Android Back**, or **Wait**. Tap and swipe selections show display and
-   raw coordinates before confirmation. Dispatch mode requires a separate confirmation and sends
-   one input. Record-only mode prompts the user to perform the action manually and captures the
-   after frame only after the user confirms readiness.
-5. Add notes and set objective progress before/after as observed. Keep the final row-control state
-   explicit. Stop when the Daily row becomes Claim-ready; do not tap Claim unless the session is
-   specifically capturing Claim behavior.
-6. Mark the flow complete and choose **Export ZIP**. The exporter refreshes the deterministic
-   manifest, creates a sorted ZIP, parses the archived manifest, and verifies every archived
-   artifact hash. An aborted or interrupted session is retained for diagnosis.
+2. For passive capture, bring the selected BlueStacks window forward, press the start hotkey, and
+   demonstrate the route directly in the normal game window. No collector Tap or Swipe button is
+   required, and the collector does not interrupt or replay the action.
+3. For the manual fallback, use **Capture current frame**, then optionally label the current screen,
+   target, and successor before using **Tap**, **Swipe**, **Android Back**, or **Wait**.
+4. Add notes and set objective progress before/after as observed. These annotations are optional and
+   can be added after the route is captured.
+5. Stop when the Daily row becomes Claim-ready; do not tap Claim unless the session is specifically
+   capturing Claim behavior.
+6. Press the passive stop hotkey or use **Mark flow complete** in the manual GUI, then choose
+   **Export ZIP** if the GUI path was used. The exporter refreshes the deterministic manifest, creates
+   a sorted ZIP, parses the archived manifest, and verifies every archived artifact hash. An aborted
+   or interrupted session is retained for diagnosis.
 
 ## Consume AP example
 

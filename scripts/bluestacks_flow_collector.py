@@ -576,7 +576,7 @@ class CollectorSession:
             "session_id": session_id,
             "started_at_utc": utc_now(),
             "completed_at_utc": None,
-            "mode": "mock" if args.mock_image else ("live-record-only" if args.record_only else "live-dispatch"),
+            "mode": "mock" if args.mock_image else ("passive-record-only" if getattr(args, "passive", False) else ("live-record-only" if args.record_only else "live-dispatch")),
             "session_status": "active",
             "device_diagnostics": {},
             "dispatch_safety_gate": {},
@@ -685,7 +685,7 @@ class CollectorSession:
                         "serial_confirmation_matches": True,
                         "permitted_local_bluestacks_endpoint": permitted,
                         "known_production_serial": known_production,
-                        "record_only": bool(self.args.record_only),
+                        "record_only": bool(self.args.record_only or getattr(self.args, "passive", False)),
                     },
                 }
                 self.manifest["session_status"] = "failed"
@@ -779,7 +779,7 @@ class CollectorSession:
             "portrait": diagnostics.get("portrait_frame", False),
             "exact_800x1280": diagnostics.get("exact_800x1280", False),
             "foreground_package_expected": False,
-            "record_only": bool(self.args.record_only),
+            "record_only": bool(self.args.record_only or getattr(self.args, "passive", False)),
         }
         try:
             state = self.runner.get_state()
@@ -1374,6 +1374,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--daily-objective", default="", help="Daily objective being demonstrated")
     parser.add_argument("--post-action-delay", type=float, default=2.0, help="seconds to wait before the after frame")
     parser.add_argument("--record-only", action="store_true", help="capture manual actions without ADB input")
+    parser.add_argument("--passive", action="store_true", help="passively observe selected BlueStacks window input; never dispatches or replays")
+    parser.add_argument("--window-handle", help="selected BlueStacks top-level window handle (decimal or 0x-prefixed hex)")
+    parser.add_argument("--window-title", help="selected BlueStacks window title or unique title substring")
+    parser.add_argument("--process-id", help="selected BlueStacks process ID; requires one visible top-level window")
+    parser.add_argument("--start-hotkey", default="F8", help="passive recording start hotkey (default: F8)")
+    parser.add_argument("--stop-hotkey", default="F9", help="passive recording stop hotkey (default: F9)")
+    parser.add_argument("--back-hotkey", default="ESC", help="passive keyboard Back observation hotkey (default: ESC)")
+    parser.add_argument("--start-immediately", action="store_true", help="passive mode: begin observing immediately instead of waiting for the start hotkey")
+    parser.add_argument("--buffer-interval", type=float, default=0.25, help="passive rolling clean-frame interval in seconds")
+    parser.add_argument("--swipe-distance-threshold", type=float, default=12.0, help="passive drag distance threshold in client pixels")
+    parser.add_argument("--swipe-duration-threshold", type=float, default=0.05, help="passive drag duration threshold in seconds")
     parser.add_argument("--output-directory", type=Path, default=Path(".local-captures"), help="capture root; sessions are stored below bluestacks/<flow-id>/<UTC-session-id>")
     parser.add_argument("--no-gui", action="store_true", help="create, capture, export, and exit for headless mock verification")
     parser.add_argument("--self-check", action="store_true", help="run pure coordinate translation checks and exit")
@@ -1388,6 +1399,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.mock_image and args.serial:
         parser.error("--mock-image and --serial are mutually exclusive")
+    if args.passive and args.mock_image:
+        parser.error("--passive and --mock-image are mutually exclusive")
+    if args.passive and args.no_gui:
+        parser.error("--passive cannot be combined with --no-gui")
+    if args.passive and args.buffer_interval <= 0:
+        parser.error("--buffer-interval must be positive")
+    if args.passive and args.swipe_distance_threshold < 0:
+        parser.error("--swipe-distance-threshold must be non-negative")
+    if args.passive and args.swipe_duration_threshold < 0:
+        parser.error("--swipe-duration-threshold must be non-negative")
     if args.post_action_delay < 0:
         parser.error("--post-action-delay must be non-negative")
     try:
@@ -1398,6 +1419,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     if session.manifest["session_status"] == "failed":
         print(json.dumps({"session_directory": str(session.session_dir), "status": "failed", "manifest": str(session.manifest_path)}, sort_keys=True))
         return 1
+    if args.passive:
+        try:
+            from bluestacks_passive import PassiveRecorder
+            return PassiveRecorder(session).run()
+        except CollectorError as exc:
+            session.manifest["session_status"] = "failed"
+            session._record_error("PASSIVE_INITIALIZATION_FAILED", str(exc), phase="passive-initialization", exception=type(exc).__name__)
+            print(f"Passive recording unavailable; preserved session at {session.session_dir}: {exc}", file=sys.stderr)
+            return 2
+        except Exception as exc:
+            session.manifest["session_status"] = "failed"
+            session._record_error("PASSIVE_FAILED", str(exc), phase="passive", exception=type(exc).__name__)
+            print(f"Passive recording failed; preserved session at {session.session_dir}: {exc}", file=sys.stderr)
+            return 1
     if args.no_gui:
         try:
             session.mark_complete()
