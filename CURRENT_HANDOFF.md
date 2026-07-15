@@ -26,14 +26,14 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "MVP-QUEST-TO-CLAIM",
+  "current_task_id": "TOOLS-BLUESTACKS-FLOW-CAPTURE",
   "current_task_state": "pending",
-  "next_task_id": "M6-DQ-TRANSITION-CORPUS",
+  "next_task_id": "MVP-QUEST-TO-CLAIM",
   "next_task_activation_status": "not_applicable",
-  "phase": "execution_blocked_unresolved_action_gate",
-  "objective": "Complete one bounded, supervised Daily Quest quest-to-claim transition and stop; execution has not started.",
-  "last_safe_completed_step": "Supported pnsctl preflight and private ADB verification completed; the authoritative live journal was inspected read-only and blocked execution on terminal unresolved action alliance-help-1783981635 before any MVP input.",
-  "next_permitted_action": "Obtain a separately authorized reconciliation of alliance-help-1783981635 under journal policy; only after the global gate is clear, establish a fresh Daily reset/game-day and admissible Claim or supported zero-cost objective source, then resume MVP-QUEST-TO-CLAIM.",
+  "phase": "contract_ready_pending_execution",
+  "objective": "Repair generic durable task activation and stop before implementing the collector.",
+  "last_safe_completed_step": "Generic task-contract, canonical-state, conditional-evidence, and successor validation repaired and checked offline; no runtime action occurred.",
+  "next_permitted_action": "Start a fresh execution chat for TOOLS-BLUESTACKS-FLOW-CAPTURE; do not implement it in this governance task.",
   "actions_already_performed": [
     "Read-only Git status, required governance files, the exact MVP backlog section, direct dependencies, and exact evidence references.",
     "Migrated and validated the MVP durable contract and created its compact task-specific evidence manifest from exact named references.",
@@ -109,7 +109,7 @@
     "last_relevant_focused_tests": "124 focused MVP/safety/governance tests passed; 71 transitive journal/navigation tests passed; 2 navigation-revalidation errors remain the known missing retained Personal Might fixture baseline"
   },
   "evidence": {
-    "active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json",
+    "active_evidence_manifest": null,
     "raw_source": "NOT_CAPTURED; execution stopped at unresolved-action gate",
     "immediate_before": "NOT_VERIFIED_THIS_RUN",
     "immediate_post": "NOT_VERIFIED_THIS_RUN",
@@ -122,19 +122,21 @@
       "evidence/current-evidence-manifest.json",
       "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md"
     ],
-    "do_not_recursively_inspect_parent_evidence_tree": true
+    "do_not_recursively_inspect_parent_evidence_tree": true,
+    "evidence_requirement": "NOT_APPLICABLE",
+    "evidence_requirement_reason": "Governance-only offline activation produces no canonical runtime evidence; prior MVP references remain preserved below.",
+    "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "next_action": {
     "permitted_actions": [
-      "Have alliance-help-1783981635 separately reconciled under the journal policy without issuing new gameplay input.",
-      "After the gate is terminally cleared, establish fresh Daily reset/game-day and admissible source/target evidence before any MVP product input."
+      "Start a fresh execution chat for TOOLS-BLUESTACKS-FLOW-CAPTURE.",
     ],
     "prohibited_actions": [
       "Any new consequential or substitute gameplay input while alliance-help-1783981635 remains unresolved.",
       "Evidence deletion, movement, compaction, or broad evidence search.",
       "MVP implementation, Claim validation, or any production behavior change in this activation."
     ],
-    "exact_stop_condition": "Stop on the unresolved-action gate, protected-work ownership ambiguity, exact-evidence identity ambiguity, validator failure, or any request for runtime/production mutation.",
+    "exact_stop_condition": "Stop after the validator and focused governance checks pass; no runtime action is authorized.",
     "expected_next_atomic_task": "MVP-QUEST-TO-CLAIM",
     "expected_next_activation_status": "not_applicable"
   }

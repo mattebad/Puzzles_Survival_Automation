@@ -78,6 +78,7 @@ requirements and measured facts. Evidence records contain observations, not comp
   - Premium or strategic restrictions: all prohibited.
 - Evidence contract:
   - Active evidence manifest: `evidence/current-evidence-manifest.json`.
+  - Evidence requirement: REQUIRED; this governance task retains the canonical current evidence manifest.
   - Required artifacts: exact governance files, validator output, and only exact Bioenhancer
     summaries/results/journals named by the manifest.
   - Immediate-before/immediate-post/result/journal: preserve existing references; do not collect,
@@ -126,6 +127,92 @@ requirements and measured facts. Evidence records contain observations, not comp
   - `MVP-QUEST-TO-CLAIM` remains the next task with activation status
     `contract_migration_required` unless separately migrated and validated;
   - no runtime or production behavior changed and no protected evidence was moved or staged.
+
+### TOOLS-BLUESTACKS-FLOW-CAPTURE — Build a practical BlueStacks manual flow collector
+
+- Task ID: `TOOLS-BLUESTACKS-FLOW-CAPTURE`
+- Title: Build a practical Windows/BlueStacks flow-capture utility for later Bliss translation.
+- Status: Pending (activation only; implementation not started).
+- Milestone: Offline tooling and translation corpus preparation.
+- Dependencies: Python standard library, tkinter, and the repository's existing image dependency
+  convention; no runtime or product dependency.
+- Blocked by: none for activation; stop if the local GUI/image environment cannot be verified without
+  changing repository dependencies.
+- Objective: record manual BlueStacks quest walkthroughs as screenshots, coordinates, actions,
+  transitions, semantic labels, notes, and an exportable ZIP without executing a quest autonomously.
+- Established facts:
+  - This task is a user-driven recorder and does not authorize Bliss, Unraid, production automation,
+    scheduler, registration, or gameplay during implementation.
+  - Local capture output is ignored under `.local-captures/`; it is not canonical evidence.
+- Direct implementation files: `scripts/bluestacks_flow_collector.py`,
+  `docs/bluestacks-flow-capture.md`, `.gitignore`, and
+  `.cursorindexingignore`.
+- Shared dependencies: Python subprocess/tkinter, existing OpenCV image handling, JSON/path/hash/ZIP
+  standard-library helpers, and the explicit BlueStacks serial supplied by the user.
+- Transitive regression set: focused governance validation, syntax/help checks, and no production
+  automation tests.
+- Allowed changes: the named collector, guide, ignore rules, local session schema, and task-local
+  offline validation artifacts only.
+- Prohibited changes: Bliss or Unraid contact; gameplay; production automation, journals, leases,
+  registration, scheduler, historical evidence, `.local-reference/`, or push.
+- Authorized runtime action: none during implementation; future capture sessions may use only the
+  explicitly selected BlueStacks device after user confirmation.
+- Maximum transport inputs: navigation-only `0`; consequential `0` during this
+  activation task.
+- Navigation-only recovery: forbidden.
+- Consequential action: forbidden during implementation; future recorder dispatch remains explicitly
+  user-confirmed and exactly once per selected action.
+- Registration changes: forbidden.
+- Scheduler changes: forbidden.
+- Actions that must not be repeated: any prior MVP, Praise, Claim, Bioenhancer, Supply Depot,
+  recruitment, ADB, pnsctl, Bliss, or gameplay action.
+- Required source: a current clean BlueStacks screenshot or a synthetic mock image selected by the
+  user; no vendor or stale evidence.
+- Exact target semantics: the user-selected tap/swipe/Back/Wait action and its semantic labels, not
+  autonomous target discovery or route inference.
+- Required local association: displayed selection, raw 800x1280 coordinates, source frame, before/
+  after frames, annotation, labels, and manifest step must belong to the same recorder session.
+- Negative controls: unselected devices, known Bliss/Unraid serials, wrong package, wrong orientation
+  or resolution, letterboxed/out-of-bounds points, stale frames, and canceled confirmations.
+- Coordinate space: raw portrait 800x1280 frame; displayed coordinates must retain scale and padding
+  metadata.
+- Accepted signals: clean PNG frames, explicit user confirmation, deterministic labels, and verified
+  manifest/ZIP hashes.
+- Rejected weak signals: transport success alone, approximate coordinates, scaled screenshots treated
+  as raw, automatic retries, route discovery, or guessed semantic success.
+- Ambiguous-result behavior: preserve the partial session and error; do not retry or delete artifacts.
+- Zero-cost requirement: no game resource or state change is authorized during implementation.
+- Quantity limits: zero gameplay inputs during this activation.
+- Resource consumption policy: none.
+- Premium or strategic restrictions: all prohibited.
+- Evidence requirement: NOT_APPLICABLE — offline tooling activation creates no canonical runtime evidence.
+- Active evidence manifest: null; ignored `.local-captures/` output is not required to exist.
+- Required artifacts: collector source, concise operating guide, focused validator coverage, and
+  ignored-output rules.
+- Immediate-before/immediate-post/result/journal: not applicable to this governance activation.
+- Additional task-specific artifacts: none; future sessions retain their own local manifests.
+- Focused tests: `tests/test_governance_validation.py`, Python compile/help, and direct
+  mock/manifest/ZIP checks when the collector task is implemented.
+- Integration tests: none.
+- Transitive regression tests: none beyond governance and touched-file validation.
+- Full-suite requirement: none.
+- Validators: `scripts/validate_governance.py`, JSON parsing, indexing validation,
+  `git diff --check`, and touched-file secret scan.
+- Known baseline failures: report existing cv2/evidence-fixture or unrelated dirty-worktree failures
+  separately; any new governance failure blocks activation.
+- Valid blocked outcomes: inability to represent the task contract without weakening validation,
+  protected-work overlap that cannot be isolated, or missing required local tooling.
+- Blocked-result commit policy: preserve valid governance repair work; do not activate or commit an
+  invalid task transition.
+- Commit policy: stage only reviewed collector-task paths or hunks; never absorb existing MVP work.
+- Expected focused commits: `feat(tools): add BlueStacks flow collector`; allowed paths are
+  limited to the named collector, guide, ignore rules, and this exact task/handoff transition.
+- Completion criteria: the collector implementation, guide, mock mode, coordinate translation,
+  manifest/ZIP verification, and ignored local storage pass their task-specific checks; no gameplay
+  or Bliss input occurs.
+- No push unless explicitly authorized.
+- Next: `MVP-QUEST-TO-CLAIM`; its existing successor remains
+  `M6-DQ-TRANSITION-CORPUS`.
 
 ## Production boundary
 
@@ -611,6 +698,7 @@ Claim example.
   state according to policy, and require manual reconciliation. Never retry blindly.
 - Game-day requirements: future execution must freshly establish reset identity and bind all task
   state, evidence, and authorization to that game day. Current runtime and game day are
+- Evidence requirement: REQUIRED; this supervised runtime task retains its exact task-scoped evidence manifest.
   `NOT_VERIFIED_THIS_RUN`; recorded historical identities do not authorize execution.
 - Journal and lease requirements: use the central persistent journal and exclusive lease; require no
   active prepared, input-sent, or unresolved consequential action before dispatch; persist
