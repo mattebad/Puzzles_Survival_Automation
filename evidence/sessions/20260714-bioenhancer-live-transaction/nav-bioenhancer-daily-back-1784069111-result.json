@@ -1,0 +1,90 @@
+{
+  "action": {
+    "action_id": "nav-bioenhancer-daily-back-1784069111",
+    "action_key": "nav-bioenhancer-daily-back-1784069111",
+    "consequence": "navigate_zero_cost",
+    "consequential": 0,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/nav-bioenhancer-daily-back-1784069111-source.png\"]",
+    "expected_postcondition": "HOME_BASE",
+    "final_reason": "unexpected_successor",
+    "final_status": "unresolved",
+    "game_day_id": null,
+    "input_attempt_at": 1784069118.2068167,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_NAVIGATION_ONLY",
+    "policy_request_json": "{\"action_class\":\"navigation_only\",\"action_id\":\"nav-bioenhancer-daily-back-1784069111\",\"action_key\":\"nav-bioenhancer-daily-back-1784069111\",\"action_kind\":\"BIOENHANCER_TO_HOME\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"pnsctl-1784069111\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4514549.353192567,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4514548.491506748,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"c7ad18a115ceedb8bf4bf7aba712ff12037aea71825a110156fbf2f5517735ba\"],[\"source_content\",\"d45b1f611ab376b1b7a2de0b13700473af38a4e1bf34d95bfadb96e0d21d4d31\"],[\"source_title\",\"1be66489578fc3fc37e79042ae566c23f210688854b1bffe7e335df148bfaf6b\"]],\"evidence_refs\":[\"/evidence/nav-bioenhancer-daily-back-1784069111-source.png\"],\"expected_postcondition\":\"HOME_BASE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"087a485782dd86800861365f79748724e9e80c1511007d4e09df88658398a3be\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4514548.491506748,\"ocr_result_frame_sha256\":\"087a485782dd86800861365f79748724e9e80c1511007d4e09df88658398a3be\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"BIOENHANCER\",\"target_identity\":\"bioenhancer-daily-back\",\"target_isolated\":false,\"target_roi\":[31,1,138,55],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"BIOENHANCER_TO_HOME\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1784069116.8912203,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":false,\"observations\":[\"416add4542158dd6e3f460ecf67a8c223c0032be5b8134f78f7e196f33a82df1\",\"0ab87df45a310e4dff5ae64f415a458660c4dd8d9a88ce9c7a8cf7d2f9ea53da\",\"a2ce98f1b82e96083ea6d0b89886e2c327b3087da6e6b6ed81a43360277a68a2\"]}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "BIOENHANCER_TO_HOME",
+    "source_frame_captured_at": 4514548.491506748,
+    "source_frame_sha256": "087a485782dd86800861365f79748724e9e80c1511007d4e09df88658398a3be",
+    "source_state": "BIOENHANCER",
+    "target_identity": "bioenhancer-daily-back",
+    "target_roi_json": "[31,1,138,55]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input tap 84 28\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1784069129.743429
+  },
+  "audit": [
+    {
+      "action_id": "nav-bioenhancer-daily-back-1784069111",
+      "event_id": 2,
+      "event_type": "policy_evaluated",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"decision\":\"authorize\",\"evaluated_at\":4514549.353192567,\"reason\":\"local source, target, overlay, and successor guards passed\",\"reason_code\":\"AUTHORIZED_NAVIGATION_ONLY\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"nav-bioenhancer-daily-back-1784069111\",\"action_key\":\"nav-bioenhancer-daily-back-1784069111\",\"action_kind\":\"BIOENHANCER_TO_HOME\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"pnsctl-1784069111\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4514549.353192567,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4514548.491506748,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"c7ad18a115ceedb8bf4bf7aba712ff12037aea71825a110156fbf2f5517735ba\"],[\"source_content\",\"d45b1f611ab376b1b7a2de0b13700473af38a4e1bf34d95bfadb96e0d21d4d31\"],[\"source_title\",\"1be66489578fc3fc37e79042ae566c23f210688854b1bffe7e335df148bfaf6b\"]],\"evidence_refs\":[\"/evidence/nav-bioenhancer-daily-back-1784069111-source.png\"],\"expected_postcondition\":\"HOME_BASE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"087a485782dd86800861365f79748724e9e80c1511007d4e09df88658398a3be\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4514548.491506748,\"ocr_result_frame_sha256\":\"087a485782dd86800861365f79748724e9e80c1511007d4e09df88658398a3be\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"BIOENHANCER\",\"target_identity\":\"bioenhancer-daily-back\",\"target_isolated\":false,\"target_roi\":[31,1,138,55],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"BIOENHANCER_TO_HOME\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}",
+      "recorded_at": 1784069116.8912203,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-bioenhancer-daily-back-1784069111",
+      "event_id": 3,
+      "event_type": "action_transition",
+      "lifecycle_from": null,
+      "lifecycle_to": "prepared",
+      "payload_json": "{\"intent\":{\"action_class\":\"navigation_only\",\"action_id\":\"nav-bioenhancer-daily-back-1784069111\",\"action_key\":\"nav-bioenhancer-daily-back-1784069111\",\"action_kind\":\"BIOENHANCER_TO_HOME\",\"allowed_confirmation_dialogs\":[],\"arrow_geometry\":null,\"consequence\":\"navigate_zero_cost\",\"consequential\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"evidence_refs\":[\"/evidence/nav-bioenhancer-daily-back-1784069111-source.png\"],\"expected_postcondition\":\"HOME_BASE\",\"forbidden_region_intersects_target\":false,\"free_only\":true,\"game_day_id\":null,\"maximum_cost\":0,\"promotional_back_count\":0,\"quantity\":1,\"resource_or_currency\":\"none\",\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"semantic_action\":\"BIOENHANCER_TO_HOME\",\"semantic_postconditions\":[\"HOME_BASE\"],\"semantic_preconditions\":[\"BIOENHANCER\",\"none_observed\"],\"source_family\":null,\"source_frame_captured_at\":4514548.491506748,\"source_frame_sha256\":\"087a485782dd86800861365f79748724e9e80c1511007d4e09df88658398a3be\",\"source_state\":\"BIOENHANCER\",\"subject\":\"bioenhancer-daily-back\",\"target_identity\":\"bioenhancer-daily-back\",\"target_isolated\":false,\"target_roi\":[31,1,138,55],\"task_id\":\"MVP-QUEST-TO-CLAIM\"},\"policy\":{\"decision\":\"authorize\",\"evaluated_at\":4514549.353192567,\"reason\":\"local source, target, overlay, and successor guards passed\",\"reason_code\":\"AUTHORIZED_NAVIGATION_ONLY\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"nav-bioenhancer-daily-back-1784069111\",\"action_key\":\"nav-bioenhancer-daily-back-1784069111\",\"action_kind\":\"BIOENHANCER_TO_HOME\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"pnsctl-1784069111\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4514549.353192567,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4514548.491506748,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"c7ad18a115ceedb8bf4bf7aba712ff12037aea71825a110156fbf2f5517735ba\"],[\"source_content\",\"d45b1f611ab376b1b7a2de0b13700473af38a4e1bf34d95bfadb96e0d21d4d31\"],[\"source_title\",\"1be66489578fc3fc37e79042ae566c23f210688854b1bffe7e335df148bfaf6b\"]],\"evidence_refs\":[\"/evidence/nav-bioenhancer-daily-back-1784069111-source.png\"],\"expected_postcondition\":\"HOME_BASE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"087a485782dd86800861365f79748724e9e80c1511007d4e09df88658398a3be\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4514548.491506748,\"ocr_result_frame_sha256\":\"087a485782dd86800861365f79748724e9e80c1511007d4e09df88658398a3be\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"BIOENHANCER\",\"target_identity\":\"bioenhancer-daily-back\",\"target_isolated\":false,\"target_roi\":[31,1,138,55],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"BIOENHANCER_TO_HOME\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}}",
+      "recorded_at": 1784069116.8912203,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-bioenhancer-daily-back-1784069111",
+      "event_id": 4,
+      "event_type": "pre_input_attempt",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"attempt\":1,\"changed\":null,\"frame_age_seconds\":0.9722476750612259,\"max_attempts\":2,\"ocr_reuse_denial\":null,\"policy\":{\"decision\":\"authorize\",\"evaluated_at\":4514550.655113398,\"reason\":\"local source, target, overlay, and successor guards passed\",\"reason_code\":\"AUTHORIZED_NAVIGATION_ONLY\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"nav-bioenhancer-daily-back-1784069111\",\"action_key\":\"nav-bioenhancer-daily-back-1784069111\",\"action_kind\":\"BIOENHANCER_TO_HOME\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"pnsctl-1784069111\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4514550.655113398,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4514549.682865723,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"c7ad18a115ceedb8bf4bf7aba712ff12037aea71825a110156fbf2f5517735ba\"],[\"source_content\",\"16b8b33a9f3fe40742dc402e662c1b5fd508d99fb2aba12230881a16b12927a9\"],[\"source_title\",\"1be66489578fc3fc37e79042ae566c23f210688854b1bffe7e335df148bfaf6b\"]],\"evidence_refs\":[\"/evidence/nav-bioenhancer-daily-back-1784069111-immediate-before-1.png\"],\"expected_postcondition\":\"HOME_BASE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"8e26c04d61faa5022e58e03dfbe21e7c019fe1d7811d5441fc5ef153d2380a93\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4514549.682865723,\"ocr_result_frame_sha256\":\"8e26c04d61faa5022e58e03dfbe21e7c019fe1d7811d5441fc5ef153d2380a93\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"BIOENHANCER\",\"target_identity\":\"bioenhancer-daily-back\",\"target_isolated\":false,\"target_roi\":[31,1,138,55],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"pre_dispatch\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"BIOENHANCER_TO_HOME\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}},\"transport_calls\":0}",
+      "recorded_at": 1784069118.1931412,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-bioenhancer-daily-back-1784069111",
+      "event_id": 5,
+      "event_type": "action_transition",
+      "lifecycle_from": "prepared",
+      "lifecycle_to": "input_sent",
+      "payload_json": "{\"fields\":{\"input_attempt_at\":1784069118.2068167,\"transport_result_json\":{\"detail\":\"input tap 84 28\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}},\"reason\":\"transport_reported_dispatch\"}",
+      "recorded_at": 1784069118.2068167,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-bioenhancer-daily-back-1784069111",
+      "event_id": 6,
+      "event_type": "action_transition",
+      "lifecycle_from": "input_sent",
+      "lifecycle_to": "unresolved",
+      "payload_json": "{\"fields\":{\"reconciliation_result_json\":{\"confirmed\":false,\"observations\":[\"416add4542158dd6e3f460ecf67a8c223c0032be5b8134f78f7e196f33a82df1\",\"0ab87df45a310e4dff5ae64f415a458660c4dd8d9a88ce9c7a8cf7d2f9ea53da\",\"a2ce98f1b82e96083ea6d0b89886e2c327b3087da6e6b6ed81a43360277a68a2\"]}},\"reason\":\"unexpected_successor\"}",
+      "recorded_at": 1784069129.743429,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    }
+  ],
+  "result": {
+    "action_id": "nav-bioenhancer-daily-back-1784069111",
+    "reason": "unexpected_successor",
+    "status": "unresolved",
+    "transport_calls": 1
+  }
+}

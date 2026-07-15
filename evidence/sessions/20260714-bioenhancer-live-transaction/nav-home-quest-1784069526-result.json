@@ -1,0 +1,21 @@
+{
+  "action": null,
+  "audit": [
+    {
+      "action_id": "nav-home-quest-1784069526",
+      "event_id": 2,
+      "event_type": "policy_evaluated",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"decision\":\"deny\",\"evaluated_at\":4514966.073582513,\"reason\":\"source state is not positively recognized\",\"reason_code\":\"UNKNOWN_SOURCE\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"nav-home-quest-1784069526\",\"action_key\":\"nav-home-quest-1784069526\",\"action_kind\":\"HOME_TO_QUEST\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":15.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"pnsctl-1784069526\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4514966.073582513,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4514962.724402514,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"566f9ba0e868903f8de0c11d9ef13ebdfb0fc7c6b0182dbeef25657213acef76\"],[\"source_nav_left_anchor\",\"24bc092994449ae1bd1ba1cb2766205e0f56b7c3274c83fc39ce63ac4cc176d8\"],[\"source_nav_right_anchor\",\"e7d85483a570488047a1bf7e338a9f57c0c0072001ec32d61bbae05437b84afc\"],[\"target_quest\",\"566f9ba0e868903f8de0c11d9ef13ebdfb0fc7c6b0182dbeef25657213acef76\"]],\"evidence_refs\":[\"/evidence/nav-home-quest-1784069526-source.png\"],\"expected_postcondition\":\"QUEST\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"8fe645b7a9a03a8308b56a177b14f9f2a0591dbbcb1f217420a56938a50fc5f9\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4514962.724402514,\"ocr_result_frame_sha256\":\"8fe645b7a9a03a8308b56a177b14f9f2a0591dbbcb1f217420a56938a50fc5f9\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"unknown\",\"package_foreground\":true,\"quantity\":1,\"recognized\":false,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"UNKNOWN\",\"target_identity\":null,\"target_isolated\":false,\"target_roi\":null,\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":15.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"HOME_TO_QUEST\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}",
+      "recorded_at": 1784069533.6116104,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    }
+  ],
+  "result": {
+    "action_id": "nav-home-quest-1784069526",
+    "reason": "UNKNOWN_SOURCE",
+    "status": "cancelled",
+    "transport_calls": 0
+  }
+}
