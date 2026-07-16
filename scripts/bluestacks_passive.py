@@ -604,19 +604,21 @@ class PassiveRecorder:
         if key == self.start_vk and not self.recording:
             self.recording = True
             self.started = True
+            started_at = self.collector.utc_now()
             self.session.manifest["passive_recording"]["state"] = "recording"
-            self.session.manifest["passive_recording"]["started_at_utc"] = self.collector.utc_now()
-            self.session._append_log("passive_recording_started")
-            self.session._persist_manifest()
-            print(f"Passive recording started for 0x{self.target.hwnd:x}; actions are observed only.")
+            self.session.manifest["passive_recording"]["started_at_utc"] = started_at
+            self.events.put({"control_event": "passive_recording_started", "timestamp_utc": started_at})
+            print(f"Passive recording started for 0x{self.target.hwnd:x}; actions are observed only.", flush=True)
         elif key == self.stop_vk and self.started:
             self.recording = False
             self.stop_requested = True
+            stop_requested_at = self.collector.utc_now()
             self.stop_event.set()
             self.session.manifest["passive_recording"]["state"] = "stopping"
-            self.session._append_log("passive_recording_stop_requested")
-            self.session._persist_manifest()
+            self.session.manifest["passive_recording"]["stop_requested_at_utc"] = stop_requested_at
+            self.events.put({"control_event": "passive_recording_stop_requested", "timestamp_utc": stop_requested_at})
             self.win32.user32.PostQuitMessage(0)
+            print("Stop requested; finalizing queued after-frames, manifest hashes, and ZIP...", flush=True)
         elif key == self.back_vk and self.recording and self.win32.is_active(self.target.hwnd):
             self.sequence += 1
             now = time.monotonic()
@@ -753,6 +755,10 @@ class PassiveRecorder:
             try:
                 if event is None:
                     return
+                if event.get("control_event"):
+                    self.session._append_log(event["control_event"], {"timestamp_utc": event["timestamp_utc"]})
+                    self.session._persist_manifest()
+                    continue
                 self._record_event(event)
             except Exception as exc:
                 self.session._record_error("PASSIVE_STEP_FAILED", str(exc), phase="passive-step", exception=type(exc).__name__)

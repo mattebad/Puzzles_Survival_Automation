@@ -48,6 +48,10 @@ notes, and semantic results remain optional metadata.
 python scripts\bluestacks_flow_collector.py --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --passive --window-title "BlueStacks" --flow-id consume-ap-campaign --daily-objective "Consume AP"
 ```
 
+Run the terminal at the same Windows integrity level as BlueStacks. If BlueStacks is elevated, open
+PowerShell with **Run as administrator**. The collector checks both process integrity levels and fails
+before installing hooks when it cannot safely observe the selected player.
+
 Use `--window-handle 0x...` or `--process-id <pid>` when title matching is ambiguous. The passive
 mode captures client coordinates, maps them through the portrait 800x1280 letterboxed frame,
 classifies movement using configurable distance and duration thresholds, captures the delayed
@@ -68,9 +72,9 @@ workflow.
 5. Stop when the Daily row becomes Claim-ready; do not tap Claim unless the session is specifically
    capturing Claim behavior.
 6. Press the passive stop hotkey or use **Mark flow complete** in the manual GUI, then choose
-   **Export ZIP** if the GUI path was used. The exporter refreshes the deterministic manifest, creates
-   a sorted ZIP, parses the archived manifest, and verifies every archived artifact hash. An aborted
-   or interrupted session is retained for diagnosis.
+   **Export ZIP** if the GUI path was used. Passive mode acknowledges the stop immediately, but final
+   output can take several seconds while queued delayed after-frames finish and the manifest and ZIP
+   hashes are verified. An aborted or interrupted session is retained for diagnosis.
 
 ## Consume AP example
 
