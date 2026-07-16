@@ -31,6 +31,7 @@ WM_RBUTTONUP = 0x0205
 WM_MBUTTONDOWN = 0x0207
 WM_MBUTTONUP = 0x0208
 GA_ROOT = 2
+DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = (1 << (ctypes.sizeof(ctypes.c_void_p) * 8)) - 4
 
 MOUSE_BUTTONS = {
     WM_LBUTTONDOWN: ("left", WM_LBUTTONUP),
@@ -116,6 +117,7 @@ class Win32:
             raise _collector_module().CollectorError("passive recording requires Windows")
         self.user32 = ctypes.WinDLL('user32', use_last_error=True)
         self.kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        self.dpi_awareness = self._set_dpi_awareness()
         self.kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
         self.kernel32.GetModuleHandleW.restype = ctypes.c_void_p
         self.enum_proc_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
@@ -143,6 +145,25 @@ class Win32:
         self.user32.TranslateMessage.argtypes = [ctypes.POINTER(wintypes.MSG)]
         self.user32.DispatchMessageW.argtypes = [ctypes.POINTER(wintypes.MSG)]
         self.user32.PostQuitMessage.argtypes = [ctypes.c_int]
+
+    def _set_dpi_awareness(self) -> str:
+        try:
+            set_context = self.user32.SetProcessDpiAwarenessContext
+            set_context.argtypes = [ctypes.c_void_p]
+            set_context.restype = wintypes.BOOL
+            if set_context(ctypes.c_void_p(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)):
+                return "per-monitor-v2"
+        except (AttributeError, OSError):
+            pass
+        try:
+            set_process = self.user32.SetProcessDPIAware
+            set_process.argtypes = []
+            set_process.restype = wintypes.BOOL
+            if set_process():
+                return "system-aware"
+        except (AttributeError, OSError):
+            pass
+        return "unavailable"
 
     def window_info(self, hwnd: int) -> WindowInfo:
         length = self.user32.GetWindowTextLengthW(hwnd)
@@ -359,6 +380,7 @@ class PassiveRecorder:
             "actions_queued": 0,
             "keyboard_back_actions_queued": 0,
         }
+        self.input_samples: list[dict[str, Any]] = []
         self.mouse_callback: Any = None
         self.keyboard_callback: Any = None
         self.mouse_hook: Any = None
@@ -374,6 +396,8 @@ class PassiveRecorder:
             "input_dispatch": False,
             "active_window_filter": "foreground selected root or selected root under cursor",
             "input_counters": self.input_counters,
+            "input_samples": self.input_samples,
+            "coordinate_diagnostics": {"dpi_awareness": self.win32.dpi_awareness},
             "state": "waiting",
         }
         session._append_log("passive_window_selected", self.session.manifest["passive_recording"]["selected_window"])
@@ -393,13 +417,30 @@ class PassiveRecorder:
         bounds, client_size = self._rendered_bounds()
         return screen, client, bounds, client_size
 
-    def _active_and_inside(self, screen: tuple[int, int], client: tuple[float, float], bounds: tuple[float, float, float, float]) -> bool:
+    def _active_and_inside(
+        self,
+        screen: tuple[int, int],
+        client: tuple[float, float],
+        bounds: tuple[float, float, float, float],
+        client_size: tuple[int, int],
+    ) -> bool:
         inside = self.collector.point_inside_rendered_image(*client, bounds)
+        selected_at_point = self.win32.root_window_at(screen) == self.target.hwnd
+        active = self.win32.is_active(self.target.hwnd)
+        if len(self.input_samples) < 8:
+            self.input_samples.append({
+                "screen": {"x": screen[0], "y": screen[1]},
+                "client": {"x": client[0], "y": client[1]},
+                "rendered_bounds": {"left": bounds[0], "top": bounds[1], "width": bounds[2], "height": bounds[3]},
+                "client_size": {"width": client_size[0], "height": client_size[1]},
+                "inside_rendered_frame": inside,
+                "selected_root_under_cursor": selected_at_point,
+                "selected_root_active": active,
+            })
         if not inside:
             self.input_counters["ignored_outside_rendered_frame"] += 1
             return False
-        selected_at_point = self.win32.root_window_at(screen) == self.target.hwnd
-        if not self.win32.is_active(self.target.hwnd) and not selected_at_point:
+        if not active and not selected_at_point:
             self.input_counters["ignored_not_selected_window"] += 1
             return False
         return True
@@ -412,7 +453,7 @@ class PassiveRecorder:
             if not self.recording:
                 return
             screen, client, bounds, client_size = self._screen_and_client(data)
-            if not self._active_and_inside(screen, client, bounds):
+            if not self._active_and_inside(screen, client, bounds, client_size):
                 return
             button, _ = MOUSE_BUTTONS[message]
             started_at = self.collector.utc_now()
@@ -423,8 +464,8 @@ class PassiveRecorder:
                 self.mouse_state = None
                 return
             self.input_counters["mouse_moves_while_tracking"] += 1
-            screen, client, bounds, _client_size = self._screen_and_client(data)
-            if not self._active_and_inside(screen, client, bounds):
+            screen, client, bounds, client_size = self._screen_and_client(data)
+            if not self._active_and_inside(screen, client, bounds, client_size):
                 self.mouse_state = None
                 return
             self.mouse_state.end_screen = screen
@@ -438,7 +479,7 @@ class PassiveRecorder:
             if not self.recording:
                 return
             screen, client, bounds, client_size = self._screen_and_client(data)
-            if not self._active_and_inside(screen, client, bounds):
+            if not self._active_and_inside(screen, client, bounds, client_size):
                 return
             state.end_screen = screen
             state.end_client = client
@@ -679,6 +720,7 @@ class PassiveRecorder:
         finally:
             self.recording = False
             self.session.manifest["passive_recording"]["input_counters"] = dict(self.input_counters)
+            self.session.manifest["passive_recording"]["input_samples"] = list(self.input_samples)
             self.session._persist_manifest()
             self.buffer.stop()
             self.events.put(None)
