@@ -1912,6 +1912,88 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `EVIDENCE_GATED`; unlocks Challenge policy review.
 
+### DQ-FLOW-CAMPAIGN-AUTO-BATTLE
+- Task ID: `DQ-FLOW-CAMPAIGN-AUTO-BATTLE`.
+- Title: Add a configurable dormant Campaign Auto Battle route contract.
+- Status: Completed (2026-07-16; dormant configurable route contract and 15 focused Campaign tests passed).
+- Milestone: Daily Quest Campaign AP route translation.
+- Dependencies: `DQ-FLOW-CAMPAIGN-AP` Passed and `TOOLS-BLUESTACKS-FLOW-CAPTURE` Completed.
+- Blocked by: none for offline implementation; live promotion remains blocked by missing exact
+  Bliss-native stage navigation and defeat evidence.
+- Objective: model configurable `tier-chapter-stage` selection, bounded repeated AP use, Auto
+  Battle enablement, screenshot-polled terminal recognition, and return-home behavior.
+- Established facts: the ignored BlueStacks session
+  `.local-captures/bluestacks/consume-ap-campaign/20260716T014118395232Z/` and seven supplied
+  screenshots establish tier controls, `Ch.3`, `[3-1]`, AP `100/120`, cost `20`, Hero Lineup,
+  Auto, active battle, and `WINNER`/Loot/`Tap to continue`; they do not authorize Bliss input.
+- Direct implementation files: `tasks/campaign_auto_battle.py`, `tasks/__init__.py`,
+  `tests/test_campaign_auto_battle.py`, and `docs/campaign-auto-battle.md`.
+- Shared dependencies: `tasks/campaign_ap.py`, task contracts, fixed 800x1280 profile semantics,
+  and fresh OCR binding policy.
+- Transitive regression set: existing Campaign AP and Daily Campaign AP focused tests.
+- Allowed changes: direct implementation files plus this exact backlog section and isolated
+  `CURRENT_HANDOFF.md` hunks; per-commit allowed paths are those same task-owned files/hunks.
+- Prohibited changes: production adapters, pnsctl, journals, leases, registration, scheduler,
+  protected evidence, unrelated MVP work, and any runtime or gameplay operation.
+- Authorized runtime action: None.
+- Maximum transport inputs: Bliss 0, BlueStacks 0, ADB 0, gameplay 0.
+- Navigation-only recovery: offline semantic planning only; no transport recovery is authorized.
+- Consequential action: none; the module returns coordinate-free decisions with dispatch disabled.
+- Registration changes: forbidden; preserve not registered.
+- Scheduler changes: forbidden; preserve disabled/ineligible.
+- Actions that must not be repeated: no prior Claim, Bioenhancer, Praise, Alliance Help, AP,
+  Campaign, or collector input may be replayed by this task.
+- Required source: the exact accepted local capture and supplied screenshots for translation only;
+  future live work requires fresh Bliss-native full-frame evidence.
+- Exact target semantics: configured tier, chapter, stage, AP Challenge, Hero Lineup Challenge,
+  Auto, explicit victory continue, explicit defeat return, and Home/Base.
+- Required local association: tier/chapter/stage identity, AP value/cost/budget, battle state, and
+  result must belong to one current route ledger.
+- Negative controls: wrong tier/chapter/stage, unknown AP/cost, refill, overlay, missing target,
+  fixed-time completion, ambiguous result, timeout, ledger mismatch, and repeat after loss.
+- Coordinate space: semantic and coordinate-free offline contract; future targets require fresh raw
+  800x1280 binding and may not reuse BlueStacks display coordinates.
+- Accepted signals: exact stage identity; exact AP arithmetic; recognized lineup; explicit Auto;
+  active-battle polling; complete WINNER/Loot/continue signature; explicit defeat; exact AP delta.
+- Rejected weak signals: elapsed time, animation cessation, transport success, partial result text,
+  stale OCR, coordinate-only targets, or BlueStacks screenshots as production authorization.
+- Ambiguous-result behavior: block terminally, preserve state, dispatch nothing, and never retry.
+- Zero-cost requirement: not applicable to AP; every planned run requires explicit positive AP cost
+  within an explicit budget, with refills forbidden.
+- Quantity limits: whole runs only, bounded by available AP, explicit AP budget, and maximum runs.
+- Resource consumption policy: offline arithmetic only; no AP is consumed by this task.
+- Premium or strategic restrictions: all purchases, refills, premium controls, and strategic
+  substitutions are forbidden.
+- Active evidence manifest: none; local captures remain ignored and unstaged.
+- Required artifacts: task source, focused tests, concise documentation, and verification output.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no input or runtime action
+  is authorized.
+- Additional task-specific artifacts: no canonical gameplay evidence is created or staged.
+- Focused tests: compile plus `tests.test_campaign_auto_battle`, `tests.test_campaign_ap`, and
+  `tests.test_daily_campaign_ap`.
+- Integration tests: none; live integration is outside this task.
+- Transitive regression tests: existing Campaign AP and Daily Campaign AP focused modules only.
+- Full-suite requirement: none; do not run the full project suite.
+- Validators: governance validation, handoff JSON parsing, `git diff --check`, and touched-file
+  secret scan.
+- Known baseline failures: report unrelated existing failures separately; none may be introduced in
+  touched Campaign files.
+- Evidence requirement: NOT_APPLICABLE because this is a dormant offline contract and the local
+  BlueStacks capture remains an ignored translation source.
+- Valid blocked outcomes: missing exact semantic contract, focused test failure, governance failure,
+  protected-work overlap, or any need for runtime input.
+- Blocked-result commit policy: preserve valid task-owned work and commit only isolated coherent
+  offline changes when allowed; otherwise report the exact overlap and do not broaden scope.
+- Commit policy: one focused commit, stage only reviewed task-owned paths/hunks, preserve all
+  pre-existing MVP and protected evidence work, do not amend, and no push.
+- Expected focused commits: `feat(tasks): model Campaign Auto Battle route`; allowed paths are the
+  direct implementation files and isolated task-state hunks only.
+- Completion criteria: met offline: configurable stage parsing, bounded repeat arithmetic, semantic route
+  decisions, screenshot-polled success/loss/timeout handling, exact AP ledger validation, focused
+  tests, documentation, and validators pass with zero runtime operation.
+- Next: capture exact `1-20-9` navigation plus defeat and insufficient-AP states before a separate
+  Bliss-native promotion; `M6-DQ-TRANSITION-CORPUS` remains the existing product successor.
+
 ### DQ-FLOW-WORLD-STAMINA-ENGINE
 - Status: Passed (2026-07-14; offline shared primitive and 5 focused tests).
 - Covered: shared world, map, march, stamina, and tile primitives.

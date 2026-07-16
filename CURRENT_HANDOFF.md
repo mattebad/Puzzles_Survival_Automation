@@ -32,14 +32,14 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "TOOLS-BLUESTACKS-FLOW-CAPTURE",
+  "current_task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE",
   "current_task_state": "completed",
-  "next_task_id": "MVP-QUEST-TO-CLAIM",
+  "next_task_id": "M6-DQ-TRANSITION-CORPUS",
   "next_task_activation_status": "not_applicable",
-  "phase": "offline_collector_completed_windows_smoke_verified",
-  "objective": "Implement the standalone user-driven Windows/BlueStacks flow collector for later Bliss translation.",
-  "last_safe_completed_step": "Elevated Windows passive smoke 20260716T012457275520Z completed with 11 observed actions, complete before/after/annotated frames, in-bounds raw coordinates, pre-action timing, verified local hashes, and a verified sorted ZIP; 1b44629 adds immediate F9 finalization feedback.",
-  "next_permitted_action": "Run the collector locally on Windows against BlueStacks and capture the first missing quest flow, beginning with AP through Campaign Auto Complete.",
+  "phase": "offline_campaign_auto_battle_contract_completed",
+  "objective": "Implement a dormant configurable Campaign Auto Battle route/state contract from the accepted BlueStacks capture without live registration or dispatch.",
+  "last_safe_completed_step": "Dormant Campaign Auto Battle route contract completed: configurable stage 1-20-9 parsing, bounded AP runs, semantic tier/chapter/stage planning, Auto polling, victory/loss/timeout gates, and exact AP ledger; 15 focused Campaign tests and validators passed.",
+  "next_permitted_action": "Capture exact 1-20-9 navigation plus defeat and insufficient-AP states in a separate local BlueStacks session; send no Bliss or production input.",
   "actions_already_performed": [
     "Read-only Git status, required governance files, the exact MVP backlog section, direct dependencies, and exact evidence references.",
     "Migrated and validated the MVP durable contract and created its compact task-specific evidence manifest from exact named references.",
@@ -120,7 +120,7 @@
     "last_full_suite_count": "NOT_RUN_THIS_RUN; prior result not revalidated",
     "known_accepted_baseline_failures": "Report prior cv2/evidence-fixture environment failures separately if encountered",
     "new_regressions": [],
-    "last_relevant_focused_tests": "Collector compile, --help, --self-check, synthetic mock manifest/ZIP checks, passive tap/swipe/Back harness, Windows hook install/remove check, elevated Windows passive smoke, 36 local hashes, 37 sorted ZIP members, archived manifest and hashes, raw-coordinate bounds, before-frame timing, governance, diff, and touched-file secret checks passed."
+    "last_relevant_focused_tests": "Campaign Auto Battle and existing Campaign AP compilation plus 15 focused tests passed; governance validation, handoff JSON parsing, git diff checking, and touched-file secret scan passed."
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -218,7 +218,7 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Run the collector locally on Windows against BlueStacks and capture the first missing quest flow, beginning with AP through Campaign Auto Complete."
+      "Capture exact 1-20-9 navigation plus defeat and insufficient-AP states in a separate local BlueStacks session; send no Bliss or production input."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl, Docker, emulator, or gameplay operation.",
@@ -227,7 +227,7 @@
       "Bliss, Unraid, ADB, or gameplay operation from this completed offline implementation task."
     ],
     "exact_stop_condition": "Stop before any Bliss/Unraid/production operation; the next permitted action is the documented local Windows BlueStacks capture.",
-    "expected_next_atomic_task": "MVP-QUEST-TO-CLAIM",
+    "expected_next_atomic_task": "M6-DQ-TRANSITION-CORPUS",
     "expected_next_activation_status": "not_applicable"
   }
 }
@@ -247,14 +247,14 @@ This document is a volatile operational boundary, not a complete project history
 - Most recent task-scoped commits: 58d8898, e76964b, 9883a15, 501f9fb
 
 ## Current task
-- Task ID: TOOLS-BLUESTACKS-FLOW-CAPTURE
-- Current task state: completed; passive Windows smoke accepted
-- Next task ID: MVP-QUEST-TO-CLAIM
+- Task ID: DQ-FLOW-CAMPAIGN-AUTO-BATTLE
+- Current task state: completed; dormant offline contract verified
+- Next task ID: M6-DQ-TRANSITION-CORPUS
 - Next task activation status: not_applicable
-- Phase: offline_collector_completed_windows_smoke_verified
-- Objective: implement the standalone user-driven Windows/BlueStacks flow collector
-- Last safe completed step: elevated passive smoke captured 11 actions with complete frame triplets and verified local/archived hashes; 1b44629 adds immediate F9 finalization feedback
-- Exact next permitted step: run the collector locally on Windows against BlueStacks and capture the first missing quest flow, beginning with AP through Campaign Auto Complete
+- Phase: offline_campaign_auto_battle_contract_completed
+- Objective: implement configurable stage selection, bounded AP repeat planning, and screenshot-polled Auto Battle terminal handling without runtime dispatch
+- Last safe completed step: configurable stage parsing, bounded AP repeat planning, semantic route decisions, Auto polling, success/loss/timeout gates, and exact AP ledger passed 15 focused Campaign tests
+- Exact next permitted step: capture exact 1-20-9 navigation plus defeat and insufficient-AP states locally in BlueStacks; no Bliss or production input
 - Runtime, ADB, gameplay, registration, scheduler, journals, leases, and production evidence were not operated or changed by this task
 - M6-DQ-TRANSITION-CORPUS remains the successor declared by the existing MVP task
 
