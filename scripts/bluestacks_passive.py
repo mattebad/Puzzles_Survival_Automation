@@ -32,6 +32,9 @@ WM_MBUTTONDOWN = 0x0207
 WM_MBUTTONUP = 0x0208
 GA_ROOT = 2
 DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = (1 << (ctypes.sizeof(ctypes.c_void_p) * 8)) - 4
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+TOKEN_QUERY = 0x0008
+TOKEN_INTEGRITY_LEVEL = 25
 
 MOUSE_BUTTONS = {
     WM_LBUTTONDOWN: ("left", WM_LBUTTONUP),
@@ -84,6 +87,14 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
     ]
 
 
+class SID_AND_ATTRIBUTES(ctypes.Structure):
+    _fields_ = [("Sid", ctypes.c_void_p), ("Attributes", wintypes.DWORD)]
+
+
+class TOKEN_MANDATORY_LABEL(ctypes.Structure):
+    _fields_ = [("Label", SID_AND_ATTRIBUTES)]
+
+
 @dataclass(frozen=True)
 class WindowInfo:
     hwnd: int
@@ -117,9 +128,22 @@ class Win32:
             raise _collector_module().CollectorError("passive recording requires Windows")
         self.user32 = ctypes.WinDLL('user32', use_last_error=True)
         self.kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        self.advapi32 = ctypes.WinDLL('advapi32', use_last_error=True)
         self.dpi_awareness = self._set_dpi_awareness()
         self.kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
         self.kernel32.GetModuleHandleW.restype = ctypes.c_void_p
+        self.kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        self.kernel32.OpenProcess.restype = wintypes.HANDLE
+        self.kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        self.kernel32.CloseHandle.restype = wintypes.BOOL
+        self.advapi32.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+        self.advapi32.OpenProcessToken.restype = wintypes.BOOL
+        self.advapi32.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+        self.advapi32.GetTokenInformation.restype = wintypes.BOOL
+        self.advapi32.GetSidSubAuthorityCount.argtypes = [ctypes.c_void_p]
+        self.advapi32.GetSidSubAuthorityCount.restype = ctypes.POINTER(ctypes.c_ubyte)
+        self.advapi32.GetSidSubAuthority.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+        self.advapi32.GetSidSubAuthority.restype = ctypes.POINTER(wintypes.DWORD)
         self.enum_proc_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         self.hook_proc_type = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
         self.user32.EnumWindows.argtypes = [self.enum_proc_type, wintypes.LPARAM]
@@ -172,6 +196,49 @@ class Win32:
         process_id = wintypes.DWORD()
         self.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
         return WindowInfo(int(hwnd), buffer.value, int(process_id.value))
+
+    @staticmethod
+    def _integrity_name(rid: int) -> str:
+        if rid >= 0x4000:
+            return "system"
+        if rid >= 0x3000:
+            return "high"
+        if rid >= 0x2000:
+            return "medium"
+        if rid >= 0x1000:
+            return "low"
+        return "untrusted"
+
+    def process_integrity(self, process_id: int) -> dict[str, Any]:
+        process = self.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, process_id)
+        if not process:
+            return {"status": "unavailable", "error_code": ctypes.get_last_error(), "process_id": process_id}
+        token = wintypes.HANDLE()
+        try:
+            if not self.advapi32.OpenProcessToken(process, TOKEN_QUERY, ctypes.byref(token)):
+                return {"status": "unavailable", "error_code": ctypes.get_last_error(), "process_id": process_id}
+            required = wintypes.DWORD()
+            self.advapi32.GetTokenInformation(token, TOKEN_INTEGRITY_LEVEL, None, 0, ctypes.byref(required))
+            if not required.value:
+                return {"status": "unavailable", "error_code": ctypes.get_last_error(), "process_id": process_id}
+            buffer = ctypes.create_string_buffer(required.value)
+            if not self.advapi32.GetTokenInformation(
+                token, TOKEN_INTEGRITY_LEVEL, buffer, required.value, ctypes.byref(required)
+            ):
+                return {"status": "unavailable", "error_code": ctypes.get_last_error(), "process_id": process_id}
+            label = ctypes.cast(buffer, ctypes.POINTER(TOKEN_MANDATORY_LABEL)).contents
+            count_pointer = self.advapi32.GetSidSubAuthorityCount(label.Label.Sid)
+            if not count_pointer or not count_pointer.contents.value:
+                return {"status": "unavailable", "error_code": 0, "process_id": process_id}
+            rid_pointer = self.advapi32.GetSidSubAuthority(label.Label.Sid, count_pointer.contents.value - 1)
+            if not rid_pointer:
+                return {"status": "unavailable", "error_code": ctypes.get_last_error(), "process_id": process_id}
+            rid = int(rid_pointer.contents.value)
+            return {"status": "ok", "process_id": process_id, "rid": rid, "name": self._integrity_name(rid)}
+        finally:
+            if token:
+                self.kernel32.CloseHandle(token)
+            self.kernel32.CloseHandle(process)
 
     def visible_windows(self) -> list[WindowInfo]:
         windows: list[WindowInfo] = []
@@ -357,6 +424,18 @@ class PassiveRecorder:
         self.session = session
         self.win32 = Win32()
         self.target = select_window(self.win32, session.args)
+        collector_integrity = self.win32.process_integrity(os.getpid())
+        target_integrity = self.win32.process_integrity(self.target.process_id)
+        integrity_compatible = (
+            collector_integrity.get("status") == "ok"
+            and target_integrity.get("status") == "ok"
+            and collector_integrity["rid"] >= target_integrity["rid"]
+        )
+        integrity_gate = {
+            "collector": collector_integrity,
+            "target": target_integrity,
+            "compatible": integrity_compatible,
+        }
         self.start_vk = parse_hotkey(session.args.start_hotkey)
         self.stop_vk = parse_hotkey(session.args.stop_hotkey)
         self.back_vk = parse_hotkey(session.args.back_hotkey)
@@ -398,10 +477,16 @@ class PassiveRecorder:
             "input_counters": self.input_counters,
             "input_samples": self.input_samples,
             "coordinate_diagnostics": {"dpi_awareness": self.win32.dpi_awareness},
+            "integrity_gate": integrity_gate,
             "state": "waiting",
         }
         session._append_log("passive_window_selected", self.session.manifest["passive_recording"]["selected_window"])
         session._persist_manifest()
+        if not integrity_compatible:
+            raise self.collector.CollectorError(
+                "collector cannot verify equal-or-higher integrity than BlueStacks; "
+                "run PowerShell as Administrator before starting passive capture"
+            )
 
     def _rendered_bounds(self) -> tuple[tuple[float, float, float, float], tuple[int, int]]:
         width, height = self.win32.client_size(self.target.hwnd)
