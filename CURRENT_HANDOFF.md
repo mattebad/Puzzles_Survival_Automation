@@ -3,17 +3,16 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "ce424ae (observed at execution-attempt start; ending documentation commit reported after commit)",
-    "origin_relationship": "ahead 69 (observed at execution-attempt start)",
-    "staged_paths": [
-      "BACKLOG.md",
-      "CURRENT_HANDOFF.md",
-      "evidence/mvp-quest-to-claim-evidence-manifest.json"
-    ],
+    "head": "1b44629 (passive F9 finalization acknowledgement)",
+    "origin_relationship": "main ahead 10 of origin/main; no push",
+    "staged_paths": [],
     "relevant_unstaged_paths": [
-      "BACKLOG.md",
-      "CURRENT_HANDOFF.md",
-      "evidence/mvp-quest-to-claim-evidence-manifest.json"
+      "BACKLOG.md (pre-existing MVP changes)",
+      "CURRENT_HANDOFF.md (pre-existing MVP state)",
+      "evidence/mvp-quest-to-claim-evidence-manifest.json",
+      "safe_action_core/executor.py",
+      "scripts/mvp_quest_to_claim.py",
+      "scripts/pnsctl.py"
     ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
@@ -21,6 +20,13 @@
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
+      "1b44629 fix(tools): acknowledge passive capture finalization",
+      "1bfee81 fix(tools): detect elevated BlueStacks hooks",
+      "4660d1b fix(tools): handle Windows DPI in passive capture",
+      "a37888e fix(tools): capture passive BlueStacks mouse events",
+      "58d8898 fix(tools): correct passive Windows hook handles",
+      "e76964b feat(tools): add passive BlueStacks capture mode",
+      "501f9fb feat(tools): add BlueStacks flow collector",
       "435774c docs(hand-off): record closure commit",
       "f1307b5 docs(bioenhancer): close same-day validation",
       "f9fbd4c docs(hand-off): record parity commit state"
@@ -30,10 +36,10 @@
   "current_task_state": "completed",
   "next_task_id": "MVP-QUEST-TO-CLAIM",
   "next_task_activation_status": "not_applicable",
-  "phase": "offline_collector_implemented_and_verified",
+  "phase": "offline_collector_completed_windows_smoke_verified",
   "objective": "Implement the standalone user-driven Windows/BlueStacks flow collector for later Bliss translation.",
-  "last_safe_completed_step": "Collector source, guide, ignored local storage, mock capture, coordinate translation, manifest inventory, and verified ZIP export completed offline; no runtime action occurred.",
-  "next_permitted_action": "Run the collector locally on Windows against BlueStacks and capture the first missing quest flow.",
+  "last_safe_completed_step": "Elevated Windows passive smoke 20260716T012457275520Z completed with 11 observed actions, complete before/after/annotated frames, in-bounds raw coordinates, pre-action timing, verified local hashes, and a verified sorted ZIP; 1b44629 adds immediate F9 finalization feedback.",
+  "next_permitted_action": "Run the collector locally on Windows against BlueStacks and capture the first missing quest flow, beginning with AP through Campaign Auto Complete.",
   "actions_already_performed": [
     "Read-only Git status, required governance files, the exact MVP backlog section, direct dependencies, and exact evidence references.",
     "Migrated and validated the MVP durable contract and created its compact task-specific evidence manifest from exact named references.",
@@ -41,7 +47,15 @@
     "Focused governance, task-contract, handoff identity, manifest, JSON, indexing, secret-scan, and diff checks were run for the activation commit.",
     "Supported pnsctl preflight verified the VM running, one existing task worker, and private ADB device connectivity.",
     "The current pnsctl operational journal was preserved outside the repository and inspected read-only; it contains terminal unresolved action alliance-help-1783981635 with reason unexpected_successor and a released lease.",
-    "No runtime navigation, gameplay, consequential, Claim, or substitute action was dispatched in this execution attempt."
+    "No runtime navigation, gameplay, consequential, Claim, or substitute action was dispatched in this execution attempt.",
+    "Implemented scripts/bluestacks_flow_collector.py and docs/bluestacks-flow-capture.md with explicit serial selection, safety gates, mock/record-only/dispatch modes, user-confirmed actions, labels, progress, atomic manifests, and ZIP verification.",
+    "Verified compile, help, pure coordinate checks, synthetic mock session, tap/swipe/Back/Wait action recording, clean/annotated frame separation, local hashes, and archived hashes without invoking ADB.",
+    "The Windows passive smoke at .local-captures/bluestacks/passive-smoke/20260715T233723860253Z completed with mode passive-record-only but steps=0 and only the initial frame; no tap or drag was retained.",
+    "The Windows passive smoke at .local-captures/bluestacks/passive-smoke/20260716T010506531062Z completed with mode passive-record-only, steps=0, mouse_down_messages=3, ignored_outside_rendered_frame=3, and no retained action frames.",
+    "The Windows passive smoke at .local-captures/bluestacks/passive-smoke/20260716T011351727741Z received one click outside the selected root and none of the user's numerous BlueStacks clicks, consistent with a Windows integrity-level boundary.",
+    "Elevated Windows passive smoke .local-captures/bluestacks/passive-smoke/20260716T012457275520Z completed with 11 actions: five taps and six swipes, each with clean before/after frames and a separate annotation.",
+    "Verified 36 local artifact hashes, 37 sorted ZIP members, archived manifest parsing, all archived hashes, in-bounds raw coordinates, and before-frame timestamps predating every observed action.",
+    "Committed a37888e for selected-root filtering, 4660d1b for DPI diagnostics, 1bfee81 for the integrity gate, and 1b44629 for immediate F9 finalization feedback."
   ],
   "actions_not_to_repeat": [
     "Do not start workers or runtime processes.",
@@ -106,7 +120,7 @@
     "last_full_suite_count": "NOT_RUN_THIS_RUN; prior result not revalidated",
     "known_accepted_baseline_failures": "Report prior cv2/evidence-fixture environment failures separately if encountered",
     "new_regressions": [],
-    "last_relevant_focused_tests": "Collector compile, --help, --self-check, synthetic mock manifest/ZIP checks, and four-action mock recorder verification passed; tkinter/OpenCV unavailable for GUI verification."
+    "last_relevant_focused_tests": "Collector compile, --help, --self-check, synthetic mock manifest/ZIP checks, passive tap/swipe/Back harness, Windows hook install/remove check, elevated Windows passive smoke, 36 local hashes, 37 sorted ZIP members, archived manifest and hashes, raw-coordinate bounds, before-frame timing, governance, diff, and touched-file secret checks passed."
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -128,24 +142,89 @@
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "collector": {
-    "command": "python scripts/bluestacks_flow_collector.py --serial 127.0.0.1:5555 --flow-id consume-ap-campaign --daily-objective Consume AP",
+    "command": "python scripts\\bluestacks_flow_collector.py --adb \"C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe\" --serial emulator-5554 --passive --window-title \"BlueStacks App Player 4\" --flow-id passive-smoke --daily-objective \"Passive smoke\" --post-action-delay 1",
     "mock_verification_command": "python3 scripts/bluestacks_flow_collector.py --mock-image /tmp/bluestacks-collector-synthetic.png --flow-id collector-smoke-test --daily-objective Collector smoke test --post-action-delay 0 --output-directory /tmp/bluestacks-collector-check --no-gui",
     "temporary_verified_output": "/tmp/bluestacks-collector-check/bluestacks/collector-smoke-test/20260715T211220540935Z/",
-    "supported_modes": ["mock", "live-record-only", "live-dispatch"],
-    "supported_action_types": ["tap", "swipe", "android_back", "wait", "observation-only"],
-    "safety_gates": ["explicit exact serial confirmation", "local loopback BlueStacks endpoint", "reachable device", "portrait 800x1280 frame", "foreground package com.global.ztmslg", "record-only and per-action confirmation controls"],
-    "verification": ["python3 -m py_compile", "--help", "--self-check", "synthetic mock session", "manifest and SHA-256 verification", "deterministic ZIP member and archived-hash verification"],
-    "gui_verification": "WSL limitation: tkinter and OpenCV are unavailable. Windows manual smoke command: python scripts/bluestacks_flow_collector.py --mock-image path/to/800x1280.png --flow-id collector-smoke-test --daily-objective Collector smoke test",
-    "runtime_inputs": {"gameplay": 0, "bliss": 0, "unraid": 0, "adb": 0, "dispatch": 0}
+    "supported_modes": [
+      "mock",
+      "live-record-only",
+      "passive-record-only",
+      "live-dispatch"
+    ],
+    "supported_action_types": [
+      "tap",
+      "swipe",
+      "android_back",
+      "wait",
+      "observation-only"
+    ],
+    "safety_gates": [
+      "explicit exact serial confirmation",
+      "local emulator or loopback BlueStacks endpoint",
+      "reachable device",
+      "portrait 800x1280 frame",
+      "foreground package com.global.ztmslg",
+      "passive mode has no dispatch path",
+      "record-only and per-action confirmation controls"
+    ],
+    "verification": [
+      "python3 -m py_compile",
+      "--help",
+      "--self-check",
+      "synthetic mock session",
+      "manifest and SHA-256 verification",
+      "deterministic ZIP member and archived-hash verification"
+    ],
+    "gui_verification": "Passed on Windows in elevated PowerShell: session 20260716T012457275520Z captured 11 passive actions with complete frame triplets and verified ZIP. F9 finalization delay is now acknowledged immediately by 1b44629.",
+    "last_windows_smoke": {
+      "session_directory": ".local-captures/bluestacks/passive-smoke/20260716T012457275520Z",
+      "status": "completed",
+      "mode": "passive-record-only",
+      "steps": 11,
+      "actions": {
+        "tap": 5,
+        "swipe": 6
+      },
+      "complete_frame_triplets": 11,
+      "input_counters": {
+        "mouse_down_messages": 12,
+        "mouse_moves_while_tracking": 272,
+        "mouse_up_messages": 11,
+        "ignored_outside_rendered_frame": 1,
+        "actions_queued": 11
+      },
+      "integrity_gate": {
+        "collector": "high",
+        "target": "high",
+        "compatible": true
+      },
+      "inventory_count": 36,
+      "zip_members": 37,
+      "local_hashes_verified": true,
+      "archived_hashes_verified": true,
+      "raw_coordinates_in_bounds": true,
+      "before_frames_predate_input": true,
+      "zip_verified": true,
+      "result": "accepted passive Windows smoke"
+    },
+    "runtime_inputs": {
+      "gameplay_dispatched_by_collector": 0,
+      "user_inputs_observed": 11,
+      "bliss": 0,
+      "unraid": 0,
+      "adb_input": 0,
+      "dispatch": 0
+    }
   },
   "next_action": {
     "permitted_actions": [
-      "Run the collector locally on Windows against BlueStacks and capture the first missing quest flow."
+      "Run the collector locally on Windows against BlueStacks and capture the first missing quest flow, beginning with AP through Campaign Auto Complete."
     ],
     "prohibited_actions": [
-      "Any new consequential or substitute gameplay input while alliance-help-1783981635 remains unresolved.",
-      "Evidence deletion, movement, compaction, or broad evidence search.",
-      "MVP implementation, Claim validation, or any production behavior change in this activation."
+      "Any Bliss, Unraid, ADB, pnsctl, Docker, emulator, or gameplay operation.",
+      "Any MVP, Claim, Bioenhancer, Praise, Supply Depot, recruitment, or unrelated Daily action.",
+      "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
+      "Bliss, Unraid, ADB, or gameplay operation from this completed offline implementation task."
     ],
     "exact_stop_condition": "Stop before any Bliss/Unraid/production operation; the next permitted action is the documented local Windows BlueStacks capture.",
     "expected_next_atomic_task": "MVP-QUEST-TO-CLAIM",
@@ -159,25 +238,26 @@
 This document is a volatile operational boundary, not a complete project history.
 
 ## Repository
-- Branch: `main`
-- HEAD: `ce424ae` at execution-attempt start; ending documentation commit is reported after commit
-- Relationship to origin/main: ahead 69 at execution-attempt start
-- Staged paths: the three blocked-result documentation paths listed in structured state; protected evidence remains outside staging
-- Relevant unstaged paths and ownership: the three task documentation paths are being updated; protected untracked evidence remains outside task staging
-- Protected untracked paths or categories: `evidence/**`, `.local-reference/**`, and other pre-existing untracked files
-- Most recent task-scoped commits: `435774c`, `f1307b5`, `f9fbd4c`
+- Branch: main
+- HEAD: 1b44629 passive F9 finalization acknowledgement
+- Relationship to origin/main: ahead 10; origin unchanged and no push
+- Staged paths: none before focused staging; protected evidence remains outside staging
+- Relevant unstaged paths: pre-existing MVP implementation/evidence changes plus this repair's reviewed governance hunks
+- Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
+- Most recent task-scoped commits: 58d8898, e76964b, 9883a15, 501f9fb
 
 ## Current task
 - Task ID: TOOLS-BLUESTACKS-FLOW-CAPTURE
-- Current task state: completed
+- Current task state: completed; passive Windows smoke accepted
 - Next task ID: MVP-QUEST-TO-CLAIM
 - Next task activation status: not_applicable
-- Phase: offline_collector_implemented_and_verified
+- Phase: offline_collector_completed_windows_smoke_verified
 - Objective: implement the standalone user-driven Windows/BlueStacks flow collector
-- Last safe completed step: compile, help, coordinate, mock action, manifest, SHA-256, and ZIP checks passed; GUI deferred because tkinter/OpenCV are unavailable in WSL
-- Exact next permitted step: run the collector locally on Windows against BlueStacks and capture the first missing quest flow
+- Last safe completed step: elevated passive smoke captured 11 actions with complete frame triplets and verified local/archived hashes; 1b44629 adds immediate F9 finalization feedback
+- Exact next permitted step: run the collector locally on Windows against BlueStacks and capture the first missing quest flow, beginning with AP through Campaign Auto Complete
 - Runtime, ADB, gameplay, registration, scheduler, journals, leases, and production evidence were not operated or changed by this task
 - M6-DQ-TRANSITION-CORPUS remains the successor declared by the existing MVP task
+
 
 ## Runtime
 - VM state: `running` (pnsctl preflight)
@@ -217,7 +297,7 @@ This document is a volatile operational boundary, not a complete project history
 - Last full-suite count: `NOT_RUN_THIS_RUN`
 - Known accepted baseline failures: two missing retained Personal Might navigation fixture errors in `test_navigation_revalidation`
 - New regressions: none in touched governance/manifest paths
-- Last relevant focused tests: 124 focused MVP/safety/governance tests passed; 71 transitive journal/navigation tests passed; profile and six-asset validators passed
+- Last relevant focused tests: collector compile, help, coordinate, mock action, manifest, SHA-256, and ZIP checks passed; tkinter/OpenCV unavailable for GUI verification
 
 ## Evidence
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`

@@ -132,12 +132,12 @@ requirements and measured facts. Evidence records contain observations, not comp
 
 - Task ID: `TOOLS-BLUESTACKS-FLOW-CAPTURE`
 - Title: Build a practical Windows/BlueStacks flow-capture utility for later Bliss translation.
-- Status: Completed (2026-07-15; offline collector implemented and verified).
+- Status: Completed (2026-07-16; elevated Windows passive smoke accepted with 11 observed actions and verified ZIP).
 - Milestone: Offline tooling and translation corpus preparation.
-- Dependencies: Python standard library, tkinter, and the repository's existing image dependency
-  convention; no runtime or product dependency.
-- Blocked by: none. The current WSL environment lacks tkinter and OpenCV, so GUI verification is
-  deferred to the documented Windows mock-mode command; all non-GUI collector checks passed.
+- Dependencies: Python standard library, tkinter, Windows ctypes hooks, and the repository's
+  existing image dependency convention; no runtime or product dependency.
+- Blocked by: none. Matching collector/BlueStacks high integrity was confirmed by the accepted Windows
+  smoke; the collector now fails early with administrator guidance when process integrity is incompatible.
 - Objective: record manual BlueStacks quest walkthroughs as screenshots, coordinates, actions,
   transitions, semantic labels, notes, and an exportable ZIP without executing a quest autonomously.
 - Established facts:
@@ -145,10 +145,10 @@ requirements and measured facts. Evidence records contain observations, not comp
     scheduler, registration, or gameplay during implementation.
   - Local capture output is ignored under `.local-captures/`; it is not canonical evidence.
 - Direct implementation files: `scripts/bluestacks_flow_collector.py`,
-  `docs/bluestacks-flow-capture.md`, `.gitignore`, and
+  `scripts/bluestacks_passive.py`, `docs/bluestacks-flow-capture.md`, `.gitignore`, and
   `.cursorindexingignore`.
-- Shared dependencies: Python subprocess/tkinter, existing OpenCV image handling, JSON/path/hash/ZIP
-  standard-library helpers, and the explicit BlueStacks serial supplied by the user.
+- Shared dependencies: Python subprocess/tkinter, Windows ctypes input hooks, JSON/path/hash/ZIP
+  standard-library helpers, and the explicit BlueStacks serial/window supplied by the user.
 - Transitive regression set: focused governance validation, syntax/help checks, and no production
   automation tests.
 - Allowed changes: the named collector, guide, ignore rules, local session schema, and task-local
@@ -207,24 +207,33 @@ requirements and measured facts. Evidence records contain observations, not comp
 - Commit policy: stage only reviewed collector-task paths or hunks; never absorb existing MVP work.
 - Expected focused commits: `feat(tools): add BlueStacks flow collector`; allowed paths are
   limited to the named collector, guide, ignore rules, and this exact task/handoff transition.
-- Completion criteria: the collector implementation, guide, mock mode, coordinate translation,
-  manifest/ZIP verification, and ignored local storage pass their task-specific checks; no gameplay
-  or Bliss input occurs.
-- Verification: `python3 -m py_compile scripts/bluestacks_flow_collector.py`, `--help`, pure
-  coordinate self-check, synthetic 800x1280 mock session, four-action mock recorder check,
-  manifest parsing, local SHA-256 verification, deterministic ZIP member verification, and
-  touched-file checks passed. tkinter and OpenCV were unavailable in WSL; use the Windows command
-  in `docs/bluestacks-flow-capture.md` for GUI smoke verification.
-- Collector command used: `python3 scripts/bluestacks_flow_collector.py --mock-image
+- Completion criteria: the collector implementation includes passive selected-window tap/swipe/Back
+  observation, rolling clean before frames, delayed after frames, optional metadata, guide, mock mode,
+  coordinate translation, manifest/ZIP verification, and ignored local storage; Windows manual smoke
+  must confirm an observed action with before/after frames; no gameplay or Bliss input occurs.
+- Verification: compile, `--help`, pure coordinate checks, synthetic mock session, passive tap/swipe/Back
+  harness, manifest parsing, local SHA-256 verification, deterministic ZIP member verification,
+  touched-file checks, DPI/integrity/finalization compile, governance, and diff checks passed. Elevated
+  Windows smoke `20260716T012457275520Z` captured 11 actions with complete before/after/annotated
+  frames; 36 local hashes, 37 sorted ZIP members, archived manifest and hashes, raw-coordinate bounds,
+  and pre-action frame timing all verified.
+- Collector commands used: mock `python3 scripts/bluestacks_flow_collector.py --mock-image
   /tmp/bluestacks-collector-synthetic.png --flow-id collector-smoke-test --daily-objective
   "Collector smoke test" --post-action-delay 0 --output-directory /tmp/bluestacks-collector-check
-  --no-gui`.
+  --no-gui`; Windows passive `python scripts\\bluestacks_flow_collector.py --adb
+  "C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe" --serial emulator-5554 --passive --window-title
+  "BlueStacks App Player 4" --flow-id passive-smoke --daily-objective "Passive smoke"
+  --post-action-delay 1`.
 - Temporary verified output: `/tmp/bluestacks-collector-check/bluestacks/collector-smoke-test/20260715T211220540935Z/`;
   it is not canonical evidence and no capture was staged.
-- Runtime boundary: zero gameplay, Bliss, Unraid, production, ADB, registration, scheduler, journal,
-  lease, or dispatch inputs occurred during implementation.
+- Accepted Windows smoke output: `.local-captures/bluestacks/passive-smoke/20260716T012457275520Z/`;
+  11 actions, complete frame triplets, compatible high-integrity processes, 36 verified artifacts, and
+  37 sorted verified ZIP members. The ignored local session remains preserved and unstaged.
+- Runtime boundary: the collector dispatched zero gameplay or ADB inputs; it passively observed 11
+  user-driven BlueStacks inputs. Zero Bliss, Unraid, production runtime, registration, scheduler,
+  journal, or lease operations occurred.
 - Next permitted action: run the collector locally on Windows against BlueStacks and capture the first
-  missing quest flow.
+  missing quest flow, beginning with AP through Campaign Auto Complete.
 - No push unless explicitly authorized.
 - Next: `MVP-QUEST-TO-CLAIM` remains the next inactive product task; its existing successor remains
   `M6-DQ-TRANSITION-CORPUS`.
