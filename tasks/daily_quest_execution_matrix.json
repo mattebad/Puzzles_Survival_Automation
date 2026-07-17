@@ -36,7 +36,7 @@
       "persistence_behavior": "dormant task-state integration; no live rows during planning",
       "backlog_task_id": "DQ-FOUNDATION-DAILY-INVENTORY",
       "prompt_path": "docs/prompts/daily-quest/dq-foundation-daily-inventory.md",
-      "bliss_native_evidence": ["evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png", "evidence/sessions/20260712-mvp-quest-to-claim/live-selected-tab-retest-20260713"],
+      "bliss_native_evidence": ["evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png", "evidence/sessions/20260712-mvp-quest-to-claim/live-selected-tab-retest-20260713/quest-daily-retest-002-result.json"],
       "gnbots_provenance": ["GNB-DAILY-QUEST-CLAIMS; reference only"]
     },
     {
@@ -84,7 +84,7 @@
       "persistence_behavior": "safe-action journal evidence retained; scheduler integration dormant",
       "backlog_task_id": "DQ-CLAIM-DAILY",
       "prompt_path": "docs/prompts/daily-quest/dq-claim-daily.md",
-      "bliss_native_evidence": ["evidence/sessions/20260713-personal-might-praise/live-claim-success-020"],
+      "bliss_native_evidence": ["evidence/sessions/20260713-personal-might-praise/live-claim-success-020/claim-result.json", "evidence/sessions/20260713-personal-might-praise/live-claim-success-020/personal-might-claim-task-result.json"],
       "gnbots_provenance": ["GNB-DAILY-QUEST-CLAIMS; static geometry not used for authorization"]
     },
     {
@@ -599,7 +599,7 @@
       "scheduler_eligibility": false,
       "existing_implementation": "tasks/daily_quest.py AllianceHelpHandler and scripts/alliance_help_live.py",
       "existing_tests": ["tests/test_catalog_and_pnsctl.py", "tests/test_alliance_help.py"],
-      "bliss_native_evidence": ["evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713", "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713"],
+      "bliss_native_evidence": ["evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/record.md", "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/record.md"],
       "gnbots_provenance": ["GNB-ALLIANCE-MENU-OPEN; static route reference only"],
       "missing_work": "none for validated supervised operator flow; Daily progress positive evidence remains separate",
       "missing_evidence": "fresh Daily progress/Claim transition after Help",
@@ -1053,7 +1053,7 @@
       "scheduler_eligibility": false,
       "existing_implementation": "tasks/daily_quest.py PersonalMightPraiseHandler and pnsctl praise",
       "existing_tests": ["tests/test_personal_might_praise.py", "tests/test_catalog_and_pnsctl.py"],
-      "bliss_native_evidence": ["evidence/sessions/20260713-personal-might-praise/live-praise-success-018"],
+      "bliss_native_evidence": ["evidence/sessions/20260713-personal-might-praise/live-praise-success-018/praise-result.json"],
       "gnbots_provenance": ["GNB-DAILY-LEADERBOARD-PRAISE; static route only"],
       "missing_work": "none for validated operator flow; future unattended promotion gate remains",
       "missing_evidence": "none for live validation; fresh current-day repetition remains prohibited",

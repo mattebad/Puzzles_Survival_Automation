@@ -490,6 +490,32 @@ class ADBRunner:
         if result.returncode:
             raise ADBError(result.stderr.decode("utf-8", "replace").strip() or "ADB tap failed")
 
+    def dispatch_text(self, text: str) -> None:
+        if not text or not text.isdigit():
+            raise ADBError("ADB text input is restricted to decimal quantities")
+        for index, digit in enumerate(text):
+            result = self.run("shell", "input", "text", digit, timeout=15.0)
+            if result.returncode:
+                raise ADBError(result.stderr.decode("utf-8", "replace").strip() or "ADB text input failed")
+            if index + 1 < len(text):
+                time.sleep(0.12)
+
+    def dispatch_clear_numeric_text(self, max_digits: int) -> None:
+        if not 1 <= max_digits <= 4:
+            raise ADBError("numeric editor clear is restricted to one through four digits")
+        result = self.run("shell", "input", "keyevent", "KEYCODE_MOVE_END", timeout=15.0)
+        if result.returncode:
+            raise ADBError(result.stderr.decode("utf-8", "replace").strip() or "ADB cursor positioning failed")
+        for _ in range(max_digits):
+            result = self.run("shell", "input", "keyevent", "KEYCODE_DEL", timeout=15.0)
+            if result.returncode:
+                raise ADBError(result.stderr.decode("utf-8", "replace").strip() or "ADB numeric clear failed")
+
+    def dispatch_keyevent(self, key: str) -> None:
+        result = self.run("shell", "input", "keyevent", str(key), timeout=15.0)
+        if result.returncode:
+            raise ADBError(result.stderr.decode("utf-8", "replace").strip() or "ADB keyevent failed")
+
     def dispatch_swipe(self, start: tuple[int, int], end: tuple[int, int], duration_ms: int = 400) -> None:
         result = self.run("shell", "input", "swipe", str(start[0]), str(start[1]), str(end[0]), str(end[1]), str(duration_ms), timeout=15.0)
         if result.returncode:

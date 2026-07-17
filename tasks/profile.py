@@ -7,6 +7,7 @@ from .contracts import AnchorSpec
 
 PROFILE_ID = "pns-blissos-poc-virgl-800x1280-v1"
 M6_ASSET_ROOT = "evidence/sessions/20260712-m6-dq-bootstrap/assets"
+NAVIGATION_ASSET_ROOT = "tasks/assets/navigation/800x1280"
 PRAISE_EVIDENCE_DEPENDENCY = (
     "raw Bliss Personal Might Rankings row, Check destination, leaderboard, Praise, and Back states"
 )
@@ -54,43 +55,43 @@ DAILY_HEADER = AnchorSpec(
 
 GAME_BACK = AnchorSpec(
     "standard-game-back-arrow", (45, 5, 130, 60), 0.898,
-    template="evidence/sessions/20260712-mvp-quest-to-claim/reset-reconcile-current.png#back-arrow-roi",
+    template=f"{NAVIGATION_ASSET_ROOT}/reset_reconcile.png#back-arrow-roi",
     tap_offset=(0, 0),
-    asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/reset-reconcile-current.png",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/reset_reconcile.png",
     reference_manifest_ids=("GNB-DAILY-CHAPTER",),
 )
 
 INDIVIDUAL_HELP_ACTION = AnchorSpec(
     "alliance-help-individual", (556, 274, 727, 330), 0.90,
-    template="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png#individual-help-button",
+    template=f"{NAVIGATION_ASSET_ROOT}/alliance_help_source.png#individual-help-button",
     ocr_rule="Help",
     required_confirmation_frames=1,
     polling_interval_seconds=0.15,
     timeout_seconds=3.0,
     tap_offset=(0, 0),
-    asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/alliance_help_source.png",
 )
 
 # Speedup Help is recognized independently from either consequential action target.
 SPEEDUP_HELP_SCREEN = AnchorSpec(
     "speedup-help-screen", (250, 0, 550, 120), 0.88,
-    template="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-go-post-002.png#speedup-help-header",
+    template=f"{NAVIGATION_ASSET_ROOT}/alliance_help_source.png#speedup-help-header",
     ocr_rule="Speedup Help",
     required_confirmation_frames=1,
     polling_interval_seconds=0.15,
     timeout_seconds=3.0,
-    asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/help-go-post-002.png",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/alliance_help_source.png",
 )
 
 HELP_ALL_ACTION = AnchorSpec(
     "alliance-help-all", (277, 1188, 523, 1268), 0.92,
-    template="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png#bottom-help-all-button",
+    template=f"{NAVIGATION_ASSET_ROOT}/alliance_help_source.png#bottom-help-all-button",
     ocr_rule="Help All",
     required_confirmation_frames=1,
     polling_interval_seconds=0.15,
     timeout_seconds=3.0,
     tap_offset=(0, 0),
-    asset_provenance="evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/alliance_help_source.png",
 )
 
 # Praise route anchors use bounded local ROIs and constrained OCR.  Template references bind
@@ -105,62 +106,62 @@ HOME_MORE = AnchorSpec(
 )
 RANKINGS_ENTRY = AnchorSpec(
     "rankings-entry", (602, 1138, 690, 1167), 0.85,
-    template="evidence/sessions/20260713-personal-might-praise/live-route-recovery-014/more-to-rankings-game-attempt-1-attempt-3-source-011.png#rankings-word-roi",
+    template=f"{NAVIGATION_ASSET_ROOT}/rankings_menu.png#rankings-word-roi",
     ocr_rule="Rankings",
-    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-route-recovery-014/more-to-rankings-game-attempt-1-attempt-3-source-011.png",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/rankings_menu.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
 )
 PERSONAL_MIGHT_ROW = AnchorSpec(
     "personal-might-rank-row", (170, 220, 560, 325), 0.90,
-    template="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png#personal-might-first-row",
+    template=f"{NAVIGATION_ASSET_ROOT}/rankings.png#personal-might-first-row",
     ocr_rule="Personal Might Rank",
-    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/rankings.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
 )
 PERSONAL_MIGHT_CHECK = AnchorSpec(
     "personal-might-rank-check", (590, 245, 775, 315), 0.90,
-    template="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png#first-row-check",
+    template=f"{NAVIGATION_ASSET_ROOT}/rankings.png#first-row-check",
     ocr_rule="Check",
-    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/rankings.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
 )
 PERSONAL_MIGHT_LEADERBOARD = AnchorSpec(
     "personal-might-leaderboard", (150, 0, 650, 70), 0.90,
-    template="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png#header",
+    template=f"{NAVIGATION_ASSET_ROOT}/personal_might.png#header",
     ocr_rule="Personal Might Rank",
-    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/personal_might.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
 )
 MIGHT_PRAISE_ACTION = AnchorSpec(
     "personal-might-praise", (690, 155, 755, 220), 0.90,
-    template="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png#rank-one-thumbs-up",
+    template=f"{NAVIGATION_ASSET_ROOT}/personal_might.png#rank-one-thumbs-up",
     ocr_rule="rank-one enabled gold thumbs-up",
     required_confirmation_frames=1,
     polling_interval_seconds=0.15,
     timeout_seconds=3.0,
     tap_offset=(0, 0),
-    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/personal_might.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
 )
 PERSONAL_MIGHT_BACK = AnchorSpec(
     "personal-might-back", (45, 5, 130, 60), 0.90,
-    template="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png#back-arrow",
-    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png",
+    template=f"{NAVIGATION_ASSET_ROOT}/personal_might.png#back-arrow",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/personal_might.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
 )
 RANKINGS_BACK = AnchorSpec(
     "rankings-back", (45, 5, 130, 60), 0.90,
-    template="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png#back-arrow",
-    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png",
+    template=f"{NAVIGATION_ASSET_ROOT}/rankings.png#back-arrow",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/rankings.png",
     reference_manifest_ids=("GNB-DAILY-LEADERBOARD-PRAISE",),
 )
 RESET_POPUP_CLOSE = AnchorSpec(
     "reset-popup-close", (260, 750, 540, 870), 0.90,
-    template="evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/reset-popup-source-002.png#close-button-roi",
+    template=f"{NAVIGATION_ASSET_ROOT}/reset_popup_source.png#close-button-roi",
     ocr_rule="Close",
     required_confirmation_frames=1,
     polling_interval_seconds=0.15,
     timeout_seconds=3.0,
     tap_offset=(0, 0),
-    asset_provenance="evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/reset-popup-source-002.png",
+    asset_provenance=f"{NAVIGATION_ASSET_ROOT}/reset_popup_source.png",
 )

@@ -30,8 +30,9 @@ from scripts.startup_normalization import load_frame
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE_ID = json.loads((ROOT / "runtime-profile/manifest.json").read_text(encoding="utf-8"))["profile_id"]
-PROMO_FRAME = ROOT / "evidence/sessions/20260712-mvp-quest-to-claim/reset-reconcile-current.png"
-ARROW_REFERENCE = ROOT / "evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png"
+NAVIGATION_ASSETS = ROOT / "tasks/assets/navigation/800x1280"
+PROMO_FRAME = NAVIGATION_ASSETS / "reset_reconcile.png"
+ARROW_REFERENCE = NAVIGATION_ASSETS / "cash_mall_startup.png"
 
 
 def promo_observation(**changes):

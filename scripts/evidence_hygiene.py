@@ -20,6 +20,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +33,7 @@ DEFAULT_SUMMARY_PATH = REPO_ROOT / "docs" / "evidence-retention-report.md"
 DEFAULT_ARCHIVE_ROOT = REPO_ROOT.parent / "Puzzles_Survival_Automation_evidence_archive"
 CHUNK_SIZE = 1024 * 1024
 AUDIT_SCHEMA = "evidence-hygiene-v1"
+ARCHIVE_ACTIONS = frozenset({"ARCHIVE_AND_REMOVE_DUPLICATE", "ARCHIVE_AND_REMOVE_REVIEWED"})
 LOCAL_REFERENCE_NAME = "." + "local-reference"
 RETENTION_CLASSES = (
     "PORTABLE_TEST_FIXTURE", "RUNTIME_TEMPLATE", "DECISIVE_CONSEQUENTIAL_EVIDENCE",
@@ -112,7 +114,7 @@ def iter_regular_files(root: Path) -> Iterator[Path]:
 
 def sha256_stream(path: Path, chunk_size: int = CHUNK_SIZE) -> tuple[str, int]:
     """Hash a regular file incrementally and report the bytes read."""
-    before = path.stat(follow_symlinks=False)
+    before = path.lstat()
     if not path.is_file() or path.is_symlink():
         raise SymlinkSafetyError(f"hashing requires a regular non-symlink file: {path}")
     digest = hashlib.sha256()
@@ -121,7 +123,7 @@ def sha256_stream(path: Path, chunk_size: int = CHUNK_SIZE) -> tuple[str, int]:
         while chunk := handle.read(chunk_size):
             digest.update(chunk)
             size += len(chunk)
-    after = path.stat(follow_symlinks=False)
+    after = path.lstat()
     if (before.st_size, before.st_mtime_ns, before.st_ino) != (after.st_size, after.st_mtime_ns, after.st_ino):
         raise ConcurrentChangeError(f"file changed while hashing: {path}")
     return digest.hexdigest(), size
@@ -178,10 +180,9 @@ def _normalise_reference(candidate: str) -> str:
 
 def _candidate_matches(candidate: str, evidence_paths: set[str]) -> set[str]:
     candidate = _normalise_reference(candidate)
-    matches = {candidate} if candidate in evidence_paths else set()
-    prefix = candidate.rstrip("/") + "/"
-    matches.update(path for path in evidence_paths if path.startswith(prefix))
-    return matches
+    # A directory/session pointer is an entry point for a reviewer, not proof that every
+    # descendant is independently required. Retention references must name exact files.
+    return {candidate} if candidate in evidence_paths else set()
 
 
 def scan_references(repo_root: Path, evidence_paths: Iterable[str]) -> dict[str, list[dict[str, str]]]:
@@ -278,7 +279,12 @@ def group_duplicates(records: Iterable[Mapping[str, Any]]) -> dict[str, list[Map
 
 def _is_decisive(relative: str, session: str) -> bool:
     lower = relative.lower()
-    tokens = ("claim-success", "praise-success", "daily-claim-evidence", "help-all-validation", "help-all-semantic-fix", "alliance-help-1783986842", "personal-might-claim")
+    tokens = (
+        "claim-success", "praise-success", "daily-claim-evidence",
+        "help-all-validation", "help-all-semantic-fix",
+        "alliance-help-1783986842", "personal-might-claim",
+        "ruins-challenge", "noahs-tavern-daily-free",
+    )
     return any(token in lower or token in session.lower() for token in tokens)
 
 
@@ -444,14 +450,25 @@ def _write_json(path: Path, value: Any) -> None:
         handle.write("\n")
         handle.flush()
         os.fsync(handle.fileno())
-    os.replace(temporary, path)
+    # Antivirus/indexing processes can briefly open a just-written manifest on Windows and make
+    # an otherwise atomic replacement fail with ERROR_ACCESS_DENIED.  Retry only that transient
+    # replacement; all content has already been flushed and fsynced, and other errors still fail.
+    for attempt in range(20):
+        try:
+            os.replace(temporary, path)
+            break
+        except PermissionError:
+            if attempt == 19:
+                raise
+            time.sleep(0.05 * (attempt + 1))
 
 
 def write_audit_outputs(audit: Mapping[str, Any], audit_path: Path = DEFAULT_AUDIT_PATH, summary_path: Path = DEFAULT_SUMMARY_PATH) -> None:
     _write_json(audit_path, audit)
     status, classes, history = audit["git_status_totals"], audit["retention_totals"], audit.get("history", {})
+    audit_display = audit_path.as_posix()
     lines = [
-        "# Evidence retention report", "", f"Audit `{audit['audit_id']}`; generated {audit['generated_at_utc']}. The JSON detail is local output at `artifacts/evidence-audit.json` and is intentionally not stored under `evidence/`.",
+        "# Evidence retention report", "", f"Audit `{audit['audit_id']}`; generated {audit['generated_at_utc']}. The JSON detail is local output at `{audit_display}` and is intentionally not stored under `evidence/`.",
         "", "This report is a dry-run inventory. No evidence was moved or deleted by the audit.", "", "## Current footprint", "", "| Git state | Files | Bytes |", "|---|---:|---:|",
     ]
     for key in ("tracked", "untracked", "ignored", "unknown"):
@@ -481,7 +498,7 @@ def write_audit_outputs(audit: Mapping[str, Any], audit_path: Path = DEFAULT_AUD
         "Policy: [`docs/evidence-retention-policy.md`](evidence-retention-policy.md).",
     ])
     summary_path.parent.mkdir(parents=True, exist_ok=True)
-    summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 def _load_audit(path: Path) -> dict[str, Any]:
@@ -497,8 +514,21 @@ def archive_blob_path(archive_root: Path, digest: str) -> Path:
     return archive_root / "blobs" / digest
 
 
+def archive_blob_reference(digest: str) -> str:
+    """Return the portable manifest reference for a content-addressed blob."""
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise HygieneError(f"invalid SHA-256 for archive blob: {digest}")
+    return f"blobs/{digest}"
+
+
+def archive_manifest_reference(audit_id: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", audit_id):
+        raise HygieneError(f"invalid archive audit id: {audit_id}")
+    return f"manifests/operation-{audit_id}.json"
+
+
 def _assert_external_archive(repo_root: Path, archive_root: Path) -> Path:
-    archive_root = archive_root.absolute()
+    archive_root = archive_root.resolve()
     repo_root = repo_root.resolve()
     if archive_root == repo_root or repo_root in archive_root.parents:
         raise HygieneError("archive root must be outside the repository")
@@ -515,12 +545,12 @@ def _copy_and_verify(source: Path, destination: Path, digest: str, expected_size
             raise HygieneError(f"archive blob does not verify: {destination}")
         return
     temporary = destination.with_name(destination.name + ".tmp")
-    before = source.stat(follow_symlinks=False)
+    before = source.lstat()
     with source.open("rb") as source_handle, temporary.open("wb") as destination_handle:
         shutil.copyfileobj(source_handle, destination_handle, length=CHUNK_SIZE)
         destination_handle.flush()
         os.fsync(destination_handle.fileno())
-    after = source.stat(follow_symlinks=False)
+    after = source.lstat()
     if (before.st_size, before.st_mtime_ns, before.st_ino) != (after.st_size, after.st_mtime_ns, after.st_ino):
         temporary.unlink(missing_ok=True)
         raise ConcurrentChangeError(f"file changed while archiving: {source}")
@@ -534,15 +564,55 @@ def _manifest_path(archive_root: Path, audit: Mapping[str, Any]) -> Path:
     return archive_root / "manifests" / f"operation-{audit['audit_id']}.json"
 
 
+def build_reviewed_archive_audit(repo_root: Path, relative_paths: Sequence[str], reason: str) -> dict[str, Any]:
+    """Build an exact-path archive plan after a focused human review."""
+    repo_root = repo_root.resolve()
+    if not reason.strip():
+        raise HygieneError("reviewed archive paths require a non-empty review reason")
+    records = []
+    for supplied in sorted(set(relative_paths)):
+        relative = Path(supplied.replace("\\", "/"))
+        if relative.is_absolute() or ".." in relative.parts:
+            raise HygieneError(f"reviewed archive path must be repository-relative: {supplied}")
+        normalized = relative.as_posix().lstrip("./")
+        if not normalized.startswith("evidence/"):
+            raise HygieneError(f"reviewed archive path must be under evidence/: {supplied}")
+        source = (repo_root / normalized).resolve()
+        evidence_root = (repo_root / "evidence").resolve()
+        if evidence_root not in source.parents or source.is_symlink() or not source.is_file():
+            raise HygieneError(f"reviewed archive source is not a regular evidence file: {supplied}")
+        if normalized in _nul_paths(_run_git(repo_root, ["ls-files", "-z", "--", normalized])):
+            raise HygieneError(f"reviewed archive source is tracked: {supplied}")
+        digest, size = sha256_stream(source)
+        records.append({
+            "relative_path": normalized,
+            "sha256": digest,
+            "size": size,
+            "git_status": "untracked",
+            "file_type": _file_type(source),
+            "proposed_action": "ARCHIVE_AND_REMOVE_REVIEWED",
+            "review_reason": reason.strip(),
+        })
+    stable = json.dumps({"records": records, "reason": reason.strip()}, sort_keys=True, separators=(",", ":")).encode()
+    return {
+        "schema": AUDIT_SCHEMA,
+        "audit_id": "reviewed-" + hashlib.sha256(stable).hexdigest()[:20],
+        "review_reason": reason.strip(),
+        "records": records,
+    }
+
+
 def archive_audit(audit: Mapping[str, Any], repo_root: Path, archive_root: Path, *, execute: bool = False) -> dict[str, Any]:
     archive_root = _assert_external_archive(repo_root, archive_root)
-    candidates = sorted((record for record in audit["records"] if record.get("proposed_action") == "ARCHIVE_AND_REMOVE_DUPLICATE"), key=lambda record: str(record["relative_path"]))
+    candidates = sorted((record for record in audit["records"] if record.get("proposed_action") in ARCHIVE_ACTIONS), key=lambda record: str(record["relative_path"]))
     manifest_path = _manifest_path(archive_root, audit)
     existing = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
     results = {item["relative_path"]: item for item in (existing or {}).get("entries", [])}
-    operation: dict[str, Any] = {"schema": "evidence-archive-operation-v1", "audit_id": audit["audit_id"], "dry_run": not execute, "archive_root": str(archive_root), "entries": [results[path] for path in sorted(results)]}
+    for entry in results.values():
+        entry["blob"] = archive_blob_reference(str(entry["sha256"]))
+    operation: dict[str, Any] = {"schema": "evidence-archive-operation-v1", "audit_id": audit["audit_id"], "dry_run": not execute, "archive_root": ".", "entries": [results[path] for path in sorted(results)]}
     if not execute:
-        operation["entries"] = [{"relative_path": record["relative_path"], "sha256": record["sha256"], "size": record["size"], "blob": str(archive_blob_path(archive_root, record["sha256"])), "status": "planned"} for record in candidates]
+        operation["entries"] = [{"relative_path": record["relative_path"], "sha256": record["sha256"], "size": record["size"], "blob": archive_blob_reference(record["sha256"]), "status": "planned", **({"review_reason": record["review_reason"]} if record.get("review_reason") else {})} for record in candidates]
         return operation
     archive_root.mkdir(parents=True, exist_ok=True)
     for record in candidates:
@@ -563,13 +633,13 @@ def archive_audit(audit: Mapping[str, Any], repo_root: Path, archive_root: Path,
             raise ConcurrentChangeError(f"planned source changed since audit: {source}")
         blob = archive_blob_path(archive_root, current_digest)
         _copy_and_verify(source, blob, current_digest, current_size)
-        entry = {"relative_path": relative, "sha256": current_digest, "size": current_size, "blob": str(blob), "status": "archived_verified"}
+        entry = {"relative_path": relative, "sha256": current_digest, "size": current_size, "blob": archive_blob_reference(current_digest), "status": "archived_verified", **({"review_reason": record["review_reason"]} if record.get("review_reason") else {})}
         results[relative] = entry
         operation["entries"] = [results[path] for path in sorted(results)]
         _write_json(manifest_path, operation)
         path_index = archive_root / "path-index.json"
         index = json.loads(path_index.read_text(encoding="utf-8")) if path_index.exists() else {}
-        index[relative] = {"sha256": current_digest, "size": current_size, "blob": str(blob), "manifest": str(manifest_path)}
+        index[relative] = {"sha256": current_digest, "size": current_size, "blob": archive_blob_reference(current_digest), "manifest": archive_manifest_reference(str(audit["audit_id"]))}
         _write_json(path_index, dict(sorted(index.items())))
         if sha256_stream(source) != (current_digest, current_size):
             raise ConcurrentChangeError(f"planned source changed before removal: {source}")
@@ -587,9 +657,10 @@ def verify_archive(archive_root: Path, manifest_path: Path | None = None) -> dic
     for manifest in manifests:
         operation = json.loads(manifest.read_text(encoding="utf-8"))
         for entry in operation.get("entries", []):
-            blob = Path(entry["blob"])
-            if not blob.is_absolute():
-                blob = archive_root / blob
+            # The digest is authoritative.  Resolve it beneath the archive root so manifests
+            # remain portable across WSL, Windows, and relocated archive directories.  This also
+            # safely verifies legacy manifests that recorded stale absolute blob paths.
+            blob = archive_blob_path(archive_root, str(entry["sha256"]))
             try:
                 digest, size = sha256_stream(blob)
             except (OSError, HygieneError) as exc:
@@ -621,6 +692,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     archive_parser.add_argument("--audit", type=Path, default=DEFAULT_AUDIT_PATH)
     archive_parser.add_argument("--archive-root", type=Path, required=True)
     archive_parser.add_argument("--execute", action="store_true", help="verify, archive, and then remove planned duplicates")
+    archive_parser.add_argument("--reviewed-path", action="append", default=[], help="exact untracked evidence path approved by focused review")
+    archive_parser.add_argument("--review-reason", default="", help="required reason binding exact reviewed paths")
     verify_parser = sub.add_parser("verify", help="verify external archive blobs and manifests")
     verify_parser.add_argument("--archive-root", type=Path, required=True)
     verify_parser.add_argument("--manifest", type=Path)
@@ -635,7 +708,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             plan = [record for record in audit["records"] if record.get("proposed_action") == "ARCHIVE_AND_REMOVE_DUPLICATE"]
             print(json.dumps({"audit_id": audit["audit_id"], "dry_run": True, "candidate_count": len(plan), "candidate_bytes": sum(int(item["size"]) for item in plan), "candidates": plan}, indent=2 if args.json else None, sort_keys=True))
         elif args.command == "archive":
-            operation = archive_audit(_load_audit(args.audit), args.repo_root.resolve(), args.archive_root, execute=args.execute)
+            audit = (
+                build_reviewed_archive_audit(args.repo_root, args.reviewed_path, args.review_reason)
+                if args.reviewed_path else _load_audit(args.audit)
+            )
+            operation = archive_audit(audit, args.repo_root.resolve(), args.archive_root, execute=args.execute)
             print(json.dumps({"dry_run": operation["dry_run"], "archive_root": operation["archive_root"], "entries": len(operation["entries"]), "bytes": sum(int(item["size"]) for item in operation["entries"])}, sort_keys=True))
         else:
             print(json.dumps(verify_archive(args.archive_root, args.manifest), sort_keys=True))

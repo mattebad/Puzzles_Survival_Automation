@@ -70,6 +70,7 @@ ALLIANCE_FORT_X_REGION = (620, 360, 735, 455)
 ALLIANCE_FORT_X_TARGET = "alliance-fort-wave-dismiss-x"
 ALLIANCE_FORT_SUCCESSOR = "ALLIANCE_FORT_DISMISSED"
 DAILY_BIOENHANCER_GO_TARGET = "daily-bioenhancer-go"
+DAILY_CLAIM_TARGET = "daily-quest-claim"
 
 
 def recognize_alliance_fort_wave(frame: Any) -> Dict[str, Any]:
@@ -276,6 +277,20 @@ def classify(mode: str, frame: Path, args: argparse.Namespace) -> Dict[str, Any]
             "recognized": False,
             "detail": {"reason": "selected Daily Quest reference pair is required"},
         }
+    if mode == "daily_claim":
+        detail = recognize_daily_claim(load_frame(frame), frame, args, claimed=False)
+        return {
+            "state": "DAILY_QUEST" if detail["recognized"] else "UNKNOWN",
+            "recognized": detail["recognized"],
+            "detail": detail,
+        }
+    if mode == "daily_claimed":
+        detail = recognize_daily_claim(load_frame(frame), frame, args, claimed=True)
+        return {
+            "state": "DAILY_QUEST_CLAIMED" if detail["recognized"] else "UNKNOWN",
+            "recognized": detail["recognized"],
+            "detail": detail,
+        }
     if mode == "daily_bioenhancer":
         detail = recognize_daily_bioenhancer_go(load_frame(frame), frame, args)
         return {
@@ -368,6 +383,102 @@ def recognize_daily_bioenhancer_go(
         "cost_amount": 0 if recognized else None,
         "quantity": 1 if recognized else None,
         "expected_postcondition": "BIOENHANCER" if recognized else None,
+    }
+
+
+def recognize_daily_claim(
+    frame: Any,
+    frame_path: Path,
+    args: argparse.Namespace,
+    *,
+    claimed: bool,
+) -> Dict[str, Any]:
+    """Bind the current Bioenhancer Research row's Claim/Claimed control."""
+    if getattr(frame, "shape", ()) != (1280, 800, 3):
+        return {"recognized": False, "reason": "profile_dimensions_mismatch"}
+    selected = classify("daily", frame_path, args)
+    data = pytesseract.image_to_data(
+        frame,
+        config="--psm 6",
+        output_type=pytesseract.Output.DICT,
+    )
+    objective_y = None
+    for index, raw in enumerate(data.get("text", ())):
+        text = " ".join(str(raw).lower().split())
+        if "bioenhancer" in text:
+            objective_y = int(data["top"][index])
+            break
+    if objective_y is None:
+        return {
+            "recognized": False,
+            "selected_daily": selected,
+            "reason": "Bioenhancer Research row is not positively recognized",
+        }
+    row_top = max(300, objective_y - 55)
+    row_bottom = min(1120, objective_y + 135)
+    row = frame[row_top:row_bottom, 35:780]
+    row_text = " ".join(pytesseract.image_to_string(row, config="--psm 6").lower().split())
+    compact_row_text = re.sub(r"\s+", "", row_text)
+    objective_present = "bioenhancer" in row_text and "research" in row_text
+    completed = "1/1" in compact_row_text
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    button_mask = cv2.inRange(hsv, (0, 45, 70), (45, 255, 255))
+    count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(button_mask)
+    candidates = []
+    for index in range(1, count):
+        left, top, width, height, area = (int(value) for value in stats[index])
+        center_y = top + height // 2
+        if (
+            area > 1000
+            and left >= 500
+            and width >= 120
+            and 35 <= height <= 95
+            and abs(center_y - (objective_y + 45)) <= 90
+        ):
+            candidates.append((left, top, width, height, area))
+    button = max(candidates, key=lambda item: item[4], default=None)
+    target = (
+        (button[0], button[1], button[0] + button[2], button[1] + button[3])
+        if button else None
+    )
+    button_text = ""
+    if target:
+        x0, y0, x1, y1 = target
+        button_crop = frame[
+            max(0, y0 - 10):min(1280, y1 + 10),
+            max(0, x0 - 10):min(800, x1 + 10),
+        ]
+        button_text = " ".join(
+            pytesseract.image_to_string(
+                cv2.resize(button_crop, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC),
+                config="--psm 7",
+            ).lower().split()
+        )
+    claim_label = "claim" in button_text and "claimed" not in button_text
+    claimed_label = "claimed" in button_text or "claimed" in row_text
+    recognized = bool(
+        selected.get("recognized")
+        and objective_present
+        and (claimed_label if claimed else completed and claim_label)
+    )
+    return {
+        "recognized": recognized,
+        "selected_daily": selected,
+        "objective_name": "Bioenhancer Research",
+        "objective_y": objective_y,
+        "row_text": row_text,
+        "completed": completed,
+        "button_text": button_text,
+        "target": target if recognized and not claimed else None,
+        "target_identity": DAILY_CLAIM_TARGET if recognized and not claimed else None,
+        "control_class": "CLAIM" if recognized and not claimed else "CLAIMED" if recognized else None,
+        "overlay_state": "none_observed" if recognized else "unknown",
+        "consequence": "claim_zero_cost_reward" if recognized and not claimed else None,
+        "cost_type": "none" if recognized else None,
+        "cost_amount": 0 if recognized else None,
+        "quantity": 1 if recognized else None,
+        "expected_postcondition": "DAILY_QUEST_CLAIMED" if recognized else None,
+        "claimed": claimed,
     }
 
 
@@ -507,10 +618,12 @@ def observation_for(
     is_promo = mode == "promo"
     is_alliance_fort = mode == "alliance_fort"
     is_daily_bio = mode == "daily_bioenhancer"
+    is_daily_claim = mode == "daily_claim"
+    is_daily_claimed = mode == "daily_claimed"
     is_bio_free = mode == "bioenhancer_free"
     roi = (
         tuple(detail.get("target"))
-        if (is_alliance_fort or is_daily_bio or is_bio_free) and detail.get("target")
+        if (is_alliance_fort or is_daily_bio or is_daily_claim or is_bio_free) and detail.get("target")
         else (
             tuple(detail.get("target_roi"))
             if is_promo and detail.get("target_roi")
@@ -519,12 +632,12 @@ def observation_for(
     )
     target_identity = (
         detail.get("target_identity")
-        if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free)
+        if (is_promo or is_alliance_fort or is_daily_bio or is_daily_claim or is_bio_free)
         else (args.target if recognized else None)
     )
     overlay_state = (
         detail.get("overlay_state", "unknown")
-        if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free)
+        if (is_promo or is_alliance_fort or is_daily_bio or is_daily_claim or is_daily_claimed or is_bio_free)
         else ("none_observed" if recognized else "unknown")
     )
     ocr_frame = None if is_promo else (prior.frame_sha256 if reuse and prior else metadata["sha256"])
@@ -545,14 +658,14 @@ def observation_for(
         recognized=recognized,
         clipped=args.clipped,
         ambiguous=args.ambiguous,
-        control_class=detail.get("control_class") if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free) else args.control_class,
-        consequence=detail.get("consequence") if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free) else args.consequence,
-        cost_type=detail.get("cost_type", "none") if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free) else "none",
-        cost_amount=detail.get("cost_amount", 0) if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free) else 0,
-        quantity=detail.get("quantity", 1) if (is_promo or is_alliance_fort or is_daily_bio or is_bio_free) else args.quantity,
+        control_class=detail.get("control_class") if (is_promo or is_alliance_fort or is_daily_bio or is_daily_claim or is_daily_claimed or is_bio_free) else args.control_class,
+        consequence=detail.get("consequence") if (is_promo or is_alliance_fort or is_daily_bio or is_daily_claim or is_daily_claimed or is_bio_free) else args.consequence,
+        cost_type=detail.get("cost_type", "none") if (is_promo or is_alliance_fort or is_daily_bio or is_daily_claim or is_daily_claimed or is_bio_free) else "none",
+        cost_amount=detail.get("cost_amount", 0) if (is_promo or is_alliance_fort or is_daily_bio or is_daily_claim or is_daily_claimed or is_bio_free) else 0,
+        quantity=detail.get("quantity", 1) if (is_promo or is_alliance_fort or is_daily_bio or is_daily_claim or is_daily_claimed or is_bio_free) else args.quantity,
         expected_postcondition=(
             "RECOGNIZED_NAVIGATION_STATE" if is_promo
-            else detail.get("expected_postcondition") if (is_alliance_fort or is_daily_bio or is_bio_free)
+            else detail.get("expected_postcondition") if (is_alliance_fort or is_daily_bio or is_daily_claim or is_daily_claimed or is_bio_free)
             else args.expected_state
         ),
         evidence_refs=(str(frame),),
@@ -609,6 +722,11 @@ def critical_rois(mode: str, args: argparse.Namespace) -> Dict[str, tuple[int, i
         rois = {
             "popup_body": ALLIANCE_FORT_POPUP_REGION,
             "dismiss_x": ALLIANCE_FORT_X_REGION,
+        }
+    elif mode in {"daily_claim", "daily_claimed"}:
+        rois = {
+            "daily_rows": (35, 300, 780, 1120),
+            "daily_claim_target_band": (500, 300, 780, 1120),
         }
     elif mode == "daily_bioenhancer":
         rois = {
@@ -856,7 +974,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--policy-file", type=Path)
     sub = root.add_subparsers(dest="command", required=True)
     obs = sub.add_parser("observe")
-    obs.add_argument("--mode", choices=("cash", "home", "quest", "daily", "daily_bioenhancer", "bioenhancer", "bioenhancer_free", "supply_depot", "alliance_fort", "promo"), required=True)
+    obs.add_argument("--mode", choices=("cash", "home", "quest", "daily", "daily_claim", "daily_claimed", "daily_bioenhancer", "bioenhancer", "bioenhancer_free", "supply_depot", "alliance_fort", "promo"), required=True)
     obs.add_argument("--output", type=Path, required=True)
     obs.add_argument("--result", type=Path, required=True)
     obs.set_defaults(handler=observe)
@@ -874,8 +992,8 @@ def parser() -> argparse.ArgumentParser:
     act.add_argument("--action-id", required=True)
     act.add_argument("--action-key", required=True)
     act.add_argument("--game-day")
-    act.add_argument("--source-mode", choices=("cash", "home", "quest", "daily", "daily_bioenhancer", "bioenhancer", "bioenhancer_free", "supply_depot", "alliance_fort", "promo"), required=True)
-    act.add_argument("--expected-mode", choices=("cash", "home", "quest", "daily", "daily_bioenhancer", "bioenhancer", "bioenhancer_free", "supply_depot", "alliance_fort", "promo"), required=True)
+    act.add_argument("--source-mode", choices=("cash", "home", "quest", "daily", "daily_claim", "daily_claimed", "daily_bioenhancer", "bioenhancer", "bioenhancer_free", "supply_depot", "alliance_fort", "promo"), required=True)
+    act.add_argument("--expected-mode", choices=("cash", "home", "quest", "daily", "daily_claim", "daily_claimed", "daily_bioenhancer", "bioenhancer", "bioenhancer_free", "supply_depot", "alliance_fort", "promo"), required=True)
     act.add_argument("--expected-state", required=True)
     act.add_argument("--target", required=True)
     act.add_argument("--roi", type=int, nargs=4, required=True)

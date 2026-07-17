@@ -45,6 +45,9 @@ class CampaignAction(str, Enum):
     ENABLE_AUTO = "ENABLE_AUTO"
     WAIT_FOR_BATTLE_RESULT = "WAIT_FOR_BATTLE_RESULT"
     CONTINUE_VICTORY = "CONTINUE_VICTORY"
+    CLOSE_STAGE_DIALOG = "CLOSE_STAGE_DIALOG"
+    LEAVE_CHAPTER_MAP = "LEAVE_CHAPTER_MAP"
+    RETURN_HOME = "RETURN_HOME"
     RETURN_HOME_AFTER_DEFEAT = "RETURN_HOME_AFTER_DEFEAT"
     COMPLETE = "COMPLETE"
     BLOCKED = "BLOCKED"
@@ -83,7 +86,7 @@ class CampaignAutoBattleConfig:
     ap_budget: int
     max_runs: int
     battle_poll_seconds: float = 1.0
-    battle_timeout_seconds: float = 600.0
+    battle_timeout_seconds: float = 180.0
 
     def __post_init__(self) -> None:
         if self.ap_cost <= 0:
@@ -96,6 +99,8 @@ class CampaignAutoBattleConfig:
             raise ValueError("battle_poll_seconds must be positive")
         if self.battle_timeout_seconds <= self.battle_poll_seconds:
             raise ValueError("battle_timeout_seconds must exceed battle_poll_seconds")
+        if self.battle_timeout_seconds > 180:
+            raise ValueError("battle_timeout_seconds cannot exceed the 180-second safety ceiling")
 
 
 @dataclass(frozen=True)
@@ -104,10 +109,17 @@ class CampaignRouteProgress:
     current_ap: int
     completed_runs: int = 0
     ap_spent: int = 0
+    ap_regenerated: int = 0
     loss_seen: bool = False
 
     def __post_init__(self) -> None:
-        if min(self.initial_ap, self.current_ap, self.completed_runs, self.ap_spent) < 0:
+        if min(
+            self.initial_ap,
+            self.current_ap,
+            self.completed_runs,
+            self.ap_spent,
+            self.ap_regenerated,
+        ) < 0:
             raise ValueError("Campaign progress values cannot be negative")
 
 
@@ -184,16 +196,50 @@ def record_verified_victory(
     *,
     ap_cost: int,
     ap_after: int,
+    ap_regenerated: int = 0,
 ) -> CampaignRouteProgress:
-    """Advance one run only when the exact AP delta is independently observed."""
+    """Advance one run from an exact spend plus independently observed regeneration."""
 
-    if ap_cost <= 0 or ap_after != progress.current_ap - ap_cost:
+    if (
+        ap_cost <= 0
+        or ap_regenerated < 0
+        or ap_after != progress.current_ap - ap_cost + ap_regenerated
+    ):
         raise ValueError("victory AP delta is not exact")
     return replace(
         progress,
         current_ap=ap_after,
         completed_runs=progress.completed_runs + 1,
         ap_spent=progress.ap_spent + ap_cost,
+        ap_regenerated=progress.ap_regenerated + ap_regenerated,
+    )
+
+
+def reconcile_observed_ap(
+    progress: CampaignRouteProgress,
+    *,
+    ap_observed: int,
+) -> CampaignRouteProgress:
+    """Accept only a non-negative AP increase observed between transactions."""
+
+    if ap_observed < progress.current_ap:
+        raise ValueError("unexplained AP decrease cannot be reconciled")
+    regenerated = ap_observed - progress.current_ap
+    return replace(
+        progress,
+        current_ap=ap_observed,
+        ap_regenerated=progress.ap_regenerated + regenerated,
+    )
+
+
+def _additional_run_affordable(
+    config: CampaignAutoBattleConfig,
+    progress: CampaignRouteProgress,
+) -> bool:
+    return bool(
+        progress.current_ap >= config.ap_cost
+        and progress.ap_spent + config.ap_cost <= config.ap_budget
+        and progress.completed_runs < config.max_runs
     )
 
 
@@ -229,22 +275,40 @@ def campaign_next_decision(
     if not observation.recognized or observation.overlay_state not in {"none", "none_observed"}:
         return _decision(CampaignAction.BLOCKED, "screen or overlay is not positively recognized", terminal=True)
 
-    total_runs = planned_run_count(
-        ap_available=progress.initial_ap,
-        ap_cost=config.ap_cost,
-        ap_budget=config.ap_budget,
-        max_runs=config.max_runs,
-    )
     if progress.ap_spent != progress.completed_runs * config.ap_cost:
         return _decision(CampaignAction.BLOCKED, "recorded AP spend does not match completed runs", terminal=True)
-    if progress.current_ap != progress.initial_ap - progress.ap_spent:
+    if progress.current_ap != progress.initial_ap - progress.ap_spent + progress.ap_regenerated:
         return _decision(CampaignAction.BLOCKED, "current AP does not match the verified run ledger", terminal=True)
 
-    if observation.screen == CampaignScreen.HOME_BASE:
-        if progress.loss_seen:
+    if progress.loss_seen:
+        if observation.screen == CampaignScreen.HOME_BASE:
             return _decision(CampaignAction.COMPLETE, "returned home after a loss; repeats are disabled", terminal=True)
-        if progress.completed_runs >= total_runs:
-            return _decision(CampaignAction.COMPLETE, "bounded AP plan is complete at Home/Base", terminal=True)
+        if observation.screen == CampaignScreen.STAGE_DIALOG:
+            return _decision(
+                CampaignAction.CLOSE_STAGE_DIALOG,
+                "unwind the stage dialog after a loss; repeats are disabled",
+                successor=CampaignScreen.CHAPTER_MAP,
+                target="campaign-stage-dialog-close",
+            )
+        if observation.screen == CampaignScreen.CHAPTER_MAP:
+            return _decision(
+                CampaignAction.LEAVE_CHAPTER_MAP,
+                "leave the chapter after a loss; repeats are disabled",
+                successor=CampaignScreen.TIER_MAP,
+                target="campaign-chapter-back",
+            )
+        if observation.screen == CampaignScreen.TIER_MAP:
+            return _decision(
+                CampaignAction.RETURN_HOME,
+                "return Home after a loss; repeats are disabled",
+                successor=CampaignScreen.HOME_BASE,
+                target="campaign-exit-base",
+            )
+        return _decision(CampaignAction.BLOCKED, "loss unwind reached an unexpected screen", terminal=True)
+
+    if observation.screen == CampaignScreen.HOME_BASE:
+        if not _additional_run_affordable(config, progress):
+            return _decision(CampaignAction.COMPLETE, "no additional bounded run is affordable at Home/Base", terminal=True)
         return _decision(
             CampaignAction.OPEN_CAMPAIGN,
             "more bounded AP runs remain",
@@ -253,6 +317,13 @@ def campaign_next_decision(
         )
 
     if observation.screen == CampaignScreen.TIER_MAP:
+        if not _additional_run_affordable(config, progress):
+            return _decision(
+                CampaignAction.RETURN_HOME,
+                "leave Campaign because no additional bounded run is affordable",
+                successor=CampaignScreen.HOME_BASE,
+                target="campaign-exit-base",
+            )
         if observation.selected_tier != config.target_stage.tier:
             return _decision(
                 CampaignAction.SELECT_TIER,
@@ -277,6 +348,13 @@ def campaign_next_decision(
         )
 
     if observation.screen == CampaignScreen.CHAPTER_MAP:
+        if not _additional_run_affordable(config, progress):
+            return _decision(
+                CampaignAction.LEAVE_CHAPTER_MAP,
+                "leave the chapter because no additional bounded run is affordable",
+                successor=CampaignScreen.TIER_MAP,
+                target="campaign-chapter-back",
+            )
         if (
             observation.selected_tier != config.target_stage.tier
             or observation.chapter_number != config.target_stage.chapter
@@ -305,8 +383,13 @@ def campaign_next_decision(
             return _decision(CampaignAction.BLOCKED, "AP refill is forbidden", terminal=True)
         if observation.ap_current != progress.current_ap or observation.ap_cost != config.ap_cost:
             return _decision(CampaignAction.BLOCKED, "fresh AP or stage cost does not match the bounded plan", terminal=True)
-        if progress.completed_runs >= total_runs or observation.ap_current < config.ap_cost:
-            return _decision(CampaignAction.BLOCKED, "no additional bounded stage run is affordable", terminal=True)
+        if not _additional_run_affordable(config, progress):
+            return _decision(
+                CampaignAction.CLOSE_STAGE_DIALOG,
+                "close the stage dialog because no additional bounded run is affordable",
+                successor=CampaignScreen.CHAPTER_MAP,
+                target="campaign-stage-dialog-close",
+            )
         if not observation.challenge_ready:
             return _decision(CampaignAction.BLOCKED, "exact Challenge control is not ready", terminal=True)
         return _decision(
@@ -331,14 +414,14 @@ def campaign_next_decision(
         return _decision(
             CampaignAction.CONTINUE_VICTORY,
             "WINNER, Loot, and Tap to continue are all visible",
-            successor=CampaignScreen.HOME_BASE,
+            successor=CampaignScreen.CHAPTER_MAP,
             target="campaign-victory-continue",
         )
     if battle_result == BattleResult.DEFEAT:
         return _decision(
             CampaignAction.RETURN_HOME_AFTER_DEFEAT,
             "explicit defeat terminal recognized; do not repeat",
-            successor=CampaignScreen.HOME_BASE,
+            successor=CampaignScreen.CHAPTER_MAP,
             target="campaign-defeat-return",
         )
     if observation.screen == CampaignScreen.BATTLE:

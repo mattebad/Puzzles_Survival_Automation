@@ -1,0 +1,58 @@
+{
+  "reset_identity": "local-2026-07-16-ruins",
+  "observations": {
+    "available_nova": {
+      "identity": "Nova Challenge",
+      "day_label": null,
+      "availability": "available",
+      "progress_current": 18,
+      "progress_maximum": 100,
+      "last_successful_level": null,
+      "challenge_control": "visible_enabled",
+      "chest_state": "unknown",
+      "target_roi": [568, 1000, 780, 1170],
+      "source_frame_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reset_identity": "local-2026-07-16-ruins"
+    },
+    "available_module": {
+      "identity": "Module Challenge",
+      "day_label": null,
+      "availability": "available",
+      "progress_current": 46,
+      "progress_maximum": 200,
+      "last_successful_level": null,
+      "challenge_control": "visible_enabled",
+      "chest_state": "unknown",
+      "target_roi": [568, 400, 780, 520],
+      "source_frame_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "reset_identity": "local-2026-07-16-ruins"
+    },
+    "locked_core": {
+      "identity": "Core Challenge",
+      "day_label": "Wed",
+      "availability": "locked",
+      "progress_current": 0,
+      "progress_maximum": 1,
+      "last_successful_level": null,
+      "challenge_control": "hidden",
+      "chest_state": "locked",
+      "target_roi": [18, 900, 780, 1060],
+      "hq_restriction": 31,
+      "source_frame_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "reset_identity": "local-2026-07-16-ruins"
+    },
+    "available_chest": {
+      "identity": "Hero Challenge",
+      "day_label": "Mon",
+      "availability": "unavailable",
+      "progress_current": 60,
+      "progress_maximum": 120,
+      "last_successful_level": 60,
+      "challenge_control": "hidden",
+      "chest_state": "available_to_claim",
+      "target_roi": [580, 220, 780, 420],
+      "source_frame_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "reset_identity": "local-2026-07-16-ruins"
+    }
+  }
+}

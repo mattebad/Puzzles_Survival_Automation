@@ -600,15 +600,12 @@ Claim example.
 
 - Task ID: `MVP-QUEST-TO-CLAIM`
 - Title: Complete one supervised Daily Quest vertical slice.
-- Status: Pending; contract-ready activation completed, product execution remains blocked. The
-  retained product blocker remains unresolved, and the 2026-07-14 execution preflight found an
-  additional active global unresolved-action gate before any MVP input could be authorized.
+- Status: Passed (2026-07-15; one bounded supervised Claim completed and independently reconciled).
 - Milestone: M8 claim-only MVP validation.
 - Dependencies: `M6-DQ-BOOTSTRAP` Passed, `M7-SAFE-ACTION-CORE` Passed,
   `MVP-STARTUP-NORMALIZATION` Passed, and no active unresolved action.
-- Blocked by: fresh Daily reset/game-day identity plus a supported zero-cost objective or existing
-  ordinary Claim row; the retained proof did not establish one, and no current `game_day_id` was
-  assigned. Any unresolved action also blocks consequential input.
+- Blocked by: none for this bounded trial. The fresh source established the selected Daily Quest
+  screen, current game-day binding, and an ordinary completed Bioenhancer Research Claim row.
 - Objective: prove one bounded, supervised Daily Quest quest-to-claim transition using the selected
   runtime and the minimum safety core, then stop.
 - Established facts:
@@ -637,48 +634,37 @@ Claim example.
     this task. The retained popup and phase-2 route records remain unresolved or diagnostic.
   - Runtime registration remains `NOT_REGISTERED_UNCHANGED` and scheduler state remains
     `DISABLED/INELIGIBLE`; this task does not promote either state.
-- Status: Blocked (2026-07-14; individual Help and actual lower Help All remain historical
-  evidence conclusions, no admissible current Claim row or supported zero-cost prerequisite has
-  been promoted, and the full quest-to-claim flow remains incomplete). The task state remains
-  pending because execution stopped at the global unresolved-action gate.
-- Blocker: the typed continuation report named Vehicle Depot, Ultimate Challenge, Hunt Zombie,
-  Own Hero, Gathered Food, and Headquarters wording, but provenance audit found no admissible
-  selected-Daily proof for them. The retained raw frame for the first four visibly has Main Quest
-  selected; Gather Food is synthetic-only and Headquarters is documentation-only. No ordinary
-  Claim row or supported zero-cost prerequisite was established, no current `game_day_id` was
-  assigned, and no Go or Claim input was sent. The authoritative live operational journal
-  (`pnsctl` `REMOTE_DB`, `/mnt/cache/puzzle-survival-runtime/mvp-quest-to-claim/20260713-help-all/evidence/actions.sqlite3`)
-  also contains terminal `unresolved` action `alliance-help-1783981635` with reason
-  `unexpected_successor`; its lease is released, but the global unresolved-action gate still
-  blocks all consequential input. Resume only after that exact action is separately reconciled
-  under journal policy and a fresh Daily reset/game-day plus supported-objective or existing-Claim
-  evidence is established. Never reuse prior action keys.
-- Direct implementation files: `NOT_YET_VERIFIED_THIS_RUN`; the legacy entry names no exact
-  implementation-file allowlist. A future execution chat must resolve and allowlist exact files
-  before product edits; activation authorizes no product-file change.
+- Result: the fresh selected-Daily frame positively identified the completed Bioenhancer Research
+  row and its local Claim control. No prerequisite was needed. Exactly one Claim tap was sent
+  through the central policy/executor path. The toast reported `Daily Achieved: Bioenhancer
+  Research x1`, the row disappeared, and Daily Quest Pts increased from 0 to 5. The action first
+  persisted `unresolved` on an unexpected successor, then was manually reconciled to `confirmed`
+  from the preserved postcondition frames without retry.
+- Blocker: none. Historical `alliance-help-1783981635` was not reused or retried; it is outside
+  this task cycle. The current Claim journal is terminally confirmed and its lease is released or
+  expires by policy before handoff.
+- Direct implementation files: `scripts/mvp_quest_to_claim.py`, `scripts/pnsctl.py`,
+  `safe_action_core/executor.py`, and `safe_action_core/policy.py`. These are the only product
+  files directly changed for this trial.
 - Shared dependencies: `M6-DQ-BOOTSTRAP`, `M7-SAFE-ACTION-CORE`,
   `MVP-STARTUP-NORMALIZATION`, RT-019 profile evidence, the central policy/executor path, and the
   persistent action journal/lease contracts.
 - Transitive regression set: M6 corpus recognition and six-asset validation, M7 safety-core and
   journal crash-boundary tests, RT-019 profile checks, focused Daily planning tests, and any exact
   task-module tests named by a future implementation allowlist.
-- Allowed changes: this contract, its exact task-specific evidence manifest, persisted handoff
-  activation, and focused governance validator/test changes required to validate this migration.
-  Future execution may only perform the seven original bounded scope steps, through the central
-  policy/executor path, with exact current-frame binding and retained evidence.
-- Prohibited changes: Bioenhancer research; Supply Depot; recruitment; unrelated Daily objectives;
-  generalized framework redesign; evidence hygiene; scheduler activation; runtime registration
-  changes; downstream backlog work; push; production modules not directly allowlisted by a future
-  execution contract; and any runtime, worker, ADB, SSH, Docker, emulator, or game operation during
-  this activation.
-- Authorized runtime action: none during activation. A fresh execution chat may authorize only the
-  existing supervised Daily Quest vertical slice after all source, game-day, target, cost, journal,
-  lease, and unresolved-action gates pass. Its only possible consequential actions are one
-  positively recognized zero-cost Alliance Help prerequisite and one exact Claim; Supply Depot is
-  not authorized by this contract.
-- Maximum transport inputs: activation navigation-only `0`, consequential `0`, Claim `0`, all
-  runtime inputs `0`. Future navigation-only maximum is `UNKNOWN` because the legacy entry did not
-  specify a numeric cap; future consequential maximum is `2` total (`1` prerequisite if needed and
+- Allowed changes: this contract, its exact task-specific evidence manifest, persisted handoff,
+  and the directly allowlisted execution files above. Runtime execution remained limited to the
+  seven original bounded scope steps, through the central policy/executor path, with exact
+  current-frame binding and retained evidence.
+- Prohibited changes: Supply Depot; recruitment; unrelated Daily objectives; generalized framework
+  redesign; evidence hygiene; scheduler activation; runtime registration changes; downstream
+  backlog work; push; production modules outside the direct allowlist; and any additional runtime,
+  worker, ADB, SSH, Docker, emulator, or game operation after this bounded trial.
+- Authorized runtime action: one exact Claim after all source, game-day, target, cost, journal,
+  lease, and unresolved-action gates passed. No prerequisite was required; Supply Depot remains
+  unauthorized.
+- Maximum transport inputs: this trial used navigation-only `0`, prerequisite `0`, and Claim `1`.
+  The task contract maximum remains `2` consequential inputs (`1` prerequisite if needed and
   `1` Claim), with Claim maximum `1`.
 - Navigation-only recovery: forbidden during activation. Future recovery may use only a fresh,
   evidence-supported narrow policy; no identical retry, generic popup cleanup, or recovery after an
@@ -689,10 +675,10 @@ Claim example.
 - Registration changes: forbidden; preserve `NOT_REGISTERED_UNCHANGED`.
 - Scheduler changes: forbidden; preserve `DISABLED/INELIGIBLE` and no eligible flows.
 - Actions that must not be repeated: Bioenhancer research or actions
-  `bioenhancer-free-1784069057` and `bioenhancer-free-1784079616`; any prior validated Praise or
-  Daily Claim transaction; `alliance-help-1783986842`; `reset-popup-close-1783994269-2`; any
-  gameplay input; Supply Depot, recruitment, or unrelated Daily work; evidence movement or
-  collection; and any action key from retained sessions.
+  `bioenhancer-free-1784069057` and `bioenhancer-free-1784079616`; `daily-claim-1784092554`;
+  any prior validated Praise or Daily Claim transaction; `alliance-help-1783986842`;
+  `reset-popup-close-1783994269-2`; any additional gameplay input; Supply Depot, recruitment, or
+  unrelated Daily work; evidence movement or collection; and any action key from retained sessions.
 - Required source: fresh raw full-frame `800x1280` evidence after startup reconciliation with
   selected Daily Quest positively recognized, no forbidden overlay, positively assigned current
   reset/game-day identity, and either an ordinary completed-unclaimed row or a supported zero-cost
@@ -720,10 +706,9 @@ Claim example.
 - Ambiguous-result behavior: stop immediately, preserve all available frames and the journal,
   classify the action unresolved, block further consequential input, release or preserve lease
   state according to policy, and require manual reconciliation. Never retry blindly.
-- Game-day requirements: future execution must freshly establish reset identity and bind all task
-  state, evidence, and authorization to that game day. Current runtime and game day are
-- Evidence requirement: REQUIRED; this supervised runtime task retains its exact task-scoped evidence manifest.
-  `NOT_VERIFIED_THIS_RUN`; recorded historical identities do not authorize execution.
+- Game-day requirements: this execution freshly established reset identity and bound all task
+  state, evidence, and authorization to that game day. The task-cycle game-day binding is recorded
+  in the result evidence; no later action may reuse it without fresh verification.
 - Journal and lease requirements: use the central persistent journal and exclusive lease; require no
   active prepared, input-sent, or unresolved consequential action before dispatch; persist
   prepared/input-sent/confirmed-or-unresolved transitions; and leave no action between prepared and
@@ -737,12 +722,13 @@ Claim example.
 - Premium or strategic restrictions: premium, paid, strategic, recruitment, Supply Depot, and
   unrelated objective actions are forbidden.
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`, sourced from
+- Evidence requirement: REQUIRED; this supervised runtime task retains its exact task-scoped evidence manifest.
   `evidence/current-evidence-manifest.json` and exact references named by this task.
 - Required artifacts: fresh source, immediate-before, transport/journal record, immediate-post,
   semantic result, unresolved proof when applicable, and exact task-cycle/game-day evidence for a
   future execution. Current activation has no fresh runtime artifacts.
-- Immediate-before/immediate-post/result/journal: all are `NOT_VERIFIED_THIS_RUN` for activation;
-  future execution must capture and hash exact references without replacing retained evidence.
+- Immediate-before/immediate-post/result/journal: verified for the 2026-07-15 trial with exact
+  hashes in the active manifest; retained evidence was not replaced.
 - Additional task-specific artifacts: the exact retained paths in the MVP manifest, including
   `live-continuation-20260713.md`, selected-tab retest, Daily inventory, popup diagnostics, and
   phase-2 route directories; no recursive evidence inspection is permitted.
@@ -753,8 +739,8 @@ Claim example.
   this activation.
 - Transitive regression tests: existing M6, M7, RT-019, and affected Daily planning validators;
   report prior evidence-hygiene environment failures separately.
-- Full-suite requirement: none for this documentation-only activation; production code must remain
-  unchanged.
+- Full-suite requirement: none for this bounded live trial; focused tests had already passed for
+  the touched execution and safety paths, and no unrelated suite expansion was performed.
 - Validators: `scripts/validate_governance.py`, focused governance unittest, JSON parsing, exact
   manifest path/hash validation, indexing-boundary validation, secret scan of touched files, and
   `git diff --check`.
@@ -777,9 +763,9 @@ Claim example.
   and directly affected governance validator/test hunks. No push unless explicitly authorized.
 - Completion criteria: the original bounded objective, dependencies, status, safety boundaries,
   Claim separation, evidence conclusions, registration state, and scheduler state remain explicit;
-  this contract validates; the handoff identifies this task as current `pending`; no runtime or
-  product operation occurs; no active consequential action exists; and one focused commit records
-  the migration and activation.
+  this contract validates; the handoff records this task as `passed`; the Claim journal is
+  terminal; no further consequential action is pending; and one focused documentation commit
+  records the result.
 - Stop conditions: stop on any validator failure, protected-work ambiguity, evidence identity
   ambiguity, unresolved contract decision, runtime request, unexpected product-file change, active
   prepared/input-sent action, or any need to broaden the original objective.
@@ -788,8 +774,8 @@ Claim example.
   validators, changed files, commit hash, zero runtime operations, journal/lease state, registration
   and scheduler state, unresolved actions, exact next permitted action, prohibited repeats, and
   push status.
-- Next permitted action: start a fresh execution chat for `MVP-QUEST-TO-CLAIM`; do not execute its
-  first implementation or runtime step in this activation.
+- Next permitted action: downstream M6 transition-corpus review may begin in a separate task;
+  do not repeat this Claim or start unrelated gameplay.
 - Historical evidence conclusions retained:
 - Latest read-only reconciliation at remote time `2026-07-12T20:31:08-05:00` found an already-running
   task-scoped worker and resumed game activity, but the fresh `800x1280` frame was a purchase/top-up
@@ -830,8 +816,8 @@ Claim example.
   blocks all later consequential input until positive manual reconciliation. The task worker and
   task ADB server were removed after evidence preservation; the game remains on Alliance Help to
   preserve the unresolved state, the lease is released, the VM is running, and RT-017 is intact.
-- Next: Resume `MVP-QUEST-TO-CLAIM` after reset/game-day and supported-objective evidence;
-  `M6-DQ-TRANSITION-CORPUS` remains downstream.
+- Next: `M6-DQ-TRANSITION-CORPUS` may review the retained positive transition evidence; no further
+  MVP gameplay input is authorized.
 - Alliance Help semantic correction on 2026-07-13: ROI `(556,274)-(727,330)` and tap
   `(641,302)` are the upper individual button labeled Help, not Help All. The immutable historical
   journal remains unchanged; metadata records the action as `ALLIANCE_HELP_ONE` with one request
@@ -1915,7 +1901,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### DQ-FLOW-CAMPAIGN-AUTO-BATTLE
 - Task ID: `DQ-FLOW-CAMPAIGN-AUTO-BATTLE`.
 - Title: Add a configurable dormant Campaign Auto Battle route contract.
-- Status: Completed (2026-07-16; dormant configurable route contract and 15 focused Campaign tests passed).
+- Status: Completed (2026-07-16; dormant configurable route contract amended from supervised
+  BlueStacks validation and 17 focused Campaign tests passed).
 - Milestone: Daily Quest Campaign AP route translation.
 - Dependencies: `DQ-FLOW-CAMPAIGN-AP` Passed and `TOOLS-BLUESTACKS-FLOW-CAPTURE` Completed.
 - Blocked by: none for offline implementation; live promotion remains blocked by missing exact
@@ -1926,6 +1913,14 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   `.local-captures/bluestacks/consume-ap-campaign/20260716T014118395232Z/` and seven supplied
   screenshots establish tier controls, `Ch.3`, `[3-1]`, AP `100/120`, cost `20`, Hero Lineup,
   Auto, active battle, and `WINNER`/Loot/`Tap to continue`; they do not authorize Bliss input.
+- Post-completion supervised BlueStacks validation on 2026-07-16 was explicitly user-authorized:
+  tier 1 was selected, the tier map was panned directly to `Ch.20 Westwinds`, `[20-9] Westwinds`
+  was selected, its fresh cost was 16 AP, six Auto battles succeeded, 96 AP was spent, three AP
+  regenerated during the loop, the insufficient state showed 6/120 with the 16 cost red without
+  opening refill, and the highlighted Campaign exit returned to Home/Base. One observation request
+  timed out while run 6 remained active; read-only reconciliation found Auto still active and the
+  battle later reached the normal victory terminal. No Bliss, Unraid, ADB, registration, scheduler,
+  journal, lease, premium, refill, or Claim operation occurred.
 - Direct implementation files: `tasks/campaign_auto_battle.py`, `tasks/__init__.py`,
   `tests/test_campaign_auto_battle.py`, and `docs/campaign-auto-battle.md`.
 - Shared dependencies: `tasks/campaign_ap.py`, task contracts, fixed 800x1280 profile semantics,
@@ -1988,11 +1983,117 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   pre-existing MVP and protected evidence work, do not amend, and no push.
 - Expected focused commits: `feat(tasks): model Campaign Auto Battle route`; allowed paths are the
   direct implementation files and isolated task-state hunks only.
-- Completion criteria: met offline: configurable stage parsing, bounded repeat arithmetic, semantic route
-  decisions, screenshot-polled success/loss/timeout handling, exact AP ledger validation, focused
-  tests, documentation, and validators pass with zero runtime operation.
-- Next: capture exact `1-20-9` navigation plus defeat and insufficient-AP states before a separate
-  Bliss-native promotion; `M6-DQ-TRANSITION-CORPUS` remains the existing product successor.
+- Completion criteria: met: configurable stage parsing, fresh-AP bounded repeat arithmetic with
+  separately reconciled regeneration, semantic pan/chapter/stage decisions, screenshot-polled
+  success/loss/timeout handling, insufficient-AP unwind to Home/Base, focused tests, documentation,
+  and validators pass. The route remains dormant and unregistered.
+
+### DQ-FLOW-CAMPAIGN-AUTO-BATTLE-BLUESTACKS
+- Task ID: `DQ-FLOW-CAMPAIGN-AUTO-BATTLE-BLUESTACKS`.
+- Title: Bind and validate the executable local BlueStacks Campaign AP route.
+- Status: Completed (2026-07-16; executable local BlueStacks route and supervised validation).
+- Milestone: Daily Quest Campaign AP executable BlueStacks validation.
+- Dependencies: `DQ-FLOW-CAMPAIGN-AUTO-BATTLE` Completed.
+- Blocked by: none for the local BlueStacks adapter; Bliss promotion remains blocked by
+  Bliss-native source/target/successor evidence.
+- Objective: recognize native 800x1280 Campaign frames, select a configurable stage, pan maps
+  without clicking intermediate chapters, press only the lineup Challenge control, enable Auto,
+  poll victory/defeat, repeat within AP budget, and return Home without refill.
+- Established facts: stage `1-20-9` costs 16 AP; native BlueStacks frames expose tier controls,
+  OCR-readable chapter/stage/AP/cost, a fixed lineup Challenge control, distinct Auto states, and
+  the joint WINNER/Loot/Tap-to-continue terminal. The executable validation completed one victory.
+  The supplied defeat frame establishes a joint LOSE/Improve Might/bottom-Tap-to-continue
+  signature; the Buy Now panel is excluded from target binding.
+- Scope: local BlueStacks `emulator-5554` only; Bliss, Unraid, production registration, scheduler,
+  Daily Claim, premium currency, AP refill, and unrelated gameplay remain prohibited.
+- Authorized runtime action: one supervised bounded local BlueStacks validation for stage `1-20-9`;
+  consume only naturally available AP at the observed 16-AP stage cost and stop when unaffordable.
+- Maximum transport inputs: Bliss 0; local BlueStacks navigation/consequential inputs 240 total;
+  maximum completed stage runs 10; AP budget 120; no identical blind retries.
+- Navigation-only recovery: pan with a different bounded gesture when the configured chapter/stage
+  is absent; one base request may reveal one recognized lower-right Campaign exit; otherwise stop.
+- Consequential action: stage Challenge may spend only the recognized configured AP cost; lineup
+  Challenge and Auto are permitted only after their fresh recognized predecessors.
+- Runtime interface: checked-in `scripts/bluestacks_campaign_ap.py` or Computer Use against the exact
+  selected BlueStacks window; no production adapter or public ADB connection.
+- Negative controls: unknown/stale frame, wrong stage/cost, refill, insufficient AP, ambiguous
+  result, timeout, missing target, AP ledger mismatch, and repeat after defeat all fail closed.
+- Direct implementation files: `tasks/campaign_auto_battle_vision.py`,
+  `tasks/campaign_auto_battle_runtime.py`, project-owned template assets,
+  `scripts/bluestacks_campaign_ap.py`, focused tests, Campaign documentation, and exact task/handoff
+  state hunks.
+- Shared dependencies: the completed semantic Campaign contract, OpenCV, Tesseract, the existing
+  BlueStacks collector transport, and native 800x1280 profile semantics.
+- Transitive regression set: existing Campaign Auto Battle, Campaign AP, and Daily Campaign AP tests.
+- Allowed changes: direct implementation files, project-owned Campaign templates, focused tests,
+  Campaign documentation, and exact task/handoff state hunks.
+- Prohibited changes: Bliss/Unraid production adapters, public ADB, journals, leases, Daily Claim,
+  premium/refill behavior, unrelated gameplay, registration, and scheduler state.
+- Registration changes: forbidden; preserved not registered.
+- Scheduler changes: forbidden; preserved disabled/ineligible.
+- Actions that must not be repeated: the obsolete bottom-left `campaign-exit-base` binding, any
+  identical input after unchanged semantic state, any completed stage transaction after defeat,
+  and any refill/premium control.
+- Required source: fresh native 800x1280 local BlueStacks frames plus project-owned templates
+  derived from the exact user-supplied and retained frames.
+- Exact target semantics: configured tier/chapter/stage, stage Challenge, fixed bottom lineup
+  Challenge, disabled Auto, strict victory continuation, safe defeat return, and highlighted exit.
+- Required local association: OCR stage/AP/cost, template state, target ROI, route progress, and AP
+  ledger all derive from the same fresh frame sequence and configured stage.
+- Coordinate space: raw native 800x1280 BlueStacks frames only; window previews and vendor
+  coordinates cannot authorize adapter dispatch.
+- Accepted signals: exact stage header, numeric AP/cost, button color/text, chapter header, red stage
+  node glyph, wave fraction, enabled/disabled Auto comparison, and joint victory signature.
+- Rejected weak signals: elapsed time alone, transport success, hero portrait/identity, partial
+  victory text, stale OCR, unrecognized map digits, and coordinate-only targets.
+- Ambiguous-result behavior: stop terminally, retain local frames/events, send no retry, refill, or
+  substitute action.
+- Zero-cost requirement: not applicable; Campaign runs require a positive known AP cost.
+- Quantity limits: whole runs only, bounded by available AP, AP budget 120, run cap 10, and the
+  180-second per-battle timeout ceiling.
+- Resource consumption policy: consume only naturally available AP at the configured stage cost;
+  never refill and stop when another complete run is unaffordable.
+- Premium or strategic restrictions: all AP refills, premium currency, paid Blitz, Ultimate
+  Challenge, and strategic substitutions are forbidden.
+- Active evidence manifest: none canonical; local ignored session frames and `events.jsonl` retain
+  the BlueStacks validation trace.
+- Required artifacts: checked-in recognizer/controller/runner, project-owned templates and manifest,
+  focused tests, documentation, and local session result records.
+- Immediate-before/immediate-post/result/journal: local frames and `events.jsonl` provide the
+  BlueStacks validation sequence; no production operational journal or lease was created.
+- Additional task-specific artifacts: local sessions under
+  `.local-captures/campaign-ap-live/1-20-9-*` including the verified victory and final Home terminal.
+- Focused tests: compile plus `tests.test_campaign_auto_battle_runtime`,
+  `tests.test_campaign_auto_battle`, `tests.test_campaign_ap`, and
+  `tests.test_daily_campaign_ap`.
+- Integration tests: retained local BlueStacks frame replay plus one explicitly authorized live
+  local BlueStacks validation; no Bliss integration.
+- Transitive regression tests: existing Campaign AP and Daily Campaign AP focused modules.
+- Full-suite requirement: none; do not run the unrelated full suite.
+- Validators: governance validation, handoff-state JSON parsing, asset-manifest JSON parsing,
+  `git diff --check`, and touched-file secret scan.
+- Known baseline failures: unrelated dirty-worktree changes remain outside this task; no new focused
+  Campaign failures are accepted.
+- Evidence requirement: NOT_APPLICABLE: ignored local BlueStacks frames/events are validation
+  diagnostics, not canonical production evidence, and must not be staged as Bliss authorization.
+- Valid blocked outcomes: unknown screen, missing target, OCR/cost mismatch, timeout, defeat without
+  a safe return, absent highlighted exit, duplicate input, or protected-work overlap.
+- Blocked-result commit policy: preserve coherent task-owned implementation and local diagnostics;
+  never broaden scope or absorb unrelated dirty changes.
+- Commit policy: one focused commit only if task-owned hunks can be isolated from the existing dirty
+  worktree; per-commit allowed paths are the listed direct files and exact task/handoff hunks; no push.
+- Expected focused commits: `feat(tasks): execute Campaign AP on BlueStacks`; no push.
+- Completion criteria: met. Twenty-five focused Campaign tests pass; retained replay recognizes
+  the route; the live adapter panned directly to chapter 20, selected stage 9, verified 21 AP and
+  cost 16, used only the lineup Challenge control, enabled Auto, recognized victory, verified
+  6 AP after one regenerated AP, and returned Home. The original return binding repeated a
+  navigation-only base request; it was stopped, replaced with the exact highlighted lower-right
+  exit plus an identical-input retry guard, and the final Home frame terminated at 9 AP without
+  refill or further input. The supplied defeat frame is recognized only by its three-part
+  signature, binds only the bottom continuation, excludes Buy Now, and forces a no-repeat unwind
+  through chapter and tier to Home.
+- Next: define the exact requested Nova objective before activating a separate atomic workflow;
+  `M6-DQ-TRANSITION-CORPUS` remains the existing product successor until that happens.
 
 ### DQ-FLOW-WORLD-STAMINA-ENGINE
 - Status: Passed (2026-07-14; offline shared primitive and 5 focused tests).
@@ -2173,6 +2274,56 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   request blocks; stop on combat/unknown.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; challenge policy required.
+
+### DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS
+- Task ID: `DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS`
+- Title: Separate Ruins Challenge Daily workflow — local BlueStacks validation
+- Status: Passed (2026-07-16; dormant implementation and supervised local validation)
+- Milestone: Ruins Challenge recognition, bounded challenge state machine, chest separation
+- Dependencies: native 800x1280 frame contract, current reset identity, Computer Use local BlueStacks access
+- Blocked by: none for local validation; production promotion remains separately gated
+- Objective: recognize Home/Base and Ruins, identify current-day stages, challenge authorized zero-cost stages, reconcile results, claim Ruins chests, and return Home/Base
+- Established facts: live flow was row Challenge → detail Attack → NPC Dispatch → explicit result → Tap to continue; current validation exposed Nova and Module timer-bound stages
+- Direct implementation files: `tasks/ruins_challenge.py`, `tasks/ruins_challenge_runtime.py`, `tasks/ruins_challenge_vision.py`, `tests/test_ruins_challenge.py`, `scripts/ruins_challenge_inspect.py`
+- Shared dependencies: `tasks/contracts.py`, `tasks/profile.py`, existing scheduler and governance validators are read-only dependencies
+- Transitive regression set: Noah’s Tavern recruits, Nova Praise, Bioenhancer, Personal Might Praise, and existing recruit flows
+- Allowed changes: only the Ruins files, focused tests, local evidence record/manifest, documentation, and allowed paths directly attributable to this task
+- Prohibited changes: Bliss/Unraid production input, ADB bypass, login/manual-only states, Exchange, Mall, purchase, premium, ticket, points spending, Daily Claim, registration, scheduler promotion, and unrelated workflows
+- Authorized runtime action: Computer Use inspection and local BlueStacks input only; one fresh-bound consequential input per challenge or chest
+- Maximum transport inputs: one row initiation per distinct authorized stage and one Claim per distinct available Ruins chest; no identical retries
+- Navigation-only recovery: fresh source recognition, safe close/back, return to Ruins list, and final Home/Base only
+- Consequential action: challenge initiation, Dispatch, and Ruins chest Claim are independently journaled/reconciled actions
+- Registration changes: none; `ruins_challenge` matrix row remains `NOT_REGISTERED`
+- Scheduler changes: none; scheduler eligibility remains `false`
+- Actions that must not be repeated: Nova or Module after explicit failure; any ambiguous result; any claimed chest; Exchange/Mall/purchase/ticket control
+- Required source: fresh native BlueStacks Home/Base and Ruins Challenge frames, with supplied screenshots reference-only
+- Exact target semantics: positively recognized challenge identity, current reset/day state, enabled Challenge/Attack/Dispatch or available chest Claim control
+- Required local association: reset identity `local-2026-07-16-ruins`, frame hash, action key, challenge/chest identity, immediate-before and immediate-post evidence
+- Negative controls: locked Core/Cube, wrong-day rows, unknown rows/results, overlays, clipped/stale targets, premium/paid/ticketed/currency controls, Exchange, Mall
+- Coordinate space: raw native 800x1280 only
+- Accepted signals: explicit title, identity, row day/progress, enabled zero-cost control, NPC troop provision, explicit WIN/LOSE result, positive progress/chest postcondition
+- Rejected weak signals: transport success, stale/reference geometry, generic green/gold pixels, unknown/partial OCR, inferred stage/day, missing close control
+- Ambiguous-result behavior: mark unresolved, stop, preserve evidence, and never retry identically
+- Zero-cost requirement: challenge detail must show NPC troops and no AP, ticket, premium, or currency cost
+- Quantity limits: required Daily challenge count is 1; optional second only when independently recognized and configured; each chest at most once
+- Resource consumption policy: no resource consumption except Ruins medals received by chest claim; no Ruins points spending
+- Premium or strategic restrictions: reject premium, paid, ticketed, Mall, Exchange, and currency-spending controls
+- Active evidence manifest: `evidence/sessions/20260716-ruins-challenge/manifest.json`
+- Required artifacts: Home/Base, Ruins screen, both available rows, locked rows, detail, immediate-before/post, result, progress/Daily row, chest before/post, final Home/Base
+- Immediate-before/immediate-post/result/journal: retained under `evidence/sessions/20260716-ruins-challenge/`; `record.md` reconciles all live actions
+- Additional task-specific artifacts: `scripts/ruins_challenge_inspect.py`; challenge and chest ledgers in the runtime controller
+- Focused tests: `tests/test_ruins_challenge.py`; 12 identities, day filtering, authorization, result/chest/controller guards
+- Integration tests: `tests/test_challenge_disabled.py`; execution matrix remains disabled and dormant
+- Transitive regression tests: Noah’s Tavern, Nova Praise, Bioenhancer, Personal Might Praise, and existing recruitment tests
+- Full-suite requirement: run focused tests first, then requested regressions and governance validators; report baseline failures separately
+- Validators: compilation, focused Ruins tests, regression tests, governance validation, handoff JSON, `git diff --check`, touched-file secret scan
+- Known baseline failures: report only pre-existing fixture/environment failures; no new touched-component failure is acceptable
+- Evidence requirement: TASK_LOCAL retained evidence is required for this supervised local validation; it is not Bliss production evidence
+- Valid blocked outcomes: unknown screen/row/result, locked/unavailable/premium stage, overlay, stale frame, unresolved postcondition, duplicate action key
+- Blocked-result commit policy: no commit required or permitted for this task; preserve local work and evidence
+- Commit policy: do not stage, commit, push, or register; no push
+- Expected focused commits: none
+- Completion criteria: implementation compiled, focused/regression/governance validation passed or baseline-separated, evidence retained, final Home/Base recognized, no unresolved action, production registration/scheduler unchanged
 
 ### DQ-FLOW-HERO-DUEL
 - Status: Passed (2026-07-14; disabled Hero Duel event contract and 5 focused tests).

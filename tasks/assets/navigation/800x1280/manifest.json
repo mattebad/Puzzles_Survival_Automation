@@ -1,0 +1,94 @@
+{
+  "asset_schema_version": 1,
+  "profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "width": 800,
+  "height": 1280,
+  "game_package": "com.global.ztmslg",
+  "review_status": "promoted",
+  "assets": [
+    {
+      "path": "cash_mall_startup.png",
+      "sha256": "c2a8de297912e402715784f3893a48b00651a76dcf5b95f53fde2647a44f311a",
+      "source_evidence_path": "evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png",
+      "purpose": "cash/mall startup recognition reference"
+    },
+    {
+      "path": "reset_reconcile.png",
+      "sha256": "71a4134084acf0deb3516dfc25e6f6e2ba38bb55989b084b61cbf0298963b1a8",
+      "source_evidence_path": "evidence/sessions/20260712-mvp-quest-to-claim/reset-reconcile-current.png",
+      "purpose": "promotional/reset overlay recognition and back target provenance"
+    },
+    {
+      "path": "daily_postreset.png",
+      "sha256": "2af9d0d729fa3d18cf59909b94c15f7165bef715eba808ce665f58f3dbdb6285",
+      "source_evidence_path": "evidence/sessions/20260712-mvp-quest-to-claim/daily-postreset-observation-20260713.png",
+      "purpose": "post-reset Daily Quest recognition fixture"
+    },
+    {
+      "path": "promotional_home_source.png",
+      "sha256": "44f0c0ccd833ce08b59443b7215baebbcd32b5554574eb37427c2e5b321b1bbf",
+      "source_evidence_path": "evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape/live-nav-home-quest-promo-001-source.png",
+      "purpose": "promotional-overlay navigation source fixture"
+    },
+    {
+      "path": "promotional_home_immediate_before.png",
+      "sha256": "44f27dc3428863f280146d69af9f9598b2beacc2a7fd06f262c29a1de0c7f719",
+      "source_evidence_path": "evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape/live-nav-home-quest-promo-001-immediate-before-1.png",
+      "purpose": "promotional-overlay immediate-before fixture"
+    },
+    {
+      "path": "alliance_help_source.png",
+      "sha256": "4595bfabe6720c4598ce52484bda65ad188c316cd83ded6072691e8e2924eff6",
+      "source_evidence_path": "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png",
+      "purpose": "Alliance Help screen and controls recognition reference"
+    },
+    {
+      "path": "alliance_help_post.png",
+      "sha256": "c5a5530ddb9fe8d05980bc18651e030937cf75f668d0ad1ab22766119bce3f76",
+      "source_evidence_path": "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-post-1.png",
+      "purpose": "Alliance Help first postcondition fixture"
+    },
+    {
+      "path": "alliance_help_semantic_post.png",
+      "sha256": "b24254c9e160f8a9a6cbb6a7fb3117448c71a1a352ba4365f56018ed86ce6fac",
+      "source_evidence_path": "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote/alliance-help-1783986842-post-1.png",
+      "purpose": "Alliance Help terminal semantic postcondition fixture"
+    },
+    {
+      "path": "rankings_menu.png",
+      "sha256": "ddaa84c5d12f3ef21efd236ef7b9f384d2bb2ddb7a5e7e74510c63a38d52bb83",
+      "source_evidence_path": "evidence/sessions/20260713-personal-might-praise/live-claim-success-020/more-to-rankings-game-attempt-1-attempt-3-source-011.png",
+      "purpose": "More menu Rankings target recognition reference"
+    },
+    {
+      "path": "rankings.png",
+      "sha256": "8a60761c0bd0e0bd3553b03c51327eb22652bc2c2cf1bb04b9935262b6af3a86",
+      "source_evidence_path": "evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png",
+      "purpose": "Rankings screen and Personal Might row recognition reference"
+    },
+    {
+      "path": "personal_might.png",
+      "sha256": "9e21a14fefd67167d8237801e570ec442948d908e3718834c5fa71f5dd572a8b",
+      "source_evidence_path": "evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png",
+      "purpose": "Personal Might leaderboard and Praise target recognition reference"
+    },
+    {
+      "path": "reset_popup_source.png",
+      "sha256": "73952c7f000dcefcf0fd5c7fe3f47be99eb8037e414fea67d1b116153cb1025e",
+      "source_evidence_path": "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/reset-popup-source-002.png",
+      "purpose": "reset popup and VIP points popup recognition reference"
+    },
+    {
+      "path": "speedup_help_empty.png",
+      "sha256": "c863ba9fedda317191cfcb03af5c191d3f18f2b318d2827bdb1f2280f59e85bf",
+      "source_evidence_path": "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/reset-popup-close-post-004.png",
+      "purpose": "Speedup Help empty-state and Help All recognition fixture"
+    },
+    {
+      "path": "daily_praise_claim.png",
+      "sha256": "60276731cd0227ca8fea15d07e65203c1bb7cbc8bf0c1c632c2791c501b5425b",
+      "source_evidence_path": "evidence/sessions/20260713-personal-might-praise/live-daily-claim-evidence-019/praise-daily-claim-evidence-019.png",
+      "purpose": "Personal Might Daily row Claim-ready recognition fixture"
+    }
+  ]
+}

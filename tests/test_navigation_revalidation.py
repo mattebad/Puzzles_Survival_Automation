@@ -21,26 +21,11 @@ from scripts.personal_might_praise_live import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEEDUP_FRAME = (
-    ROOT
-    / "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006"
-    / "reset-popup-close-post-004.png"
-)
-MORE_FRAME = (
-    ROOT
-    / "evidence/sessions/20260713-personal-might-praise/live-route-recovery-014"
-    / "more-to-rankings-game-attempt-1-attempt-3-source-011.png"
-)
-RANKINGS_FRAME = (
-    ROOT
-    / "evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015"
-    / "rankings-evidence-013.png"
-)
-PERSONAL_MIGHT_FRAME = (
-    ROOT
-    / "evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016"
-    / "personal-might-leaderboard-evidence-007.png"
-)
+NAVIGATION_ASSETS = ROOT / "tasks/assets/navigation/800x1280"
+SPEEDUP_FRAME = NAVIGATION_ASSETS / "speedup_help_empty.png"
+MORE_FRAME = NAVIGATION_ASSETS / "rankings_menu.png"
+RANKINGS_FRAME = NAVIGATION_ASSETS / "rankings.png"
+PERSONAL_MIGHT_FRAME = NAVIGATION_ASSETS / "personal_might.png"
 HOME_FRAME = (
     ROOT
     / "evidence/sessions/20260712-m6-dq-bootstrap/assets"
@@ -48,11 +33,7 @@ HOME_FRAME = (
 )
 DAILY_REFERENCE = ROOT / "evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png"
 MAIN_QUEST_REFERENCE = ROOT / "evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png"
-PERSONAL_MIGHT_CLAIM_FRAME = (
-    ROOT
-    / "evidence/sessions/20260713-personal-might-praise/live-daily-claim-evidence-019"
-    / "praise-daily-claim-evidence-019.png"
-)
+PERSONAL_MIGHT_CLAIM_FRAME = NAVIGATION_ASSETS / "daily_praise_claim.png"
 
 
 class SpeedupHelpBackRecognitionTests(unittest.TestCase):

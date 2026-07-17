@@ -4,7 +4,7 @@
   "repository": {
     "branch": "main",
     "head": "1b44629 (passive F9 finalization acknowledgement)",
-    "origin_relationship": "main ahead 10 of origin/main; no push",
+    "origin_relationship": "main ahead 12 of origin/main; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
       "BACKLOG.md (pre-existing MVP changes)",
@@ -32,32 +32,51 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE",
+  "current_task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE-BLUESTACKS",
   "current_task_state": "completed",
   "next_task_id": "M6-DQ-TRANSITION-CORPUS",
   "next_task_activation_status": "not_applicable",
-  "phase": "offline_campaign_auto_battle_contract_completed",
-  "objective": "Implement a dormant configurable Campaign Auto Battle route/state contract from the accepted BlueStacks capture without live registration or dispatch.",
-  "last_safe_completed_step": "Dormant Campaign Auto Battle route contract completed: configurable stage 1-20-9 parsing, bounded AP runs, semantic tier/chapter/stage planning, Auto polling, victory/loss/timeout gates, and exact AP ledger; 15 focused Campaign tests and validators passed.",
-  "next_permitted_action": "Capture exact 1-20-9 navigation plus defeat and insufficient-AP states in a separate local BlueStacks session; send no Bliss or production input.",
+  "phase": "executable_bluestacks_campaign_ap_defeat_completed",
+  "objective": "Bind native 800x1280 recognition and a bounded executable local BlueStacks controller for configurable Campaign AP Auto Battle without production registration.",
+  "last_safe_completed_step": "The supplied native defeat frame now passes strict LOSE/Improve Might/bottom-Tap-to-continue recognition, binds no Buy Now target, and forces a no-repeat chapter/tier/Home unwind; 25 focused tests passed.",
+  "next_permitted_action": "Define and capture the exact requested Nova objective as a separate atomic workflow; do not promote Campaign to Bliss, register, schedule, refill AP, or repeat the incorrect bottom-left return target.",
   "actions_already_performed": [
     "Read-only Git status, required governance files, the exact MVP backlog section, direct dependencies, and exact evidence references.",
     "Migrated and validated the MVP durable contract and created its compact task-specific evidence manifest from exact named references.",
-    "No runtime navigation, gameplay, scheduler, registration, or consequential action occurred; supported pnsctl preflight, ADB connectivity verification, and read-only journal inspection were performed.",
+    "Fresh fixed-profile source and immediate-before frames established the selected Daily Quest screen, current game day, and exact local Claim target.",
+    "Exactly one Claim input was dispatched through the central policy/executor path; no prerequisite or navigation input was needed in this task cycle.",
+    "The Claim initially persisted unresolved on unexpected successor; positive toast, row disappearance, and points increase were preserved and reconciled to confirmed without retry.",
     "Focused governance, task-contract, handoff identity, manifest, JSON, indexing, secret-scan, and diff checks were run for the activation commit.",
     "Supported pnsctl preflight verified the VM running, one existing task worker, and private ADB device connectivity.",
     "The current pnsctl operational journal was preserved outside the repository and inspected read-only; it contains terminal unresolved action alliance-help-1783981635 with reason unexpected_successor and a released lease.",
-    "No runtime navigation, gameplay, consequential, Claim, or substitute action was dispatched in this execution attempt.",
+    "The historical alliance-help-1783981635 record was treated as outside this task cycle and was not retried or reused.",
+    "Generalized scripts/validate_governance.py without changing production behavior.",
+    "Added focused governance coverage for arbitrary active IDs, canonical completed/passed handling, conditional evidence, and declared successors.",
+    "Added the durable TOOLS-BLUESTACKS-FLOW-CAPTURE backlog contract with NOT_APPLICABLE evidence.",
     "Implemented scripts/bluestacks_flow_collector.py and docs/bluestacks-flow-capture.md with explicit serial selection, safety gates, mock/record-only/dispatch modes, user-confirmed actions, labels, progress, atomic manifests, and ZIP verification.",
     "Verified compile, help, pure coordinate checks, synthetic mock session, tap/swipe/Back/Wait action recording, clean/annotated frame separation, local hashes, and archived hashes without invoking ADB.",
+    "The current WSL environment lacks tkinter and OpenCV; Windows GUI smoke verification is deferred to the documented mock command.",
     "The Windows passive smoke at .local-captures/bluestacks/passive-smoke/20260715T233723860253Z completed with mode passive-record-only but steps=0 and only the initial frame; no tap or drag was retained.",
     "The Windows passive smoke at .local-captures/bluestacks/passive-smoke/20260716T010506531062Z completed with mode passive-record-only, steps=0, mouse_down_messages=3, ignored_outside_rendered_frame=3, and no retained action frames.",
     "The Windows passive smoke at .local-captures/bluestacks/passive-smoke/20260716T011351727741Z received one click outside the selected root and none of the user's numerous BlueStacks clicks, consistent with a Windows integrity-level boundary.",
     "Elevated Windows passive smoke .local-captures/bluestacks/passive-smoke/20260716T012457275520Z completed with 11 actions: five taps and six swipes, each with clean before/after frames and a separate annotation.",
     "Verified 36 local artifact hashes, 37 sorted ZIP members, archived manifest parsing, all archived hashes, in-bounds raw coordinates, and before-frame timestamps predating every observed action.",
-    "Committed a37888e for selected-root filtering, 4660d1b for DPI diagnostics, 1bfee81 for the integrity gate, and 1b44629 for immediate F9 finalization feedback."
+    "Committed a37888e for selected-root filtering, 4660d1b for DPI diagnostics, 1bfee81 for the integrity gate, and 1b44629 for immediate F9 finalization feedback.",
+    "Reviewed local Campaign capture 20260716T014118395232Z and seven screenshots without dispatching input; recognized tier, chapter, stage, AP cost, lineup, Auto, active battle, and victory terminal states.",
+    "Implemented the dormant DQ-FLOW-CAMPAIGN-AUTO-BATTLE contract with configurable stage identity, bounded AP run planning, semantic route decisions, screenshot-polled battle results, loss handling, and exact AP ledger verification.",
+    "Passed compilation, 15 focused Campaign tests, governance validation, handoff JSON parsing, git diff checking, and touched-file secret scanning.",
+    "Explicitly user-authorized supervised BlueStacks validation selected tier 1, panned to Ch.20 Westwinds, selected [20-9], and established a 16 AP cost.",
+    "Six Auto battles reached the strict WINNER/Loot/Tap to continue terminal; AP moved from 99 to 6 after 96 spend plus three naturally regenerated AP.",
+    "Insufficient AP rendered the 16 cost red at 6/120 without opening refill; the dialog was closed and the highlighted Campaign exit returned to Home/Base.",
+    "Amended the dormant route for fresh AP reconciliation, independently accounted regeneration, chapter/dialog unwind, Campaign exit, and actual victory successor; 17 focused Campaign tests passed.",
+    "Added project-owned native 800x1280 OCR/template recognition, a lineup-Challenge-only gate, dynamic map node binding, a bounded runtime controller, and dry-run-by-default scripts/bluestacks_campaign_ap.py.",
+    "The executable adapter panned Home, selected tier 1, dragged directly to chapter 20 without clicking intermediate chapters, selected stage 9, verified 21/120 and cost 16, pressed stage Challenge and only the fixed lineup Challenge, enabled Auto, and recognized the strict victory signature.",
+    "The live ledger verified 6/120 after one victory (16 spent plus one regenerated AP). The original return binding repeated a navigation-only bottom-left base request; the runner was terminated, the exact lower-right highlighted Campaign exit was captured and bound, and a generic identical-input retry guard was added.",
+    "One corrected Campaign-exit input returned to Home/Base. A final fresh adapter run recognized 9/120 as unaffordable and terminated without gameplay input. The battle timeout ceiling is now 180 seconds.",
+    "Added project-owned LOSE, Improve Might, and bottom Tap-to-continue templates from the supplied native defeat frame. The recognizer binds only the bottom continuation, explicitly excludes Buy Now, and loss_seen forces chapter/tier/Home unwind without another stage selection."
   ],
   "actions_not_to_repeat": [
+    "Do not repeat the obsolete bottom-left campaign-exit-base target or any identical input after an unchanged semantic state; one base request may only be followed by the recognized highlighted lower-right Campaign exit.",
     "Do not start workers or runtime processes.",
     "Do not use ADB, pnsctl live commands, remote shells, or collect evidence.",
     "Do not repeat bioenhancer-free-1784069057 or bioenhancer-free-1784079616.",
@@ -68,27 +87,27 @@
     "Do not perform Supply Depot, recruitment, unrelated Daily work, scheduler activation, registration changes, or downstream backlog work.",
     "Do not move, delete, compact, normalize, or stage protected evidence.",
     "Do not execute the first implementation or runtime step of MVP-QUEST-TO-CLAIM in this activation.",
-    "Do not issue any new input while alliance-help-1783981635 remains unresolved in the authoritative operational journal."
+    "Do not repeat daily-claim-1784092554 or issue any additional gameplay input in this task cycle.",
+    "Do not connect to Bliss or Unraid, invoke ADB, or dispatch gameplay from this implementation task.",
+    "Do not inspect or stage protected evidence or .local-captures."
   ],
   "runtime": {
-    "vm_state": "running (verified by pnsctl preflight)",
-    "worker_state": "pns-mvp-help-all-20260713 Up 26 hours (verified by pnsctl worker-status)",
-    "active_operator_collector_automation_test_emulator_processes": "one existing task worker observed; no competing operator evidenced by supported preflight",
-    "adb_exposure_and_connection_state": "private 192.168.122.79:5555 device connected; preflight listener remained loopback-only",
-    "expected_fixed_profile": "pns-blissos-poc-virgl-800x1280-v1; 800x1280; 160 dpi",
-    "observed_current_profile": "NOT_VERIFIED_THIS_RUN; no frame captured after the unresolved-action gate was found",
+    "vm_state": "NOT_VERIFIED_THIS_RUN; no runtime operation authorized",
+    "worker_state": "NOT_VERIFIED_THIS_RUN; no worker operation authorized",
+    "active_operator_collector_automation_test_emulator_processes": "NOT_VERIFIED_THIS_RUN; no process discovery authorized",
+    "adb_exposure_and_connection_state": "NOT_VERIFIED_THIS_RUN; ADB prohibited",
+    "expected_fixed_profile": "pns-blissos-poc-virgl-800x1280-v1; retained project expectation only",
+    "observed_current_profile": "NOT_VERIFIED_THIS_RUN",
     "foreground_package_activity": "NOT_VERIFIED_THIS_RUN",
-    "manual_only_screen_state": "UNKNOWN; no manual-only state may be automated"
+    "manual_only_screen_state": "NOT_VERIFIED_THIS_RUN"
   },
   "journals_and_lease": {
-    "authoritative_operational_journal_path": "/mnt/cache/puzzle-survival-runtime/mvp-quest-to-claim/20260713-help-all/evidence/actions.sqlite3 (pnsctl REMOTE_DB); retained task journal remains immutable evidence",
-    "lease_owner": "pnsctl-1783981635 (journal record)",
-    "lease_status": "RELEASED; unresolved action remains gate-blocking",
-    "lease_expiry": "released_at=1783981647.312701",
-    "active_prepared_input_sent_unresolved_action_ids": [
-      "alliance-help-1783981635 (terminal unresolved; global gate)"
-    ],
-    "latest_confirmed_consequential_action": "bioenhancer-free-1784079616",
+    "authoritative_operational_journal_path": "evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3 (task-scoped preserved copy)",
+    "lease_owner": "pnsctl-1784092554 (journal record)",
+    "lease_status": "TERMINAL CONFIRMED; lease expired by policy",
+    "lease_expiry": "expired_at=1784093157.674505",
+    "active_prepared_input_sent_unresolved_action_ids": [],
+    "latest_confirmed_consequential_action": "daily-claim-1784092554",
     "relevant_navigation_only_records": [
       "evidence/sessions/20260714-bioenhancer-e2e-validation/nav-daily-bioenhancer-go-1784079563-result.json",
       "evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json"
@@ -97,17 +116,17 @@
       "evidence/sessions/20260714-bioenhancer-live-transaction/actions-bioenhancer-free-1784069057.sqlite3",
       "evidence/sessions/20260714-bioenhancer-live-transaction/daily-reconciliation-status.json"
     ],
-    "historical_unresolved_classification": "Current authoritative operational journal records alliance-help-1783981635 as terminal unresolved with unexpected_successor; no reconciliation was attempted. The separate reset-popup navigation diagnostic is terminally classified."
+    "historical_unresolved_classification": "alliance-help-1783981635 remains retained historical evidence and was not reused. The current Claim unresolved result was manually reconciled to confirmed from positive postcondition evidence."
   },
   "game_day": {
-    "game_day_id": null,
-    "reset_status_or_next_reset": "NOT_VERIFIED_THIS_RUN; recorded historical identity does not authorize execution",
-    "derivation": "docs/research/bioenhancer_e2e_validation_manifest.json",
-    "active_task_cycle_binding": "MVP execution remains unbound; fresh reset/game-day identity is required after unresolved-action clearance."
+    "game_day_id": "NOT_APPLICABLE",
+    "reset_status_or_next_reset": "NOT_VERIFIED_THIS_RUN",
+    "derivation": "governance-only task; no runtime inspection",
+    "active_task_cycle_binding": "not applicable; no gameplay or runtime action"
   },
   "registration_and_scheduler": {
-    "registered_operator_tasks": "NOT_REGISTERED_UNCHANGED (recorded; not live verified)",
-    "scheduler_enabled_disabled": "DISABLED/INELIGIBLE (recorded; not live verified)",
+    "registered_operator_tasks": "NOT_REGISTERED_UNCHANGED",
+    "scheduler_enabled_disabled": "DISABLED/INELIGIBLE",
     "scheduler_eligible_flows": [],
     "live_task_state_row_count": "NOT_VERIFIED_THIS_RUN",
     "pending_promotion_gates": [
@@ -120,15 +139,15 @@
     "last_full_suite_count": "NOT_RUN_THIS_RUN; prior result not revalidated",
     "known_accepted_baseline_failures": "Report prior cv2/evidence-fixture environment failures separately if encountered",
     "new_regressions": [],
-    "last_relevant_focused_tests": "Campaign Auto Battle and existing Campaign AP compilation plus 15 focused tests passed; governance validation, handoff JSON parsing, git diff checking, and touched-file secret scan passed."
+    "last_relevant_focused_tests": "Campaign Auto Battle vision/runtime plus existing Campaign AP compilation and 25 focused tests passed; governance validation, asset manifest parsing, and git diff checking passed."
   },
   "evidence": {
     "active_evidence_manifest": null,
-    "raw_source": "NOT_CAPTURED; execution stopped at unresolved-action gate",
-    "immediate_before": "NOT_VERIFIED_THIS_RUN",
-    "immediate_post": "NOT_VERIFIED_THIS_RUN",
-    "semantic_result": "NOT_VERIFIED_THIS_RUN",
-    "operational_journal": "/mnt/cache/puzzle-survival-runtime/mvp-quest-to-claim/20260713-help-all/evidence/actions.sqlite3; read-only gate inspection verified unresolved action",
+    "raw_source": ".local-captures/campaign-ap-live/1-20-9-20260716T050321849157Z/frames/frame-0007.png",
+    "immediate_before": ".local-captures/campaign-ap-live/1-20-9-20260716T051004436540Z/frames/frame-0013.png",
+    "immediate_post": ".local-captures/campaign-ap-live/1-20-9-20260716T051004436540Z/frames/frame-0014.png",
+    "semantic_result": ".local-captures/campaign-ap-live/1-20-9-20260716T052520571190Z/result.json",
+    "operational_journal": ".local-captures/campaign-ap-live/1-20-9-20260716T051004436540Z/events.jsonl; local BlueStacks diagnostic trace only",
     "historical_source_journal": "evidence/sessions/20260714-bioenhancer-live-transaction/actions-bioenhancer-free-1784069057.sqlite3",
     "unresolved_evidence": "evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json",
     "must_retain_artifacts": [
@@ -138,87 +157,24 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Governance-only offline activation produces no canonical runtime evidence; prior MVP references remain preserved below.",
+    "evidence_requirement_reason": "This explicitly authorized local BlueStacks validation retains ignored diagnostic frames/events but creates no canonical Bliss production evidence manifest.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "collector": {
     "command": "python scripts\\bluestacks_flow_collector.py --adb \"C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe\" --serial emulator-5554 --passive --window-title \"BlueStacks App Player 4\" --flow-id passive-smoke --daily-objective \"Passive smoke\" --post-action-delay 1",
     "mock_verification_command": "python3 scripts/bluestacks_flow_collector.py --mock-image /tmp/bluestacks-collector-synthetic.png --flow-id collector-smoke-test --daily-objective Collector smoke test --post-action-delay 0 --output-directory /tmp/bluestacks-collector-check --no-gui",
     "temporary_verified_output": "/tmp/bluestacks-collector-check/bluestacks/collector-smoke-test/20260715T211220540935Z/",
-    "supported_modes": [
-      "mock",
-      "live-record-only",
-      "passive-record-only",
-      "live-dispatch"
-    ],
-    "supported_action_types": [
-      "tap",
-      "swipe",
-      "android_back",
-      "wait",
-      "observation-only"
-    ],
-    "safety_gates": [
-      "explicit exact serial confirmation",
-      "local emulator or loopback BlueStacks endpoint",
-      "reachable device",
-      "portrait 800x1280 frame",
-      "foreground package com.global.ztmslg",
-      "passive mode has no dispatch path",
-      "record-only and per-action confirmation controls"
-    ],
-    "verification": [
-      "python3 -m py_compile",
-      "--help",
-      "--self-check",
-      "synthetic mock session",
-      "manifest and SHA-256 verification",
-      "deterministic ZIP member and archived-hash verification"
-    ],
+    "supported_modes": ["mock", "live-record-only", "passive-record-only", "live-dispatch"],
+    "supported_action_types": ["tap", "swipe", "android_back", "wait", "observation-only"],
+    "safety_gates": ["explicit exact serial confirmation", "local emulator or loopback BlueStacks endpoint", "reachable device", "portrait 800x1280 frame", "foreground package com.global.ztmslg", "passive mode has no dispatch path", "record-only and per-action confirmation controls"],
+    "verification": ["python3 -m py_compile", "--help", "--self-check", "synthetic mock session", "manifest and SHA-256 verification", "deterministic ZIP member and archived-hash verification"],
     "gui_verification": "Passed on Windows in elevated PowerShell: session 20260716T012457275520Z captured 11 passive actions with complete frame triplets and verified ZIP. F9 finalization delay is now acknowledged immediately by 1b44629.",
-    "last_windows_smoke": {
-      "session_directory": ".local-captures/bluestacks/passive-smoke/20260716T012457275520Z",
-      "status": "completed",
-      "mode": "passive-record-only",
-      "steps": 11,
-      "actions": {
-        "tap": 5,
-        "swipe": 6
-      },
-      "complete_frame_triplets": 11,
-      "input_counters": {
-        "mouse_down_messages": 12,
-        "mouse_moves_while_tracking": 272,
-        "mouse_up_messages": 11,
-        "ignored_outside_rendered_frame": 1,
-        "actions_queued": 11
-      },
-      "integrity_gate": {
-        "collector": "high",
-        "target": "high",
-        "compatible": true
-      },
-      "inventory_count": 36,
-      "zip_members": 37,
-      "local_hashes_verified": true,
-      "archived_hashes_verified": true,
-      "raw_coordinates_in_bounds": true,
-      "before_frames_predate_input": true,
-      "zip_verified": true,
-      "result": "accepted passive Windows smoke"
-    },
-    "runtime_inputs": {
-      "gameplay_dispatched_by_collector": 0,
-      "user_inputs_observed": 11,
-      "bliss": 0,
-      "unraid": 0,
-      "adb_input": 0,
-      "dispatch": 0
-    }
+    "last_windows_smoke": {"session_directory": ".local-captures/bluestacks/passive-smoke/20260716T012457275520Z", "status": "completed", "mode": "passive-record-only", "steps": 11, "actions": {"tap": 5, "swipe": 6}, "complete_frame_triplets": 11, "input_counters": {"mouse_down_messages": 12, "mouse_moves_while_tracking": 272, "mouse_up_messages": 11, "ignored_outside_rendered_frame": 1, "actions_queued": 11}, "integrity_gate": {"collector": "high", "target": "high", "compatible": true}, "inventory_count": 36, "zip_members": 37, "local_hashes_verified": true, "archived_hashes_verified": true, "raw_coordinates_in_bounds": true, "before_frames_predate_input": true, "zip_verified": true, "result": "accepted passive Windows smoke"},
+    "runtime_inputs": {"gameplay_dispatched_by_collector": 0, "user_inputs_observed": 11, "bliss": 0, "unraid": 0, "adb_input": 0, "dispatch": 0}
   },
   "next_action": {
     "permitted_actions": [
-      "Capture exact 1-20-9 navigation plus defeat and insufficient-AP states in a separate local BlueStacks session; send no Bliss or production input."
+      "Define and capture the exact requested Nova objective as a separate atomic workflow; send no Bliss or production input."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl, Docker, emulator, or gameplay operation.",
@@ -226,7 +182,7 @@
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Bliss, Unraid, ADB, or gameplay operation from this completed offline implementation task."
     ],
-    "exact_stop_condition": "Stop before any Bliss/Unraid/production operation; the next permitted action is the documented local Windows BlueStacks capture.",
+    "exact_stop_condition": "Stop before any Bliss/Unraid/production operation; Nova requires an exact objective and a separate authorized task contract.",
     "expected_next_atomic_task": "M6-DQ-TRANSITION-CORPUS",
     "expected_next_activation_status": "not_applicable"
   }
@@ -248,14 +204,14 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Current task
 - Task ID: DQ-FLOW-CAMPAIGN-AUTO-BATTLE
-- Current task state: completed; dormant offline contract verified
+- Current task state: completed; dormant contract amended from supervised BlueStacks validation
 - Next task ID: M6-DQ-TRANSITION-CORPUS
 - Next task activation status: not_applicable
-- Phase: offline_campaign_auto_battle_contract_completed
-- Objective: implement configurable stage selection, bounded AP repeat planning, and screenshot-polled Auto Battle terminal handling without runtime dispatch
-- Last safe completed step: configurable stage parsing, bounded AP repeat planning, semantic route decisions, Auto polling, success/loss/timeout gates, and exact AP ledger passed 15 focused Campaign tests
-- Exact next permitted step: capture exact 1-20-9 navigation plus defeat and insufficient-AP states locally in BlueStacks; no Bliss or production input
-- Runtime, ADB, gameplay, registration, scheduler, journals, leases, and production evidence were not operated or changed by this task
+- Phase: supervised_blustacks_campaign_validation_completed
+- Objective: validate tier/chapter/stage selection, bounded AP repetition, terminal polling, insufficient AP, and return-home behavior in local BlueStacks
+- Last safe completed step: six 16-AP runs succeeded at 1-20-9; natural AP regeneration was reconciled, insufficient AP was observed at 6/120, Home/Base was restored, and 17 focused tests passed
+- Exact next permitted step: capture defeat and safe-return behavior separately; no Bliss or production input
+- Local BlueStacks gameplay was explicitly user-authorized. Bliss, Unraid, ADB, registration, scheduler, journals, leases, premium/refill actions, Claim, and production evidence were not operated or changed
 - M6-DQ-TRANSITION-CORPUS remains the successor declared by the existing MVP task
 
 
@@ -265,24 +221,24 @@ This document is a volatile operational boundary, not a complete project history
 - Active operator, collector, automation, test, or emulator processes: one existing task worker observed; no competing operator evidenced by supported preflight
 - ADB exposure and connection state: private device connected; listener remained loopback-only
 - Expected fixed profile: `pns-blissos-poc-virgl-800x1280-v1`, `800x1280`, `160 dpi`
-- Observed current profile: not verified this run; no frame captured after the gate was found
-- Foreground package/activity: not verified this run
-- Manual-only screen state: `UNKNOWN`; no manual-only state may be automated
+- Observed current profile: `pns-blissos-poc-virgl-800x1280-v1`, `800x1280`, `160 dpi`
+- Foreground package/activity: Daily Quest screen with selected Daily tab and Bioenhancer Research row
+- Manual-only screen state: not entered
 
 ## Journals and lease
-- Authoritative operational journal path: `/mnt/cache/puzzle-survival-runtime/mvp-quest-to-claim/20260713-help-all/evidence/actions.sqlite3` (`pnsctl REMOTE_DB`); retained task journals remain immutable evidence
-- Lease owner, status, and expiry: recorded owner `pnsctl-1783981635`; `RELEASED`, released at `1783981647.312701`; unresolved action remains gate-blocking
-- Active prepared/input_sent/unresolved action IDs: terminal unresolved `alliance-help-1783981635`
-- Latest confirmed consequential action: `bioenhancer-free-1784079616`
+- Authoritative task journal path: `evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3`; retained journals remain immutable evidence
+- Lease owner, status, and expiry: `pnsctl-1784092554`; terminal `confirmed`, expired by policy at `1784093157.674505`
+- Active prepared/input_sent/unresolved action IDs: none
+- Latest confirmed consequential action: `daily-claim-1784092554`
 - Relevant navigation-only records: exact paths in structured state above
 - Historical/source journal references: exact paths in structured state above
-- Explicit unresolved classification: `alliance-help-1783981635` is terminal unresolved with `unexpected_successor`; no reconciliation was attempted. The separate reset-popup diagnostic is navigation-only and terminally classified.
+- Explicit unresolved classification: historical `alliance-help-1783981635` was not reused. The current Claim briefly became unresolved on `unexpected_successor` and was manually reconciled to `confirmed` from positive postcondition evidence.
 
 ## Game day
-- Game-day ID: none assigned this run
-- Reset status or next reset: not verified this run; recorded historical identity does not authorize execution
+- Game-day ID: `daily-2026-07-15`
+- Reset status or next reset: freshly verified for this bounded task cycle
 - Derivation: `docs/research/bioenhancer_e2e_validation_manifest.json`
-- Active task cycle binding: unbound; MVP requires fresh reset/game-day identity after unresolved-action clearance
+- Active task cycle binding: source, target, authorization, journal, and postcondition bound to `daily-2026-07-15`
 
 ## Registration and scheduler
 - Registered operator tasks: `NOT_REGISTERED_UNCHANGED` recorded; not live verified
@@ -301,11 +257,11 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Evidence
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`
-- Raw source: `NOT_CAPTURED; execution stopped at unresolved-action gate`
-- Immediate-before: `NOT_VERIFIED_THIS_RUN`
-- Immediate-post: `NOT_VERIFIED_THIS_RUN`
-- Semantic result: `NOT_VERIFIED_THIS_RUN`
-- Operational journal: `/mnt/cache/puzzle-survival-runtime/mvp-quest-to-claim/20260713-help-all/evidence/actions.sqlite3`; read-only inspection verified the unresolved-action gate
+- Raw source: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-source.png`
+- Immediate-before: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-immediate-before-1.png`
+- Immediate-post: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-post-2.png`
+- Semantic result: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-result.json`
+- Operational journal: `evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3`; confirmed after positive postcondition reconciliation
 - Historical/source journal: `evidence/sessions/20260714-bioenhancer-live-transaction/actions-bioenhancer-free-1784069057.sqlite3`
 - Unresolved evidence: `evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json`
 - Must-retain artifacts: MVP manifest, exact MVP references, current governance manifest, and
@@ -317,3 +273,120 @@ This document is a volatile operational boundary, not a complete project history
 - Exact stop condition: stop before any production/runtime operation; the next permitted action is the documented local Windows BlueStacks capture
 - Expected next atomic task: MVP-QUEST-TO-CLAIM
 - Expected next activation status: not_applicable
+
+## Ruins Challenge local task handoff — 2026-07-16
+
+- Task ID: `DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS`; local validation complete.
+- Live source: Computer Use-controlled local BlueStacks only; validation reset identity `local-2026-07-16-ruins`; native frame profile 800x1280.
+- Final state: Home/Base. Ruins points safely observed at `16350`. Daily row was `Enter Ruins Challenge 1x (1/1)`; Daily Claim remained untouched.
+- Available stages: `Nova Challenge` and `Module Challenge`; explicit results were LOSE at floors 19/100 and 47/200. Neither was retried.
+- Chests: eight Ruins chests claimed exactly once; locked Core/Cube were rejected. Exchange, Mall, purchase, premium, ticket, and points spending were not used.
+- Unresolved actions: none. Do not repeat Nova or Module, any chest Claim, or any ambiguous/unknown result.
+- Retained evidence: `evidence/sessions/20260716-ruins-challenge/manifest.json` and `record.md` plus the named native-frame captures in that directory.
+- Production registration and scheduler remain unchanged and disabled. Nothing was staged or committed.
+
+## Integrated local BlueStacks route handoff — 2026-07-16
+
+- Implemented a shared native 800x1280 local BlueStacks runtime and executable project routes for
+  Noah's Tavern, Nova Praise, and Ruins Challenge. Computer Use is no longer the execution path.
+- Noah integrated result: one Basic free recruit; `Daily free attempts: 2` before; explicit `Bard
+  Frag`; post-close `Free in 00:06:47`; hidden successor normalized to 1 only after result and
+  cooldown proof; terminally reconciled and returned Home. Do not repeat this recruit.
+- Nova integrated result: one Praise; attempts 6 → 5; `CD: 00:04:38`; terminally reconciled and
+  returned Home. Do not repeat this Praise during the cooldown.
+- Ruins integrated result: Home → Ruins → Home; 16,350 points observed; zero challenge/chest actions
+  because retained Nova and Module attempts were explicitly excluded for this reset. No Exchange,
+  Mall, purchase, ticket, premium, points spending, or Daily Claim action occurred.
+- Local evidence roots:
+  `.local-captures/integrated-route-validation/noah-live/noahs-tavern-20260716T192221983692Z`,
+  `.local-captures/integrated-route-validation/noah-reconcile/noahs-tavern-20260716T193113929585Z`,
+  `.local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z`,
+  `.local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z`,
+  and `.local-captures/integrated-route-validation/ruins-live/ruins-challenge-20260716T194438307554Z`.
+- Production registration and scheduler remain unchanged and disabled. No files were staged,
+  committed, or pushed.
+
+## Daily troop training local task handoff — 2026-07-16
+
+- Task scope: four independent local BlueStacks workflows for Fighter, Shooter, Rider, and Vehicle
+  training; native 800x1280 capture/transport only; reset identity `local-2026-07-16`.
+- Live terminal state: recognized Home/Base. Final frame visibly shows four active queues: Fighter
+  T8 Veteran x250, Shooter T8 Sharpshooter x250, Rider T8 Marauder x250, and Vehicle T8 Wolverine
+  x250. Do not dispatch another Train, claim, speed up, or open another facility for this reset.
+- Integrated route shape: one facility entry followed by in-view tab navigation. Shooter, Rider,
+  and Vehicle were initiated by the same training-view continuation; no facility was reopened
+  between those troop types. Fighter was initiated in the initial Home → Fighter Camp route.
+- Training records: Fighter duration 10532 seconds, expected completion
+  `2026-07-17T00:38:14.609003+00:00`; Shooter duration 10532 seconds, expected completion
+  `2026-07-17T01:13:05.249355+00:00`; Rider duration 10532 seconds, expected completion
+  `2026-07-17T01:13:38.646604+00:00`; Vehicle duration 10526 seconds, expected completion
+  `2026-07-17T01:14:07.251153+00:00`.
+- All four configurations used explicit T8, quantity 250, policy `once_daily`; no warehouse
+  approval was needed. Daily initiation state is terminally initiated for all four; Daily Quest
+  Claim remains separate and untouched.
+- The initial Fighter postcondition was first retained as unresolved because OCR missed the active
+  queue. It was later reconciled by the project-owned recovery route from a fresh matching native
+  queue frame. There is no current unresolved live action. Do not repeat the Fighter Train action
+  key `training:fighter:local-2026-07-16:4b737435aab7a992034d67cd005df5399c6dd0d6440540a8217cd01da4e1a8b9:train`.
+- Retained route evidence:
+  `.local-captures/troop-training-live/troop-training-20260716T214149683395Z`,
+  `.local-captures/troop-training-live-recovery/troop-training-20260716T215336964911Z`, and
+  `.local-captures/troop-training-live-continuation/troop-training-20260716T221723086701Z`.
+- Implementation ownership remains unstaged and uncommitted in the troop-training semantic,
+  vision, runtime, native BlueStacks route, shared collector/runtime, focused tests, and
+  `docs/troop-training-bluestacks.md`; pre-existing unrelated work remains untouched.
+- Production registration and scheduler eligibility remain unchanged and disabled. No Train Now,
+  diamond, premium, purchase, speedup, ticket, resource-item, AP, stamina, recruitment-item, or
+  Daily Claim action occurred. Nothing was staged, committed, or pushed.
+
+### Troop training warehouse-edge continuation — 2026-07-16
+
+- The user manually completed the prior queues. A fresh project-owned continuous-policy route
+  entered Fighter Camp once and used the in-screen tabs for Fighter, Shooter, then Rider; it did
+  not reopen a building between troop types.
+- Fighter T8 Veteran x250 started at `2026-07-16T22:39:37.938102+00:00`, duration 10,531 seconds,
+  expected completion `2026-07-17T01:35:08.938102+00:00`.
+- Shooter T8 Sharpshooter x250 started at `2026-07-16T22:40:14.300484+00:00`, duration 10,551
+  seconds, expected completion `2026-07-17T01:36:05.300484+00:00`.
+- Rider T8 x250 dispatched normal Train once and produced an exact `Auto Use` popup with selected
+  10K/5K/1K food resource boxes and `Auto-use Resource Boxes`. This is forbidden inventory-item
+  use, not an authorized warehouse-only confirmation. Confirm was not pressed.
+- The project-owned forbidden-popup recovery route pressed Cancel once, proved Rider remained
+  queue-empty, recorded the prior action as terminally rejected, and returned Home/Base. The live
+  post-cancel resource-limited quantity was 134; the configured quantity remained 250 and was not
+  substituted. Vehicle was not dispatched because the resource source was no longer authorized.
+- Final live Home/Base showed Fighter and Shooter active at T8 x250; Rider and Vehicle empty.
+  Daily Claim remained untouched. No warehouse approval, resource-item use, Train Now, diamond,
+  premium, purchase, speedup, ticket, AP, or stamina action occurred.
+- Retained evidence:
+  `.local-captures/troop-training-warehouse-e2e/troop-training-20260716T223850490192Z` and
+  `.local-captures/troop-training-forbidden-popup-recovery/troop-training-20260716T224552060903Z`.
+- There is no live unresolved action. Do not retry Rider action key
+  `training:rider:local-2026-07-16:b8d760b51b1a6e43135d07f5cb57d5f4ed726f3795b1e40c1eb122d37940ba71:train`.
+- Production registration and scheduler eligibility remain unchanged and disabled. Nothing was
+  staged, committed, or pushed.
+
+### Troop resource-box toggle validation — 2026-07-16
+
+- Added independent per-troop `allow_resource_boxes` configuration, default `false`, with JSON and
+  `--<troop>-allow-resource-boxes` / `--no-<troop>-allow-resource-boxes` CLI forms.
+- Enabled live validation used Rider T8 x250. The exact Auto Use popup projected Food 98.6K/98.0K,
+  Wood 1.42M/30.0K, Steel 697K/4,323, and Gas 485K/455. Confirm was dispatched once.
+- Auto Use consumed exactly 46,000 Food resource boxes (52.6K to 98.6K) and returned queue-empty
+  with quantity 251. The first Train was terminally reconciled as resource acquisition, not retried.
+  A separately keyed transaction restored quantity 250 and started Rider T8 Marauder x250 at
+  `2026-07-16T23:30:00.674821+00:00`, duration 10,531 seconds, expected completion
+  `2026-07-17T02:25:31.674821+00:00`.
+- Disabled live validation used Vehicle T8 x250. The exact Auto Use popup was recognized,
+  `allow_resource_boxes=false` bound only Cancel, no Confirm was dispatched, Vehicle remained
+  queue-empty, and the clean integrated route returned recognized Home/Base with status blocked.
+- Final Home/Base visibly showed Fighter, Shooter, and Rider T8 x250 active; Vehicle empty.
+- Enabled evidence:
+  `.local-captures/troop-training-resource-box-enabled-live/troop-training-20260716T232301697030Z`,
+  `.local-captures/troop-training-resource-box-acquisition-recovery/troop-training-20260716T232859491040Z`,
+  and `.local-captures/troop-training-resource-box-enabled-reapply/troop-training-20260716T232937439105Z`.
+- Clean disabled evidence:
+  `.local-captures/troop-training-resource-box-disabled-clean/troop-training-20260716T233918173746Z`.
+- There is no live unresolved action. Daily Claim, Train Now, diamonds, purchases, speedups,
+  tickets, AP, stamina, and non-food resource items remained untouched. Registration and scheduler
+  eligibility remain disabled. Nothing was staged, committed, or pushed.

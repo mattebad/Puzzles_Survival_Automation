@@ -8,13 +8,13 @@ from safe_action_core.navigation import NavigationRunner, NavigationStatus, Navi
 from scripts.navigation_recognition import DAILY_SELECTED_TAB_ROI, H_QUEST_ROI, recognize_daily_selected, recognize_home_quest
 from tasks.profile import HOME_MORE, HOME_QUEST
 ROOT=Path(__file__).resolve().parents[1]
-E=ROOT/"evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape"
-SOURCE=E/"live-nav-home-quest-promo-001-source.png"
-IMMEDIATE=E/"live-nav-home-quest-promo-001-immediate-before-1.png"
+E=ROOT/"tasks/assets/navigation/800x1280"
+SOURCE=E/"promotional_home_source.png"
+IMMEDIATE=E/"promotional_home_immediate_before.png"
 REFERENCE=ROOT/"evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png"
 DAILY_REFERENCE=ROOT/"evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png"
 MAIN_REFERENCE=ROOT/"evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png"
-LIVE_MAIN=ROOT/"evidence/sessions/20260712-mvp-quest-to-claim/daily-postreset-observation-20260713.png"
+LIVE_MAIN=E/"daily_postreset.png"
 PROFILE=json.loads((ROOT/"runtime-profile/manifest.json").read_text())["profile_id"]
 def obs(**changes):
     base=Observation(frame_sha256="a"*64,capture_completed_monotonic=1000.0,runtime_profile_id=PROFILE,width=800,height=1280,valid_png=True,corrupt=False,black=False,source_state="HOME_BASE",overlay_state="none_observed",target_identity="home-quest-entry",target_roi=H_QUEST_ROI,recognized=True,consequence="navigate_zero_cost",cost_type="none",cost_amount=0,quantity=1,expected_postcondition="QUEST")

@@ -7,9 +7,11 @@
   "relevant_transaction_action_ids": [
     "alliance-help-1783986842",
     "reset-popup-close-1783994269-2",
-    "alliance-help-1783981635"
+    "alliance-help-1783981635",
+    "daily-claim-1784092554"
   ],
   "canonical_evidence_session": "evidence/sessions/20260712-mvp-quest-to-claim",
+  "execution_evidence_session": "evidence/sessions/20260715-mvp-quest-to-claim",
   "read_first": [
     "evidence/current-evidence-manifest.json",
     "evidence/sessions/20260712-mvp-quest-to-claim",
@@ -84,35 +86,51 @@
     },
     {
       "artifact_id": "mvp-immediate-before",
-      "status": "NOT_VERIFIED_THIS_RUN",
-      "path": null,
-      "expected_sha256": null,
-      "actual_sha256": null,
-      "reason": "A future execution requires a fresh immediate-before frame; activation performed no capture."
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-immediate-before-1.png",
+      "expected_sha256": "801f953f6a4f4796f68750ed436842aae06d817ee576235b67b779cc4b72db56",
+      "actual_sha256": "801f953f6a4f4796f68750ed436842aae06d817ee576235b67b779cc4b72db56",
+      "reason": "Fresh current-frame Claim target binding immediately before the single authorized Claim input."
+    },
+    {
+      "artifact_id": "mvp-fresh-source",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-source.png",
+      "expected_sha256": "3f414d9151ba950f2441282d7f212d3c305cf2470221deb352a6d5fe4017e1d3",
+      "actual_sha256": "3f414d9151ba950f2441282d7f212d3c305cf2470221deb352a6d5fe4017e1d3",
+      "reason": "Fresh 800x1280 source frame with selected Daily Quest and exact completed Bioenhancer Research Claim target."
     },
     {
       "artifact_id": "mvp-immediate-post",
-      "status": "NOT_VERIFIED_THIS_RUN",
-      "path": null,
-      "expected_sha256": null,
-      "actual_sha256": null,
-      "reason": "A future execution requires an immediate-post frame; activation performed no capture."
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-post-2.png",
+      "expected_sha256": "45434fc8862550c1985a4cbe3f85db53f51ec94181a9e3863f21603ea1886dfc",
+      "actual_sha256": "45434fc8862550c1985a4cbe3f85db53f51ec94181a9e3863f21603ea1886dfc",
+      "reason": "Immediate postcondition frame showing the Claim row removed and Daily Quest Pts increased to 5."
     },
     {
       "artifact_id": "mvp-semantic-result",
-      "status": "NOT_VERIFIED_THIS_RUN",
-      "path": null,
-      "expected_sha256": null,
-      "actual_sha256": null,
-      "reason": "A future execution must prove the exact claimed-row, reward, and points postcondition; activation performed no runtime work."
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-post-2.png",
+      "expected_sha256": "45434fc8862550c1985a4cbe3f85db53f51ec94181a9e3863f21603ea1886dfc",
+      "actual_sha256": "45434fc8862550c1985a4cbe3f85db53f51ec94181a9e3863f21603ea1886dfc",
+      "reason": "Positive semantic postcondition: the Claim row is gone and Daily Quest Pts increased from 0 to 5."
+    },
+    {
+      "artifact_id": "mvp-initial-claim-result",
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-result.json",
+      "expected_sha256": "d434fcb54bf70e3ebdfdde334752e9b7acc1fdcf3fadbfea1118d73ba94c7994",
+      "actual_sha256": "d434fcb54bf70e3ebdfdde334752e9b7acc1fdcf3fadbfea1118d73ba94c7994",
+      "reason": "Immutable initial execution result preserving the unexpected_successor classification before manual reconciliation."
     },
     {
       "artifact_id": "mvp-operational-journal",
-      "status": "NOT_VERIFIED_THIS_RUN",
-      "path": null,
-      "expected_sha256": null,
-      "actual_sha256": null,
-      "reason": "A future execution must create or reference its task-scoped journal; no journal or lease was touched during activation."
+      "status": "PRESENT_VERIFIED",
+      "path": "evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3",
+      "expected_sha256": "0ea48e8a91a2c91dce8a3c9b694f2e07680fc958a0447843d131833b0ef58436",
+      "actual_sha256": "0ea48e8a91a2c91dce8a3c9b694f2e07680fc958a0447843d131833b0ef58436",
+      "reason": "Task-scoped journal copy with prepared, input_sent, unresolved, and manually reconciled confirmed lifecycle."
     }
   ],
   "unresolved_evidence": [
@@ -127,24 +145,32 @@
     "missing_or_not_located_entries_have_no_substitute": true
   },
   "execution_gate": {
-    "attempt_date": "2026-07-14",
-    "status": "BLOCKED",
-    "failed_gate": "active unresolved consequential action",
+    "attempt_date": "2026-07-15",
+    "status": "PASSED",
+    "failed_gate": null,
     "authoritative_operational_journal": "/mnt/cache/puzzle-survival-runtime/mvp-quest-to-claim/20260713-help-all/evidence/actions.sqlite3",
-    "blocking_action_id": "alliance-help-1783981635",
-    "blocking_action_status": "unresolved",
-    "blocking_action_reason": "unexpected_successor",
-    "lease_status": "released; unresolved action remains gate-blocking",
+    "blocking_action_id": null,
+    "blocking_action_status": null,
+    "blocking_action_reason": null,
+    "lease_status": "terminal Claim confirmed; lease expired by policy; historical alliance-help-1783981635 not reused",
     "runtime_preflight": {
       "vm_state": "running",
       "worker_state": "pns-mvp-help-all-20260713 up",
       "adb_state": "private device connected",
-      "fixed_profile": "not freshly verified",
-      "game_day_id": null
+      "fixed_profile": "pns-blissos-poc-virgl-800x1280-v1; 800x1280; 160 dpi",
+      "game_day_id": "daily-2026-07-15"
     },
-    "product_blocker": "not authoritatively resolved; no fresh admissible Daily game-day and Claim or supported zero-cost objective proof selected",
-    "actual_live_input_count": 0,
-    "generated_task_evidence": []
+    "product_blocker": null,
+    "actual_live_input_count": 1,
+    "generated_task_evidence": [
+      "evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-source.png",
+      "evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-immediate-before-1.png",
+      "evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-post-1.png",
+      "evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-post-2.png",
+      "evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-result.json",
+      "evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3"
+    ],
+    "result": "Claim confirmed: Bioenhancer Research row disappeared, Daily Achieved toast appeared, and Daily Quest Pts increased from 0 to 5."
   },
   "must_not_be_compacted": [
     "mvp-live-continuation-record",

@@ -1,0 +1,18 @@
+{
+  "profile": "native-800x1280",
+  "provenance": "project-owned crops derived from user-supplied BlueStacks frames",
+  "templates": {
+    "campaign_exit.png": {"source_bbox": [690, 920, 800, 1060], "role": "highlighted Campaign exit after one base request"},
+    "defeat_improve_might.png": {"source_bbox": [270, 250, 530, 302], "role": "defeat-only Improve Might joint signature"},
+    "defeat_tap_to_continue.png": {"source_bbox": [270, 1212, 530, 1270], "role": "defeat continuation target; Buy Now is explicitly excluded"},
+    "lose_word.png": {"source_bbox": [145, 15, 655, 190], "role": "defeat-only LOSE joint signature"},
+    "auto_disabled.png": {"source_bbox": [630, 16, 692, 74], "role": "brown Auto button"},
+    "auto_enabled.png": {"source_bbox": [630, 16, 692, 74], "role": "green Auto button"},
+    "lineup_challenge.png": {"source_bbox": [262, 1156, 538, 1249], "role": "lineup continuation; lineup contents excluded"},
+    "loot.png": {"source_bbox": [342, 435, 458, 490], "role": "victory joint signature"},
+    "stage_ap_icon.png": {"source_bbox": [278, 797, 332, 852], "role": "stage AP context"},
+    "tap_to_continue.png": {"source_bbox": [271, 1101, 530, 1161], "role": "victory joint signature"},
+    "tier_controls.png": {"source_bbox": [410, 65, 625, 133], "role": "tier-map context edge anchor"},
+    "winner_word.png": {"source_bbox": [75, 101, 727, 230], "role": "victory joint signature"}
+  }
+}

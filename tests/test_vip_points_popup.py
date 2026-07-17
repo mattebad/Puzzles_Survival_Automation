@@ -18,10 +18,7 @@ from scripts.personal_might_praise_live import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-POPUP_FRAME = (
-    ROOT
-    / "evidence/sessions/20260713-personal-might-praise/live-diagnostics-003/startup-source-001.png"
-)
+POPUP_FRAME = ROOT / "tasks/assets/navigation/800x1280/reset_popup_source.png"
 
 
 class VipPointsPopupTests(unittest.TestCase):

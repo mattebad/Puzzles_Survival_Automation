@@ -22,9 +22,9 @@ class GovernanceValidationTests(unittest.TestCase):
 
     def test_handoff_has_distinct_current_and_next_task_fields(self):
         state = validate_governance.parse_handoff()
-        self.assertEqual(state["current_task_id"], "TOOLS-BLUESTACKS-FLOW-CAPTURE")
-        self.assertEqual(state["current_task_state"], "pending")
-        self.assertEqual(state["next_task_id"], "MVP-QUEST-TO-CLAIM")
+        self.assertEqual(state["current_task_id"], "DQ-FLOW-CAMPAIGN-AUTO-BATTLE-BLUESTACKS")
+        self.assertEqual(state["current_task_state"], "completed")
+        self.assertEqual(state["next_task_id"], "M6-DQ-TRANSITION-CORPUS")
         self.assertEqual(
             state["next_task_activation_status"],
             "not_applicable",

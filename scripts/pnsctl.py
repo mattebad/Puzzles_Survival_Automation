@@ -41,11 +41,8 @@ REMOTE_WORKSPACE = REMOTE_BASE + "/workspace"
 REMOTE_EVIDENCE = REMOTE_BASE + "/evidence"
 REMOTE_DB = REMOTE_EVIDENCE + "/actions.sqlite3"
 M6_ASSET_ROOT = "evidence/sessions/20260712-m6-dq-bootstrap/assets"
-CASH_REFERENCE = "evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png"
-PRAISE_REFERENCE_ASSETS = (
-    "evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/rankings-evidence-013.png",
-    "evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/personal-might-leaderboard-evidence-007.png",
-)
+NAVIGATION_ASSET_ROOT = "tasks/assets/navigation/800x1280"
+CASH_REFERENCE = NAVIGATION_ASSET_ROOT + "/cash_mall_startup.png"
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -159,29 +156,19 @@ def _safe_name(value: str) -> str:
 
 
 def sync_workspace(cfg: OperatorConfig) -> None:
-    praise_directories = " ".join(
-        quote(cfg.remote_workspace + "/" + asset.rsplit("/", 1)[0])
-        for asset in PRAISE_REFERENCE_ASSETS
+    run_remote(
+        cfg,
+        f"mkdir -p {quote(cfg.remote_workspace)}/{M6_ASSET_ROOT}",
     )
-    run_remote(cfg, f"mkdir -p {quote(cfg.remote_workspace)}/evidence/sessions/20260712-m6-dq-bootstrap/assets {quote(cfg.remote_workspace)}/evidence/sessions/20260711-rt-012-observe-soak {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote {quote(cfg.remote_workspace)}/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote {praise_directories}")
     sources = ["scripts", "tasks", "safe_action_core", "runtime-profile", "tests"]
     for source in sources:
         run_pscp(cfg, [str(cfg.repo_root / source)], cfg.remote_workspace, recursive=True)
-    run_pscp(cfg, [str(cfg.repo_root / CASH_REFERENCE)], cfg.remote_workspace + "/evidence/sessions/20260711-rt-012-observe-soak/")
-    run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-m6-dq-bootstrap/assets")], cfg.remote_workspace + "/evidence/sessions/20260712-m6-dq-bootstrap/", recursive=True)
-    run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/promotional-escape")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/", recursive=True)
-    run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/daily-postreset-observation-20260713.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/")
-    run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/reset-reconcile-current.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/")
-    run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/help-go-post-002.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete/")
-    run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/actions-after-release.sqlite3")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/")
-    run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-source.png"), str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/alliance-help-1783981635-post-1.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-validation-20260713/remote/")
-    run_pscp(cfg, [str(cfg.repo_root / "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote/alliance-help-1783986842-post-1.png")], cfg.remote_workspace + "/evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/help-all-semantic-fix-20260713/remote/")
-    for asset in PRAISE_REFERENCE_ASSETS:
-        run_pscp(
-            cfg,
-            [str(cfg.repo_root / asset)],
-            cfg.remote_workspace + "/" + asset.rsplit("/", 1)[0] + "/",
-        )
+    run_pscp(
+        cfg,
+        [str(cfg.repo_root / M6_ASSET_ROOT)],
+        cfg.remote_workspace + "/evidence/sessions/20260712-m6-dq-bootstrap/",
+        recursive=True,
+    )
 
 
 def worker_start(cfg: OperatorConfig) -> str:
@@ -306,7 +293,7 @@ def navigate(cfg: OperatorConfig, step: str) -> str:
     source_mode, expected_mode, expected_state, semantic, target, roi, input_kind, swipe = NAVIGATION_STEPS[step]
     stamp = str(int(time.time()))
     args = [
-        "python3", "scripts/mvp_quest_to_claim.py", "--cash-reference", "/workspace/evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png",
+        "python3", "scripts/mvp_quest_to_claim.py", "--cash-reference", f"/workspace/{CASH_REFERENCE}",
         "--home-reference", "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png",
         "--quest-reference", "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
         "--daily-reference", "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png",
@@ -334,13 +321,31 @@ def navigate(cfg: OperatorConfig, step: str) -> str:
 
 def run_task(cfg: OperatorConfig, task: str, game_day: str = "") -> str:
     stamp = str(int(time.time()))
-    if task == "bioenhancer-free-research":
+    if task == "daily-claim":
+        if not game_day:
+            raise OperatorError("Daily Claim requires an explicit current game-day identity")
+        command = (
+            f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 -e PYTHONPATH=/workspace -w /workspace {quote(cfg.container)} "
+            f"python3 scripts/mvp_quest_to_claim.py "
+            f"--cash-reference /workspace/{CASH_REFERENCE} "
+            "--home-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png "
+            "--quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
+            "--daily-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png "
+            "--main-quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
+            f"execute --database /evidence/actions-daily-claim-{stamp}.sqlite3 --evidence /evidence "
+            f"--owner pnsctl-{stamp} --action-id daily-claim-{stamp} --action-key daily-claim-{stamp} "
+            f"--game-day {quote(game_day)} --source-mode daily_claim --expected-mode daily_claimed "
+            "--expected-state DAILY_QUEST_CLAIMED --target daily-quest-claim "
+            "--roi 500 300 780 550 --semantic-action CLAIM_DAILY_QUEST "
+            "--consequence claim_zero_cost_reward --control-class CLAIM --quantity 1"
+        )
+    elif task == "bioenhancer-free-research":
         if not game_day:
             raise OperatorError("Bioenhancer research requires an explicit current game-day identity")
         command = (
             f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 -e PYTHONPATH=/workspace -w /workspace {quote(cfg.container)} "
             f"python3 scripts/mvp_quest_to_claim.py "
-            "--cash-reference /workspace/evidence/sessions/20260711-rt-012-observe-soak/cash-mall-startup-reference.png "
+            f"--cash-reference /workspace/{CASH_REFERENCE} "
             "--home-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png "
             "--quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
             "--daily-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png "
@@ -410,31 +415,21 @@ def validate(cfg: OperatorConfig) -> str:
 
 
 def preserve_evidence(cfg: OperatorConfig, destination: Path, names: Sequence[str] = ()) -> str:
+    if not names:
+        raise OperatorError(
+            "preserve-evidence requires at least one exact --name; cumulative remote evidence "
+            "downloads are intentionally disabled"
+        )
     destination = destination if destination.is_absolute() else (cfg.repo_root / destination)
     destination = destination.resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    if names:
-        for name in names:
-            safe_name = _safe_name(name)
-            encoded = run_remote(
-                cfg,
-                f"base64 -w0 {quote(cfg.remote_evidence + '/' + safe_name)}",
-            ).strip()
-            (destination / safe_name).write_bytes(base64.b64decode(encoded))
-        return str(destination)
-    sources = [
-        cfg.remote_evidence + "/" + _safe_name(name)
-        for name in names
-    ] if names else [cfg.remote_evidence + "/*"]
-    for source in sources:
-        run_pscp(
+    for name in names:
+        safe_name = _safe_name(name)
+        encoded = run_remote(
             cfg,
-            [source],
-            str(destination),
-            recursive=True,
-            local_sources=False,
-            local_destination=True,
-        )
+            f"base64 -w0 {quote(cfg.remote_evidence + '/' + safe_name)}",
+        ).strip()
+        (destination / safe_name).write_bytes(base64.b64decode(encoded))
     return str(destination)
 
 
@@ -458,12 +453,12 @@ def reconcile(args: argparse.Namespace) -> str:
             raise OperatorError("the retained action is not unresolved; refusing reinterpretation")
         if args.outcome == "positive_postcondition":
             reconciliation = {
-                "confirmed": True, "reason": "help_all_control_disappeared_with_stable_speedup_header",
+                "confirmed": True, "reason": args.reason,
                 "evidence": args.evidence, "source_database": str(source),
                 "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
             }
             store.mark_confirmed(args.action_id, time.time(), reconciliation)
-            status, reason = "confirmed", "positive_postcondition"
+            status, reason = "confirmed", args.reason
         else:
             store.mark_cancelled(args.action_id, time.time(), "proven_no_effect_mistarget")
             status, reason = "cancelled", "proven_no_effect_mistarget"
@@ -499,7 +494,7 @@ def parser() -> argparse.ArgumentParser:
         choices=(
             "alliance-help", "vip-popup", "praise-route-evidence",
             "praise-leaderboard-evidence", "praise", "personal-might-claim",
-            "bioenhancer-free-research",
+            "bioenhancer-free-research", "daily-claim",
         ),
     )
     sub.choices["run-task"].add_argument("--game-day", default="")
@@ -512,6 +507,7 @@ def parser() -> argparse.ArgumentParser:
     rec.add_argument("--action-id", required=True)
     rec.add_argument("--evidence", nargs="+", required=True)
     rec.add_argument("--outcome", choices=("proven_no_effect", "positive_postcondition"), default="proven_no_effect")
+    rec.add_argument("--reason", default="positive_postcondition")
     return root
 
 

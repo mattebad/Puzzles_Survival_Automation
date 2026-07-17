@@ -14,6 +14,7 @@ from tasks.campaign_auto_battle import (
     campaign_next_decision,
     classify_battle_result,
     planned_run_count,
+    reconcile_observed_ap,
     record_verified_victory,
 )
 
@@ -27,7 +28,7 @@ class CampaignAutoBattleTests(unittest.TestCase):
             ap_budget=100,
             max_runs=10,
             battle_poll_seconds=1,
-            battle_timeout_seconds=300,
+            battle_timeout_seconds=180,
         )
         self.progress = CampaignRouteProgress(initial_ap=100, current_ap=100)
 
@@ -170,7 +171,7 @@ class CampaignAutoBattleTests(unittest.TestCase):
                 replace(
                     battle,
                     auto_enabled=True,
-                    battle_elapsed_seconds=300,
+                    battle_elapsed_seconds=180,
                 )
             ).action,
             CampaignAction.BLOCKED,
@@ -201,6 +202,10 @@ class CampaignAutoBattleTests(unittest.TestCase):
             self.decide(defeat).action,
             CampaignAction.RETURN_HOME_AFTER_DEFEAT,
         )
+        self.assertEqual(
+            self.decide(defeat).expected_successor,
+            CampaignScreen.CHAPTER_MAP,
+        )
 
     def test_repeat_requires_exact_ap_delta_and_stops_at_home(self):
         progress = record_verified_victory(self.progress, ap_cost=20, ap_after=80)
@@ -230,6 +235,74 @@ class CampaignAutoBattleTests(unittest.TestCase):
             CampaignRouteObservation(screen=CampaignScreen.HOME_BASE),
         )
         self.assertEqual(stopped.action, CampaignAction.COMPLETE)
+
+        for screen, expected in (
+            (CampaignScreen.STAGE_DIALOG, CampaignAction.CLOSE_STAGE_DIALOG),
+            (CampaignScreen.CHAPTER_MAP, CampaignAction.LEAVE_CHAPTER_MAP),
+            (CampaignScreen.TIER_MAP, CampaignAction.RETURN_HOME),
+        ):
+            with self.subTest(screen=screen):
+                self.assertEqual(
+                    campaign_next_decision(
+                        self.config,
+                        after_loss,
+                        CampaignRouteObservation(screen=screen),
+                    ).action,
+                    expected,
+                )
+
+    def test_ap_regeneration_is_reconciled_without_hiding_spend(self):
+        progress = record_verified_victory(self.progress, ap_cost=20, ap_after=80)
+        progress = reconcile_observed_ap(progress, ap_observed=81)
+        self.assertEqual(progress.current_ap, 81)
+        self.assertEqual(progress.ap_regenerated, 1)
+
+        progress = record_verified_victory(
+            progress,
+            ap_cost=20,
+            ap_after=62,
+            ap_regenerated=1,
+        )
+        self.assertEqual(progress.ap_spent, 40)
+        self.assertEqual(progress.ap_regenerated, 2)
+        self.assertEqual(progress.current_ap, 62)
+
+        with self.assertRaises(ValueError):
+            reconcile_observed_ap(progress, ap_observed=61)
+
+    def test_insufficient_ap_unwinds_campaign_without_refill(self):
+        progress = CampaignRouteProgress(initial_ap=6, current_ap=6)
+        dialog = CampaignRouteObservation(
+            screen=CampaignScreen.STAGE_DIALOG,
+            stage_dialog=self.stage,
+            ap_current=6,
+            ap_cost=20,
+            challenge_ready=False,
+        )
+        self.assertEqual(
+            campaign_next_decision(self.config, progress, dialog).action,
+            CampaignAction.CLOSE_STAGE_DIALOG,
+        )
+        self.assertEqual(
+            campaign_next_decision(
+                self.config,
+                progress,
+                CampaignRouteObservation(
+                    screen=CampaignScreen.CHAPTER_MAP,
+                    selected_tier=1,
+                    chapter_number=20,
+                ),
+            ).action,
+            CampaignAction.LEAVE_CHAPTER_MAP,
+        )
+        self.assertEqual(
+            campaign_next_decision(
+                self.config,
+                progress,
+                CampaignRouteObservation(screen=CampaignScreen.TIER_MAP),
+            ).action,
+            CampaignAction.RETURN_HOME,
+        )
 
 
 if __name__ == "__main__":

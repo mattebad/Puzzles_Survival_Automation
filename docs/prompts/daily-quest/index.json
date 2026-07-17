@@ -21,6 +21,8 @@
     {"task_id": "DQ-FLOW-ENHANCE-CHIP", "objective_keys": ["enhance_chip"], "status": "OFFLINE_CONTRACT_ONLY", "dependencies": ["DQ-FLOW-ENHANCE-GEAR"], "prompt_path": "docs/prompts/daily-quest/dq-flow-enhance-chip.md"},
     {"task_id": "DQ-FLOW-ENHANCE-MODULE", "objective_keys": ["enhance_module"], "status": "OFFLINE_CONTRACT_ONLY", "dependencies": ["DQ-FLOW-ENHANCE-GEAR"], "prompt_path": "docs/prompts/daily-quest/dq-flow-enhance-module.md"},
     {"task_id": "DQ-FLOW-CAMPAIGN-AP", "objective_keys": ["consume_ap"], "status": "OFFLINE_CONTRACT_ONLY", "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY"], "prompt_path": "docs/prompts/daily-quest/dq-flow-campaign-ap.md"},
+    {"task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE", "objective_keys": ["consume_ap"], "status": "LIVE_VALIDATED", "dependencies": ["DQ-FLOW-CAMPAIGN-AP", "TOOLS-BLUESTACKS-FLOW-CAPTURE"], "prompt_path": "docs/prompts/daily-quest/dq-flow-campaign-auto-battle.md"},
+    {"task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE-BLUESTACKS", "objective_keys": ["consume_ap"], "status": "TASK_LOCAL", "dependencies": ["DQ-FLOW-CAMPAIGN-AUTO-BATTLE"], "prompt_path": "docs/prompts/daily-quest/dq-flow-campaign-auto-battle-bluestacks.md"},
     {"task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE", "objective_keys": [], "status": "OFFLINE_CONTRACT_ONLY", "dependencies": ["DQ-COVERAGE-MATRIX"], "prompt_path": "docs/prompts/daily-quest/dq-flow-world-stamina-engine.md"},
     {"task_id": "DQ-FLOW-ZOMBIE-LAIR", "objective_keys": ["defeat_zombie_lair"], "status": "OFFLINE_CONTRACT_ONLY", "dependencies": ["DQ-FLOW-WORLD-STAMINA-ENGINE"], "prompt_path": "docs/prompts/daily-quest/dq-flow-zombie-lair.md"},
     {"task_id": "DQ-FLOW-STAMINA", "objective_keys": ["consume_stamina"], "status": "DISABLED_POLICY", "dependencies": ["DQ-FLOW-WORLD-STAMINA-ENGINE"], "prompt_path": "docs/prompts/daily-quest/dq-flow-stamina.md"},
@@ -34,6 +36,7 @@
     {"task_id": "DQ-FLOW-SPEEDUP", "objective_keys": ["speedup_using_items"], "status": "DISABLED_POLICY", "dependencies": ["DQ-COVERAGE-MATRIX"], "prompt_path": "docs/prompts/daily-quest/dq-flow-speedup.md"},
     {"task_id": "DQ-FLOW-CHALLENGES", "objective_keys": ["ruins_challenge"], "status": "DISABLED_POLICY", "dependencies": ["DQ-COVERAGE-MATRIX"], "prompt_path": "docs/prompts/daily-quest/dq-flow-challenges.md"},
     {"task_id": "DQ-FLOW-HERO-DUEL", "objective_keys": ["join_hero_duel"], "status": "DISABLED_POLICY", "dependencies": ["DQ-COVERAGE-MATRIX"], "prompt_path": "docs/prompts/daily-quest/dq-flow-hero-duel.md"},
-    {"task_id": "DQ-FLOW-RESOURCE-BOOST", "objective_keys": ["boost_resource_building_output"], "status": "DISABLED_POLICY", "dependencies": ["DQ-COVERAGE-MATRIX"], "prompt_path": "docs/prompts/daily-quest/dq-flow-resource-boost.md"}
+    {"task_id": "DQ-FLOW-RESOURCE-BOOST", "objective_keys": ["boost_resource_building_output"], "status": "DISABLED_POLICY", "dependencies": ["DQ-COVERAGE-MATRIX"], "prompt_path": "docs/prompts/daily-quest/dq-flow-resource-boost.md"},
+    {"task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS", "objective_keys": ["ruins_challenge"], "status": "TASK_LOCAL", "dependencies": ["DQ-FLOW-CHALLENGES"], "prompt_path": "docs/prompts/daily-quest/dq-flow-ruins-challenge-bluestacks.md"}
   ]
 }

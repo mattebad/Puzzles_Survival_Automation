@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from scripts import pnsctl
@@ -34,6 +37,16 @@ class CatalogTests(unittest.TestCase):
 
 
 class OperatorCliTests(unittest.TestCase):
+    def test_promoted_navigation_asset_manifest_hashes_match(self):
+        root = Path(__file__).resolve().parents[1]
+        asset_root = root / pnsctl.NAVIGATION_ASSET_ROOT
+        manifest = json.loads((asset_root / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual((manifest["width"], manifest["height"]), (800, 1280))
+        self.assertEqual(len(manifest["assets"]), 14)
+        for asset in manifest["assets"]:
+            payload = (asset_root / asset["path"]).read_bytes()
+            self.assertEqual(hashlib.sha256(payload).hexdigest(), asset["sha256"])
+
     def test_required_operator_subcommands_exist(self):
         for name in (
             "preflight", "worker-start", "worker-status", "worker-stop", "adb-start", "launch",
@@ -46,7 +59,10 @@ class OperatorCliTests(unittest.TestCase):
             elif name == "run-task":
                 extra = ["--task", "alliance-help"]
             elif name == "preserve-evidence":
-                extra = ["--destination", "/tmp/pnsctl-test-evidence"]
+                extra = [
+                    "--destination", "/tmp/pnsctl-test-evidence",
+                    "--name", "action-result.json",
+                ]
             parsed = pnsctl.parser().parse_args([name] + extra)
             self.assertEqual(parsed.command, name)
         self.assertEqual(
@@ -77,19 +93,43 @@ class OperatorCliTests(unittest.TestCase):
         self.assertIn("--network host", command)
         self.assertNotIn(":5037", command)
 
-    def test_workspace_sync_includes_praise_reference_assets(self):
+    def test_workspace_sync_uses_promoted_assets_not_raw_session_trees(self):
         cfg = pnsctl.OperatorConfig()
         with patch("scripts.pnsctl.run_remote", return_value=""), patch(
             "scripts.pnsctl.run_pscp"
         ) as transfer:
             pnsctl.sync_workspace(cfg)
-        transferred_sources = {
-            source
+        transferred_sources = [
+            str(source)
             for call in transfer.call_args_list
             for source in call.args[1]
-        }
-        for asset in pnsctl.PRAISE_REFERENCE_ASSETS:
-            self.assertIn(str(cfg.repo_root / asset), transferred_sources)
+        ]
+        self.assertIn(str(cfg.repo_root / "tasks"), transferred_sources)
+        self.assertIn(str(cfg.repo_root / pnsctl.M6_ASSET_ROOT), transferred_sources)
+        raw_session_transfers = [
+            source for source in transferred_sources
+            if "evidence\\sessions" in source or "evidence/sessions" in source
+        ]
+        self.assertEqual(raw_session_transfers, [str(cfg.repo_root / pnsctl.M6_ASSET_ROOT)])
+
+    def test_preserve_evidence_requires_exact_names_before_writing(self):
+        cfg = pnsctl.OperatorConfig()
+        with tempfile.TemporaryDirectory() as temp:
+            destination = Path(temp) / "evidence"
+            with self.assertRaisesRegex(pnsctl.OperatorError, "exact --name"):
+                pnsctl.preserve_evidence(cfg, destination)
+            self.assertFalse(destination.exists())
+
+    def test_preserve_evidence_fetches_only_requested_name(self):
+        cfg = pnsctl.OperatorConfig()
+        with tempfile.TemporaryDirectory() as temp, patch(
+            "scripts.pnsctl.run_remote", return_value="eA=="
+        ) as remote, patch("scripts.pnsctl.run_pscp") as transfer:
+            destination = Path(temp) / "evidence"
+            pnsctl.preserve_evidence(cfg, destination, ["action-result.json"])
+            self.assertEqual((destination / "action-result.json").read_bytes(), b"x")
+        self.assertIn("action-result.json", remote.call_args.args[1])
+        transfer.assert_not_called()
 
     def test_navigation_runs_from_synced_workspace(self):
         cfg = pnsctl.OperatorConfig()

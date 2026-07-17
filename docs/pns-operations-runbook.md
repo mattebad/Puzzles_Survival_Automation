@@ -28,11 +28,18 @@ python3 scripts/pnsctl.py run-task --task praise
 python3 scripts/pnsctl.py test-focused --pattern test_task_module.py
 python3 scripts/pnsctl.py test-full
 python3 scripts/pnsctl.py validate
-python3 scripts/pnsctl.py preserve-evidence --destination evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete
+python3 scripts/pnsctl.py preserve-evidence \
+  --destination evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete \
+  --name alliance-help-1783981635-source.png \
+  --name alliance-help-1783981635-immediate-before-1.png \
+  --name alliance-help-1783981635-post-1.png \
+  --name alliance-help-result.json
 python3 scripts/pnsctl.py cleanup
 ```
 
 `navigate` accepts only the checked-in route names and uses the existing safe-action executor.
+`preserve-evidence` requires one or more exact `--name` values. An omitted name fails before
+creating the destination; cumulative `remote_evidence/*` downloads are intentionally disabled.
 The Daily scroll routes are bounded navigation-only swipes; each captures and revalidates the
 selected Daily source before dispatch, then requires a fresh selected-Daily successor.
 `daily-bioenhancer-go` is a bounded navigation-only tap on the freshly observed selected-Daily

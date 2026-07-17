@@ -209,6 +209,7 @@ class SafeActionExecutor:
             request.semantic_action in {
                 "DISMISS_ALLIANCE_FORT_WAVE",
                 "RESEARCH_BIOENHANCER_FREE",
+                "CLAIM_DAILY_QUEST",
             }
             and immediate.target_roi is not None
         ):
