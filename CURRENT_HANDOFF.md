@@ -3,10 +3,18 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "efd2e96ddce5ffd7a3653988ac855f1cb9fc933a (setup task activation base)",
-    "origin_relationship": "main matches origin/main; no push",
+    "head": "ca22d4b (roadmap setup commit; task activation base)",
+    "origin_relationship": "main is ahead of origin/main by one local roadmap commit; no push",
     "staged_paths": [],
-    "relevant_unstaged_paths": [],
+    "relevant_unstaged_paths": [
+      "tasks/semantic_ocr_crop.py",
+      "tests/test_semantic_ocr_crop.py",
+      "tasks/supply_depot_vision.py",
+      "tests/test_supply_depot_vision.py",
+      "BACKLOG.md",
+      "CURRENT_HANDOFF.md",
+      "tests/test_governance_validation.py"
+    ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
       ".local-reference/**",
@@ -25,15 +33,20 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "ARCH-NAVIGATION-AUTOMATION-ROADMAP",
+  "current_task_id": "VISION-SEMANTIC-OCR-CROP-PIPELINE",
   "current_task_state": "completed",
-  "next_task_id": "VISION-SEMANTIC-OCR-CROP-PIPELINE",
+  "next_task_id": "VISION-NATIVE-FRAME-REPLAY-HARNESS",
   "next_task_activation_status": "ready",
-  "phase": "navigation_architecture_roadmap_registered",
-  "objective": "Register nine durable dormant offline navigation architecture contracts in the authorized serial order.",
-  "last_safe_completed_step": "Reviewed all nine dormant contracts with exact path sets, serial dependencies, full-suite-when-practical gates, fail-closed readiness semantics, and M6-DQ-TRANSITION-CORPUS preserved after the roadmap; focused governance and adversarial probes passed; zero runtime input/evidence.",
-  "next_permitted_action": "Commit the reviewed setup task locally, then activate VISION-SEMANTIC-OCR-CROP-PIPELINE as the sole next atomic task; no push.",
+  "phase": "semantic_ocr_crop_pipeline_completed",
+  "objective": "Complete and review the shared frame-identity-bound OCR crop pipeline and one Supply Depot adapter adoption.",
+  "last_safe_completed_step": "Completed three review cycles: removed fabricated capture identity, enforced deep immutability and bounded normalization, closed explicit-identity OCR failure paths, and passed 90 focused regressions plus full pytest 667 passed / 1 skipped; zero runtime input/evidence.",
+  "next_permitted_action": "Commit the reviewed OCR task locally, then activate VISION-NATIVE-FRAME-REPLAY-HARNESS only; no push or runtime.",
   "actions_already_performed": [
+    "Implemented tasks/semantic_ocr_crop.py with NativeFrameIdentity-bound ROI/padding, exclusion masks, bounded normalization, constrained OCR modes, immutable observations, negative controls, and opt-in deterministic debug artifacts.",
+    "Added tests/test_semantic_ocr_crop.py covering ROI, padding, masks, modes, normalization, same-capture and forged identities, immutability, debug opt-in/default-off, and OCR negative controls.",
+    "Adopted the shared pipeline in tasks/supply_depot_vision.py only while preserving public API compatibility and exact adapter regression behavior.",
+    "Extended tests/test_supply_depot_vision.py with identity-bound adapter compatibility coverage; OCR grants no dispatch authority.",
+    "Kept VISION-SEMANTIC-OCR-CROP-PIPELINE in progress and VISION-NATIVE-FRAME-REPLAY-HARNESS dependency-blocked for parent review; registration/scheduler unchanged; zero runtime input.",
     "Inserted nine Pending/dormant serial roadmap contracts into BACKLOG.md after ARCH-NAVIGATION-AUTOMATION-ROADMAP and before DQ-FLOW-RECRUITMENT without altering unrelated tasks.",
     "Preserved M6-DQ-TRANSITION-CORPUS as the ninth contract Next and as the unrelated post-roadmap successor; left VISION-SEMANTIC-OCR-CROP-PIPELINE pending/not activated.",
     "Corrected next_task_activation_status to dependency_blocked because the setup task is still in progress and successor activation is prohibited.",
@@ -124,13 +137,13 @@
     "Do not tap either positively recognized radial Train control or any downstream normal Train, quantity, Warehouse, resource-box, premium, or consequential control."
   ],
   "runtime": {
-    "vm_state": "No BlueStacks, ADB, Bliss, Unraid, emulator, VM, or other runtime was operated during this documentation/governance setup task",
-    "worker_state": "No worker was started, modified, or contacted during this setup task",
-    "active_operator_collector_automation_test_emulator_processes": "None started or used by this setup task; no live runtime operator role was assumed",
-    "adb_exposure_and_connection_state": "ADB was not invoked, connected, inspected, or exposed during this setup task",
-    "expected_fixed_profile": "NOT_APPLICABLE; this setup task is documentation/governance only",
-    "observed_current_profile": "NOT_OBSERVED; no runtime or frame was inspected during this setup task",
-    "foreground_package_activity": "NOT_OBSERVED; no application state, foreground package, or frame was acquired during this setup task",
+    "vm_state": "No BlueStacks, ADB, Bliss, Unraid, emulator, VM, or other runtime was operated during this OCR crop pipeline implementation task",
+    "worker_state": "No worker was started, modified, or contacted during this implementation task",
+    "active_operator_collector_automation_test_emulator_processes": "None started or used by this implementation task; no live runtime operator role was assumed",
+    "adb_exposure_and_connection_state": "ADB was not invoked, connected, inspected, or exposed during this implementation task",
+    "expected_fixed_profile": "NOT_APPLICABLE; this implementation task is offline only",
+    "observed_current_profile": "NOT_OBSERVED; no runtime or frame was inspected during this implementation task",
+    "foreground_package_activity": "NOT_OBSERVED; no application state, foreground package, or frame was acquired during this implementation task",
     "manual_only_screen_state": "NOT_ENTERED_OR_OBSERVED; zero runtime input was dispatched"
   },
   "journals_and_lease": {
@@ -168,10 +181,10 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "642 tests passed; 1 skipped",
+    "last_full_suite_count": "667 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "navigation-session, perception-bundle, home-atlas-planner, and governance focused set passed; zero transport."
+    "last_relevant_focused_tests": "90 semantic OCR, perception, Supply Depot, and governance tests passed; full pytest 667 passed / 1 skipped; zero transport."
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -210,7 +223,7 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Roadmap setup registers dormant offline backlog contracts only and creates no runtime evidence manifest.",
+    "evidence_requirement_reason": "Offline OCR crop pipeline creates no runtime evidence manifest; focused unit/fixture validation is sufficient.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "collector": {
@@ -227,18 +240,18 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Commit the reviewed setup task locally, then activate VISION-SEMANTIC-OCR-CROP-PIPELINE as the sole next atomic task."
+      "Commit the reviewed OCR task locally, then activate VISION-NATIVE-FRAME-REPLAY-HARNESS only."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
       "Any live resume dispatch, facility entry, radial input, Train, Supply Depot collection, Daily Claim, or other consequential control.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Atlas rebuild/reacquisition or broadening Train/consequential authorization.",
-      "Activating any roadmap task other than VISION-SEMANTIC-OCR-CROP-PIPELINE.",
+      "Activating any roadmap task other than VISION-NATIVE-FRAME-REPLAY-HARNESS.",
       "Any push."
     ],
     "exact_stop_condition": "Stop on commit or activation failure; no runtime action is permitted.",
-    "expected_next_atomic_task": "VISION-SEMANTIC-OCR-CROP-PIPELINE",
+    "expected_next_atomic_task": "VISION-NATIVE-FRAME-REPLAY-HARNESS",
     "expected_next_activation_status": "ready"
   }
 }
@@ -250,25 +263,26 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `efd2e96ddce5ffd7a3653988ac855f1cb9fc933a`; matches `origin/main`
+- HEAD/base: `ca22d4b`; one local roadmap commit ahead of `origin/main`
 - Staged paths: none
-- Relevant unstaged paths after the setup commit: none
+- Relevant unstaged paths: `tasks/semantic_ocr_crop.py`, `tests/test_semantic_ocr_crop.py`, `tasks/supply_depot_vision.py`, `tests/test_supply_depot_vision.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, `tests/test_governance_validation.py`
 - Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
 - Push: prohibited
 
 ## Current task
-- Task ID: `ARCH-NAVIGATION-AUTOMATION-ROADMAP`
-- State: completed; documentation/governance only
-- Next task ID: `VISION-SEMANTIC-OCR-CROP-PIPELINE` (ready; not yet activated)
-- Objective: register nine durable dormant offline contracts in the authorized serial order.
-- Last safe completed step: all nine Pending/dormant contracts passed parent review, focused
-  governance tests, compilation, adversarial chain probes, secret scanning, and `git diff --check`.
-- Exact next permitted step: commit setup locally, then activate only the first implementation task.
+- Task ID: `VISION-SEMANTIC-OCR-CROP-PIPELINE`
+- State: completed; offline implementation only
+- Next task ID: `VISION-NATIVE-FRAME-REPLAY-HARNESS` (ready; not activated)
+- Objective: shared frame-identity-bound OCR crops with controlled ROI/padding, exclusion masks,
+  bounded normalization, constrained modes, immutable observations, and one Supply Depot adoption.
+- Last safe completed step: three review cycles passed 90 focused regressions, governance,
+  compilation, secret/diff gates, and full pytest `667 passed, 1 skipped`.
+- Exact next permitted step: commit locally, then activate only the replay harness.
 - No runtime, evidence, registration, scheduler, worker, or task-row operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains the unrelated post-roadmap successor after the ninth roadmap contract.
 
 ## Runtime
-- VM/runtime state: this documentation/governance setup task operated no BlueStacks, ADB, Bliss,
+- VM/runtime state: this offline OCR crop pipeline task operated no BlueStacks, ADB, Bliss,
   Unraid, emulator, VM, or other runtime.
 - Worker state: no worker was started, modified, or contacted.
 - Active operator/collector/automation: none started or used; this task assumed no live runtime
@@ -278,7 +292,7 @@ This document is a volatile operational boundary, not a complete project history
 - Foreground package/activity: not observed; no application state or frame was acquired.
 - Manual-only screen state: not entered or observed.
 - Runtime result: zero input dispatched and zero evidence acquired. Historical journal/evidence
-  references below are preserved context only and were not used by this setup task.
+  references below are preserved context only and were not used by this implementation task.
 
 ## Journals and lease
 - Authoritative task journal path: `evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3`; retained journals remain immutable evidence
@@ -305,10 +319,10 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 642 passed, one expected skip
+- Last full-suite count: 667 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
-- Last relevant focused tests: navigation-session, perception-bundle, home-atlas-planner, and governance focused set passed; zero transport
+- Last relevant focused tests: 90 semantic OCR, perception, Supply Depot, and governance tests passed; zero transport
 
 ## Evidence
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`
@@ -328,10 +342,10 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: commit setup locally, then activate `VISION-SEMANTIC-OCR-CROP-PIPELINE`
-- Prohibited actions: Bliss, Unraid, ADB, pnsctl live gameplay, evidence mutation, registration/scheduler changes, any other successor activation, and any push
-- Exact stop condition: stop on commit or activation failure; no runtime action is permitted
-- Expected next atomic task: `VISION-SEMANTIC-OCR-CROP-PIPELINE`
+- Permitted action: commit the reviewed OCR task, then activate `VISION-NATIVE-FRAME-REPLAY-HARNESS`
+- Prohibited actions: runtime/evidence operation, registration/scheduler changes, any other successor activation, and push
+- Exact stop condition: stop on commit or activation failure
+- Expected next atomic task: `VISION-NATIVE-FRAME-REPLAY-HARNESS`
 - Expected next activation status: ready
 
 ## Ruins Challenge local task handoff — 2026-07-16

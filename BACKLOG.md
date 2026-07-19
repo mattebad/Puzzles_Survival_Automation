@@ -2416,7 +2416,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### VISION-SEMANTIC-OCR-CROP-PIPELINE
 - Task ID: `VISION-SEMANTIC-OCR-CROP-PIPELINE`.
 - Title: Shared frame-identity-bound semantic OCR crop pipeline.
-- Status: Pending (dormant; offline contract only; not activated).
+- Status: Completed (2026-07-19; identity-bound crop pipeline and one Supply Depot adoption reviewed; zero runtime input).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `ARCH-NAVIGATION-AUTOMATION-ROADMAP` and completed
   `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`.
