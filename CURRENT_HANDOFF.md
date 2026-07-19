@@ -3,17 +3,18 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "c0adfba (native-frame replay commit; radial semantics activation base)",
-    "origin_relationship": "main is ahead of origin/main by three local roadmap commits; no push",
+    "head": "cc244c9 (shared radial semantics commit; safe-exit activation base)",
+    "origin_relationship": "main is ahead of origin/main by four local roadmap commits; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
       "BACKLOG.md",
       "CURRENT_HANDOFF.md",
       "tests/test_governance_validation.py",
-      "tasks/radial_semantics.py",
-      "tests/test_radial_semantics.py",
-      "tasks/perception_bundle.py",
-      "tests/test_perception_bundle.py"
+      "tasks/bluestacks_home_safe_exit.py",
+      "tests/test_bluestacks_home_safe_exit.py",
+      "tasks/home_atlas_planner.py",
+      "tests/test_home_atlas_planner.py",
+      "scripts/home_atlas_bluestacks.py"
     ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
@@ -33,15 +34,34 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "HOME-SHARED-RADIAL-SEMANTIC-CONTRACT",
+  "current_task_id": "BLUESTACKS-HOME-SAFE-EXIT-BINDING",
   "current_task_state": "completed",
-  "next_task_id": "BLUESTACKS-HOME-SAFE-EXIT-BINDING",
+  "next_task_id": "RUNTIME-INPUT-CAPABILITY-FIREWALL",
   "next_task_activation_status": "ready",
-  "phase": "shared_radial_semantic_contract_completed",
-  "objective": "Implement platform-neutral same-capture Home radial semantics while keeping recognition, actionability, and authorization distinct.",
-  "last_safe_completed_step": "Completed parent review after correcting typed unknown/ambiguous radial context classification; all 718 tests passed with one expected skip and all completion validators passed; zero runtime input/evidence.",
-  "next_permitted_action": "Commit the reviewed HOME-SHARED-RADIAL-SEMANTIC-CONTRACT locally, then activate BLUESTACKS-HOME-SAFE-EXIT-BINDING only; no push or runtime.",
+  "phase": "bluestacks_home_safe_exit_binding_completed",
+  "objective": "Implement a reusable offline BlueStacks-only current-frame Home safe-exit binder with complete exclusion clearance and non-authorizing projection provenance.",
+  "last_safe_completed_step": "Completed parent review after hardening frame-bound envelopes, exact geometry, public construction, forged snapshots, ambiguity, and provenance; all 746 tests passed with one expected skip and all completion validators passed; zero runtime input/evidence.",
+  "next_permitted_action": "Commit reviewed BLUESTACKS-HOME-SAFE-EXIT-BINDING locally, then activate RUNTIME-INPUT-CAPABILITY-FIREWALL only; no push or runtime.",
   "actions_already_performed": [
+    "Final parent completion validation passed the full repository suite: 746 passed / 1 skipped; Python compilation, governance, handoff JSON parsing, touched-file secret scan, and git diff --check passed.",
+    "Parent review cycle 2 added complete NativeFrameIdentity to ProjectedRecoverySearchEnvelope and requires same-capture association at bind/result composition; cross-capture and digest-only envelopes fail closed.",
+    "projected_recovery_zone_as_search_envelope now requires an explicit source_frame and rejects all non-exact built-in integer geometry without truncation, including 220.9, 220.0, NumPy integer lookalikes, strings, bool, NaN, and infinity.",
+    "Hardened all public safe-exit records with exact enum/bool/string/tuple/mapping checks, canonical immutable provenance, exact BlueStacks profile/geometry revalidation, nested same-capture consistency, result-state consistency, exact false authorization/None grants, and no metadata value coercion.",
+    "safe_exit_evidence_snapshot now fully revalidates result and nested records, so object.__setattr__ forged authorization, geometry, identity, or provenance cannot serialize.",
+    "Changed candidate selection to fail closed whenever more than one distinct proposal is valid, returning AMBIGUOUS_MULTIPLE_VALID_CANDIDATES independent of proposal order; duplicate IDs retain DUPLICATE_CANDIDATE_ID.",
+    "Canonicalized category, region, evidence, rejected-candidate, metadata, and cleared-exclusion ordering; rejected globally duplicate region IDs and exposed category-qualified cleared exclusion IDs.",
+    "Parent review cycle 2 validation: 131 focused safe-exit/planner/radial/perception/governance tests passed and 48 touched Home atlas/navigation-session regressions passed; py_compile passed.",
+    "Implemented tasks/bluestacks_home_safe_exit.py: BlueStacks-only 800x1280 current-frame safe-exit binder with complete NativeFrameIdentity binding, explicit exclusion-category inventory proofs, conservative complete-containment/open-clearance geometry policy, and fail-closed unavailable results.",
+    "Treated planner-projected recovery/search envelopes as non-authorizing provenance only; executable_recovery_coordinate remains None; envelope zone_box may constrain search but cannot become the candidate ROI.",
+    "Enforced recognition/binding versus actionability versus authorization separation: safe_exit_authorize_dispatch always False; no capability/policy/dispatch grant on bound candidates.",
+    "Rejected Bliss profile/platform, wrong BlueStacks profile/geometry, stale/cross-capture, and digest-only associations; offline fixture identities only in tests.",
+    "Narrow planner honesty seam: added non-authorizing safe-exit provenance honesty string plus assert_predicted_recovery_search_zone_non_authorizing; PredictedRecoverySearchZone forbids non-None executable_recovery_coordinate.",
+    "Narrow adapter adoption: scripts/home_atlas_bluestacks.py bluestacks_home_safe_exit_adapter_profile returns adapter-owned profile constants with authorize_dispatch=false; no runtime connect.",
+    "Added tests/test_bluestacks_home_safe_exit.py covering valid binding, full exclusion categories, identity, containment, each exclusion category, edge touch, partial box, malformed/NaN/inf/bool geometry, missing category proof, duplicate/ambiguous candidates, stale/cross-capture/digest-only, wrong profile/geometry, Bliss rejection, projection non-authorization, no dispatch API, immutability, deterministic serialization, and planner/adapter regressions.",
+    "Focused suite: 125 passed across safe-exit, planner, radial semantics, perception bundle, and governance; full pytest 740 passed / 1 skipped; py_compile, governance, handoff JSON, touched-file credential scan, and git diff --check passed; zero transport.",
+    "Completed parent review and made RUNTIME-INPUT-CAPABILITY-FIREWALL ready for activation; registration/scheduler unchanged; zero runtime input.",
+    "Committed reviewed HOME-SHARED-RADIAL-SEMANTIC-CONTRACT locally as cc244c9 feat(home): add shared radial semantics; no push.",
+    "Activated BLUESTACKS-HOME-SAFE-EXIT-BINDING only after its shared-radial and recovery-aware planner dependencies were completed; successor remains dependency_blocked.",
     "Final parent completion validation passed the full repository suite: 718 passed / 1 skipped; Python compilation, governance, handoff JSON parsing, touched-file secret scan, and git diff --check passed.",
     "Parent review cycle 2 corrected classify_frame_context so typed unknown/ambiguous radial or owner semantics return UNKNOWN with context_recognized=false, context_allows_interaction=false, confidence 0.0, and stable typed reason/support codes.",
     "Typed positive owner/radial semantics now derive interaction candidacy only from explicitly actionable typed controls; generic building bindings and targets cannot upgrade typed non-actionable controls.",
@@ -159,7 +179,7 @@
     "Do not tap either positively recognized radial Train control or any downstream normal Train, quantity, Warehouse, resource-box, premium, or consequential control."
   ],
   "runtime": {
-    "vm_state": "No BlueStacks, ADB, Bliss, Unraid, emulator, VM, or other runtime was operated during this shared radial semantic contract implementation task",
+    "vm_state": "No BlueStacks, ADB, Bliss, Unraid, emulator, VM, or other runtime was operated during this safe-exit binder implementation task",
     "worker_state": "No worker was started, modified, or contacted during this implementation task",
     "active_operator_collector_automation_test_emulator_processes": "None started or used by this implementation task; no live runtime operator role was assumed",
     "adb_exposure_and_connection_state": "ADB was not invoked, connected, inspected, or exposed during this implementation task",
@@ -203,10 +223,10 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "718 tests passed; 1 skipped",
+    "last_full_suite_count": "746 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "Parent review cycle 2: 116 radial semantics, perception, native-frame replay, semantic OCR, and governance tests passed; final full pytest 718 passed / 1 skipped; zero transport."
+    "last_relevant_focused_tests": "Parent review cycle 2: 131 focused safe-exit, planner, radial, perception, and governance tests passed; 48 touched Home atlas/navigation-session regressions passed; final full pytest 746 passed / 1 skipped; zero transport."
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -262,18 +282,18 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Commit the reviewed HOME-SHARED-RADIAL-SEMANTIC-CONTRACT locally, then activate BLUESTACKS-HOME-SAFE-EXIT-BINDING only."
+      "Commit reviewed BLUESTACKS-HOME-SAFE-EXIT-BINDING locally, then activate RUNTIME-INPUT-CAPABILITY-FIREWALL only."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
       "Any live resume dispatch, facility entry, radial input, Train, Supply Depot collection, Daily Claim, or other consequential control.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Atlas rebuild/reacquisition or broadening Train/consequential authorization.",
-      "Activating BLUESTACKS-HOME-SAFE-EXIT-BINDING or any later roadmap task.",
+      "Activating RUNTIME-INPUT-CAPABILITY-FIREWALL or any later roadmap task.",
       "Any push."
     ],
     "exact_stop_condition": "Stop on commit or activation failure; no runtime action is permitted.",
-    "expected_next_atomic_task": "BLUESTACKS-HOME-SAFE-EXIT-BINDING",
+    "expected_next_atomic_task": "RUNTIME-INPUT-CAPABILITY-FIREWALL",
     "expected_next_activation_status": "ready"
   }
 }
@@ -285,29 +305,28 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `c0adfba`; three local roadmap commits ahead of `origin/main`
+- HEAD/base: `cc244c9`; four local roadmap commits ahead of `origin/main`
 - Staged paths: none
 - Relevant unstaged paths: `BACKLOG.md`, `CURRENT_HANDOFF.md`,
-  `tests/test_governance_validation.py`, `tasks/radial_semantics.py`,
-  `tests/test_radial_semantics.py`, `tasks/perception_bundle.py`,
-  `tests/test_perception_bundle.py`
+  `tests/test_governance_validation.py`, `tasks/bluestacks_home_safe_exit.py`,
+  `tests/test_bluestacks_home_safe_exit.py`, `tasks/home_atlas_planner.py`,
+  `tests/test_home_atlas_planner.py`, `scripts/home_atlas_bluestacks.py`
 - Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
 - Push: prohibited
 
 ## Current task
-- Task ID: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`
-- State: completed after parent review; offline platform-neutral implementation only
-- Next task ID: `BLUESTACKS-HOME-SAFE-EXIT-BINDING` (dependency blocked; not activated)
-- Objective: shared same-capture owning-facility radial semantics, controls, confidence,
-  actionability, and expected/forbidden successors without authorization or adapter transport.
-- Last safe completed step: parent review corrected typed unknown/ambiguous radial and owner
-  context classification to fail closed; full suite and all completion validators passed.
-- Exact next permitted step: commit this reviewed task locally, then activate safe-exit binding only.
+- Task ID: `BLUESTACKS-HOME-SAFE-EXIT-BINDING`
+- State: completed after parent review; offline BlueStacks-only binder only
+- Next task ID: `RUNTIME-INPUT-CAPABILITY-FIREWALL` (ready; not activated)
+- Objective: bind a current-frame safe-exit region with complete HUD, building, radial-control,
+  semantic-target, and known-interactive-region clearance while keeping projection non-authorizing.
+- Last safe completed step: parent review completed; full suite and all validators passed.
+- Exact next permitted step: commit this reviewed task locally, then activate the capability firewall only.
 - No runtime, evidence, registration, scheduler, worker, or task-row operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains the unrelated post-roadmap successor after the ninth roadmap contract.
 
 ## Runtime
-- VM/runtime state: this offline shared radial semantic contract task operated no BlueStacks, ADB, Bliss,
+- VM/runtime state: this offline safe-exit implementation operated no BlueStacks, ADB, Bliss,
   Unraid, emulator, VM, or other runtime.
 - Worker state: no worker was started, modified, or contacted.
 - Active operator/collector/automation: none started or used; this task assumed no live runtime
@@ -318,7 +337,6 @@ This document is a volatile operational boundary, not a complete project history
 - Manual-only screen state: not entered or observed.
 - Runtime result: zero input dispatched and zero evidence acquired. Historical journal/evidence
   references below are preserved context only and were not used by this implementation task.
-
 ## Journals and lease
 - Authoritative task journal path: `evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3`; retained journals remain immutable evidence
 - Lease owner, status, and expiry: `pnsctl-1784092554`; terminal `confirmed`, expired by policy at `1784093157.674505`
@@ -344,16 +362,19 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 718 passed, one expected skip
+- Last full-suite count: 746 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
-- Last relevant focused tests: parent review cycle 2 passed 116 across radial semantics,
-  perception, native-frame replay, semantic OCR, and governance; final full suite passed
-  718 with one expected skip
+- Last relevant focused tests: parent review cycle 2 passed 131 across safe-exit, planner,
+  radial semantics, perception bundle, and governance, plus 48 touched Home atlas/navigation
+  session regressions
+- Full suite: final parent completion run passed 746 with one expected skip
 - Zero transport
 
 ## Evidence
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`
+- Evidence requirement: NOT_APPLICABLE; offline binder uses fixture identities only and creates no
+  runtime evidence manifest.
 - Troop entry Fighter zero-pan/radial: `.local-captures/troop-training-atlas-entry/fighter-zero-pan/troop-training-20260719T021808597377Z/`
 - Troop entry Fighter final Home: `.local-captures/troop-training-atlas-entry/fighter-exterior-close/troop-training-20260719T023104977845Z/`
 - Troop entry Vehicle calculated pan: `.local-captures/troop-training-atlas-entry/vehicle-calculated-pan-corrected/troop-training-20260719T024102450439Z/`
@@ -370,10 +391,10 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: commit reviewed `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`, then activate its successor
-- Prohibited actions: BlueStacks coordinates/transport, runtime/evidence operation, successor activation, and push
+- Permitted action: commit reviewed `BLUESTACKS-HOME-SAFE-EXIT-BINDING`, then activate its successor
+- Prohibited actions: BlueStacks coordinates/transport, runtime/evidence operation, unrelated successor activation, and push
 - Exact stop condition: stop on commit or activation failure
-- Expected next atomic task: `BLUESTACKS-HOME-SAFE-EXIT-BINDING`
+- Expected next atomic task: `RUNTIME-INPUT-CAPABILITY-FIREWALL`
 - Expected next activation status: ready
 
 ## Ruins Challenge local task handoff — 2026-07-16

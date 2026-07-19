@@ -546,6 +546,10 @@ class RecoveryAwareViewportPlannerTests(unittest.TestCase):
         self.assertIn(plan.reason, {"recovery_aware_target_viewport", "target_already_safely_visible"})
         self.assertNotEqual(plan.disposition, PlanDisposition.REJECTED)
         self.assertIn("projection_does_not_authorize_entry_or_exit_input", plan.recovery_honesty)
+        self.assertIn(
+            "planner_projected_recovery_search_zone_is_non_authorizing_safe_exit_provenance_only",
+            plan.recovery_honesty,
+        )
         if plan.predicted_recovery_search_zone is not None:
             self.assertIsNone(plan.predicted_recovery_search_zone.executable_recovery_coordinate)
 

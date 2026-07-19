@@ -51,6 +51,7 @@ _RECOVERY_HONESTY = (
     "predicted_recovery_search_zone_available_is_not_a_live_tap_proof",
     "current_frame_recovery_binding_still_required",
     "projection_does_not_authorize_entry_or_exit_input",
+    "planner_projected_recovery_search_zone_is_non_authorizing_safe_exit_provenance_only",
 )
 
 
@@ -162,12 +163,32 @@ class ViewportCandidateRejection:
 
 @dataclass(frozen=True)
 class PredictedRecoverySearchZone:
-    """Predicted atlas-free search availability only; never an executable tap."""
+    """Predicted atlas-free search availability only; never an executable tap.
+
+    Downstream BlueStacks safe-exit binders may treat zone_box as non-authorizing
+    search-envelope provenance only. Projection must never become a tap ROI and
+    executable_recovery_coordinate must remain None.
+    """
 
     available: bool
     clearance_px: float
     zone_box: Box | None
     executable_recovery_coordinate: None = None
+
+    def __post_init__(self) -> None:
+        if self.executable_recovery_coordinate is not None:
+            raise ValueError("executable_recovery_coordinate must remain None")
+
+
+def assert_predicted_recovery_search_zone_non_authorizing(
+    zone: PredictedRecoverySearchZone | None,
+) -> None:
+    """Typed honesty seam: projected recovery never authorizes safe-exit taps."""
+
+    if zone is None:
+        return
+    if zone.executable_recovery_coordinate is not None:
+        raise ValueError("predicted recovery search zone must not authorize taps")
 
 
 @dataclass(frozen=True)

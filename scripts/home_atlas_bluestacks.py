@@ -610,6 +610,32 @@ def _canonical_pan_gesture(displacement: np.ndarray) -> tuple[str, tuple[int, in
     return axis, start, bounded_end
 
 
+def bluestacks_home_safe_exit_adapter_profile() -> dict[str, object]:
+    """Adapter-owned BlueStacks profile constants for Home safe-exit binding.
+
+    Profile magnitudes remain adapter-owned and are not shared radial semantics.
+    Bliss geometry/profile reuse is forbidden. This helper grants no dispatch
+    authority and does not connect runtime transport.
+    """
+
+    from tasks.bluestacks_home_safe_exit import (
+        CONSERVATIVE_GEOMETRY_POLICY,
+        bluestacks_safe_exit_profile,
+    )
+
+    profile = bluestacks_safe_exit_profile()
+    return {
+        "platform": profile.platform,
+        "profile_id": profile.profile_id,
+        "width": profile.width,
+        "height": profile.height,
+        "default_permitted_safe_space": BLUESTACKS_SAFE_INTERACTION_BOX,
+        "geometry_policy": CONSERVATIVE_GEOMETRY_POLICY,
+        "authorize_dispatch": False,
+        "executable_recovery_coordinate": None,
+    }
+
+
 def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCalibration]:
     """Return only the empirically measured local BlueStacks geometry.
 

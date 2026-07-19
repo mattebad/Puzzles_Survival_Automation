@@ -2683,7 +2683,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### BLUESTACKS-HOME-SAFE-EXIT-BINDING
 - Task ID: `BLUESTACKS-HOME-SAFE-EXIT-BINDING`.
 - Title: Reusable BlueStacks-only current-frame Home safe-exit binder.
-- Status: Pending (dormant; offline contract only; not activated).
+- Status: Completed (2026-07-19; reviewed offline BlueStacks-only safe-exit binder; zero transport).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT` and completed
   `HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING`.
