@@ -3,7 +3,7 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "257ec02d232d5d68ca998b9cacac1fd2c664a8b9 (unchanged during this task)",
+    "head": "1ee65d33647debd71f8427c6f1f1a63116a11e76 (unchanged during this task)",
     "origin_relationship": "main matches origin/main; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
@@ -15,11 +15,14 @@
       "scripts/home_atlas_bluestacks.py",
       "scripts/supply_depot_bluestacks.py",
       "tasks/home_atlas.py",
+      "tasks/home_atlas_planner.py",
       "tasks/home_atlas_vision.py",
       "tasks/supply_depot.py",
       "tasks/supply_depot_vision.py",
       "tasks/assets/home_atlas/bluestacks/800x1280/**",
       "tests/test_home_atlas.py",
+      "tests/test_home_atlas_planner.py",
+      "tests/test_governance_validation.py",
       "tests/test_supply_depot.py",
       "tests/test_supply_depot_vision.py",
       "tests/test_supply_depot_bluestacks.py",
@@ -43,14 +46,14 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "TOOLS-HOME-BASE-ATLAS-BLUESTACKS",
+  "current_task_id": "TOOLS-HOME-ATLAS-TROOP-TRAINING-ENTRY-MIGRATION",
   "current_task_state": "completed",
   "next_task_id": "M6-DQ-TRANSITION-CORPUS",
   "next_task_activation_status": "not_applicable",
-  "phase": "local_bluestacks_home_atlas_supply_depot_completed",
-  "objective": "Build and live-validate a reusable Home/Base atlas, localizer, closed-loop semantic building navigator, and direct Supply Depot consumer on local BlueStacks without production promotion.",
-  "last_safe_completed_step": "The explicitly authorized hold-to-exhaust follow-up dispatched one 11.1-second Food long press at eight freshly recognized free attempts, then exact fresh-frame reconciliation confirmed attempts 8->0 and all controls paid without retry. Home is fully_zoomed_out at canonical viewport-001 with confidence 0.98691, residual 0.15549 px, and 5.08 px center error; no action is in flight.",
-  "next_permitted_action": "Only a separately authorized future task may build an independent Bliss-native atlas or implement a future building workflow; do not repeat either confirmed Supply Depot action or reuse BlueStacks calibration in Bliss.",
+  "phase": "troop_training_home_atlas_entry_migration_completed",
+  "objective": "Migrate local BlueStacks Troop Training facility entry to the completed platform-neutral Home atlas direct-pan planner and validate entry-only recovery without Train input.",
+  "last_safe_completed_step": "Fighter Camp and Vehicle Depot were entered from two canonical Home origins through fresh atlas localization/current-frame binding; Fighter used zero pans, Vehicle used one measured calculated pan, both radial Train controls were recognized, and safe exterior close targets returned to canonical Home with zero Train or consequential input.",
+  "next_permitted_action": "Only a separately authorized future task may send runtime input or migrate another building consumer; preserve the completed BlueStacks entry-only evidence and all unstaged atlas work.",
   "actions_already_performed": [
     "Read-only Git status, required governance files, the exact MVP backlog section, direct dependencies, and exact evidence references.",
     "Migrated and validated the MVP durable contract and created its compact task-specific evidence manifest from exact named references.",
@@ -89,7 +92,7 @@
     "Built the initial BlueStacks-only 1447x2765 atlas from nine accepted native viewports with three duplicate/edge-clamp rejections, maximum loop-closure disagreement 0.231 px, separate actionable and HUD-masked registration coverage, and no interior coverage hole.",
     "Extended the atlas through a project-owned four-corner and boustrophedon grid scan: 30 click-drags, five overlapping rows, explicit top/right/left/bottom clamps, 23 accepted moving scan frames, and safe rejection of one earlier insufficient-overlap frame.",
     "Rebuilt the checked-in BlueStacks atlas at 1447x2769 from 30 unique viewports; two duplicates were rejected, maximum residual is 0.213 px, maximum loop closure is 1.161 px, and both actionable and HUD-masked registration coverage report zero reachable interior gaps without interpolation.",
-    "Mapped 64 semantically proven facilities/instances, including 34 individual production buildings; 63 have HUD-free supporting viewports and Forum is explicitly mapped but non-actionable behind the fixed left HUD.",
+    "Mapped 65 semantically proven facilities/instances, including 34 individual production buildings; 63 have HUD-free supporting viewports, while Forum and Parade Grounds are explicitly non-actionable behind fixed HUD.",
     "Implemented platform-neutral atlas/localization/navigation contracts, BlueStacks vision/runtime adapters, exact building and radial binding, Supply Depot screen/control recognition, one-collection policy, persistent duplicate prevention, and dry-run defaults.",
     "Executed the project-owned direct building route from a fresh arbitrary right-edge Home localization through current-frame Supply Depot binding, the exact radial Claim Supply control, and exact Supply Depot successor; Daily Quest Go was not used.",
     "Dispatched exactly one authorized zero-cost food collection with action key supply-depot-free:bluestacks:no-reset:attempts-9:food and terminally confirmed Daily free attempts 9->8; visible food changed 14,382->14,664.",
@@ -103,8 +106,15 @@
     "The native Home diamond display was 25.5K before and after the hold, positively confirming that the long press stopped at free-attempt exhaustion and did not consume premium currency.",
     "Returned Home, applied two bounded held-Ctrl+wheel inputs until the measured zoom clamp, and used three freshly localized pans to canonical viewport-001 within 5.08 px at confidence 0.98691 and residual 0.15549 px.",
     "No premium, purchase, Mall, speedup, ticket, resource-item, AP, stamina, Daily Claim, Bank, upgrade, research, training, healing, production, Bliss, Unraid, or unrelated input occurred."
+    ,"Implemented platform-neutral viewport planning, camera-envelope clamping, adapter-injected inverse gesture conversion, measured progress guards, and navigation-only result contracts.",
+    "Live-validated current-frame bindings for Headquarters (0 pans), Supply Depot (2 pans), Bank (2 pans), and Gear Factory (1 pan); every result recorded building_opened=false.",
+    "Returned to canonical Home after a corrected empty-scene recovery pan; no facility or downstream workflow was opened.",
+    "Audited every accepted atlas label against the current semantic registry and current-account building catalog without reacquiring the atlas.",
+    "Added home.building.parade_grounds from transform-consistent OCR/geometry in viewports 018/019 and marked it non-actionable behind the fixed right HUD.",
+    "Preserved all 34 individually mapped resource, Bootcamp, and Infirmary instances for future exact upgrade targeting; representative collection/healing selection remains a workflow concern."
   ],
   "actions_not_to_repeat": [
+    "Do not repeat the no-progress canonical short drags at (450,260)->(450,298) or (450,500)->(450,538); both are terminal navigation diagnostics.",
     "Do not repeat supply-depot-free:bluestacks:no-reset:attempts-9:food; it is terminally confirmed by attempts 9->8 and the local action-key ledger.",
     "Do not repeat supply-depot-free-hold:bluestacks:no-reset:attempts-8:food; its one hold is confirmed_exhausted by attempts 8->0 and the local action-key ledger.",
     "Do not issue another Supply Depot input in this task; zero free attempts remain and both authorized actions are terminally confirmed.",
@@ -122,7 +132,9 @@
     "Do not execute the first implementation or runtime step of MVP-QUEST-TO-CLAIM in this activation.",
     "Do not repeat daily-claim-1784092554 or issue any additional gameplay input in this task cycle.",
     "Do not connect to Bliss or Unraid, invoke ADB, or dispatch gameplay from this implementation task.",
-    "Do not inspect or stage protected evidence or .local-captures."
+    "Do not inspect or stage protected evidence or .local-captures.",
+    "Do not repeat either Fighter Camp or Vehicle Depot facility tap, either radial exterior close, the diagnostic Fighter Back/exit Cancel, or any task camera-offset pan.",
+    "Do not tap either positively recognized radial Train control or any downstream normal Train, quantity, Warehouse, resource-box, premium, or consequential control."
   ],
   "runtime": {
     "vm_state": "Bliss/Unraid NOT OPERATED; local BlueStacks only",
@@ -131,7 +143,7 @@
     "adb_exposure_and_connection_state": "Project-owned local BlueStacks endpoint emulator-5554; no Bliss or public endpoint",
     "expected_fixed_profile": "pns-bluestacks-5-p64-800x1280-v1 for this local task; Bliss remains independent",
     "observed_current_profile": "pns-bluestacks-5-p64-800x1280-v1, native 800x1280",
-    "foreground_package_activity": "Final fresh Home/Base, fully_zoomed_out, canonical viewport-001 interior localization",
+    "foreground_package_activity": "Final fresh Home/Base, fully_zoomed_out, interior origin (338.05,358.86), confidence 0.99057, residual 0.11316 px; no radial or action in flight",
     "manual_only_screen_state": "None entered or automated"
   },
   "journals_and_lease": {
@@ -169,13 +181,23 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "532 tests passed; 1 skipped",
+    "last_full_suite_count": "554 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "43 focused governance/Supply Depot/native-runtime tests passed after the hold implementation; standalone governance validation passed."
+    "last_relevant_focused_tests": "80 focused atlas/planner/Troop Training/Supply Depot/BlueStacks integrated-route tests passed; 12 governance tests passed; touched Python compilation passed."
   },
   "evidence": {
     "active_evidence_manifest": null,
+    "direct_pan_headquarters_zero_input": ".local-captures/home-atlas-direct-pan/dry-run/home-atlas-navigate-building-20260719T001626193128Z/",
+    "direct_pan_supply_depot": ".local-captures/home-atlas-direct-pan/supply-depot/home-atlas-navigate-building-20260719T001927989642Z/",
+    "direct_pan_bank": ".local-captures/home-atlas-direct-pan/bank/home-atlas-navigate-building-20260719T002022678534Z/",
+    "direct_pan_gear_factory": ".local-captures/home-atlas-direct-pan/gear-factory/home-atlas-navigate-building-20260719T002118522476Z/",
+    "direct_pan_final_canonical": ".local-captures/home-atlas-direct-pan/final-canonical-correction-gap/home-atlas-pan-20260719T002430166504Z/",
+    "troop_entry_fighter_zero_pan": ".local-captures/troop-training-atlas-entry/fighter-zero-pan/troop-training-20260719T021808597377Z/",
+    "troop_entry_fighter_final_home": ".local-captures/troop-training-atlas-entry/fighter-exterior-close/troop-training-20260719T023104977845Z/",
+    "troop_entry_vehicle_calculated_pan": ".local-captures/troop-training-atlas-entry/vehicle-calculated-pan-corrected/troop-training-20260719T024102450439Z/",
+    "troop_entry_vehicle_binding_radial": ".local-captures/troop-training-atlas-entry/vehicle-current-frame-continuation/troop-training-20260719T024310202414Z/",
+    "troop_entry_vehicle_final_home": ".local-captures/troop-training-atlas-entry/vehicle-exterior-close/troop-training-20260719T024522835241Z/",
     "raw_source": ".local-captures/supply-depot-direct-building/supply-depot-collect-one-20260718T205259350054Z/frames/0001-collection-source.png",
     "immediate_before": ".local-captures/supply-depot-direct-building/supply-depot-collect-one-20260718T205259350054Z/frames/0002-collection-immediate-before.png",
     "immediate_post": ".local-captures/supply-depot-direct-building/supply-depot-collect-one-20260718T205259350054Z/frames/0003-collection-immediate-post.png",
@@ -218,11 +240,11 @@
   },
   "next_action": {
     "permitted_actions": [
-      "In a separately authorized task, independently acquire a Bliss-native atlas or implement a future semantic building consumer; send no input from this completed task."
+      "Run offline validation and document this authorized atomic task; send no further runtime input."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl, Docker, emulator, or gameplay operation.",
-      "Any repeat Supply Depot collection, Daily Claim, Bank, upgrade, research, training, production, recruitment, premium, purchase, or unrelated action.",
+      "Any repeat Fighter or Vehicle facility/radial input, Train, quantity, Warehouse, resource-box, Supply Depot, Daily Claim, Bank, upgrade, research, training, production, recruitment, premium, purchase, or unrelated action.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Bliss, Unraid, ADB, or gameplay operation from this completed offline implementation task."
     ],
@@ -239,7 +261,7 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: main
-- HEAD: `257ec02d232d5d68ca998b9cacac1fd2c664a8b9` (unchanged during this task)
+- HEAD: `1ee65d33647debd71f8427c6f1f1a63116a11e76` (unchanged during this task)
 - Relationship to origin/main: matches; no push
 - Staged paths: none
 - Relevant unstaged paths: the atlas/localizer/navigator/Supply Depot files listed in the structured state; unrelated work remains preserved
@@ -247,15 +269,15 @@ This document is a volatile operational boundary, not a complete project history
 - Most recent task-scoped commits: 58d8898, e76964b, 9883a15, 501f9fb
 
 ## Current task
-- Task ID: TOOLS-HOME-BASE-ATLAS-BLUESTACKS
-- Current task state: completed; local BlueStacks atlas/navigation/Supply Depot validation closed
+- Task ID: TOOLS-HOME-ATLAS-TROOP-TRAINING-ENTRY-MIGRATION
+- Current task state: completed; live entry-only matrix and offline validation completed
 - Next task ID: M6-DQ-TRANSITION-CORPUS
 - Next task activation status: not_applicable
-- Phase: local_bluestacks_home_atlas_supply_depot_completed
-- Objective: reusable platform-neutral Home semantic world/coverage/localizer/navigator with an independently calibrated BlueStacks atlas and direct Supply Depot consumer
-- Last safe completed step: 30-view, four-clamp, five-row atlas covers the full reachable base; final native Home is `fully_zoomed_out` at canonical viewport-001 with confidence `0.99007`, residual `0.11912 px`, and `3.99 px` center error. The prior one authorized food Free collection remains terminally confirmed by attempts `9→8`; no action is in flight
-- Exact next permitted step: none in this task. A future Bliss-native atlas or future building workflow requires a separate explicit authorization
-- Local BlueStacks navigation and one zero-cost Supply Depot collection were explicitly authorized. Bliss, Unraid, production registration, scheduler, premium/purchase, Daily Claim, Bank, upgrade, research, training, and unrelated workflows were not operated or changed
+- Phase: troop_training_home_atlas_entry_migration_completed
+- Objective: migrate the BlueStacks Troop Training Home entry to shared direct-pan planning and prove entry-only radial recognition/recovery without Train input
+- Last safe completed step: Fighter Camp bound at zero pan; Vehicle Depot used one calculated pan from a materially different Home origin; both exact radials/Train controls were recognized and exterior-safe close targets returned to canonical Home
+- Exact next permitted step: none in this task; future runtime or building-consumer work requires separate authorization
+- No atlas reacquisition, Train, quantity, Warehouse confirmation, resource-box, premium, Bliss, Unraid, registration, scheduler, worker, or task-row action occurred
 - M6-DQ-TRANSITION-CORPUS remains the successor declared by the existing MVP task
 
 
@@ -265,7 +287,7 @@ This document is a volatile operational boundary, not a complete project history
 - Active operator: this chat was the sole local BlueStacks runtime operator
 - ADB exposure and connection state: project-owned local BlueStacks endpoint `emulator-5554`; no Bliss or public endpoint
 - Expected/observed local profile: `pns-bluestacks-5-p64-800x1280-v1`, native `800x1280`
-- Foreground package/activity: final fresh Home/Base, `fully_zoomed_out`, canonical viewport-001 interior localization
+- Foreground package/activity: final fresh Home/Base, `fully_zoomed_out`, interior atlas origin `(338.05,358.86)`, confidence `0.99057`, residual `0.11316 px`; no radial or action in flight
 - Manual-only screen state: none entered or automated
 
 ## Journals and lease
@@ -293,13 +315,18 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: `NOT_RUN_THIS_RUN`
-- Known accepted baseline failures: two missing retained Personal Might navigation fixture errors in `test_navigation_revalidation`
-- New regressions: none in touched governance/manifest paths
-- Last relevant focused tests: collector compile, help, coordinate, mock action, manifest, SHA-256, and ZIP checks passed; tkinter/OpenCV unavailable for GUI verification
+- Last full-suite count: 554 passed, one expected skip
+- Known accepted baseline failures: none; one expected skip
+- New regressions: none
+- Last relevant focused tests: 80 atlas/planner/Troop Training/Supply Depot/BlueStacks integrated-route tests and 12 governance tests passed; touched Python compilation passed
 
 ## Evidence
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`
+- Troop entry Fighter zero-pan/radial: `.local-captures/troop-training-atlas-entry/fighter-zero-pan/troop-training-20260719T021808597377Z/`
+- Troop entry Fighter final Home: `.local-captures/troop-training-atlas-entry/fighter-exterior-close/troop-training-20260719T023104977845Z/`
+- Troop entry Vehicle calculated pan: `.local-captures/troop-training-atlas-entry/vehicle-calculated-pan-corrected/troop-training-20260719T024102450439Z/`
+- Troop entry Vehicle binding/radial: `.local-captures/troop-training-atlas-entry/vehicle-current-frame-continuation/troop-training-20260719T024310202414Z/`
+- Troop entry Vehicle final Home: `.local-captures/troop-training-atlas-entry/vehicle-exterior-close/troop-training-20260719T024522835241Z/`
 - Raw source: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-source.png`
 - Immediate-before: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-immediate-before-1.png`
 - Immediate-post: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-post-2.png`

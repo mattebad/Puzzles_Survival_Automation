@@ -79,10 +79,18 @@ class SemanticBuilding:
     recognition: dict[str, object] = field(default_factory=dict)
     visibility_constraints: tuple[str, ...] = ()
     semantic_proof: tuple[str, ...] = ()
+    navigation_anchor_override: Point | None = None
+    interaction_eligible: bool = True
+    safe_interaction_region_id: str = "home-default"
+    platform_binding_policy: dict[str, object] = field(default_factory=dict)
 
     @property
     def center(self) -> Point:
         return polygon_centroid(self.polygon)
+
+    @property
+    def navigation_anchor(self) -> Point:
+        return self.navigation_anchor_override or self.center
 
 
 @dataclass(frozen=True)
@@ -103,6 +111,8 @@ class HomeAtlas:
     coverage_gaps: tuple[Polygon, ...]
     viewports: tuple[AtlasViewport, ...]
     buildings: tuple[SemanticBuilding, ...]
+    registration_coverage_polygons: tuple[Polygon, ...] = ()
+    camera_origin_bounds: tuple[float, float, float, float] | None = None
 
     def lookup_building(self, building_id: str) -> SemanticBuilding:
         matches = [item for item in self.buildings if item.semantic_id == building_id]
@@ -373,12 +383,22 @@ def load_home_atlas(path: Path) -> HomeAtlas:
     buildings = tuple(
         SemanticBuilding(
             **{
-                **item,
+                **{key: value for key, value in item.items() if key != "navigation_anchor"},
                 "polygon": _polygon(item["polygon"]),
                 "supporting_source_frames": tuple(item["supporting_source_frames"]),
                 "expected_visual_variants": tuple(item.get("expected_visual_variants", ())),
                 "visibility_constraints": tuple(item.get("visibility_constraints", ())),
                 "semantic_proof": tuple(item.get("semantic_proof", ())),
+                "navigation_anchor_override": (
+                    (float(item["navigation_anchor"][0]), float(item["navigation_anchor"][1]))
+                    if item.get("navigation_anchor") is not None else None
+                ),
+                "interaction_eligible": bool(item.get(
+                    "interaction_eligible",
+                    bool(item.get("supporting_source_frames")) and item.get("semantic_id") != "home.landmark.wall",
+                )),
+                "safe_interaction_region_id": str(item.get("safe_interaction_region_id", "home-default")),
+                "platform_binding_policy": dict(item.get("platform_binding_policy", item.get("recognition", {}))),
             }
         )
         for item in payload.get("buildings", [])
@@ -400,4 +420,13 @@ def load_home_atlas(path: Path) -> HomeAtlas:
         coverage_gaps=tuple(_polygon(item) for item in payload.get("coverage_gaps", [])),
         viewports=viewports,
         buildings=buildings,
+        registration_coverage_polygons=tuple(
+            _polygon(item) for item in payload.get("registration_coverage_polygons", [])
+        ),
+        camera_origin_bounds=(
+            float(payload["boundary_evidence"]["camera_origin_bounds"]["minimum_x"]),
+            float(payload["boundary_evidence"]["camera_origin_bounds"]["minimum_y"]),
+            float(payload["boundary_evidence"]["camera_origin_bounds"]["maximum_x"]),
+            float(payload["boundary_evidence"]["camera_origin_bounds"]["maximum_y"]),
+        ) if payload.get("boundary_evidence", {}).get("camera_origin_bounds") else None,
     )

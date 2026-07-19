@@ -1819,8 +1819,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   plus wheel-down is the measured zoom mechanism; the atlas is `1447x2769` with 30 accepted
   viewports, two duplicate rejections, four measured edge clamps, five overlapping scan rows, zero
   reachable interior coverage gaps, maximum residual `0.213 px`, and maximum loop-closure
-  disagreement `1.161 px`; 64 facilities/instances are semantically mapped (Forum is mapped but
-  explicitly non-actionable behind the fixed left HUD); one food Free tap remains confirmed by
+  disagreement `1.161 px`; the current registry contains 65 facilities/instances (Forum and Parade
+  Grounds are mapped but explicitly non-actionable behind fixed HUD); one food Free tap remains confirmed by
   attempts `9->8`, and the separately authorized hold-to-exhaust follow-up used one `11.1 s` Food
   hold to confirm the remaining eight free collections by attempts `8->0` without retry.
 - Direct implementation files: `tasks/home_atlas.py`, `tasks/home_atlas_vision.py`,
@@ -1921,6 +1921,210 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   run end to end; at most one Free collection is positively reconciled; final canonical Home is
   recognized; tests/validators pass; production stays unregistered and scheduler-disabled; no
   forbidden action occurs.
+
+### TOOLS-HOME-ATLAS-DIRECT-PAN-PLANNER
+- Task ID: `TOOLS-HOME-ATLAS-DIRECT-PAN-PLANNER`.
+- Title: Reusable platform-neutral minimal-pan planner over the completed Home/Base atlas.
+- Status: Completed (2026-07-18; local BlueStacks navigation-only validation closed at canonical Home).
+- Milestone: Local platform-neutral semantic Home navigation foundation.
+- Dependencies: completed `TOOLS-HOME-BASE-ATLAS-BLUESTACKS` and its passed atlas, registry,
+  localization, canonical zoom, camera envelope, and Supply Depot binding.
+- Blocked by: None; Bliss calibration remains an independent future task.
+- Objective: replace broad/fixed-distance building navigation with calculated target-specific atlas
+  viewport plans, adapter-owned gesture conversion, fresh post-pan relocalization, measured progress,
+  and current-frame semantic binding for every actionable mapped building.
+- Established facts: atlas `1447x2769`; camera origins `x=0.86..646.79`, `y=0.08..1488.01`;
+  safe BlueStacks region `(145,180)-(650,1010)`; placement anchor `(400,600)`; measured gesture
+  conversion approximately `2.1 atlas px / screen-drag px`; 65 mapped entries, with Forum and Parade
+  Grounds non-actionable on the BlueStacks profile.
+- Direct implementation files: `tasks/home_atlas_planner.py`, `tasks/home_atlas.py`,
+  `tasks/home_atlas_vision.py`, `scripts/home_atlas_bluestacks.py`, semantic atlas metadata, focused
+  tests, research docs, `BACKLOG.md`, and `CURRENT_HANDOFF.md`.
+- Shared dependencies: `scripts/bluestacks_native_runtime.py`, the completed atlas assets, and the
+  existing Supply Depot vision regression surface; no production registration or task row.
+- Transitive regression set: Home atlas/planner, Supply Depot, BlueStacks integrated routes,
+  governance, and full repository discovery.
+- Allowed changes: per-commit allowed paths are the direct implementation files, focused tests,
+  semantic metadata/research docs, this task contract, and current handoff only.
+- Prohibited changes: unrelated workflows, protected evidence, Bliss/Unraid/production input,
+  building opens, workers, task rows, registration, scheduler, staging, commit, or push.
+- Authorized runtime action: local BlueStacks native `800x1280` Home panning only through the
+  executable project-owned capture/transport route; no building tap was authorized.
+- Maximum transport inputs: four calculated pans per target, with fresh capture and relocalization
+  after each; observed maximum was two.
+- Navigation-only recovery: stop on invalid source, calibration, coverage, localization, progress,
+  repeated viewport, edge clamp, semantic binding, or pan-count guard; do not repeat identical input.
+- Consequential action: None; all runtime input was navigation-only Home camera panning.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: the two recorded no-progress canonical short-drag targets, any
+  building tap, either prior Supply Depot collection key, or any BlueStacks calibration reuse in Bliss.
+- Required source: fresh native local BlueStacks `800x1280` Home frames, exact package/profile,
+  canonical zoom, frame identity, no overlay, and positive current localization.
+- Exact target semantics: mapped semantic building ID and atlas polygon, followed by current-frame
+  renderer-specific label binding inside the safe interaction region.
+- Required local association: atlas projection narrows the search only; current-frame OCR and an
+  atlas-predicted safe building ROI are required for completion.
+- Negative controls: coordinate-only success, building taps, Supply collection, downstream building
+  workflows, stale/overlay/wrong-profile frames, and Bliss/Unraid input.
+- Coordinate space: canonical BlueStacks atlas pixels are distinct from native screen pixels;
+  gesture geometry is injected by a platform adapter and is not portable to Bliss.
+- Accepted signals: recognized canonical Home, supported screen-to-atlas transform, verified target
+  coverage, reachable desired origin, measured forward displacement, and fresh semantic binding.
+- Rejected weak signals: transport success, accumulated swipe count, prior camera state, projection
+  alone, native dimensions alone, and current-frame label without local atlas association.
+- Ambiguous-result behavior: stop navigation, retain immediate-before/post/settled records, freshly
+  localize when safe, and never blindly retry.
+- Zero-cost requirement: NOT_APPLICABLE; this task performs no collection or other transaction.
+- Quantity limits: zero building/workflow actions; at most four navigation pans per target.
+- Resource consumption policy: no resource, item, AP, stamina, speedup, ticket, or currency use.
+- Premium or strategic restrictions: no premium, purchase, Mall, Bank deposit, upgrade, research,
+  training, healing, production collection, or other consequential control.
+- Active evidence manifest: None; local BlueStacks route evidence is ignored task-local diagnostics.
+- Required artifacts: each starting localization and plan, pan frame triplets, measured displacement,
+  final semantic bindings, a fail-closed case, and final canonical Home recovery.
+- Immediate-before/immediate-post/result/journal: retained in the exact ignored local route sessions
+  listed in `docs/research/home_ui_atlas.md`; no consequential journal was created.
+- Additional task-specific artifacts: planner contracts in `tasks/home_atlas_planner.py` and the
+  machine-readable validation summary in `docs/research/home_ui_atlas.json`.
+- Focused tests: `tests.test_home_atlas_planner`, `tests.test_home_atlas`, Supply Depot vision/route,
+  and BlueStacks integrated-route tests; 57 passed.
+- Integration tests: project-owned `navigate-building` dry-run and navigation-only live routes for
+  Headquarters, Supply Depot, Bank, and Gear Factory.
+- Transitive regression tests: governance validation and full repository discovery.
+- Full-suite requirement: run full unittest discovery when practical; 544 passed with one expected skip.
+- Validators: Python compilation, governance, CURRENT_HANDOFF JSON, atlas/research JSON, touched-file
+  secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip.
+- Evidence requirement: NOT_APPLICABLE because this local BlueStacks validation creates no canonical
+  Bliss evidence manifest; concise ignored sessions and checked-in semantic summaries are sufficient.
+- Valid blocked outcomes: all declared source, coverage, calibration, localization, progress,
+  repeated viewport, map-edge, maximum-pan, and current-frame semantic-recognition failures.
+- Blocked-result commit policy: do not stage or commit a blocked live result; record terminal state
+  only after no action remains in flight.
+- Commit policy: no staging, commit, or push was requested; no push by default.
+- Expected focused commits: None because the user explicitly prohibited staging/commit/push.
+- Completion criteria: platform-neutral direct planner and independent BlueStacks adapter implemented;
+  required live target matrix bound without building opens; final canonical Home recognized;
+  validators pass; production stays unregistered and scheduler-disabled; no forbidden action occurs.
+
+### TOOLS-HOME-ATLAS-TROOP-TRAINING-ENTRY-MIGRATION
+- Task ID: `TOOLS-HOME-ATLAS-TROOP-TRAINING-ENTRY-MIGRATION`.
+- Title: Migrate local BlueStacks Troop Training facility entry to the completed Home atlas direct-pan planner.
+- Status: Completed (2026-07-18; local BlueStacks Fighter/Vehicle entry-only validation closed at canonical Home with zero Train input).
+- Milestone: Local platform-neutral semantic Home navigation consumers.
+- Dependencies: completed `TOOLS-HOME-ATLAS-DIRECT-PAN-PLANNER`, semantic registry, canonical zoom/localization, and passed Troop Training recognition/downstream controller.
+- Blocked by: None; Bliss remains an independent uncalibrated platform.
+- Objective: select the first enabled troop type's mapped semantic facility, freshly localize any canonical native Home camera, calculate/relocalize bounded pans, bind the facility from the current frame, open only its exact radial, recognize Train, and support entry-only recovery to canonical Home without tapping Train.
+- Established facts: the atlas and direct-pan planner are passed authority; the legacy Troop Training Home recognizer required all four facilities in one frame; Fighter and Vehicle live entry-only validation completed with no Train or consequential input.
+- Direct implementation files: `tasks/troop_training_entry.py`, `tasks/troop_training_vision.py`, `scripts/troop_training_bluestacks.py`, the BlueStacks current-frame binder/Vehicle renderer policy, focused tests, research summaries, this task contract, and current handoff.
+- Shared dependencies: completed `tasks/home_atlas_planner.py`, atlas/localizer, BlueStacks native runtime, and unchanged downstream `TrainingController`/`TroopTrainingRuntimeController`.
+- Transitive regression set: Home atlas/planner, Troop Training, BlueStacks integrated routes, Supply Depot, governance, and full repository discovery.
+- Mapped facilities: fighter `home.building.fighter_camp`; shooter `home.building.shooter_camp`; rider `home.building.rider_camp`; vehicle `home.building.vehicle_depot`.
+- Allowed changes: per-commit allowed paths are the narrowly scoped Troop Training entry contracts/vision/BlueStacks route and tests, BlueStacks binder/Vehicle renderer policy, this task entry, current handoff, and concise task-local research/evidence references.
+- Prohibited changes: atlas rebuild/reacquisition, Bliss geometry/input, Unraid/production, downstream training semantics, Train/quantity/resource/Warehouse/resource-box/premium/consequential input, workers, task rows, registration, scheduler, staging, commit, or push.
+- Authorized runtime action: local BlueStacks native 800x1280 Home panning, freshly bound facility tap, positively recognized radial inspection, and positively recognized Back recovery only through the project-owned runtime.
+- Maximum transport inputs: four calculated Home pans per facility plus one freshly bound facility tap and one safe Back; zero Train inputs.
+- Navigation-only recovery: require the exact fresh facility radial and a BlueStacks-safe exterior scene target outside every projected semantic building polygon; prove the radial gone and canonical Home freshly localized, otherwise stop without retry.
+- Consequential action: None; entry-only mode has no Train dispatch path and the passed downstream controller is unchanged.
+- Registration changes: None; production stays not registered and scheduler-disabled/ineligible.
+- Scheduler changes: None; scheduler stays disabled/ineligible with no worker or task-row changes.
+- Actions that must not be repeated: prior Fighter/Vehicle facility taps, the diagnostic Fighter Back that opened the exit dialog, either exterior close, any Train input, or the failed binding/clearance attempts without a new correction.
+- Required source: exact local package `com.global.ztmslg`, BlueStacks profile `pns-bluestacks-5-p64-800x1280-v1`, native portrait 800x1280, fresh unambiguous fully-zoomed-out Home localization before planning and after every pan, and no forbidden overlay.
+- Exact target semantics: the mapped building ID selected from the first enabled troop type, its current-frame renderer label binding, then that same facility's exact Details/Upgrade/Train radial and Train control.
+- Required local association: atlas projection narrows the facility search only; a fresh current-frame label/declared renderer variant is required before the facility tap, and current-frame radial semantics are required before safe close.
+- Negative controls: coordinate-only facility success, wrong facility identity, non-Home/wrong-profile/zoom/overlay/stale frames, Train/quantity/Warehouse/resource-box/premium surfaces, and any Bliss geometry reuse.
+- Coordinate space: canonical atlas pixels remain platform-neutral; native BlueStacks drag/safe-region/exterior-close geometry is adapter-owned and forbidden for Bliss.
+- Accepted signals: current canonical localization, verified target coverage/actionability, measured forward pan progress, exact fresh semantic facility binding, exact facility radial/Train binding, radial disappearance, and final canonical Home localization.
+- Rejected weak signals: transport success, projected coordinates alone, prior-frame binding, any background facility label used as radial identity, accumulated pan count, or disappearance without positive Home recovery.
+- Ambiguous-result behavior: stop, retain current session frames/events, relocalize read-only when safe, and continue only with a concrete corrected hypothesis; never retry identical input.
+- Zero-cost requirement: NOT_APPLICABLE because this is navigation-only and performs no transaction.
+- Quantity limits: zero Train inputs, zero quantity edits, at most four planner pans per target, one exact facility entry, and one safe radial close target per validated facility.
+- Resource consumption policy: no resource, resource box, Warehouse confirmation, item, AP, stamina, speedup, ticket, or currency use.
+- Premium or strategic restrictions: no premium, purchase, Train Now, troop training, upgrade, research, healing, production, collection, recruitment, or unrelated workflow input.
+- Active evidence manifest: None; concise ignored local BlueStacks sessions are task diagnostics, not Bliss production evidence.
+- Required artifacts: starting/settled localizations, plan and pan frame triplets, requested/measured/residual displacement, current-frame facility/radial bindings, proof Train was not dispatched, safe Home recovery, and one fail-closed case.
+- Immediate-before/immediate-post/result/journal: exact ignored sessions are listed in `docs/research/home_ui_atlas.md`/`.json`; runtime `events.jsonl` records only non-consequential local navigation and no consequential journal was created.
+- Additional task-specific artifacts: `troop-training-result.json` per primary route, declared Vehicle OCR variants, radial exterior-close binding policy, and final native Home frames.
+- Focused tests: Home atlas/planner, `tests.test_troop_training_entry`, and existing Troop Training tests; required mapping, zero/one/corrective pan, relocalization, binding, rejection, radial, dry-run, entry-only, downstream, and platform-separation cases covered.
+- Integration tests: project-owned native runtime route with Fighter zero-pan and Vehicle measured-pan entry-only sessions, plus BlueStacks integrated-route and Supply Depot regressions.
+- Transitive regression tests: governance validation and full unittest discovery.
+- Full-suite requirement: run full repository unittest discovery when practical and allow no new failure beyond the expected skip.
+- Validators: Python compilation, focused/full tests, governance, CURRENT_HANDOFF JSON, atlas/research JSON, touched-file secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip.
+- Evidence requirement: NOT_APPLICABLE because local BlueStacks navigation-only diagnostics create no canonical Bliss evidence manifest; exact ignored sessions and checked-in summaries are sufficient.
+- Valid blocked outcomes: every source/profile/zoom/overlay/stale/localization/coverage/actionability/calibration/progress/direction/repetition/edge/pan-count/current-binding/facility/radial/Train/unexpected-surface/safe-close failure.
+- Blocked-result commit policy: do not stage or commit a blocked live result; retain local diagnostics only after no action remains in flight.
+- Commit policy: preserve all unstaged atlas work; do not stage or commit; no push by default.
+- Expected focused commits: None because staging, commit, and push were explicitly prohibited.
+- Completion criteria: shared planner entry replaces the all-four-visible gate; entry-only Fighter/Vehicle validation includes zero and measured-pan cases, exact facility/radial bindings, zero Train input, final canonical Home, passing validators, and unchanged registration/scheduler state.
+
+### TOOLS-HOME-ATLAS-SEMANTIC-REGISTRY-COMPLETION
+- Task ID: `TOOLS-HOME-ATLAS-SEMANTIC-REGISTRY-COMPLETION`.
+- Title: Complete the current-account Home atlas semantic building registry.
+- Status: Completed (2026-07-18; current-account accepted-atlas inventory reconciled with zero runtime input).
+- Milestone: Complete semantic inventory over the passed local BlueStacks Home atlas.
+- Dependencies: completed `TOOLS-HOME-BASE-ATLAS-BLUESTACKS` and
+  `TOOLS-HOME-ATLAS-DIRECT-PAN-PLANNER`.
+- Blocked by: None for current-account visible buildings; account-locked future buildings remain absent.
+- Objective: audit every accepted atlas label and physical facility against the semantic registry,
+  add each genuinely missing current-account building, and retain individual repeated instances for
+  future upgrades while allowing workflow-level representative selection.
+- Established facts: the 30-view atlas is complete and must not be reacquired; the audit found Parade
+  Grounds labeled in viewports 018/019 but absent from the 64-entry registry; Horizon Hub and AI Hub
+  are not present at the current account level; Builder Hall is not a separate current-atlas facility.
+- Direct implementation files: BlueStacks atlas JSON, Home atlas research JSON/Markdown, focused
+  atlas tests, `BACKLOG.md`, `CURRENT_HANDOFF.md`, and governance identity coverage.
+- Shared dependencies: `tasks/home_atlas.py`, accepted atlas tiles, completed coverage/localization,
+  and platform-neutral planner rejection of non-actionable facilities.
+- Transitive regression set: Home atlas/planner, Supply Depot, BlueStacks routes, governance, and full suite.
+- Allowed changes: per-commit allowed paths are the semantic atlas metadata, research documentation,
+  focused tests, this task contract, and current handoff only.
+- Prohibited changes: atlas reacquisition/rebuild, runtime input, building opens/workflows, protected
+  evidence, Bliss/Unraid, workers, task rows, registration, scheduler, staging, commit, or push.
+- Authorized runtime action: None required; use accepted native tiles and transforms read-only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: NOT_APPLICABLE because no runtime input is authorized or required.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: atlas acquisition, coverage scan, prior planner validation pans,
+  Supply Depot actions, or no-progress canonical diagnostics.
+- Required source: checked-in accepted native BlueStacks atlas manifest, mosaic, and viewports 018/019.
+- Exact target semantics: `home.building.parade_grounds`, OCR label Parade Grounds, right-edge troop
+  staging facility, polygon `(1287,845)-(1447,960)`, non-actionable behind fixed right HUD.
+- Required local association: two accepted viewport OCR observations plus transform-consistent physical geometry.
+- Negative controls: OCR noise, UI text, account-locked absent facilities, coordinate-only inference,
+  unsafe actionability, and duplicate renaming of already mapped buildings.
+- Coordinate space: canonical BlueStacks atlas pixels only; no Bliss coordinate reuse.
+- Accepted signals: repeated accepted-tile label, stable transformed geometry, catalog reconciliation,
+  and explicit visibility/actionability policy.
+- Rejected weak signals: web catalog name alone, a single noisy OCR token, black atlas margins, HUD icons,
+  or a building unavailable on this account.
+- Ambiguous-result behavior: leave the candidate unmapped and record the unresolved inventory gap; do not acquire input.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: one registry entry per physical instance; workflow aliases remain separate future policy.
+- Resource consumption policy: no resource, item, AP, stamina, speedup, ticket, or currency use.
+- Premium or strategic restrictions: no building operation, premium, purchase, Mall, Bank, upgrade,
+  research, training, healing, or production action.
+- Active evidence manifest: None; accepted checked-in atlas assets are the source authority.
+- Required artifacts: updated semantic registry, audit summary, current-account completeness test, and handoff.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE; zero runtime input and no journal action.
+- Additional task-specific artifacts: accepted `viewport-018.png` and `viewport-019.png` already retained in the atlas.
+- Focused tests: `tests.test_home_atlas` and `tests.test_home_atlas_planner`.
+- Integration tests: atlas loader plus planner rejection for non-actionable mapped facilities.
+- Transitive regression tests: Supply Depot, BlueStacks integrated routes, and governance.
+- Full-suite requirement: run full unittest discovery when practical; allow no new failure.
+- Validators: compilation, focused/full tests, governance, handoff JSON, atlas/research JSON, secret scan,
+  and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip.
+- Evidence requirement: NOT_APPLICABLE because this is a checked-in atlas metadata audit with no new runtime evidence.
+- Valid blocked outcomes: ambiguous label/geometry, missing accepted support, account-locked building, or permanent HUD occlusion.
+- Blocked-result commit policy: do not stage or commit a blocked mapping; preserve the existing atlas.
+- Commit policy: no staging, commit, or push was requested; no push by default.
+- Expected focused commits: None because staging/commit/push were not requested.
+- Completion criteria: every current-account accepted-atlas building label reconciled; Parade Grounds mapped
+  with exact non-actionable policy; individual resource/infirmary instances preserved; tests and validators pass.
 
 ### DQ-FLOW-RECRUITMENT
 - Status: Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).

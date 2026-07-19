@@ -257,6 +257,37 @@ def recognize_home(frame: np.ndarray, *, reset_identity: str | None = None) -> H
             _ocr(frame, (250, 400, 520, 550), psm=11),
         )
     )
+
+
+def forbidden_atlas_entry_surface(frame: np.ndarray) -> str | None:
+    """Reject consequential or modal surfaces before Home-atlas localization.
+
+    This is deliberately a semantic negative gate, not a Home recognizer.  The
+    atlas localizer remains the positive Home authority and therefore does not
+    inherit the legacy requirement that all four troop facilities be visible.
+    """
+
+    if frame is None or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
+        return "non_native_frame"
+    text = _ocr(frame)
+    phrases = (
+        ("train now", "unexpected_training_surface"),
+        ("auto use", "unexpected_resource_box_surface"),
+        ("resource boxes", "unexpected_resource_box_surface"),
+        ("daily free attempts", "unexpected_resource_surface"),
+        ("premium", "unexpected_premium_surface"),
+        ("purchase", "unexpected_purchase_surface"),
+    )
+    for phrase, reason in phrases:
+        if phrase in text:
+            return reason
+    if "quantity" in text and ("train now" in text or "select tier" in text):
+        return "unexpected_quantity_surface"
+    if "warehouse" in text and ("confirm" in text or "use resources" in text or "insufficient" in text):
+        return "unexpected_warehouse_surface"
+    if "confirm" in text and "cancel" in text:
+        return "unexpected_confirmation_overlay"
+    return None
     facilities: dict[str, Box] = {}
     label_y_hint = {"fighter": 775, "shooter": 675, "rider": 765, "vehicle": 865}
     for troop_type in TROOP_TYPES:
@@ -395,14 +426,18 @@ def recognize_radial_menu(frame: np.ndarray, *, troop_type: str | None = None) -
     upgrade_band = " ".join((_ocr(frame, (195, 770, 310, 890), psm=6), _ocr(frame, (195, 770, 310, 890), psm=11)))
     train_band = " ".join((_ocr(frame, (300, 760, 430, 890), psm=6), _ocr(frame, (300, 760, 430, 890), psm=11)))
     detected_type, facility = _training_title(text)
-    if troop_type is not None and detected_type != troop_type:
-        # The live radial menu overlays Home and does not render a facility title.  The exact
-        # current-frame facility tap supplied by the caller is the remaining identity binding.
+    if troop_type is not None:
+        # Several other facility labels remain visible behind the radial.  The
+        # menu itself has no facility title, so identity comes only from the
+        # exact current-frame facility binding that the caller just tapped.
         detected_type, facility = troop_type, FACILITY_BY_TYPE[troop_type]
     boxes = _ocr_boxes(frame)
     # The radial menu follows the building's current screen position.  Bind from the current
     # menu text across the lower-center band instead of assuming Fighter Camp's fixed menu ROI.
-    menu_boxes = _ocr_variant_boxes(frame, (180, 700, 650, 930))
+    # The radial follows the freshly bound facility and can occupy the lower
+    # canonical scene (Fighter/Vehicle) as well as the historical middle band.
+    # This remains current-frame OCR; no fixed action coordinate is inferred.
+    menu_boxes = _ocr_variant_boxes(frame, (60, 680, 680, 1100))
     menu_text = " ".join(label for label, _ in menu_boxes)
     train_box = next(
         (box for label, box in boxes + menu_boxes if label.strip(".,:;!?") in {"train", "rain"}),

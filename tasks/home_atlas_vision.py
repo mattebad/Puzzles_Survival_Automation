@@ -12,13 +12,16 @@ from typing import Iterable
 
 import cv2
 import numpy as np
+import pytesseract
 
 from .home_atlas import (
     AmbiguityState,
+    BuildingBinding,
     HomeAtlas,
     LocalizationResult,
     Matrix3,
     Polygon,
+    SemanticBuilding,
     ZoomIdentity,
 )
 
@@ -41,6 +44,8 @@ HUD_MASK_RECTS: tuple[tuple[int, int, int, int], ...] = (
     (0, 1020, 800, 1280),
 )
 SCENE_ROI = (138, 150, 560, 1020)
+BLUESTACKS_SAFE_INTERACTION_BOX = (145, 180, 650, 1010)
+BLUESTACKS_INTERACTION_ANCHOR = (400, 600)
 
 
 @dataclass(frozen=True)
@@ -75,6 +80,81 @@ def frame_digest(frame: np.ndarray) -> str:
     if not ok:
         raise RuntimeError("cannot encode frame for hashing")
     return hashlib.sha256(payload.tobytes()).hexdigest()
+
+
+def _normalized_label(value: str) -> str:
+    return " ".join("".join(character if character.isalnum() else " " for character in value.lower()).split())
+
+
+def _project_building(localization: LocalizationResult, building: SemanticBuilding) -> np.ndarray:
+    if not localization.recognized or localization.screen_to_atlas is None:
+        raise ValueError("building binding requires a recognized current localization")
+    inverse = np.linalg.inv(np.asarray(localization.screen_to_atlas, dtype=np.float64))
+    points = np.asarray(building.polygon, dtype=np.float32).reshape(-1, 1, 2)
+    return cv2.perspectiveTransform(points, inverse).reshape(-1, 2)
+
+
+def bind_visible_building(
+    frame: np.ndarray,
+    localization: LocalizationResult,
+    building: SemanticBuilding,
+    *,
+    ocr=None,
+) -> BuildingBinding | None:
+    """BlueStacks renderer binding for an atlas-predicted building label.
+
+    Projection narrows the current-frame search only.  A present renderer-local
+    semantic label is still required and the returned interaction ROI must lie
+    wholly inside the fixed-HUD-free region.
+    """
+
+    if (
+        not native_frame_guard(frame)
+        or localization.profile_id != BLUESTACKS_PROFILE_ID
+        or localization.frame_sha256 != frame_digest(frame)
+        or not building.interaction_eligible
+    ):
+        return None
+    policy = building.platform_binding_policy.get("bluestacks", building.recognition.get("bluestacks", {}))
+    if not isinstance(policy, dict) or not policy.get("label"):
+        return None
+    expected = _normalized_label(str(policy["label"]))
+    declared_aliases = policy.get("label_aliases", ())
+    if not isinstance(declared_aliases, (list, tuple)) or not all(isinstance(item, str) and item.strip() for item in declared_aliases):
+        return None
+    accepted_labels = (expected, *(_normalized_label(item) for item in declared_aliases))
+    projected = _project_building(localization, building)
+    px0, py0 = np.floor(projected.min(axis=0)).astype(int)
+    px1, py1 = np.ceil(projected.max(axis=0)).astype(int)
+    search = (max(0, px0 - 18), max(0, py1 - 75), min(800, px1 + 18), min(1280, py1 + 45))
+    if search[0] >= search[2] or search[1] >= search[3]:
+        return None
+    crop = cv2.cvtColor(frame[search[1]:search[3], search[0]:search[2]], cv2.COLOR_BGR2GRAY)
+    threshold = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    reader = ocr or (lambda image, psm: pytesseract.image_to_string(image, config=f"--psm {psm}"))
+    readings = []
+    for variant in (crop, threshold):
+        enlarged = cv2.resize(variant, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+        readings.extend(reader(enlarged, psm) for psm in (6, 7, 11, 12))
+    text = _normalized_label(" ".join(readings))
+    if not any(label in text for label in accepted_labels):
+        return None
+    sx0, sy0, sx1, sy1 = BLUESTACKS_SAFE_INTERACTION_BOX
+    ax0, ay0, ax1, ay1 = max(px0, sx0), max(py0, sy0), min(px1, sx1), min(py1, sy1)
+    if ax1 - ax0 < 45 or ay1 - ay0 < 45:
+        return None
+    inset_x = min(18, max(6, (ax1 - ax0) // 8))
+    inset_y = min(18, max(6, (ay1 - ay0) // 8))
+    target = (ax0 + inset_x, ay0 + inset_y, ax1 - inset_x, ay1 - inset_y)
+    if target[0] >= target[2] or target[1] >= target[3]:
+        return None
+    return BuildingBinding(
+        building_id=building.semantic_id,
+        target_roi=tuple(int(value) for value in target),
+        frame_sha256=localization.frame_sha256,
+        confidence=min(localization.confidence, building.confidence, 0.98),
+        semantic_evidence=(f"current-frame OCR: {policy['label']}", "atlas-predicted building region", "BlueStacks renderer policy"),
+    )
 
 
 def hud_mask(shape: tuple[int, ...] = (1280, 800, 3)) -> np.ndarray:

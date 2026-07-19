@@ -12,12 +12,17 @@ import sys
 import time
 
 import cv2
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueStacksRuntime, NativeRuntimePort
+from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract
+from tasks.home_atlas import load_home_atlas
+from tasks.home_atlas_planner import PlanDisposition, camera_origin
+from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, BlueStacksHomeLocalizer, bind_visible_building, frame_digest
 from tasks.troop_training import (
     FACILITY_BY_TYPE,
     RESOURCE_NAMES,
@@ -29,10 +34,12 @@ from tasks.troop_training import (
     expected_completion_timestamp,
     make_action_key,
 )
+from tasks.troop_training_entry import ATLAS_BUILDING_BY_TROOP_TYPE, TroopTrainingAtlasEntryPlanner, first_enabled_entry_target
 from tasks.troop_training_runtime import TrainingPhase, TroopTrainingRuntimeController
 from tasks.troop_training_vision import (
     QUANTITY_BAND,
     TAB_ROIS,
+    forbidden_atlas_entry_surface,
     recognize_auto_use_resource_popup,
     recognize_home,
     recognize_exit_dialog,
@@ -43,6 +50,67 @@ from tasks.troop_training_vision import (
 
 
 RESOURCE_BOXES_APPLIED_REAPPLY_TRAINING = "resource boxes applied; reapply exact quantity and authorize a new Train transaction"
+DEFAULT_HOME_ATLAS = ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+
+
+@dataclass(frozen=True)
+class RadialExteriorCloseBinding:
+    target_roi: tuple[int, int, int, int]
+    frame_sha256: str
+    minimum_building_clearance_px: float
+    semantic_evidence: tuple[str, ...]
+
+
+def bind_radial_exterior_close(frame, localization, atlas, radial, *, troop_type: str) -> RadialExteriorCloseBinding | None:
+    """Bind empty current-frame terrain for a safe BlueStacks radial close."""
+
+    if (
+        not localization.recognized
+        or localization.platform != BLUESTACKS_PLATFORM
+        or localization.profile_id != BLUESTACKS_PROFILE_ID
+        or localization.screen_to_atlas is None
+        or localization.frame_sha256 != frame_digest(frame)
+        or radial.facility_identity != FACILITY_BY_TYPE.get(troop_type)
+        or not radial.recognized
+        or radial.train_target is None
+        or radial.overlay_state != "none"
+    ):
+        return None
+    inverse = np.linalg.inv(np.asarray(localization.screen_to_atlas, dtype=np.float64))
+    projected_buildings = [
+        cv2.perspectiveTransform(np.asarray(building.polygon, dtype=np.float32).reshape(-1, 1, 2), inverse).reshape(-1, 2)
+        for building in atlas.buildings
+    ]
+    safe_region, _ = bluestacks_direct_pan_contract()
+    sx0, sy0, sx1, sy1 = safe_region.screen_box
+    candidates: list[tuple[float, int, int]] = []
+    # Stay away from HUD edges and above the complete radial action row.
+    for y in range(max(sy0 + 70, 250), min(sy1, 650) + 1, 25):
+        for x in range(max(sx0 + 70, 220), min(sx1 - 70, 575) + 1, 25):
+            clearances = []
+            occupied = False
+            for polygon in projected_buildings:
+                signed = float(cv2.pointPolygonTest(polygon, (float(x), float(y)), True))
+                if signed >= 0:
+                    occupied = True
+                    break
+                clearances.append(abs(signed))
+            if not occupied and clearances and min(clearances) >= 25.0:
+                candidates.append((min(clearances), x, y))
+    if not candidates:
+        return None
+    clearance, x, y = max(candidates)
+    return RadialExteriorCloseBinding(
+        (x - 10, y - 10, x + 10, y + 10),
+        localization.frame_sha256,
+        clearance,
+        (
+            f"current-frame facility radial: {radial.facility_identity}",
+            "fresh canonical Home atlas localization under known radial",
+            "outside every projected semantic building polygon by at least 25 px",
+            "inside BlueStacks safe interaction region and above radial controls",
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -56,6 +124,7 @@ class TroopTrainingRouteResult:
     training: tuple[dict[str, object], ...]
     daily_progress: dict[str, object]
     final_home_recognized: bool
+    entry_navigation: dict[str, object]
     session: str
 
 
@@ -86,9 +155,18 @@ class TroopTrainingReturnHomeResult:
 class TroopTrainingReturnHomeRoute:
     """Close a recognized training/radial surface through native navigation only."""
 
-    def __init__(self, runtime: NativeRuntimePort, *, post_input_delay: float = 1.0) -> None:
+    def __init__(
+        self,
+        runtime: NativeRuntimePort,
+        *,
+        post_input_delay: float = 1.0,
+        radial_troop_type: str | None = None,
+        atlas_path: Path = DEFAULT_HOME_ATLAS,
+    ) -> None:
         self.runtime = runtime
         self.post_input_delay = post_input_delay
+        self.radial_troop_type = radial_troop_type
+        self.atlas_path = atlas_path
 
     def run(self) -> TroopTrainingReturnHomeResult:
         source = self.runtime.capture("return-home-source")
@@ -102,6 +180,17 @@ class TroopTrainingReturnHomeRoute:
             )
             time.sleep(self.post_input_delay)
             final = self.runtime.capture("return-home-final-after-cancel")
+            if self.radial_troop_type is not None:
+                remaining_radial = recognize_radial_menu(final.frame, troop_type=self.radial_troop_type)
+                if remaining_radial.recognized and remaining_radial.train_target is not None:
+                    return TroopTrainingReturnHomeResult("blocked", "exit dialog canceled safely; facility radial remains open", 1, False, str(self.runtime.session))
+                if forbidden_atlas_entry_surface(final.frame) is not None:
+                    return TroopTrainingReturnHomeResult("blocked", "exit dialog canceled but a forbidden or modal surface remains", 1, False, str(self.runtime.session))
+                atlas = load_home_atlas(self.atlas_path)
+                final_localization = BlueStacksHomeLocalizer(atlas, self.atlas_path).localize(final.frame)
+                if not final_localization.recognized:
+                    return TroopTrainingReturnHomeResult("blocked", "exit dialog canceled but canonical Home was not localized", 1, False, str(self.runtime.session))
+                return TroopTrainingReturnHomeResult("completed", "exit dialog canceled and canonical Home positively localized", 1, True, str(self.runtime.session))
             final_home = recognize_home(final.frame, reset_identity="return-home")
             for attempt in range(2):
                 if final_home.recognized:
@@ -112,6 +201,49 @@ class TroopTrainingReturnHomeRoute:
             if not final_home.recognized:
                 return TroopTrainingReturnHomeResult("blocked", "exit dialog canceled but Home/Base was not positively recognized", 1, False, str(self.runtime.session))
             return TroopTrainingReturnHomeResult("completed", "exit dialog canceled and Home/Base positively recognized", 1, True, str(self.runtime.session))
+        if self.radial_troop_type is not None:
+            radial = recognize_radial_menu(source.frame, troop_type=self.radial_troop_type)
+            expected = FACILITY_BY_TYPE[self.radial_troop_type]
+            if radial.recognized and radial.facility_identity == expected and radial.train_target is not None and radial.overlay_state == "none":
+                fresh = self.runtime.capture("return-home-radial-fresh-before-toggle-close")
+                fresh_radial = recognize_radial_menu(fresh.frame, troop_type=self.radial_troop_type)
+                if not (
+                    fresh_radial.recognized
+                    and fresh_radial.facility_identity == expected
+                    and fresh_radial.train_target is not None
+                    and fresh_radial.overlay_state == "none"
+                ):
+                    return TroopTrainingReturnHomeResult("blocked", "radial could not be freshly rebound before toggle close", 0, False, str(self.runtime.session))
+                atlas = load_home_atlas(self.atlas_path)
+                localizer = BlueStacksHomeLocalizer(atlas, self.atlas_path)
+                localization = localizer.localize(fresh.frame)
+                binding = bind_radial_exterior_close(
+                    fresh.frame,
+                    localization,
+                    atlas,
+                    fresh_radial,
+                    troop_type=self.radial_troop_type,
+                )
+                if binding is None:
+                    return TroopTrainingReturnHomeResult("blocked", "safe radial exterior close target could not be bound", 0, False, str(self.runtime.session))
+                self.runtime.tap(
+                    fresh,
+                    target_identity=f"radial-exterior-close:{self.radial_troop_type}",
+                    target_roi=binding.target_roi,
+                    action_key=f"training:navigation:return-home-radial-exterior:{self.radial_troop_type}:{fresh.sha256}",
+                )
+                time.sleep(self.post_input_delay)
+                final = self.runtime.capture("return-home-radial-final")
+                remaining_radial = recognize_radial_menu(final.frame, troop_type=self.radial_troop_type)
+                if remaining_radial.recognized and remaining_radial.train_target is not None:
+                    return TroopTrainingReturnHomeResult("blocked", "exterior tap did not close the recognized radial", 1, False, str(self.runtime.session))
+                if forbidden_atlas_entry_surface(final.frame) is not None:
+                    return TroopTrainingReturnHomeResult("blocked", "radial Back reached a forbidden or modal surface", 1, False, str(self.runtime.session))
+                final_localization = localizer.localize(final.frame)
+                if not final_localization.recognized:
+                    return TroopTrainingReturnHomeResult("blocked", "radial exterior close did not prove canonical Home", 1, False, str(self.runtime.session))
+                return TroopTrainingReturnHomeResult("completed", "recognized radial exterior-closed and canonical Home positively localized", 1, True, str(self.runtime.session))
+            return TroopTrainingReturnHomeResult("blocked", "configured facility radial was not positively recognized; no Back dispatched", 0, False, str(self.runtime.session))
         home = recognize_home(source.frame, reset_identity="return-home")
         training = recognize_training(source.frame)
         if not home.recognized and not training:
@@ -468,18 +600,27 @@ class TroopTrainingIntegratedRoute:
         reset_identity: str,
         post_input_delay: float = 1.0,
         max_tier_swipes: int = 12,
+        entry_only: bool = False,
+        atlas_path: Path = DEFAULT_HOME_ATLAS,
+        maximum_home_pans: int = 4,
+        home_pan_settle_seconds: float = 1.0,
     ) -> None:
         self.runtime = runtime
         self.config = config
         self.reset_identity = reset_identity
         self.post_input_delay = post_input_delay
         self.max_tier_swipes = max_tier_swipes
+        self.entry_only = entry_only
+        self.atlas_path = atlas_path
+        self.maximum_home_pans = maximum_home_pans
+        self.home_pan_settle_seconds = home_pan_settle_seconds
         self.controller = TroopTrainingRuntimeController(config, reset_identity=reset_identity)
         self.actions_completed = 0
         self.completed_claims: list[dict[str, object]] = []
         self.warehouse_approvals: list[dict[str, object]] = []
         self.resource_box_approvals: list[dict[str, object]] = []
         self.training: list[dict[str, object]] = []
+        self.entry_navigation: dict[str, object] = {}
 
     def _result(self, status: str, reason: str, *, final_home: bool = False) -> TroopTrainingRouteResult:
         return TroopTrainingRouteResult(
@@ -492,8 +633,109 @@ class TroopTrainingIntegratedRoute:
             training=tuple(self.training),
             daily_progress=self.controller.semantic.aggregate_daily(),
             final_home_recognized=final_home,
+            entry_navigation=self.entry_navigation,
             session=str(self.runtime.session),
         )
+
+    def _navigate_selected_facility(self, target):
+        """Use only the shared planner plus the BlueStacks-owned adapter geometry."""
+
+        atlas = load_home_atlas(self.atlas_path)
+        building = atlas.lookup_building(target.building_id)
+        localizer = BlueStacksHomeLocalizer(atlas, self.atlas_path)
+        safe_region, calibration = bluestacks_direct_pan_contract()
+        planner = TroopTrainingAtlasEntryPlanner(
+            atlas,
+            target,
+            safe_region,
+            calibration,
+            maximum_pans=self.maximum_home_pans,
+        )
+        records: list[dict[str, object]] = []
+        source = self.runtime.capture("entry-home-source")
+        source_rejection = forbidden_atlas_entry_surface(source.frame)
+        if source_rejection is not None:
+            self.entry_navigation = {
+                "mode": "entry_only" if self.entry_only else "full_training",
+                "troop_type": target.troop_type,
+                "building_id": target.building_id,
+                "source_surface_rejection": source_rejection,
+                "records": records,
+                "train_dispatched": False,
+            }
+            return None, None, planner, source_rejection
+        source_localization = localizer.localize(source.frame)
+        self.entry_navigation = {
+            "mode": "entry_only" if self.entry_only else "full_training",
+            "troop_type": target.troop_type,
+            "building_id": target.building_id,
+            "source_localization": asdict(source_localization),
+            "safe_interaction_region_id": safe_region.region_id,
+            "gesture_adapter_platform": calibration.platform,
+            "records": records,
+            "train_dispatched": False,
+        }
+        if not source_localization.recognized:
+            return None, None, planner, "source_home_localization_failed"
+
+        for ordinal in range(self.maximum_home_pans + 1):
+            immediate_before = self.runtime.capture(f"entry-pan-{ordinal:02d}-immediate-before")
+            surface_rejection = forbidden_atlas_entry_surface(immediate_before.frame)
+            if surface_rejection is not None:
+                return None, None, planner, surface_rejection
+            localization = localizer.localize(immediate_before.frame)
+            binding = bind_visible_building(immediate_before.frame, localization, building) if localization.recognized else None
+            plan = planner.plan(localization, binding)
+            plan_record = {
+                "ordinal": ordinal,
+                "localization": asdict(localization),
+                "camera_origin": camera_origin(localization) if localization.recognized and localization.screen_to_atlas is not None else None,
+                "plan": asdict(plan),
+                "binding": asdict(binding) if binding is not None else None,
+            }
+            records.append(plan_record)
+            if plan.disposition is PlanDisposition.PAN:
+                if not self.runtime.execute:
+                    return None, None, planner, "dry-run-calculated-pan-not-dispatched"
+                if plan.drag_start is None or plan.drag_end is None:
+                    return None, None, planner, "invalid_gesture_calibration"
+                self.runtime.swipe(
+                    immediate_before,
+                    start=plan.drag_start,
+                    end=plan.drag_end,
+                    action_key=f"training:navigation:home-pan:{target.troop_type}:{ordinal}:{immediate_before.sha256}",
+                    target_identity="home-camera-click-drag",
+                )
+                self.actions_completed += 1
+                immediate_post = self.runtime.capture(f"entry-pan-{ordinal:02d}-immediate-post")
+                if self.home_pan_settle_seconds > 0:
+                    time.sleep(self.home_pan_settle_seconds)
+                settled = self.runtime.capture(f"entry-pan-{ordinal:02d}-settled")
+                surface_rejection = forbidden_atlas_entry_surface(settled.frame)
+                if surface_rejection is not None:
+                    return None, None, planner, surface_rejection
+                settled_localization = localizer.localize(settled.frame)
+                progress = planner.record_progress(localization, settled_localization)
+                plan_record["pan"] = {
+                    "immediate_before_sha256": immediate_before.sha256,
+                    "immediate_post_sha256": immediate_post.sha256,
+                    "settled_sha256": settled.sha256,
+                    "settled_localization": asdict(settled_localization),
+                    "progress": asdict(progress),
+                }
+                if not progress.accepted:
+                    return None, None, planner, progress.reason
+                continue
+            if plan.disposition is PlanDisposition.COMPLETE and binding is not None:
+                self.entry_navigation["final_binding"] = asdict(binding)
+                self.entry_navigation["navigation_pans"] = planner.pan_count
+                if not self.runtime.execute:
+                    return immediate_before, binding, planner, "dry-run-bound-facility-not-tapped"
+                return immediate_before, binding, planner, None
+            if plan.disposition is PlanDisposition.BIND:
+                return None, None, planner, "current_frame_facility_binding_required"
+            return None, None, planner, plan.reason
+        return None, None, planner, "maximum_pan_count"
 
     def _capture_home(self, label: str):
         last_captured = None
@@ -974,28 +1216,72 @@ class TroopTrainingIntegratedRoute:
 
     def run(self) -> TroopTrainingRouteResult:
         self.config.validate()
-        home_capture, home = self._capture_home("home-source")
-        if not home.recognized:
-            return self._result("blocked", "Home/Base and all four facilities not positively recognized")
-        if not self.runtime.execute:
-            return self._result("dry-run", "dry-run-no-input; native runtime issued no input")
-        enabled_types = [troop_type for troop_type in TROOP_TYPES if self.config.for_type(troop_type).enabled and self.config.for_type(troop_type).training_policy != "disabled"]
-        if not enabled_types:
+        target = first_enabled_entry_target(self.config)
+        if target is None:
             return self._result("completed", "all troop workflows disabled; no input authorized", final_home=True)
-        first = enabled_types[0]
-        facility_target = home.facility_target(first)
-        if facility_target is None:
-            return self._result("blocked", f"{first} facility target not bound")
+        enabled_types = [troop_type for troop_type in TROOP_TYPES if self.config.for_type(troop_type).enabled and self.config.for_type(troop_type).training_policy != "disabled"]
+        first = target.troop_type
         try:
+            facility_capture, facility_binding, entry_planner, error = self._navigate_selected_facility(target)
+            if error is not None:
+                status = "dry-run" if error.startswith("dry-run-") else "blocked"
+                return self._result(status, error)
+            if facility_capture is None or facility_binding is None:
+                return self._result("blocked", "fresh current-frame facility binding missing")
             self._navigation_tap(
-                home_capture,
+                facility_capture,
                 identity=f"facility:{first}",
-                roi=facility_target,
-                action_key=f"training:navigation:facility:{first}:{home_capture.sha256}",
+                roi=facility_binding.target_roi,
+                action_key=f"training:navigation:facility:{first}:{facility_capture.sha256}",
             )
             menu_capture, menu = self._capture_radial("facility-radial-menu", first)
-            if not menu.recognized or menu.train_target is None:
+            if recognize_auto_use_resource_popup(menu_capture.frame).recognized or recognize_training(menu_capture.frame).recognized:
+                return self._result("blocked", "unexpected consequential training or resource surface after facility entry")
+            if not entry_planner.radial_is_exact(menu):
                 return self._result("blocked", f"{first} radial menu or Train control not recognized")
+            self.entry_navigation["radial_binding"] = asdict(menu)
+            if self.entry_only:
+                fresh_menu_capture, fresh_menu = self._capture_radial("entry-only-radial-immediate-before-toggle-close", first)
+                if not entry_planner.radial_is_exact(fresh_menu):
+                    return self._result("blocked", "entry-only radial could not be freshly rebound before safe toggle close")
+                atlas = load_home_atlas(self.atlas_path)
+                localizer = BlueStacksHomeLocalizer(atlas, self.atlas_path)
+                close_localization = localizer.localize(fresh_menu_capture.frame)
+                close_binding = bind_radial_exterior_close(
+                    fresh_menu_capture.frame,
+                    close_localization,
+                    atlas,
+                    fresh_menu,
+                    troop_type=first,
+                )
+                if close_binding is None:
+                    return self._result("blocked", "entry-only safe radial exterior close target could not be bound")
+                self.entry_navigation["close_binding"] = asdict(close_binding)
+                self.runtime.tap(
+                    fresh_menu_capture,
+                    target_identity=f"radial-exterior-close:{first}",
+                    target_roi=close_binding.target_roi,
+                    action_key=f"training:navigation:entry-only-exterior-close:{first}:{fresh_menu_capture.sha256}",
+                )
+                self.actions_completed += 1
+                self._wait()
+                final = self.runtime.capture("entry-only-final-home")
+                remaining_radial = recognize_radial_menu(final.frame, troop_type=first)
+                if remaining_radial.recognized and remaining_radial.train_target is not None:
+                    return self._result("blocked", "entry-only exterior tap did not close the radial")
+                final_surface_rejection = forbidden_atlas_entry_surface(final.frame)
+                if final_surface_rejection is not None:
+                    self.entry_navigation["final_surface_rejection"] = final_surface_rejection
+                    return self._result("blocked", "entry-only Back reached a forbidden or modal surface")
+                final_localization = localizer.localize(final.frame)
+                self.entry_navigation["final_localization"] = asdict(final_localization)
+                if not final_localization.recognized:
+                    return self._result("blocked", "entry-only Back did not recover fresh canonical Home")
+                return self._result(
+                    "completed",
+                    "entry-only facility radial and Train control recognized; Train not dispatched; canonical Home recovered",
+                    final_home=True,
+                )
             self._navigation_tap(
                 menu_capture,
                 identity=f"train-menu:{first}",
@@ -1034,6 +1320,13 @@ def _load_config(args: argparse.Namespace) -> TroopTrainingConfig:
     )
 
 
+def _retain_route_result(runtime: NativeRuntimePort, result: object) -> None:
+    """Retain the concise machine-readable route result beside native captures."""
+
+    path = Path(runtime.session) / "troop-training-result.json"
+    path.write_text(json.dumps(asdict(result), indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adb", required=True)
@@ -1052,6 +1345,16 @@ def main(argv: list[str] | None = None) -> int:
         )
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--yes", action="store_true", help="confirm the exact local BlueStacks target non-interactively")
+    parser.add_argument(
+        "--entry-only",
+        "--navigation-only",
+        dest="entry_only",
+        action="store_true",
+        help="navigate to the selected facility, recognize its radial Train control, then Back to canonical Home without tapping Train",
+    )
+    parser.add_argument("--home-atlas", type=Path, default=DEFAULT_HOME_ATLAS)
+    parser.add_argument("--maximum-home-pans", type=int, default=4)
+    parser.add_argument("--home-pan-settle-seconds", type=float, default=1.0)
     parser.add_argument(
         "--reconcile-unresolved-session",
         type=Path,
@@ -1169,7 +1472,12 @@ def main(argv: list[str] | None = None) -> int:
         if not args.execute:
             result = TroopTrainingReturnHomeResult("dry-run", "dry-run-no-input; return-home route issued no input", 0, False, str(runtime.session))
         else:
-            result = TroopTrainingReturnHomeRoute(runtime, post_input_delay=args.post_input_delay).run()
+            result = TroopTrainingReturnHomeRoute(
+                runtime,
+                post_input_delay=args.post_input_delay,
+                radial_troop_type=args.radial_troop_type,
+                atlas_path=args.home_atlas,
+            ).run()
         print(json.dumps(asdict(result), sort_keys=True, default=str))
         return 0 if result.status in {"completed", "dry-run"} else 3
     config = _load_config(args)
@@ -1197,7 +1505,12 @@ def main(argv: list[str] | None = None) -> int:
         config=config,
         reset_identity=args.reset_identity,
         post_input_delay=args.post_input_delay,
+        entry_only=args.entry_only,
+        atlas_path=args.home_atlas,
+        maximum_home_pans=args.maximum_home_pans,
+        home_pan_settle_seconds=args.home_pan_settle_seconds,
     ).run()
+    _retain_route_result(runtime, result)
     print(json.dumps(asdict(result), sort_keys=True, default=str))
     return 0 if result.status in {"completed", "dry-run"} else 3
 

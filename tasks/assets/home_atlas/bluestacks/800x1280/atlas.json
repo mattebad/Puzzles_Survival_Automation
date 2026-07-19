@@ -2,6 +2,15 @@
   "account_layout_provenance": "local BlueStacks account level 46 layout, observed 2026-07-18",
   "atlas_id": "pns-home-base-bluestacks-local-v2",
   "atlas_version": "20260718T222243527513Z",
+  "direct_pan_planner_contract": {
+    "camera_origin_authority": "boundary_evidence.camera_origin_bounds",
+    "gesture_geometry_authority": "BlueStacks adapter only; forbidden for Bliss",
+    "interaction_eligibility_default": "supporting_source_frames non-empty and not a non-facility landmark",
+    "navigation_anchor_default": "atlas polygon centroid",
+    "platform_binding_policy_default": "renderer-specific recognition entry",
+    "safe_interaction_region_id": "home-default",
+    "success_requires": "fresh current-frame semantic building binding; projection alone is insufficient"
+  },
   "boundary_evidence": {
     "camera_origin_bounds": {
       "maximum_x": 646.7874603271484,
@@ -79,6 +88,17 @@
           "visual_signature": "orange-blue helicopter, circular pad, cargo crates"
         }
       },
+      "interaction_eligible": true,
+      "navigation_anchor": [1246.7, 976.1],
+      "platform_binding_policy": {
+        "bluestacks": {
+          "allow_safe_subregion_at_camera_edge": true,
+          "label": "Supply Depot",
+          "minimum_safe_subregion": [55, 55],
+          "visual_signature": "orange-blue helicopter, circular pad, cargo crates"
+        }
+      },
+      "safe_interaction_region_id": "home-default",
       "semantic_id": "home.building.supply_depot",
       "semantic_proof": [
         "visible Supply Depot label",
@@ -365,6 +385,15 @@
       "recognition": {
         "bluestacks": {
           "label": "Vehicle Depot"
+        }
+      },
+      "platform_binding_policy": {
+        "bluestacks": {
+          "label": "Vehicle Depot",
+          "label_aliases": [
+            "ehicle Depot",
+            "ehicle Depo"
+          ]
         }
       },
       "semantic_id": "home.building.vehicle_depot",
@@ -865,6 +894,49 @@
         "viewport-019"
       ],
       "visibility_constraints": []
+    },
+    {
+      "confidence": 0.99,
+      "display_identity": "Parade Grounds",
+      "expected_visual_variants": [
+        "right-boundary troop staging facility"
+      ],
+      "interaction_eligible": false,
+      "navigation_anchor": [1367, 902.5],
+      "platform_binding_policy": {
+        "bluestacks": {
+          "actionable": false,
+          "label": "Parade Grounds",
+          "reason": "facility remains behind the fixed right event HUD at the verified camera clamp"
+        }
+      },
+      "polygon": [
+        [1287, 845],
+        [1447, 845],
+        [1447, 960],
+        [1287, 960]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Parade Grounds",
+          "visual_signature": "right-edge troop staging pad immediately above the label"
+        }
+      },
+      "safe_interaction_region_id": "unavailable-fixed-right-hud",
+      "semantic_id": "home.building.parade_grounds",
+      "semantic_proof": [
+        "current accepted viewport-019 OCR reads Parade Grounds",
+        "current accepted viewport-018 OCR reads Parade Groun",
+        "same right-edge troop staging facility is geometrically consistent across both transforms"
+      ],
+      "supporting_source_frames": [
+        "viewport-018",
+        "viewport-019"
+      ],
+      "visibility_constraints": [
+        "right event HUD occludes the actionable facility at the maximum verified camera origin",
+        "mapped for semantic completeness and future platform adapters but non-actionable on this BlueStacks profile"
+      ]
     },
     {
       "confidence": 0.94,

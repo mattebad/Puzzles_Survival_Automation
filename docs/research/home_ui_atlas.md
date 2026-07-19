@@ -41,11 +41,14 @@ not transformed into the new atlas.
   confidence `0.55961`, residual `0.10094 px`, with support from viewports 030/005/024. Final
   canonical Home localized at confidence `0.99007`, residual `0.11912 px`, and `3.99 px` center
   error from `viewport-001`.
-- Semantic registry: 64 positively labeled facilities/instances. This includes 30 unique named
+- Semantic registry: 65 positively labeled facilities/instances. This includes 31 unique named
   facilities or landmarks and 34 production instances: seven Farms, six Lumber Mills, four
   Bootcamps, six Steel Plants, three Infirmaries, and eight Gas Fields. Sixty-three entries have a
   HUD-free supporting viewport. Forum is mapped and label-proven at the left clamp but explicitly
-  non-actionable because its center remains behind the fixed left HUD.
+  non-actionable because its center remains behind the fixed left HUD. A registry-completion audit
+  added Parade Grounds from accepted viewports 018/019; its label and staging-pad geometry are
+  proven, but the physical facility remains behind the fixed right event HUD at the maximum verified
+  camera origin, so it is also mapped but non-actionable on this BlueStacks profile.
 - Supply Depot: semantic ID `home.building.supply_depot`, polygon
   `[(1166.7,908.6),(1326.7,908.6),(1326.7,1043.6),(1166.7,1043.6)]`, center
   `(1246.7,976.1)`. The executable direct route localized Home, bound the current label/helicopter
@@ -74,7 +77,76 @@ not transformed into the new atlas.
   premium, Mall, speedup, ticket, resource-item, AP, stamina, Daily Claim, Bank, upgrade, research,
   training, healing, or unrelated workflow input occurred.
 
+### Direct minimal-pan planner validation (2026-07-18)
+
+`tasks/home_atlas_planner.py` now owns platform-neutral target viewport planning, camera-envelope
+clamping, inverse drag conversion contracts, measured progress, repeated/no-progress guards, and a
+navigation-only result contract. BlueStacks independently supplies safe screen box
+`(145,180)-(650,1010)`, stable placement anchor `(400,600)`, fixed HUD masks, native drag bounds,
+and the measured `2.1 atlas px / screen-drag px` conversion. Maximum drag components are 150 px
+horizontal and 180 px vertical. None of this gesture geometry is valid for Bliss.
+
+Live project-owned validation used three materially different canonical Home origins and never
+tapped a facility. Headquarters bound at zero input near origin `(169.41,117.78)`. Supply Depot
+started near `(169.45,117.83)` and used two calculated pans: requested `(477.37,258.32)`, measured
+`(301.53,162.88)`, then requested `(175.85,95.44)`, measured `(173.26,92.87)`; its final semantic
+ROI was `(538,552)-(634,654)` at right-edge origin `(644.20,373.53)`. Bank started there and used
+two bounded pans to `(57.34,594.28)`, where OCR bound `(331,552)-(441,659)`. Gear Factory then used
+one pan, requested `(288.67,-44.32)` and measured `(287.69,-44.11)`, reaching
+`(345.02,550.21)` with a `(343,527)-(458,672)` current-frame binding. Final recovery localized at
+origin `(168.99,106.60)`, confidence `0.99769`, residual `0.02772 px`, and `6.71 px` from
+viewport-001 origin `(171,113)`.
+
+The planner rejected Supply Depot before input until its existing verified right-edge safe-subregion
+policy was made explicit. Canonical recovery also stopped on two no-progress short drags; neither
+was repeated at the same target, and a corrected empty-scene anchor produced the final measured
+85.46 px move. These are retained fail-closed examples. All building results recorded
+`building_opened=false`; no downstream building workflow or consequential control occurred.
+
 Key retained local evidence:
+
+- direct-pan Headquarters zero-input: `.local-captures/home-atlas-direct-pan/dry-run/home-atlas-navigate-building-20260719T001626193128Z/`
+- direct-pan Supply Depot: `.local-captures/home-atlas-direct-pan/supply-depot/home-atlas-navigate-building-20260719T001927989642Z/`
+- direct-pan Bank: `.local-captures/home-atlas-direct-pan/bank/home-atlas-navigate-building-20260719T002022678534Z/`
+- direct-pan Gear Factory: `.local-captures/home-atlas-direct-pan/gear-factory/home-atlas-navigate-building-20260719T002118522476Z/`
+- direct-pan final canonical correction: `.local-captures/home-atlas-direct-pan/final-canonical-correction-gap/home-atlas-pan-20260719T002430166504Z/`
+
+### Troop Training atlas-entry migration validation (2026-07-18)
+
+The local BlueStacks Troop Training route now selects the first enabled troop type's semantic
+building ID and enters through the platform-neutral direct-pan planner. The old source gate that
+required Fighter, Shooter, Rider, and Vehicle facilities to be simultaneously visible is removed.
+Every pan is followed by fresh atlas localization; projection alone never authorizes a facility
+tap. BlueStacks continues to own safe region `(145,180)-(650,1010)`, placement anchor `(400,600)`,
+and the measured `2.1 atlas px / drag px` conversion. No BlueStacks geometry is shared with Bliss.
+
+Entry-only live validation covered Fighter Camp and Vehicle Depot. Fighter started at origin
+`(168.99,106.60)`, bound `(170,803)-(335,910)` at confidence `0.98`, required zero pans, and
+positively recognized its radial Train ROI `(242,904)-(466,1035)`. Vehicle started at right-edge
+origin `(646.77,113.99)` and used one calculated pan: requested `(-445.77,+354.01)`, measured
+`(-308.72,+244.87)`, residual `(-137.04,+109.14)`. At `(338.05,358.86)` the current frame bound
+Vehicle Depot `(170,652)-(355,767)` at confidence `0.98` and its radial Train ROI
+`(237,737)-(436,862)`. Live corrective panning was not needed; deterministic corrective-plan,
+wrong-direction, no-progress, localization-failure, repeated-viewport, and maximum-pan coverage
+passed.
+
+The entry-only path never taps Train. A fresh facility-specific Details/Upgrade/Train radial is
+closed through a BlueStacks-only exterior-scene binding: a 20×20 target inside the safe region,
+above radial controls, and with its center at least 25 px outside every currently projected semantic
+building polygon. Final canonical Home localized at `(168.98,106.61)` for Fighter (confidence
+`0.99133`, residual `0.10399 px`) and `(338.05,358.86)` for Vehicle (confidence `0.99057`, residual
+`0.11316 px`). No quantity, Warehouse confirmation, resource box, premium, Train, or other
+consequential input occurred. Production registration remains `NOT_REGISTERED`; scheduler
+eligibility remains false.
+
+Key retained local evidence:
+
+- dry-run zero-input Fighter plan: `.local-captures/troop-training-atlas-entry/dry-run/troop-training-20260719T021721732263Z/`
+- Fighter current-frame entry/radial: `.local-captures/troop-training-atlas-entry/fighter-zero-pan/troop-training-20260719T021808597377Z/`
+- Fighter safe radial close/final Home: `.local-captures/troop-training-atlas-entry/fighter-exterior-close/troop-training-20260719T023104977845Z/`
+- Vehicle calculated pan: `.local-captures/troop-training-atlas-entry/vehicle-calculated-pan-corrected/troop-training-20260719T024102450439Z/`
+- Vehicle current-frame binding/radial: `.local-captures/troop-training-atlas-entry/vehicle-current-frame-continuation/troop-training-20260719T024310202414Z/`
+- Vehicle safe radial close/final Home: `.local-captures/troop-training-atlas-entry/vehicle-exterior-close/troop-training-20260719T024522835241Z/`
 
 - full corner/grid scan: `.local-captures/home-base-atlas-discovery/full-grid/home-atlas-four-corner-grid-20260718T220754613718Z/`
 - completed atlas build: `.local-captures/home-base-atlas-discovery/atlas-build-v4/atlas.json`

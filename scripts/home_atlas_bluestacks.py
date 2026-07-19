@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 from ctypes import wintypes
+from dataclasses import asdict
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -29,11 +30,21 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
-from tasks.home_atlas import ClosedLoopBuildingNavigator, NavigationAction, ZoomIdentity, load_home_atlas
+from tasks.home_atlas import ZoomIdentity, load_home_atlas
+from tasks.home_atlas_planner import (
+    DirectPanNavigator,
+    GestureCalibration,
+    PlanDisposition,
+    SafeInteractionRegion,
+    camera_origin,
+)
 from tasks.home_atlas_vision import (
+    BLUESTACKS_INTERACTION_ANCHOR,
     BLUESTACKS_PLATFORM,
     BLUESTACKS_PROFILE_ID,
+    BLUESTACKS_SAFE_INTERACTION_BOX,
     BlueStacksHomeLocalizer,
+    bind_visible_building,
     classify_zoom,
     frame_digest,
     hud_mask,
@@ -489,6 +500,30 @@ def _canonical_pan_gesture(displacement: np.ndarray) -> tuple[str, tuple[int, in
     return axis, start, bounded_end
 
 
+def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCalibration]:
+    """Return only the empirically measured local BlueStacks geometry."""
+
+    safe = SafeInteractionRegion(
+        "home-default",
+        BLUESTACKS_SAFE_INTERACTION_BOX,
+        BLUESTACKS_INTERACTION_ANCHOR,
+        fixed_hud_masks=((0, 0, 800, 150), (0, 150, 138, 1020), (650, 150, 800, 1020), (0, 1020, 800, 1280)),
+    )
+    calibration = GestureCalibration(
+        platform=BLUESTACKS_PLATFORM,
+        profile_id=BLUESTACKS_PROFILE_ID,
+        drag_origin=(450, 500),
+        drag_bounds=(250, 250, 650, 950),
+        camera_px_per_drag_x=2.1,
+        camera_px_per_drag_y=2.1,
+        minimum_drag_px=35.0,
+        maximum_drag_x=150.0,
+        maximum_drag_y=180.0,
+        minimum_progress_px=8.0,
+    )
+    return safe, calibration
+
+
 def command_scan_grid(args) -> int:
     """Acquire four measured edge clamps and overlapping interior scan rows."""
 
@@ -893,19 +928,13 @@ def command_open_building(args) -> int:
 
 
 def command_navigate_building(args) -> int:
-    if not args.execute or not args.yes:
-        raise SystemExit("navigate-building requires both --execute and --yes")
-    if args.building_id != "home.building.supply_depot":
-        raise SystemExit("only the Supply Depot successor policy is executable in this task")
+    if args.execute and not args.yes:
+        raise SystemExit("live navigate-building requires both --execute and --yes")
     atlas = load_home_atlas(args.atlas)
     building = atlas.lookup_building(args.building_id)
     localizer = BlueStacksHomeLocalizer(atlas, args.atlas)
-    controller = ClosedLoopBuildingNavigator(
-        atlas,
-        args.building_id,
-        maximum_pans=args.maximum_pans,
-        pan_distance=args.pan_distance,
-    )
+    safe_region, calibration = bluestacks_direct_pan_contract()
+    controller = DirectPanNavigator(atlas, args.building_id, safe_region, calibration, maximum_pans=args.maximum_pans)
     runtime = connect_runtime(args, "home-atlas-navigate-building")
     records: list[dict[str, object]] = []
     source = runtime.capture("navigate-source")
@@ -919,15 +948,29 @@ def command_navigate_building(args) -> int:
     for ordinal in range(args.maximum_pans + 1):
         immediate_before = runtime.capture(f"navigate-{ordinal:02d}-immediate-before")
         localization = localizer.localize(immediate_before.frame)
-        binding = bind_supply_depot_building(immediate_before.frame, localization, building) if localization.recognized else None
-        command = controller.next_command(localization, binding)
-        if command.action is NavigationAction.PAN:
-            assert command.pan_start is not None and command.pan_end is not None
+        binding = bind_visible_building(immediate_before.frame, localization, building) if localization.recognized else None
+        plan = controller.plan(localization, binding)
+        plan_record = {
+            "ordinal": ordinal,
+            "building_id": args.building_id,
+            "localization": localization.__dict__,
+            "camera_origin": camera_origin(localization) if localization.recognized and localization.screen_to_atlas is not None else None,
+            "plan": asdict(plan),
+            "binding": binding.__dict__ if binding is not None else None,
+        }
+        _json(runtime.session / f"navigate-plan-{ordinal:02d}.json", plan_record)
+        if plan.disposition is PlanDisposition.PAN:
+            assert plan.drag_start is not None and plan.drag_end is not None
+            if not args.execute:
+                result = {"status": "dry_run", "reason": "calculated_pan_not_dispatched", "building_id": args.building_id, "input_count": 0, "source_localization": source_localization.__dict__, "plan": asdict(plan), "records": records, "session": str(runtime.session)}
+                _json(runtime.session / "navigate-building-result.json", result)
+                print(json.dumps(result, sort_keys=True, default=str))
+                return 0
             action_key = f"navigate-{args.building_id}-pan-{ordinal}-{int(time.time() * 1000)}"
             runtime.swipe(
                 immediate_before,
-                start=command.pan_start,
-                end=command.pan_end,
+                start=plan.drag_start,
+                end=plan.drag_end,
                 action_key=action_key,
                 target_identity="home-camera-click-drag",
             )
@@ -935,85 +978,48 @@ def command_navigate_building(args) -> int:
             time.sleep(args.settle_seconds)
             settled = runtime.capture(f"navigate-{ordinal:02d}-settled")
             settled_localization = localizer.localize(settled.frame)
+            progress = controller.record_progress(localization, settled_localization)
             record = {
                 "ordinal": ordinal + 1,
                 "action": "pan",
                 "action_key": action_key,
-                "start": command.pan_start,
-                "end": command.pan_end,
+                "start": plan.drag_start,
+                "end": plan.drag_end,
+                "plan": asdict(plan),
                 "immediate_before_sha256": immediate_before.sha256,
                 "immediate_post_sha256": immediate_post.sha256,
                 "settled_sha256": settled.sha256,
                 "settled_localization": settled_localization.__dict__,
+                "progress": asdict(progress),
             }
             records.append(record)
             _json(runtime.session / f"navigate-pan-{ordinal + 1:02d}.json", record)
-            if not settled_localization.recognized:
-                result = {"status": "blocked", "reason": "post_pan_localization_failed", "records": records, "session": str(runtime.session)}
+            if not progress.accepted:
+                result = {"status": "blocked", "reason": progress.reason, "building_id": args.building_id, "records": records, "session": str(runtime.session)}
                 _json(runtime.session / "navigate-building-result.json", result)
                 print(json.dumps(result, sort_keys=True, default=str))
                 return 3
             continue
-        if command.action is NavigationAction.TAP_TARGET and binding is not None:
-            action_key = f"open-{args.building_id}-{int(time.time() * 1000)}"
-            runtime.tap(
-                immediate_before,
-                target_identity=args.building_id,
-                target_roi=binding.target_roi,
-                action_key=action_key,
-                consequential=False,
-            )
-            building_post = runtime.capture("navigate-building-immediate-post")
-            time.sleep(args.settle_seconds)
-            building_settled = runtime.capture("navigate-building-settled")
-            successor = recognize_supply_depot_screen(building_settled.frame)
-            radial_binding = None
-            radial_action_key = None
-            radial_before = None
-            radial_post = None
-            radial_settled = None
-            if not successor.recognized:
-                radial_binding = bind_supply_depot_claim_supply(building_settled.frame)
-                if radial_binding is not None:
-                    radial_before = runtime.capture("navigate-radial-immediate-before")
-                    radial_binding = bind_supply_depot_claim_supply(radial_before.frame)
-                    if radial_binding is not None and radial_binding.frame_sha256 == frame_digest(radial_before.frame):
-                        radial_action_key = f"supply-depot-claim-supply-{int(time.time() * 1000)}"
-                        runtime.tap(
-                            radial_before,
-                            target_identity="supply-depot-claim-supply-navigation",
-                            target_roi=radial_binding.target_roi,
-                            action_key=radial_action_key,
-                            consequential=False,
-                        )
-                        radial_post = runtime.capture("navigate-radial-immediate-post")
-                        time.sleep(args.settle_seconds)
-                        radial_settled = runtime.capture("navigate-radial-settled")
-                        successor = recognize_supply_depot_screen(radial_settled.frame)
+        if plan.disposition is PlanDisposition.COMPLETE and binding is not None:
             result = {
-                "status": "completed" if successor.recognized else "blocked",
-                "reason": "exact_supply_depot_successor" if successor.recognized else "building_successor_not_recognized",
+                "status": "completed",
+                "reason": "current_frame_semantic_building_bound",
+                "building_id": args.building_id,
                 "source_sha256": source.sha256,
                 "source_localization": source_localization.__dict__,
                 "navigation_pans": len(records),
                 "records": records,
-                "building_action_key": action_key,
                 "building_binding": binding.__dict__,
                 "building_immediate_before_sha256": immediate_before.sha256,
-                "building_immediate_post_sha256": building_post.sha256,
-                "building_settled_sha256": building_settled.sha256,
-                "radial_action_key": radial_action_key,
-                "radial_binding": radial_binding.__dict__ if radial_binding is not None else None,
-                "radial_immediate_before_sha256": radial_before.sha256 if radial_before is not None else None,
-                "radial_immediate_post_sha256": radial_post.sha256 if radial_post is not None else None,
-                "radial_settled_sha256": radial_settled.sha256 if radial_settled is not None else None,
-                "successor": successor.__dict__,
+                "input_count": len(records),
+                "building_opened": False,
                 "session": str(runtime.session),
             }
             _json(runtime.session / "navigate-building-result.json", result)
             print(json.dumps(result, sort_keys=True, default=str))
-            return 0 if successor.recognized else 3
-        result = {"status": "blocked", "reason": command.reason, "command": command.__dict__, "records": records, "session": str(runtime.session)}
+            return 0
+        reason = "current_frame_building_recognition_failed" if plan.disposition is PlanDisposition.BIND else plan.reason
+        result = {"status": "blocked", "reason": reason, "building_id": args.building_id, "plan": asdict(plan), "records": records, "session": str(runtime.session)}
         _json(runtime.session / "navigate-building-result.json", result)
         print(json.dumps(result, sort_keys=True, default=str))
         return 3

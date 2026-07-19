@@ -22,7 +22,7 @@ class GovernanceValidationTests(unittest.TestCase):
 
     def test_handoff_has_distinct_current_and_next_task_fields(self):
         state = validate_governance.parse_handoff()
-        self.assertEqual(state["current_task_id"], "TOOLS-HOME-BASE-ATLAS-BLUESTACKS")
+        self.assertEqual(state["current_task_id"], "TOOLS-HOME-ATLAS-TROOP-TRAINING-ENTRY-MIGRATION")
         self.assertEqual(state["current_task_state"], "completed")
         self.assertEqual(state["next_task_id"], "M6-DQ-TRANSITION-CORPUS")
         self.assertEqual(
@@ -116,8 +116,9 @@ class GovernanceValidationTests(unittest.TestCase):
 
     def test_completed_state_is_canonical_and_passed_is_rejected(self):
         text = (ROOT / "CURRENT_HANDOFF.md").read_text(encoding="utf-8")
+        current_state = validate_governance.parse_handoff()["current_task_state"]
         completed = text.replace(
-            '"current_task_state": "pending"',
+            f'"current_task_state": "{current_state}"',
             '"current_task_state": "completed"',
             1,
         )

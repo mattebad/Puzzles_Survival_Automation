@@ -300,8 +300,11 @@ class TroopTrainingContractTests(unittest.TestCase):
             def capture(self, _label):
                 return CapturedNativeFrame(np.zeros((1280, 800, 3), dtype=np.uint8), b"png", "a" * 64, 1.0, Path("frame.png"))
 
-        home = type("Home", (), {"recognized": True})()
-        with patch("scripts.troop_training_bluestacks.recognize_home", return_value=home):
+        with patch.object(
+            TroopTrainingIntegratedRoute,
+            "_navigate_selected_facility",
+            return_value=(None, None, None, "dry-run-calculated-pan-not-dispatched"),
+        ):
             result = TroopTrainingIntegratedRoute(FakeRuntime(), config=config(), reset_identity=RESET).run()
         self.assertEqual(result.status, "dry-run")
         self.assertEqual(result.actions_completed, 0)

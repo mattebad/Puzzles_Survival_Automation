@@ -103,14 +103,41 @@ class HomeAtlasVisionTests(unittest.TestCase):
         self.assertEqual(payload["boundary_evidence"]["rows"], 5)
         self.assertEqual(payload["boundary_evidence"]["navigation_inputs"], 30)
         self.assertEqual(len(payload["boundary_evidence"]["clamp_keys"]), 8)
-        self.assertEqual(len(atlas.buildings), 64)
+        self.assertEqual(len(atlas.buildings), 65)
+        self.assertTrue(all(item.navigation_anchor for item in atlas.buildings))
+        self.assertTrue(all(item.safe_interaction_region_id for item in atlas.buildings))
+        self.assertTrue(all(item.semantic_proof for item in atlas.buildings))
+        self.assertTrue(all(item.platform_binding_policy for item in atlas.buildings))
         self.assertEqual(sum(item.semantic_id.startswith("home.building.farm.") for item in atlas.buildings), 7)
         self.assertEqual(sum(item.semantic_id.startswith("home.building.lumber_mill.") for item in atlas.buildings), 6)
         self.assertEqual(sum(item.semantic_id.startswith("home.building.bootcamp.") for item in atlas.buildings), 4)
         self.assertEqual(sum(item.semantic_id.startswith("home.building.steel_plant.") for item in atlas.buildings), 6)
         self.assertEqual(sum(item.semantic_id.startswith("home.building.infirmary.") for item in atlas.buildings), 3)
         self.assertEqual(sum(item.semantic_id.startswith("home.building.gas_field.") for item in atlas.buildings), 8)
+        repeated_prefixes = ("home.building.farm.", "home.building.lumber_mill.", "home.building.bootcamp.", "home.building.steel_plant.", "home.building.infirmary.", "home.building.gas_field.")
+        named_ids = {item.semantic_id for item in atlas.buildings if not item.semantic_id.startswith(repeated_prefixes)}
+        self.assertEqual(named_ids, {
+            "home.building.alliance_hall", "home.building.arena", "home.building.bank",
+            "home.building.campaign", "home.building.containment_center",
+            "home.building.cultivation_center", "home.building.fighter_camp",
+            "home.building.forum", "home.building.gear_factory", "home.building.hall_of_war",
+            "home.building.headquarters", "home.building.mystery_shop",
+            "home.building.noahs_tavern", "home.building.parade_grounds", "home.building.pit",
+            "home.building.radio", "home.building.research_center", "home.building.research_lab",
+            "home.building.rider_camp", "home.building.ruins", "home.building.shooter_camp",
+            "home.building.supply_depot", "home.building.swp_lab", "home.building.trading_post",
+            "home.building.trap_factory", "home.building.vehicle_depot",
+            "home.building.virology_lab", "home.building.warehouse",
+            "home.building.wasteland_conquest", "home.building.watch_tower", "home.landmark.wall",
+        })
         self.assertFalse(atlas.lookup_building("home.building.forum").supporting_source_frames)
+        self.assertFalse(atlas.lookup_building("home.building.forum").interaction_eligible)
+        parade = atlas.lookup_building("home.building.parade_grounds")
+        self.assertFalse(parade.interaction_eligible)
+        self.assertEqual(parade.supporting_source_frames, ("viewport-018", "viewport-019"))
+        self.assertIn("Parade Grounds", " ".join(parade.semantic_proof))
+        self.assertEqual(parade.safe_interaction_region_id, "unavailable-fixed-right-hud")
+        self.assertFalse(atlas.lookup_building("home.landmark.wall").interaction_eligible)
         self.assertEqual(payload["production_registration"], "NOT_REGISTERED")
         self.assertFalse(payload["scheduler_eligibility"])
         supply = atlas.lookup_building("home.building.supply_depot")

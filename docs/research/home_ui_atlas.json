@@ -28,9 +28,20 @@
     "grid_rows": 5,
     "grid_navigation_inputs": 30,
     "camera_origin_bounds": {"minimum_x": 0.86, "maximum_x": 646.79, "minimum_y": 0.08, "maximum_y": 1488.01},
-    "semantic_building_count": 64,
+    "semantic_building_count": 65,
     "hud_free_semantic_building_count": 63,
-    "non_actionable_mapped_buildings": ["home.building.forum"],
+    "non_actionable_mapped_buildings": ["home.building.forum", "home.building.parade_grounds"],
+    "semantic_registry_audit": {
+      "status": "complete_for_current_account_visible_atlas",
+      "named_facilities_or_landmarks": 31,
+      "individual_repeated_instances": 34,
+      "newly_added": ["home.building.parade_grounds"],
+      "parade_grounds_support": ["viewport-018", "viewport-019"],
+      "parade_grounds_interaction_eligible": false,
+      "account_locked_not_present": ["Horizon Hub", "AI Hub"],
+      "not_a_separate_current_atlas_building": ["Builder Hall"],
+      "audit_method": "accepted-tile OCR and visual geometry compared with the semantic registry and current-account building catalog"
+    },
     "production_instance_counts": {"farm": 7, "lumber_mill": 6, "bootcamp": 4, "steel_plant": 6, "infirmary": 3, "gas_field": 8},
     "supply_depot": {
       "semantic_id": "home.building.supply_depot",
@@ -58,6 +69,123 @@
         "automatic_retry": false,
         "reconciled_from_fresh_frame_without_input": true
       }
+    },
+    "direct_pan_planner": {
+      "status": "live_validated_navigation_only",
+      "safe_interaction_box": [145, 180, 650, 1010],
+      "placement_anchor": [400, 600],
+      "camera_origin_bounds": [0.8631292104466013, 0.07818603515625, 646.7874603271484, 1488.0060733217433],
+      "bluestacks_camera_px_per_drag_px": [2.1, 2.1],
+      "maximum_drag_components_px": [150, 180],
+      "bliss_calibration_reused": false,
+      "building_open_inputs": 0,
+      "targets": {
+        "headquarters": {"pans": 0, "start_origin": [169.41, 117.78], "binding_confidence": 0.98},
+        "supply_depot": {
+          "pans": 2,
+          "start_origin": [169.45, 117.83],
+          "final_origin": [644.20, 373.53],
+          "requested_displacements": [[477.37, 258.32], [175.85, 95.44]],
+          "measured_displacements": [[301.53, 162.88], [173.26, 92.87]],
+          "final_binding_roi": [538, 552, 634, 654],
+          "localization_confidence": 0.98620,
+          "localization_residual_px": 0.16563
+        },
+        "bank": {
+          "pans": 2,
+          "start_origin": [644.19, 373.53],
+          "final_origin": [57.34, 594.28],
+          "requested_displacements": [[-600.70, 226.48], [-303.91, 113.70]],
+          "measured_displacements": [[-296.80, 112.78], [-290.07, 107.98]],
+          "final_binding_roi": [331, 552, 441, 659],
+          "localization_confidence": 0.98516,
+          "localization_residual_px": 0.17805
+        },
+        "gear_factory": {
+          "pans": 1,
+          "start_origin": [57.31, 594.31],
+          "final_origin": [345.02, 550.21],
+          "requested_displacements": [[288.67, -44.32]],
+          "measured_displacements": [[287.69, -44.11]],
+          "final_binding_roi": [343, 527, 458, 672],
+          "localization_confidence": 0.99419,
+          "localization_residual_px": 0.06967
+        }
+      },
+      "final_canonical_localization": {
+        "origin": [168.99, 106.60],
+        "viewport_001_origin": [171, 113],
+        "origin_error_px": 6.71,
+        "confidence": 0.99769,
+        "residual_px": 0.02772
+      },
+      "fail_closed_examples": ["target_outside_verified_coverage_before_policy_binding", "no_measured_progress"],
+      "registration": "NOT_REGISTERED",
+      "scheduler_eligibility": false
+    },
+    "troop_training_entry_migration": {
+      "status": "live_validated_navigation_only",
+      "mode": "entry_only",
+      "troop_building_ids": {
+        "fighter": "home.building.fighter_camp",
+        "shooter": "home.building.shooter_camp",
+        "rider": "home.building.rider_camp",
+        "vehicle": "home.building.vehicle_depot"
+      },
+      "legacy_all_four_visible_gate_removed": true,
+      "safe_interaction_box": [145, 180, 650, 1010],
+      "bluestacks_camera_px_per_drag_px": [2.1, 2.1],
+      "bliss_calibration_reused": false,
+      "targets": {
+        "fighter": {
+          "building_id": "home.building.fighter_camp",
+          "start_origin": [168.99, 106.60],
+          "pans": 0,
+          "requested_displacements": [],
+          "measured_displacements": [],
+          "residual_displacement": [0.0, 0.0],
+          "facility_binding_roi": [170, 803, 335, 910],
+          "facility_binding_confidence": 0.98,
+          "radial_train_roi": [242, 904, 466, 1035],
+          "final_origin": [168.98, 106.61],
+          "final_localization_confidence": 0.99133,
+          "final_localization_residual_px": 0.10399
+        },
+        "vehicle": {
+          "building_id": "home.building.vehicle_depot",
+          "start_origin": [646.77, 113.99],
+          "pans": 1,
+          "requested_displacements": [[-445.77, 354.01]],
+          "measured_displacements": [[-308.72, 244.87]],
+          "residual_displacement": [-137.04, 109.14],
+          "facility_binding_roi": [170, 652, 355, 767],
+          "facility_binding_confidence": 0.98,
+          "radial_train_roi": [237, 737, 436, 862],
+          "final_origin": [338.05, 358.86],
+          "final_localization_confidence": 0.99057,
+          "final_localization_residual_px": 0.11316
+        }
+      },
+      "corrective_pan": "not required live; deterministic corrective-plan coverage passed",
+      "radial_close_policy": "fresh exact radial plus canonical localization and a 20x20 BlueStacks-safe exterior target outside every projected semantic building polygon by at least 25 px",
+      "train_input_count": 0,
+      "consequential_input_count": 0,
+      "fail_closed_examples": [
+        "canonical Home Warehouse label rejected by an overbroad negative before input; policy corrected",
+        "radial OCR band failed after one bound Fighter facility tap; no Train or facility retry",
+        "Vehicle binding failed after a measured pan; no facility input until an exact declared renderer alias bound the current frame",
+        "radial exterior close rejected when 45 px clearance was unavailable; no close input until a current-frame 25 px safe gap was proven"
+      ],
+      "evidence": [
+        ".local-captures/troop-training-atlas-entry/dry-run/troop-training-20260719T021721732263Z/",
+        ".local-captures/troop-training-atlas-entry/fighter-zero-pan/troop-training-20260719T021808597377Z/",
+        ".local-captures/troop-training-atlas-entry/fighter-exterior-close/troop-training-20260719T023104977845Z/",
+        ".local-captures/troop-training-atlas-entry/vehicle-calculated-pan-corrected/troop-training-20260719T024102450439Z/",
+        ".local-captures/troop-training-atlas-entry/vehicle-current-frame-continuation/troop-training-20260719T024310202414Z/",
+        ".local-captures/troop-training-atlas-entry/vehicle-exterior-close/troop-training-20260719T024522835241Z/"
+      ],
+      "production_registration": "NOT_REGISTERED",
+      "scheduler_eligibility": false
     },
     "new_coverage_localization": {
       "confidence": 0.5596093903895061,
