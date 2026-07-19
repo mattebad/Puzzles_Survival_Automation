@@ -1,0 +1,115 @@
+{
+  "schema_name": "native_frame_mutation",
+  "schema_version": 1,
+  "parent_manifest_path": "tests/fixtures/native_frame_replay_manifest.json",
+  "parent_fixture_session_id": "fixture-replay-8d3b61fedfb7986fa93b0353",
+  "output_relative_root": "temporary/native-frame-mutations",
+  "max_translation_px": 8,
+  "cases": [
+    {
+      "mutation_id": "brightness-plus-18",
+      "parent_capture_ordinal": 1,
+      "parent_relative_path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "parent_source_sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "operator": "brightness",
+      "parameters": {
+        "delta": 18
+      },
+      "expected_outcome": "accepted",
+      "output_name": "brightness-plus-18.png"
+    },
+    {
+      "mutation_id": "contrast-085",
+      "parent_capture_ordinal": 1,
+      "parent_relative_path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "parent_source_sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "operator": "contrast",
+      "parameters": {
+        "alpha": 0.85
+      },
+      "expected_outcome": "accepted",
+      "output_name": "contrast-085.png"
+    },
+    {
+      "mutation_id": "bounded-compression-q55",
+      "parent_capture_ordinal": 1,
+      "parent_relative_path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "parent_source_sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "operator": "bounded_compression",
+      "parameters": {
+        "quality": 55
+      },
+      "expected_outcome": "accepted",
+      "output_name": "bounded-compression-q55.png"
+    },
+    {
+      "mutation_id": "translation-6-minus-4",
+      "parent_capture_ordinal": 1,
+      "parent_relative_path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "parent_source_sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "operator": "translation",
+      "parameters": {
+        "dx": 6,
+        "dy": -4
+      },
+      "expected_outcome": "accepted",
+      "output_name": "translation-6-minus-4.png"
+    },
+    {
+      "mutation_id": "partial-occlusion-center",
+      "parent_capture_ordinal": 1,
+      "parent_relative_path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "parent_source_sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "operator": "partial_occlusion",
+      "parameters": {
+        "x": 280,
+        "y": 430,
+        "width": 160,
+        "height": 120
+      },
+      "expected_outcome": "rejected",
+      "output_name": "partial-occlusion-center.png"
+    },
+    {
+      "mutation_id": "distractor-text-decoy",
+      "parent_capture_ordinal": 1,
+      "parent_relative_path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "parent_source_sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "operator": "distractor_text",
+      "parameters": {
+        "text": "DECOY",
+        "x": 300,
+        "y": 600,
+        "scale": 1.0,
+        "thickness": 2
+      },
+      "expected_outcome": "rejected",
+      "output_name": "distractor-text-decoy.png"
+    },
+    {
+      "mutation_id": "crop-truncation-bottom-96",
+      "parent_capture_ordinal": 1,
+      "parent_relative_path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "parent_source_sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "operator": "crop_truncation",
+      "parameters": {
+        "side": "bottom",
+        "pixels": 96
+      },
+      "expected_outcome": "rejected",
+      "output_name": "crop-truncation-bottom-96.png"
+    },
+    {
+      "mutation_id": "stale-substitution-ordinal-2",
+      "parent_capture_ordinal": 1,
+      "parent_relative_path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "parent_source_sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "operator": "stale_frame_substitution",
+      "parameters": {
+        "replacement_capture_ordinal": 2
+      },
+      "expected_outcome": "rejected",
+      "output_name": "stale-substitution-ordinal-2.png"
+    }
+  ]
+}

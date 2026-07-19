@@ -2867,7 +2867,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### VISION-NATIVE-FRAME-MUTATION-CORPUS
 - Task ID: `VISION-NATIVE-FRAME-MUTATION-CORPUS`.
 - Title: Controlled native-frame mutation corpus for offline false-accept/false-reject measurement.
-- Status: Pending (dormant; offline contract only; not activated).
+- Status: Complete (2026-07-19; parent review and full offline validation passed; zero runtime).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `RUNTIME-INPUT-CAPABILITY-FIREWALL` and `VISION-NATIVE-FRAME-REPLAY-HARNESS`.
 - Blocked by: readiness requires the replay harness and capability firewall; mutations must remain

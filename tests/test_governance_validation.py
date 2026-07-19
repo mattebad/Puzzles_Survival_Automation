@@ -22,9 +22,9 @@ class GovernanceValidationTests(unittest.TestCase):
 
     def test_handoff_has_distinct_current_and_next_task_fields(self):
         state = validate_governance.parse_handoff()
-        self.assertEqual(state["current_task_id"], "RUNTIME-INPUT-CAPABILITY-FIREWALL")
+        self.assertEqual(state["current_task_id"], "VISION-NATIVE-FRAME-MUTATION-CORPUS")
         self.assertEqual(state["current_task_state"], "completed")
-        self.assertEqual(state["next_task_id"], "VISION-NATIVE-FRAME-MUTATION-CORPUS")
+        self.assertEqual(state["next_task_id"], "HOME-NAVIGATION-OBSERVABILITY")
         self.assertEqual(
             state["next_task_activation_status"],
             "ready",
@@ -77,7 +77,7 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
         next_block = validate_governance.task_block(backlog, state["next_task_id"])
-        self.assertIn("VISION-NATIVE-FRAME-MUTATION-CORPUS", next_block)
+        self.assertIn("HOME-NAVIGATION-OBSERVABILITY", next_block)
         self.assertIn("Pending", next_block)
         self.assertIn("dormant", next_block)
         validate_governance.validate_successor(backlog, state)
