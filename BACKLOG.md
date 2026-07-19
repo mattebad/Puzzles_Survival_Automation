@@ -2059,6 +2059,56 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Expected focused commits: None because staging, commit, and push were explicitly prohibited.
 - Completion criteria: shared planner entry replaces the all-four-visible gate; entry-only Fighter/Vehicle validation includes zero and measured-pan cases, exact facility/radial bindings, zero Train input, final canonical Home, passing validators, and unchanged registration/scheduler state.
 
+### HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING
+- Task ID: `HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING`.
+- Title: Extend the platform-neutral Home atlas direct-pan planner for recovery-aware actionable viewport selection.
+- Status: Completed (2026-07-18; offline policy path, BlueStacks inject, and focused tests; no live input).
+- Milestone: Local platform-neutral semantic Home navigation foundation.
+- Dependencies: completed `TOOLS-HOME-ATLAS-DIRECT-PAN-PLANNER`, completed atlas/localization, and Troop Training entry migration authority.
+- Blocked by: None for offline implementation; live BlueStacks validation is outside this authorization.
+- Objective: when an optional `ViewportPlanningPolicy` is present, select an actionable destination viewport that supports predicted entry plus predicted recovery search-zone availability—not merely safe-box intersection—while preserving exact legacy behavior when the policy is absent.
+- Established facts: direct-pan planner and BlueStacks safe-region/radial-close contracts are authoritative; projection alone never authorizes entry or exit; atlas polygons cannot prove live recovery taps.
+- Direct implementation files: `tasks/home_atlas_planner.py`, `scripts/home_atlas_bluestacks.py` policy inject, focused planner tests, research/atlas contract notes, this backlog entry, and `CURRENT_HANDOFF.md`.
+- Shared dependencies: completed atlas assets, localization contracts, and existing Supply Depot / Troop Training consumers of dispositions.
+- Transitive regression set: Home atlas/planner, Troop Training entry, Supply Depot, BlueStacks integrated routes, governance, and full discovery when practical.
+- Allowed changes: per-commit allowed paths are `tasks/home_atlas_planner.py`, `scripts/home_atlas_bluestacks.py` policy inject, focused planner tests, research/atlas planner-contract notes, this task contract, and `CURRENT_HANDOFF.md` only.
+- Prohibited changes: atlas rebuild, live BlueStacks/ADB/Bliss/Unraid input, facility entry, radial/consequential input, registration, scheduler, staging, commit, push, or unrelated backlog status changes.
+- Authorized runtime action: None; offline only.
+- Maximum transport inputs: 0.
+- Navigation-only recovery: NOT_APPLICABLE; no runtime input authorized.
+- Consequential action: None.
+- Registration changes: None; production remains not registered.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: prior live facility taps, exterior closes, Supply Depot collections, or any identical no-progress canonical short drag.
+- Required source: synthetic offline localizations and checked-in atlas metadata only.
+- Exact target semantics: mapped semantic building ID with optional recovery-aware viewport policy; current-frame binding remains required after any future live settle.
+- Required local association: affine-correct projection narrows candidates only; live recovery/entry binding stays adapter-owned.
+- Negative controls: executable recovery coordinates from the shared planner, viewport-001 recovery bias, symmetric radial annulus as the only model, and policy-absent behavior drift.
+- Coordinate space: platform-neutral atlas planning; BlueStacks policy magnitudes adapter-owned and forbidden for Bliss.
+- Accepted signals: hard-gated coverage/radial footprint/predicted recovery search zone/registration support, normalized soft scores, deterministic tie-break, and bounded rejection evidence.
+- Rejected weak signals: projection alone, map-edge proximity alone, atlas polygons as live tap proof, and canonical_recovery_origin bias.
+- Ambiguous-result behavior: fail closed with `no_recoverable_actionable_viewport` when no candidate passes entry and recovery hard gates.
+- Zero-cost requirement: NOT_APPLICABLE.
+- Quantity limits: at most five additional top rejected alternatives in explanations; navigator destination history rejects before dispatch.
+- Resource consumption policy: none.
+- Premium or strategic restrictions: no consequential controls.
+- Active evidence manifest: None; offline tests only.
+- Required artifacts: focused unit tests covering legacy preservation, affine scale, asymmetric radial, recovery honesty, seen-destination reject, tie-break, bounded evidence, and soft map-edge.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: `ViewportPlanningPolicy` and honesty fields on `BuildingViewportPlan`.
+- Focused tests: `tests.test_home_atlas_planner` plus regressions; Troop Training entry only if residuals drift.
+- Integration tests: NOT_APPLICABLE for this offline authorization.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused planner tests; full discovery when practical with no new failures beyond the expected skip.
+- Validators: Python compilation, focused tests, CURRENT_HANDOFF JSON, atlas/research JSON, touched-file secret scan, and `git diff --check` when practical.
+- Known baseline failures: None; one expected full-suite skip.
+- Evidence requirement: NOT_APPLICABLE because this offline planner task creates no runtime evidence manifest.
+- Valid blocked outcomes: every declared planner hard-gate and navigator guard.
+- Blocked-result commit policy: do not stage or commit; no push.
+- Commit policy: no staging, commit, or push; no push by default.
+- Expected focused commits: None.
+- Completion criteria: optional policy path implemented; legacy path bit-compatible; BlueStacks policy justified from accepted safe-region/radial-close contracts; required offline tests pass; no live input; production stays unregistered and scheduler-disabled.
+
 ### TOOLS-HOME-ATLAS-SEMANTIC-REGISTRY-COMPLETION
 - Task ID: `TOOLS-HOME-ATLAS-SEMANTIC-REGISTRY-COMPLETION`.
 - Title: Complete the current-account Home atlas semantic building registry.
@@ -2204,6 +2254,91 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Completion criteria: dual-digest capture-event bundle with deep immutability, honest contextual
   classification, enforced navigate-building consumption, required tests/validators passing, and unchanged
   registration/scheduler state.
+
+### RUNTIME-RESUMABLE-NAVIGATION-SESSIONS
+- Task ID: `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS`.
+- Title: Introduce resumable, evidence-backed navigation sessions with crash-safe checkpoints.
+- Status: Completed (2026-07-19; `CONFIRMED_NOT_DISPATCHED` is fail-closed and unavailable until an authenticated runtime-owned transport verifier exists; caller-minted evidence and zero movement are non-authorizing; zero live input).
+- Milestone: Platform-neutral navigation-only session continuity after failed or ambiguous observation.
+- Dependencies: completed `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`, completed
+  `TOOLS-HOME-ATLAS-DIRECT-PAN-PLANNER`, and completed `HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING`.
+- Blocked by: None for offline implementation; live resume dispatch remains unauthorized.
+- Objective: persist resumable navigation sessions so a route can stop safely after failed or ambiguous
+  observation and later continue from a newly captured, positively recognized state without losing prior
+  plan and displacement history, without trusting persisted tap coordinates or prior semantic bindings.
+- Established facts: perception bundles bind observations to one capture event; direct-pan planner and
+  navigate-building loop are authoritative for offline contracts; in-process duplicate guards are not
+  crash-safe; no Train or consequential input is authorized by this task.
+- Direct implementation files: `tasks/navigation_session.py`, `tests/test_navigation_session.py`, optional
+  `tests/fixtures/navigation_session_evidence.json`, thin `scripts/home_atlas_bluestacks.py`
+  `command_navigate_building` persistence hooks, this task contract, `CURRENT_HANDOFF.md`, and
+  `tests/test_governance_validation.py`.
+- Shared dependencies: `tasks/perception_bundle.py`, `tasks/home_atlas_planner.py`, and existing Home atlas
+  navigate-building evidence paths; no production registration.
+- Transitive regression set: perception bundle, Home atlas planner, governance validation, and focused
+  navigate-building persistence coverage; full discovery when practical.
+- Allowed changes: per-commit allowed paths are the direct implementation files listed above only.
+- Prohibited changes: live resume CLI/dispatch, Train or consequential input, atlas rebuild, Bliss/Unraid
+  production operation, workers, task rows, registration, scheduler, staging, commit, or push.
+- Authorized runtime action: None; offline unit/fixture validation only.
+- Maximum transport inputs: Zero for this task.
+- Navigation-only recovery: offline recovery-only continuation mode is modeled; no live transport recovery
+  is authorized in this task.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: prior Supply Depot collections, Troop Training Train inputs, atlas
+  acquisition, or no-progress canonical short-drag diagnostics.
+- Required source: synthetic offline capture-event identities and immutable authorization scopes; live
+  frames are not required.
+- Exact target semantics: versioned navigation session with progress checkpoints, orthogonal session
+  outcome, crash-safe action ledger, and one logical `route_id` across corrections and continuations.
+- Required local association: distinct `route_id`, `navigation_session_id`, and per-process
+  `runtime_capture_session_id`; continuation requires a genuinely new capture event.
+- Negative controls: persisted tap ROI dispatch, stale binding reuse, identical unreconciled prepared or
+  dispatched replay, authorization partial match, illegal checkpoint regression by enum ordinal alone,
+  and cross-process monotonic timestamp requirements.
+- Coordinate space: platform-neutral session contracts; BlueStacks geometry remains adapter-owned.
+- Accepted signals: flushed prepared-before-transport and dispatched-after-return ledger states, explicit
+  cyclic multi-pan transitions gated by event and pan ordinals, complete immutable authorization scope
+  match, and perception factory bundles matching `fresh_identity` via `same_capture_event`.
+- Rejected weak signals: enum-rank checkpoint ordering, trusting persisted bindings, and treating prior
+  frames as current without a new capture event.
+- Ambiguous-result behavior: fail closed to `blocked` or `uncertain`; never advance a successful progress
+  checkpoint after failed localization or progress validation; suppress identical input after uncertain
+  restart.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: bounded multi-pan cycles within the session maximum; unique action keys within a
+  session.
+- Resource consumption policy: no resource, item, AP, stamina, speedup, ticket, or currency use.
+- Premium or strategic restrictions: no premium, purchase, Mall, Bank, upgrade, research, training,
+  healing, or production action.
+- Active evidence manifest: None; offline fixtures and additive navigate-session JSON fields are sufficient.
+- Required artifacts: navigation session module, focused tests, navigate-building persistence hooks, and
+  governance/handoff identity updates.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE; zero live transport and no journal action.
+- Additional task-specific artifacts: optional `tests/fixtures/navigation_session_evidence.json`.
+- Focused tests: `tests.test_navigation_session`, `tests.test_perception_bundle`,
+  `tests.test_home_atlas_planner`, and `tests.test_governance_validation`.
+- Integration tests: offline navigate-building persistence ordering with fakes; no live BlueStacks
+  validation required.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused session/perception/planner/governance tests; full discovery when
+  practical with no new touched-component failure.
+- Validators: Python compilation, focused tests, CURRENT_HANDOFF JSON plus human-readable consistency,
+  touched-file secret scan, and `git diff --check` when practical.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this offline contract task creates no canonical Bliss
+  evidence manifest; fixtures and additive local JSON fields are sufficient.
+- Valid blocked outcomes: authorization mismatch, invalid checkpoint, stale binding, duplicate unreconciled
+  input, corrupt/unsupported session JSON, perception/fresh-identity mismatch, and failed localization or
+  progress validation without successful checkpoint advance.
+- Blocked-result commit policy: do not stage or commit a blocked live result; none is authorized.
+- Commit policy: no staging, commit, or push was requested; no push by default.
+- Expected focused commits: None because staging, commit, and push are explicitly prohibited.
+- Completion criteria: crash-safe resumable navigation sessions with orthogonal outcomes, cyclic multi-pan
+  checkpoints, hardened continuation freshness, navigate-building persistence ordering, required tests
+  passing, zero transport, and unchanged registration/scheduler state.
 
 ### DQ-FLOW-RECRUITMENT
 - Status: Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).

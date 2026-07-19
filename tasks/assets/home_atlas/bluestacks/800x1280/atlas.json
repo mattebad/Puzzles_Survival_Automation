@@ -9,7 +9,14 @@
     "navigation_anchor_default": "atlas polygon centroid",
     "platform_binding_policy_default": "renderer-specific recognition entry",
     "safe_interaction_region_id": "home-default",
-    "success_requires": "fresh current-frame semantic building binding; projection alone is insufficient"
+    "success_requires": "fresh current-frame semantic building binding; projection alone is insufficient",
+    "recovery_aware_policy": "optional ViewportPlanningPolicy nested in SafeInteractionRegion; absent preserves exact legacy single-candidate behavior",
+    "candidate_transform_rule": "retain localization affine linear component; derive candidate translations through that transform",
+    "radial_model": "adapter-injected directional screen-space footprint margins; not a symmetric annulus",
+    "label_edge_clearance": "soft heuristic unless platform_binding_policy supplies authoritative label geometry",
+    "recovery_model": "predicted_recovery_search_zone_available inside adapter recovery-search envelope; never an executable recovery coordinate; current-frame adapter binding still required",
+    "map_edge_proximity": "soft penalty only; hard-reject only when clamping breaks coverage, radial footprint, recovery search space, or registration support",
+    "canonical_recovery_bias": "forbidden; no viewport-001 camera-origin bias"
   },
   "boundary_evidence": {
     "camera_origin_bounds": {

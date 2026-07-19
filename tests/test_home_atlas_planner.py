@@ -27,6 +27,7 @@ from tasks.home_atlas_planner import (
     GestureCalibration,
     PlanDisposition,
     SafeInteractionRegion,
+    ViewportPlanningPolicy,
     measure_pan_progress,
     plan_building_viewport,
     plan_direct_pan,
@@ -263,6 +264,291 @@ class MinimalPanPlannerTests(unittest.TestCase):
                 "scripts.home_atlas_bluestacks.bind_visible_building", return_value=None
             ):
                 self.assertEqual(command_navigate_building(args), 3)
+
+
+
+POLICY = ViewportPlanningPolicy(
+    radial_margin_up_px=40.0,
+    radial_margin_down_px=120.0,
+    radial_margin_left_px=70.0,
+    radial_margin_right_px=70.0,
+    recovery_clearance_px=25.0,
+    recovery_zone_half_size_px=10.0,
+    recovery_scan_step_px=25.0,
+    recovery_search_inset_left_px=75.0,
+    recovery_search_inset_top_px=70.0,
+    recovery_search_inset_right_px=75.0,
+    recovery_search_inset_bottom_px=360.0,
+    action_body_margin_px=8.0,
+    label_inset_px=12.0,
+    candidate_step_px=80.0,
+    max_candidates=36,
+    map_edge_soft_margin_px=40.0,
+)
+
+
+def policy_safe(**overrides) -> SafeInteractionRegion:
+    policy = POLICY if not overrides else ViewportPlanningPolicy(**{**POLICY.__dict__, **overrides})
+    return SafeInteractionRegion("home-default", (145, 180, 650, 1010), (400, 600), fixed_hud_masks=((0, 0, 800, 150), (0, 150, 138, 1020), (650, 150, 800, 1020), (0, 1020, 800, 1280)), planning_policy=policy)
+
+
+class RecoveryAwareViewportPlannerTests(unittest.TestCase):
+    def test_policy_absent_preserves_exact_legacy_output(self):
+        target = building()
+        world = atlas(target)
+        loc = localization()
+        legacy_safe = SafeInteractionRegion("home-default", (145, 180, 650, 1010), (400, 600))
+        first = plan_building_viewport(world, loc, target.semantic_id, legacy_safe)
+        second = plan_building_viewport(world, loc, target.semantic_id, legacy_safe)
+        self.assertIsNone(legacy_safe.planning_policy)
+        self.assertEqual(first, second)
+        self.assertEqual(first.desired_camera_origin, (570.0, 170.0))
+        self.assertEqual(first.reason, "calculated_target_viewport")
+        self.assertEqual(first.selection_score, None)
+        self.assertEqual(first.recovery_honesty, ())
+
+    def test_zero_pan_when_current_passes_hard_gates(self):
+        target = building(polygon=((300, 400), (440, 400), (440, 520), (300, 520)))
+        plan = plan_building_viewport(atlas(target), localization(), target.semantic_id, policy_safe())
+        self.assertEqual(plan.disposition, PlanDisposition.ALREADY_SAFE)
+        self.assertIsNotNone(plan.predicted_recovery_search_zone)
+        self.assertTrue(plan.predicted_recovery_search_zone.available)
+        self.assertIsNone(plan.predicted_recovery_search_zone.executable_recovery_coordinate)
+        self.assertIn("current_frame_recovery_binding_still_required", plan.recovery_honesty)
+
+    def test_visible_but_poorly_positioned_requires_reposition(self):
+        # Fully inside safe box but radial footprint (down 200) collides with bottom HUD.
+        target = building(polygon=((300, 880), (440, 880), (440, 980), (300, 980)))
+        plan = plan_building_viewport(atlas(target), localization(), target.semantic_id, policy_safe(radial_margin_down_px=200.0))
+        self.assertEqual(plan.disposition, PlanDisposition.PAN)
+        self.assertEqual(plan.reason, "recovery_aware_target_viewport")
+        self.assertLess(plan.desired_camera_origin[1], 880 - 180)
+
+    def test_asymmetric_radial_footprint_rejects_downward_overflow(self):
+        target = building(polygon=((300, 860), (420, 860), (420, 960), (300, 960)))
+        reject = plan_building_viewport(
+            atlas(target),
+            localization(),
+            target.semantic_id,
+            policy_safe(
+                radial_margin_up_px=10.0,
+                radial_margin_down_px=400.0,
+                radial_margin_left_px=10.0,
+                radial_margin_right_px=10.0,
+                max_candidates=4,
+                candidate_step_px=500.0,
+                recovery_search_inset_bottom_px=360.0,
+            ),
+        )
+        self.assertEqual(reject.disposition, PlanDisposition.REJECTED)
+        self.assertEqual(reject.reason, "no_recoverable_actionable_viewport")
+        self.assertTrue(any(reason == "insufficient_radial_footprint" for reason, _ in reject.rejection_counts))
+
+    def test_insufficient_recovery_search_zone_fails_closed(self):
+        # Demand impossible exterior clearance so predicted recovery search zone cannot exist.
+        target = building(polygon=((300, 400), (440, 400), (440, 520), (300, 520)))
+        plan = plan_building_viewport(
+            atlas(target),
+            localization(),
+            target.semantic_id,
+            policy_safe(recovery_clearance_px=500.0, recovery_zone_half_size_px=20.0, max_candidates=8, candidate_step_px=120.0),
+        )
+        self.assertEqual(plan.disposition, PlanDisposition.REJECTED)
+        self.assertEqual(plan.reason, "no_recoverable_actionable_viewport")
+        self.assertTrue(any(reason == "predicted_recovery_search_zone_unavailable" for reason, _ in plan.rejection_counts))
+
+    def test_affine_non_identity_scale_derives_translation_through_linear(self):
+        target = building(polygon=((1900, 1500), (2040, 1500), (2040, 1640), (1900, 1640)))
+        loc = replace(localization(), screen_to_atlas=((2.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.0, 0.0, 1.0)), viewport_polygon=((0, 0), (1600, 0), (1600, 2560), (0, 2560)))
+        base = atlas(target, bounds=(0.0, 0.0, 2000.0, 2500.0))
+        polygons = (((0, 0), (2500, 0), (2500, 3000), (0, 3000)),)
+        world = HomeAtlas(
+            base.schema_version,
+            base.atlas_id,
+            base.atlas_version,
+            base.profile,
+            base.canonical_zoom_identity,
+            base.coordinate_units,
+            base.origin,
+            2500,
+            3000,
+            base.image_path,
+            base.game_build_provenance,
+            base.account_layout_provenance,
+            polygons,
+            (),
+            base.viewports,
+            (target,),
+            polygons,
+            (0.0, 0.0, 2000.0, 2500.0),
+        )
+        plan = plan_building_viewport(world, loc, target.semantic_id, policy_safe())
+        self.assertEqual(plan.disposition, PlanDisposition.PAN)
+        sx, sy = plan.target_screen_anchor
+        ax, ay = target.navigation_anchor
+        self.assertAlmostEqual(plan.desired_camera_origin[0], ax - 2.0 * sx, places=5)
+        self.assertAlmostEqual(plan.desired_camera_origin[1], ay - 2.0 * sy, places=5)
+
+    def test_predicted_recovery_zone_never_produces_executable_tap(self):
+        target = building(polygon=((300, 400), (440, 400), (440, 520), (300, 520)))
+        plan = plan_building_viewport(atlas(target), localization(), target.semantic_id, policy_safe())
+        zone = plan.predicted_recovery_search_zone
+        self.assertIsNotNone(zone)
+        self.assertIsNone(zone.executable_recovery_coordinate)
+        self.assertFalse(hasattr(zone, "tap_xy"))
+        self.assertIn("projection_does_not_authorize_entry_or_exit_input", plan.recovery_honesty)
+        self.assertIn("current_frame_recovery_binding_still_required", plan.recovery_honesty)
+
+    def test_foreign_transient_clearance_delegated_via_honesty_fields(self):
+        target = building()
+        plan = plan_building_viewport(atlas(target), localization(), target.semantic_id, policy_safe())
+        self.assertIn("predicted_recovery_search_zone_available_is_not_a_live_tap_proof", plan.recovery_honesty)
+        if plan.predicted_recovery_search_zone is not None:
+            self.assertIsNone(plan.predicted_recovery_search_zone.executable_recovery_coordinate)
+
+    def test_destination_already_in_navigator_history_rejected_before_dispatch(self):
+        target = building()
+        world = atlas(target)
+        # Restrict candidates so the classic destination is the only viable option.
+        safe = policy_safe(max_candidates=1, candidate_step_px=500.0)
+        controller = DirectPanNavigator(world, target.semantic_id, safe, CALIBRATION)
+        first = controller.plan(localization())
+        self.assertEqual(first.disposition, PlanDisposition.PAN)
+        destination = (round(first.viewport.desired_camera_origin[0]), round(first.viewport.desired_camera_origin[1]))
+        controller.seen_viewports.add(destination)
+        blocked = controller.plan(localization(10, 10, "b" * 64))
+        self.assertEqual(blocked.disposition, PlanDisposition.REJECTED)
+        self.assertEqual(blocked.reason, "no_recoverable_actionable_viewport")
+        self.assertTrue(any(reason == "destination_already_visited" for reason, _ in blocked.viewport.rejection_counts))
+
+    def test_deterministic_tie_resolution(self):
+        target = building(polygon=((900, 700), (1040, 700), (1040, 840), (900, 840)))
+        world = atlas(target)
+        a = plan_building_viewport(world, localization(), target.semantic_id, policy_safe())
+        b = plan_building_viewport(world, localization(), target.semantic_id, policy_safe())
+        self.assertEqual(a.desired_camera_origin, b.desired_camera_origin)
+        self.assertEqual(a.selection_score, b.selection_score)
+        self.assertEqual(a.score_breakdown, b.score_breakdown)
+
+    def test_bounded_rejection_evidence(self):
+        target = building(polygon=((10, 500), (110, 500), (110, 620), (10, 620)))
+        plan = plan_building_viewport(atlas(target, bounds=(0, 0, 50, 1500)), localization(400, 0), target.semantic_id, policy_safe(max_candidates=40, candidate_step_px=40.0))
+        self.assertEqual(plan.disposition, PlanDisposition.REJECTED)
+        self.assertLessEqual(len(plan.rejected_alternatives), 5)
+        self.assertTrue(plan.rejection_counts)
+        self.assertTrue(plan.best_rejected_by_reason)
+        reasons = {item.reason for item in plan.best_rejected_by_reason}
+        self.assertEqual(len(reasons), len(plan.best_rejected_by_reason))
+
+
+    def test_lower_half_alternate_candidate_selected(self):
+        # Classic placement puts a tall body+radial past the safe bottom; a higher placement remains viable.
+        target = building(polygon=((350, 820), (490, 820), (490, 1000), (350, 1000)))
+        plan = plan_building_viewport(atlas(target), localization(), target.semantic_id, policy_safe(radial_margin_down_px=400.0, candidate_step_px=50.0, max_candidates=48))
+        self.assertEqual(plan.disposition, PlanDisposition.PAN)
+        self.assertEqual(plan.reason, "recovery_aware_target_viewport")
+        classic = (target.navigation_anchor[0] - 400, target.navigation_anchor[1] - 600)
+        self.assertNotEqual(plan.desired_camera_origin, classic)
+        self.assertGreater(plan.desired_camera_origin[1], classic[1])
+
+    def test_map_edge_proximity_alone_does_not_hard_reject(self):
+        # Interior safe building whose desired origin sits near the camera bound.
+        target = building(polygon=((300, 400), (420, 400), (420, 520), (300, 520)))
+        plan = plan_building_viewport(atlas(target, bounds=(0.0, 0.0, 20.0, 1500.0)), localization(), target.semantic_id, policy_safe())
+        self.assertEqual(plan.disposition, PlanDisposition.ALREADY_SAFE)
+        self.assertEqual(plan.reason, "target_already_safely_visible")
+        self.assertNotIn("map_edge_proximity", dict(plan.rejection_counts))
+
+    def test_near_hud_target_is_repositioned(self):
+        # Building sits near the top of the current viewport; pan to a lower screen placement.
+        target = building(polygon=((300, 700), (420, 700), (420, 790), (300, 790)))
+        plan = plan_building_viewport(atlas(target), localization(0, 500), target.semantic_id, policy_safe())
+        self.assertEqual(plan.disposition, PlanDisposition.PAN)
+        self.assertEqual(plan.reason, "recovery_aware_target_viewport")
+        self.assertLess(plan.desired_camera_origin[1], 500.0)
+
+    def test_recovery_search_envelope_bounds_zone_availability(self):
+        target = building(polygon=((300, 400), (440, 400), (440, 520), (300, 520)))
+        # Envelope excludes the entire safe interior -> recovery unavailable.
+        blocked = plan_building_viewport(
+            atlas(target),
+            localization(),
+            target.semantic_id,
+            policy_safe(recovery_search_inset_left_px=400.0, recovery_search_inset_right_px=400.0),
+        )
+        self.assertEqual(blocked.disposition, PlanDisposition.REJECTED)
+        self.assertEqual(blocked.reason, "no_recoverable_actionable_viewport")
+        self.assertTrue(any(reason == "predicted_recovery_search_zone_unavailable" for reason, _ in blocked.rejection_counts))
+        # Matching BlueStacks exterior-close envelope admits a zone without executable taps.
+        ok = plan_building_viewport(atlas(target), localization(), target.semantic_id, policy_safe())
+        self.assertEqual(ok.disposition, PlanDisposition.ALREADY_SAFE)
+        self.assertIsNotNone(ok.predicted_recovery_search_zone)
+        self.assertTrue(ok.predicted_recovery_search_zone.available)
+        self.assertIsNone(ok.predicted_recovery_search_zone.executable_recovery_coordinate)
+        self.assertIn("current_frame_recovery_binding_still_required", ok.recovery_honesty)
+        search = (
+            145 + 75,
+            180 + 70,
+            650 - 75,
+            1010 - 360,
+        )
+        zone = ok.predicted_recovery_search_zone.zone_box
+        self.assertIsNotNone(zone)
+        self.assertGreaterEqual(zone[0], search[0] - 1e-6)
+        self.assertGreaterEqual(zone[1], search[1] - 1e-6)
+        self.assertLessEqual(zone[2], search[2] + 1e-6)
+        self.assertLessEqual(zone[3], search[3] + 1e-6)
+
+    def test_bluestacks_candidate_set_covers_upper_middle_lower(self):
+        from tasks.home_atlas_planner import _candidate_screen_placements
+        from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract
+        safe, _ = bluestacks_direct_pan_contract()
+        points = _candidate_screen_placements(safe, safe.planning_policy)
+        ys = [p[1] for p in points]
+        xs = [p[0] for p in points]
+        self.assertLessEqual(min(ys), 280)
+        self.assertGreaterEqual(max(ys), 900)
+        self.assertTrue(any(450 <= y <= 700 for y in ys))
+        self.assertLessEqual(min(xs), 200)
+        self.assertGreaterEqual(max(xs), 600)
+        self.assertEqual(points, sorted(points, key=lambda item: (item[1], item[0])))
+
+    def test_plan_direct_pan_public_signature_excludes_seen_destinations(self):
+        import inspect
+        params = list(inspect.signature(plan_direct_pan).parameters)
+        self.assertEqual(params, ["atlas", "localization", "building_id", "safe_region", "calibration"])
+
+    def test_supply_depot_safe_subregion_produces_viable_plan(self):
+        from tasks.home_atlas import load_home_atlas
+        from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract
+        from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID
+        atlas_path = Path("tasks/assets/home_atlas/bluestacks/800x1280/atlas.json")
+        world = load_home_atlas(atlas_path)
+        safe, _ = bluestacks_direct_pan_contract()
+        # Representative canonical-ish Home localization near viewport-001 origin.
+        loc = LocalizationResult(
+            True,
+            BLUESTACKS_PLATFORM,
+            BLUESTACKS_PROFILE_ID,
+            ZoomIdentity.FULLY_ZOOMED_OUT,
+            ((1.0, 0.0, 171.0), (0.0, 1.0, 113.0), (0.0, 0.0, 1.0)),
+            ((171.0, 113.0), (971.0, 113.0), (971.0, 1393.0), (171.0, 1393.0)),
+            0.99,
+            ("viewport-001",),
+            0.1,
+            AmbiguityState.NONE,
+            "interior",
+            "a" * 64,
+            "now",
+        )
+        plan = plan_building_viewport(world, loc, "home.building.supply_depot", safe)
+        self.assertIn(plan.disposition, {PlanDisposition.PAN, PlanDisposition.ALREADY_SAFE})
+        self.assertIn(plan.reason, {"recovery_aware_target_viewport", "target_already_safely_visible"})
+        self.assertNotEqual(plan.disposition, PlanDisposition.REJECTED)
+        self.assertIn("projection_does_not_authorize_entry_or_exit_input", plan.recovery_honesty)
+        if plan.predicted_recovery_search_zone is not None:
+            self.assertIsNone(plan.predicted_recovery_search_zone.executable_recovery_coordinate)
+
 
 
 if __name__ == "__main__":

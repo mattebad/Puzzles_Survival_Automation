@@ -449,6 +449,17 @@ class FramePerceptionBundle:
         return replace(self, invalidated_after_input=True, context=None)
 
     def checked_navigation_inputs(self) -> tuple[LocalizationResult, BuildingBinding | None]:
+        return self.checked_home_context_inputs(
+            allowed_contextual_classes=frozenset({ContextualClass.CANONICAL_HOME})
+        )
+
+    def checked_home_context_inputs(
+        self,
+        *,
+        allowed_contextual_classes: frozenset[ContextualClass],
+    ) -> tuple[LocalizationResult, BuildingBinding | None]:
+        if not allowed_contextual_classes:
+            raise PerceptionBundleError("MISSING_ALLOWED_CONTEXT_CLASSES")
         if self.invalidated_after_input:
             raise PerceptionBundleError("BUNDLE_INVALIDATED_AFTER_INPUT")
         if self.localization is None:
@@ -491,8 +502,13 @@ class FramePerceptionBundle:
         derived = classify_frame_context(self)
         if self.context is not None and self.context != derived:
             raise PerceptionBundleError("CONTEXT_CLASSIFICATION_MISMATCH")
-        if not derived.context_recognized or derived.contextual_class is not ContextualClass.CANONICAL_HOME:
-            raise PerceptionBundleError("CONTEXT_NOT_CANONICAL_HOME")
+        if not derived.context_recognized or derived.contextual_class not in allowed_contextual_classes:
+            if allowed_contextual_classes == frozenset({ContextualClass.CANONICAL_HOME}):
+                raise PerceptionBundleError("CONTEXT_NOT_CANONICAL_HOME")
+            raise PerceptionBundleError(
+                "CONTEXT_NOT_PERMITTED_FOR_CHECKPOINT",
+                derived.contextual_class.value,
+            )
         localization = LocalizationResult(
             recognized=loc.recognized,
             platform=loc.platform,

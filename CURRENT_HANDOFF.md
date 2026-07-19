@@ -9,11 +9,13 @@
     "relevant_unstaged_paths": [
       "BACKLOG.md",
       "CURRENT_HANDOFF.md",
+      "tasks/navigation_session.py",
+      "tests/test_navigation_session.py",
+      "scripts/home_atlas_bluestacks.py",
+      "tests/test_governance_validation.py",
       "tasks/perception_bundle.py",
       "tests/test_perception_bundle.py",
       "tests/fixtures/perception_bundle_evidence.json",
-      "scripts/home_atlas_bluestacks.py",
-      "tests/test_governance_validation.py",
       "docs/research/home_ui_atlas.md",
       "docs/research/home_ui_atlas.json",
       "scripts/bluestacks_native_runtime.py",
@@ -49,14 +51,14 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-    "current_task_id": "RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE",
-    "current_task_state": "completed",
-    "next_task_id": "M6-DQ-TRANSITION-CORPUS",
-    "next_task_activation_status": "not_applicable",
-    "phase": "immutable_frame_perception_bundle_completed",
-    "objective": "Create a shared immutable perception bundle for one capture event with dual digests, fail-closed same-frame composition, honest contextual classification, and enforced navigate-building adoption.",
-    "last_safe_completed_step": "Final review-fix closed: forged context rejected via derived classify_frame_context; nested surface_safe_targets share capture-event identity; VALID_NATIVE consistency enforced; full suite 591 passed / 1 skip.",
-    "next_permitted_action": "None in this task; future runtime or consumer migration requires separate authorization.",
+  "current_task_id": "RUNTIME-RESUMABLE-NAVIGATION-SESSIONS",
+  "current_task_state": "completed",
+  "next_task_id": "M6-DQ-TRANSITION-CORPUS",
+  "next_task_activation_status": "not_applicable",
+  "phase": "resumable_navigation_sessions_completed",
+  "objective": "Introduce resumable, evidence-backed navigation sessions with crash-safe ledgers, cyclic multi-pan checkpoints, and hardened continuation freshness without Train or consequential input.",
+  "last_safe_completed_step": "CONFIRMED_NOT_DISPATCHED now fails closed as NON_DISPATCH_AUTHORITY_UNAVAILABLE until an authenticated runtime-owned transport verifier exists; caller-minted evidence and zero movement cannot clear suppression; full suite 642 passed with 1 expected skip; zero runtime input.",
+  "next_permitted_action": "Preserve completed offline resumable navigation-session work; send no runtime input without a new authorized task.",
   "actions_already_performed": [
     "Read-only Git status, required governance files, the exact MVP backlog section, direct dependencies, and exact evidence references.",
     "Migrated and validated the MVP durable contract and created its compact task-specific evidence manifest from exact named references.",
@@ -108,13 +110,14 @@
     "Live-tested one 11.1-second Food hold from eight free attempts. The initial postcondition was left unresolved because the stylized zero OCR'd as O; no retry occurred. A separate read-only fresh capture then proved Daily free attempts 0 plus four paid controls and reconciled all eight free Food collections as confirmed_exhausted.",
     "The native Home diamond display was 25.5K before and after the hold, positively confirming that the long press stopped at free-attempt exhaustion and did not consume premium currency.",
     "Returned Home, applied two bounded held-Ctrl+wheel inputs until the measured zoom clamp, and used three freshly localized pans to canonical viewport-001 within 5.08 px at confidence 0.98691 and residual 0.15549 px.",
-    "No premium, purchase, Mall, speedup, ticket, resource-item, AP, stamina, Daily Claim, Bank, upgrade, research, training, healing, production, Bliss, Unraid, or unrelated input occurred."
-    ,"Implemented platform-neutral viewport planning, camera-envelope clamping, adapter-injected inverse gesture conversion, measured progress guards, and navigation-only result contracts.",
+    "No premium, purchase, Mall, speedup, ticket, resource-item, AP, stamina, Daily Claim, Bank, upgrade, research, training, healing, production, Bliss, Unraid, or unrelated input occurred.",
+    "Implemented platform-neutral viewport planning, camera-envelope clamping, adapter-injected inverse gesture conversion, measured progress guards, and navigation-only result contracts.",
     "Live-validated current-frame bindings for Headquarters (0 pans), Supply Depot (2 pans), Bank (2 pans), and Gear Factory (1 pan); every result recorded building_opened=false.",
     "Returned to canonical Home after a corrected empty-scene recovery pan; no facility or downstream workflow was opened.",
     "Audited every accepted atlas label against the current semantic registry and current-account building catalog without reacquiring the atlas.",
     "Added home.building.parade_grounds from transform-consistent OCR/geometry in viewports 018/019 and marked it non-actionable behind the fixed right HUD.",
-    "Preserved all 34 individually mapped resource, Bootcamp, and Infirmary instances for future exact upgrade targeting; representative collection/healing selection remains a workflow concern."
+    "Preserved all 34 individually mapped resource, Bootcamp, and Infirmary instances for future exact upgrade targeting; representative collection/healing selection remains a workflow concern.",
+    "Implemented HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING offline: optional ViewportPlanningPolicy, private seen-destination rejection, normalized soft scores, BlueStacks policy justified from safe-region/radial-close contracts, research/atlas contract notes, and focused planner tests; no live BlueStacks/ADB/Bliss input."
   ],
   "actions_not_to_repeat": [
     "Do not repeat the no-progress canonical short drags at (450,260)->(450,298) or (450,500)->(450,538); both are terminal navigation diagnostics.",
@@ -184,10 +187,10 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "591 tests passed; 1 skipped",
+    "last_full_suite_count": "642 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "perception-bundle final review-fix plus atlas/planner/integrated-route/governance focused set passed; full suite 591 passed with 1 skip."
+    "last_relevant_focused_tests": "navigation-session, perception-bundle, home-atlas-planner, and governance focused set passed; zero transport."
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -226,7 +229,7 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Offline perception-bundle contracts and fixtures create no Bliss production evidence manifest; live BlueStacks validation is not required for this task.",
+    "evidence_requirement_reason": "Offline resumable navigation-session contracts and fixtures create no Bliss production evidence manifest; live BlueStacks validation is not required for this task.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "collector": {
@@ -243,15 +246,16 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Preserve completed offline perception-bundle work; send no runtime input without a new authorized task."
+      "Preserve completed offline RUNTIME-RESUMABLE-NAVIGATION-SESSIONS work; send no runtime input without a new authorized task."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
-      "Any repeat Fighter or Vehicle facility/radial input, Train, quantity, Warehouse, resource-box, Supply Depot, Daily Claim, Bank, upgrade, research, training, production, recruitment, premium, purchase, or unrelated action.",
+      "Any live resume dispatch, facility entry, radial input, Train, Supply Depot collection, Daily Claim, or other consequential control.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
-      "Atlas rebuild/reacquisition or DirectPanNavigator public API changes."
+      "Atlas rebuild/reacquisition or broadening Train/consequential authorization.",
+      "Staging, commit, or push unless explicitly requested."
     ],
-    "exact_stop_condition": "Stop; task complete with no action in flight. Any live BlueStacks or Bliss/Unraid work requires a separate authorized task.",
+    "exact_stop_condition": "Stop; task complete with no action in flight. Live resume dispatch requires a separate authorized task.",
     "expected_next_atomic_task": "M6-DQ-TRANSITION-CORPUS",
     "expected_next_activation_status": "not_applicable"
   }
@@ -272,15 +276,15 @@ This document is a volatile operational boundary, not a complete project history
 - Most recent task-scoped commits: 58d8898, e76964b, 9883a15, 501f9fb
 
 ## Current task
-- Task ID: RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE
-- Current task state: completed; final review-fix for forged context, nested targets, and frame-validation consistency validated
+- Task ID: RUNTIME-RESUMABLE-NAVIGATION-SESSIONS
+- Current task state: completed; offline resumable navigation sessions with fail-closed non-dispatch handling
 - Next task ID: M6-DQ-TRANSITION-CORPUS
 - Next task activation status: not_applicable
-- Phase: immutable_frame_perception_bundle_completed
-- Objective: shared immutable capture-event perception bundle with dual digests, fail-closed composition, honest contextual classification, and enforced navigate-building checked inputs
-- Last safe completed step: final review-fix complete; full suite 591 passed / 1 skip; governance validators passed; zero runtime input
-- Exact next permitted step: none in this task; future runtime or consumer migration requires separate authorization
-- No atlas reacquisition, Train, consequential, Bliss, Unraid, registration, scheduler, worker, or task-row action occurred
+- Phase: resumable_navigation_sessions_completed
+- Objective: crash-safe navigation sessions with cyclic multi-pan checkpoints and hardened continuation freshness; no Train/consequential input
+- Last safe completed step: CONFIRMED_NOT_DISPATCHED fails closed as NON_DISPATCH_AUTHORITY_UNAVAILABLE until an authenticated runtime-owned verifier exists; full suite 642 passed / 1 expected skip + git diff --check green; zero runtime input
+- Exact next permitted step: none in this task; live resume dispatch requires separate authorization
+- No atlas reacquisition, live BlueStacks/ADB, facility entry, radial/consequential input, Bliss, Unraid, registration, scheduler, worker, or task-row action occurred
 - M6-DQ-TRANSITION-CORPUS remains the declared successor
 
 ## Runtime
@@ -317,10 +321,10 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 591 passed, one expected skip
+- Last full-suite count: 642 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
-- Last relevant focused tests: perception-bundle final review-fix plus atlas/planner/integrated-route/governance focused set passed; touched Python compilation passed
+- Last relevant focused tests: navigation-session, perception-bundle, home-atlas-planner, and governance focused set passed; zero transport
 
 ## Evidence
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`

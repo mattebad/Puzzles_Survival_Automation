@@ -36,6 +36,7 @@ from tasks.home_atlas_planner import (
     GestureCalibration,
     PlanDisposition,
     SafeInteractionRegion,
+    ViewportPlanningPolicy,
     camera_origin,
 )
 from tasks.home_atlas_vision import (
@@ -50,6 +51,23 @@ from tasks.home_atlas_vision import (
     hud_mask,
     native_frame_guard,
     register_home_frame,
+)
+from tasks.navigation_session import (
+    AuthorizationScope,
+    LatestObservation,
+    complete_route_at_target_bound,
+    compute_pan_gesture_fingerprint,
+    create_session,
+    make_pan_action_key,
+    mark_blocked,
+    mark_dry_run,
+    record_pan_dispatched,
+    record_pan_prepared,
+    record_plan,
+    record_source_home_verified,
+    record_target_bound,
+    reconcile_pan,
+    save_session,
 )
 from tasks.perception_bundle import (
     FramePerceptionBundle,
@@ -593,13 +611,41 @@ def _canonical_pan_gesture(displacement: np.ndarray) -> tuple[str, tuple[int, in
 
 
 def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCalibration]:
-    """Return only the empirically measured local BlueStacks geometry."""
+    """Return only the empirically measured local BlueStacks geometry.
 
+    ViewportPlanningPolicy magnitudes are justified from the accepted safe region
+    (145,180)-(650,1010) and radial-exterior-close contract (25 px building clearance,
+    scan band above radial controls / away from HUD). They are heuristics derived from
+    those contracts, not freshly remeasured in this offline task.
+    """
+
+    planning_policy = ViewportPlanningPolicy(
+        # Asymmetric: radial menus open mostly downward/sideways from facility labels.
+        radial_margin_up_px=40.0,
+        radial_margin_down_px=120.0,
+        radial_margin_left_px=70.0,
+        radial_margin_right_px=70.0,
+        recovery_clearance_px=25.0,
+        recovery_zone_half_size_px=10.0,
+        recovery_scan_step_px=25.0,
+        # Exterior-close scan band: x in [max(sx0+70,220), min(sx1-70,575)],
+        # y in [max(sy0+70,250), min(sy1,650)] inside safe (145,180)-(650,1010).
+        recovery_search_inset_left_px=75.0,
+        recovery_search_inset_top_px=70.0,
+        recovery_search_inset_right_px=75.0,
+        recovery_search_inset_bottom_px=360.0,
+        action_body_margin_px=8.0,
+        label_inset_px=12.0,
+        candidate_step_px=50.0,
+        max_candidates=48,
+        map_edge_soft_margin_px=40.0,
+    )
     safe = SafeInteractionRegion(
         "home-default",
         BLUESTACKS_SAFE_INTERACTION_BOX,
         BLUESTACKS_INTERACTION_ANCHOR,
         fixed_hud_masks=((0, 0, 800, 150), (0, 150, 138, 1020), (650, 150, 800, 1020), (0, 1020, 800, 1280)),
+        planning_policy=planning_policy,
     )
     calibration = GestureCalibration(
         platform=BLUESTACKS_PLATFORM,
@@ -1019,6 +1065,24 @@ def command_open_building(args) -> int:
     return 0 if successor.recognized else 3
 
 
+def _navigate_authorization(building_id: str) -> AuthorizationScope:
+    return AuthorizationScope(
+        task_id="RUNTIME-RESUMABLE-NAVIGATION-SESSIONS",
+        owner_operator="home-atlas-navigate-building",
+        action_class="navigation_only",
+        platform=BLUESTACKS_PLATFORM,
+        profile=BLUESTACKS_PROFILE_ID,
+        environment="local_bluestacks",
+        target_building_id=building_id,
+    )
+
+
+def _persist_navigate_session(nav_session, session_dir: Path) -> Path:
+    path = session_dir / "navigate-session.json"
+    save_session(nav_session, path)
+    return path
+
+
 def command_navigate_building(args) -> int:
     if args.execute and not args.yes:
         raise SystemExit("live navigate-building requires both --execute and --yes")
@@ -1029,10 +1093,32 @@ def command_navigate_building(args) -> int:
     controller = DirectPanNavigator(atlas, args.building_id, safe_region, calibration, maximum_pans=args.maximum_pans)
     runtime = connect_runtime(args, "home-atlas-navigate-building")
     records: list[dict[str, object]] = []
+    nav_session = create_session(
+        _navigate_authorization(args.building_id),
+        runtime_capture_session_id=str(runtime.session),
+        maximum_pans=args.maximum_pans,
+    )
+    session_path = _persist_navigate_session(nav_session, runtime.session)
+    source_home_recorded = False
+
     source = runtime.capture("navigate-source")
     source_localization = localizer.localize(source.frame)
     if not source_localization.recognized:
-        result = {"status": "blocked", "reason": "source_localization_failed", "localization": source_localization.__dict__, "records": records, "session": str(runtime.session)}
+        mark_blocked(
+            nav_session,
+            reason="source_localization_failed",
+            observation=LatestObservation(None, localization_recognized=False, summary="source_localization_failed"),
+        )
+        _persist_navigate_session(nav_session, runtime.session)
+        result = {
+            "status": "blocked",
+            "reason": "source_localization_failed",
+            "localization": source_localization.__dict__,
+            "records": records,
+            "session": str(runtime.session),
+            "navigation_session": str(session_path),
+            "route_id": nav_session.route_id,
+        }
         _json(runtime.session / "navigate-building-result.json", result)
         print(json.dumps(result, sort_keys=True, default=str))
         return 3
@@ -1058,30 +1144,64 @@ def command_navigate_building(args) -> int:
             perception = build_navigate_perception_bundle(identity, derived_localization, derived_binding)
             localization, binding = perception.checked_navigation_inputs()
         except PerceptionBundleError as exc:
+            mark_blocked(nav_session, reason=exc.reason_code)
+            _persist_navigate_session(nav_session, runtime.session)
             result = {
                 "status": "blocked",
                 "reason": exc.reason_code,
                 "building_id": args.building_id,
                 "records": records,
                 "session": str(runtime.session),
+                "navigation_session": str(session_path),
+                "route_id": nav_session.route_id,
             }
             _json(runtime.session / "navigate-building-result.json", result)
             print(json.dumps(result, sort_keys=True, default=str))
             return 3
+
+        if not source_home_recorded:
+            record_source_home_verified(
+                nav_session,
+                frame=identity,
+                localization_confidence=localization.confidence,
+                localization_residual_px=localization.residual_px,
+                contextual_class=perception.context.contextual_class.value if perception.context else "",
+            )
+            _persist_navigate_session(nav_session, runtime.session)
+            source_home_recorded = True
+
         plan = controller.plan(localization, binding)
+        origin = (
+            camera_origin(localization)
+            if localization.recognized and localization.screen_to_atlas is not None
+            else None
+        )
+        record_plan(
+            nav_session,
+            requested=plan.requested_camera_displacement,
+            predicted=plan.predicted_camera_displacement,
+            remaining=plan.predicted_remaining_displacement,
+            reason=plan.reason,
+            seen_viewport=(int(round(origin[0])), int(round(origin[1]))) if origin is not None else None,
+        )
+        _persist_navigate_session(nav_session, runtime.session)
         plan_record = {
             "ordinal": ordinal,
             "building_id": args.building_id,
             "localization": localization.__dict__,
-            "camera_origin": camera_origin(localization) if localization.recognized and localization.screen_to_atlas is not None else None,
+            "camera_origin": origin,
             "plan": asdict(plan),
             "binding": binding.__dict__ if binding is not None else None,
             "perception_bundle": bundle_evidence_snapshot(perception),
+            "route_id": nav_session.route_id,
+            "navigation_checkpoint": nav_session.checkpoint.value,
         }
         _json(runtime.session / f"navigate-plan-{ordinal:02d}.json", plan_record)
         if plan.disposition is PlanDisposition.PAN:
             assert plan.drag_start is not None and plan.drag_end is not None
             if not args.execute:
+                mark_dry_run(nav_session)
+                _persist_navigate_session(nav_session, runtime.session)
                 result = {
                     "status": "dry_run",
                     "reason": "calculated_pan_not_dispatched",
@@ -1092,11 +1212,32 @@ def command_navigate_building(args) -> int:
                     "records": records,
                     "perception_bundle": bundle_evidence_snapshot(perception),
                     "session": str(runtime.session),
+                    "navigation_session": str(session_path),
+                    "route_id": nav_session.route_id,
                 }
                 _json(runtime.session / "navigate-building-result.json", result)
                 print(json.dumps(result, sort_keys=True, default=str))
                 return 0
-            action_key = f"navigate-{args.building_id}-pan-{ordinal}-{int(time.time() * 1000)}"
+            next_pan = nav_session.pan_ordinal + 1
+            gesture_fingerprint = compute_pan_gesture_fingerprint(
+                nav_session,
+                pan_ordinal=next_pan,
+                requested=plan.requested_camera_displacement,
+                predicted=plan.predicted_camera_displacement,
+                source_frame=identity,
+                target_identity="home-camera-click-drag",
+            )
+            action_key = make_pan_action_key(nav_session, gesture_fingerprint, next_pan)
+            record_pan_prepared(
+                nav_session,
+                action_key=action_key,
+                source_frame=identity,
+                target_identity="home-camera-click-drag",
+                requested=plan.requested_camera_displacement,
+                predicted=plan.predicted_camera_displacement,
+                gesture_fingerprint=gesture_fingerprint,
+            )
+            _persist_navigate_session(nav_session, runtime.session)
             runtime.swipe(
                 immediate_before,
                 start=plan.drag_start,
@@ -1104,6 +1245,8 @@ def command_navigate_building(args) -> int:
                 action_key=action_key,
                 target_identity="home-camera-click-drag",
             )
+            record_pan_dispatched(nav_session, action_key)
+            _persist_navigate_session(nav_session, runtime.session)
             pre_input_bundle = perception.invalidate_after_input()
             immediate_post = runtime.capture(f"navigate-{ordinal:02d}-immediate-post")
             time.sleep(args.settle_seconds)
@@ -1123,7 +1266,33 @@ def command_navigate_building(args) -> int:
                 .with_frame_validation(bluestacks_frame_validation(settled_identity))
                 .with_localization(localization_from_result(settled_identity, settled_localization))
             )
-            progress = controller.record_progress(localization, settled_bundle.checked_navigation_inputs()[0])
+            try:
+                settled_localization_checked = settled_bundle.checked_navigation_inputs()[0]
+                progress = controller.record_progress(localization, settled_localization_checked)
+                accepted = progress.accepted
+                progress_reason = progress.reason
+                measured = progress.measured_camera_displacement
+                residual = progress.remaining_displacement
+                progress_px = progress.progress_px
+            except (PerceptionBundleError, ValueError) as exc:
+                accepted = False
+                progress_reason = getattr(exc, "reason_code", None) or str(exc) or "post_pan_localization_failed"
+                measured = (0.0, 0.0)
+                residual = (0.0, 0.0)
+                progress_px = 0.0
+                progress = None
+            reconcile_pan(
+                nav_session,
+                action_key,
+                post_frame=settled_identity,
+                measured=measured,
+                residual=residual,
+                progress_px=progress_px,
+                accepted=accepted,
+                reason=progress_reason,
+                localization_confidence=settled_localization.confidence if settled_localization.recognized else None,
+            )
+            _persist_navigate_session(nav_session, runtime.session)
             record = {
                 "ordinal": ordinal + 1,
                 "action": "pan",
@@ -1135,19 +1304,33 @@ def command_navigate_building(args) -> int:
                 "immediate_post_sha256": immediate_post.sha256,
                 "settled_sha256": settled.sha256,
                 "settled_localization": settled_localization.__dict__,
-                "progress": asdict(progress),
+                "progress": asdict(progress) if progress is not None else {"accepted": False, "reason": progress_reason},
                 "pre_input_bundle_invalidated": pre_input_bundle.invalidated_after_input,
                 "settled_perception_bundle": bundle_evidence_snapshot(settled_bundle),
+                "route_id": nav_session.route_id,
+                "navigation_checkpoint": nav_session.checkpoint.value,
+                "navigation_outcome": nav_session.outcome.value,
             }
             records.append(record)
             _json(runtime.session / f"navigate-pan-{ordinal + 1:02d}.json", record)
-            if not progress.accepted:
-                result = {"status": "blocked", "reason": progress.reason, "building_id": args.building_id, "records": records, "session": str(runtime.session)}
+            if not accepted:
+                result = {
+                    "status": "blocked",
+                    "reason": progress_reason,
+                    "building_id": args.building_id,
+                    "records": records,
+                    "session": str(runtime.session),
+                    "navigation_session": str(session_path),
+                    "route_id": nav_session.route_id,
+                }
                 _json(runtime.session / "navigate-building-result.json", result)
                 print(json.dumps(result, sort_keys=True, default=str))
                 return 3
             continue
         if plan.disposition is PlanDisposition.COMPLETE and binding is not None:
+            record_target_bound(nav_session, binding=binding, frame=identity, historical_roi=binding.target_roi)
+            complete_route_at_target_bound(nav_session)
+            _persist_navigate_session(nav_session, runtime.session)
             result = {
                 "status": "completed",
                 "reason": "current_frame_semantic_building_bound",
@@ -1162,11 +1345,15 @@ def command_navigate_building(args) -> int:
                 "building_opened": False,
                 "perception_bundle": bundle_evidence_snapshot(perception),
                 "session": str(runtime.session),
+                "navigation_session": str(session_path),
+                "route_id": nav_session.route_id,
             }
             _json(runtime.session / "navigate-building-result.json", result)
             print(json.dumps(result, sort_keys=True, default=str))
             return 0
         reason = "current_frame_building_recognition_failed" if plan.disposition is PlanDisposition.BIND else plan.reason
+        mark_blocked(nav_session, reason=reason)
+        _persist_navigate_session(nav_session, runtime.session)
         result = {
             "status": "blocked",
             "reason": reason,
@@ -1175,6 +1362,8 @@ def command_navigate_building(args) -> int:
             "records": records,
             "perception_bundle": bundle_evidence_snapshot(perception),
             "session": str(runtime.session),
+            "navigation_session": str(session_path),
+            "route_id": nav_session.route_id,
         }
         _json(runtime.session / "navigate-building-result.json", result)
         print(json.dumps(result, sort_keys=True, default=str))

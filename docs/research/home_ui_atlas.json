@@ -78,6 +78,23 @@
       "bluestacks_camera_px_per_drag_px": [2.1, 2.1],
       "maximum_drag_components_px": [150, 180],
       "bliss_calibration_reused": false,
+      "recovery_aware_viewport_planning": {
+        "status": "offline_implemented",
+        "task_id": "HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING",
+        "policy_optional": true,
+        "legacy_path_preserved_when_policy_absent": true,
+        "bluestacks_policy_source": "bluestacks_direct_pan_contract",
+        "bluestacks_policy_justification": "safe region (145,180)-(650,1010) and radial-exterior-close 25px clearance / HUD-avoidance scan band; directional radial margins and recovery-search insets are heuristics derived from those contracts, not freshly remeasured offline",
+        "label_edge_clearance": "soft heuristic unless authoritative label geometry is present",
+        "recovery": {
+          "model": "predicted_recovery_search_zone_available",
+          "search_envelope": "adapter-injected directional insets inside safe region",
+          "executable_recovery_coordinate": null,
+          "current_frame_binding_still_required": true,
+          "projection_authorizes_entry_or_exit": false
+        },
+        "live_validation": "outside this authorization"
+      },
       "building_open_inputs": 0,
       "targets": {
         "headquarters": {"pans": 0, "start_origin": [169.41, 117.78], "binding_confidence": 0.98},

@@ -111,6 +111,31 @@ Key retained local evidence:
 - direct-pan Gear Factory: `.local-captures/home-atlas-direct-pan/gear-factory/home-atlas-navigate-building-20260719T002118522476Z/`
 - direct-pan final canonical correction: `.local-captures/home-atlas-direct-pan/final-canonical-correction-gap/home-atlas-pan-20260719T002430166504Z/`
 
+
+### Recovery-aware viewport planning (2026-07-18, offline)
+
+`SafeInteractionRegion.planning_policy` is optional. When absent, `plan_building_viewport`
+preserves the exact legacy single-candidate path. When a `ViewportPlanningPolicy` is present,
+candidates keep the current localization affine linear component, apply directional radial
+footprint margins from the predicted actionable interaction region (including authorized
+safe-subregion policies), and require `predicted_recovery_search_zone_available` inside an
+adapter-injected recovery-search envelope.
+
+Recovery predictions never emit an executable tap coordinate. Atlas polygons cannot prove live
+exit targets because transient units, controls, and effects are absent; current-frame adapter
+binding remains required. Label-edge clearance is a soft heuristic unless an authoritative
+building binding policy supplies explicit label geometry. Map-edge proximity is a soft penalty;
+hard rejection occurs only when clamping breaks coverage, radial footprint, recovery search space,
+or registration support. Soft scores are normalized to `[0,1]` with fixed weights and deterministic
+tie-break (score desc, pan distance asc, x asc, y asc). Registration support for passing
+candidates is a normalized safe-region probe overlap, not a constant 1.0.
+
+BlueStacks injects its policy through `bluestacks_direct_pan_contract()` only. Initial magnitudes
+and recovery-search insets are justified from the accepted safe region `(145,180)-(650,1010)` and
+radial-exterior-close scan band / `25 px` clearance; they are documented heuristics, not freshly
+remeasured in this offline task. No viewport-001 recovery bias is used. Live validation is outside
+this authorization.
+
 ### Troop Training atlas-entry migration validation (2026-07-18)
 
 The local BlueStacks Troop Training route now selects the first enabled troop type's semantic
