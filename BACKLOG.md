@@ -2953,7 +2953,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### HOME-NAVIGATION-OBSERVABILITY
 - Task ID: `HOME-NAVIGATION-OBSERVABILITY`.
 - Title: Deterministic Home navigation observability over the existing NavigationSession ledger.
-- Status: Pending (dormant; offline contract only; not activated).
+- Status: Completed (2026-07-19; final cycle-3 availability invariants parent-reviewed; zero runtime).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `VISION-NATIVE-FRAME-MUTATION-CORPUS` and completed
   `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS`.

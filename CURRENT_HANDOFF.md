@@ -3,24 +3,15 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "HEAD (mutation-corpus commit; mutation task closed)",
+    "head": "HEAD (observability commit; observability task closed)",
     "origin_relationship": "main is ahead of origin/main by seven local roadmap commits; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
       "BACKLOG.md",
       "CURRENT_HANDOFF.md",
-      "tests/test_governance_validation.py",
-      "tasks/native_frame_mutation.py",
-      "tests/test_native_frame_mutation.py",
-      "tests/fixtures/native_frame_mutation_manifest.json",
-      "safe_action_core/models.py",
-      "safe_action_core/policy.py",
-      "safe_action_core/executor.py",
-      "safe_action_core/__init__.py",
-      "tests/test_input_capability_firewall.py",
-      "tests/test_safe_action_core.py",
-      "tests/test_pre_dispatch_freshness.py",
-      "tests/test_navigation_runner.py"
+      "tasks/navigation_observability.py",
+      "tests/test_navigation_observability.py",
+      "tests/test_governance_validation.py"
     ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
@@ -40,19 +31,28 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "VISION-NATIVE-FRAME-MUTATION-CORPUS",
+  "current_task_id": "HOME-NAVIGATION-OBSERVABILITY",
   "current_task_state": "completed",
-  "next_task_id": "HOME-NAVIGATION-OBSERVABILITY",
-  "next_task_activation_status": "ready",
-  "phase": "native_frame_mutation_corpus_completed",
-  "objective": "Generate bounded temporary native-frame mutations from project-owned replay fixtures, preserve parent and distinct mutation identities, and measure false accepts separately from false rejects.",
-  "last_safe_completed_step": "Completed parent review and full offline validation of VISION-NATIVE-FRAME-MUTATION-CORPUS; 796 tests passed with 1 expected skip, compilation/governance/handoff JSON/manifest/hash/git diff checks passed, and zero runtime transport occurred.",
-  "next_permitted_action": "Commit reviewed VISION-NATIVE-FRAME-MUTATION-CORPUS locally if separately authorized, then activate HOME-NAVIGATION-OBSERVABILITY only; no runtime or push.",
+  "next_task_id": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION",
+  "next_task_activation_status": "not_activated",
+  "phase": "home_navigation_observability_completed",
+  "objective": "Produce deterministic offline reporting over the existing NavigationSession ledger without creating a second store, mutating session state, or inferring absent transport.",
+  "last_safe_completed_step": "HOME-NAVIGATION-OBSERVABILITY final cycle-3 correction completed and parent-reviewed offline: field-specific availability/value invariants now reject retained values under unknown/non-present statuses; structured unknown maps remain exact; all concrete object and serialized probes fail closed; task is complete; successor remains inactive; no push/runtime.",
+  "next_permitted_action": "No further action for this completed task; successor HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION remains inactive pending explicit promotion; no push or runtime.",
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
     "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity."
   ],
   "actions_already_performed": [
+    "Implemented tasks/navigation_observability.py as a read-only immutable NavigationSession ledger reporter with exact public schema, deterministic ordered JSON serialization, explicit unknown/unavailable fields, and authority separation for requested/authorized/dispatched/transport-confirmed/verified.",
+    "Added tests/test_navigation_observability.py covering complete, incomplete, failed, resumed/uncertain, recovery-only, duplicate-suppressed, malformed/contradictory ledgers, clamp/repeated-viewport signals, serialization revalidation, no NumPy retention, no session mutation, and CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
+    "Cycle-2 hardened tasks/navigation_observability.py against coercive malformed ledger fields, bool/int and finite-value lookalikes, forged report graphs, mutable nested values, and malformed/duplicate/non-finite serialized snapshots; added strict deserialization and deep graph revalidation.",
+    "Cycle-2 added five focused adversarial tests: nested immutability, forged report graph rejection, strict snapshot deserialization, malformed identity/count/enum handling, and non-finite timing; existing 18 focused tests remain passing.",
+    "Final cycle-3 tightened field-specific availability/value invariants: non-present scalar/checkpoint/facility values must be None, direction/safe-exit retain closed enum values, structured maps remain mandatory, non-dispatch authority payload remains exact, radial confidence remains unknown, and malformed repeated/continuation/recovery outputs remain schema-valid.",
+    "Final cycle-3 added direct object-level and serialized-snapshot probes for non-dispatch value removal, unknown localization confidence with retained value, and unknown source checkpoint with retained value.",
+    "Final cycle-3 validation: 24 observability tests passed; combined observability/navigation-session/governance/perception/safe-exit regressions passed 135; py_compile passed; zero transport; no commit/push; navigation_session.py left untouched.",
+    "Parent completion review reproduced the three forged availability/value probes as fail-closed, reran 24 focused tests plus 135 required regressions, and passed the full offline repository suite: 820 passed / 1 skipped; compilation, handoff JSON, and git diff checks passed.",
+    "Marked HOME-NAVIGATION-OBSERVABILITY complete after parent review; HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION remains inactive pending explicit promotion.",
     "Activated VISION-NATIVE-FRAME-MUTATION-CORPUS only after RUNTIME-INPUT-CAPABILITY-FIREWALL completion; successor HOME-NAVIGATION-OBSERVABILITY remains dependency_blocked.",
     "Implemented tasks/native_frame_mutation.py with bounded brightness, contrast, compression, translation, occlusion, distractor-text, crop-truncation, and stale-substitution operators.",
     "Added exact tests/fixtures/native_frame_mutation_manifest.json with parent fixture paths/hashes, operator parameters, expected outcomes, and temporary output names.",
@@ -61,6 +61,8 @@
     "Separated accepted/rejected expected outcomes from observed accepted/rejected, ambiguous, and unresolved counts; false-accept and false-reject rates are independent metrics with no blended error rate.",
     "Focused validation: 106 tests passed across native mutation, native replay, semantic OCR crop, perception bundle, and governance; no runtime input or evidence was acquired.",
     "Final full offline validation passed 796 tests with 1 expected skip after the reference-dependency scanner correction; no source fixture or retained evidence changed.",
+    "Committed reviewed VISION-NATIVE-FRAME-MUTATION-CORPUS locally as e7324c7 test(vision): add native-frame mutation corpus; no push.",
+    "Activated HOME-NAVIGATION-OBSERVABILITY only after the mutation commit; successor HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION remains dependency_blocked.",
     "Final parent completion review found no remaining actionable defect; the full offline repository suite passed 783 tests with 1 expected skip, and compilation, governance, handoff JSON extraction, and git diff checks passed.",
     "Parent review cycle 4 added exact public PolicyRequest/Observation schema validation for wrong object types, missing or forged attributes, digest types, ROI containers/contents, critical ROI hashes, forbidden regions, booleans, collections, and optional scalar fields while preserving stable timing and action-class denial codes.",
     "consume_capability and terminal retirement now atomically mark an exact registered capability consumed before interpreting final request fields; malformed final requests return CAPABILITY_SCHEMA_INVALID with CAPABILITY_DISPATCH_REJECTED, allow_dispatch=false, and replay denial.",
@@ -332,19 +334,19 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Commit reviewed VISION-NATIVE-FRAME-MUTATION-CORPUS locally if separately authorized, then activate HOME-NAVIGATION-OBSERVABILITY only."
+      "Launch exactly one fresh local Grok 4.5 High implementation subagent for HOME-NAVIGATION-OBSERVABILITY."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
       "Any live resume dispatch, facility entry, radial input, Train, Supply Depot collection, Daily Claim, or other consequential control.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Atlas rebuild/reacquisition or broadening Train/consequential authorization.",
-      "Activating any task after HOME-NAVIGATION-OBSERVABILITY.",
+      "Activating HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION or any later roadmap task.",
       "Any push."
     ],
-    "exact_stop_condition": "Stop on commit or activation failure; no runtime action is permitted.",
-    "expected_next_atomic_task": "HOME-NAVIGATION-OBSERVABILITY",
-    "expected_next_activation_status": "ready"
+    "exact_stop_condition": "Stop on subagent completion, review blocker, or three-cycle limit; no runtime action is permitted.",
+    "expected_next_atomic_task": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION",
+    "expected_next_activation_status": "dependency_blocked"
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -355,12 +357,10 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `HEAD` (mutation-corpus commit); seven local roadmap commits ahead of `origin/main`
+- HEAD/base: `e7324c7`; seven local roadmap commits ahead of `origin/main`
 - Staged paths: none
 - Relevant unstaged paths: `BACKLOG.md`, `CURRENT_HANDOFF.md`,
-  `tests/test_governance_validation.py`, `safe_action_core/{models,policy,executor,__init__}.py`,
-  `tests/test_input_capability_firewall.py`, `tests/test_safe_action_core.py`,
-  `tests/test_pre_dispatch_freshness.py`, `tests/test_navigation_runner.py`
+  `tests/test_governance_validation.py`
 - Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
 - Push: prohibited
 
@@ -371,20 +371,22 @@ This document is a volatile operational boundary, not a complete project history
   fresh Grok 4.5 High implementation subagent; parent review and offline validation were completed.
 
 ## Current task
-- Task ID: `VISION-NATIVE-FRAME-MUTATION-CORPUS`
-- State: completed after parent review; offline controlled mutation corpus only
-- Next task ID: `HOME-NAVIGATION-OBSERVABILITY` (ready; not activated)
-- Objective: derive bounded native-frame mutations from project-owned replay fixtures, bind each
-  derivative to parent and distinct mutation identities, and keep false accepts separate from false rejects.
-- Last safe completed step: parent review and full offline validation passed 796 tests with one
-  expected skip; stale substitution and forbidden output paths fail closed; zero runtime.
-- Exact next permitted step: commit this reviewed task locally if separately authorized, then
-  activate `HOME-NAVIGATION-OBSERVABILITY` only.
+- Task ID: `HOME-NAVIGATION-OBSERVABILITY`
+- State: in progress; final cycle-3 availability-invariant correction implemented; awaiting parent review
+- Next task ID: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION` (dependency blocked; not activated)
+- Objective: report ledger-backed localization, displacement, residuals, direction, progress,
+  corrections, repeated viewports, clamps, binding confidence, safe-exit availability, timing,
+  frame counts, and terminal state without creating a second store or mutating sessions.
+- Last safe completed step: final cycle-3 field-specific availability/value invariants, mandatory
+  structured maps, and direct object/serialized probe tests completed offline with zero transport;
+  no commit/push; successor not activated.
+- Exact next permitted step: parent review of final cycle-3; no successor activation, commit, push, or
+  runtime by the implementation subagent.
 - No runtime, evidence, registration, scheduler, worker, or task-row operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains the unrelated post-roadmap successor after the ninth roadmap contract.
 
 ## Runtime
-- VM/runtime state: this offline mutation corpus implementation operated no BlueStacks, ADB, Bliss,
+- VM/runtime state: this offline observability task operates no BlueStacks, ADB, Bliss,
   Unraid, emulator, VM, or other runtime.
 - Worker state: no worker was started, modified, or contacted.
 - Active operator/collector/automation: none started or used; this task assumed no live runtime
@@ -420,17 +422,19 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 796 passed, one expected skip
+- Last full-suite count: 796 passed, one expected skip (pre-activation authoritative)
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
-- Last relevant focused tests: native mutation/replay/OCR/perception/governance suite passed 106 tests
-- Full suite: final parent completion run passed 796 with one expected skip
+- Last relevant focused tests: `tests.test_navigation_observability` 24 passed; combined
+  observability/navigation-session/governance/perception/safe-exit regressions 135 passed
+- Full suite: intentionally not rerun this cycle; 796 passed / 1 skipped remains last authoritative
+  full offline result
 - Zero transport
 
 ## Evidence
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`
-- Evidence requirement: NOT_APPLICABLE; offline mutation/replay uses project-owned fixtures and
-  temporary non-evidence derivatives only, creating no runtime evidence manifest.
+- Evidence requirement: NOT_APPLICABLE; offline NavigationSession reporting uses ledger fixtures
+  only and creates no runtime evidence manifest.
 - Troop entry Fighter zero-pan/radial: `.local-captures/troop-training-atlas-entry/fighter-zero-pan/troop-training-20260719T021808597377Z/`
 - Troop entry Fighter final Home: `.local-captures/troop-training-atlas-entry/fighter-exterior-close/troop-training-20260719T023104977845Z/`
 - Troop entry Vehicle calculated pan: `.local-captures/troop-training-atlas-entry/vehicle-calculated-pan-corrected/troop-training-20260719T024102450439Z/`
@@ -447,12 +451,13 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: commit reviewed `VISION-NATIVE-FRAME-MUTATION-CORPUS` locally if separately
-  authorized, then activate `HOME-NAVIGATION-OBSERVABILITY` only
-- Prohibited actions: runtime/evidence operation, mutating retained fixtures, later-task activation, and push
-- Exact stop condition: stop on commit or activation failure
-- Expected next atomic task: `HOME-NAVIGATION-OBSERVABILITY`
-- Expected next activation status: ready
+- Permitted action: launch one fresh local Grok 4.5 High implementation subagent for
+  `HOME-NAVIGATION-OBSERVABILITY`
+- Prohibited actions: runtime/evidence operation, second session store, calibration changes,
+  later-task activation, and push
+- Exact stop condition: stop on subagent completion, review blocker, or cycle limit
+- Expected next atomic task: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`
+- Expected next activation status: dependency_blocked
 
 ## Ruins Challenge local task handoff — 2026-07-16
 
