@@ -3,14 +3,13 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "ca22d4b (roadmap setup commit; task activation base)",
-    "origin_relationship": "main is ahead of origin/main by one local roadmap commit; no push",
+    "head": "c85dc6d (semantic OCR pipeline commit; replay activation base)",
+    "origin_relationship": "main is ahead of origin/main by two local roadmap commits; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
-      "tasks/semantic_ocr_crop.py",
-      "tests/test_semantic_ocr_crop.py",
-      "tasks/supply_depot_vision.py",
-      "tests/test_supply_depot_vision.py",
+      "tasks/native_frame_replay.py",
+      "tests/test_native_frame_replay.py",
+      "tests/fixtures/native_frame_replay_manifest.json",
       "BACKLOG.md",
       "CURRENT_HANDOFF.md",
       "tests/test_governance_validation.py"
@@ -33,15 +32,24 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "VISION-SEMANTIC-OCR-CROP-PIPELINE",
+  "current_task_id": "VISION-NATIVE-FRAME-REPLAY-HARNESS",
   "current_task_state": "completed",
-  "next_task_id": "VISION-NATIVE-FRAME-REPLAY-HARNESS",
+  "next_task_id": "HOME-SHARED-RADIAL-SEMANTIC-CONTRACT",
   "next_task_activation_status": "ready",
-  "phase": "semantic_ocr_crop_pipeline_completed",
-  "objective": "Complete and review the shared frame-identity-bound OCR crop pipeline and one Supply Depot adapter adoption.",
-  "last_safe_completed_step": "Completed three review cycles: removed fabricated capture identity, enforced deep immutability and bounded normalization, closed explicit-identity OCR failure paths, and passed 90 focused regressions plus full pytest 667 passed / 1 skipped; zero runtime input/evidence.",
-  "next_permitted_action": "Commit the reviewed OCR task locally, then activate VISION-NATIVE-FRAME-REPLAY-HARNESS only; no push or runtime.",
+  "phase": "native_frame_replay_harness_completed",
+  "objective": "Complete and review deterministic offline replay over exactly two named read-only project-owned native-frame sources.",
+  "last_safe_completed_step": "Completed three review cycles: removed source copying, enforced exact finite manifest and immutable record schemas, closed public constructor bypasses, and passed 92 focused tests plus full pytest 694 passed / 1 skipped; zero runtime input/evidence.",
+  "next_permitted_action": "Commit the reviewed replay task locally, then activate HOME-SHARED-RADIAL-SEMANTIC-CONTRACT only; no push or runtime.",
   "actions_already_performed": [
+    "Final parent review cycle 3 made ReplayManifest and ReplayResult enforce exact top-level public schema types and values, removed loader string coercion, and revalidated supplied/forged instances before replay or serialization.",
+    "Added direct-construction, loader, replay, and forged-serialization tests for bool schema versions, float/string geometry, non-string schema/profile/capture/session fields, and non-tuple collections.",
+    "Parent review cycle 2 removed the test-only copy of daily_praise_claim.png; missing-source coverage now uses an empty shadow root and neither implementation nor tests contain a selected-frame copy/write path.",
+    "Hardened ReplaySourceDeclaration to require exact integer geometry/channels plus finite nonnegative fixture-record monotonic values, and hardened ReplayFrameObservation/ReplayResult structural validation and pre-serialization revalidation.",
+    "Added adversarial schema and direct-construction tests for numeric lookalikes, NaN/infinity/negative/string monotonic values, empty labels/sessions, inconsistent geometry/profile/order/session, duplicate ordinals/events, live identities, and forged records.",
+    "Implemented tasks/native_frame_replay.py with deterministic ordered fixture replay, source SHA-256/dimension/channel validation, fail-closed manifest checks, explicit capture_kind=fixture identities, immutable observations/results, and built-in perception/OCR composition callback.",
+    "Added tests/fixtures/native_frame_replay_manifest.json naming exactly the two read-only tracked native 800x1280 PNG sources with fixture session identity and digests.",
+    "Added tests/test_native_frame_replay.py covering manifest order, hash/geometry validation, deterministic serialization, same-capture perception/OCR composition, distinct identities, live masquerade/freshness rejection, path/forbidden-tree/duplicate/hash/dimension/schema/missing/reorder/malformed/callback fail-closed cases, and no mutation/numpy retention.",
+    "Preserved BACKLOG/CURRENT_HANDOFF/governance activation identity with task remaining in_progress for parent review; registration/scheduler unchanged; zero runtime input.",
     "Implemented tasks/semantic_ocr_crop.py with NativeFrameIdentity-bound ROI/padding, exclusion masks, bounded normalization, constrained OCR modes, immutable observations, negative controls, and opt-in deterministic debug artifacts.",
     "Added tests/test_semantic_ocr_crop.py covering ROI, padding, masks, modes, normalization, same-capture and forged identities, immutability, debug opt-in/default-off, and OCR negative controls.",
     "Adopted the shared pipeline in tasks/supply_depot_vision.py only while preserving public API compatibility and exact adapter regression behavior.",
@@ -181,10 +189,10 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "667 tests passed; 1 skipped",
+    "last_full_suite_count": "694 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "90 semantic OCR, perception, Supply Depot, and governance tests passed; full pytest 667 passed / 1 skipped; zero transport."
+    "last_relevant_focused_tests": "92 native-frame replay, semantic OCR, perception, and governance tests passed; full pytest 694 passed / 1 skipped; zero transport."
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -223,7 +231,7 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Offline OCR crop pipeline creates no runtime evidence manifest; focused unit/fixture validation is sufficient.",
+    "evidence_requirement_reason": "Offline native-frame replay uses two named read-only project-owned fixtures and creates no runtime evidence manifest.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "collector": {
@@ -240,18 +248,18 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Commit the reviewed OCR task locally, then activate VISION-NATIVE-FRAME-REPLAY-HARNESS only."
+      "Commit the reviewed replay task locally, then activate HOME-SHARED-RADIAL-SEMANTIC-CONTRACT only."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
       "Any live resume dispatch, facility entry, radial input, Train, Supply Depot collection, Daily Claim, or other consequential control.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Atlas rebuild/reacquisition or broadening Train/consequential authorization.",
-      "Activating any roadmap task other than VISION-NATIVE-FRAME-REPLAY-HARNESS.",
+      "Activating any roadmap task other than HOME-SHARED-RADIAL-SEMANTIC-CONTRACT.",
       "Any push."
     ],
     "exact_stop_condition": "Stop on commit or activation failure; no runtime action is permitted.",
-    "expected_next_atomic_task": "VISION-NATIVE-FRAME-REPLAY-HARNESS",
+    "expected_next_atomic_task": "HOME-SHARED-RADIAL-SEMANTIC-CONTRACT",
     "expected_next_activation_status": "ready"
   }
 }
@@ -263,32 +271,34 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `ca22d4b`; one local roadmap commit ahead of `origin/main`
+- HEAD/base: `c85dc6d`; two local roadmap commits ahead of `origin/main`
 - Staged paths: none
-- Relevant unstaged paths: `tasks/semantic_ocr_crop.py`, `tests/test_semantic_ocr_crop.py`, `tasks/supply_depot_vision.py`, `tests/test_supply_depot_vision.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, `tests/test_governance_validation.py`
+- Relevant unstaged paths: `tasks/native_frame_replay.py`, `tests/test_native_frame_replay.py`,
+  `tests/fixtures/native_frame_replay_manifest.json`, `BACKLOG.md`, `CURRENT_HANDOFF.md`,
+  `tests/test_governance_validation.py`
 - Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
 - Push: prohibited
 
 ## Current task
-- Task ID: `VISION-SEMANTIC-OCR-CROP-PIPELINE`
+- Task ID: `VISION-NATIVE-FRAME-REPLAY-HARNESS`
 - State: completed; offline implementation only
-- Next task ID: `VISION-NATIVE-FRAME-REPLAY-HARNESS` (ready; not activated)
-- Objective: shared frame-identity-bound OCR crops with controlled ROI/padding, exclusion masks,
-  bounded normalization, constrained modes, immutable observations, and one Supply Depot adoption.
-- Last safe completed step: three review cycles passed 90 focused regressions, governance,
-  compilation, secret/diff gates, and full pytest `667 passed, 1 skipped`.
-- Exact next permitted step: commit locally, then activate only the replay harness.
+- Next task ID: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT` (ready; not activated)
+- Objective: deterministic replay over exactly two named read-only tracked native frames with
+  fixture-only identities that cannot masquerade as live captures.
+- Last safe completed step: three review cycles passed 92 focused tests, manifest/hash/schema
+  probes, governance/compile/secret/diff gates, and full pytest `694 passed, 1 skipped`.
+- Exact next permitted step: commit locally, then activate only shared radial semantics.
 - No runtime, evidence, registration, scheduler, worker, or task-row operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains the unrelated post-roadmap successor after the ninth roadmap contract.
 
 ## Runtime
-- VM/runtime state: this offline OCR crop pipeline task operated no BlueStacks, ADB, Bliss,
+- VM/runtime state: this offline native-frame replay harness task operated no BlueStacks, ADB, Bliss,
   Unraid, emulator, VM, or other runtime.
 - Worker state: no worker was started, modified, or contacted.
 - Active operator/collector/automation: none started or used; this task assumed no live runtime
   operator role.
 - ADB exposure and connection state: ADB was not invoked, connected, inspected, or exposed.
-- Expected/observed profile: not applicable/not observed; no runtime or frame was inspected.
+- Expected/observed profile: not applicable/not observed; no runtime or live frame was inspected.
 - Foreground package/activity: not observed; no application state or frame was acquired.
 - Manual-only screen state: not entered or observed.
 - Runtime result: zero input dispatched and zero evidence acquired. Historical journal/evidence
@@ -319,10 +329,11 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 667 passed, one expected skip
+- Last full-suite count: 694 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
-- Last relevant focused tests: 90 semantic OCR, perception, Supply Depot, and governance tests passed; zero transport
+- Last relevant focused tests: 92 passed across native-frame replay, semantic OCR, perception, and governance
+- Zero transport
 
 ## Evidence
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`
@@ -342,10 +353,10 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: commit the reviewed OCR task, then activate `VISION-NATIVE-FRAME-REPLAY-HARNESS`
-- Prohibited actions: runtime/evidence operation, registration/scheduler changes, any other successor activation, and push
+- Permitted action: commit the reviewed replay task, then activate `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`
+- Prohibited actions: adding/copying frames, mutation testing, runtime/evidence operation, any other successor activation, and push
 - Exact stop condition: stop on commit or activation failure
-- Expected next atomic task: `VISION-NATIVE-FRAME-REPLAY-HARNESS`
+- Expected next atomic task: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`
 - Expected next activation status: ready
 
 ## Ruins Challenge local task handoff — 2026-07-16

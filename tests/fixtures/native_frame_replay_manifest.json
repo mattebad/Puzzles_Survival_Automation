@@ -1,0 +1,32 @@
+{
+  "schema_name": "native_frame_replay",
+  "schema_version": 1,
+  "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+  "capture_kind": "fixture",
+  "fixture_session_id": "fixture-replay-8d3b61fedfb7986fa93b0353",
+  "expected_width": 800,
+  "expected_height": 1280,
+  "expected_channels": 4,
+  "sources": [
+    {
+      "ordinal": 1,
+      "relative_path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "source_sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "width": 800,
+      "height": 1280,
+      "channels": 4,
+      "label": "home-atlas-viewport-001",
+      "capture_completed_monotonic": 1000.0
+    },
+    {
+      "ordinal": 2,
+      "relative_path": "tasks/assets/navigation/800x1280/daily_praise_claim.png",
+      "source_sha256": "60276731cd0227ca8fea15d07e65203c1bb7cbc8bf0c1c632c2791c501b5425b",
+      "width": 800,
+      "height": 1280,
+      "channels": 4,
+      "label": "daily-praise-claim",
+      "capture_completed_monotonic": 2000.0
+    }
+  ]
+}

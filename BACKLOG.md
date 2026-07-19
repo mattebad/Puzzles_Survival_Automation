@@ -2508,13 +2508,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### VISION-NATIVE-FRAME-REPLAY-HARNESS
 - Task ID: `VISION-NATIVE-FRAME-REPLAY-HARNESS`.
 - Title: Deterministic offline native-frame replay harness over project-owned fixtures.
-- Status: Pending (dormant; offline contract only; not activated).
+- Status: Completed (2026-07-19; deterministic two-source offline replay reviewed; zero runtime input).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `VISION-SEMANTIC-OCR-CROP-PIPELINE` and completed
   `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`.
-- Blocked by: readiness requires the OCR crop pipeline completed and narrowly selected existing
-  project-owned native-frame sources named read-only during activation; no frame source may be added
-  under this contract, and no bulk evidence copy or live capture acquisition is authorized.
+- Blocked by: None for offline implementation. The completed OCR crop pipeline is available, and the
+  two exact existing project-owned native-frame sources named below are read-only; no frame source may
+  be added under this contract, and no bulk evidence copy or live capture acquisition is authorized.
 - Objective: provide deterministic offline replay over narrowly selected project-owned native-frame
   fixtures so perception and OCR contracts can be exercised without runtime input.
 - Established facts: perception bundles and OCR crops bind to capture identities; live captures and
@@ -2541,9 +2541,10 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Registration changes: None; production remains `NOT_REGISTERED`.
 - Scheduler changes: None; scheduler remains disabled/ineligible.
 - Actions that must not be repeated: any prior live gameplay or atlas-acquisition input.
-- Required source: narrowly selected project-owned native-frame fixtures with explicit fixture
-  capture-kind / non-live identity; each source path must be named read-only during activation before
-  implementation; never copy protected evidence trees wholesale.
+- Required source: read-only
+  `tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png` and
+  `tasks/assets/navigation/800x1280/daily_praise_claim.png`, each with explicit fixture capture-kind /
+  non-live identity; never copy these files or protected evidence trees.
 - Exact target semantics: deterministic ordered replay of fixture frames through perception and OCR
   seams; fixture identity fields must refuse live-capture masquerading.
 - Required local association: each replayed observation retains fixture identity, digests, and
@@ -2557,7 +2558,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   freshness.
 - Ambiguous-result behavior: fail closed; skip or reject the fixture rather than inventing identity.
 - Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
-- Quantity limits: narrowly selected fixtures only; no bulk corpus expansion in this task.
+- Quantity limits: exactly the two named read-only native-frame sources; no bulk corpus expansion.
 - Resource consumption policy: no game resources or runtime input.
 - Premium or strategic restrictions: no gameplay or consequential control.
 - Active evidence manifest: None; offline fixtures only.
