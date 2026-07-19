@@ -597,6 +597,63 @@ class PerceptionBundleTests(unittest.TestCase):
         with self.assertRaises(PerceptionBundleError):
             bundle.with_building_binding(binding_from_result(foreign, binding_result(foreign)))
 
+    def test_typed_radial_semantics_adoption_preserves_legacy_api(self):
+        from tasks.radial_semantics import (
+            ActionabilityState,
+            ControlRole,
+            HomeRadialSemantics,
+            OwningFacilityObservation,
+            RadialAmbiguityState,
+            RadialControlObservation,
+            RecognitionState,
+            radial_semantics_authorize_dispatch,
+            to_immutable_radial_observation,
+        )
+
+        identity = fixture_identity()
+        semantics = HomeRadialSemantics(
+            source_frame=identity,
+            radial_identity="home.radial.fighter_camp",
+            recognition_state=RecognitionState.RECOGNIZED,
+            recognition_confidence=0.91,
+            owning_facility=OwningFacilityObservation(
+                source_frame=identity,
+                facility_semantic_id="home.building.fighter_camp",
+                recognition_state=RecognitionState.RECOGNIZED,
+                recognition_confidence=0.93,
+            ),
+            controls=(
+                RadialControlObservation(
+                    source_frame=identity,
+                    control_id="home.radial.fighter_camp.train",
+                    label="Train",
+                    role=ControlRole.TRAIN,
+                    recognition_state=RecognitionState.RECOGNIZED,
+                    recognition_confidence=0.9,
+                    actionability_state=ActionabilityState.ACTIONABLE,
+                    actionability_reason="recognized_owner_and_control",
+                    expected_successors=("facility.train_queue",),
+                    forbidden_successors=("facility.upgrade", "radial.closed_exterior"),
+                    owner_facility_semantic_id="home.building.fighter_camp",
+                    ambiguity_state=RadialAmbiguityState.NONE,
+                ),
+            ),
+        )
+        observation = to_immutable_radial_observation(semantics)
+        bundle = classify_and_attach(
+            bundle_from_identity(identity)
+            .with_frame_validation(frame_validation(identity))
+            .with_localization(localization_from_result(identity, localization_result(identity)))
+            .with_radial(observation)
+        )
+        self.assertEqual(bundle.radial.facility_identity, "home.building.fighter_camp")
+        self.assertIs(bundle.radial.semantics, semantics)
+        self.assertEqual(bundle.context.contextual_class, ContextualClass.HOME_WITH_KNOWN_RADIAL)
+        self.assertFalse(radial_semantics_authorize_dispatch(semantics))
+        # Legacy three-field construction remains compatible.
+        legacy = ImmutableRadialObservation(identity, "home.building.fighter_camp", 0.9)
+        self.assertIsNone(legacy.semantics)
+
     def test_fixture_capture_kind_is_explicit(self):
         identity = fixture_identity()
         self.assertEqual(identity.capture_kind, "fixture")

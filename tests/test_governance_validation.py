@@ -22,9 +22,9 @@ class GovernanceValidationTests(unittest.TestCase):
 
     def test_handoff_has_distinct_current_and_next_task_fields(self):
         state = validate_governance.parse_handoff()
-        self.assertEqual(state["current_task_id"], "VISION-NATIVE-FRAME-REPLAY-HARNESS")
+        self.assertEqual(state["current_task_id"], "HOME-SHARED-RADIAL-SEMANTIC-CONTRACT")
         self.assertEqual(state["current_task_state"], "completed")
-        self.assertEqual(state["next_task_id"], "HOME-SHARED-RADIAL-SEMANTIC-CONTRACT")
+        self.assertEqual(state["next_task_id"], "BLUESTACKS-HOME-SAFE-EXIT-BINDING")
         self.assertEqual(
             state["next_task_activation_status"],
             "ready",
@@ -77,7 +77,7 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
         next_block = validate_governance.task_block(backlog, state["next_task_id"])
-        self.assertIn("HOME-SHARED-RADIAL-SEMANTIC-CONTRACT", next_block)
+        self.assertIn("BLUESTACKS-HOME-SAFE-EXIT-BINDING", next_block)
         self.assertIn("Pending", next_block)
         self.assertIn("dormant", next_block)
         validate_governance.validate_successor(backlog, state)

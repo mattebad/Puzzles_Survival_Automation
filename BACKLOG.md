@@ -2595,7 +2595,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### HOME-SHARED-RADIAL-SEMANTIC-CONTRACT
 - Task ID: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`.
 - Title: Platform-neutral shared Home radial semantic contract.
-- Status: Pending (dormant; offline contract only; not activated).
+- Status: Completed (2026-07-19; reviewed offline platform-neutral radial semantics; zero transport).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `VISION-NATIVE-FRAME-REPLAY-HARNESS` and completed
   `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`.

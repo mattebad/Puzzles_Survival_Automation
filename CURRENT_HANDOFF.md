@@ -3,16 +3,17 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "c85dc6d (semantic OCR pipeline commit; replay activation base)",
-    "origin_relationship": "main is ahead of origin/main by two local roadmap commits; no push",
+    "head": "c0adfba (native-frame replay commit; radial semantics activation base)",
+    "origin_relationship": "main is ahead of origin/main by three local roadmap commits; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
-      "tasks/native_frame_replay.py",
-      "tests/test_native_frame_replay.py",
-      "tests/fixtures/native_frame_replay_manifest.json",
       "BACKLOG.md",
       "CURRENT_HANDOFF.md",
-      "tests/test_governance_validation.py"
+      "tests/test_governance_validation.py",
+      "tasks/radial_semantics.py",
+      "tests/test_radial_semantics.py",
+      "tasks/perception_bundle.py",
+      "tests/test_perception_bundle.py"
     ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
@@ -32,15 +33,28 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "VISION-NATIVE-FRAME-REPLAY-HARNESS",
+  "current_task_id": "HOME-SHARED-RADIAL-SEMANTIC-CONTRACT",
   "current_task_state": "completed",
-  "next_task_id": "HOME-SHARED-RADIAL-SEMANTIC-CONTRACT",
+  "next_task_id": "BLUESTACKS-HOME-SAFE-EXIT-BINDING",
   "next_task_activation_status": "ready",
-  "phase": "native_frame_replay_harness_completed",
-  "objective": "Complete and review deterministic offline replay over exactly two named read-only project-owned native-frame sources.",
-  "last_safe_completed_step": "Completed three review cycles: removed source copying, enforced exact finite manifest and immutable record schemas, closed public constructor bypasses, and passed 92 focused tests plus full pytest 694 passed / 1 skipped; zero runtime input/evidence.",
-  "next_permitted_action": "Commit the reviewed replay task locally, then activate HOME-SHARED-RADIAL-SEMANTIC-CONTRACT only; no push or runtime.",
+  "phase": "shared_radial_semantic_contract_completed",
+  "objective": "Implement platform-neutral same-capture Home radial semantics while keeping recognition, actionability, and authorization distinct.",
+  "last_safe_completed_step": "Completed parent review after correcting typed unknown/ambiguous radial context classification; all 718 tests passed with one expected skip and all completion validators passed; zero runtime input/evidence.",
+  "next_permitted_action": "Commit the reviewed HOME-SHARED-RADIAL-SEMANTIC-CONTRACT locally, then activate BLUESTACKS-HOME-SAFE-EXIT-BINDING only; no push or runtime.",
   "actions_already_performed": [
+    "Final parent completion validation passed the full repository suite: 718 passed / 1 skipped; Python compilation, governance, handoff JSON parsing, touched-file secret scan, and git diff --check passed.",
+    "Parent review cycle 2 corrected classify_frame_context so typed unknown/ambiguous radial or owner semantics return UNKNOWN with context_recognized=false, context_allows_interaction=false, confidence 0.0, and stable typed reason/support codes.",
+    "Typed positive owner/radial semantics now derive interaction candidacy only from explicitly actionable typed controls; generic building bindings and targets cannot upgrade typed non-actionable controls.",
+    "Added exact classifier outcome coverage for typed UNKNOWN radial, AMBIGUOUS radial, UNKNOWN owner, AMBIGUOUS owner, positive recognized but wholly non-actionable controls, and preserved legacy untyped radial behavior.",
+    "Parent review cycle 2 focused suite passed 116 radial, perception, replay, OCR, and governance tests; py_compile and governance passed.",
+    "Implemented tasks/radial_semantics.py with immutable same-capture owning-facility, radial, and control observations bound to complete NativeFrameIdentity, closed successor vocabulary, and fail-closed confidence/successor validation.",
+    "Enforced recognized versus actionable versus authorized separation with radial_semantics_authorize_dispatch always False and no capability/policy/transport authority.",
+    "Rejected cross-capture and digest-only joins; actionable controls require positively recognized same-capture owning facility with matching owner semantic ID.",
+    "Narrowly adopted typed HomeRadialSemantics on ImmutableRadialObservation/FramePerceptionBundle.with_radial without breaking legacy three-field radial construction; context classification remains non-authorizing.",
+    "Added tests/test_radial_semantics.py covering same-capture validity, cross-capture/digest-only/owner mismatch, recognition/actionability/authorization separation, confidence and successor fail-closed cases, immutability, deterministic snapshot, bundle adoption, and shared-module source scan.",
+    "Extended tests/test_perception_bundle.py with typed radial adoption regression coverage.",
+    "Focused suite: 111 passed across radial, perception, native-frame replay, semantic OCR, and governance; full pytest 713 passed / 1 skipped; py_compile, governance, handoff JSON, touched-file secret scan, and git diff --check passed; zero transport.",
+    "Completed parent review and made BLUESTACKS-HOME-SAFE-EXIT-BINDING ready for activation; registration/scheduler unchanged; zero runtime input.",
     "Final parent review cycle 3 made ReplayManifest and ReplayResult enforce exact top-level public schema types and values, removed loader string coercion, and revalidated supplied/forged instances before replay or serialization.",
     "Added direct-construction, loader, replay, and forged-serialization tests for bool schema versions, float/string geometry, non-string schema/profile/capture/session fields, and non-tuple collections.",
     "Parent review cycle 2 removed the test-only copy of daily_praise_claim.png; missing-source coverage now uses an empty shadow root and neither implementation nor tests contain a selected-frame copy/write path.",
@@ -145,7 +159,7 @@
     "Do not tap either positively recognized radial Train control or any downstream normal Train, quantity, Warehouse, resource-box, premium, or consequential control."
   ],
   "runtime": {
-    "vm_state": "No BlueStacks, ADB, Bliss, Unraid, emulator, VM, or other runtime was operated during this OCR crop pipeline implementation task",
+    "vm_state": "No BlueStacks, ADB, Bliss, Unraid, emulator, VM, or other runtime was operated during this shared radial semantic contract implementation task",
     "worker_state": "No worker was started, modified, or contacted during this implementation task",
     "active_operator_collector_automation_test_emulator_processes": "None started or used by this implementation task; no live runtime operator role was assumed",
     "adb_exposure_and_connection_state": "ADB was not invoked, connected, inspected, or exposed during this implementation task",
@@ -189,10 +203,10 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "694 tests passed; 1 skipped",
+    "last_full_suite_count": "718 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "92 native-frame replay, semantic OCR, perception, and governance tests passed; full pytest 694 passed / 1 skipped; zero transport."
+    "last_relevant_focused_tests": "Parent review cycle 2: 116 radial semantics, perception, native-frame replay, semantic OCR, and governance tests passed; final full pytest 718 passed / 1 skipped; zero transport."
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -248,18 +262,18 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Commit the reviewed replay task locally, then activate HOME-SHARED-RADIAL-SEMANTIC-CONTRACT only."
+      "Commit the reviewed HOME-SHARED-RADIAL-SEMANTIC-CONTRACT locally, then activate BLUESTACKS-HOME-SAFE-EXIT-BINDING only."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
       "Any live resume dispatch, facility entry, radial input, Train, Supply Depot collection, Daily Claim, or other consequential control.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Atlas rebuild/reacquisition or broadening Train/consequential authorization.",
-      "Activating any roadmap task other than HOME-SHARED-RADIAL-SEMANTIC-CONTRACT.",
+      "Activating BLUESTACKS-HOME-SAFE-EXIT-BINDING or any later roadmap task.",
       "Any push."
     ],
     "exact_stop_condition": "Stop on commit or activation failure; no runtime action is permitted.",
-    "expected_next_atomic_task": "HOME-SHARED-RADIAL-SEMANTIC-CONTRACT",
+    "expected_next_atomic_task": "BLUESTACKS-HOME-SAFE-EXIT-BINDING",
     "expected_next_activation_status": "ready"
   }
 }
@@ -271,28 +285,29 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `c85dc6d`; two local roadmap commits ahead of `origin/main`
+- HEAD/base: `c0adfba`; three local roadmap commits ahead of `origin/main`
 - Staged paths: none
-- Relevant unstaged paths: `tasks/native_frame_replay.py`, `tests/test_native_frame_replay.py`,
-  `tests/fixtures/native_frame_replay_manifest.json`, `BACKLOG.md`, `CURRENT_HANDOFF.md`,
-  `tests/test_governance_validation.py`
+- Relevant unstaged paths: `BACKLOG.md`, `CURRENT_HANDOFF.md`,
+  `tests/test_governance_validation.py`, `tasks/radial_semantics.py`,
+  `tests/test_radial_semantics.py`, `tasks/perception_bundle.py`,
+  `tests/test_perception_bundle.py`
 - Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
 - Push: prohibited
 
 ## Current task
-- Task ID: `VISION-NATIVE-FRAME-REPLAY-HARNESS`
-- State: completed; offline implementation only
-- Next task ID: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT` (ready; not activated)
-- Objective: deterministic replay over exactly two named read-only tracked native frames with
-  fixture-only identities that cannot masquerade as live captures.
-- Last safe completed step: three review cycles passed 92 focused tests, manifest/hash/schema
-  probes, governance/compile/secret/diff gates, and full pytest `694 passed, 1 skipped`.
-- Exact next permitted step: commit locally, then activate only shared radial semantics.
+- Task ID: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`
+- State: completed after parent review; offline platform-neutral implementation only
+- Next task ID: `BLUESTACKS-HOME-SAFE-EXIT-BINDING` (dependency blocked; not activated)
+- Objective: shared same-capture owning-facility radial semantics, controls, confidence,
+  actionability, and expected/forbidden successors without authorization or adapter transport.
+- Last safe completed step: parent review corrected typed unknown/ambiguous radial and owner
+  context classification to fail closed; full suite and all completion validators passed.
+- Exact next permitted step: commit this reviewed task locally, then activate safe-exit binding only.
 - No runtime, evidence, registration, scheduler, worker, or task-row operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains the unrelated post-roadmap successor after the ninth roadmap contract.
 
 ## Runtime
-- VM/runtime state: this offline native-frame replay harness task operated no BlueStacks, ADB, Bliss,
+- VM/runtime state: this offline shared radial semantic contract task operated no BlueStacks, ADB, Bliss,
   Unraid, emulator, VM, or other runtime.
 - Worker state: no worker was started, modified, or contacted.
 - Active operator/collector/automation: none started or used; this task assumed no live runtime
@@ -329,10 +344,12 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 694 passed, one expected skip
+- Last full-suite count: 718 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
-- Last relevant focused tests: 92 passed across native-frame replay, semantic OCR, perception, and governance
+- Last relevant focused tests: parent review cycle 2 passed 116 across radial semantics,
+  perception, native-frame replay, semantic OCR, and governance; final full suite passed
+  718 with one expected skip
 - Zero transport
 
 ## Evidence
@@ -353,10 +370,10 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: commit the reviewed replay task, then activate `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`
-- Prohibited actions: adding/copying frames, mutation testing, runtime/evidence operation, any other successor activation, and push
+- Permitted action: commit reviewed `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`, then activate its successor
+- Prohibited actions: BlueStacks coordinates/transport, runtime/evidence operation, successor activation, and push
 - Exact stop condition: stop on commit or activation failure
-- Expected next atomic task: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`
+- Expected next atomic task: `BLUESTACKS-HOME-SAFE-EXIT-BINDING`
 - Expected next activation status: ready
 
 ## Ruins Challenge local task handoff — 2026-07-16

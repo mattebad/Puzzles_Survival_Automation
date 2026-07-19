@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
+import math
 import re
 from typing import Literal, Tuple
 
@@ -279,10 +280,46 @@ class ImmutableOcrObservation:
 
 @dataclass(frozen=True)
 class ImmutableRadialObservation:
+    """Radial summary for one capture event.
+
+    Optional ``semantics`` may carry the platform-neutral HomeRadialSemantics
+    contract. Presence of radial recognition never authorizes transport.
+    """
+
     source_frame: NativeFrameIdentity
     facility_identity: str
     confidence: float
     supporting_evidence: tuple[str, ...] = ()
+    semantics: object | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.source_frame, NativeFrameIdentity):
+            raise PerceptionBundleError("INVALID_SOURCE_FRAME", "radial")
+        if not isinstance(self.facility_identity, str) or not self.facility_identity:
+            raise PerceptionBundleError("INVALID_RADIAL_FACILITY", "facility_identity")
+        if isinstance(self.confidence, bool) or not isinstance(self.confidence, (int, float)):
+            raise PerceptionBundleError("INVALID_RADIAL_CONFIDENCE")
+        confidence = float(self.confidence)
+        if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0:
+            raise PerceptionBundleError("INVALID_RADIAL_CONFIDENCE")
+        object.__setattr__(self, "confidence", confidence)
+        if not isinstance(self.supporting_evidence, tuple) or any(
+            not isinstance(item, str) for item in self.supporting_evidence
+        ):
+            raise PerceptionBundleError("INVALID_RADIAL_EVIDENCE")
+        if self.semantics is None:
+            return
+        # Lazy import keeps production modules free of radial-contract circularity.
+        from tasks.radial_semantics import HomeRadialSemantics, validate_bundle_radial_semantics
+
+        if not isinstance(self.semantics, HomeRadialSemantics):
+            raise PerceptionBundleError("INVALID_RADIAL_SEMANTICS")
+        validate_bundle_radial_semantics(self.source_frame, self.semantics)
+        if self.semantics.owning_facility.facility_semantic_id != self.facility_identity:
+            raise PerceptionBundleError("RADIAL_OWNER_IDENTITY_MISMATCH")
+        if self.semantics.recognition_confidence != self.confidence:
+            raise PerceptionBundleError("RADIAL_CONFIDENCE_MISMATCH")
+
 
 def localization_from_result(
     identity: NativeFrameIdentity,
@@ -436,6 +473,10 @@ class FramePerceptionBundle:
 
     def with_radial(self, observation: ImmutableRadialObservation) -> "FramePerceptionBundle":
         _require_same_capture(self.frame, observation.source_frame)
+        if observation.semantics is not None:
+            from tasks.radial_semantics import validate_bundle_radial_semantics
+
+            validate_bundle_radial_semantics(self.frame, observation.semantics)
         return replace(self, radial=observation, context=None)
 
     def attach_classified_context(self) -> "FramePerceptionBundle":
@@ -741,6 +782,83 @@ def classify_frame_context(bundle: FramePerceptionBundle) -> FrameContextClassif
         allows = _home_interaction_candidate(bundle)
         if bundle.radial is not None:
             supports.append(f"radial:{bundle.radial.facility_identity}")
+            if bundle.radial.semantics is not None:
+                from tasks.radial_semantics import (
+                    ActionabilityState,
+                    HomeRadialSemantics,
+                    RadialAmbiguityState,
+                    RecognitionState,
+                )
+
+                semantics = bundle.radial.semantics
+                if not isinstance(semantics, HomeRadialSemantics):
+                    return FrameContextClassification(
+                        ContextualClass.UNKNOWN,
+                        False,
+                        False,
+                        0.0,
+                        tuple(supports + ["typed_radial:invalid"]),
+                        "TYPED_RADIAL_INVALID",
+                    )
+                supports.append(
+                    "typed_radial:"
+                    f"{semantics.recognition_state.value}:"
+                    f"{semantics.ambiguity_state.value}"
+                )
+                if semantics.recognition_state is RecognitionState.UNKNOWN:
+                    return FrameContextClassification(
+                        ContextualClass.UNKNOWN,
+                        False,
+                        False,
+                        0.0,
+                        tuple(supports),
+                        "TYPED_RADIAL_UNKNOWN",
+                    )
+                if (
+                    semantics.recognition_state is not RecognitionState.RECOGNIZED
+                    or semantics.ambiguity_state is not RadialAmbiguityState.NONE
+                ):
+                    return FrameContextClassification(
+                        ContextualClass.UNKNOWN,
+                        False,
+                        False,
+                        0.0,
+                        tuple(supports),
+                        "TYPED_RADIAL_AMBIGUOUS",
+                    )
+                owner = semantics.owning_facility
+                supports.append(
+                    "typed_radial_owner:"
+                    f"{owner.recognition_state.value}:"
+                    f"{owner.ambiguity_state.value}"
+                )
+                if owner.recognition_state is RecognitionState.UNKNOWN:
+                    return FrameContextClassification(
+                        ContextualClass.UNKNOWN,
+                        False,
+                        False,
+                        0.0,
+                        tuple(supports),
+                        "TYPED_RADIAL_OWNER_UNKNOWN",
+                    )
+                if (
+                    owner.recognition_state is not RecognitionState.RECOGNIZED
+                    or owner.ambiguity_state is not RadialAmbiguityState.NONE
+                ):
+                    return FrameContextClassification(
+                        ContextualClass.UNKNOWN,
+                        False,
+                        False,
+                        0.0,
+                        tuple(supports),
+                        "TYPED_RADIAL_OWNER_AMBIGUOUS",
+                    )
+                # Typed radial semantics own interaction candidacy. A building
+                # binding or generic target cannot upgrade non-actionable controls.
+                allows = any(
+                    control.actionability_state is ActionabilityState.ACTIONABLE
+                    for control in semantics.controls
+                )
             return FrameContextClassification(
                 ContextualClass.HOME_WITH_KNOWN_RADIAL,
                 True,
