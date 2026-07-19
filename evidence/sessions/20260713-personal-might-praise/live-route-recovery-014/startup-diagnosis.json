@@ -1,0 +1,260 @@
+{
+  "foreground_assumed_game": true,
+  "ocr_lines": [
+    {
+      "bounds": [
+        5,
+        7,
+        791,
+        45
+      ],
+      "text": "s214mm 214m 789k 494k 8h 25.4k +"
+    },
+    {
+      "bounds": [
+        2,
+        48,
+        715,
+        88
+      ],
+      "text": "au) sag oe ee"
+    },
+    {
+      "bounds": [
+        12,
+        59,
+        795,
+        95
+      ],
+      "text": "46 #9, 90,722,088 = rar ay"
+    },
+    {
+      "bounds": [
+        30,
+        112,
+        799,
+        141
+      ],
+      "text": "er ss are =. survivors) eae 2"
+    },
+    {
+      "bounds": [
+        68,
+        149,
+        796,
+        188
+      ],
+      "text": "ae ps ahi; eed i hc. kw =\u2014 ~ on by"
+    },
+    {
+      "bounds": [
+        7,
+        208,
+        788,
+        234
+      ],
+      "text": "fdoml0 ties es /s tp lop ups <4) ne"
+    },
+    {
+      "bounds": [
+        98,
+        261,
+        768,
+        276
+      ],
+      "text": "ay ita ct i .- me <i | 7"
+    },
+    {
+      "bounds": [
+        21,
+        292,
+        796,
+        351
+      ],
+      "text": "oe id 7 a pa a @ sa sag ad ace"
+    },
+    {
+      "bounds": [
+        92,
+        354,
+        793,
+        377
+      ],
+      "text": ". soh glad wry ans op = ss \\s \u201c= he aa, 3s ."
+    },
+    {
+      "bounds": [
+        14,
+        383,
+        768,
+        423
+      ],
+      "text": "research == ke pse = ae co acs : a \\ bs"
+    },
+    {
+      "bounds": [
+        0,
+        415,
+        764,
+        449
+      ],
+      "text": "~ (0/1) =, fe alt <a mel < ome ye sf ss li"
+    },
+    {
+      "bounds": [
+        132,
+        455,
+        762,
+        479
+      ],
+      "text": "ies a ee he iy \u201c d a y cso eles = a= ey ( => <3 \u2018 x"
+    },
+    {
+      "bounds": [
+        19,
+        434,
+        776,
+        518
+      ],
+      "text": "ag\u201d +c. say"
+    },
+    {
+      "bounds": [
+        0,
+        492,
+        797,
+        540
+      ],
+      "text": "= idle a ai: ye: fe 7, ot err zea fenin pi es. ial 1"
+    },
+    {
+      "bounds": [
+        21,
+        564,
+        712,
+        588
+      ],
+      "text": "ww wade oe >. . \u201c* jb,"
+    },
+    {
+      "bounds": [
+        2,
+        686,
+        800,
+        729
+      ],
+      "text": "eas. \u201ctie. * sd see ah i. ~ oy bis ae 5g: a eg"
+    },
+    {
+      "bounds": [
+        0,
+        798,
+        704,
+        823
+      ],
+      "text": "te fee ee se"
+    },
+    {
+      "bounds": [
+        14,
+        802,
+        799,
+        838
+      ],
+      "text": ": eh gz; <= ws ; shooter camp ~ eae /j,\u00a7\u00a7 ws = ("
+    },
+    {
+      "bounds": [
+        0,
+        915,
+        774,
+        947
+      ],
+      "text": "ee ceili eres \\"
+    },
+    {
+      "bounds": [
+        8,
+        944,
+        747,
+        978
+      ],
+      "text": "os \u00bb fighter camp 5 sey ~| see \u2122 )"
+    },
+    {
+      "bounds": [
+        2,
+        1042,
+        792,
+        1095
+      ],
+      "text": "| mp upgrade vehicle depotit\u00a9repot a aik ze |"
+    },
+    {
+      "bounds": [
+        20,
+        1098,
+        712,
+        1117
+      ],
+      "text": "ee ee a 2 a ~ e - ee \u2018zai"
+    },
+    {
+      "bounds": [
+        5,
+        1119,
+        789,
+        1160
+      ],
+      "text": "sy ad in this alliance trial event, your alliance has achieved 1-phase rewards."
+    },
+    {
+      "bounds": [
+        2,
+        1144,
+        789,
+        1172
+      ],
+      "text": "~ 7 in this alliance trial event, your alliance has achieved 3-phase rewards."
+    },
+    {
+      "bounds": [
+        99,
+        1215,
+        784,
+        1241
+      ],
+      "text": "\u2018 o } ; ft } \u2014\u2014 ny cy a"
+    },
+    {
+      "bounds": [
+        35,
+        1243,
+        774,
+        1269
+      ],
+      "text": "world \u2018hero quest bag mail\u00ae allian\u00e9e\u2019 more"
+    }
+  ],
+  "popup": {
+    "body_identity": false,
+    "body_text": "bs mene 1 3) @ es i wt 3 bes pes > a soa za sar 3 - =. = bes, < ~ emp cad quarter ee re <a bey ae .",
+    "close_region": [
+      260,
+      750,
+      540,
+      870
+    ],
+    "geometry_valid": true,
+    "literal_close": false,
+    "matched_close_text": "",
+    "panel_present": true,
+    "popup_identity": null,
+    "recognized": false,
+    "target": null,
+    "target_center": null,
+    "target_identity": null,
+    "title_identity": false,
+    "title_text": ""
+  }
+}

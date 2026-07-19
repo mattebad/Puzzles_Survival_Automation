@@ -1,0 +1,39 @@
+{
+  "action": {
+    "action_id": "startup-close-help-webview-attempt-1-1783996986-2",
+    "action_key": "startup-close-help-webview-attempt-1-1783996986-2",
+    "consequence": "navigate_zero_cost",
+    "consequential": 0,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/startup-close-help-webview-attempt-1-source-002.png\"]",
+    "expected_postcondition": "MORE",
+    "final_reason": "unexpected_successor",
+    "final_status": "unresolved",
+    "game_day_id": "daily-2026-07-13",
+    "input_attempt_at": 1783996988.395224,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_NAVIGATION_ONLY",
+    "policy_request_json": "{\"action_class\":\"navigation_only\",\"action_id\":\"startup-close-help-webview-attempt-1-1783996986-2\",\"action_key\":\"startup-close-help-webview-attempt-1-1783996986-2\",\"action_kind\":\"CLOSE_HELP_WEBVIEW\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":true,\"game_day_id\":\"daily-2026-07-13\",\"lease_owner\":\"pnsctl-1783996977\",\"lease_valid\":true,\"maximum_cost\":0,\"monotonic_now\":4442419.43282247,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4442419.432201839,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"source_identity\",\"7c494eddac54a0fdfaae83559796505feb4cadfab0d82f1cbf110d65dae2e427\"],[\"target\",\"7c494eddac54a0fdfaae83559796505feb4cadfab0d82f1cbf110d65dae2e427\"]],\"evidence_refs\":[\"/evidence/startup-close-help-webview-attempt-1-source-002.png\"],\"expected_postcondition\":\"MORE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"6fef02619042365753ef834e7361a1d9ad355cdeb42183b67dfc8474b6b4b868\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4442419.432201839,\"ocr_result_frame_sha256\":\"6fef02619042365753ef834e7361a1d9ad355cdeb42183b67dfc8474b6b4b868\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"HELP_WEBVIEW\",\"target_identity\":\"help-webview-close\",\"target_isolated\":false,\"target_roi\":[548,10,635,95],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"CLOSE_HELP_WEBVIEW\",\"semantic_postconditions\":[\"MORE\"],\"semantic_preconditions\":[\"HELP_WEBVIEW\",\"help-webview-close\"],\"subject\":\"CLOSE_HELP_WEBVIEW\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1783996986.97085,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":false,\"observations\":[\"bb08bc51e33ffe444343f78d1880a7293e413ffdc7ad8eb0925b06fbfe124763\",\"c7d2509fdc0f3107e32b5e81ea43e2f1b35bb1dd6aed843cc1e016bd34d6cc5e\",\"3eb1744d266479aef7b5e1a194198652796b57bf441d78158bdedc3e64af3769\"]}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "CLOSE_HELP_WEBVIEW",
+    "source_frame_captured_at": 4442419.432201839,
+    "source_frame_sha256": "6fef02619042365753ef834e7361a1d9ad355cdeb42183b67dfc8474b6b4b868",
+    "source_state": "HELP_WEBVIEW",
+    "target_identity": "help-webview-close",
+    "target_roi_json": "[548,10,635,95]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input tap 591 52\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1783997002.548692
+  },
+  "pre_dispatch_attempts": 1,
+  "result": {
+    "action_id": "startup-close-help-webview-attempt-1-1783996986-2",
+    "reason": "unexpected_successor",
+    "status": "unresolved",
+    "transport_calls": 1
+  }
+}

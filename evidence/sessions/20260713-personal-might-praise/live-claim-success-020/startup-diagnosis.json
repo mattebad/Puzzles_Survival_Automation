@@ -1,0 +1,197 @@
+{
+  "foreground_assumed_game": true,
+  "ocr_lines": [
+    {
+      "bounds": [
+        69,
+        10,
+        86,
+        24
+      ],
+      "text": "y /"
+    },
+    {
+      "bounds": [
+        128,
+        82,
+        682,
+        99
+      ],
+      "text": "; . alliance"
+    },
+    {
+      "bounds": [
+        89,
+        89,
+        679,
+        141
+      ],
+      "text": "elie es ee a set"
+    },
+    {
+      "bounds": [
+        132,
+        268,
+        703,
+        281
+      ],
+      "text": "v v v v es"
+    },
+    {
+      "bounds": [
+        125,
+        326,
+        715,
+        342
+      ],
+      "text": "30 60 90 120 150"
+    },
+    {
+      "bounds": [
+        66,
+        366,
+        727,
+        390
+      ],
+      "text": "daily quest pts: 0 reset time: 19:03:24"
+    },
+    {
+      "bounds": [
+        98,
+        438,
+        512,
+        459
+      ],
+      "text": "praise 1x in personal might rank (1/1)"
+    },
+    {
+      "bounds": [
+        97,
+        471,
+        676,
+        495
+      ],
+      "text": "reward: pts +5 a"
+    },
+    {
+      "bounds": [
+        97,
+        573,
+        379,
+        594
+      ],
+      "text": "upgrade building 1x (0/1)"
+    },
+    {
+      "bounds": [
+        97,
+        605,
+        657,
+        630
+      ],
+      "text": "reward: pts +5 ="
+    },
+    {
+      "bounds": [
+        94,
+        708,
+        340,
+        729
+      ],
+      "text": "join hero duel 3x (0/3)"
+    },
+    {
+      "bounds": [
+        97,
+        740,
+        657,
+        766
+      ],
+      "text": "reward: pts +5 a"
+    },
+    {
+      "bounds": [
+        97,
+        844,
+        335,
+        865
+      ],
+      "text": "upgrade tech 1x (0/1)"
+    },
+    {
+      "bounds": [
+        97,
+        876,
+        657,
+        901
+      ],
+      "text": "reward: pts +5 aan"
+    },
+    {
+      "bounds": [
+        96,
+        979,
+        380,
+        1000
+      ],
+      "text": "train fighter x250 (0/250)"
+    },
+    {
+      "bounds": [
+        97,
+        1011,
+        657,
+        1036
+      ],
+      "text": "reward: pts +5 an"
+    },
+    {
+      "bounds": [
+        96,
+        1114,
+        361,
+        1135
+      ],
+      "text": "train rider x250 (0/250)"
+    },
+    {
+      "bounds": [
+        97,
+        1146,
+        657,
+        1171
+      ],
+      "text": "reward: pts +5 es"
+    },
+    {
+      "bounds": [
+        96,
+        1249,
+        386,
+        1270
+      ],
+      "text": "train shooter x250 (0/250)"
+    }
+  ],
+  "popup": {
+    "body_identity": false,
+    "body_text": "ward: pcs +5 a ygrade building 1x (0/1) ward: pts +5 go pt nm ldarn misa] dv /n/23\\ (",
+    "close_region": [
+      260,
+      750,
+      540,
+      870
+    ],
+    "geometry_valid": false,
+    "literal_close": false,
+    "matched_close_text": "x (0/1)",
+    "panel_present": true,
+    "popup_identity": null,
+    "recognized": false,
+    "target": null,
+    "target_center": null,
+    "target_identity": null,
+    "title_identity": false,
+    "title_text": "7 _ _ _ _ 7"
+  }
+}

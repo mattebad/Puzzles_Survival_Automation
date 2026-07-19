@@ -17,6 +17,8 @@ from .profile import PROFILE_ID
 SUPPLY_DEPOT_SCREEN = "SUPPLY_DEPOT"
 SUPPLY_DEPOT_FREE_TARGET = "supply-depot-free"
 BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
+BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
+BLUESTACKS_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -46,6 +48,40 @@ class SupplyDepotObservation:
     reset_guard_active: bool = False
     runtime_profile_id: str = PROFILE_ID
     recognized: bool = True
+    reset_identity_required: bool = True
+    reward_balance: Optional[int] = None
+    daily_free_attempts: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class SupplyDepotConfig:
+    enabled: bool = True
+    maximum_free_collections_per_run: int = 1
+    once_per_reset: bool = False
+    daily_progress_verification: bool = False
+    direct_building_route_enabled: bool = True
+    quest_go_fallback_enabled: bool = False
+    production_registration_enabled: bool = False
+    scheduler_eligible: bool = False
+
+
+@dataclass(frozen=True)
+class SupplyDepotHoldConfig:
+    enabled: bool = True
+    reward_kind: str = "food"
+    maximum_free_collections_per_hold: int = 10
+    initial_hold_delay_ms: int = 1500
+    per_attempt_hold_ms: int = 1200
+    maximum_hold_duration_ms: int = 12000
+    direct_building_route_enabled: bool = True
+    quest_go_fallback_enabled: bool = False
+    production_registration_enabled: bool = False
+    scheduler_eligible: bool = False
+
+    def duration_ms(self, attempts: int) -> int:
+        if not 1 <= attempts <= self.maximum_free_collections_per_hold:
+            raise ValueError("free attempt count is outside the bounded hold policy")
+        return min(self.maximum_hold_duration_ms, self.initial_hold_delay_ms + attempts * self.per_attempt_hold_ms)
 
 
 def _target_inside_panel(observation: SupplyDepotObservation) -> bool:
@@ -57,15 +93,18 @@ def _target_inside_panel(observation: SupplyDepotObservation) -> bool:
     return bool(px0 <= tx0 < tx1 <= px1 and py0 <= ty0 < ty1 <= py1)
 
 
-def _has_bliss_native_source(observation: SupplyDepotObservation) -> bool:
+def _has_platform_native_source(observation: SupplyDepotObservation) -> bool:
     refs = tuple(str(ref) for ref in observation.evidence_refs)
     return bool(
-        observation.target_provenance == BLISS_NATIVE_TARGET_PROVENANCE
+        (observation.target_provenance, observation.runtime_profile_id)
+        in {
+            (BLISS_NATIVE_TARGET_PROVENANCE, PROFILE_ID),
+            (BLUESTACKS_NATIVE_TARGET_PROVENANCE, BLUESTACKS_PROFILE_ID),
+        }
         and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)
-        and any(ref.startswith(("evidence/", "synthetic:")) for ref in refs)
-        and observation.runtime_profile_id == PROFILE_ID
+        and any(ref.startswith(("evidence/", ".local-captures/", "synthetic:")) for ref in refs)
     )
 
 
@@ -87,10 +126,10 @@ def supply_depot_authorizeable(observation: SupplyDepotObservation) -> bool:
         and observation.quantity == 1
         and _target_inside_panel(observation)
         and observation.overlay_state in {"none", "none_observed"}
-        and bool(observation.game_day_id)
+        and (bool(observation.game_day_id) or not observation.reset_identity_required)
         and not observation.reset_guard_active
         and observation.recognized
-        and _has_bliss_native_source(observation)
+        and _has_platform_native_source(observation)
     )
 
 
@@ -111,10 +150,10 @@ def supply_depot_transaction_spec(observation: SupplyDepotObservation) -> Action
             "selected_supply_depot",
             "exact_free_collect_target",
             "known_non_premium_reward",
-            "bliss_native_target_evidence",
+            "platform_native_target_evidence",
             "explicit_zero_cost",
         ),
-        semantic_postconditions=("collection_confirmed_or_target_disappears",),
+        semantic_postconditions=("explicit_receipt_or_reward_increase_or_daily_attempt_decrease",),
     )
 
 
@@ -136,9 +175,39 @@ def supply_depot_postcondition_verified(
         return False
     return bool(
         collection_confirmed
-        or not after.collection_ready
-        or after.target_identity != SUPPLY_DEPOT_FREE_TARGET
-        or after.control_class != "COLLECT"
+        or (
+            before.reward_balance is not None
+            and after.reward_balance is not None
+            and after.reward_balance > before.reward_balance
+        )
+        or (
+            before.daily_free_attempts is not None
+            and after.daily_free_attempts is not None
+            and after.daily_free_attempts == before.daily_free_attempts - 1
+        )
+    )
+
+
+def supply_depot_hold_postcondition_verified(
+    before: SupplyDepotObservation,
+    after: SupplyDepotObservation | None,
+    *,
+    maximum_attempts: int,
+) -> bool:
+    """Require one bounded Food hold to exhaust exactly the observed free attempts."""
+
+    if not supply_depot_authorizeable(before) or after is None:
+        return False
+    if before.reward_kind != "food" or before.daily_free_attempts is None:
+        return False
+    if not 1 <= before.daily_free_attempts <= maximum_attempts:
+        return False
+    return bool(
+        after.screen_state == SUPPLY_DEPOT_SCREEN
+        and after.selected_supply_depot
+        and after.game_day_id == before.game_day_id
+        and after.daily_free_attempts == 0
+        and not after.collection_ready
     )
 
 

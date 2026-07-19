@@ -1,0 +1,39 @@
+{
+  "action": {
+    "action_id": "rankings-back-to-home-attempt-1-1784004154-12",
+    "action_key": "rankings-back-to-home-attempt-1-1784004154-12",
+    "consequence": "navigate_zero_cost",
+    "consequential": 0,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/rankings-back-to-home-attempt-1-source-012.png\"]",
+    "expected_postcondition": "HOME_BASE",
+    "final_reason": "positive_postcondition",
+    "final_status": "confirmed",
+    "game_day_id": "daily-2026-07-13",
+    "input_attempt_at": 1784004157.052853,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_NAVIGATION_ONLY",
+    "policy_request_json": "{\"action_class\":\"navigation_only\",\"action_id\":\"rankings-back-to-home-attempt-1-1784004154-12\",\"action_key\":\"rankings-back-to-home-attempt-1-1784004154-12\",\"action_kind\":\"RANKINGS_BACK\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":true,\"game_day_id\":\"daily-2026-07-13\",\"lease_owner\":\"pnsctl-1784004097\",\"lease_valid\":true,\"maximum_cost\":0,\"monotonic_now\":4449587.201404111,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4449587.200819694,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"source_identity\",\"fe04cf1aad719a2df88d5112edea52156438e0304975fb3a934c88a694b3b656\"],[\"target\",\"fe04cf1aad719a2df88d5112edea52156438e0304975fb3a934c88a694b3b656\"]],\"evidence_refs\":[\"/evidence/rankings-back-to-home-attempt-1-source-012.png\"],\"expected_postcondition\":\"HOME_BASE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"803eb874857de8380bcd87ed9f41036d54c2bccc3bb99623aa96c53c58748150\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4449587.200819694,\"ocr_result_frame_sha256\":\"803eb874857de8380bcd87ed9f41036d54c2bccc3bb99623aa96c53c58748150\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"RANKINGS\",\"target_identity\":\"rankings-back\",\"target_isolated\":false,\"target_roi\":[45,5,130,60],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"RANKINGS_BACK\",\"semantic_postconditions\":[\"HOME_BASE\"],\"semantic_preconditions\":[\"RANKINGS\",\"rankings-back\"],\"subject\":\"RANKINGS_BACK\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1784004154.7394316,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":true,\"evidence_refs\":[\"/evidence/rankings-back-to-home-attempt-1-post-014.png\"],\"frame_sha256\":\"b2eef71c773052dbbec7bd6bdb125698dbd8908aa57d9f981a1095de2e702289\"}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "RANKINGS_BACK",
+    "source_frame_captured_at": 4449587.200819694,
+    "source_frame_sha256": "803eb874857de8380bcd87ed9f41036d54c2bccc3bb99623aa96c53c58748150",
+    "source_state": "RANKINGS",
+    "target_identity": "rankings-back",
+    "target_roi_json": "[45,5,130,60]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input tap 87 32\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1784004177.391888
+  },
+  "pre_dispatch_attempts": 1,
+  "result": {
+    "action_id": "rankings-back-to-home-attempt-1-1784004154-12",
+    "reason": "positive_postcondition",
+    "status": "confirmed",
+    "transport_calls": 1
+  }
+}

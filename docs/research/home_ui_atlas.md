@@ -2,12 +2,92 @@
 
 This atlas records semantic discovery facts, not production input authority. Both clean BlueStacks
 sources are original 800×1280 PNGs. The earlier source was later identified by the user as zoomed
-in; the second is the fully zoomed-out view, although the entire base is still not visible. A
+in; the second is a single fully zoomed-out viewport, not the completed multi-viewport atlas. A
 coordinate is valid only in the exact BlueStacks source and camera state where it was observed.
 The annotated chat image is 781×1248 and contributes labels only; none of its coordinates were
 scaled or converted.
 
 Machine-readable companion: `docs/research/home_ui_atlas.json`.
+
+## Executable BlueStacks atlas (2026-07-18)
+
+The project now has an executable BlueStacks-only stitched atlas at
+`tasks/assets/home_atlas/bluestacks/800x1280/atlas.json`; its pixel mosaic is `atlas.png` in the
+same directory. This supersedes the provisional BlueStacks screen ROIs below whenever the native
+Home camera is classified as `fully_zoomed_out`. The older entries remain research history and are
+not transformed into the new atlas.
+
+- Profile: `pns-bluestacks-5-p64-800x1280-v1`, package `com.global.ztmslg`, native portrait
+  `800×1280`. Bliss calibration and assets remain separate.
+- Zoom mechanism: held left Ctrl plus wheel-down in the exact BlueStacks window. A measured live
+  step changed scale by `1.2660` with `0.1948 px` residual; the following clamp measured scale
+  `1.0000` with `0.0053 px` residual. The cursor is bound to verified empty road so BlueStacks'
+  simulated pinch contacts do not land on a building.
+- Atlas coordinates: origin `(0,0)`, size `1447×2769`, units canonical BlueStacks atlas pixels.
+  Thirty unique native viewports were accepted; two scan frames were rejected as duplicates.
+- Registration: translation for stable camera pans and similarity only where live measurements
+  required it. Maximum residual is `0.213 px`; maximum retained loop-closure disagreement is
+  `1.161 px`, below the `8 px` conflict threshold.
+- Coverage: `coverage_polygons` are the union of verified safely actionable scene regions;
+  `registration_coverage_polygons` separately retain the stricter HUD-masked feature support.
+  Four measured edge clamps and five overlapping boustrophedon rows establish full reachable base
+  coverage with zero interior actionable or registration gaps. Black pixels outside the verified
+  contour are outside the reachable camera envelope or fixed-HUD exclusions and were never filled
+  by interpolation.
+- Boundary scan: 30 bounded navigation-only click-drags, 23 accepted moving frames, and explicit
+  top/right/left/bottom no-progress clamps. Camera origins span approximately `x=0.86..646.79`,
+  `y=0.08..1488.01`.
+- Live localizer: the newly mapped bottom-left clamp recognized `fully_zoomed_out`, `left+bottom`,
+  confidence `0.55961`, residual `0.10094 px`, with support from viewports 030/005/024. Final
+  canonical Home localized at confidence `0.99007`, residual `0.11912 px`, and `3.99 px` center
+  error from `viewport-001`.
+- Semantic registry: 64 positively labeled facilities/instances. This includes 30 unique named
+  facilities or landmarks and 34 production instances: seven Farms, six Lumber Mills, four
+  Bootcamps, six Steel Plants, three Infirmaries, and eight Gas Fields. Sixty-three entries have a
+  HUD-free supporting viewport. Forum is mapped and label-proven at the left clamp but explicitly
+  non-actionable because its center remains behind the fixed left HUD.
+- Supply Depot: semantic ID `home.building.supply_depot`, polygon
+  `[(1166.7,908.6),(1326.7,908.6),(1326.7,1043.6),(1166.7,1043.6)]`, center
+  `(1246.7,976.1)`. The executable direct route localized Home, bound the current label/helicopter
+  pad, opened the building radial, selected only `Claim Supply`, and recognized the exact Supply
+  Depot screen without using Daily Quest Go.
+- Full-coverage live validation started at the bottom-left clamp, used two measured navigator pans
+  to reach the Supply Depot region, stopped safely on partial HUD visibility, then used an exact
+  current-frame binding at the right clamp. The radial continuation derived `Claim Supply` from
+  current OCR at `(641,682)-(729,746)` and recognized the exact Supply Depot screen. It inspected
+  the four Free controls but performed zero additional collections.
+- Consequential validation: exactly one authorized food `Free` control was tapped. Daily free
+  attempts changed exactly `9→8`, and the visible food amount changed `14,382→14,664`. The action
+  key `supply-depot-free:bluestacks:no-reset:attempts-9:food` is terminally confirmed and must not be
+  repeated. No Daily Quest progress was inspected.
+- Hold-to-exhaust follow-up: with the exact Supply Depot screen freshly recognized at eight remaining
+  attempts, the primary `collect-free` workflow bound the Food Free ROI and dispatched one bounded
+  `11.1 s` zero-distance long press through the native runtime. A fresh successor proved `Daily free
+  attempts: 0` and all four controls had changed to diamond-cost controls. The action key
+  `supply-depot-free-hold:bluestacks:no-reset:attempts-8:food` is confirmed for eight free Food
+  collections and must not be repeated. The earlier stylized zero was initially OCR'd as `O`; a
+  read-only fresh-frame reconciliation resolved it without another hold. `collect-one` remains a
+  one-tap diagnostic fallback; `collect-free` is the default hold-to-exhaust route.
+  The native Home diamond display remained `25.5K` before and after, proving the held gesture did
+  not continue into the newly visible diamond-cost controls.
+- Production status: not registered and scheduler-ineligible. No Bliss, Unraid, production, paid,
+  premium, Mall, speedup, ticket, resource-item, AP, stamina, Daily Claim, Bank, upgrade, research,
+  training, healing, or unrelated workflow input occurred.
+
+Key retained local evidence:
+
+- full corner/grid scan: `.local-captures/home-base-atlas-discovery/full-grid/home-atlas-four-corner-grid-20260718T220754613718Z/`
+- completed atlas build: `.local-captures/home-base-atlas-discovery/atlas-build-v4/atlas.json`
+- bottom-left localization: `.local-captures/home-base-atlas-discovery/full-grid-validation/home-atlas-localize-20260718T222440309767Z/`
+- final Supply Depot radial continuation: `.local-captures/home-base-atlas-discovery/full-grid-validation/supply-depot-radial-20260718T223609701325Z/`
+- final canonical recovery: `.local-captures/home-base-atlas-discovery/full-grid-validation/home-atlas-return-canonical-20260718T224709024496Z/`
+- canonical zoom proof: `.local-captures/home-base-atlas-discovery/final-home-recovery/home-canonical-zoom-20260718T205934133815Z/`
+- collection: `.local-captures/supply-depot-direct-building/supply-depot-collect-one-20260718T205259350054Z/`
+- hold collection: `.local-captures/supply-depot-direct-building/supply-depot-collect-free-hold-20260718T233948312187Z/`
+- hold reconciliation: `.local-captures/supply-depot-direct-building/supply-depot-reconcile-free-hold-20260718T234250460579Z/`
+- hold final canonical Home: `.local-captures/supply-depot-hold-validation/home-atlas-return-canonical-20260718T234604460238Z/`
+- final integrated direct route: `.local-captures/supply-depot-direct-building/integrated-route-final/home-atlas-navigate-building-20260718T211815671006Z/`
+- final Home localization: `.local-captures/home-base-atlas-discovery/final-home-recovery/home-atlas-localize-20260718T211944500691Z/`
 
 ## Source boundary
 

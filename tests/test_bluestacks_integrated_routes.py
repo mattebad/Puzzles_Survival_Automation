@@ -94,6 +94,7 @@ class FakeADBRunner:
             raise RuntimeError("test PNG encoding failed")
         self.png = encoded.tobytes()
         self.taps = []
+        self.swipes = []
         self.backs = 0
 
     def capture_png(self):
@@ -101,6 +102,9 @@ class FakeADBRunner:
 
     def dispatch_tap(self, point):
         self.taps.append(point)
+
+    def dispatch_swipe(self, start, end, *, duration_ms=400):
+        self.swipes.append((start, end, duration_ms))
 
     def dispatch_back(self):
         self.backs += 1
@@ -180,6 +184,27 @@ class IntegratedRouteTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "dry-run"):
                 runtime.tap(source, target_identity="target", target_roi=(1, 1, 2, 2), action_key="dry")
             self.assertEqual(runner.taps, [])
+
+    def test_native_runtime_long_press_is_one_bounded_zero_distance_swipe(self):
+        with TemporaryDirectory() as directory:
+            runner = FakeADBRunner()
+            runtime = LocalBlueStacksRuntime(runner, Path(directory) / "session", execute=True)
+            source = runtime.capture("hold-source")
+            runtime.long_press(
+                source,
+                target_identity="supply-depot-free-food",
+                target_roi=(100, 100, 200, 200),
+                duration_ms=4000,
+                action_key="hold-action-1",
+                consequential=True,
+            )
+            self.assertEqual(runner.swipes, [((150, 150), (150, 150), 4000)])
+            with self.assertRaisesRegex(RuntimeError, "unresolved"):
+                runtime.back(source, action_key="back-before-hold-reconcile")
+            post = runtime.capture("hold-post")
+            runtime.reconcile("hold-action-1", "confirmed", post, "hold verified")
+            runtime.back(post, action_key="back-after-hold-reconcile")
+            self.assertEqual(runner.backs, 1)
 
     def test_noah_route_uses_controller_transport_result_and_home_postcondition(self):
         runtime = FakeRuntime()

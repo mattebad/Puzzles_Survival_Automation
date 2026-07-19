@@ -1,0 +1,39 @@
+{
+  "action": {
+    "action_id": "reset-popup-close-1784079185-2",
+    "action_key": "reset-popup-close-1784079185-2",
+    "consequence": "navigate_zero_cost",
+    "consequential": 0,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/reset-popup-source-002.png\"]",
+    "expected_postcondition": "HOME_BASE",
+    "final_reason": "unexpected_successor",
+    "final_status": "unresolved",
+    "game_day_id": "daily-2026-07-13",
+    "input_attempt_at": 1784079186.4505277,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_NAVIGATION_ONLY",
+    "policy_request_json": "{\"action_class\":\"navigation_only\",\"action_id\":\"reset-popup-close-1784079185-2\",\"action_key\":\"reset-popup-close-1784079185-2\",\"action_kind\":\"DISMISS_RESET_POPUP\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":true,\"game_day_id\":\"daily-2026-07-13\",\"lease_owner\":\"pnsctl-1784079179\",\"lease_valid\":true,\"maximum_cost\":0,\"monotonic_now\":4524618.144485409,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4524618.143797617,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"popup_close\",\"1d3c61b4bf63b3be6897c350e855757b1fbea345ba50040da72884dfe5234cf3\"]],\"evidence_refs\":[\"/evidence/reset-popup-source-002.png\"],\"expected_postcondition\":\"HOME_BASE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"0e218c8747c21419e38466238ff84251e1f3d80c68b7df9fb7be49fb324f3619\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4524618.143797617,\"ocr_result_frame_sha256\":\"0e218c8747c21419e38466238ff84251e1f3d80c68b7df9fb7be49fb324f3619\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"known_reset_popup\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"RESET_POPUP\",\"target_identity\":\"reset-popup-close\",\"target_isolated\":false,\"target_roi\":[277,767,523,847],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"DISMISS_RESET_POPUP\",\"semantic_postconditions\":[\"HOME_BASE\"],\"semantic_preconditions\":[\"RESET_POPUP\",\"reset-popup-close\"],\"subject\":\"DISMISS_RESET_POPUP\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1784079185.682513,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":false,\"observations\":[\"53239cd59e75e5f5471414eb9197404e87fd84b025a4638b5dd836022dbbb820\",\"98868735ca90fe44dce2c6d5a4dd090da464d9ce316a0d1706f9719c75d85704\",\"7ac94d5e98122825841b558cdcab10a49b453b780bdbe010f78b978bc4ef5673\"]}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "DISMISS_RESET_POPUP",
+    "source_frame_captured_at": 4524618.143797617,
+    "source_frame_sha256": "0e218c8747c21419e38466238ff84251e1f3d80c68b7df9fb7be49fb324f3619",
+    "source_state": "RESET_POPUP",
+    "target_identity": "reset-popup-close",
+    "target_roi_json": "[277,767,523,847]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input tap 400 807\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1784079196.2347567
+  },
+  "pre_dispatch_attempts": 1,
+  "result": {
+    "action_id": "reset-popup-close-1784079185-2",
+    "reason": "unexpected_successor",
+    "status": "unresolved",
+    "transport_calls": 1
+  }
+}

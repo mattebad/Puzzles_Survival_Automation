@@ -3,16 +3,27 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "1b44629 (passive F9 finalization acknowledgement)",
-    "origin_relationship": "main ahead 12 of origin/main; no push",
+    "head": "257ec02d232d5d68ca998b9cacac1fd2c664a8b9 (unchanged during this task)",
+    "origin_relationship": "main matches origin/main; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
-      "BACKLOG.md (pre-existing MVP changes)",
-      "CURRENT_HANDOFF.md (pre-existing MVP state)",
-      "evidence/mvp-quest-to-claim-evidence-manifest.json",
-      "safe_action_core/executor.py",
-      "scripts/mvp_quest_to_claim.py",
-      "scripts/pnsctl.py"
+      "BACKLOG.md",
+      "CURRENT_HANDOFF.md",
+      "docs/research/home_ui_atlas.md",
+      "docs/research/home_ui_atlas.json",
+      "scripts/bluestacks_native_runtime.py",
+      "scripts/home_atlas_bluestacks.py",
+      "scripts/supply_depot_bluestacks.py",
+      "tasks/home_atlas.py",
+      "tasks/home_atlas_vision.py",
+      "tasks/supply_depot.py",
+      "tasks/supply_depot_vision.py",
+      "tasks/assets/home_atlas/bluestacks/800x1280/**",
+      "tests/test_home_atlas.py",
+      "tests/test_supply_depot.py",
+      "tests/test_supply_depot_vision.py",
+      "tests/test_supply_depot_bluestacks.py",
+      "tests/test_bluestacks_integrated_routes.py"
     ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
@@ -32,14 +43,14 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE-BLUESTACKS",
+  "current_task_id": "TOOLS-HOME-BASE-ATLAS-BLUESTACKS",
   "current_task_state": "completed",
   "next_task_id": "M6-DQ-TRANSITION-CORPUS",
   "next_task_activation_status": "not_applicable",
-  "phase": "executable_bluestacks_campaign_ap_defeat_completed",
-  "objective": "Bind native 800x1280 recognition and a bounded executable local BlueStacks controller for configurable Campaign AP Auto Battle without production registration.",
-  "last_safe_completed_step": "The supplied native defeat frame now passes strict LOSE/Improve Might/bottom-Tap-to-continue recognition, binds no Buy Now target, and forces a no-repeat chapter/tier/Home unwind; 25 focused tests passed.",
-  "next_permitted_action": "Define and capture the exact requested Nova objective as a separate atomic workflow; do not promote Campaign to Bliss, register, schedule, refill AP, or repeat the incorrect bottom-left return target.",
+  "phase": "local_bluestacks_home_atlas_supply_depot_completed",
+  "objective": "Build and live-validate a reusable Home/Base atlas, localizer, closed-loop semantic building navigator, and direct Supply Depot consumer on local BlueStacks without production promotion.",
+  "last_safe_completed_step": "The explicitly authorized hold-to-exhaust follow-up dispatched one 11.1-second Food long press at eight freshly recognized free attempts, then exact fresh-frame reconciliation confirmed attempts 8->0 and all controls paid without retry. Home is fully_zoomed_out at canonical viewport-001 with confidence 0.98691, residual 0.15549 px, and 5.08 px center error; no action is in flight.",
+  "next_permitted_action": "Only a separately authorized future task may build an independent Bliss-native atlas or implement a future building workflow; do not repeat either confirmed Supply Depot action or reuse BlueStacks calibration in Bliss.",
   "actions_already_performed": [
     "Read-only Git status, required governance files, the exact MVP backlog section, direct dependencies, and exact evidence references.",
     "Migrated and validated the MVP durable contract and created its compact task-specific evidence manifest from exact named references.",
@@ -73,9 +84,31 @@
     "The executable adapter panned Home, selected tier 1, dragged directly to chapter 20 without clicking intermediate chapters, selected stage 9, verified 21/120 and cost 16, pressed stage Challenge and only the fixed lineup Challenge, enabled Auto, and recognized the strict victory signature.",
     "The live ledger verified 6/120 after one victory (16 spent plus one regenerated AP). The original return binding repeated a navigation-only bottom-left base request; the runner was terminated, the exact lower-right highlighted Campaign exit was captured and bound, and a generic identical-input retry guard was added.",
     "One corrected Campaign-exit input returned to Home/Base. A final fresh adapter run recognized 9/120 as unaffordable and terminated without gameplay input. The battle timeout ceiling is now 180 seconds.",
-    "Added project-owned LOSE, Improve Might, and bottom Tap-to-continue templates from the supplied native defeat frame. The recognizer binds only the bottom continuation, explicitly excludes Buy Now, and loss_seen forces chapter/tier/Home unwind without another stage selection."
+    "Added project-owned LOSE, Improve Might, and bottom Tap-to-continue templates from the supplied native defeat frame. The recognizer binds only the bottom continuation, explicitly excludes Buy Now, and loss_seen forces chapter/tier/Home unwind without another stage selection.",
+    "Discovered and measured the exact BlueStacks held-left-Ctrl plus wheel-down zoom mechanism; a live step measured scale 1.2660/residual 0.1948 px and the clamp measured scale 1.0000/residual 0.0053 px.",
+    "Built the initial BlueStacks-only 1447x2765 atlas from nine accepted native viewports with three duplicate/edge-clamp rejections, maximum loop-closure disagreement 0.231 px, separate actionable and HUD-masked registration coverage, and no interior coverage hole.",
+    "Extended the atlas through a project-owned four-corner and boustrophedon grid scan: 30 click-drags, five overlapping rows, explicit top/right/left/bottom clamps, 23 accepted moving scan frames, and safe rejection of one earlier insufficient-overlap frame.",
+    "Rebuilt the checked-in BlueStacks atlas at 1447x2769 from 30 unique viewports; two duplicates were rejected, maximum residual is 0.213 px, maximum loop closure is 1.161 px, and both actionable and HUD-masked registration coverage report zero reachable interior gaps without interpolation.",
+    "Mapped 64 semantically proven facilities/instances, including 34 individual production buildings; 63 have HUD-free supporting viewports and Forum is explicitly mapped but non-actionable behind the fixed left HUD.",
+    "Implemented platform-neutral atlas/localization/navigation contracts, BlueStacks vision/runtime adapters, exact building and radial binding, Supply Depot screen/control recognition, one-collection policy, persistent duplicate prevention, and dry-run defaults.",
+    "Executed the project-owned direct building route from a fresh arbitrary right-edge Home localization through current-frame Supply Depot binding, the exact radial Claim Supply control, and exact Supply Depot successor; Daily Quest Go was not used.",
+    "Dispatched exactly one authorized zero-cost food collection with action key supply-depot-free:bluestacks:no-reset:attempts-9:food and terminally confirmed Daily free attempts 9->8; visible food changed 14,382->14,664.",
+    "Returned through project-owned navigation, normalized with the proven held-Ctrl+wheel mechanism, and ended on a fresh fully_zoomed_out Home localization at confidence 0.99019 and residual 0.11767 px.",
+    "Live-localized the newly covered bottom-left clamp at confidence 0.55961 and residual 0.10094 px, then ran the updated navigator toward Supply Depot with fresh localization after each of two pans.",
+    "Closed a partial-HUD visibility edge case by requiring either a fully safe atlas polygon or a narrower exact current-frame semantic ROI; the right-clamp Supply Depot ROI bound safely at (535,534)-(634,636).",
+    "Opened the exact Supply Depot radial, derived Claim Supply from current-frame OCR at (641,682)-(729,746), recognized the exact Supply Depot screen with four visible Free controls, and performed zero additional collections.",
+    "Returned Home, normalized zoom with measured held-Ctrl+wheel steps and a verified 1.000000 clamp, then used adaptive proven click-drags to reach canonical viewport-001 within 3.99 px at confidence 0.99007 and residual 0.11912 px.",
+    "Implemented the primary collect-free workflow as one bounded zero-distance long press on freshly recognized Food, with a 1-10 attempt policy, duration cap, single-flight runtime state, persistent action key, dry-run default, exact exhaustion postcondition, and no automatic retry.",
+    "Live-tested one 11.1-second Food hold from eight free attempts. The initial postcondition was left unresolved because the stylized zero OCR'd as O; no retry occurred. A separate read-only fresh capture then proved Daily free attempts 0 plus four paid controls and reconciled all eight free Food collections as confirmed_exhausted.",
+    "The native Home diamond display was 25.5K before and after the hold, positively confirming that the long press stopped at free-attempt exhaustion and did not consume premium currency.",
+    "Returned Home, applied two bounded held-Ctrl+wheel inputs until the measured zoom clamp, and used three freshly localized pans to canonical viewport-001 within 5.08 px at confidence 0.98691 and residual 0.15549 px.",
+    "No premium, purchase, Mall, speedup, ticket, resource-item, AP, stamina, Daily Claim, Bank, upgrade, research, training, healing, production, Bliss, Unraid, or unrelated input occurred."
   ],
   "actions_not_to_repeat": [
+    "Do not repeat supply-depot-free:bluestacks:no-reset:attempts-9:food; it is terminally confirmed by attempts 9->8 and the local action-key ledger.",
+    "Do not repeat supply-depot-free-hold:bluestacks:no-reset:attempts-8:food; its one hold is confirmed_exhausted by attempts 8->0 and the local action-key ledger.",
+    "Do not issue another Supply Depot input in this task; zero free attempts remain and both authorized actions are terminally confirmed.",
+    "Do not reuse BlueStacks atlas pixels, coordinates, templates, OCR thresholds, transforms, zoom signatures, or gesture geometry in Bliss.",
     "Do not repeat the obsolete bottom-left campaign-exit-base target or any identical input after an unchanged semantic state; one base request may only be followed by the recognized highlighted lower-right Campaign exit.",
     "Do not start workers or runtime processes.",
     "Do not use ADB, pnsctl live commands, remote shells, or collect evidence.",
@@ -92,14 +125,14 @@
     "Do not inspect or stage protected evidence or .local-captures."
   ],
   "runtime": {
-    "vm_state": "NOT_VERIFIED_THIS_RUN; no runtime operation authorized",
-    "worker_state": "NOT_VERIFIED_THIS_RUN; no worker operation authorized",
-    "active_operator_collector_automation_test_emulator_processes": "NOT_VERIFIED_THIS_RUN; no process discovery authorized",
-    "adb_exposure_and_connection_state": "NOT_VERIFIED_THIS_RUN; ADB prohibited",
-    "expected_fixed_profile": "pns-blissos-poc-virgl-800x1280-v1; retained project expectation only",
-    "observed_current_profile": "NOT_VERIFIED_THIS_RUN",
-    "foreground_package_activity": "NOT_VERIFIED_THIS_RUN",
-    "manual_only_screen_state": "NOT_VERIFIED_THIS_RUN"
+    "vm_state": "Bliss/Unraid NOT OPERATED; local BlueStacks only",
+    "worker_state": "No worker started or modified",
+    "active_operator_collector_automation_test_emulator_processes": "This chat was the sole live local BlueStacks operator",
+    "adb_exposure_and_connection_state": "Project-owned local BlueStacks endpoint emulator-5554; no Bliss or public endpoint",
+    "expected_fixed_profile": "pns-bluestacks-5-p64-800x1280-v1 for this local task; Bliss remains independent",
+    "observed_current_profile": "pns-bluestacks-5-p64-800x1280-v1, native 800x1280",
+    "foreground_package_activity": "Final fresh Home/Base, fully_zoomed_out, canonical viewport-001 interior localization",
+    "manual_only_screen_state": "None entered or automated"
   },
   "journals_and_lease": {
     "authoritative_operational_journal_path": "evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3 (task-scoped preserved copy)",
@@ -107,7 +140,7 @@
     "lease_status": "TERMINAL CONFIRMED; lease expired by policy",
     "lease_expiry": "expired_at=1784093157.674505",
     "active_prepared_input_sent_unresolved_action_ids": [],
-    "latest_confirmed_consequential_action": "daily-claim-1784092554",
+    "latest_confirmed_consequential_action": "supply-depot-free-hold:bluestacks:no-reset:attempts-8:food (local BlueStacks evidence ledger; confirmed_exhausted after fresh read-only reconciliation)",
     "relevant_navigation_only_records": [
       "evidence/sessions/20260714-bioenhancer-e2e-validation/nav-daily-bioenhancer-go-1784079563-result.json",
       "evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json"
@@ -120,9 +153,9 @@
   },
   "game_day": {
     "game_day_id": "NOT_APPLICABLE",
-    "reset_status_or_next_reset": "NOT_VERIFIED_THIS_RUN",
-    "derivation": "governance-only task; no runtime inspection",
-    "active_task_cycle_binding": "not applicable; no gameplay or runtime action"
+    "reset_status_or_next_reset": "Not required because once-per-reset and Daily verification were disabled",
+    "derivation": "Direct building route; Daily Quest was not inspected",
+    "active_task_cycle_binding": "not applicable to the configured single local validation"
   },
   "registration_and_scheduler": {
     "registered_operator_tasks": "NOT_REGISTERED_UNCHANGED",
@@ -136,18 +169,29 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "NOT_RUN_THIS_RUN; prior result not revalidated",
-    "known_accepted_baseline_failures": "Report prior cv2/evidence-fixture environment failures separately if encountered",
+    "last_full_suite_count": "532 tests passed; 1 skipped",
+    "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "Campaign Auto Battle vision/runtime plus existing Campaign AP compilation and 25 focused tests passed; governance validation, asset manifest parsing, and git diff checking passed."
+    "last_relevant_focused_tests": "43 focused governance/Supply Depot/native-runtime tests passed after the hold implementation; standalone governance validation passed."
   },
   "evidence": {
     "active_evidence_manifest": null,
-    "raw_source": ".local-captures/campaign-ap-live/1-20-9-20260716T050321849157Z/frames/frame-0007.png",
-    "immediate_before": ".local-captures/campaign-ap-live/1-20-9-20260716T051004436540Z/frames/frame-0013.png",
-    "immediate_post": ".local-captures/campaign-ap-live/1-20-9-20260716T051004436540Z/frames/frame-0014.png",
-    "semantic_result": ".local-captures/campaign-ap-live/1-20-9-20260716T052520571190Z/result.json",
-    "operational_journal": ".local-captures/campaign-ap-live/1-20-9-20260716T051004436540Z/events.jsonl; local BlueStacks diagnostic trace only",
+    "raw_source": ".local-captures/supply-depot-direct-building/supply-depot-collect-one-20260718T205259350054Z/frames/0001-collection-source.png",
+    "immediate_before": ".local-captures/supply-depot-direct-building/supply-depot-collect-one-20260718T205259350054Z/frames/0002-collection-immediate-before.png",
+    "immediate_post": ".local-captures/supply-depot-direct-building/supply-depot-collect-one-20260718T205259350054Z/frames/0003-collection-immediate-post.png",
+    "semantic_result": ".local-captures/supply-depot-direct-building/supply-depot-collect-one-20260718T205259350054Z/collect-one-result.json",
+    "hold_source": ".local-captures/supply-depot-direct-building/supply-depot-collect-free-hold-20260718T233948312187Z/frames/0001-hold-source.png",
+    "hold_immediate_before": ".local-captures/supply-depot-direct-building/supply-depot-collect-free-hold-20260718T233948312187Z/frames/0002-hold-immediate-before.png",
+    "hold_immediate_post": ".local-captures/supply-depot-direct-building/supply-depot-collect-free-hold-20260718T233948312187Z/frames/0003-hold-immediate-post.png",
+    "hold_settled": ".local-captures/supply-depot-direct-building/supply-depot-collect-free-hold-20260718T233948312187Z/frames/0004-hold-settled.png",
+    "hold_result": ".local-captures/supply-depot-direct-building/supply-depot-collect-free-hold-20260718T233948312187Z/collect-free-hold-result.json",
+    "hold_reconciliation": ".local-captures/supply-depot-direct-building/supply-depot-reconcile-free-hold-20260718T234250460579Z/reconcile-free-hold-result.json",
+    "full_grid_scan": ".local-captures/home-base-atlas-discovery/full-grid/home-atlas-four-corner-grid-20260718T220754613718Z/grid-result.json",
+    "completed_atlas_build": ".local-captures/home-base-atlas-discovery/atlas-build-v4/atlas.json",
+    "bottom_left_localization": ".local-captures/home-base-atlas-discovery/full-grid-validation/home-atlas-localize-20260718T222440309767Z/",
+    "full_coverage_supply_depot_successor": ".local-captures/home-base-atlas-discovery/full-grid-validation/supply-depot-radial-20260718T223609701325Z/",
+    "final_canonical_home": ".local-captures/supply-depot-hold-validation/home-atlas-return-canonical-20260718T234604460238Z/",
+    "operational_journal": ".local-captures/supply-depot-direct-building/supply-depot-collect-one-20260718T205259350054Z/events.jsonl; local BlueStacks diagnostic trace only",
     "historical_source_journal": "evidence/sessions/20260714-bioenhancer-live-transaction/actions-bioenhancer-free-1784069057.sqlite3",
     "unresolved_evidence": "evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json",
     "must_retain_artifacts": [
@@ -157,7 +201,7 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "This explicitly authorized local BlueStacks validation retains ignored diagnostic frames/events but creates no canonical Bliss production evidence manifest.",
+    "evidence_requirement_reason": "The explicitly authorized local BlueStacks validation retains concise local native frames/events and the checked-in atlas; it creates no Bliss production evidence manifest.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "collector": {
@@ -174,15 +218,15 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Define and capture the exact requested Nova objective as a separate atomic workflow; send no Bliss or production input."
+      "In a separately authorized task, independently acquire a Bliss-native atlas or implement a future semantic building consumer; send no input from this completed task."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl, Docker, emulator, or gameplay operation.",
-      "Any MVP, Claim, Bioenhancer, Praise, Supply Depot, recruitment, or unrelated Daily action.",
+      "Any repeat Supply Depot collection, Daily Claim, Bank, upgrade, research, training, production, recruitment, premium, purchase, or unrelated action.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Bliss, Unraid, ADB, or gameplay operation from this completed offline implementation task."
     ],
-    "exact_stop_condition": "Stop before any Bliss/Unraid/production operation; Nova requires an exact objective and a separate authorized task contract.",
+    "exact_stop_condition": "Stop with final fresh canonical Home recognized and no action in flight; any Bliss/Unraid/production or future building workflow requires a separate authorized task.",
     "expected_next_atomic_task": "M6-DQ-TRANSITION-CORPUS",
     "expected_next_activation_status": "not_applicable"
   }
@@ -195,41 +239,40 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: main
-- HEAD: 1b44629 passive F9 finalization acknowledgement
-- Relationship to origin/main: ahead 10; origin unchanged and no push
-- Staged paths: none before focused staging; protected evidence remains outside staging
-- Relevant unstaged paths: pre-existing MVP implementation/evidence changes plus this repair's reviewed governance hunks
+- HEAD: `257ec02d232d5d68ca998b9cacac1fd2c664a8b9` (unchanged during this task)
+- Relationship to origin/main: matches; no push
+- Staged paths: none
+- Relevant unstaged paths: the atlas/localizer/navigator/Supply Depot files listed in the structured state; unrelated work remains preserved
 - Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
 - Most recent task-scoped commits: 58d8898, e76964b, 9883a15, 501f9fb
 
 ## Current task
-- Task ID: DQ-FLOW-CAMPAIGN-AUTO-BATTLE
-- Current task state: completed; dormant contract amended from supervised BlueStacks validation
+- Task ID: TOOLS-HOME-BASE-ATLAS-BLUESTACKS
+- Current task state: completed; local BlueStacks atlas/navigation/Supply Depot validation closed
 - Next task ID: M6-DQ-TRANSITION-CORPUS
 - Next task activation status: not_applicable
-- Phase: supervised_blustacks_campaign_validation_completed
-- Objective: validate tier/chapter/stage selection, bounded AP repetition, terminal polling, insufficient AP, and return-home behavior in local BlueStacks
-- Last safe completed step: six 16-AP runs succeeded at 1-20-9; natural AP regeneration was reconciled, insufficient AP was observed at 6/120, Home/Base was restored, and 17 focused tests passed
-- Exact next permitted step: capture defeat and safe-return behavior separately; no Bliss or production input
-- Local BlueStacks gameplay was explicitly user-authorized. Bliss, Unraid, ADB, registration, scheduler, journals, leases, premium/refill actions, Claim, and production evidence were not operated or changed
+- Phase: local_bluestacks_home_atlas_supply_depot_completed
+- Objective: reusable platform-neutral Home semantic world/coverage/localizer/navigator with an independently calibrated BlueStacks atlas and direct Supply Depot consumer
+- Last safe completed step: 30-view, four-clamp, five-row atlas covers the full reachable base; final native Home is `fully_zoomed_out` at canonical viewport-001 with confidence `0.99007`, residual `0.11912 px`, and `3.99 px` center error. The prior one authorized food Free collection remains terminally confirmed by attempts `9→8`; no action is in flight
+- Exact next permitted step: none in this task. A future Bliss-native atlas or future building workflow requires a separate explicit authorization
+- Local BlueStacks navigation and one zero-cost Supply Depot collection were explicitly authorized. Bliss, Unraid, production registration, scheduler, premium/purchase, Daily Claim, Bank, upgrade, research, training, and unrelated workflows were not operated or changed
 - M6-DQ-TRANSITION-CORPUS remains the successor declared by the existing MVP task
 
 
 ## Runtime
-- VM state: `running` (pnsctl preflight)
-- Worker state: `pns-mvp-help-all-20260713 Up 26 hours` (pnsctl worker-status)
-- Active operator, collector, automation, test, or emulator processes: one existing task worker observed; no competing operator evidenced by supported preflight
-- ADB exposure and connection state: private device connected; listener remained loopback-only
-- Expected fixed profile: `pns-blissos-poc-virgl-800x1280-v1`, `800x1280`, `160 dpi`
-- Observed current profile: `pns-blissos-poc-virgl-800x1280-v1`, `800x1280`, `160 dpi`
-- Foreground package/activity: Daily Quest screen with selected Daily tab and Bioenhancer Research row
-- Manual-only screen state: not entered
+- VM state: Bliss/Unraid not operated; local BlueStacks only
+- Worker state: no worker started or modified
+- Active operator: this chat was the sole local BlueStacks runtime operator
+- ADB exposure and connection state: project-owned local BlueStacks endpoint `emulator-5554`; no Bliss or public endpoint
+- Expected/observed local profile: `pns-bluestacks-5-p64-800x1280-v1`, native `800x1280`
+- Foreground package/activity: final fresh Home/Base, `fully_zoomed_out`, canonical viewport-001 interior localization
+- Manual-only screen state: none entered or automated
 
 ## Journals and lease
 - Authoritative task journal path: `evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3`; retained journals remain immutable evidence
 - Lease owner, status, and expiry: `pnsctl-1784092554`; terminal `confirmed`, expired by policy at `1784093157.674505`
 - Active prepared/input_sent/unresolved action IDs: none
-- Latest confirmed consequential action: `daily-claim-1784092554`
+- Latest confirmed consequential action: `supply-depot-free:bluestacks:no-reset:attempts-9:food`; no additional collection occurred during full-coverage validation
 - Relevant navigation-only records: exact paths in structured state above
 - Historical/source journal references: exact paths in structured state above
 - Explicit unresolved classification: historical `alliance-help-1783981635` was not reused. The current Claim briefly became unresolved on `unexpected_successor` and was manually reconciled to `confirmed` from positive postcondition evidence.

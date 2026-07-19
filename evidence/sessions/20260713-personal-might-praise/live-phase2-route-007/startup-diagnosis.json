@@ -1,0 +1,80 @@
+{
+  "foreground_assumed_game": true,
+  "ocr_lines": [
+    {
+      "bounds": [
+        71,
+        1,
+        148,
+        21
+      ],
+      "text": "a \u00bb"
+    },
+    {
+      "bounds": [
+        136,
+        16,
+        492,
+        42
+      ],
+      "text": "y, spee el"
+    },
+    {
+      "bounds": [
+        120,
+        107,
+        328,
+        157
+      ],
+      "text": "\\\\ ( icarly101"
+    },
+    {
+      "bounds": [
+        82,
+        122,
+        733,
+        206
+      ],
+      "text": "& daily alliance coin 1,000/50,000"
+    },
+    {
+      "bounds": [
+        63,
+        176,
+        734,
+        217
+      ],
+      "text": "| < daily reset time: 19:00:00"
+    },
+    {
+      "bounds": [
+        209,
+        561,
+        589,
+        589
+      ],
+      "text": "no help request currently..."
+    }
+  ],
+  "popup": {
+    "body_identity": false,
+    "body_text": "no help request currently...",
+    "close_region": [
+      260,
+      750,
+      540,
+      870
+    ],
+    "geometry_valid": false,
+    "literal_close": false,
+    "matched_close_text": "",
+    "panel_present": true,
+    "popup_identity": null,
+    "recognized": false,
+    "target": null,
+    "target_center": null,
+    "target_identity": null,
+    "title_identity": false,
+    "title_text": "ee"
+  }
+}

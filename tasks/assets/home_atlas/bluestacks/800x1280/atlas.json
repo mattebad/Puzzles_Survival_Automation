@@ -1,0 +1,4223 @@
+{
+  "account_layout_provenance": "local BlueStacks account level 46 layout, observed 2026-07-18",
+  "atlas_id": "pns-home-base-bluestacks-local-v2",
+  "atlas_version": "20260718T222243527513Z",
+  "boundary_evidence": {
+    "camera_origin_bounds": {
+      "maximum_x": 646.7874603271484,
+      "maximum_y": 1488.0060733217433,
+      "minimum_x": 0.8631292104466013,
+      "minimum_y": 0.07818603515625
+    },
+    "clamp_keys": [
+      "corner:right:row-0",
+      "corner:up:row-0",
+      "row-descent:down:row-5",
+      "row-sweep:left:row-0",
+      "row-sweep:left:row-2",
+      "row-sweep:left:row-4",
+      "row-sweep:right:row-1",
+      "row-sweep:right:row-3"
+    ],
+    "corners": {
+      "bottom_left": {
+        "edge": "left",
+        "frame": ".local-captures\\home-base-atlas-discovery\\full-grid\\home-atlas-four-corner-grid-20260718T220754613718Z\\frames\\0086-grid-29-row-sweep-left-immediate-before.png",
+        "row": 4
+      },
+      "bottom_right": {
+        "edge": "right",
+        "proof": "start of the completed bottom-row sweep",
+        "row": 4
+      },
+      "top_left": {
+        "corner": "top_left",
+        "edge": "left",
+        "frame": ".local-captures\\home-base-atlas-discovery\\full-grid\\home-atlas-four-corner-grid-20260718T220754613718Z\\frames\\0026-grid-09-row-sweep-left-immediate-before.png",
+        "row": 0
+      },
+      "top_right": {
+        "corner": "top_right",
+        "edge": "right",
+        "frame": ".local-captures\\home-base-atlas-discovery\\full-grid\\home-atlas-four-corner-grid-20260718T220754613718Z\\frames\\0014-grid-05-corner-right-immediate-before.png",
+        "row": 0
+      }
+    },
+    "method": "measured four-edge click-drag clamps plus overlapping boustrophedon rows",
+    "navigation_inputs": 30,
+    "rows": 5,
+    "scan_session": ".local-captures\\home-base-atlas-discovery\\full-grid\\home-atlas-four-corner-grid-20260718T220754613718Z"
+  },
+  "buildings": [
+    {
+      "confidence": 0.99,
+      "display_identity": "Supply Depot",
+      "expected_visual_variants": [
+        "level-23 helicopter pad with cargo crates"
+      ],
+      "polygon": [
+        [
+          1166.7,
+          908.6
+        ],
+        [
+          1326.7,
+          908.6
+        ],
+        [
+          1326.7,
+          1043.6
+        ],
+        [
+          1166.7,
+          1043.6
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Supply Depot",
+          "visual_signature": "orange-blue helicopter, circular pad, cargo crates"
+        }
+      },
+      "semantic_id": "home.building.supply_depot",
+      "semantic_proof": [
+        "visible Supply Depot label",
+        "helicopter-pad geometry",
+        "Cultivation Center immediately below-left"
+      ],
+      "supporting_source_frames": [
+        "viewport-012"
+      ],
+      "visibility_constraints": [
+        "right event HUD may occlude the building; bind a current safe interior only"
+      ]
+    },
+    {
+      "confidence": 0.99,
+      "display_identity": "Headquarters",
+      "expected_visual_variants": [
+        "level-24 headquarters"
+      ],
+      "polygon": [
+        [
+          461,
+          543
+        ],
+        [
+          736,
+          543
+        ],
+        [
+          736,
+          783
+        ],
+        [
+          461,
+          783
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Headquarters"
+        }
+      },
+      "semantic_id": "home.building.headquarters",
+      "semantic_proof": [
+        "visible Headquarters label"
+      ],
+      "supporting_source_frames": [
+        "viewport-001",
+        "viewport-002",
+        "viewport-013",
+        "viewport-014"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.99,
+      "display_identity": "Bank",
+      "expected_visual_variants": [
+        "level-23 bank"
+      ],
+      "polygon": [
+        [
+          371,
+          1130
+        ],
+        [
+          516,
+          1130
+        ],
+        [
+          516,
+          1270
+        ],
+        [
+          371,
+          1270
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Bank"
+        }
+      },
+      "semantic_id": "home.building.bank",
+      "semantic_proof": [
+        "visible Bank label and blue-diamond marker"
+      ],
+      "supporting_source_frames": [
+        "viewport-003",
+        "viewport-004",
+        "viewport-006",
+        "viewport-016"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Research Center",
+      "expected_visual_variants": [
+        "level-23 radar-dome facility"
+      ],
+      "polygon": [
+        [
+          820,
+          779
+        ],
+        [
+          990,
+          779
+        ],
+        [
+          990,
+          969
+        ],
+        [
+          820,
+          969
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Research Center"
+        }
+      },
+      "semantic_id": "home.building.research_center",
+      "semantic_proof": [
+        "visible Research Center label and radar-dome geometry"
+      ],
+      "supporting_source_frames": [
+        "viewport-008",
+        "viewport-009",
+        "viewport-010",
+        "viewport-011"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Fighter Camp",
+      "expected_visual_variants": [
+        "level-23 fighter camp"
+      ],
+      "polygon": [
+        [
+          321,
+          893
+        ],
+        [
+          521,
+          893
+        ],
+        [
+          521,
+          1033
+        ],
+        [
+          321,
+          1033
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Fighter Camp"
+        }
+      },
+      "semantic_id": "home.building.fighter_camp",
+      "semantic_proof": [
+        "visible Fighter Camp label"
+      ],
+      "supporting_source_frames": [
+        "viewport-001",
+        "viewport-002",
+        "viewport-003",
+        "viewport-013"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Shooter Camp",
+      "expected_visual_variants": [
+        "level-22 shooter camp"
+      ],
+      "polygon": [
+        [
+          501,
+          813
+        ],
+        [
+          686,
+          813
+        ],
+        [
+          686,
+          963
+        ],
+        [
+          501,
+          963
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Shooter Camp"
+        }
+      },
+      "semantic_id": "home.building.shooter_camp",
+      "semantic_proof": [
+        "visible Shooter Camp label"
+      ],
+      "supporting_source_frames": [
+        "viewport-001",
+        "viewport-002",
+        "viewport-003",
+        "viewport-011"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Rider Camp",
+      "expected_visual_variants": [
+        "level-23 rider camp"
+      ],
+      "polygon": [
+        [
+          691,
+          873
+        ],
+        [
+          871,
+          873
+        ],
+        [
+          871,
+          1013
+        ],
+        [
+          691,
+          1013
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Rider Camp"
+        }
+      },
+      "semantic_id": "home.building.rider_camp",
+      "semantic_proof": [
+        "visible Rider Camp label"
+      ],
+      "supporting_source_frames": [
+        "viewport-001",
+        "viewport-002",
+        "viewport-008",
+        "viewport-010"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.99,
+      "display_identity": "Vehicle Depot",
+      "expected_visual_variants": [
+        "level-22 vehicle depot"
+      ],
+      "polygon": [
+        [
+          491,
+          993
+        ],
+        [
+          711,
+          993
+        ],
+        [
+          711,
+          1143
+        ],
+        [
+          491,
+          1143
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Vehicle Depot"
+        }
+      },
+      "semantic_id": "home.building.vehicle_depot",
+      "semantic_proof": [
+        "visible Vehicle Depot label"
+      ],
+      "supporting_source_frames": [
+        "viewport-001",
+        "viewport-003",
+        "viewport-004",
+        "viewport-016"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Gear Factory",
+      "expected_visual_variants": [
+        "level-24 gear factory"
+      ],
+      "polygon": [
+        [
+          671,
+          1060
+        ],
+        [
+          821,
+          1060
+        ],
+        [
+          821,
+          1240
+        ],
+        [
+          671,
+          1240
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Gear Factory"
+        }
+      },
+      "semantic_id": "home.building.gear_factory",
+      "semantic_proof": [
+        "visible Gear Factory label"
+      ],
+      "supporting_source_frames": [
+        "viewport-007",
+        "viewport-008",
+        "viewport-010",
+        "viewport-017"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Alliance Hall",
+      "expected_visual_variants": [
+        "level-23 alliance hall"
+      ],
+      "polygon": [
+        [
+          141,
+          1010
+        ],
+        [
+          321,
+          1010
+        ],
+        [
+          321,
+          1180
+        ],
+        [
+          141,
+          1180
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Alliance Hall"
+        }
+      },
+      "semantic_id": "home.building.alliance_hall",
+      "semantic_proof": [
+        "visible Alliance Hall label"
+      ],
+      "supporting_source_frames": [
+        "viewport-001",
+        "viewport-006",
+        "viewport-016",
+        "viewport-022"
+      ],
+      "visibility_constraints": [
+        "left Home HUD may occlude at other camera positions"
+      ]
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Virology Lab",
+      "expected_visual_variants": [
+        "level-23 green satellite facility"
+      ],
+      "polygon": [
+        [
+          171,
+          1420
+        ],
+        [
+          341,
+          1420
+        ],
+        [
+          341,
+          1580
+        ],
+        [
+          171,
+          1580
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Virology Lab"
+        }
+      },
+      "semantic_id": "home.building.virology_lab",
+      "semantic_proof": [
+        "visible Virology Lab label"
+      ],
+      "supporting_source_frames": [
+        "viewport-003",
+        "viewport-006",
+        "viewport-022",
+        "viewport-023"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Containment Center",
+      "expected_visual_variants": [
+        "cyan cylindrical containment facility"
+      ],
+      "polygon": [
+        [
+          1167,
+          1159
+        ],
+        [
+          1347,
+          1159
+        ],
+        [
+          1347,
+          1369
+        ],
+        [
+          1167,
+          1369
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Containment Center"
+        }
+      },
+      "semantic_id": "home.building.containment_center",
+      "semantic_proof": [
+        "visible Containment Center label"
+      ],
+      "supporting_source_frames": [
+        "viewport-009",
+        "viewport-018",
+        "viewport-019"
+      ],
+      "visibility_constraints": [
+        "right Home HUD may occlude at other camera positions"
+      ]
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Watch Tower",
+      "expected_visual_variants": [
+        "level-23 watch tower"
+      ],
+      "polygon": [
+        [
+          520,
+          340
+        ],
+        [
+          680,
+          340
+        ],
+        [
+          680,
+          505
+        ],
+        [
+          520,
+          505
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Watch Tower"
+        }
+      },
+      "semantic_id": "home.building.watch_tower",
+      "semantic_proof": [
+        "visible Watch Tower label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-001",
+        "viewport-002",
+        "viewport-013"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.97,
+      "display_identity": "Pit",
+      "expected_visual_variants": [
+        "purple-lit pit"
+      ],
+      "polygon": [
+        [
+          850,
+          350
+        ],
+        [
+          980,
+          350
+        ],
+        [
+          980,
+          490
+        ],
+        [
+          850,
+          490
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Pit"
+        }
+      },
+      "semantic_id": "home.building.pit",
+      "semantic_proof": [
+        "visible Pit label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-011",
+        "viewport-012"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.97,
+      "display_identity": "Campaign",
+      "expected_visual_variants": [
+        "aircraft campaign facility"
+      ],
+      "polygon": [
+        [
+          1030,
+          340
+        ],
+        [
+          1225,
+          340
+        ],
+        [
+          1225,
+          600
+        ],
+        [
+          1030,
+          600
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Campaign"
+        }
+      },
+      "semantic_id": "home.building.campaign",
+      "semantic_proof": [
+        "visible Campaign label and aircraft geometry in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-012"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Ruins",
+      "expected_visual_variants": [
+        "multi-storey ruins facility"
+      ],
+      "polygon": [
+        [
+          285,
+          475
+        ],
+        [
+          485,
+          475
+        ],
+        [
+          485,
+          635
+        ],
+        [
+          285,
+          635
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Ruins"
+        }
+      },
+      "semantic_id": "home.building.ruins",
+      "semantic_proof": [
+        "visible Ruins label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-001",
+        "viewport-002",
+        "viewport-014",
+        "viewport-015"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Research Lab",
+      "expected_visual_variants": [
+        "blue-globe research lab"
+      ],
+      "polygon": [
+        [
+          735,
+          390
+        ],
+        [
+          935,
+          390
+        ],
+        [
+          935,
+          650
+        ],
+        [
+          735,
+          650
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Research Lab"
+        }
+      },
+      "semantic_id": "home.building.research_lab",
+      "semantic_proof": [
+        "visible Research Lab label and blue globe geometry in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-011",
+        "viewport-012",
+        "viewport-013"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Arena",
+      "expected_visual_variants": [
+        "circular arena"
+      ],
+      "polygon": [
+        [
+          960,
+          625
+        ],
+        [
+          1100,
+          625
+        ],
+        [
+          1100,
+          770
+        ],
+        [
+          960,
+          770
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Arena"
+        }
+      },
+      "semantic_id": "home.building.arena",
+      "semantic_proof": [
+        "visible Arena label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-008",
+        "viewport-009",
+        "viewport-010",
+        "viewport-011"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Warehouse",
+      "expected_visual_variants": [
+        "level-23 warehouse"
+      ],
+      "polygon": [
+        [
+          745,
+          715
+        ],
+        [
+          935,
+          715
+        ],
+        [
+          935,
+          865
+        ],
+        [
+          745,
+          865
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Warehouse"
+        }
+      },
+      "semantic_id": "home.building.warehouse",
+      "semantic_proof": [
+        "visible Warehouse label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-001",
+        "viewport-002",
+        "viewport-008",
+        "viewport-009"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Trap Factory",
+      "expected_visual_variants": [
+        "level-22 trap factory"
+      ],
+      "polygon": [
+        [
+          1100,
+          725
+        ],
+        [
+          1285,
+          725
+        ],
+        [
+          1285,
+          875
+        ],
+        [
+          1100,
+          875
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Trap Factory"
+        }
+      },
+      "semantic_id": "home.building.trap_factory",
+      "semantic_proof": [
+        "visible Trap Factory label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-009",
+        "viewport-012",
+        "viewport-019"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.94,
+      "display_identity": "Wasteland Conquest",
+      "expected_visual_variants": [
+        "boundary event facility"
+      ],
+      "polygon": [
+        [
+          1190,
+          590
+        ],
+        [
+          1440,
+          590
+        ],
+        [
+          1440,
+          735
+        ],
+        [
+          1190,
+          735
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Wasteland Conquest"
+        }
+      },
+      "semantic_id": "home.building.wasteland_conquest",
+      "semantic_proof": [
+        "visible Wasteland Conquest label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-012"
+      ],
+      "visibility_constraints": [
+        "right map boundary can clip part of the facility"
+      ]
+    },
+    {
+      "confidence": 0.86,
+      "display_identity": "Forum",
+      "expected_visual_variants": [
+        "left-boundary forum"
+      ],
+      "polygon": [
+        [
+          0,
+          635
+        ],
+        [
+          155,
+          635
+        ],
+        [
+          155,
+          795
+        ],
+        [
+          0,
+          795
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Forum"
+        }
+      },
+      "semantic_id": "home.building.forum",
+      "semantic_proof": [
+        "visible Forum label at the clamped left boundary"
+      ],
+      "supporting_source_frames": [],
+      "visibility_constraints": [
+        "partially occluded by fixed left HUD at the map boundary; not safely actionable from current atlas",
+        "no accepted HUD-free viewport contains the polygon center; identity is label-supported but not actionable"
+      ]
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Noah's Tavern",
+      "expected_visual_variants": [
+        "neon tavern"
+      ],
+      "polygon": [
+        [
+          270,
+          650
+        ],
+        [
+          440,
+          650
+        ],
+        [
+          440,
+          865
+        ],
+        [
+          270,
+          865
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Noah's Tavern"
+        }
+      },
+      "semantic_id": "home.building.noahs_tavern",
+      "semantic_proof": [
+        "visible Noah's Tavern label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-001",
+        "viewport-002",
+        "viewport-014",
+        "viewport-015"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.97,
+      "display_identity": "Radio",
+      "expected_visual_variants": [
+        "satellite radio facility"
+      ],
+      "polygon": [
+        [
+          35,
+          720
+        ],
+        [
+          235,
+          720
+        ],
+        [
+          235,
+          940
+        ],
+        [
+          35,
+          940
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Radio"
+        }
+      },
+      "semantic_id": "home.building.radio",
+      "semantic_proof": [
+        "visible Radio label and dish geometry in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-014",
+        "viewport-015"
+      ],
+      "visibility_constraints": [
+        "left map boundary may partially clip the facility"
+      ]
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Trading Post",
+      "expected_visual_variants": [
+        "level-23 trading post"
+      ],
+      "polygon": [
+        [
+          875,
+          945
+        ],
+        [
+          1045,
+          945
+        ],
+        [
+          1045,
+          1120
+        ],
+        [
+          875,
+          1120
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Trading Post"
+        }
+      },
+      "semantic_id": "home.building.trading_post",
+      "semantic_proof": [
+        "visible Trading Post label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-007",
+        "viewport-008",
+        "viewport-009",
+        "viewport-010"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Cultivation Center",
+      "expected_visual_variants": [
+        "greenhouse cultivation center"
+      ],
+      "polygon": [
+        [
+          1050,
+          1000
+        ],
+        [
+          1240,
+          1000
+        ],
+        [
+          1240,
+          1200
+        ],
+        [
+          1050,
+          1200
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Cultivation Center"
+        }
+      },
+      "semantic_id": "home.building.cultivation_center",
+      "semantic_proof": [
+        "visible Cultivation Center label and greenhouse geometry in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-009",
+        "viewport-010",
+        "viewport-018",
+        "viewport-019"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Hall of War",
+      "expected_visual_variants": [
+        "level-23 hall of war"
+      ],
+      "polygon": [
+        [
+          890,
+          1120
+        ],
+        [
+          1070,
+          1120
+        ],
+        [
+          1070,
+          1320
+        ],
+        [
+          890,
+          1320
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Hall of War"
+        }
+      },
+      "semantic_id": "home.building.hall_of_war",
+      "semantic_proof": [
+        "visible Hall of War label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-007",
+        "viewport-008",
+        "viewport-009",
+        "viewport-010"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "Mystery Shop",
+      "expected_visual_variants": [
+        "roadside mystery shop"
+      ],
+      "polygon": [
+        [
+          560,
+          1140
+        ],
+        [
+          745,
+          1140
+        ],
+        [
+          745,
+          1340
+        ],
+        [
+          560,
+          1340
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Mystery Shop"
+        }
+      },
+      "semantic_id": "home.building.mystery_shop",
+      "semantic_proof": [
+        "visible Mystery Shop label in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-003",
+        "viewport-004",
+        "viewport-008",
+        "viewport-009"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.98,
+      "display_identity": "SWP Lab",
+      "expected_visual_variants": [
+        "blue satellite-sphere lab"
+      ],
+      "polygon": [
+        [
+          130,
+          1170
+        ],
+        [
+          330,
+          1170
+        ],
+        [
+          330,
+          1410
+        ],
+        [
+          130,
+          1410
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "SWP Lab"
+        }
+      },
+      "semantic_id": "home.building.swp_lab",
+      "semantic_proof": [
+        "visible SWP Lab label and blue satellite spheres in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-006",
+        "viewport-016",
+        "viewport-022",
+        "viewport-023"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.99,
+      "display_identity": "Wall",
+      "expected_visual_variants": [
+        "fortified gate and wall"
+      ],
+      "polygon": [
+        [
+          560,
+          1260
+        ],
+        [
+          1160,
+          1260
+        ],
+        [
+          1160,
+          1515
+        ],
+        [
+          560,
+          1515
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Wall"
+        }
+      },
+      "semantic_id": "home.landmark.wall",
+      "semantic_proof": [
+        "visible Wall label and persistent gate geometry in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-007",
+        "viewport-008",
+        "viewport-009",
+        "viewport-010"
+      ],
+      "visibility_constraints": [
+        "landmark polygon spans the gate complex; bind a current semantic subregion before any tap"
+      ]
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Farm 01",
+      "expected_visual_variants": [
+        "level-24 farm"
+      ],
+      "polygon": [
+        [
+          195,
+          1490
+        ],
+        [
+          325,
+          1490
+        ],
+        [
+          325,
+          1605
+        ],
+        [
+          195,
+          1605
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Farm"
+        }
+      },
+      "semantic_id": "home.building.farm.01",
+      "semantic_proof": [
+        "visible Farm label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-003",
+        "viewport-006",
+        "viewport-022",
+        "viewport-023"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Farm 02",
+      "expected_visual_variants": [
+        "level-24 farm"
+      ],
+      "polygon": [
+        [
+          325,
+          1565
+        ],
+        [
+          460,
+          1565
+        ],
+        [
+          460,
+          1685
+        ],
+        [
+          325,
+          1685
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Farm"
+        }
+      },
+      "semantic_id": "home.building.farm.02",
+      "semantic_proof": [
+        "visible Farm label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-003",
+        "viewport-004",
+        "viewport-006",
+        "viewport-021"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Farm 03",
+      "expected_visual_variants": [
+        "level-23 farm"
+      ],
+      "polygon": [
+        [
+          705,
+          1585
+        ],
+        [
+          835,
+          1585
+        ],
+        [
+          835,
+          1710
+        ],
+        [
+          705,
+          1710
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Farm"
+        }
+      },
+      "semantic_id": "home.building.farm.03",
+      "semantic_proof": [
+        "visible Farm label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-003",
+        "viewport-004",
+        "viewport-007",
+        "viewport-020"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Farm 04",
+      "expected_visual_variants": [
+        "level-23 farm"
+      ],
+      "polygon": [
+        [
+          565,
+          1655
+        ],
+        [
+          695,
+          1655
+        ],
+        [
+          695,
+          1780
+        ],
+        [
+          565,
+          1780
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Farm"
+        }
+      },
+      "semantic_id": "home.building.farm.04",
+      "semantic_proof": [
+        "visible Farm label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-004",
+        "viewport-005",
+        "viewport-006",
+        "viewport-007"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.94,
+      "display_identity": "Farm 05",
+      "expected_visual_variants": [
+        "level-24 farm"
+      ],
+      "polygon": [
+        [
+          75,
+          1735
+        ],
+        [
+          210,
+          1735
+        ],
+        [
+          210,
+          1870
+        ],
+        [
+          75,
+          1870
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Farm"
+        }
+      },
+      "semantic_id": "home.building.farm.05",
+      "semantic_proof": [
+        "visible Farm label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-006",
+        "viewport-024",
+        "viewport-030"
+      ],
+      "visibility_constraints": [
+        "left map boundary may partially clip the facility"
+      ]
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Farm 06",
+      "expected_visual_variants": [
+        "level-23 farm"
+      ],
+      "polygon": [
+        [
+          760,
+          1900
+        ],
+        [
+          885,
+          1900
+        ],
+        [
+          885,
+          2025
+        ],
+        [
+          760,
+          2025
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Farm"
+        }
+      },
+      "semantic_id": "home.building.farm.06",
+      "semantic_proof": [
+        "visible Farm label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-025",
+        "viewport-026",
+        "viewport-027",
+        "viewport-028"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Farm 07",
+      "expected_visual_variants": [
+        "level-23 farm"
+      ],
+      "polygon": [
+        [
+          620,
+          1960
+        ],
+        [
+          750,
+          1960
+        ],
+        [
+          750,
+          2090
+        ],
+        [
+          620,
+          2090
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Farm"
+        }
+      },
+      "semantic_id": "home.building.farm.07",
+      "semantic_proof": [
+        "visible Farm label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-005",
+        "viewport-025",
+        "viewport-026",
+        "viewport-028"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Lumber Mill 01",
+      "expected_visual_variants": [
+        "level-23 lumber mill"
+      ],
+      "polygon": [
+        [
+          475,
+          1490
+        ],
+        [
+          615,
+          1490
+        ],
+        [
+          615,
+          1620
+        ],
+        [
+          475,
+          1620
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Lumber Mill"
+        }
+      },
+      "semantic_id": "home.building.lumber_mill.01",
+      "semantic_proof": [
+        "visible Lumber Mill label and distinct mill instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-003",
+        "viewport-004",
+        "viewport-006",
+        "viewport-021"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Lumber Mill 02",
+      "expected_visual_variants": [
+        "level-24 lumber mill"
+      ],
+      "polygon": [
+        [
+          230,
+          1750
+        ],
+        [
+          365,
+          1750
+        ],
+        [
+          365,
+          1885
+        ],
+        [
+          230,
+          1885
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Lumber Mill"
+        }
+      },
+      "semantic_id": "home.building.lumber_mill.02",
+      "semantic_proof": [
+        "visible Lumber Mill label and distinct mill instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-004",
+        "viewport-006",
+        "viewport-024",
+        "viewport-029"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.94,
+      "display_identity": "Lumber Mill 03",
+      "expected_visual_variants": [
+        "level-24 lumber mill"
+      ],
+      "polygon": [
+        [
+          85,
+          1825
+        ],
+        [
+          225,
+          1825
+        ],
+        [
+          225,
+          1960
+        ],
+        [
+          85,
+          1960
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Lumber Mill"
+        }
+      },
+      "semantic_id": "home.building.lumber_mill.03",
+      "semantic_proof": [
+        "visible Lumber Mill label and distinct mill instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-024",
+        "viewport-030"
+      ],
+      "visibility_constraints": [
+        "left map boundary may partially clip the facility"
+      ]
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Lumber Mill 04",
+      "expected_visual_variants": [
+        "level-23 lumber mill"
+      ],
+      "polygon": [
+        [
+          280,
+          1890
+        ],
+        [
+          415,
+          1890
+        ],
+        [
+          415,
+          2030
+        ],
+        [
+          280,
+          2030
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Lumber Mill"
+        }
+      },
+      "semantic_id": "home.building.lumber_mill.04",
+      "semantic_proof": [
+        "visible Lumber Mill label and distinct mill instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-005",
+        "viewport-024",
+        "viewport-025",
+        "viewport-029"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Lumber Mill 05",
+      "expected_visual_variants": [
+        "level-24 lumber mill"
+      ],
+      "polygon": [
+        [
+          150,
+          1970
+        ],
+        [
+          285,
+          1970
+        ],
+        [
+          285,
+          2110
+        ],
+        [
+          150,
+          2110
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Lumber Mill"
+        }
+      },
+      "semantic_id": "home.building.lumber_mill.05",
+      "semantic_proof": [
+        "visible Lumber Mill label and distinct mill instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-024",
+        "viewport-029",
+        "viewport-030"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Lumber Mill 06",
+      "expected_visual_variants": [
+        "level-23 lumber mill"
+      ],
+      "polygon": [
+        [
+          920,
+          1780
+        ],
+        [
+          1060,
+          1780
+        ],
+        [
+          1060,
+          1930
+        ],
+        [
+          920,
+          1930
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Lumber Mill"
+        }
+      },
+      "semantic_id": "home.building.lumber_mill.06",
+      "semantic_proof": [
+        "visible Lumber Mill label and distinct mill instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-007",
+        "viewport-025",
+        "viewport-026",
+        "viewport-027"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Bootcamp 01",
+      "expected_visual_variants": [
+        "level-23 bootcamp"
+      ],
+      "polygon": [
+        [
+          435,
+          1640
+        ],
+        [
+          565,
+          1640
+        ],
+        [
+          565,
+          1780
+        ],
+        [
+          435,
+          1780
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Bootcamp"
+        }
+      },
+      "semantic_id": "home.building.bootcamp.01",
+      "semantic_proof": [
+        "visible Bootcamp label and distinct camp instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-004",
+        "viewport-005",
+        "viewport-006",
+        "viewport-021"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Bootcamp 02",
+      "expected_visual_variants": [
+        "level-23 bootcamp"
+      ],
+      "polygon": [
+        [
+          685,
+          1660
+        ],
+        [
+          815,
+          1660
+        ],
+        [
+          815,
+          1810
+        ],
+        [
+          685,
+          1810
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Bootcamp"
+        }
+      },
+      "semantic_id": "home.building.bootcamp.02",
+      "semantic_proof": [
+        "visible Bootcamp label and distinct camp instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-004",
+        "viewport-007",
+        "viewport-020",
+        "viewport-021"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Bootcamp 03",
+      "expected_visual_variants": [
+        "level-23 bootcamp"
+      ],
+      "polygon": [
+        [
+          820,
+          1580
+        ],
+        [
+          960,
+          1580
+        ],
+        [
+          960,
+          1740
+        ],
+        [
+          820,
+          1740
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Bootcamp"
+        }
+      },
+      "semantic_id": "home.building.bootcamp.03",
+      "semantic_proof": [
+        "visible Bootcamp label and distinct camp instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-007",
+        "viewport-020",
+        "viewport-021",
+        "viewport-026"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Bootcamp 04",
+      "expected_visual_variants": [
+        "level-23 bootcamp"
+      ],
+      "polygon": [
+        [
+          565,
+          1750
+        ],
+        [
+          700,
+          1750
+        ],
+        [
+          700,
+          1890
+        ],
+        [
+          565,
+          1890
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Bootcamp"
+        }
+      },
+      "semantic_id": "home.building.bootcamp.04",
+      "semantic_proof": [
+        "visible Bootcamp label and distinct camp instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-004",
+        "viewport-005",
+        "viewport-006",
+        "viewport-007"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Steel Plant 01",
+      "expected_visual_variants": [
+        "level-23 steel plant"
+      ],
+      "polygon": [
+        [
+          395,
+          2030
+        ],
+        [
+          525,
+          2030
+        ],
+        [
+          525,
+          2180
+        ],
+        [
+          395,
+          2180
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Steel Plant"
+        }
+      },
+      "semantic_id": "home.building.steel_plant.01",
+      "semantic_proof": [
+        "visible Steel Plant label and distinct plant instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-005",
+        "viewport-024",
+        "viewport-025",
+        "viewport-029"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Steel Plant 02",
+      "expected_visual_variants": [
+        "level-23 steel plant"
+      ],
+      "polygon": [
+        [
+          240,
+          2100
+        ],
+        [
+          370,
+          2100
+        ],
+        [
+          370,
+          2250
+        ],
+        [
+          240,
+          2250
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Steel Plant"
+        }
+      },
+      "semantic_id": "home.building.steel_plant.02",
+      "semantic_proof": [
+        "visible Steel Plant label and distinct plant instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-029",
+        "viewport-030"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.94,
+      "display_identity": "Steel Plant 03",
+      "expected_visual_variants": [
+        "level-23 steel plant"
+      ],
+      "polygon": [
+        [
+          100,
+          2190
+        ],
+        [
+          235,
+          2190
+        ],
+        [
+          235,
+          2350
+        ],
+        [
+          100,
+          2350
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Steel Plant"
+        }
+      },
+      "semantic_id": "home.building.steel_plant.03",
+      "semantic_proof": [
+        "visible Steel Plant label and distinct plant instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-029",
+        "viewport-030"
+      ],
+      "visibility_constraints": [
+        "left map boundary may partially clip the facility"
+      ]
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Steel Plant 04",
+      "expected_visual_variants": [
+        "level-23 steel plant"
+      ],
+      "polygon": [
+        [
+          365,
+          2190
+        ],
+        [
+          500,
+          2190
+        ],
+        [
+          500,
+          2350
+        ],
+        [
+          365,
+          2350
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Steel Plant"
+        }
+      },
+      "semantic_id": "home.building.steel_plant.04",
+      "semantic_proof": [
+        "visible Steel Plant label and distinct plant instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-005",
+        "viewport-028",
+        "viewport-029",
+        "viewport-030"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Steel Plant 05",
+      "expected_visual_variants": [
+        "level-23 steel plant"
+      ],
+      "polygon": [
+        [
+          245,
+          2290
+        ],
+        [
+          380,
+          2290
+        ],
+        [
+          380,
+          2450
+        ],
+        [
+          245,
+          2450
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Steel Plant"
+        }
+      },
+      "semantic_id": "home.building.steel_plant.05",
+      "semantic_proof": [
+        "visible Steel Plant label and distinct plant instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-005",
+        "viewport-029",
+        "viewport-030"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Steel Plant 06",
+      "expected_visual_variants": [
+        "level-23 steel plant"
+      ],
+      "polygon": [
+        [
+          590,
+          2090
+        ],
+        [
+          725,
+          2090
+        ],
+        [
+          725,
+          2250
+        ],
+        [
+          590,
+          2250
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Steel Plant"
+        }
+      },
+      "semantic_id": "home.building.steel_plant.06",
+      "semantic_proof": [
+        "visible Steel Plant label and distinct plant instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-005",
+        "viewport-028",
+        "viewport-029",
+        "viewport-030"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Infirmary 01",
+      "expected_visual_variants": [
+        "level-23 infirmary"
+      ],
+      "polygon": [
+        [
+          915,
+          1930
+        ],
+        [
+          1055,
+          1930
+        ],
+        [
+          1055,
+          2080
+        ],
+        [
+          915,
+          2080
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Infirmary"
+        }
+      },
+      "semantic_id": "home.building.infirmary.01",
+      "semantic_proof": [
+        "visible Infirmary label and distinct hospital instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-025",
+        "viewport-026",
+        "viewport-027"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Infirmary 02",
+      "expected_visual_variants": [
+        "level-23 infirmary"
+      ],
+      "polygon": [
+        [
+          785,
+          2005
+        ],
+        [
+          925,
+          2005
+        ],
+        [
+          925,
+          2160
+        ],
+        [
+          785,
+          2160
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Infirmary"
+        }
+      },
+      "semantic_id": "home.building.infirmary.02",
+      "semantic_proof": [
+        "visible Infirmary label and distinct hospital instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-025",
+        "viewport-026",
+        "viewport-027",
+        "viewport-028"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Infirmary 03",
+      "expected_visual_variants": [
+        "level-23 infirmary"
+      ],
+      "polygon": [
+        [
+          515,
+          2290
+        ],
+        [
+          655,
+          2290
+        ],
+        [
+          655,
+          2450
+        ],
+        [
+          515,
+          2450
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Infirmary"
+        }
+      },
+      "semantic_id": "home.building.infirmary.03",
+      "semantic_proof": [
+        "visible Infirmary label and distinct hospital instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-005",
+        "viewport-028",
+        "viewport-029",
+        "viewport-030"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Gas Field 01",
+      "expected_visual_variants": [
+        "level-23 gas field"
+      ],
+      "polygon": [
+        [
+          1150,
+          1960
+        ],
+        [
+          1290,
+          1960
+        ],
+        [
+          1290,
+          2120
+        ],
+        [
+          1150,
+          2120
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Gas Field"
+        }
+      },
+      "semantic_id": "home.building.gas_field.01",
+      "semantic_proof": [
+        "visible Gas Field label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-026"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Gas Field 02",
+      "expected_visual_variants": [
+        "level-23 gas field"
+      ],
+      "polygon": [
+        [
+          1140,
+          2070
+        ],
+        [
+          1285,
+          2070
+        ],
+        [
+          1285,
+          2230
+        ],
+        [
+          1140,
+          2230
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Gas Field"
+        }
+      },
+      "semantic_id": "home.building.gas_field.02",
+      "semantic_proof": [
+        "visible Gas Field label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-026",
+        "viewport-027"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Gas Field 03",
+      "expected_visual_variants": [
+        "level-23 gas field"
+      ],
+      "polygon": [
+        [
+          1010,
+          2110
+        ],
+        [
+          1150,
+          2110
+        ],
+        [
+          1150,
+          2260
+        ],
+        [
+          1010,
+          2260
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Gas Field"
+        }
+      },
+      "semantic_id": "home.building.gas_field.03",
+      "semantic_proof": [
+        "visible Gas Field label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-027"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Gas Field 04",
+      "expected_visual_variants": [
+        "level-23 gas field"
+      ],
+      "polygon": [
+        [
+          1200,
+          2190
+        ],
+        [
+          1340,
+          2190
+        ],
+        [
+          1340,
+          2350
+        ],
+        [
+          1200,
+          2350
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Gas Field"
+        }
+      },
+      "semantic_id": "home.building.gas_field.04",
+      "semantic_proof": [
+        "visible Gas Field label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-027"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Gas Field 05",
+      "expected_visual_variants": [
+        "level-23 gas field"
+      ],
+      "polygon": [
+        [
+          760,
+          2125
+        ],
+        [
+          905,
+          2125
+        ],
+        [
+          905,
+          2280
+        ],
+        [
+          760,
+          2280
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Gas Field"
+        }
+      },
+      "semantic_id": "home.building.gas_field.05",
+      "semantic_proof": [
+        "visible Gas Field label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-005",
+        "viewport-027",
+        "viewport-028"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Gas Field 06",
+      "expected_visual_variants": [
+        "level-23 gas field"
+      ],
+      "polygon": [
+        [
+          690,
+          2240
+        ],
+        [
+          835,
+          2240
+        ],
+        [
+          835,
+          2400
+        ],
+        [
+          690,
+          2400
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Gas Field"
+        }
+      },
+      "semantic_id": "home.building.gas_field.06",
+      "semantic_proof": [
+        "visible Gas Field label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-005",
+        "viewport-027",
+        "viewport-028"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Gas Field 07",
+      "expected_visual_variants": [
+        "level-23 gas field"
+      ],
+      "polygon": [
+        [
+          865,
+          2230
+        ],
+        [
+          1010,
+          2230
+        ],
+        [
+          1010,
+          2390
+        ],
+        [
+          865,
+          2390
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Gas Field"
+        }
+      },
+      "semantic_id": "home.building.gas_field.07",
+      "semantic_proof": [
+        "visible Gas Field label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-027",
+        "viewport-028"
+      ],
+      "visibility_constraints": []
+    },
+    {
+      "confidence": 0.95,
+      "display_identity": "Gas Field 08",
+      "expected_visual_variants": [
+        "level-23 gas field"
+      ],
+      "polygon": [
+        [
+          1060,
+          2210
+        ],
+        [
+          1205,
+          2210
+        ],
+        [
+          1205,
+          2370
+        ],
+        [
+          1060,
+          2370
+        ]
+      ],
+      "recognition": {
+        "bluestacks": {
+          "label": "Gas Field"
+        }
+      },
+      "semantic_id": "home.building.gas_field.08",
+      "semantic_proof": [
+        "visible Gas Field label and distinct field instance in completed BlueStacks atlas"
+      ],
+      "supporting_source_frames": [
+        "viewport-027"
+      ],
+      "visibility_constraints": []
+    }
+  ],
+  "canonical_zoom_identity": "fully_zoomed_out",
+  "coordinate_units": "canonical BlueStacks atlas pixels",
+  "coverage_assessment": {
+    "outside_reachable_envelope": "unverified, rendered black, and never interpolated",
+    "status": "full_reachable_base_coverage",
+    "verified_interior_coverage_gaps": 0,
+    "verified_registration_coverage_gaps": 0
+  },
+  "coverage_gaps": [],
+  "coverage_polygons": [
+    [
+      [
+        139,
+        150
+      ],
+      [
+        139,
+        2498
+      ],
+      [
+        1297,
+        2497
+      ],
+      [
+        1297,
+        150
+      ]
+    ]
+  ],
+  "game_build_provenance": "Puzzle & Survival 4.2.189 observed in BlueStacks title",
+  "height": 2769,
+  "image_path": "atlas.png",
+  "origin": [
+    0,
+    0
+  ],
+  "production_registration": "NOT_REGISTERED",
+  "profile": {
+    "dpi": null,
+    "package": "com.global.ztmslg",
+    "platform": "BlueStacks 5 / Android",
+    "profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "renderer": "BlueStacks local renderer; calibration isolated from Bliss",
+    "viewport": [
+      800,
+      1280
+    ]
+  },
+  "registration_coverage_gaps": [],
+  "registration_coverage_polygons": [
+    [
+      [
+        139,
+        150
+      ],
+      [
+        139,
+        759
+      ],
+      [
+        1,
+        760
+      ],
+      [
+        1,
+        1019
+      ],
+      [
+        139,
+        1020
+      ],
+      [
+        138,
+        1135
+      ],
+      [
+        1,
+        1135
+      ],
+      [
+        1,
+        1394
+      ],
+      [
+        139,
+        1395
+      ],
+      [
+        138,
+        1518
+      ],
+      [
+        1,
+        1518
+      ],
+      [
+        1,
+        1879
+      ],
+      [
+        139,
+        1880
+      ],
+      [
+        1,
+        1894
+      ],
+      [
+        1,
+        2153
+      ],
+      [
+        138,
+        2153
+      ],
+      [
+        139,
+        2247
+      ],
+      [
+        1,
+        2248
+      ],
+      [
+        1,
+        2507
+      ],
+      [
+        1321,
+        2506
+      ],
+      [
+        1321,
+        640
+      ],
+      [
+        1206,
+        639
+      ],
+      [
+        1206,
+        150
+      ]
+    ]
+  ],
+  "rejected_viewports": [
+    {
+      "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\home-base-atlas-discovery\\full-grid\\home-atlas-four-corner-grid-20260718T220754613718Z\\frames\\0007-grid-02-corner-up-settled.png",
+      "reason": "duplicate_viewport",
+      "sha256": "2375f9da577c9b7695786a41fd1f18e0f854f1f66d334637b95c33221632ea1a"
+    },
+    {
+      "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\home-base-atlas-discovery\\full-grid\\home-atlas-four-corner-grid-20260718T220754613718Z\\frames\\0070-grid-23-row-sweep-right-settled.png",
+      "reason": "duplicate_viewport",
+      "sha256": "dc687ba82ffc503e95d19af2ee706fe5dfc7145aebce3a5f196b7ad0a24809c0"
+    }
+  ],
+  "scheduler_eligibility": false,
+  "schema_version": 2,
+  "viewports": [
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-001.png",
+      "loop_closure_residual_px": 0.0,
+      "overlap_confidence": 1.0,
+      "polygon": [
+        [
+          171.0,
+          113.0
+        ],
+        [
+          971.0,
+          113.0
+        ],
+        [
+          971.0,
+          1393.0
+        ],
+        [
+          171.0,
+          1393.0
+        ]
+      ],
+      "registration_model": "origin",
+      "rejection_reason": null,
+      "residual_px": 0.0,
+      "source_sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "timestamp": "2026-07-18T19:57:21.695807+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          171.0
+        ],
+        [
+          0.0,
+          1.0,
+          113.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-001"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-002.png",
+      "loop_closure_residual_px": 0.0,
+      "overlap_confidence": 0.9937798709919056,
+      "polygon": [
+        [
+          171.0010986328125,
+          0.09649658203125
+        ],
+        [
+          971.0010986328125,
+          0.09649658203125
+        ],
+        [
+          971.0010986328125,
+          1280.096435546875
+        ],
+        [
+          171.0010986328125,
+          1280.096435546875
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.07464154809713364,
+      "source_sha256": "7cedce1e48db28bee06031fccfe67201f4da440a3dac320b7fa45a7f7eceed23",
+      "timestamp": "2026-07-18T20:02:03.664388+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          171.0010986328125
+        ],
+        [
+          0.0,
+          1.0,
+          0.09649658203125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-002"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-003.png",
+      "loop_closure_residual_px": 0.13732850551605225,
+      "overlap_confidence": 0.9888758460680643,
+      "polygon": [
+        [
+          170.991455078125,
+          640.5982055664062
+        ],
+        [
+          970.991455078125,
+          640.5982055664062
+        ],
+        [
+          970.991455078125,
+          1920.59814453125
+        ],
+        [
+          170.991455078125,
+          1920.59814453125
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.13348984718322754,
+      "source_sha256": "0404765b67c30464b897ff9e8e779452af40c107f40c4a6a122ae6a4bd8b2569",
+      "timestamp": "2026-07-18T20:03:46.829476+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          170.991455078125
+        ],
+        [
+          0.0,
+          1.0,
+          640.5982055664062
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-003"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-004.png",
+      "loop_closure_residual_px": 0.01028075534850359,
+      "overlap_confidence": 0.9839551982780298,
+      "polygon": [
+        [
+          170.99302673339844,
+          860.2855834960938
+        ],
+        [
+          970.9930419921875,
+          860.2855834960938
+        ],
+        [
+          970.9930419921875,
+          2140.28564453125
+        ],
+        [
+          170.99302673339844,
+          2140.28564453125
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.19253762066364288,
+      "source_sha256": "9bdf3c291ae84120b1b308bd7a1fb3c32734ee01876684a22a96ddc18bc91333",
+      "timestamp": "2026-07-18T20:15:11.999718+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          170.99302673339844
+        ],
+        [
+          0.0,
+          1.0,
+          860.2855834960938
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-004"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-005.png",
+      "loop_closure_residual_px": 0.0,
+      "overlap_confidence": 0.4484886423034488,
+      "polygon": [
+        [
+          171.0685577392578,
+          1483.8990478515625
+        ],
+        [
+          971.0597534179688,
+          1484.0657958984375
+        ],
+        [
+          970.79296875,
+          2764.0517578125
+        ],
+        [
+          170.8017578125,
+          2763.885009765625
+        ]
+      ],
+      "registration_model": "similarity",
+      "rejection_reason": null,
+      "residual_px": 0.11505097895860672,
+      "source_sha256": "8d91bd556a74b3b6297a8c99ebff215a6c04ffa85a705ae5a020ad90bf629e28",
+      "timestamp": "2026-07-18T20:12:42.822755+00:00",
+      "transform_to_atlas": [
+        [
+          0.9999889791565764,
+          -0.0002084310728920005,
+          171.06855029497694
+        ],
+        [
+          0.0002084310728920005,
+          0.9999889791565764,
+          1483.8990804757022
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-005"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-006.png",
+      "loop_closure_residual_px": 0.041826099157333374,
+      "overlap_confidence": 0.9976600118291875,
+      "polygon": [
+        [
+          0.9816741943359375,
+          860.28564453125
+        ],
+        [
+          800.981689453125,
+          860.28564453125
+        ],
+        [
+          800.981689453125,
+          2140.28564453125
+        ],
+        [
+          0.9816741943359375,
+          2140.28564453125
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.028079858049750328,
+      "source_sha256": "b4ce289c6bfd2f3395f8bc2db02aa6284c533345fa835cb437faf764d203627d",
+      "timestamp": "2026-07-18T20:17:56.047582+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          0.9816741943359375
+        ],
+        [
+          0.0,
+          1.0,
+          860.28564453125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-006"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-007.png",
+      "loop_closure_residual_px": 0.0801110565662384,
+      "overlap_confidence": 0.9907333900531133,
+      "polygon": [
+        [
+          529.8980102539062,
+          860.27734375
+        ],
+        [
+          1329.89794921875,
+          860.27734375
+        ],
+        [
+          1329.89794921875,
+          2140.27734375
+        ],
+        [
+          529.8980102539062,
+          2140.27734375
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.11119931936264038,
+      "source_sha256": "c87dbf0b8a0f8635df4cc364220e3ffb8d874e7902c90744583071661fc6bd9f",
+      "timestamp": "2026-07-18T20:18:46.933594+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          529.8979949951172
+        ],
+        [
+          0.0,
+          1.0,
+          860.2773742675781
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-007"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-008.png",
+      "loop_closure_residual_px": 0.23112189769744873,
+      "overlap_confidence": 0.9913684489826361,
+      "polygon": [
+        [
+          529.8817749023438,
+          478.5545349121094
+        ],
+        [
+          1329.8818359375,
+          478.5545349121094
+        ],
+        [
+          1329.8818359375,
+          1758.5545654296875
+        ],
+        [
+          529.8817749023438,
+          1758.5545654296875
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.1035786122083664,
+      "source_sha256": "a54fa1d0b63e6c1b552bfc8caf7bd7186482ad8d9a2b543a7445f8b27f75bce8",
+      "timestamp": "2026-07-18T20:19:17.768186+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          529.8817749023438
+        ],
+        [
+          0.0,
+          1.0,
+          478.5545349121094
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-008"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-009.png",
+      "loop_closure_residual_px": 0.0518372468650341,
+      "overlap_confidence": 0.9919779505580664,
+      "polygon": [
+        [
+          646.731201171875,
+          478.55535888671875
+        ],
+        [
+          1446.731201171875,
+          478.55535888671875
+        ],
+        [
+          1446.731201171875,
+          1758.555419921875
+        ],
+        [
+          646.731201171875,
+          1758.555419921875
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.09626459330320358,
+      "source_sha256": "07446045a4ddb77981da9365bcad626cb128206ca137e5cb5ff592aeb028ddd6",
+      "timestamp": "2026-07-18T20:19:56.295947+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          646.7311706542969
+        ],
+        [
+          0.0,
+          1.0,
+          478.55535888671875
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-009"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-010.png",
+      "loop_closure_residual_px": 0.6081970930099487,
+      "overlap_confidence": 0.9822889206310114,
+      "polygon": [
+        [
+          515.5069580078125,
+          382.8257141113281
+        ],
+        [
+          1315.5069580078125,
+          382.8257141113281
+        ],
+        [
+          1315.5069580078125,
+          1662.82568359375
+        ],
+        [
+          515.5069580078125,
+          1662.82568359375
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.21253295242786407,
+      "source_sha256": "9a9413bf8b8765ad79b8ad7a2322c5b31bb205b2c5180b12dc595ffc22eecd44",
+      "timestamp": "2026-07-18T22:07:55.180701+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          515.5069427490234
+        ],
+        [
+          0.0,
+          1.0,
+          382.8257141113281
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-010"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-011.png",
+      "loop_closure_residual_px": 0.11661659181118011,
+      "overlap_confidence": 0.9873874013622602,
+      "polygon": [
+        [
+          515.5136108398438,
+          8.6123046875
+        ],
+        [
+          1315.5135498046875,
+          8.6123046875
+        ],
+        [
+          1315.5135498046875,
+          1288.6123046875
+        ],
+        [
+          515.5136108398438,
+          1288.6123046875
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.1513511836528778,
+      "source_sha256": "3c22c178503d16e3ff691673c01328197ded4cd89e2104de6b237800805bbabf",
+      "timestamp": "2026-07-18T22:08:01.180523+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          515.5135955810547
+        ],
+        [
+          0.0,
+          1.0,
+          8.6123046875
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-011"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-012.png",
+      "loop_closure_residual_px": 0.17019250988960266,
+      "overlap_confidence": 0.9868518561124802,
+      "polygon": [
+        [
+          646.75927734375,
+          0.138153076171875
+        ],
+        [
+          1446.75927734375,
+          0.138153076171875
+        ],
+        [
+          1446.75927734375,
+          1280.13818359375
+        ],
+        [
+          646.75927734375,
+          1280.13818359375
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.15777772665023804,
+      "source_sha256": "cf2414dacfa07ac147c346b285d78bf27d64641f2d7b29300157244c81e515a3",
+      "timestamp": "2026-07-18T22:08:12.255411+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          646.7593078613281
+        ],
+        [
+          0.0,
+          1.0,
+          0.138153076171875
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-012"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-013.png",
+      "loop_closure_residual_px": 0.11796884983778,
+      "overlap_confidence": 0.9875764759878317,
+      "polygon": [
+        [
+          341.1641540527344,
+          0.0826416015625
+        ],
+        [
+          1141.1641845703125,
+          0.0826416015625
+        ],
+        [
+          1141.1641845703125,
+          1280.0826416015625
+        ],
+        [
+          341.1641540527344,
+          1280.0826416015625
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.14908228814601898,
+      "source_sha256": "facf9ec8d7022373eca35e3dabe6e627bc06552bd126edf9d5a7b82bc43e9edf",
+      "timestamp": "2026-07-18T22:08:19.565677+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          341.1641540527344
+        ],
+        [
+          0.0,
+          1.0,
+          0.0826416015625
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-013"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-014.png",
+      "loop_closure_residual_px": 0.05330554395914078,
+      "overlap_confidence": 0.9910365541776022,
+      "polygon": [
+        [
+          34.835968017578125,
+          0.07818603515625
+        ],
+        [
+          834.8359375,
+          0.07818603515625
+        ],
+        [
+          834.8359375,
+          1280.078125
+        ],
+        [
+          34.835968017578125,
+          1280.078125
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.10756134986877441,
+      "source_sha256": "a39932a3505f1d55b4588c1d1aa03b3ae312cb3cfdea07f88cef751a4511c27b",
+      "timestamp": "2026-07-18T22:08:23.191358+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          34.835968017578125
+        ],
+        [
+          0.0,
+          1.0,
+          0.07818603515625
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-014"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-015.png",
+      "loop_closure_residual_px": 0.14798176288604736,
+      "overlap_confidence": 0.993509091436863,
+      "polygon": [
+        [
+          0.9677734375,
+          0.088043212890625
+        ],
+        [
+          800.9677734375,
+          0.088043212890625
+        ],
+        [
+          800.9677734375,
+          1280.0880126953125
+        ],
+        [
+          0.9677734375,
+          1280.0880126953125
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.07789090275764465,
+      "source_sha256": "bf8fc609207d7de193741eb92a07ab220bf5e528f3fdd15b7a26713ac777b220",
+      "timestamp": "2026-07-18T22:08:26.904325+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          0.9677734375
+        ],
+        [
+          0.0,
+          1.0,
+          0.088043212890625
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-015"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-016.png",
+      "loop_closure_residual_px": 0.1060241088271141,
+      "overlap_confidence": 0.9905308193216721,
+      "polygon": [
+        [
+          0.9912872314453125,
+          375.23223876953125
+        ],
+        [
+          800.9912719726562,
+          375.23223876953125
+        ],
+        [
+          800.9912719726562,
+          1655.232177734375
+        ],
+        [
+          0.9912872314453125,
+          1655.232177734375
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.11363016813993454,
+      "source_sha256": "3fbc891f529a69614a241fbe9dbf7c15aef4fab97b3227e666956d77a81abcaf",
+      "timestamp": "2026-07-18T22:08:34.290868+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          0.9912872314453125
+        ],
+        [
+          0.0,
+          1.0,
+          375.23223876953125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-016"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-017.png",
+      "loop_closure_residual_px": 0.11482086777687073,
+      "overlap_confidence": 0.9910386415819327,
+      "polygon": [
+        [
+          301.7899475097656,
+          375.2337951660156
+        ],
+        [
+          1101.7899169921875,
+          375.2337951660156
+        ],
+        [
+          1101.7899169921875,
+          1655.2337646484375
+        ],
+        [
+          301.7899475097656,
+          1655.2337646484375
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.10753630101680756,
+      "source_sha256": "ce5bc1c46d0f314ae27cbb7e36972a2ec6920c4940d2a43a6bb1946763942cb7",
+      "timestamp": "2026-07-18T22:08:38.001430+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          301.7899475097656
+        ],
+        [
+          0.0,
+          1.0,
+          375.2337951660156
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-017"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-018.png",
+      "loop_closure_residual_px": 0.12430582195520401,
+      "overlap_confidence": 0.9910409301519394,
+      "polygon": [
+        [
+          608.1083984375,
+          375.23699951171875
+        ],
+        [
+          1408.1083984375,
+          375.23699951171875
+        ],
+        [
+          1408.1083984375,
+          1655.237060546875
+        ],
+        [
+          608.1083984375,
+          1655.237060546875
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.1075088381767273,
+      "source_sha256": "851aefdc2646ab2af1947e29e76dcf0584f8c47372eea9241f542670ffcb914b",
+      "timestamp": "2026-07-18T22:08:41.790687+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          608.1083679199219
+        ],
+        [
+          0.0,
+          1.0,
+          375.23699951171875
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-018"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-019.png",
+      "loop_closure_residual_px": 0.12042361497879028,
+      "overlap_confidence": 0.9947992817809185,
+      "polygon": [
+        [
+          646.719482421875,
+          375.2354736328125
+        ],
+        [
+          1446.719482421875,
+          375.2354736328125
+        ],
+        [
+          1446.719482421875,
+          1655.2354736328125
+        ],
+        [
+          646.719482421875,
+          1655.2354736328125
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.06240861862897873,
+      "source_sha256": "86d3b6fee92bfe854f109cbf2ba3d59f36f1c7a600d9cbab8d0e45d0a28b104c",
+      "timestamp": "2026-07-18T22:08:45.484395+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          646.719482421875
+        ],
+        [
+          0.0,
+          1.0,
+          375.2354736328125
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-019"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-020.png",
+      "loop_closure_residual_px": 0.14674080908298492,
+      "overlap_confidence": 0.988099272052447,
+      "polygon": [
+        [
+          646.7874755859375,
+          758.0303955078125
+        ],
+        [
+          1446.7874755859375,
+          758.0303955078125
+        ],
+        [
+          1446.7874755859375,
+          2038.0303955078125
+        ],
+        [
+          646.7874755859375,
+          2038.0303955078125
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.142808735370636,
+      "source_sha256": "a1bfe388de1c0277f9dafddfa2a9f9f78f44ce2d9d9ad32fdc9cad0a07b7c10a",
+      "timestamp": "2026-07-18T22:08:52.989282+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          646.7874603271484
+        ],
+        [
+          0.0,
+          1.0,
+          758.0304260253906
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-020"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-021.png",
+      "loop_closure_residual_px": 1.1605119705200195,
+      "overlap_confidence": 0.9863343896965185,
+      "polygon": [
+        [
+          336.52850341796875,
+          757.9622192382812
+        ],
+        [
+          1136.5284423828125,
+          757.9622192382812
+        ],
+        [
+          1136.5284423828125,
+          2037.962158203125
+        ],
+        [
+          336.52850341796875,
+          2037.962158203125
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.16398732364177704,
+      "source_sha256": "e4a40c8f3706c54f4ba092c53307a41c558f30e14a4191e5f90fabe7676cd0c9",
+      "timestamp": "2026-07-18T22:08:56.687589+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          336.5284881591797
+        ],
+        [
+          0.0,
+          1.0,
+          757.9622192382812
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-021"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-022.png",
+      "loop_closure_residual_px": 0.34973785281181335,
+      "overlap_confidence": 0.9873540724317232,
+      "polygon": [
+        [
+          34.05805969238281,
+          757.96337890625
+        ],
+        [
+          834.0580444335938,
+          757.96337890625
+        ],
+        [
+          834.0580444335938,
+          2037.96337890625
+        ],
+        [
+          34.05805969238281,
+          2037.96337890625
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.15175113081932068,
+      "source_sha256": "94519318e724da1630eeca2d06c593a41a859c72e2b4e14e470741b848b4ca6c",
+      "timestamp": "2026-07-18T22:09:00.377441+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          34.05805969238281
+        ],
+        [
+          0.0,
+          1.0,
+          757.96337890625
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-022"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-023.png",
+      "loop_closure_residual_px": 0.10798698663711548,
+      "overlap_confidence": 0.9951959376533827,
+      "polygon": [
+        [
+          0.9796142578125,
+          757.9653930664062
+        ],
+        [
+          800.9796142578125,
+          757.9653930664062
+        ],
+        [
+          800.9796142578125,
+          2037.96533203125
+        ],
+        [
+          0.9796142578125,
+          2037.96533203125
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.05764874815940857,
+      "source_sha256": "49ae3818756b36fb85745527af967379b460b85d4c7541cfbc24f8f66fb7b318",
+      "timestamp": "2026-07-18T22:09:04.078797+00:00",
+      "transform_to_atlas": [
+        [
+          1.0,
+          0.0,
+          0.9796142578125
+        ],
+        [
+          0.0,
+          1.0,
+          757.9653778076172
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-023"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-024.png",
+      "loop_closure_residual_px": 0.006005065515637398,
+      "overlap_confidence": 0.6157880572529582,
+      "polygon": [
+        [
+          0.863129198551178,
+          1134.1593017578125
+        ],
+        [
+          800.9052734375,
+          1133.9842529296875
+        ],
+        [
+          801.185302734375,
+          2414.051513671875
+        ],
+        [
+          1.1432163715362549,
+          2414.2265625
+        ]
+      ],
+      "registration_model": "similarity",
+      "rejection_reason": null,
+      "residual_px": 0.1460798978805542,
+      "source_sha256": "182f69924f8a36e1676968ac47798f0b8e9d3ae1e0d91797448a7d2baa385fbd",
+      "timestamp": "2026-07-18T22:09:11.512171+00:00",
+      "transform_to_atlas": [
+        [
+          1.0000526442511706,
+          0.00021881808980387426,
+          0.8631292104466013
+        ],
+        [
+          -0.00021881808980387426,
+          1.0000526442511706,
+          1134.15925390183
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-024"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-025.png",
+      "loop_closure_residual_px": 0.0,
+      "overlap_confidence": 0.5919607527554035,
+      "polygon": [
+        [
+          316.7688293457031,
+          1134.228759765625
+        ],
+        [
+          1116.5118408203125,
+          1134.1307373046875
+        ],
+        [
+          1116.668701171875,
+          2413.7197265625
+        ],
+        [
+          316.9256286621094,
+          2413.817626953125
+        ]
+      ],
+      "registration_model": "similarity",
+      "rejection_reason": null,
+      "residual_px": 0.16078494489192963,
+      "source_sha256": "33a7d26aa98f497a38bea61284a6bd4c0c21710fc904b8877f74386047bd3e2f",
+      "timestamp": "2026-07-18T22:09:15.226880+00:00",
+      "transform_to_atlas": [
+        [
+          0.9996788267548049,
+          0.00012250058459413495,
+          316.76882885292116
+        ],
+        [
+          -0.00012250058459413495,
+          0.9996788267548049,
+          1134.2287842355515
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-025"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-026.png",
+      "loop_closure_residual_px": 0.3026517927646637,
+      "overlap_confidence": 0.9910610181589922,
+      "polygon": [
+        [
+          623.72802734375,
+          1134.1888427734375
+        ],
+        [
+          1423.4710693359375,
+          1134.0908203125
+        ],
+        [
+          1423.6279296875,
+          2413.6796875
+        ],
+        [
+          623.8848266601562,
+          2413.77783203125
+        ]
+      ],
+      "registration_model": "translation",
+      "rejection_reason": null,
+      "residual_px": 0.10726778209209442,
+      "source_sha256": "7eef89b1cb7885638c4653c52248a9ff24b8a8bcfcc174397a7955f354c1c8e7",
+      "timestamp": "2026-07-18T22:09:18.931671+00:00",
+      "transform_to_atlas": [
+        [
+          0.9996788267548049,
+          0.00012250058459413495,
+          623.728010107849
+        ],
+        [
+          -0.00012250058459413495,
+          0.9996788267548049,
+          1134.188820376706
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-026"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-027.png",
+      "loop_closure_residual_px": 0.0,
+      "overlap_confidence": 0.36589379210046713,
+      "polygon": [
+        [
+          646.6375122070312,
+          1487.6920166015625
+        ],
+        [
+          1446.591064453125,
+          1487.492919921875
+        ],
+        [
+          1446.9095458984375,
+          2767.418701171875
+        ],
+        [
+          646.9559936523438,
+          2767.61767578125
+        ]
+      ],
+      "registration_model": "similarity",
+      "rejection_reason": null,
+      "residual_px": 0.14549818634986877,
+      "source_sha256": "1c3d638b3837070e9c589e65c857e52a86d0779fae807d0c7c0fc012060ec53a",
+      "timestamp": "2026-07-18T22:09:30.109357+00:00",
+      "transform_to_atlas": [
+        [
+          0.9999420187976615,
+          0.00024881023045559804,
+          646.6375054918125
+        ],
+        [
+          -0.00024881023045559804,
+          0.9999420187976616,
+          1487.6919662405085
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-027"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-028.png",
+      "loop_closure_residual_px": 0.0,
+      "overlap_confidence": 0.3347539328038692,
+      "polygon": [
+        [
+          351.1213684082031,
+          1487.4136962890625
+        ],
+        [
+          1151.53515625,
+          1487.3892822265625
+        ],
+        [
+          1151.5743408203125,
+          2768.05126953125
+        ],
+        [
+          351.16058349609375,
+          2768.07568359375
+        ]
+      ],
+      "registration_model": "similarity",
+      "rejection_reason": null,
+      "residual_px": 0.15486083924770355,
+      "source_sha256": "47c43b19573e80d325868abdca322e6ecaf8e02534f6378977256fe7340f7870",
+      "timestamp": "2026-07-18T22:09:33.740429+00:00",
+      "transform_to_atlas": [
+        [
+          1.0005171551875405,
+          3.0633759891212064e-05,
+          351.1213805111155
+        ],
+        [
+          -3.063375989121202e-05,
+          1.0005171551875407,
+          1487.413732950998
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-028"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-029.png",
+      "loop_closure_residual_px": 0.0,
+      "overlap_confidence": 0.5084192957007145,
+      "polygon": [
+        [
+          54.086002349853516,
+          1487.4188232421875
+        ],
+        [
+          854.51220703125,
+          1487.3953857421875
+        ],
+        [
+          854.5497436523438,
+          2768.077392578125
+        ],
+        [
+          54.123592376708984,
+          2768.100830078125
+        ]
+      ],
+      "registration_model": "similarity",
+      "rejection_reason": null,
+      "residual_px": 0.07525651901960373,
+      "source_sha256": "ba8de52b548773d59daa4d3b573b634f86a4680fc6baef3c0ed57827df7de1e6",
+      "timestamp": "2026-07-18T22:09:37.434975+00:00",
+      "transform_to_atlas": [
+        [
+          1.000532726866743,
+          2.9366429001365942e-05,
+          54.08600349550164
+        ],
+        [
+          -2.93664290013659e-05,
+          1.0005327268667432,
+          1487.4188784290131
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-029"
+    },
+    {
+      "accepted": true,
+      "image_path": "tiles/viewport-030.png",
+      "loop_closure_residual_px": 0.0,
+      "overlap_confidence": 0.5052786792846435,
+      "polygon": [
+        [
+          0.9048978686332703,
+          1488.006103515625
+        ],
+        [
+          800.8563232421875,
+          1487.761962890625
+        ],
+        [
+          801.2468872070312,
+          2767.684326171875
+        ],
+        [
+          1.2954422235488892,
+          2767.928466796875
+        ]
+      ],
+      "registration_model": "similarity",
+      "rejection_reason": null,
+      "residual_px": 0.12595103681087494,
+      "source_sha256": "4361022c2f7a965bd785b8a7c66f6fb05068d12f9ddec167b279a4009a533681",
+      "timestamp": "2026-07-18T22:09:41.086488+00:00",
+      "transform_to_atlas": [
+        [
+          0.9999393032007756,
+          0.0003051127503734692,
+          0.9048978574457749
+        ],
+        [
+          -0.0003051127503734692,
+          0.9999393032007756,
+          1488.0060733217433
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "viewport_id": "viewport-030"
+    }
+  ],
+  "width": 1447
+}

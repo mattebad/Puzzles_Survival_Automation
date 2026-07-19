@@ -1802,6 +1802,126 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   collection/postcondition, and Daily reconciliation remain required. No registration or
   scheduler.
 
+### TOOLS-HOME-BASE-ATLAS-BLUESTACKS
+- Task ID: `TOOLS-HOME-BASE-ATLAS-BLUESTACKS`.
+- Title: Build a reusable Home atlas, localizer, semantic building navigator, and direct local
+  BlueStacks Supply Depot consumer.
+- Status: Completed (2026-07-18; local BlueStacks atlas/navigation/Supply Depot live validation
+  closed with final canonical Home and no in-flight action).
+- Milestone: Local platform-neutral Home/Base navigation foundation.
+- Dependencies: TOOLS-BLUESTACKS-FLOW-CAPTURE and the dormant DQ-FLOW-SUPPLY-DEPOT contract.
+- Blocked by: None; Bliss-native calibration remains a separate future task.
+- Objective: provide a reusable platform-neutral semantic world/coverage/localization/navigation
+  contract with a BlueStacks-specific stitched pixel atlas and Supply Depot as the first executable
+  direct-building consumer. Future Bank, upgrade, camp, research, and production workflows remain
+  out of scope and unauthorized.
+- Established facts: native `800x1280`; profile `pns-bluestacks-5-p64-800x1280-v1`; held-left-Ctrl
+  plus wheel-down is the measured zoom mechanism; the atlas is `1447x2769` with 30 accepted
+  viewports, two duplicate rejections, four measured edge clamps, five overlapping scan rows, zero
+  reachable interior coverage gaps, maximum residual `0.213 px`, and maximum loop-closure
+  disagreement `1.161 px`; 64 facilities/instances are semantically mapped (Forum is mapped but
+  explicitly non-actionable behind the fixed left HUD); one food Free tap remains confirmed by
+  attempts `9->8`, and the separately authorized hold-to-exhaust follow-up used one `11.1 s` Food
+  hold to confirm the remaining eight free collections by attempts `8->0` without retry.
+- Direct implementation files: `tasks/home_atlas.py`, `tasks/home_atlas_vision.py`,
+  `tasks/supply_depot.py`, `tasks/supply_depot_vision.py`, `scripts/home_atlas_bluestacks.py`,
+  `scripts/supply_depot_bluestacks.py`, and `tasks/assets/home_atlas/bluestacks/800x1280/**`.
+- Shared dependencies: `scripts/bluestacks_native_runtime.py`, `tasks/contracts.py`, and
+  `tasks/profile.py`; no production registration or task row.
+- Transitive regression set: Home atlas tests, Supply Depot contract/vision/route tests, existing
+  BlueStacks integrated-route tests, governance tests, and the full repository suite when practical.
+- Allowed changes: task implementation, tests, BlueStacks-only atlas assets, relevant research
+  documentation, this task contract, and CURRENT_HANDOFF; per-commit allowed paths are the direct
+  implementation files just listed and no others.
+- Prohibited changes: unrelated workflows, protected evidence, Bliss/Unraid/production input,
+  workers, task rows, registration, scheduler promotion, credential/manual-only automation, and
+  staging/commit/push without a later explicit request.
+- Authorized runtime action: local BlueStacks Home panning, held-Ctrl+wheel zoom normalization,
+  recognized building open/back navigation, the earlier single Free tap, and the later explicitly
+  authorized one-gesture Food hold over the freshly observed remaining Free attempts; no Bliss or
+  production action.
+- Maximum transport inputs: bounded navigation with fresh capture/relocalization after each input;
+  one consequential hold gesture for the observed attempts and no consequential retry.
+- Navigation-only recovery: stop on unknown zoom, overlay, insufficient landmarks, ambiguous
+  transform, no progress, repeated viewport, map-edge clamp, unexpected successor, or maximum pans;
+  use exact recognized Back/radial controls only.
+- Consequential action: the earlier zero-cost Food tap
+  `supply-depot-free:bluestacks:no-reset:attempts-9:food` confirmed `9->8`; the follow-up bounded hold
+  `supply-depot-free-hold:bluestacks:no-reset:attempts-8:food` confirmed `8->0` from a fresh exact
+  exhausted successor and read-only reconciliation.
+- Registration changes: None; production registration remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler eligibility remains false.
+- Actions that must not be repeated: either confirmed Supply Depot action key, any further Supply
+  input in this task, ambiguous consequential transport, or any BlueStacks-to-Bliss coordinate or
+  calibration reuse.
+- Required source: fresh native local BlueStacks `800x1280` package `com.global.ztmslg` frames with
+  exact profile, frame hashes, timestamps, zoom identity, and no manual-only state.
+- Exact target semantics: a current-frame Supply Depot label/helicopter-pad binding, then the exact
+  radial `Claim Supply` control, then one control whose visible semantic state is Free/zero-cost.
+- Required local association: atlas projection narrows the search only; OCR/visual building evidence
+  and exact successor are required before a building tap, and the radial must separately show
+  Details, Upgrade, and Claim Supply.
+- Negative controls: coordinate-only building taps, Daily Quest Go by default, Daily Claim,
+  Upgrade, premium/paid/Mall controls, resource items, speedups, tickets, AP, stamina, Bank, research,
+  training, healing, production, overlays, stale frames, and wrong profiles.
+- Coordinate space: semantic world coordinates are canonical BlueStacks atlas pixels distinct from
+  current native screen coordinates; BlueStacks and Bliss calibration are isolated.
+- Accepted signals: multi-viewport SIFT landmarks, bounded measured transforms/residuals, exact
+  building OCR plus visual signature, exact Supply Depot title, all visible controls classified,
+  and attempts decrementing by exactly one or another explicit positive receipt/reward increase.
+- Rejected weak signals: native dimensions alone, transport success, prior camera position,
+  coordinate projection alone, HUD-only/animation-only matches, button disappearance alone, row
+  order, fixed Daily coordinates, and cross-platform scaling.
+- Ambiguous-result behavior: reconcile a consequential action unresolved and never retry; retain
+  before/post/settled evidence and stop.
+- Zero-cost requirement: required; exact Free text, zero premium/purchase visibility, and cost type
+  none/amount zero on the immediate-before frame.
+- Quantity limits: the primary `collect-free` route permits one bounded Food hold for 1-10 freshly
+  recognized free attempts and stops at exhaustion; it never automatically retries. `collect-one`
+  remains a one-tap diagnostic fallback.
+- Resource consumption policy: no resource item, pack, inventory item, AP, stamina, speedup, ticket,
+  or paid currency may be consumed.
+- Premium or strategic restrictions: diamonds, purchases, Mall/store, Bank deposit, upgrades,
+  research, training, healing, and unrelated consequential building controls are forbidden.
+- Active evidence manifest: None; concise local BlueStacks evidence is ignored diagnostic/runtime
+  evidence and is not a canonical Bliss production manifest.
+- Required artifacts: checked-in atlas manifest/mosaic/tiles, research atlas summary, zoom proof,
+  accepted/rejected viewport metadata, loop closure, semantic registry, live localizations,
+  navigation binding, Supply Depot screen, collection before/post/result, and final Home.
+- Immediate-before/immediate-post/result/journal: retained under
+  `.local-captures/supply-depot-direct-building/supply-depot-collect-one-20260718T205259350054Z/`.
+- Hold immediate-before/post/result and read-only reconciliation: retained under
+  `.local-captures/supply-depot-direct-building/supply-depot-collect-free-hold-20260718T233948312187Z/`
+  and `.local-captures/supply-depot-direct-building/supply-depot-reconcile-free-hold-20260718T234250460579Z/`.
+- Additional task-specific artifacts: retained paths are enumerated in
+  `docs/research/home_ui_atlas.md`; atlas schema and platform separation live in the checked-in
+  BlueStacks manifest.
+- Focused tests: `tests.test_home_atlas`, `tests.test_supply_depot`,
+  `tests.test_supply_depot_vision`, and `tests.test_supply_depot_bluestacks`.
+- Integration tests: `tests.test_bluestacks_integrated_routes` plus live executable localizer,
+  navigator, Supply Depot continuation, collection, and return-home runs.
+- Transitive regression tests: governance validation and existing BlueStacks route regressions.
+- Full-suite requirement: run the full repository unittest suite if practical; report established
+  baseline failures separately and allow no new touched-component failure.
+- Validators: Python compilation, governance validation, handoff JSON parsing, atlas/research JSON
+  parsing, touched-file secret scan, and `git diff --check`.
+- Known baseline failures: None; the full suite passed 532 tests with one expected skip after the
+  hold-to-exhaust follow-up.
+- Evidence requirement: NOT_APPLICABLE because this local BlueStacks validation creates no
+  canonical Bliss evidence manifest; concise ignored local evidence and checked-in atlas assets are
+  sufficient for this task.
+- Valid blocked outcomes: any fail-closed source/zoom/localization/coverage/binding/successor,
+  premium/purchase, duplicate, no-progress, stale, overlay, or ambiguous-result stop.
+- Blocked-result commit policy: do not stage or commit a blocked live result; retain local evidence
+  and update the handoff only when no action remains in flight.
+- Commit policy: no staging, commit, or push was requested; no push by default.
+- Expected focused commits: None in this task because the user prohibited staging/commit/push unless
+  explicitly requested.
+- Completion criteria: executable BlueStacks atlas/localizer/navigator and direct Supply Depot route
+  run end to end; at most one Free collection is positively reconciled; final canonical Home is
+  recognized; tests/validators pass; production stays unregistered and scheduler-disabled; no
+  forbidden action occurs.
+
 ### DQ-FLOW-RECRUITMENT
 - Status: Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).
 - Covered: `recruit_noahs_tavern`; free single variant repeated to target quantity.

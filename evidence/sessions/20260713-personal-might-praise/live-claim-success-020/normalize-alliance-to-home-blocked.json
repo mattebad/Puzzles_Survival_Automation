@@ -1,0 +1,11 @@
+{
+  "detail": {
+    "recognized": false,
+    "state": "ALLIANCE_BACK",
+    "target": null,
+    "target_id": "standard-game-back-arrow"
+  },
+  "expected_state": "HOME_BASE",
+  "source_state": "SPEEDUP_HELP",
+  "target_id": "standard-game-back-arrow"
+}

@@ -1,0 +1,39 @@
+{
+  "action": {
+    "action_id": "close-help-webview-1-1-attempt-1-1783997889-13",
+    "action_key": "close-help-webview-1-1-attempt-1-1783997889-13",
+    "consequence": "navigate_zero_cost",
+    "consequential": 0,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/close-help-webview-1-1-attempt-1-source-013.png\"]",
+    "expected_postcondition": "MORE",
+    "final_reason": "unexpected_successor",
+    "final_status": "unresolved",
+    "game_day_id": "daily-2026-07-13",
+    "input_attempt_at": 1783997891.3589075,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_NAVIGATION_ONLY",
+    "policy_request_json": "{\"action_class\":\"navigation_only\",\"action_id\":\"close-help-webview-1-1-attempt-1-1783997889-13\",\"action_key\":\"close-help-webview-1-1-attempt-1-1783997889-13\",\"action_kind\":\"CLOSE_HELP_WEBVIEW\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":true,\"game_day_id\":\"daily-2026-07-13\",\"lease_owner\":\"pnsctl-1783997792\",\"lease_valid\":true,\"maximum_cost\":0,\"monotonic_now\":4443322.340154873,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4443322.339480997,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"source_identity\",\"dce0f9a9e397dffd88347394200073b35354f85c04f39a721401af457f5cc909\"],[\"target\",\"dce0f9a9e397dffd88347394200073b35354f85c04f39a721401af457f5cc909\"]],\"evidence_refs\":[\"/evidence/close-help-webview-1-1-attempt-1-source-013.png\"],\"expected_postcondition\":\"MORE\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"f07d85477165b4080eeaf19e408d5d7ff40840e527d05690d0816f6e648ea7a8\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4443322.339480997,\"ocr_result_frame_sha256\":\"f07d85477165b4080eeaf19e408d5d7ff40840e527d05690d0816f6e648ea7a8\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"HELP_WEBVIEW\",\"target_identity\":\"help-webview-close\",\"target_isolated\":false,\"target_roi\":[690,10,790,110],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"CLOSE_HELP_WEBVIEW\",\"semantic_postconditions\":[\"MORE\"],\"semantic_preconditions\":[\"HELP_WEBVIEW\",\"help-webview-close\"],\"subject\":\"CLOSE_HELP_WEBVIEW\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1783997889.8781824,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":false,\"observations\":[\"51e6abb74b46e0723831f141523d0ef718bed33717d19db97a7a0ebc6067c483\",\"35e37fa7dd345dc4a3d301facb6b5ebfc9e288dc0060ce6e2368066c12190b04\",\"39f5663ee70953301b6e433cd5aab871858741e7cfedf8d78decfb25473c7a40\"]}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "CLOSE_HELP_WEBVIEW",
+    "source_frame_captured_at": 4443322.339480997,
+    "source_frame_sha256": "f07d85477165b4080eeaf19e408d5d7ff40840e527d05690d0816f6e648ea7a8",
+    "source_state": "HELP_WEBVIEW",
+    "target_identity": "help-webview-close",
+    "target_roi_json": "[690,10,790,110]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input tap 740 60\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1783997923.0205162
+  },
+  "pre_dispatch_attempts": 1,
+  "result": {
+    "action_id": "close-help-webview-1-1-attempt-1-1783997889-13",
+    "reason": "unexpected_successor",
+    "status": "unresolved",
+    "transport_calls": 1
+  }
+}

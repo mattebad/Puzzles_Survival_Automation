@@ -1,0 +1,143 @@
+{
+  "foreground_assumed_game": true,
+  "ocr_lines": [
+    {
+      "bounds": [
+        32,
+        167,
+        749,
+        184
+      ],
+      "text": "2 \u00a5 a gn ev & tan"
+    },
+    {
+      "bounds": [
+        91,
+        183,
+        760,
+        205
+      ],
+      "text": "\u00bb 4 ae \\. yn / mf 3 =."
+    },
+    {
+      "bounds": [
+        63,
+        258,
+        658,
+        288
+      ],
+      "text": "oee es."
+    },
+    {
+      "bounds": [
+        80,
+        432,
+        669,
+        456
+      ],
+      "text": "official guide player guide q&a"
+    },
+    {
+      "bounds": [
+        34,
+        527,
+        195,
+        547
+      ],
+      "text": "latest news"
+    },
+    {
+      "bounds": [
+        74,
+        610,
+        400,
+        639
+      ],
+      "text": "er gift code q&a"
+    },
+    {
+      "bounds": [
+        54,
+        725,
+        746,
+        750
+      ],
+      "text": "7 = + 1804"
+    },
+    {
+      "bounds": [
+        74,
+        814,
+        505,
+        846
+      ],
+      "text": "sammie patch notes 2025/12/9"
+    },
+    {
+      "bounds": [
+        54,
+        932,
+        741,
+        957
+      ],
+      "text": "i tds 213) |"
+    },
+    {
+      "bounds": [
+        74,
+        1026,
+        700,
+        1053
+      ],
+      "text": "er dev insider no.07 - an epic battle begins"
+    },
+    {
+      "bounds": [
+        74,
+        1058,
+        366,
+        1077
+      ],
+      "text": "ga a \u00a7=6this winter!"
+    },
+    {
+      "bounds": [
+        287,
+        1180,
+        712,
+        1216
+      ],
+      "text": "le ch ec"
+    },
+    {
+      "bounds": [
+        68,
+        1222,
+        724,
+        1246
+      ],
+      "text": "home official guide player guide q&a"
+    }
+  ],
+  "popup": {
+    "body_identity": false,
+    "body_text": "nea wes gift code q&a",
+    "close_region": [
+      260,
+      750,
+      540,
+      870
+    ],
+    "geometry_valid": false,
+    "literal_close": false,
+    "matched_close_text": "atch notes 2025/12/9",
+    "panel_present": true,
+    "popup_identity": null,
+    "recognized": false,
+    "target": null,
+    "target_center": null,
+    "target_identity": null,
+    "title_identity": false,
+    "title_text": "| os ee <a\u2019 je"
+  }
+}

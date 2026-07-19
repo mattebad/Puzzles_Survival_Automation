@@ -1,0 +1,39 @@
+{
+  "action": {
+    "action_id": "more-to-rankings-game-attempt-1-attempt-3-1783998134-11",
+    "action_key": "more-to-rankings-game-attempt-1-attempt-3-1783998134-11",
+    "consequence": "navigate_zero_cost",
+    "consequential": 0,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/more-to-rankings-game-attempt-1-attempt-3-source-011.png\"]",
+    "expected_postcondition": "RANKINGS",
+    "final_reason": "positive_postcondition",
+    "final_status": "confirmed",
+    "game_day_id": "daily-2026-07-13",
+    "input_attempt_at": 1783998139.5571966,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_NAVIGATION_ONLY",
+    "policy_request_json": "{\"action_class\":\"navigation_only\",\"action_id\":\"more-to-rankings-game-attempt-1-attempt-3-1783998134-11\",\"action_key\":\"more-to-rankings-game-attempt-1-attempt-3-1783998134-11\",\"action_kind\":\"MORE_TO_RANKINGS\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":true,\"game_day_id\":\"daily-2026-07-13\",\"lease_owner\":\"pnsctl-1783998041\",\"lease_valid\":true,\"maximum_cost\":0,\"monotonic_now\":4443567.009975229,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4443567.007715836,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"source_identity\",\"a26167debd0a6df5273f5f9dbca7fdda8bfa7b2f3c3060143adc2be94ababf58\"],[\"target\",\"7cca9e2c8479142a730dfdcd889e7d2452af008aeafb673ee974b0c91c475194\"]],\"evidence_refs\":[\"/evidence/more-to-rankings-game-attempt-1-attempt-3-source-011.png\"],\"expected_postcondition\":\"RANKINGS\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"ddaa84c5d12f3ef21efd236ef7b9f384d2bb2ddb7a5e7e74510c63a38d52bb83\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4443567.007715836,\"ocr_result_frame_sha256\":\"ddaa84c5d12f3ef21efd236ef7b9f384d2bb2ddb7a5e7e74510c63a38d52bb83\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"MORE\",\"target_identity\":\"rankings-entry\",\"target_isolated\":false,\"target_roi\":[0,1120,800,1185],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"MORE_TO_RANKINGS\",\"semantic_postconditions\":[\"RANKINGS\"],\"semantic_preconditions\":[\"MORE\",\"rankings-entry\"],\"subject\":\"MORE_TO_RANKINGS\",\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1783998134.5480027,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":true,\"evidence_refs\":[\"/evidence/more-to-rankings-game-attempt-1-attempt-3-post-014.png\"],\"frame_sha256\":\"f07d85477165b4080eeaf19e408d5d7ff40840e527d05690d0816f6e648ea7a8\"}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "MORE_TO_RANKINGS",
+    "source_frame_captured_at": 4443567.007715836,
+    "source_frame_sha256": "ddaa84c5d12f3ef21efd236ef7b9f384d2bb2ddb7a5e7e74510c63a38d52bb83",
+    "source_state": "MORE",
+    "target_identity": "rankings-entry",
+    "target_roi_json": "[0,1120,800,1185]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input tap 400 1152\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1783998151.4686513
+  },
+  "pre_dispatch_attempts": 1,
+  "result": {
+    "action_id": "more-to-rankings-game-attempt-1-attempt-3-1783998134-11",
+    "reason": "positive_postcondition",
+    "status": "confirmed",
+    "transport_calls": 1
+  }
+}

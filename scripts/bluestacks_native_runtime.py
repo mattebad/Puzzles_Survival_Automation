@@ -71,6 +71,18 @@ class NativeRuntimePort(Protocol):
         start: tuple[int, int],
         end: tuple[int, int],
         action_key: str,
+        target_identity: str = "tier-carousel-swipe",
+    ) -> None: ...
+
+    def long_press(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        target_identity: str,
+        target_roi: NativeBox,
+        duration_ms: int,
+        action_key: str,
+        consequential: bool = True,
     ) -> None: ...
 
     def type_text(
@@ -266,13 +278,14 @@ class LocalBlueStacksRuntime:
         start: tuple[int, int],
         end: tuple[int, int],
         action_key: str,
+        target_identity: str = "tier-carousel-swipe",
     ) -> None:
         if not all(0 <= point[0] < 800 and 0 <= point[1] < 1280 for point in (start, end)):
             raise RuntimeError("swipe must remain inside native 800x1280 bounds")
         self._authorize_dispatch(
             source,
             action_key=action_key,
-            target_identity="tier-carousel-swipe",
+            target_identity=target_identity,
             target_roi=(
                 min(start[0], end[0]),
                 min(start[1], end[1]),
@@ -286,7 +299,7 @@ class LocalBlueStacksRuntime:
             "dispatch",
             {
                 "action_key": action_key,
-                "target_identity": "tier-carousel-swipe",
+                "target_identity": target_identity,
                 "start": start,
                 "end": end,
                 "consequential": False,
@@ -297,6 +310,47 @@ class LocalBlueStacksRuntime:
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
         self.runner.dispatch_swipe(start, end)
+
+    def long_press(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        target_identity: str,
+        target_roi: NativeBox,
+        duration_ms: int,
+        action_key: str,
+        consequential: bool = True,
+    ) -> None:
+        if not 500 <= duration_ms <= 12_000:
+            raise RuntimeError("long press duration must be between 500 and 12000 ms")
+        point = box_center(target_roi)
+        self._authorize_dispatch(
+            source,
+            action_key=action_key,
+            target_identity=target_identity,
+            target_roi=target_roi,
+            consequential=consequential,
+            continuation_of=None,
+        )
+        self._event(
+            "dispatch",
+            {
+                "action_key": action_key,
+                "target_identity": target_identity,
+                "target_roi": target_roi,
+                "point": point,
+                "duration_ms": duration_ms,
+                "gesture": "zero-distance-long-press",
+                "source_sha256": source.sha256,
+                "consequential": consequential,
+                "execute": self.execute,
+            },
+        )
+        if not self.execute:
+            raise RuntimeError("runtime is dry-run; input was not dispatched")
+        if consequential:
+            self.in_flight_action = action_key
+        self.runner.dispatch_swipe(point, point, duration_ms=duration_ms)
 
     def type_text(
         self,

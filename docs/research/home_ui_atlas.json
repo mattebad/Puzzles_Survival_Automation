@@ -1,7 +1,81 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "atlas_id": "pns-town-home-ui-atlas-20260715",
   "runtime_package": "com.global.ztmslg",
+  "executable_bluestacks_atlas": {
+    "status": "live_validated_local_only",
+    "manifest": "tasks/assets/home_atlas/bluestacks/800x1280/atlas.json",
+    "mosaic": "tasks/assets/home_atlas/bluestacks/800x1280/atlas.png",
+    "profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "platform": "BlueStacks 5 / Android",
+    "viewport": [800, 1280],
+    "coordinate_units": "canonical BlueStacks atlas pixels",
+    "origin": [0, 0],
+    "dimensions": [1447, 2769],
+    "canonical_zoom_identity": "fully_zoomed_out",
+    "zoom_mechanism": "held left Ctrl plus wheel-down in the exact BlueStacks window",
+    "measured_zoom_step": {"scale": 1.266024829689232, "residual_px": 0.19479161500930786},
+    "measured_zoom_clamp": {"scale": 1.0, "residual_px": 0.00531191099435091},
+    "accepted_viewports": 30,
+    "rejected_duplicate_or_edge_clamp_viewports": 2,
+    "maximum_registration_residual_px": 0.212532952427864,
+    "maximum_loop_closure_residual_px": 1.16051197052002,
+    "coverage_polygon_count": 1,
+    "coverage_gap_count": 0,
+    "registration_coverage_is_separate": true,
+    "coverage_status": "full_reachable_base_coverage",
+    "four_edge_clamps_proven": true,
+    "grid_rows": 5,
+    "grid_navigation_inputs": 30,
+    "camera_origin_bounds": {"minimum_x": 0.86, "maximum_x": 646.79, "minimum_y": 0.08, "maximum_y": 1488.01},
+    "semantic_building_count": 64,
+    "hud_free_semantic_building_count": 63,
+    "non_actionable_mapped_buildings": ["home.building.forum"],
+    "production_instance_counts": {"farm": 7, "lumber_mill": 6, "bootcamp": 4, "steel_plant": 6, "infirmary": 3, "gas_field": 8},
+    "supply_depot": {
+      "semantic_id": "home.building.supply_depot",
+      "polygon": [[1166.7, 908.6], [1326.7, 908.6], [1326.7, 1043.6], [1166.7, 1043.6]],
+      "center": [1246.7, 976.1],
+      "direct_route": "live_validated",
+      "daily_go_fallback_enabled": false,
+      "free_collections": 9,
+      "daily_free_attempts_before": 9,
+      "daily_free_attempts_after": 0,
+      "food_visible_before": 14382,
+      "food_visible_after": 14664,
+      "action_key": "supply-depot-free:bluestacks:no-reset:attempts-9:food",
+      "action_status": "confirmed",
+      "hold_to_exhaust": {
+        "primary_command": "collect-free",
+        "reward_kind": "food",
+        "hold_duration_ms": 11100,
+        "free_collections": 8,
+        "daily_free_attempts_before": 8,
+        "daily_free_attempts_after": 0,
+        "action_key": "supply-depot-free-hold:bluestacks:no-reset:attempts-8:food",
+        "action_status": "confirmed_exhausted",
+        "transport_inputs": 1,
+        "automatic_retry": false,
+        "reconciled_from_fresh_frame_without_input": true
+      }
+    },
+    "new_coverage_localization": {
+      "confidence": 0.5596093903895061,
+      "residual_px": 0.10093717277050018,
+      "map_edge_state": "left+bottom",
+      "supporting_viewports": ["viewport-030", "viewport-005", "viewport-024"]
+    },
+    "final_localization": {
+      "confidence": 0.9900729345778624,
+      "residual_px": 0.11912478506565094,
+      "map_edge_state": "interior",
+      "canonical_center_error_px": 3.994148872940867,
+      "supporting_viewports": ["viewport-017", "viewport-014", "viewport-016"]
+    },
+    "production_registration": "NOT_REGISTERED",
+    "scheduler_eligibility": false,
+    "bliss_assets_reused": false
+  },
   "production_profile": {
     "platform": "Bliss OS 16.9.7 / Android 13",
     "viewport": [800, 1280],
@@ -353,7 +427,7 @@
     {
       "semantic_id": "home.state.canonical_town_camera",
       "screen": "TOWN_HOME",
-      "description": "Town camera/reference signature with separate user-confirmed zoomed-in and fully-zoomed-out BlueStacks examples; the fully-zoomed-out view exposes more buildings but still not the entire base.",
+      "description": "Town camera/reference signature with separate zoomed-in and fully-zoomed-out BlueStacks examples plus a completed four-boundary, five-row fully-zoomed-out atlas of the reachable base.",
       "user_provided_meaning": "Stable town camera/reference position for building-local detection.",
       "approximate_roi": [80, 220, 760, 1160],
       "source_geometry": "two_native_800x1280_bluestacks_zoom_states; approximate_roi belongs only to the zoomed-in source",
@@ -363,7 +437,7 @@
       "success_evidence": "declared zoom class plus multiple named building anchors satisfying that class's relative-position tolerances",
       "failure_or_busy_evidence": "unknown/intermediate zoom, one-anchor-only match, drift, overlay, or changed layout",
       "recovery_reset_behavior": "future evidence-supported zoom-and-recenter policy only; GnBots camera macros are non-authorizing",
-      "evidence_confidence": "medium-high for two BlueStacks zoom classes; canonical choice and all Bliss camera evidence remain unverified"
+      "evidence_confidence": "high for BlueStacks canonical zoom, camera boundaries, and reachable atlas coverage; all Bliss camera evidence remains unverified"
     }
   ]
 }

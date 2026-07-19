@@ -1,0 +1,90 @@
+{
+  "action": {
+    "action_id": "nav-daily-scroll-up-fine-1784070196",
+    "action_key": "nav-daily-scroll-up-fine-1784070196",
+    "consequence": "navigate_zero_cost",
+    "consequential": 0,
+    "cost_amount": 0.0,
+    "cost_type": "none",
+    "evidence_refs_json": "[\"/evidence/nav-daily-scroll-up-fine-1784070196-source.png\"]",
+    "expected_postcondition": "DAILY_QUEST",
+    "final_reason": "positive_postcondition",
+    "final_status": "confirmed",
+    "game_day_id": null,
+    "input_attempt_at": 1784070200.8553169,
+    "policy_decision": "authorize",
+    "policy_reason": "AUTHORIZED_NAVIGATION_ONLY",
+    "policy_request_json": "{\"action_class\":\"navigation_only\",\"action_id\":\"nav-daily-scroll-up-fine-1784070196\",\"action_key\":\"nav-daily-scroll-up-fine-1784070196\",\"action_kind\":\"SCROLL_DAILY_QUEST_FINE\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"pnsctl-1784070196\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4515632.843674954,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4515632.737214847,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"ceaeeb0c7e98a2936a5b4bcac95d3b8e9b69aaf773363b6828323f64d1991114\"],[\"source_header\",\"917c2f8e51ec96f4f029f48ff175d7f22cd16ce5aa42f32d24ea5e2e4a2546d9\"],[\"source_rows\",\"81e49ce6f297d47ba7ea06d11b7ccb23c4d80f553d806440febabb4e4380156d\"]],\"evidence_refs\":[\"/evidence/nav-daily-scroll-up-fine-1784070196-source.png\"],\"expected_postcondition\":\"DAILY_QUEST\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"b6a42287c4fde2b7c821773ad04a72c536ef8ab3428db6024e94001f1fed4b2b\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4515632.737214847,\"ocr_result_frame_sha256\":\"b6a42287c4fde2b7c821773ad04a72c536ef8ab3428db6024e94001f1fed4b2b\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"DAILY_QUEST\",\"target_identity\":\"daily-scroll-viewport\",\"target_isolated\":false,\"target_roi\":[100,520,700,1120],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"SCROLL_DAILY_QUEST_FINE\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}",
+    "prepared_at": 1784070200.3817027,
+    "quantity": 1,
+    "reconciliation_result_json": "{\"confirmed\":true,\"evidence_refs\":[\"/evidence/nav-daily-scroll-up-fine-1784070196-post-1.png\"],\"frame_sha256\":\"4a9f0ac70577a4882ccd8e4fe8a1a7f3391a116f5024d948b5c5c162122c6770\"}",
+    "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+    "semantic_action": "SCROLL_DAILY_QUEST_FINE",
+    "source_frame_captured_at": 4515632.737214847,
+    "source_frame_sha256": "b6a42287c4fde2b7c821773ad04a72c536ef8ab3428db6024e94001f1fed4b2b",
+    "source_state": "DAILY_QUEST",
+    "target_identity": "daily-scroll-viewport",
+    "target_roi_json": "[100,520,700,1120]",
+    "task_id": "MVP-QUEST-TO-CLAIM",
+    "transport_result_json": "{\"detail\":\"input swipe 400 800 400 700 250\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}",
+    "updated_at": 1784070202.0868435
+  },
+  "audit": [
+    {
+      "action_id": "nav-daily-scroll-up-fine-1784070196",
+      "event_id": 2,
+      "event_type": "policy_evaluated",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"decision\":\"authorize\",\"evaluated_at\":4515632.843674954,\"reason\":\"local source, target, overlay, and successor guards passed\",\"reason_code\":\"AUTHORIZED_NAVIGATION_ONLY\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"nav-daily-scroll-up-fine-1784070196\",\"action_key\":\"nav-daily-scroll-up-fine-1784070196\",\"action_kind\":\"SCROLL_DAILY_QUEST_FINE\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"pnsctl-1784070196\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4515632.843674954,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4515632.737214847,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"ceaeeb0c7e98a2936a5b4bcac95d3b8e9b69aaf773363b6828323f64d1991114\"],[\"source_header\",\"917c2f8e51ec96f4f029f48ff175d7f22cd16ce5aa42f32d24ea5e2e4a2546d9\"],[\"source_rows\",\"81e49ce6f297d47ba7ea06d11b7ccb23c4d80f553d806440febabb4e4380156d\"]],\"evidence_refs\":[\"/evidence/nav-daily-scroll-up-fine-1784070196-source.png\"],\"expected_postcondition\":\"DAILY_QUEST\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"b6a42287c4fde2b7c821773ad04a72c536ef8ab3428db6024e94001f1fed4b2b\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4515632.737214847,\"ocr_result_frame_sha256\":\"b6a42287c4fde2b7c821773ad04a72c536ef8ab3428db6024e94001f1fed4b2b\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"DAILY_QUEST\",\"target_identity\":\"daily-scroll-viewport\",\"target_isolated\":false,\"target_roi\":[100,520,700,1120],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"SCROLL_DAILY_QUEST_FINE\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}",
+      "recorded_at": 1784070200.3817027,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-daily-scroll-up-fine-1784070196",
+      "event_id": 3,
+      "event_type": "action_transition",
+      "lifecycle_from": null,
+      "lifecycle_to": "prepared",
+      "payload_json": "{\"intent\":{\"action_class\":\"navigation_only\",\"action_id\":\"nav-daily-scroll-up-fine-1784070196\",\"action_key\":\"nav-daily-scroll-up-fine-1784070196\",\"action_kind\":\"SCROLL_DAILY_QUEST_FINE\",\"allowed_confirmation_dialogs\":[],\"arrow_geometry\":null,\"consequence\":\"navigate_zero_cost\",\"consequential\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"evidence_refs\":[\"/evidence/nav-daily-scroll-up-fine-1784070196-source.png\"],\"expected_postcondition\":\"DAILY_QUEST\",\"forbidden_region_intersects_target\":false,\"free_only\":true,\"game_day_id\":null,\"maximum_cost\":0,\"promotional_back_count\":0,\"quantity\":1,\"resource_or_currency\":\"none\",\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"semantic_action\":\"SCROLL_DAILY_QUEST_FINE\",\"semantic_postconditions\":[\"DAILY_QUEST\"],\"semantic_preconditions\":[\"DAILY_QUEST\",\"none_observed\"],\"source_family\":null,\"source_frame_captured_at\":4515632.737214847,\"source_frame_sha256\":\"b6a42287c4fde2b7c821773ad04a72c536ef8ab3428db6024e94001f1fed4b2b\",\"source_state\":\"DAILY_QUEST\",\"subject\":\"daily-scroll-viewport\",\"target_identity\":\"daily-scroll-viewport\",\"target_isolated\":false,\"target_roi\":[100,520,700,1120],\"task_id\":\"MVP-QUEST-TO-CLAIM\"},\"policy\":{\"decision\":\"authorize\",\"evaluated_at\":4515632.843674954,\"reason\":\"local source, target, overlay, and successor guards passed\",\"reason_code\":\"AUTHORIZED_NAVIGATION_ONLY\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"nav-daily-scroll-up-fine-1784070196\",\"action_key\":\"nav-daily-scroll-up-fine-1784070196\",\"action_kind\":\"SCROLL_DAILY_QUEST_FINE\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"pnsctl-1784070196\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4515632.843674954,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4515632.737214847,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"ceaeeb0c7e98a2936a5b4bcac95d3b8e9b69aaf773363b6828323f64d1991114\"],[\"source_header\",\"917c2f8e51ec96f4f029f48ff175d7f22cd16ce5aa42f32d24ea5e2e4a2546d9\"],[\"source_rows\",\"81e49ce6f297d47ba7ea06d11b7ccb23c4d80f553d806440febabb4e4380156d\"]],\"evidence_refs\":[\"/evidence/nav-daily-scroll-up-fine-1784070196-source.png\"],\"expected_postcondition\":\"DAILY_QUEST\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"b6a42287c4fde2b7c821773ad04a72c536ef8ab3428db6024e94001f1fed4b2b\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4515632.737214847,\"ocr_result_frame_sha256\":\"b6a42287c4fde2b7c821773ad04a72c536ef8ab3428db6024e94001f1fed4b2b\",\"ocr_reused\":false,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"DAILY_QUEST\",\"target_identity\":\"daily-scroll-viewport\",\"target_isolated\":false,\"target_roi\":[100,520,700,1120],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"proposal\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"SCROLL_DAILY_QUEST_FINE\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}}}",
+      "recorded_at": 1784070200.3817027,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-daily-scroll-up-fine-1784070196",
+      "event_id": 4,
+      "event_type": "pre_input_attempt",
+      "lifecycle_from": null,
+      "lifecycle_to": null,
+      "payload_json": "{\"attempt\":1,\"changed\":null,\"frame_age_seconds\":0.058416202664375305,\"max_attempts\":2,\"ocr_reuse_denial\":null,\"policy\":{\"decision\":\"authorize\",\"evaluated_at\":4515633.051537067,\"reason\":\"local source, target, overlay, and successor guards passed\",\"reason_code\":\"AUTHORIZED_NAVIGATION_ONLY\",\"request_snapshot\":{\"action_class\":\"navigation_only\",\"action_id\":\"nav-daily-scroll-up-fine-1784070196\",\"action_key\":\"nav-daily-scroll-up-fine-1784070196\",\"action_kind\":\"SCROLL_DAILY_QUEST_FINE\",\"allowed_confirmation_dialogs\":[],\"dispatch_max_age_seconds\":2.0,\"duplicate_action_key\":false,\"expected_runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"free_only\":false,\"game_day_id\":null,\"lease_owner\":\"pnsctl-1784070196\",\"lease_valid\":true,\"maximum_cost\":null,\"monotonic_now\":4515633.051537067,\"observation\":{\"ambiguous\":false,\"arrow_geometry\":null,\"black\":false,\"capture_completed_monotonic\":4515632.993120864,\"clipped\":false,\"consequence\":\"navigate_zero_cost\",\"control_class\":null,\"corrupt\":false,\"cost_amount\":0,\"cost_type\":\"none\",\"critical_roi_hashes\":[[\"semantic_target\",\"ceaeeb0c7e98a2936a5b4bcac95d3b8e9b69aaf773363b6828323f64d1991114\"],[\"source_header\",\"917c2f8e51ec96f4f029f48ff175d7f22cd16ce5aa42f32d24ea5e2e4a2546d9\"],[\"source_rows\",\"81e49ce6f297d47ba7ea06d11b7ccb23c4d80f553d806440febabb4e4380156d\"]],\"evidence_refs\":[\"/evidence/nav-daily-scroll-up-fine-1784070196-immediate-before-1.png\"],\"expected_postcondition\":\"DAILY_QUEST\",\"forbidden_region_intersects_target\":false,\"forbidden_regions\":[],\"frame_sha256\":\"b6a42287c4fde2b7c821773ad04a72c536ef8ab3428db6024e94001f1fed4b2b\",\"hard_stop_detected\":false,\"height\":1280,\"ocr_result_capture_completed_monotonic\":4515632.737214847,\"ocr_result_frame_sha256\":\"b6a42287c4fde2b7c821773ad04a72c536ef8ab3428db6024e94001f1fed4b2b\",\"ocr_reused\":true,\"os_surface\":false,\"overlay_state\":\"none_observed\",\"package_foreground\":true,\"quantity\":1,\"recognized\":true,\"runtime_profile_id\":\"pns-blissos-poc-virgl-800x1280-v1\",\"source_family\":null,\"source_state\":\"DAILY_QUEST\",\"target_identity\":\"daily-scroll-viewport\",\"target_isolated\":false,\"target_roi\":[100,520,700,1120],\"valid_png\":true,\"width\":800},\"observation_max_age_seconds\":3.0,\"policy_phase\":\"pre_dispatch\",\"promotional_back_count\":0,\"resource_or_currency\":null,\"semantic_action\":\"SCROLL_DAILY_QUEST_FINE\",\"semantic_postconditions\":[],\"semantic_preconditions\":[],\"subject\":null,\"task_id\":\"MVP-QUEST-TO-CLAIM\",\"task_mode\":\"supervised_validation\",\"unresolved_action\":false}},\"transport_calls\":0}",
+      "recorded_at": 1784070200.5895655,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-daily-scroll-up-fine-1784070196",
+      "event_id": 5,
+      "event_type": "action_transition",
+      "lifecycle_from": "prepared",
+      "lifecycle_to": "input_sent",
+      "payload_json": "{\"fields\":{\"input_attempt_at\":1784070200.8553169,\"transport_result_json\":{\"detail\":\"input swipe 400 800 400 700 250\",\"dispatched\":true,\"transport_code\":\"ADB_DISPATCHED\"}},\"reason\":\"transport_reported_dispatch\"}",
+      "recorded_at": 1784070200.8553169,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    },
+    {
+      "action_id": "nav-daily-scroll-up-fine-1784070196",
+      "event_id": 6,
+      "event_type": "action_transition",
+      "lifecycle_from": "input_sent",
+      "lifecycle_to": "confirmed",
+      "payload_json": "{\"fields\":{\"reconciliation_result_json\":{\"confirmed\":true,\"evidence_refs\":[\"/evidence/nav-daily-scroll-up-fine-1784070196-post-1.png\"],\"frame_sha256\":\"4a9f0ac70577a4882ccd8e4fe8a1a7f3391a116f5024d948b5c5c162122c6770\"}},\"reason\":\"positive_postcondition\"}",
+      "recorded_at": 1784070202.0868435,
+      "task_id": "MVP-QUEST-TO-CLAIM"
+    }
+  ],
+  "result": {
+    "action_id": "nav-daily-scroll-up-fine-1784070196",
+    "reason": "positive_postcondition",
+    "status": "confirmed",
+    "transport_calls": 1
+  }
+}
