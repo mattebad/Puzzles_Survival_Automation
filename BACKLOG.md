@@ -2340,6 +2340,886 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   checkpoints, hardened continuation freshness, navigate-building persistence ordering, required tests
   passing, zero transport, and unchanged registration/scheduler state.
 
+### ARCH-NAVIGATION-AUTOMATION-ROADMAP
+- Task ID: `ARCH-NAVIGATION-AUTOMATION-ROADMAP`.
+- Title: Register the serial navigation automation architecture roadmap.
+- Status: Completed (2026-07-19; nine dormant offline contracts registered and reviewed).
+- Milestone: Durable offline navigation architecture roadmap.
+- Dependencies: completed `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`, completed
+  `HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING`, and completed
+  `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS`.
+- Blocked by: None for dormant contract registration.
+- Objective: add durable dormant backlog contracts, in the authorized order, for the nine-task
+  navigation automation architecture sequence while preserving `M6-DQ-TRANSITION-CORPUS` as the
+  unrelated post-roadmap successor.
+- Established facts: all roadmap work is offline; recognition, actionability, and authorization remain
+  distinct; projection never authorizes input; BlueStacks and Bliss ownership remain separate.
+- Direct implementation files: `BACKLOG.md`, `CURRENT_HANDOFF.md`, and task-identity governance
+  coverage only when required to keep the durable state contract valid.
+- Shared dependencies: the three completed architecture tasks named above and existing repository
+  governance validation.
+- Transitive regression set: governance validation and CURRENT_HANDOFF structured-state parsing.
+- Allowed changes: per-commit allowed paths are `BACKLOG.md`, `CURRENT_HANDOFF.md`, and
+  `tests/test_governance_validation.py` only; implementation, fixture, runtime, registration,
+  scheduler, worker, and task-row files are forbidden.
+- Prohibited changes: implementation of any roadmap task, runtime input, evidence acquisition,
+  protected evidence or `.local-captures` inspection, production registration, scheduler eligibility,
+  worker/task-row changes, push, or unrelated backlog reordering/status changes.
+- Authorized runtime action: None; offline documentation and governance only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: NOT_APPLICABLE; no runtime input is authorized.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior live runtime action, atlas acquisition, facility input,
+  radial input, or consequential input.
+- Required source: this authorized roadmap prompt and the completed direct dependency contracts.
+- Exact target semantics: nine ordered dormant atomic contracts with explicit dependencies, allowed
+  paths, focused tests, blockers, completion criteria, and `M6-DQ-TRANSITION-CORPUS` after the roadmap.
+- Required local association: NOT_APPLICABLE; no visual target or frame is used.
+- Negative controls: reordered tasks, activated implementation, broad framework creation, registration
+  or scheduler promotion, and displacement of the unrelated post-roadmap successor.
+- Coordinate space: NOT_APPLICABLE.
+- Accepted signals: exact ordered task IDs and explicit durable contract fields.
+- Rejected weak signals: prose-only plans, implicit dependencies, unspecified allowed paths, or
+  implementation hidden in the setup commit.
+- Ambiguous-result behavior: fail closed and stop before activating the first implementation task.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: exactly nine dormant roadmap contracts plus this setup contract.
+- Resource consumption policy: no game resources or runtime input.
+- Premium or strategic restrictions: no gameplay or production operation.
+- Active evidence manifest: None; offline contracts only.
+- Required artifacts: this setup contract, nine dormant roadmap contracts, and synchronized handoff.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: None.
+- Focused tests: governance validation and CURRENT_HANDOFF structured-state parsing.
+- Integration tests: NOT_APPLICABLE.
+- Transitive regression tests: `tests.test_governance_validation` when identity coverage changes.
+- Full-suite requirement: not required for documentation-only setup if focused governance passes.
+- Validators: governance validation, CURRENT_HANDOFF JSON parsing, touched-file secret scan, and
+  `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this setup task registers dormant offline contracts only.
+- Valid blocked outcomes: missing required contract field, ambiguous ownership, unsafe allowed path, or
+  successor-order conflict.
+- Blocked-result commit policy: record the blocker and do not activate an implementation task.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `docs(roadmap): register navigation architecture sequence`; allowed paths
+  are the setup task's allowed paths above.
+- Completion criteria: all nine contracts are durable, dormant, ordered, dependency-complete, path- and
+  test-bounded, explicitly offline, preserve registration/scheduler disablement, and leave
+  `VISION-SEMANTIC-OCR-CROP-PIPELINE` as the next eligible task with
+  `M6-DQ-TRANSITION-CORPUS` preserved after the roadmap.
+- Next: `VISION-SEMANTIC-OCR-CROP-PIPELINE`.
+
+
+### VISION-SEMANTIC-OCR-CROP-PIPELINE
+- Task ID: `VISION-SEMANTIC-OCR-CROP-PIPELINE`.
+- Title: Shared frame-identity-bound semantic OCR crop pipeline.
+- Status: Pending (dormant; offline contract only; not activated).
+- Milestone: Durable offline navigation architecture roadmap.
+- Dependencies: `ARCH-NAVIGATION-AUTOMATION-ROADMAP` and completed
+  `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`.
+- Blocked by: readiness requires the roadmap setup task completed and perception-bundle contracts
+  unchanged; no live frames, runtime, registration, or scheduler work may start this task.
+- Objective: add one shared OCR crop pipeline that binds every observation to a single native-frame
+  capture identity, with controlled ROI/padding, exclusion masks, bounded normalization, constrained
+  OCR modes, immutable observations, negative controls, and opt-in deterministic debug artifacts.
+- Established facts: `FramePerceptionBundle` already owns same-capture composition and dual digests;
+  adapter-local OCR crops exist but are not a shared identity-bound pipeline; recognition remains
+  distinct from authorization and projection never authorizes input.
+- Direct implementation files: `tasks/semantic_ocr_crop.py`, `tests/test_semantic_ocr_crop.py`,
+  optional exact `tests/fixtures/semantic_ocr_crop_evidence.json`, representative adapter
+  `tasks/supply_depot_vision.py`, representative regression `tests/test_supply_depot_vision.py`,
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if durable
+  identity coverage changes.
+- Shared dependencies: `tasks/perception_bundle.py` capture-event identity and immutable observation
+  snapshots; no production registration.
+- Transitive regression set: perception bundle, the single adopted adapter's focused tests, and
+  governance validation.
+- Allowed changes: per-commit allowed paths are exactly `tasks/semantic_ocr_crop.py`,
+  `tests/test_semantic_ocr_crop.py`, optional `tests/fixtures/semantic_ocr_crop_evidence.json`,
+  `tasks/supply_depot_vision.py`, `tests/test_supply_depot_vision.py`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if identity coverage changes.
+- Prohibited changes: screen classifiers, unconstrained fuzzy matching, multi-adapter rewrites, live
+  BlueStacks/ADB/Bliss/Unraid input, evidence acquisition, protected evidence or `.local-captures`
+  mutation, registration, scheduler, workers, task rows, push, or unrelated backlog reordering.
+- Authorized runtime action: None; offline unit/fixture validation only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: NOT_APPLICABLE; no runtime input is authorized.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior live facility, radial, collection, Train, Claim, or
+  atlas-acquisition input.
+- Required source: synthetic offline native-frame identities and immutable parent-frame digests;
+  live captures are not required and fixture identities must never masquerade as live captures.
+- Exact target semantics: ROI request with explicit padding and exclusion masks; bounded
+  normalization only; constrained OCR mode enumeration; immutable OCR observation carrying complete
+  `NativeFrameIdentity` / capture-event fields; opt-in deterministic debug crop artifacts.
+- Required local association: every crop and OCR observation must share the parent frame's capture
+  event, transport digest, and semantic digest; cross-capture composition is rejected.
+- Negative controls: unconstrained fuzzy string matching, screen/classifier authority, mutable crop
+  buffers retained as observations, padding that escapes declared exclusion masks, and debug artifacts
+  enabled by default.
+- Coordinate space: parent native full-frame coordinates only; no scaled-preview or vendor coordinates.
+- Accepted signals: same-capture identity match, explicit ROI/padding/mask provenance, constrained mode,
+  immutable observation snapshot, and deterministic opt-in debug hashes.
+- Rejected weak signals: free-text fuzzy match, classifier labels as OCR proof, preview crops, and
+  digest-only equality without capture-event identity.
+- Ambiguous-result behavior: fail closed to invalid/unknown observation; never invent text or authorize
+  transport from OCR alone.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: one shared pipeline module and exactly one representative adapter adoption.
+- Resource consumption policy: no game resources or runtime input.
+- Premium or strategic restrictions: no gameplay, premium, purchase, or consequential control.
+- Active evidence manifest: None; offline fixtures only.
+- Required artifacts: shared pipeline module, focused tests, optional exact
+  `tests/fixtures/semantic_ocr_crop_evidence.json`, and one Supply Depot vision adapter adoption with
+  unchanged registration/scheduler state.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: optional deterministic debug crops only as temporary test
+  output when explicitly enabled; debug crops are not committed.
+- Focused tests: `tests.test_semantic_ocr_crop`, `tests.test_perception_bundle`, and
+  `tests.test_supply_depot_vision`.
+- Integration tests: offline same-capture composition with the perception bundle; no live validation.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, then the full
+  repository suite when practical; if the full suite cannot run, explicitly record why and the last
+  authoritative result rather than silently waiving it.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON parsing,
+  JSON parsing/hash validation for the optional evidence fixture and deterministic debug artifacts
+  when created, touched-file secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this dormant offline contract creates no runtime
+  evidence manifest.
+- Valid blocked outcomes: cross-capture crop, mask/padding escape, unconstrained OCR mode, missing
+  frame identity, or adapter scope creep beyond one representative consumer.
+- Blocked-result commit policy: record the blocker; do not stage blocked live results; none are
+  authorized.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(vision): add identity-bound OCR crop pipeline`; allowed paths are
+  the direct implementation files above.
+- Completion criteria: shared identity-bound OCR crop pipeline landed with immutable observations,
+  negative controls, one adapter only, required tests/validators passing, zero runtime input, and
+  unchanged registration/scheduler state.
+- Next: `VISION-NATIVE-FRAME-REPLAY-HARNESS`.
+
+### VISION-NATIVE-FRAME-REPLAY-HARNESS
+- Task ID: `VISION-NATIVE-FRAME-REPLAY-HARNESS`.
+- Title: Deterministic offline native-frame replay harness over project-owned fixtures.
+- Status: Pending (dormant; offline contract only; not activated).
+- Milestone: Durable offline navigation architecture roadmap.
+- Dependencies: `VISION-SEMANTIC-OCR-CROP-PIPELINE` and completed
+  `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`.
+- Blocked by: readiness requires the OCR crop pipeline completed and narrowly selected existing
+  project-owned native-frame sources named read-only during activation; no frame source may be added
+  under this contract, and no bulk evidence copy or live capture acquisition is authorized.
+- Objective: provide deterministic offline replay over narrowly selected project-owned native-frame
+  fixtures so perception and OCR contracts can be exercised without runtime input.
+- Established facts: perception bundles and OCR crops bind to capture identities; live captures and
+  protected evidence are not replay fixtures; fixture identities must remain explicitly non-live.
+- Direct implementation files: `tasks/native_frame_replay.py`, `tests/test_native_frame_replay.py`,
+  exact manifest `tests/fixtures/native_frame_replay_manifest.json`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if durable identity coverage
+  changes. Any selected existing project-owned native-frame source is read-only and must be named
+  explicitly during activation before implementation.
+- Shared dependencies: `tasks/perception_bundle.py` and `tasks/semantic_ocr_crop.py`; no production
+  registration.
+- Transitive regression set: perception bundle, semantic OCR crop, and governance validation.
+- Allowed changes: per-commit allowed paths are exactly `tasks/native_frame_replay.py`,
+  `tests/test_native_frame_replay.py`, `tests/fixtures/native_frame_replay_manifest.json`,
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if identity
+  coverage changes; no native-frame source path is writable under this task.
+- Prohibited changes: mutation testing, bulk evidence or `.local-captures` copy, treating fixtures as
+  live captures, runtime input, registration, scheduler, workers, task rows, push, or unrelated
+  backlog changes.
+- Authorized runtime action: None; offline fixture replay only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: NOT_APPLICABLE; no runtime input is authorized.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior live gameplay or atlas-acquisition input.
+- Required source: narrowly selected project-owned native-frame fixtures with explicit fixture
+  capture-kind / non-live identity; each source path must be named read-only during activation before
+  implementation; never copy protected evidence trees wholesale.
+- Exact target semantics: deterministic ordered replay of fixture frames through perception and OCR
+  seams; fixture identity fields must refuse live-capture masquerading.
+- Required local association: each replayed observation retains fixture identity, digests, and
+  ordinal; live-capture labels are forbidden on fixture records.
+- Negative controls: bulk evidence import, mutation corpus features, silent live-labeling of fixtures,
+  and non-deterministic ordering.
+- Coordinate space: native fixture full-frame coordinates only.
+- Accepted signals: stable fixture manifest hashes, deterministic observation order, and explicit
+  non-live capture-kind.
+- Rejected weak signals: path-only identity, evidence-tree traversal, and timestamps treated as live
+  freshness.
+- Ambiguous-result behavior: fail closed; skip or reject the fixture rather than inventing identity.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: narrowly selected fixtures only; no bulk corpus expansion in this task.
+- Resource consumption policy: no game resources or runtime input.
+- Premium or strategic restrictions: no gameplay or consequential control.
+- Active evidence manifest: None; offline fixtures only.
+- Required artifacts: replay harness module, focused tests, and exact
+  `tests/fixtures/native_frame_replay_manifest.json` naming the read-only native-frame sources and
+  their non-live identity rules.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: no committed frame directory or wildcard fixture tree; selected
+  existing project-owned native-frame sources remain read-only and are referenced by the exact
+  manifest.
+- Focused tests: `tests.test_native_frame_replay`, `tests.test_semantic_ocr_crop`, and
+  `tests.test_perception_bundle`.
+- Integration tests: offline replay through OCR crop and perception bundle seams; no live validation.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, then the full
+  repository suite when practical; if the full suite cannot run, explicitly record why and the last
+  authoritative result rather than silently waiving it.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON parsing,
+  exact replay-manifest JSON parsing and source hash checks, touched-file secret scan, and
+  `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this dormant offline harness creates no runtime
+  evidence manifest.
+- Valid blocked outcomes: missing non-live fixture identity, bulk evidence copy pressure, or any
+  request for live capture.
+- Blocked-result commit policy: record the blocker; do not import protected evidence.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(vision): add native-frame replay harness`; allowed paths are the
+  direct implementation files above.
+- Completion criteria: deterministic offline replay harness over narrow non-live fixtures passes
+  required tests/validators with zero runtime input and unchanged registration/scheduler state.
+- Next: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`.
+
+### HOME-SHARED-RADIAL-SEMANTIC-CONTRACT
+- Task ID: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`.
+- Title: Platform-neutral shared Home radial semantic contract.
+- Status: Pending (dormant; offline contract only; not activated).
+- Milestone: Durable offline navigation architecture roadmap.
+- Dependencies: `VISION-NATIVE-FRAME-REPLAY-HARNESS` and completed
+  `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`.
+- Blocked by: readiness requires replay harness and perception-bundle radial observation seams;
+  BlueStacks coordinates/transport and live radial taps remain unauthorized.
+- Objective: define platform-neutral radial semantics for owning-facility identity, same-capture
+  association, controls, confidence, actionability, and expected/forbidden successors while keeping
+  recognition distinct from authorization.
+- Established facts: perception bundles already reserve an immutable radial observation slot;
+  adapter-specific radial OCR exists for Supply Depot and related routes; projection and recognition
+  do not authorize taps.
+- Direct implementation files: `tasks/radial_semantics.py`, `tests/test_radial_semantics.py`,
+  optional exact `tests/fixtures/radial_semantics_evidence.json`, narrowly scoped typed adoption in
+  `tasks/perception_bundle.py` and `tests/test_perception_bundle.py`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if durable identity coverage
+  changes.
+- Shared dependencies: `tasks/perception_bundle.py`, OCR crop pipeline, and native-frame replay;
+  no production registration.
+- Transitive regression set: perception bundle, semantic OCR crop, native-frame replay, and
+  governance validation.
+- Allowed changes: per-commit allowed paths are exactly `tasks/radial_semantics.py`,
+  `tests/test_radial_semantics.py`, optional `tests/fixtures/radial_semantics_evidence.json`,
+  `tasks/perception_bundle.py`, `tests/test_perception_bundle.py`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if identity coverage changes.
+- Prohibited changes: BlueStacks coordinates or transport, live radial taps, consequential control
+  authorization, registration, scheduler, workers, task rows, push, or Bliss coordinate reuse.
+- Authorized runtime action: None; offline contract/tests only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: NOT_APPLICABLE; no runtime input is authorized.
+- Consequential action: None; recognition never authorizes consequential dispatch.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior live radial Train/Claim Supply/Upgrade or exterior-close
+  input.
+- Required source: offline same-capture radial observations from fixtures/replay; live frames are not
+  required.
+- Exact target semantics: owning-facility identity; same-capture association; control inventory with
+  confidence and actionability; expected and forbidden successors; explicit recognition-versus-
+  authorization separation.
+- Required local association: radial observation must share the parent capture event with facility
+  binding and OCR evidence; cross-capture radial/facility joins are rejected.
+- Negative controls: treating recognition as dispatch authority, BlueStacks pixel hardcoding in the
+  shared contract, successor inference from transport success, and missing forbidden-successor sets.
+- Coordinate space: platform-neutral semantic contract; adapter geometry remains adapter-owned and
+  forbidden for Bliss reuse.
+- Accepted signals: same-capture facility+radial association, explicit control confidence/actionability,
+  and declared expected/forbidden successors.
+- Rejected weak signals: coordinate-only radial proof, transport OK, and classifier-only facility
+  labels without same-capture evidence.
+- Ambiguous-result behavior: fail closed to non-actionable/unknown radial; never authorize input.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: shared semantic contract only; no multi-route live binding campaign.
+- Resource consumption policy: no game resources or runtime input.
+- Premium or strategic restrictions: no premium, purchase, Train, Upgrade, or collection authorization.
+- Active evidence manifest: None; offline fixtures only.
+- Required artifacts: radial semantic module, focused tests, and perception-bundle typed adoption as
+  needed without transport hooks.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: optional exact
+  `tests/fixtures/radial_semantics_evidence.json` demonstrating expected/forbidden successors.
+- Focused tests: `tests.test_radial_semantics`, `tests.test_perception_bundle`, and
+  `tests.test_native_frame_replay`.
+- Integration tests: offline same-capture radial composition; no live BlueStacks validation.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, then the full
+  repository suite when practical; if the full suite cannot run, explicitly record why and the last
+  authoritative result rather than silently waiving it.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON parsing,
+  JSON parsing/hash validation for `tests/fixtures/radial_semantics_evidence.json` when created,
+  touched-file secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this dormant offline contract creates no runtime
+  evidence manifest.
+- Valid blocked outcomes: recognition/authorization conflation, BlueStacks transport leakage into the
+  shared contract, or cross-capture radial association.
+- Blocked-result commit policy: record the blocker; do not authorize live radial input.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(home): add shared radial semantic contract`; allowed paths are the
+  direct implementation files above.
+- Completion criteria: platform-neutral radial semantics with same-capture association,
+  actionability, successor rules, recognition/authorization separation, required tests passing, zero
+  transport, and unchanged registration/scheduler state.
+- Next: `BLUESTACKS-HOME-SAFE-EXIT-BINDING`.
+
+### BLUESTACKS-HOME-SAFE-EXIT-BINDING
+- Task ID: `BLUESTACKS-HOME-SAFE-EXIT-BINDING`.
+- Title: Reusable BlueStacks-only current-frame Home safe-exit binder.
+- Status: Pending (dormant; offline contract only; not activated).
+- Milestone: Durable offline navigation architecture roadmap.
+- Dependencies: `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT` and completed
+  `HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING`.
+- Blocked by: readiness requires shared radial semantics and recovery-aware planner honesty fields;
+  live validation, Bliss binding, and tap authorization from projection remain unauthorized.
+- Objective: implement a reusable BlueStacks-only current-frame safe-exit binder that excludes HUD,
+  buildings, radial controls, semantic targets, and known interactive regions, requires complete
+  target-box clearance, and treats projection as a search envelope never as tap authorization.
+- Established facts: recovery-aware planner already exposes predicted recovery search zones as non-
+  executable; BlueStacks safe-region/radial-close contracts are adapter-owned; Bliss remains separate.
+- Direct implementation files: `tasks/bluestacks_home_safe_exit.py`,
+  `scripts/home_atlas_bluestacks.py`, `tests/test_bluestacks_home_safe_exit.py`,
+  `tasks/home_atlas_planner.py`, `tests/test_home_atlas_planner.py`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if durable identity coverage
+  changes.
+- Shared dependencies: radial semantics, Home atlas planner safe-region contracts, and perception
+  bundles; no production registration.
+- Transitive regression set: Home atlas planner, radial semantics, perception bundle, and governance.
+- Allowed changes: per-commit allowed paths are exactly `tasks/bluestacks_home_safe_exit.py`,
+  `scripts/home_atlas_bluestacks.py`, `tests/test_bluestacks_home_safe_exit.py`,
+  `tasks/home_atlas_planner.py`, `tests/test_home_atlas_planner.py`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if identity coverage changes.
+- Prohibited changes: live validation/dispatch, Bliss coordinate reuse, authorizing taps from
+  projection, treating search envelopes as executable coordinates, registration, scheduler, workers,
+  task rows, or push.
+- Authorized runtime action: None; offline unit/fixture validation only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: offline binder may model recovery search envelopes only; no live recovery
+  transport is authorized.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: prior live exterior-close taps, facility taps, or no-progress
+  canonical short-drag diagnostics.
+- Required source: offline current-frame fixture identities for BlueStacks Home only; Bliss frames are
+  out of scope.
+- Exact target semantics: candidate safe-exit region with complete clearance from HUD, buildings,
+  radial controls, semantic targets, and known interactive regions; projection supplies search
+  envelope only.
+- Required local association: binder output must cite the current-frame capture identity and excluded
+  region set; stale or cross-capture envelopes are rejected.
+- Negative controls: executable coordinates from projection alone, incomplete target-box clearance,
+  HUD/building/radial overlap acceptance, and Bliss profile reuse.
+- Coordinate space: BlueStacks native 800x1280 adapter space only; Bliss remains independent.
+- Accepted signals: complete clearance against declared exclusions, current-frame identity match, and
+  explicit non-authorizing search-envelope provenance.
+- Rejected weak signals: atlas polygon alone, predicted recovery zone as tap proof, and transport
+  success.
+- Ambiguous-result behavior: fail closed to unavailable safe-exit; never emit an authorizing tap ROI.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: BlueStacks Home binder only; no multi-platform generalization in this task.
+- Resource consumption policy: no game resources or runtime input.
+- Premium or strategic restrictions: no consequential controls.
+- Active evidence manifest: None; offline fixtures only.
+- Required artifacts: BlueStacks safe-exit binder, focused tests, and honesty fields proving
+  projection is non-authorizing.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: exclusion-clearance overlays may be temporary test output only;
+  no fixture overlay path is writable or committed.
+- Focused tests: `tests.test_bluestacks_home_safe_exit`, `tests.test_home_atlas_planner`, and
+  `tests.test_radial_semantics`.
+- Integration tests: offline binder-plus-planner honesty checks; no live BlueStacks validation.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, then the full
+  repository suite when practical; if the full suite cannot run, explicitly record why and the last
+  authoritative result rather than silently waiving it.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON parsing,
+  JSON parsing for any touched planner/debug JSON artifact, touched-file secret scan, and
+  `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this dormant offline binder creates no runtime
+  evidence manifest.
+- Valid blocked outcomes: incomplete clearance, projection-as-authorization, Bliss leakage, or live
+  validation pressure.
+- Blocked-result commit policy: record the blocker; do not dispatch safe-exit input.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(bluestacks): add home safe-exit binder`; allowed paths are the
+  direct implementation files above.
+- Completion criteria: reusable BlueStacks current-frame safe-exit binder with complete exclusion
+  clearance, non-authorizing projection envelopes, required tests passing, zero transport, Bliss
+  separate, and unchanged registration/scheduler state.
+- Next: `RUNTIME-INPUT-CAPABILITY-FIREWALL`.
+
+### RUNTIME-INPUT-CAPABILITY-FIREWALL
+- Task ID: `RUNTIME-INPUT-CAPABILITY-FIREWALL`.
+- Title: Extend safe_action_core with navigation-versus-consequential capability firewall.
+- Status: Pending (dormant; offline contract only; not activated).
+- Milestone: Durable offline navigation architecture roadmap.
+- Dependencies: `BLUESTACKS-HOME-SAFE-EXIT-BINDING` and completed `M7-SAFE-ACTION-CORE`.
+- Blocked by: readiness requires safe-exit binder semantics and the existing central policy/executor
+  boundary; a parallel executor is forbidden; live consequential dispatch remains unauthorized by this
+  task alone.
+- Objective: extend the existing `safe_action_core` policy/executor boundary so navigation-only
+  capabilities cannot dispatch consequential controls, dry-run issues no input, authority is bound to
+  task/session/action/target, capabilities are non-serializable/non-reusable, final dispatch
+  revalidates semantic identity and coordinates, and allowed/rejected attempts are audited without
+  conflating dispatch authorization with conclusive non-dispatch transport verification.
+- Established facts: `CentralPolicy` and the exclusive executor already gate supervised input;
+  navigation-only and consequential action classes are distinct; `CONFIRMED_NOT_DISPATCHED` remains
+  fail-closed until an authenticated runtime-owned transport verifier exists.
+- Direct implementation files: `safe_action_core/policy.py`, `safe_action_core/executor.py`,
+  `safe_action_core/models.py` only if the capability type is required, `safe_action_core/__init__.py`
+  only for export, `tests/test_input_capability_firewall.py`, `tests/test_safe_action_core.py`,
+  `tests/test_pre_dispatch_freshness.py`, `tests/test_navigation_runner.py`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if durable identity coverage
+  changes.
+- Shared dependencies: existing `safe_action_core` models/store, navigation session authority scopes,
+  and safe-exit binder outputs as non-authorizing inputs; no production registration.
+- Transitive regression set: safe_action_core policy/executor tests, navigation runner tests, and
+  governance validation.
+- Allowed changes: per-commit allowed paths are exactly `safe_action_core/policy.py`,
+  `safe_action_core/executor.py`, `safe_action_core/models.py` only when the capability type is
+  required, `safe_action_core/__init__.py` only for export,
+  `tests/test_input_capability_firewall.py`, `tests/test_safe_action_core.py`,
+  `tests/test_pre_dispatch_freshness.py`, `tests/test_navigation_runner.py`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if identity coverage changes.
+- Prohibited changes: parallel executor, enabling `CONFIRMED_NOT_DISPATCHED` without authenticated
+  verifier, serializable reusable capabilities, live consequential broadening, registration,
+  scheduler, workers, task rows, or push.
+- Authorized runtime action: None required; offline mocked policy/executor tests only.
+- Maximum transport inputs: Zero for this task.
+- Navigation-only recovery: navigation-only capabilities may authorize navigation-class intents only;
+  consequential controls remain excluded.
+- Consequential action: None newly authorized; existing consequential paths stay explicitly gated and
+  unchanged in promotion posture.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior confirmed consequential action keys or unresolved
+  identical retries.
+- Required source: offline PolicyRequest/Observation fixtures with explicit task/session/action/target
+  authority bindings.
+- Exact target semantics: capability tokens bound to task, session, action class, and target identity;
+  dry-run path guarantees zero input; final dispatch validates semantic identity and coordinates;
+  audits record allowed and rejected attempts; dispatch authorization is not treated as conclusive
+  non-dispatch transport verification.
+- Required local association: capability, target ROI/identity, and observation capture event must
+  match at final dispatch; stale or partial authority matches fail closed.
+- Negative controls: navigation capability dispatching consequential controls, dry-run transport,
+  capability serialization/reuse across sessions, and treating policy allow as proof that transport
+  did not occur.
+- Coordinate space: existing safe_action_core fixed-profile coordinates; no vendor coordinates.
+- Accepted signals: authority-complete capability evaluation, audited allow/reject decisions, dry-run
+  zero-input proof, and final semantic+coordinate revalidation.
+- Rejected weak signals: transport OK alone, serialized capability replay, and partial authority
+  match.
+- Ambiguous-result behavior: fail closed to deny/unresolved; never issue identical retries.
+- Zero-cost requirement: preserve existing zero-cost supervised gates; this task adds no new paid
+  consequences.
+- Quantity limits: extend the single executor only; no second execution engine.
+- Resource consumption policy: no game resources consumed by this offline task.
+- Premium or strategic restrictions: no premium/purchase/strategic broadening.
+- Active evidence manifest: None; offline tests only.
+- Required artifacts: capability firewall against the existing policy/executor, focused tests, and
+  audit coverage for allow/reject paths.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE for live journals; offline store
+  fakes only.
+- Additional task-specific artifacts: none beyond focused tests.
+- Focused tests: `tests.test_input_capability_firewall`, `tests.test_safe_action_core`,
+  `tests.test_pre_dispatch_freshness`, and `tests.test_navigation_runner`.
+- Integration tests: offline policy/executor dry-run and rejection paths; no live runtime.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, then the full
+  repository suite when practical; if the full suite cannot run, explicitly record why and the last
+  authoritative result rather than silently waiving it.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON parsing,
+  JSON parsing for any touched audit fixture/output, touched-file secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this dormant offline firewall creates no runtime
+  evidence manifest.
+- Valid blocked outcomes: parallel executor pressure, capability reuse, navigation/consequential
+  conflation, or conflating authorization with non-dispatch transport verification.
+- Blocked-result commit policy: record the blocker; do not enable unsafe verification shortcuts.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(runtime): add input capability firewall`; allowed paths are the
+  direct implementation files above.
+- Completion criteria: existing policy/executor enforces navigation-versus-consequential firewall,
+  dry-run zero-input, non-reusable authority-bound capabilities, audited decisions, required tests
+  passing, zero live input, and unchanged registration/scheduler state.
+- Next: `VISION-NATIVE-FRAME-MUTATION-CORPUS`.
+
+### VISION-NATIVE-FRAME-MUTATION-CORPUS
+- Task ID: `VISION-NATIVE-FRAME-MUTATION-CORPUS`.
+- Title: Controlled native-frame mutation corpus for offline false-accept/false-reject measurement.
+- Status: Pending (dormant; offline contract only; not activated).
+- Milestone: Durable offline navigation architecture roadmap.
+- Dependencies: `RUNTIME-INPUT-CAPABILITY-FIREWALL` and `VISION-NATIVE-FRAME-REPLAY-HARNESS`.
+- Blocked by: readiness requires the replay harness and capability firewall; mutations must remain
+  distinct from retained native evidence; no live capture acquisition is authorized.
+- Objective: add realistic controlled replay mutations—brightness, contrast, bounded compression,
+  small translation, partial occlusion, distractor text, crop truncation, and stale-frame
+  substitution—while measuring false acceptance separately from false rejection.
+- Established facts: replay harness consumes non-live fixtures; perception/OCR contracts fail closed
+  on identity mismatch; retained evidence must not be overwritten by mutations.
+- Direct implementation files: `tasks/native_frame_mutation.py`,
+  `tests/test_native_frame_mutation.py`, exact manifest
+  `tests/fixtures/native_frame_mutation_manifest.json`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, and
+  `tests/test_governance_validation.py` only if durable identity coverage changes. Generated
+  mutations are temporary test output and are not committed.
+- Shared dependencies: native-frame replay, semantic OCR crop, perception bundle, and capability
+  firewall negative-control expectations; no production registration.
+- Transitive regression set: native-frame replay, semantic OCR crop, perception bundle, and
+  governance validation.
+- Allowed changes: per-commit allowed paths are exactly `tasks/native_frame_mutation.py`,
+  `tests/test_native_frame_mutation.py`, `tests/fixtures/native_frame_mutation_manifest.json`,
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if identity
+  coverage changes; generated mutation images may exist only in temporary test output.
+- Prohibited changes: mutating retained evidence or `.local-captures`, bulk evidence copy, live
+  capture, registration, scheduler, workers, task rows, or push.
+- Authorized runtime action: None; offline mutation/replay only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: NOT_APPLICABLE; no runtime input is authorized.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior live gameplay input.
+- Required source: project-owned replay fixtures only; mutated derivatives must carry distinct
+  mutation identity and must not replace retained native evidence.
+- Exact target semantics: enumerated mutation operators above; separate false-accept and false-reject
+  metrics; stale-frame substitution must fail closed on capture identity.
+- Required local association: each mutated frame declares parent fixture identity, operator, and
+  non-evidence storage path; parent retained evidence paths are immutable.
+- Negative controls: writing mutations into `evidence/**`, treating mutated frames as live, and
+  combining false-accept with false-reject into one undifferentiated score.
+- Coordinate space: native fixture coordinates with declared translation bounds only.
+- Accepted signals: deterministic operator application, distinct mutation identity, and separated
+  false-accept/false-reject reporting.
+- Rejected weak signals: random unbounded augmentation, evidence overwrites, and single blended error
+  rate hiding false accepts.
+- Ambiguous-result behavior: fail closed; count unresolved/ambiguous separately from false accept.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: controlled operator set listed in the objective only; no open-ended augmentation
+  zoo.
+- Resource consumption policy: no game resources or runtime input.
+- Premium or strategic restrictions: no gameplay or consequential control.
+- Active evidence manifest: None; offline fixtures only.
+- Required artifacts: mutation module, focused tests, exact
+  `tests/fixtures/native_frame_mutation_manifest.json`, temporary generated mutation output distinct
+  from retained evidence, and separated metric reporting.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: generated mutations are temporary test output only and must not
+  be committed as a wildcard fixture tree.
+- Focused tests: `tests.test_native_frame_mutation`, `tests.test_native_frame_replay`, and
+  `tests.test_semantic_ocr_crop`.
+- Integration tests: offline mutated replay through OCR/perception negative controls; no live
+  validation.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, then the full
+  repository suite when practical; if the full suite cannot run, explicitly record why and the last
+  authoritative result rather than silently waiving it.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON parsing,
+  exact mutation-manifest JSON parsing/hash validation, touched-file secret scan, and
+  `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this dormant offline corpus creates no runtime
+  evidence manifest.
+- Valid blocked outcomes: evidence mutation pressure, inseparable false-accept/false-reject metrics,
+  or live capture requests.
+- Blocked-result commit policy: record the blocker; never alter retained evidence.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(vision): add native-frame mutation corpus`; allowed paths are the
+  direct implementation files above.
+- Completion criteria: controlled mutation corpus with distinct storage, separated false-accept and
+  false-reject measurement, required tests passing, zero runtime input, and unchanged
+  registration/scheduler state.
+- Next: `HOME-NAVIGATION-OBSERVABILITY`.
+
+### HOME-NAVIGATION-OBSERVABILITY
+- Task ID: `HOME-NAVIGATION-OBSERVABILITY`.
+- Title: Deterministic Home navigation observability over the existing NavigationSession ledger.
+- Status: Pending (dormant; offline contract only; not activated).
+- Milestone: Durable offline navigation architecture roadmap.
+- Dependencies: `VISION-NATIVE-FRAME-MUTATION-CORPUS` and completed
+  `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS`.
+- Blocked by: readiness requires the navigation session ledger and mutation/replay contracts; a
+  second store is forbidden; calibration changes are out of scope.
+- Objective: report deterministic observability over the existing NavigationSession ledger covering
+  localization, requested/measured displacement, residuals, direction, progress, corrections,
+  repeated viewports, clamps, binding confidence, safe-exit availability, timing, and frame counts
+  without changing calibration.
+- Established facts: `tasks/navigation_session.py` already persists crash-safe checkpoints and
+  action ledger fields; observability must not invent a parallel store or alter calibration.
+- Direct implementation files: `tasks/navigation_observability.py`,
+  `tests/test_navigation_observability.py`, narrowly touchable
+  `tasks/navigation_session.py` and `tests/test_navigation_session.py`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if durable identity coverage
+  changes.
+- Shared dependencies: `tasks/navigation_session.py` ledger, perception/session identity fields, and
+  safe-exit availability signals; no production registration.
+- Transitive regression set: navigation session tests, perception bundle, and governance validation.
+- Allowed changes: per-commit allowed paths are exactly `tasks/navigation_observability.py`,
+  `tests/test_navigation_observability.py`, `tasks/navigation_session.py`,
+  `tests/test_navigation_session.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, and
+  `tests/test_governance_validation.py` only if identity coverage changes.
+- Prohibited changes: second session store, calibration changes, live dispatch, registration,
+  scheduler, workers, task rows, or push.
+- Authorized runtime action: None; offline ledger reporting only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: reporting only; no recovery transport is authorized.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior live navigation or consequential input.
+- Required source: offline NavigationSession fixtures/ledgers; live frames are not required.
+- Exact target semantics: deterministic report fields for localization, requested vs measured
+  displacement, residuals, direction, progress, corrections, repeated viewports, clamps, binding
+  confidence, safe-exit availability, timing, and frame counts.
+- Required local association: every report row must cite `navigation_session_id`, route identity, and
+  capture/frame ordinals from the existing ledger.
+- Negative controls: parallel store, silent calibration writes, inventing missing measurements, and
+  non-deterministic field ordering.
+- Coordinate space: platform-neutral session report fields; adapter geometry remains attributed.
+- Accepted signals: ledger-backed field completeness and stable serialized report ordering.
+- Rejected weak signals: reconstructed guesses without ledger support and timing from wall-clock
+  alone when ledger monotonic fields exist.
+- Ambiguous-result behavior: fail closed and mark fields unavailable rather than fabricating values.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: one reporting module over the existing ledger only.
+- Resource consumption policy: no game resources or runtime input.
+- Premium or strategic restrictions: no gameplay or consequential control.
+- Active evidence manifest: None; offline fixtures only.
+- Required artifacts: observability module, focused tests, and sample deterministic report output in
+  tests.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: none beyond test fixtures derived from session JSON.
+- Focused tests: `tests.test_navigation_observability` and `tests.test_navigation_session`.
+- Integration tests: offline ledger-to-report integration; no live BlueStacks validation.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, then the full
+  repository suite when practical; if the full suite cannot run, explicitly record why and the last
+  authoritative result rather than silently waiving it.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON parsing,
+  deterministic report/session JSON parsing when JSON is touched, touched-file secret scan, and
+  `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this dormant offline reporter creates no runtime
+  evidence manifest.
+- Valid blocked outcomes: second-store pressure, calibration mutation, or non-deterministic reports.
+- Blocked-result commit policy: record the blocker; do not alter calibration.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(home): add navigation session observability`; allowed paths are the
+  direct implementation files above.
+- Completion criteria: deterministic NavigationSession ledger reporting for all required fields,
+  no second store, no calibration changes, required tests passing, zero transport, and unchanged
+  registration/scheduler state.
+- Next: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`.
+
+### HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION
+- Task ID: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`.
+- Title: Strictly bounded session-local BlueStacks gesture calibration adaptation.
+- Status: Pending (dormant; offline contract only; not activated).
+- Milestone: Durable offline navigation architecture roadmap.
+- Dependencies: `HOME-NAVIGATION-OBSERVABILITY` and completed
+  `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS`.
+- Blocked by: readiness requires observability fields for requested/measured displacement and
+  residuals; auto-persistence of learned calibration is forbidden; Bliss remains separate;
+  `CONFIRMED_NOT_DISPATCHED` must not be enabled by this task.
+- Objective: allow strictly bounded session-local BlueStacks gesture adaptation that preserves the
+  original calibration and every adjustment, rejects wrong-direction/implausible/outlier
+  measurements, and never auto-persists learned calibration.
+- Established facts: BlueStacks inverse gesture conversion is adapter-owned; navigation sessions
+  already track displacement history; production Bliss calibration is independent; transport
+  non-dispatch verification remains fail-closed.
+- Direct implementation files: `tasks/navigation_session_calibration.py`,
+  `scripts/home_atlas_bluestacks.py`, `tests/test_navigation_session_calibration.py`,
+  `tests/test_home_atlas_planner.py` if needed for adapter regression, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if durable identity coverage
+  changes.
+- Shared dependencies: navigation session ledger/observability and BlueStacks gesture conversion;
+  no production registration.
+- Transitive regression set: navigation session, observability, Home atlas BlueStacks adapter tests,
+  and governance validation.
+- Allowed changes: per-commit allowed paths are exactly `tasks/navigation_session_calibration.py`,
+  `scripts/home_atlas_bluestacks.py`, `tests/test_navigation_session_calibration.py`,
+  `tests/test_home_atlas_planner.py` if needed for adapter regression, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if identity coverage changes.
+- Prohibited changes: auto-persisting learned calibration, Bliss calibration reuse, enabling
+  `CONFIRMED_NOT_DISPATCHED`, unbounded learning, live consequential dispatch, registration,
+  scheduler, workers, task rows, or push.
+- Authorized runtime action: None required; offline bounded adaptation tests only. Any later live use
+  remains separately authorized and BlueStacks-only.
+- Maximum transport inputs: Zero for this task.
+- Navigation-only recovery: session-local gesture adaptation for navigation-only pans/zooms may be
+  modeled offline; no live recovery transport is authorized here.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: prior no-progress canonical short drags or any identical
+  unreconciled navigation input.
+- Required source: offline measured displacement samples from session fixtures; live frames are not
+  required.
+- Exact target semantics: preserve original calibration baseline; record every session adjustment;
+  reject wrong-direction, implausible, and outlier measurements; adaptations remain session-local and
+  non-persistent by default.
+- Required local association: each adjustment cites session id, sample measurement, acceptance or
+  rejection reason, and the unchanged original calibration snapshot.
+- Negative controls: auto-persist to disk/profile, Bliss parameter copy, accepting wrong-direction
+  samples, and enabling `CONFIRMED_NOT_DISPATCHED`.
+- Coordinate space: BlueStacks adapter gesture space only; Bliss remains independent.
+- Accepted signals: bounded accepted adjustments with preserved baseline and explicit rejection
+  reasons for invalid samples.
+- Rejected weak signals: global learning without session bounds, mean-shift from outliers, and
+  transport-success-as-calibration-proof.
+- Ambiguous-result behavior: fail closed; keep original calibration and reject the sample.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: session-local bounded adjustments only; no cross-session accumulation in this task.
+- Resource consumption policy: no game resources or runtime input.
+- Premium or strategic restrictions: no consequential controls.
+- Active evidence manifest: None; offline fixtures only.
+- Required artifacts: session-local calibration adapter, focused rejection tests, and proof that
+  original calibration remains preserved.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: offline measurements are in-memory test data in
+  `tests/test_navigation_session_calibration.py`; no additional fixture path is writable.
+- Focused tests: `tests.test_navigation_session_calibration`, `tests.test_navigation_observability`,
+  and `tests.test_navigation_session`.
+- Integration tests: offline session-local adaptation with observability fields; no live BlueStacks
+  validation required.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, then the full
+  repository suite when practical; if the full suite cannot run, explicitly record why and the last
+  authoritative result rather than silently waiving it.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON parsing,
+  calibration/session JSON parsing when JSON is touched, touched-file secret scan, and
+  `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this dormant offline calibration task creates no
+  runtime evidence manifest.
+- Valid blocked outcomes: auto-persist pressure, Bliss leakage, outlier acceptance, or attempts to
+  enable `CONFIRMED_NOT_DISPATCHED`.
+- Blocked-result commit policy: record the blocker; preserve original calibration.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(home): add bounded session calibration`; allowed paths are the
+  direct implementation files above.
+- Completion criteria: bounded session-local BlueStacks gesture adaptation with preserved baseline,
+  rejection of invalid samples, no auto-persist, Bliss separate, `CONFIRMED_NOT_DISPATCHED` still
+  unavailable, required tests passing, and unchanged registration/scheduler state.
+- Next: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
+
+### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
+- Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
+- Title: Narrow declarative verified-flow composition over existing navigation contracts.
+- Status: Pending (dormant; offline contract only; not activated).
+- Milestone: Durable offline navigation architecture roadmap.
+- Dependencies: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed shared roadmap contracts for
+  perception/session/radial/safe-exit/capability reuse, and existing `NavigationStep` /
+  `NavigationRunner` contracts.
+- Blocked by: readiness review must first demonstrate that multiple routes already reuse stable
+  perception, session, radial, safe-exit, and capability contracts; if reuse is not demonstrable,
+  stop as a valid blocked outcome without building a second engine. No broad DSL or generic
+  autonomous runtime is authorized.
+- Objective: after a positive readiness review, extend existing `NavigationStep`, `NavigationRunner`,
+  contracts, and semantic planners for declarative verified-flow composition of one reference route
+  only, reusing the stable shared contracts rather than inventing a second engine.
+- Established facts: `NavigationStep`/`NavigationRunner` and task contracts already compose typed
+  navigation; roadmap perception/session/radial/safe-exit/capability tasks are intended shared
+  seams; broad autonomous DSLs are out of scope.
+- Direct implementation files: exact readiness artifact
+  `docs/navigation_verified_flow_readiness.md`, `tasks/contracts.py`,
+  `safe_action_core/navigation.py`, exact one reference route `tasks/supply_depot.py`,
+  `tests/test_navigation_runner.py`, `tests/test_supply_depot.py`, new exact
+  `tests/test_verified_flow_composition.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, and
+  `tests/test_governance_validation.py` only if durable identity coverage changes.
+- Shared dependencies: completed roadmap contracts above, existing NavigationStep/Runner, and
+  semantic planners; no production registration.
+- Transitive regression set: navigation runner, task contracts, reference route tests, and
+  governance validation.
+- Allowed changes: per-commit allowed paths are exactly
+  `docs/navigation_verified_flow_readiness.md`, `tasks/contracts.py`,
+  `safe_action_core/navigation.py`, `tasks/supply_depot.py`,
+  `tests/test_navigation_runner.py`, `tests/test_supply_depot.py`,
+  `tests/test_verified_flow_composition.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, and
+  `tests/test_governance_validation.py` only if identity coverage changes.
+- Prohibited changes: second navigation engine, broad DSL, generic autonomous runtime, multi-route
+  mass migration, live consequential broadening, registration, scheduler, workers, task rows, or push.
+- Authorized runtime action: None required for offline composition; any later live reference-route
+  run needs separate explicit authorization.
+- Maximum transport inputs: Zero for this task.
+- Navigation-only recovery: composition may declare navigation-only steps only where existing
+  contracts already allow them; no new recovery transport authority.
+- Consequential action: None newly authorized by composition alone.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior live consequential action keys on the reference route.
+- Required source: readiness review evidence that multiple existing routes already consume the shared
+  contracts; in-memory test doubles in `tests/test_verified_flow_composition.py` and existing
+  `tests/test_supply_depot.py` data for the single reference route.
+- Exact target semantics: readiness gate first; if positive, declarative composition of one reference
+  route using existing NavigationStep/Runner plus shared perception/session/radial/safe-exit/
+  capability contracts; verified step preconditions/postconditions remain fail-closed.
+- Required local association: each composed step retains source/target semantics, capture freshness
+  requirements, and capability class separation from the shared contracts.
+- Negative controls: proceeding without readiness proof, second engine/DSL, composing consequential
+  steps under navigation-only capabilities, and activating multiple reference routes in this task.
+- Coordinate space: existing contract/runner coordinate rules; adapter-owned geometry stays attributed.
+- Accepted signals: documented multi-route reuse readiness, one reference route composition, and
+  offline verified precondition/postcondition checks.
+- Rejected weak signals: aspirational reuse claims, new DSL surface area, and transport success as
+  semantic verification.
+- Ambiguous-result behavior: fail closed; insufficient multi-route reuse sets and records this task
+  as blocked and stops the serial sequence under orchestrator rules without implementing composition.
+- Zero-cost requirement: preserve existing zero-cost gates; composition adds no paid consequences.
+- Quantity limits: exactly one reference route; no broad migration.
+- Resource consumption policy: no game resources or runtime input in this task.
+- Premium or strategic restrictions: no premium/purchase/strategic controls.
+- Active evidence manifest: None; offline readiness note and tests only.
+- Required artifacts: exact `docs/navigation_verified_flow_readiness.md`; after a positive gate,
+  narrow composition extensions, exactly one Supply Depot reference route, and focused/integration/
+  regression tests. A negative review produces only a recorded blocked state and no implementation.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: exact `docs/navigation_verified_flow_readiness.md` only.
+- Focused tests: `tests.test_verified_flow_composition`, `tests.test_navigation_runner`, and
+  `tests.test_supply_depot`.
+- Integration tests: offline composed reference-route dry-run; no live runtime required.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, then the full
+  repository suite when practical; if the full suite cannot run, explicitly record why and the last
+  authoritative result rather than silently waiving it.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON parsing,
+  JSON parsing for any touched route/session output, touched-file secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this dormant offline composition task creates no
+  runtime evidence manifest.
+- Valid blocked outcomes: readiness review showing insufficient multi-route reuse, second-engine/DSL
+  pressure, or attempts to compose multiple routes in this task; each must record blocked state and
+  stop the serial sequence without satisfying completion.
+- Blocked-result commit policy: a failed readiness review must set/record blocked state, stop the
+  serial sequence, and must not produce the successful implementation commit.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(runtime): compose one verified reference flow`; allowed paths are
+  the direct implementation files above.
+- Completion criteria: positive readiness review plus exactly one Supply Depot reference-route
+  composition over existing contracts, required focused/integration/regression/full-suite gates and
+  validators passing or the full-suite inability explicitly recorded, no second engine/DSL, zero
+  unauthorized runtime input, unchanged registration/scheduler state, and the unrelated post-roadmap
+  successor preserved. A failed readiness review is blocked, not completed.
+- Next: `M6-DQ-TRANSITION-CORPUS`.
+
 ### DQ-FLOW-RECRUITMENT
 - Status: Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).
 - Covered: `recruit_noahs_tavern`; free single variant repeated to target quantity.

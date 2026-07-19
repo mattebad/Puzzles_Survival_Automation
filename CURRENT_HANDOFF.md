@@ -3,36 +3,10 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "1ee65d33647debd71f8427c6f1f1a63116a11e76 (unchanged during this task)",
+    "head": "efd2e96ddce5ffd7a3653988ac855f1cb9fc933a (setup task activation base)",
     "origin_relationship": "main matches origin/main; no push",
     "staged_paths": [],
-    "relevant_unstaged_paths": [
-      "BACKLOG.md",
-      "CURRENT_HANDOFF.md",
-      "tasks/navigation_session.py",
-      "tests/test_navigation_session.py",
-      "scripts/home_atlas_bluestacks.py",
-      "tests/test_governance_validation.py",
-      "tasks/perception_bundle.py",
-      "tests/test_perception_bundle.py",
-      "tests/fixtures/perception_bundle_evidence.json",
-      "docs/research/home_ui_atlas.md",
-      "docs/research/home_ui_atlas.json",
-      "scripts/bluestacks_native_runtime.py",
-      "scripts/supply_depot_bluestacks.py",
-      "tasks/home_atlas.py",
-      "tasks/home_atlas_planner.py",
-      "tasks/home_atlas_vision.py",
-      "tasks/supply_depot.py",
-      "tasks/supply_depot_vision.py",
-      "tasks/assets/home_atlas/bluestacks/800x1280/**",
-      "tests/test_home_atlas.py",
-      "tests/test_home_atlas_planner.py",
-      "tests/test_supply_depot.py",
-      "tests/test_supply_depot_vision.py",
-      "tests/test_supply_depot_bluestacks.py",
-      "tests/test_bluestacks_integrated_routes.py"
-    ],
+    "relevant_unstaged_paths": [],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
       ".local-reference/**",
@@ -51,15 +25,22 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "RUNTIME-RESUMABLE-NAVIGATION-SESSIONS",
+  "current_task_id": "ARCH-NAVIGATION-AUTOMATION-ROADMAP",
   "current_task_state": "completed",
-  "next_task_id": "M6-DQ-TRANSITION-CORPUS",
-  "next_task_activation_status": "not_applicable",
-  "phase": "resumable_navigation_sessions_completed",
-  "objective": "Introduce resumable, evidence-backed navigation sessions with crash-safe ledgers, cyclic multi-pan checkpoints, and hardened continuation freshness without Train or consequential input.",
-  "last_safe_completed_step": "CONFIRMED_NOT_DISPATCHED now fails closed as NON_DISPATCH_AUTHORITY_UNAVAILABLE until an authenticated runtime-owned transport verifier exists; caller-minted evidence and zero movement cannot clear suppression; full suite 642 passed with 1 expected skip; zero runtime input.",
-  "next_permitted_action": "Preserve completed offline resumable navigation-session work; send no runtime input without a new authorized task.",
+  "next_task_id": "VISION-SEMANTIC-OCR-CROP-PIPELINE",
+  "next_task_activation_status": "ready",
+  "phase": "navigation_architecture_roadmap_registered",
+  "objective": "Register nine durable dormant offline navigation architecture contracts in the authorized serial order.",
+  "last_safe_completed_step": "Reviewed all nine dormant contracts with exact path sets, serial dependencies, full-suite-when-practical gates, fail-closed readiness semantics, and M6-DQ-TRANSITION-CORPUS preserved after the roadmap; focused governance and adversarial probes passed; zero runtime input/evidence.",
+  "next_permitted_action": "Commit the reviewed setup task locally, then activate VISION-SEMANTIC-OCR-CROP-PIPELINE as the sole next atomic task; no push.",
   "actions_already_performed": [
+    "Inserted nine Pending/dormant serial roadmap contracts into BACKLOG.md after ARCH-NAVIGATION-AUTOMATION-ROADMAP and before DQ-FLOW-RECRUITMENT without altering unrelated tasks.",
+    "Preserved M6-DQ-TRANSITION-CORPUS as the ninth contract Next and as the unrelated post-roadmap successor; left VISION-SEMANTIC-OCR-CROP-PIPELINE pending/not activated.",
+    "Corrected next_task_activation_status to dependency_blocked because the setup task is still in progress and successor activation is prohibited.",
+    "Updated tests/test_governance_validation.py durable task-identity assertions for the active roadmap setup task and dormant first successor.",
+    "Corrected all nine dormant contracts to exact per-commit writable path sets, focused-first/touched-regression/full-suite-when-practical gates, and JSON validation where applicable.",
+    "Corrected the ninth task so a failed readiness review records blocked state, stops the serial sequence, and cannot satisfy completion or produce the successful implementation commit.",
+    "Synchronized current-task runtime state to zero BlueStacks/ADB/Bliss/Unraid/runtime operation, zero workers, zero evidence acquisition, and zero dispatched input while preserving historical references as context only.",
     "Read-only Git status, required governance files, the exact MVP backlog section, direct dependencies, and exact evidence references.",
     "Migrated and validated the MVP durable contract and created its compact task-specific evidence manifest from exact named references.",
     "Fresh fixed-profile source and immediate-before frames established the selected Daily Quest screen, current game day, and exact local Claim target.",
@@ -143,14 +124,14 @@
     "Do not tap either positively recognized radial Train control or any downstream normal Train, quantity, Warehouse, resource-box, premium, or consequential control."
   ],
   "runtime": {
-    "vm_state": "Bliss/Unraid NOT OPERATED; local BlueStacks only",
-    "worker_state": "No worker started or modified",
-    "active_operator_collector_automation_test_emulator_processes": "This chat was the sole live local BlueStacks operator",
-    "adb_exposure_and_connection_state": "Project-owned local BlueStacks endpoint emulator-5554; no Bliss or public endpoint",
-    "expected_fixed_profile": "pns-bluestacks-5-p64-800x1280-v1 for this local task; Bliss remains independent",
-    "observed_current_profile": "pns-bluestacks-5-p64-800x1280-v1, native 800x1280",
-    "foreground_package_activity": "Final fresh Home/Base, fully_zoomed_out, interior origin (338.05,358.86), confidence 0.99057, residual 0.11316 px; no radial or action in flight",
-    "manual_only_screen_state": "None entered or automated"
+    "vm_state": "No BlueStacks, ADB, Bliss, Unraid, emulator, VM, or other runtime was operated during this documentation/governance setup task",
+    "worker_state": "No worker was started, modified, or contacted during this setup task",
+    "active_operator_collector_automation_test_emulator_processes": "None started or used by this setup task; no live runtime operator role was assumed",
+    "adb_exposure_and_connection_state": "ADB was not invoked, connected, inspected, or exposed during this setup task",
+    "expected_fixed_profile": "NOT_APPLICABLE; this setup task is documentation/governance only",
+    "observed_current_profile": "NOT_OBSERVED; no runtime or frame was inspected during this setup task",
+    "foreground_package_activity": "NOT_OBSERVED; no application state, foreground package, or frame was acquired during this setup task",
+    "manual_only_screen_state": "NOT_ENTERED_OR_OBSERVED; zero runtime input was dispatched"
   },
   "journals_and_lease": {
     "authoritative_operational_journal_path": "evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3 (task-scoped preserved copy)",
@@ -229,7 +210,7 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Offline resumable navigation-session contracts and fixtures create no Bliss production evidence manifest; live BlueStacks validation is not required for this task.",
+    "evidence_requirement_reason": "Roadmap setup registers dormant offline backlog contracts only and creates no runtime evidence manifest.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "collector": {
@@ -246,18 +227,19 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Preserve completed offline RUNTIME-RESUMABLE-NAVIGATION-SESSIONS work; send no runtime input without a new authorized task."
+      "Commit the reviewed setup task locally, then activate VISION-SEMANTIC-OCR-CROP-PIPELINE as the sole next atomic task."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
       "Any live resume dispatch, facility entry, radial input, Train, Supply Depot collection, Daily Claim, or other consequential control.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Atlas rebuild/reacquisition or broadening Train/consequential authorization.",
-      "Staging, commit, or push unless explicitly requested."
+      "Activating any roadmap task other than VISION-SEMANTIC-OCR-CROP-PIPELINE.",
+      "Any push."
     ],
-    "exact_stop_condition": "Stop; task complete with no action in flight. Live resume dispatch requires a separate authorized task.",
-    "expected_next_atomic_task": "M6-DQ-TRANSITION-CORPUS",
-    "expected_next_activation_status": "not_applicable"
+    "exact_stop_condition": "Stop on commit or activation failure; no runtime action is permitted.",
+    "expected_next_atomic_task": "VISION-SEMANTIC-OCR-CROP-PIPELINE",
+    "expected_next_activation_status": "ready"
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -267,34 +249,36 @@
 This document is a volatile operational boundary, not a complete project history.
 
 ## Repository
-- Branch: main
-- HEAD: `1ee65d33647debd71f8427c6f1f1a63116a11e76` (unchanged during this task)
-- Relationship to origin/main: matches; no push
+- Branch: `main`
+- HEAD/base: `efd2e96ddce5ffd7a3653988ac855f1cb9fc933a`; matches `origin/main`
 - Staged paths: none
-- Relevant unstaged paths: the atlas/localizer/navigator/Supply Depot files listed in the structured state; unrelated work remains preserved
+- Relevant unstaged paths after the setup commit: none
 - Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
-- Most recent task-scoped commits: 58d8898, e76964b, 9883a15, 501f9fb
+- Push: prohibited
 
 ## Current task
-- Task ID: RUNTIME-RESUMABLE-NAVIGATION-SESSIONS
-- Current task state: completed; offline resumable navigation sessions with fail-closed non-dispatch handling
-- Next task ID: M6-DQ-TRANSITION-CORPUS
-- Next task activation status: not_applicable
-- Phase: resumable_navigation_sessions_completed
-- Objective: crash-safe navigation sessions with cyclic multi-pan checkpoints and hardened continuation freshness; no Train/consequential input
-- Last safe completed step: CONFIRMED_NOT_DISPATCHED fails closed as NON_DISPATCH_AUTHORITY_UNAVAILABLE until an authenticated runtime-owned verifier exists; full suite 642 passed / 1 expected skip + git diff --check green; zero runtime input
-- Exact next permitted step: none in this task; live resume dispatch requires separate authorization
-- No atlas reacquisition, live BlueStacks/ADB, facility entry, radial/consequential input, Bliss, Unraid, registration, scheduler, worker, or task-row action occurred
-- M6-DQ-TRANSITION-CORPUS remains the declared successor
+- Task ID: `ARCH-NAVIGATION-AUTOMATION-ROADMAP`
+- State: completed; documentation/governance only
+- Next task ID: `VISION-SEMANTIC-OCR-CROP-PIPELINE` (ready; not yet activated)
+- Objective: register nine durable dormant offline contracts in the authorized serial order.
+- Last safe completed step: all nine Pending/dormant contracts passed parent review, focused
+  governance tests, compilation, adversarial chain probes, secret scanning, and `git diff --check`.
+- Exact next permitted step: commit setup locally, then activate only the first implementation task.
+- No runtime, evidence, registration, scheduler, worker, or task-row operation is authorized.
+- `M6-DQ-TRANSITION-CORPUS` remains the unrelated post-roadmap successor after the ninth roadmap contract.
 
 ## Runtime
-- VM state: Bliss/Unraid not operated; local BlueStacks only
-- Worker state: no worker started or modified
-- Active operator: this chat was the sole local BlueStacks runtime operator
-- ADB exposure and connection state: project-owned local BlueStacks endpoint `emulator-5554`; no Bliss or public endpoint
-- Expected/observed local profile: `pns-bluestacks-5-p64-800x1280-v1`, native `800x1280`
-- Foreground package/activity: final fresh Home/Base, `fully_zoomed_out`, interior atlas origin `(338.05,358.86)`, confidence `0.99057`, residual `0.11316 px`; no radial or action in flight
-- Manual-only screen state: none entered or automated
+- VM/runtime state: this documentation/governance setup task operated no BlueStacks, ADB, Bliss,
+  Unraid, emulator, VM, or other runtime.
+- Worker state: no worker was started, modified, or contacted.
+- Active operator/collector/automation: none started or used; this task assumed no live runtime
+  operator role.
+- ADB exposure and connection state: ADB was not invoked, connected, inspected, or exposed.
+- Expected/observed profile: not applicable/not observed; no runtime or frame was inspected.
+- Foreground package/activity: not observed; no application state or frame was acquired.
+- Manual-only screen state: not entered or observed.
+- Runtime result: zero input dispatched and zero evidence acquired. Historical journal/evidence
+  references below are preserved context only and were not used by this setup task.
 
 ## Journals and lease
 - Authoritative task journal path: `evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3`; retained journals remain immutable evidence
@@ -344,11 +328,11 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: run the collector locally on Windows against BlueStacks and capture the first missing quest flow
-- Prohibited actions: Bliss, Unraid, production, scheduler, registration, journal, lease, evidence, or gameplay changes; do not stage .local-captures
-- Exact stop condition: stop before any production/runtime operation; the next permitted action is the documented local Windows BlueStacks capture
-- Expected next atomic task: MVP-QUEST-TO-CLAIM
-- Expected next activation status: not_applicable
+- Permitted action: commit setup locally, then activate `VISION-SEMANTIC-OCR-CROP-PIPELINE`
+- Prohibited actions: Bliss, Unraid, ADB, pnsctl live gameplay, evidence mutation, registration/scheduler changes, any other successor activation, and any push
+- Exact stop condition: stop on commit or activation failure; no runtime action is permitted
+- Expected next atomic task: `VISION-SEMANTIC-OCR-CROP-PIPELINE`
+- Expected next activation status: ready
 
 ## Ruins Challenge local task handoff — 2026-07-16
 
