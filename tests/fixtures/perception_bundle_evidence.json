@@ -1,0 +1,128 @@
+{
+  "bundle": {
+    "building_binding": null,
+    "context": {
+      "confidence": 0.95,
+      "context_allows_interaction": false,
+      "context_recognized": true,
+      "contextual_class": "canonical_home",
+      "reason_code": "canonical_home",
+      "supporting_observations": [
+        "canonical_home_localization"
+      ]
+    },
+    "forbidden_surfaces": [],
+    "frame": {
+      "capture_completed_monotonic": 1000.0,
+      "capture_kind": "fixture",
+      "capture_ordinal": 1,
+      "evidence_path": "",
+      "height": 1280,
+      "label": "fixture-frame",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+      "runtime_session_id": "fixture-session",
+      "semantic_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "transport_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "width": 800
+    },
+    "frame_validation": {
+      "expected_height": 1280,
+      "expected_platform": "BlueStacks 5 / Android",
+      "expected_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+      "expected_width": 800,
+      "orientation_ok": true,
+      "package_ok": true,
+      "source_frame": {
+        "capture_completed_monotonic": 1000.0,
+        "capture_kind": "fixture",
+        "capture_ordinal": 1,
+        "evidence_path": "",
+        "height": 1280,
+        "label": "fixture-frame",
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+        "runtime_session_id": "fixture-session",
+        "semantic_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "transport_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 800
+      },
+      "supporting_evidence": [
+        "fixture-validation"
+      ],
+      "validity": "valid_native"
+    },
+    "invalidated_after_input": false,
+    "known_modal": null,
+    "localization": {
+      "ambiguity_state": "none",
+      "confidence": 0.95,
+      "frame_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "map_edge_state": "interior",
+      "overlay": false,
+      "platform": "BlueStacks 5 / Android",
+      "profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+      "recognized": true,
+      "residual_px": 0.2,
+      "screen_to_atlas": [
+        [
+          1.0,
+          0.0,
+          100.0
+        ],
+        [
+          0.0,
+          1.0,
+          200.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "source_frame": {
+        "capture_completed_monotonic": 1000.0,
+        "capture_kind": "fixture",
+        "capture_ordinal": 1,
+        "evidence_path": "",
+        "height": 1280,
+        "label": "fixture-frame",
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+        "runtime_session_id": "fixture-session",
+        "semantic_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "transport_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 800
+      },
+      "stale": false,
+      "supporting_landmarks": [
+        "v1"
+      ],
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "viewport_polygon": [
+        [
+          100.0,
+          200.0
+        ],
+        [
+          900.0,
+          200.0
+        ],
+        [
+          900.0,
+          1480.0
+        ],
+        [
+          100.0,
+          1480.0
+        ]
+      ],
+      "zoom_identity": "fully_zoomed_out"
+    },
+    "ocr_observations": [],
+    "overlay": null,
+    "radial": null,
+    "recognized_screen": null,
+    "targets": []
+  },
+  "schema_name": "frame_perception_bundle",
+  "schema_version": 1
+}

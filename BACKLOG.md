@@ -2126,6 +2126,85 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Completion criteria: every current-account accepted-atlas building label reconciled; Parade Grounds mapped
   with exact non-actionable policy; individual resource/infirmary instances preserved; tests and validators pass.
 
+### RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE
+- Task ID: `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`.
+- Title: Shared immutable perception bundle for one captured native frame/capture event.
+- Status: Completed (2026-07-18; final review-fix for forged-context, nested-target, and frame-validation consistency).
+- Milestone: Platform-neutral same-frame perception composition for Home atlas consumers.
+- Dependencies: completed `TOOLS-HOME-BASE-ATLAS-BLUESTACKS`, `TOOLS-HOME-ATLAS-DIRECT-PAN-PLANNER`,
+  and `TOOLS-HOME-ATLAS-TROOP-TRAINING-ENTRY-MIGRATION`.
+- Blocked by: None for offline implementation; Bliss calibration remains independent.
+- Objective: create a shared immutable FramePerceptionBundle that binds localization, classification,
+  bindings, OCR, targets, and forbidden-surface observations to one capture event with dual digests,
+  reject cross-capture composition, classify context fail-closed without dispatch authority, and
+  enforce the bundle in `command_navigate_building` only.
+- Established facts: Home atlas, direct-pan planner, and Troop Training entry migration are authoritative;
+  `CapturedNativeFrame.sha256` is transport PNG digest; `frame_digest` is semantic digest; planner already
+  rejects mismatched semantic binding hashes; live BlueStacks validation is not required for this task.
+- Direct implementation files: `tasks/perception_bundle.py`, `tests/test_perception_bundle.py`,
+  `tests/fixtures/perception_bundle_evidence.json`, `scripts/home_atlas_bluestacks.py` navigate-building
+  adoption, this task contract, `CURRENT_HANDOFF.md`, and governance identity coverage.
+- Shared dependencies: `tasks/home_atlas.py`, `tasks/home_atlas_planner.py`, `tasks/home_atlas_vision.py`,
+  `scripts/bluestacks_native_runtime.py`, and `safe_action_core.models.snapshot`; no production registration.
+- Transitive regression set: Home atlas/planner, Troop Training entry, BlueStacks integrated routes,
+  governance, and full repository discovery when practical.
+- Allowed changes: per-commit allowed paths are the direct implementation files, focused tests/fixtures,
+  this task contract, current handoff, and governance identity coverage only.
+- Prohibited changes: atlas rebuild/reacquisition, DirectPanNavigator public API changes, consequential
+  Train/Supply input, Bliss/Unraid/production, workers, task rows, registration, scheduler, staging,
+  commit, or push.
+- Authorized runtime action: None required; offline unit/fixture validation is sufficient. Any later
+  runtime path must use `scripts/pnsctl.py` only.
+- Maximum transport inputs: Zero for this task.
+- Navigation-only recovery: NOT_APPLICABLE because no live transport is authorized.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: prior Supply Depot collections, Troop Training Train inputs,
+  atlas acquisition, or no-progress canonical short-drag diagnostics.
+- Required source: synthetic offline capture-event identities and immutable observation snapshots; live
+  frames are not required.
+- Exact target semantics: one capture-event identity with transport and semantic digests, same-event
+  observation composition, and checked navigation inputs for DirectPanNavigator.
+- Required local association: every observation carries the complete NativeFrameIdentity; semantic
+  composition uses semantic_sha256 only.
+- Negative controls: cross-capture composition, transport/semantic hash interchange, mutable payloads,
+  numpy retention in the bundle, classifier-as-dispatch-authority, and silent recapture.
+- Coordinate space: platform-neutral contracts; BlueStacks geometry remains adapter-owned.
+- Accepted signals: full capture-event identity match, dual digests, immutable typed snapshots, versioned
+  evidence snapshot, and bundle-enforced planner inputs.
+- Rejected weak signals: pixel-hash-only equality, missing overlay identity treated as clear, and
+  evidence-only bundle serialization without checked inputs.
+- Ambiguous-result behavior: fail closed to unknown/invalid; never authorize transport from context alone.
+- Zero-cost requirement: NOT_APPLICABLE because no transaction occurs.
+- Quantity limits: one reference route adoption (`command_navigate_building`); zero consequential inputs.
+- Resource consumption policy: no resource, item, AP, stamina, speedup, ticket, or currency use.
+- Premium or strategic restrictions: no premium, purchase, Mall, Bank, upgrade, research, training,
+  healing, or production action.
+- Active evidence manifest: None; offline fixtures and additive navigate-building JSON fields are sufficient.
+- Required artifacts: perception bundle module, focused tests, versioned evidence fixture, and enforced
+  navigate-building integration.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE; zero live transport and no journal action.
+- Additional task-specific artifacts: `tests/fixtures/perception_bundle_evidence.json`.
+- Focused tests: `tests.test_perception_bundle`, `tests.test_home_atlas`, `tests.test_home_atlas_planner`,
+  `tests.test_troop_training`, and `tests.test_troop_training_entry`.
+- Integration tests: offline bundle-enforced planner integration; no live BlueStacks validation required.
+- Transitive regression tests: governance validation and full unittest discovery when practical.
+- Full-suite requirement: run full repository unittest discovery if practical; allow no new touched-component failure.
+- Validators: Python compilation, focused/full tests, governance, CURRENT_HANDOFF JSON, fixture JSON,
+  touched-file secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this offline contract task creates no canonical Bliss
+  evidence manifest; fixtures and additive local JSON fields are sufficient.
+- Valid blocked outcomes: cross-capture composition, stale transport, semantic invalidity, unknown overlay,
+  and missing checked navigation inputs.
+- Blocked-result commit policy: do not stage or commit a blocked live result; none is authorized.
+- Commit policy: no staging, commit, or push was requested; no push by default.
+- Expected focused commits: None because staging, commit, and push are explicitly prohibited.
+- Completion criteria: dual-digest capture-event bundle with deep immutability, honest contextual
+  classification, enforced navigate-building consumption, required tests/validators passing, and unchanged
+  registration/scheduler state.
+
 ### DQ-FLOW-RECRUITMENT
 - Status: Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).
 - Covered: `recruit_noahs_tavern`; free single variant repeated to target quantity.

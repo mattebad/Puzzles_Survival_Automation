@@ -22,7 +22,7 @@ class GovernanceValidationTests(unittest.TestCase):
 
     def test_handoff_has_distinct_current_and_next_task_fields(self):
         state = validate_governance.parse_handoff()
-        self.assertEqual(state["current_task_id"], "TOOLS-HOME-ATLAS-TROOP-TRAINING-ENTRY-MIGRATION")
+        self.assertEqual(state["current_task_id"], "RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE")
         self.assertEqual(state["current_task_state"], "completed")
         self.assertEqual(state["next_task_id"], "M6-DQ-TRANSITION-CORPUS")
         self.assertEqual(

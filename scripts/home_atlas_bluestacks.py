@@ -29,8 +29,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
-from tasks.home_atlas import ZoomIdentity, load_home_atlas
+from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
+from tasks.home_atlas import BuildingBinding, LocalizationResult, ZoomIdentity, load_home_atlas
 from tasks.home_atlas_planner import (
     DirectPanNavigator,
     GestureCalibration,
@@ -51,11 +51,103 @@ from tasks.home_atlas_vision import (
     native_frame_guard,
     register_home_frame,
 )
+from tasks.perception_bundle import (
+    FramePerceptionBundle,
+    FrameValidityState,
+    ImmutableFrameValidationObservation,
+    NativeFrameIdentity,
+    PerceptionBundleError,
+    binding_from_result,
+    bundle_evidence_snapshot,
+    bundle_from_identity,
+    classify_and_attach,
+    localization_from_result,
+)
 from tasks.supply_depot_vision import (
     bind_supply_depot_building,
     bind_supply_depot_claim_supply,
     recognize_supply_depot_screen,
 )
+
+
+def identity_from_captured(
+    captured: CapturedNativeFrame,
+    *,
+    session_id: str,
+    ordinal: int,
+    profile_id: str = BLUESTACKS_PROFILE_ID,
+    label: str = "",
+) -> NativeFrameIdentity:
+    """Build a live capture-event identity. semantic_sha256 always comes from frame_digest."""
+
+    height, width = captured.frame.shape[:2]
+    return NativeFrameIdentity(
+        capture_kind="live",
+        runtime_session_id=session_id,
+        capture_ordinal=ordinal,
+        capture_completed_monotonic=captured.captured_monotonic,
+        transport_sha256=captured.sha256,
+        semantic_sha256=frame_digest(captured.frame),
+        runtime_profile_id=profile_id,
+        width=width,
+        height=height,
+        label=label,
+        evidence_path=str(captured.path),
+    )
+
+
+def bluestacks_frame_validation(
+    identity: NativeFrameIdentity,
+    *,
+    package_ok: bool = True,
+    orientation_ok: bool = True,
+) -> ImmutableFrameValidationObservation:
+    """Adapter-owned BlueStacks native validation against the fixed local profile/geometry."""
+
+    validity = FrameValidityState.VALID_NATIVE
+    evidence: list[str] = []
+    if identity.width != 800 or identity.height != 1280:
+        validity = FrameValidityState.WRONG_GEOMETRY
+        evidence.append(f"geometry:{identity.width}x{identity.height}")
+    elif identity.runtime_profile_id != BLUESTACKS_PROFILE_ID:
+        validity = FrameValidityState.WRONG_PROFILE
+        evidence.append(f"profile:{identity.runtime_profile_id}")
+    elif not package_ok:
+        validity = FrameValidityState.WRONG_PACKAGE
+        evidence.append("package")
+    elif not orientation_ok:
+        validity = FrameValidityState.WRONG_ORIENTATION
+        evidence.append("orientation")
+    else:
+        evidence.append("native_800x1280")
+    return ImmutableFrameValidationObservation(
+        source_frame=identity,
+        validity=validity,
+        expected_profile_id=BLUESTACKS_PROFILE_ID,
+        expected_width=800,
+        expected_height=1280,
+        expected_platform=BLUESTACKS_PLATFORM,
+        package_ok=package_ok,
+        orientation_ok=orientation_ok,
+        supporting_evidence=tuple(evidence),
+    )
+
+
+def build_navigate_perception_bundle(
+    identity: NativeFrameIdentity,
+    localization: LocalizationResult,
+    binding: BuildingBinding | None,
+) -> FramePerceptionBundle:
+    """Compose and classify a navigate-building bundle without capturing."""
+
+    bundle = (
+        bundle_from_identity(identity)
+        .with_frame_validation(bluestacks_frame_validation(identity))
+        .with_localization(localization_from_result(identity, localization))
+    )
+    if binding is not None:
+        bundle = bundle.with_building_binding(binding_from_result(identity, binding))
+    return classify_and_attach(bundle)
 
 
 def utc_stamp() -> str:
@@ -947,8 +1039,35 @@ def command_navigate_building(args) -> int:
 
     for ordinal in range(args.maximum_pans + 1):
         immediate_before = runtime.capture(f"navigate-{ordinal:02d}-immediate-before")
-        localization = localizer.localize(immediate_before.frame)
-        binding = bind_visible_building(immediate_before.frame, localization, building) if localization.recognized else None
+        derived_localization = localizer.localize(immediate_before.frame)
+        derived_binding = (
+            bind_visible_building(immediate_before.frame, derived_localization, building)
+            if derived_localization.recognized
+            else None
+        )
+        try:
+            capture_ordinal = getattr(runtime, "ordinal", None)
+            if capture_ordinal is None:
+                capture_ordinal = ordinal + 1
+            identity = identity_from_captured(
+                immediate_before,
+                session_id=str(runtime.session),
+                ordinal=int(capture_ordinal),
+                label=f"navigate-{ordinal:02d}-immediate-before",
+            )
+            perception = build_navigate_perception_bundle(identity, derived_localization, derived_binding)
+            localization, binding = perception.checked_navigation_inputs()
+        except PerceptionBundleError as exc:
+            result = {
+                "status": "blocked",
+                "reason": exc.reason_code,
+                "building_id": args.building_id,
+                "records": records,
+                "session": str(runtime.session),
+            }
+            _json(runtime.session / "navigate-building-result.json", result)
+            print(json.dumps(result, sort_keys=True, default=str))
+            return 3
         plan = controller.plan(localization, binding)
         plan_record = {
             "ordinal": ordinal,
@@ -957,12 +1076,23 @@ def command_navigate_building(args) -> int:
             "camera_origin": camera_origin(localization) if localization.recognized and localization.screen_to_atlas is not None else None,
             "plan": asdict(plan),
             "binding": binding.__dict__ if binding is not None else None,
+            "perception_bundle": bundle_evidence_snapshot(perception),
         }
         _json(runtime.session / f"navigate-plan-{ordinal:02d}.json", plan_record)
         if plan.disposition is PlanDisposition.PAN:
             assert plan.drag_start is not None and plan.drag_end is not None
             if not args.execute:
-                result = {"status": "dry_run", "reason": "calculated_pan_not_dispatched", "building_id": args.building_id, "input_count": 0, "source_localization": source_localization.__dict__, "plan": asdict(plan), "records": records, "session": str(runtime.session)}
+                result = {
+                    "status": "dry_run",
+                    "reason": "calculated_pan_not_dispatched",
+                    "building_id": args.building_id,
+                    "input_count": 0,
+                    "source_localization": source_localization.__dict__,
+                    "plan": asdict(plan),
+                    "records": records,
+                    "perception_bundle": bundle_evidence_snapshot(perception),
+                    "session": str(runtime.session),
+                }
                 _json(runtime.session / "navigate-building-result.json", result)
                 print(json.dumps(result, sort_keys=True, default=str))
                 return 0
@@ -974,11 +1104,26 @@ def command_navigate_building(args) -> int:
                 action_key=action_key,
                 target_identity="home-camera-click-drag",
             )
+            pre_input_bundle = perception.invalidate_after_input()
             immediate_post = runtime.capture(f"navigate-{ordinal:02d}-immediate-post")
             time.sleep(args.settle_seconds)
             settled = runtime.capture(f"navigate-{ordinal:02d}-settled")
             settled_localization = localizer.localize(settled.frame)
-            progress = controller.record_progress(localization, settled_localization)
+            settled_ordinal = getattr(runtime, "ordinal", None)
+            if settled_ordinal is None:
+                settled_ordinal = ordinal + 3
+            settled_identity = identity_from_captured(
+                settled,
+                session_id=str(runtime.session),
+                ordinal=int(settled_ordinal),
+                label=f"navigate-{ordinal:02d}-settled",
+            )
+            settled_bundle = classify_and_attach(
+                bundle_from_identity(settled_identity)
+                .with_frame_validation(bluestacks_frame_validation(settled_identity))
+                .with_localization(localization_from_result(settled_identity, settled_localization))
+            )
+            progress = controller.record_progress(localization, settled_bundle.checked_navigation_inputs()[0])
             record = {
                 "ordinal": ordinal + 1,
                 "action": "pan",
@@ -991,6 +1136,8 @@ def command_navigate_building(args) -> int:
                 "settled_sha256": settled.sha256,
                 "settled_localization": settled_localization.__dict__,
                 "progress": asdict(progress),
+                "pre_input_bundle_invalidated": pre_input_bundle.invalidated_after_input,
+                "settled_perception_bundle": bundle_evidence_snapshot(settled_bundle),
             }
             records.append(record)
             _json(runtime.session / f"navigate-pan-{ordinal + 1:02d}.json", record)
@@ -1013,13 +1160,22 @@ def command_navigate_building(args) -> int:
                 "building_immediate_before_sha256": immediate_before.sha256,
                 "input_count": len(records),
                 "building_opened": False,
+                "perception_bundle": bundle_evidence_snapshot(perception),
                 "session": str(runtime.session),
             }
             _json(runtime.session / "navigate-building-result.json", result)
             print(json.dumps(result, sort_keys=True, default=str))
             return 0
         reason = "current_frame_building_recognition_failed" if plan.disposition is PlanDisposition.BIND else plan.reason
-        result = {"status": "blocked", "reason": reason, "building_id": args.building_id, "plan": asdict(plan), "records": records, "session": str(runtime.session)}
+        result = {
+            "status": "blocked",
+            "reason": reason,
+            "building_id": args.building_id,
+            "plan": asdict(plan),
+            "records": records,
+            "perception_bundle": bundle_evidence_snapshot(perception),
+            "session": str(runtime.session),
+        }
         _json(runtime.session / "navigate-building-result.json", result)
         print(json.dumps(result, sort_keys=True, default=str))
         return 3

@@ -172,7 +172,8 @@ class MinimalPanPlannerTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             runtime = Runtime(Path(directory))
-            loc = localization()
+            sample = runtime.capture("seed")
+            loc = replace(localization(), frame_sha256=frame_digest(sample.frame))
             args = SimpleNamespace(
                 execute=False,
                 yes=False,
@@ -184,7 +185,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
                 serial="emulator-5554",
                 output_directory=Path(directory),
             )
-            fake_localizer = SimpleNamespace(localize=lambda frame: loc)
+            fake_localizer = SimpleNamespace(localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame)))
             with patch("scripts.home_atlas_bluestacks.load_home_atlas", return_value=atlas()), patch(
                 "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer", return_value=fake_localizer
             ), patch("scripts.home_atlas_bluestacks.connect_runtime", return_value=runtime), patch(
@@ -213,16 +214,55 @@ class MinimalPanPlannerTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             runtime = Runtime(Path(directory))
-            loc = localization()
-            binding = BuildingBinding(target.semantic_id, (320, 420, 420, 520), loc.frame_sha256, 0.95, ("current-frame OCR: Bank",))
+            sample = runtime.capture("seed")
+            digest = frame_digest(sample.frame)
+            loc = replace(localization(), frame_sha256=digest)
+            binding = BuildingBinding(target.semantic_id, (320, 420, 420, 520), digest, 0.95, ("current-frame OCR: Bank",))
             args = SimpleNamespace(execute=True, yes=True, atlas=Path(directory) / "atlas.json", building_id=target.semantic_id, maximum_pans=4, settle_seconds=0, adb="unused", serial="emulator-5554", output_directory=Path(directory))
-            fake_localizer = SimpleNamespace(localize=lambda frame: loc)
+            fake_localizer = SimpleNamespace(localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame)))
             with patch("scripts.home_atlas_bluestacks.load_home_atlas", return_value=world), patch(
                 "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer", return_value=fake_localizer
             ), patch("scripts.home_atlas_bluestacks.connect_runtime", return_value=runtime), patch(
-                "scripts.home_atlas_bluestacks.bind_visible_building", return_value=binding
+                "scripts.home_atlas_bluestacks.bind_visible_building",
+                side_effect=lambda frame, localization_arg, building_arg: replace(
+                    binding, frame_sha256=localization_arg.frame_sha256
+                ),
             ):
                 self.assertEqual(command_navigate_building(args), 0)
+
+    def test_route_rejects_localization_from_another_frame(self):
+        class Runtime:
+            execute = False
+            in_flight_action = None
+
+            def __init__(self, session: Path):
+                self.session = session
+
+            def capture(self, label):
+                frame = np.zeros((1280, 800, 3), np.uint8)
+                return CapturedNativeFrame(frame, b"png", "f" * 64, 1.0, self.session / f"{label}.png")
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Runtime(Path(directory))
+            foreign = replace(localization(), frame_sha256="b" * 64)
+            args = SimpleNamespace(
+                execute=False,
+                yes=False,
+                atlas=Path(directory) / "atlas.json",
+                building_id="home.building.bank",
+                maximum_pans=4,
+                settle_seconds=0,
+                adb="unused",
+                serial="emulator-5554",
+                output_directory=Path(directory),
+            )
+            fake_localizer = SimpleNamespace(localize=lambda frame: foreign)
+            with patch("scripts.home_atlas_bluestacks.load_home_atlas", return_value=atlas()), patch(
+                "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer", return_value=fake_localizer
+            ), patch("scripts.home_atlas_bluestacks.connect_runtime", return_value=runtime), patch(
+                "scripts.home_atlas_bluestacks.bind_visible_building", return_value=None
+            ):
+                self.assertEqual(command_navigate_building(args), 3)
 
 
 if __name__ == "__main__":

@@ -9,10 +9,14 @@
     "relevant_unstaged_paths": [
       "BACKLOG.md",
       "CURRENT_HANDOFF.md",
+      "tasks/perception_bundle.py",
+      "tests/test_perception_bundle.py",
+      "tests/fixtures/perception_bundle_evidence.json",
+      "scripts/home_atlas_bluestacks.py",
+      "tests/test_governance_validation.py",
       "docs/research/home_ui_atlas.md",
       "docs/research/home_ui_atlas.json",
       "scripts/bluestacks_native_runtime.py",
-      "scripts/home_atlas_bluestacks.py",
       "scripts/supply_depot_bluestacks.py",
       "tasks/home_atlas.py",
       "tasks/home_atlas_planner.py",
@@ -22,7 +26,6 @@
       "tasks/assets/home_atlas/bluestacks/800x1280/**",
       "tests/test_home_atlas.py",
       "tests/test_home_atlas_planner.py",
-      "tests/test_governance_validation.py",
       "tests/test_supply_depot.py",
       "tests/test_supply_depot_vision.py",
       "tests/test_supply_depot_bluestacks.py",
@@ -46,14 +49,14 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "TOOLS-HOME-ATLAS-TROOP-TRAINING-ENTRY-MIGRATION",
-  "current_task_state": "completed",
-  "next_task_id": "M6-DQ-TRANSITION-CORPUS",
-  "next_task_activation_status": "not_applicable",
-  "phase": "troop_training_home_atlas_entry_migration_completed",
-  "objective": "Migrate local BlueStacks Troop Training facility entry to the completed platform-neutral Home atlas direct-pan planner and validate entry-only recovery without Train input.",
-  "last_safe_completed_step": "Fighter Camp and Vehicle Depot were entered from two canonical Home origins through fresh atlas localization/current-frame binding; Fighter used zero pans, Vehicle used one measured calculated pan, both radial Train controls were recognized, and safe exterior close targets returned to canonical Home with zero Train or consequential input.",
-  "next_permitted_action": "Only a separately authorized future task may send runtime input or migrate another building consumer; preserve the completed BlueStacks entry-only evidence and all unstaged atlas work.",
+    "current_task_id": "RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE",
+    "current_task_state": "completed",
+    "next_task_id": "M6-DQ-TRANSITION-CORPUS",
+    "next_task_activation_status": "not_applicable",
+    "phase": "immutable_frame_perception_bundle_completed",
+    "objective": "Create a shared immutable perception bundle for one capture event with dual digests, fail-closed same-frame composition, honest contextual classification, and enforced navigate-building adoption.",
+    "last_safe_completed_step": "Final review-fix closed: forged context rejected via derived classify_frame_context; nested surface_safe_targets share capture-event identity; VALID_NATIVE consistency enforced; full suite 591 passed / 1 skip.",
+    "next_permitted_action": "None in this task; future runtime or consumer migration requires separate authorization.",
   "actions_already_performed": [
     "Read-only Git status, required governance files, the exact MVP backlog section, direct dependencies, and exact evidence references.",
     "Migrated and validated the MVP durable contract and created its compact task-specific evidence manifest from exact named references.",
@@ -181,10 +184,10 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "554 tests passed; 1 skipped",
+    "last_full_suite_count": "591 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "80 focused atlas/planner/Troop Training/Supply Depot/BlueStacks integrated-route tests passed; 12 governance tests passed; touched Python compilation passed."
+    "last_relevant_focused_tests": "perception-bundle final review-fix plus atlas/planner/integrated-route/governance focused set passed; full suite 591 passed with 1 skip."
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -223,7 +226,7 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "The explicitly authorized local BlueStacks validation retains concise local native frames/events and the checked-in atlas; it creates no Bliss production evidence manifest.",
+    "evidence_requirement_reason": "Offline perception-bundle contracts and fixtures create no Bliss production evidence manifest; live BlueStacks validation is not required for this task.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "collector": {
@@ -240,15 +243,15 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Run offline validation and document this authorized atomic task; send no further runtime input."
+      "Preserve completed offline perception-bundle work; send no runtime input without a new authorized task."
     ],
     "prohibited_actions": [
-      "Any Bliss, Unraid, ADB, pnsctl, Docker, emulator, or gameplay operation.",
+      "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
       "Any repeat Fighter or Vehicle facility/radial input, Train, quantity, Warehouse, resource-box, Supply Depot, Daily Claim, Bank, upgrade, research, training, production, recruitment, premium, purchase, or unrelated action.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
-      "Bliss, Unraid, ADB, or gameplay operation from this completed offline implementation task."
+      "Atlas rebuild/reacquisition or DirectPanNavigator public API changes."
     ],
-    "exact_stop_condition": "Stop with final fresh canonical Home recognized and no action in flight; any Bliss/Unraid/production or future building workflow requires a separate authorized task.",
+    "exact_stop_condition": "Stop; task complete with no action in flight. Any live BlueStacks or Bliss/Unraid work requires a separate authorized task.",
     "expected_next_atomic_task": "M6-DQ-TRANSITION-CORPUS",
     "expected_next_activation_status": "not_applicable"
   }
@@ -269,17 +272,16 @@ This document is a volatile operational boundary, not a complete project history
 - Most recent task-scoped commits: 58d8898, e76964b, 9883a15, 501f9fb
 
 ## Current task
-- Task ID: TOOLS-HOME-ATLAS-TROOP-TRAINING-ENTRY-MIGRATION
-- Current task state: completed; live entry-only matrix and offline validation completed
+- Task ID: RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE
+- Current task state: completed; final review-fix for forged context, nested targets, and frame-validation consistency validated
 - Next task ID: M6-DQ-TRANSITION-CORPUS
 - Next task activation status: not_applicable
-- Phase: troop_training_home_atlas_entry_migration_completed
-- Objective: migrate the BlueStacks Troop Training Home entry to shared direct-pan planning and prove entry-only radial recognition/recovery without Train input
-- Last safe completed step: Fighter Camp bound at zero pan; Vehicle Depot used one calculated pan from a materially different Home origin; both exact radials/Train controls were recognized and exterior-safe close targets returned to canonical Home
-- Exact next permitted step: none in this task; future runtime or building-consumer work requires separate authorization
-- No atlas reacquisition, Train, quantity, Warehouse confirmation, resource-box, premium, Bliss, Unraid, registration, scheduler, worker, or task-row action occurred
-- M6-DQ-TRANSITION-CORPUS remains the successor declared by the existing MVP task
-
+- Phase: immutable_frame_perception_bundle_completed
+- Objective: shared immutable capture-event perception bundle with dual digests, fail-closed composition, honest contextual classification, and enforced navigate-building checked inputs
+- Last safe completed step: final review-fix complete; full suite 591 passed / 1 skip; governance validators passed; zero runtime input
+- Exact next permitted step: none in this task; future runtime or consumer migration requires separate authorization
+- No atlas reacquisition, Train, consequential, Bliss, Unraid, registration, scheduler, worker, or task-row action occurred
+- M6-DQ-TRANSITION-CORPUS remains the declared successor
 
 ## Runtime
 - VM state: Bliss/Unraid not operated; local BlueStacks only
@@ -315,10 +317,10 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 554 passed, one expected skip
+- Last full-suite count: 591 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
-- Last relevant focused tests: 80 atlas/planner/Troop Training/Supply Depot/BlueStacks integrated-route tests and 12 governance tests passed; touched Python compilation passed
+- Last relevant focused tests: perception-bundle final review-fix plus atlas/planner/integrated-route/governance focused set passed; touched Python compilation passed
 
 ## Evidence
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`
