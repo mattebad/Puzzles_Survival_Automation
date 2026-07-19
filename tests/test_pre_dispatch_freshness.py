@@ -130,7 +130,7 @@ class ExecutorHarness(unittest.TestCase):
         self.transport_calls += 1
         return TransportResult(True, "MOCK_DISPATCHED")
 
-    def execute(self, immediate, *, attempts=2, posts=None):
+    def execute(self, immediate, *, attempts=2, posts=None, capability=None, dry_run=False, policy_request=None):
         sequence = list(immediate) if isinstance(immediate, (list, tuple)) else [immediate]
 
         def recapture():
@@ -163,7 +163,7 @@ class ExecutorHarness(unittest.TestCase):
             wall_clock=self.wall,
             max_pre_dispatch_attempts=attempts,
         )
-        return executor.execute(request())
+        return executor.execute(policy_request or request(), capability=capability, dry_run=dry_run)
 
     def fresh(self, **changes):
         base = observation(
@@ -304,6 +304,42 @@ class ExecutorHarness(unittest.TestCase):
         self.assertEqual(self.store.get_action("crash-loop")["final_status"], "prepared")
         self.assertEqual(self.store.startup_reconcile(self.wall()), ["crash-loop"])
         self.assertEqual(self.store.get_action("crash-loop")["final_status"], "unresolved")
+
+    def test_capability_dry_run_never_increments_transport_under_freshness_path(self):
+        from safe_action_core.models import ActionClass, CAPABILITY_DRY_RUN_ZERO_TRANSPORT
+
+        initial = observation()
+        immediate = observation(
+            frame_sha256="b" * 64,
+            capture_completed_monotonic=999.8,
+            ocr_result_frame_sha256="b" * 64,
+            ocr_result_capture_completed_monotonic=999.8,
+        )
+        policy = CentralPolicy()
+        issued = policy.issue_capability(
+            request(
+                immediate,
+                action_class=ActionClass.NAVIGATION_ONLY,
+                semantic_action="NAVIGATE_HOME_TO_QUEST",
+                runtime_session_id="freshness-capability-session",
+            )
+        )
+        self.assertTrue(issued.authorized)
+        assert issued.capability is not None
+        result = self.execute(
+            immediate,
+            capability=issued.capability,
+            dry_run=True,
+            policy_request=request(
+                initial,
+                action_class=ActionClass.NAVIGATION_ONLY,
+                semantic_action="NAVIGATE_HOME_TO_QUEST",
+                runtime_session_id="freshness-capability-session",
+            ),
+        )
+        self.assertEqual(result.status, ActionStatus.CANCELLED)
+        self.assertEqual(result.reason, CAPABILITY_DRY_RUN_ZERO_TRANSPORT)
+        self.assertEqual(self.transport_calls, 0)
 
 
 if __name__ == "__main__":

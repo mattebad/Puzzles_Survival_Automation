@@ -332,6 +332,33 @@ class ExecutorCase(unittest.TestCase):
         self.assertEqual(result.transport_calls, 1)
         self.assertEqual(self.transport_calls, 1)
 
+    def test_capability_firewall_preserves_single_executor_and_optional_path(self):
+        from safe_action_core import ActionTransaction, InputCapability
+        from safe_action_core.models import ActionClass
+
+        self.assertIs(ActionTransaction, SafeActionExecutor)
+        result = self.executor().execute(request(self.initial))
+        self.assertEqual(result.status, ActionStatus.CONFIRMED)
+        self.assertEqual(result.transport_calls, 1)
+        with self.assertRaises(TypeError):
+            InputCapability()
+        nav = request(
+            observation(
+                source_state="HOME_BASE",
+                target_identity="home-quest-entry",
+                target_roi=(250, 1130, 410, 1280),
+                control_class=None,
+                consequence="navigate_zero_cost",
+                expected_postcondition="QUEST",
+            ),
+            semantic_action="HOME_TO_QUEST",
+            action_class=ActionClass.NAVIGATION_ONLY,
+            runtime_session_id="safe-action-core-regression-session",
+        )
+        issued = CentralPolicy().issue_capability(nav)
+        self.assertTrue(issued.authorized)
+        self.assertIsNotNone(issued.capability)
+
     def test_source_or_target_change_prevents_dispatch(self):
         for changed in (
             observation(frame_sha256="b" * 64, capture_completed_monotonic=999.8, source_state="QUEST"),

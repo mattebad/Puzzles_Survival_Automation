@@ -6,7 +6,21 @@ from dataclasses import dataclass, replace
 from typing import Callable, Iterable, Optional
 
 from .freshness import ocr_reuse_denial
-from .models import ActionClass, ActionIntent, ActionStatus, Observation, PolicyDecision, PolicyRequest, TransportResult
+from .models import (
+    CAPABILITY_DRY_RUN_ZERO_TRANSPORT,
+    CAPABILITY_EXECUTOR_DRY_RUN,
+    CAPABILITY_RETIRED_NO_DISPATCH,
+    CAPABILITY_SCHEMA_INVALID,
+    CapabilityAuditRecord,
+    ActionClass,
+    ActionIntent,
+    ActionStatus,
+    InputCapability,
+    Observation,
+    PolicyDecision,
+    PolicyRequest,
+    TransportResult,
+)
 from .policy import CentralPolicy
 from .store import DuplicateActionError, SafetyStore
 
@@ -59,31 +73,35 @@ class SafeActionExecutor:
             return "unresolved or nonterminal consequential action"
         return None
 
-    def execute(self, request: PolicyRequest) -> ExecutionResult:
-        calls = 0
-        monotonic_now = self.monotonic_clock()
-        recorded_at = self.wall_clock()
-        if self._process_global_block:
-            raise GlobalActionBlock(self._process_global_block)
-        lease_valid = self.store.lease_valid_for(self.owner_id, recorded_at)
-        unresolved = self.store.has_action_block()
-        duplicate = self.store.action_key_exists(request.action_key)
-        request = PolicyRequest(
+    @staticmethod
+    def _rebuild_request(
+        request: PolicyRequest,
+        *,
+        monotonic_now: float,
+        lease_owner: Optional[str],
+        lease_valid: bool,
+        unresolved_action: bool,
+        duplicate_action_key: bool,
+        policy_phase: Optional[str] = None,
+        observation: Optional[Observation] = None,
+    ) -> PolicyRequest:
+        return PolicyRequest(
             action_id=request.action_id,
             action_key=request.action_key,
             task_id=request.task_id,
             task_mode=request.task_mode,
             semantic_action=request.semantic_action,
             expected_runtime_profile_id=request.expected_runtime_profile_id,
-            observation=request.observation,
+            observation=observation if observation is not None else request.observation,
             monotonic_now=monotonic_now,
             observation_max_age_seconds=request.observation_max_age_seconds,
             dispatch_max_age_seconds=request.dispatch_max_age_seconds,
-            lease_owner=self.owner_id if lease_valid else None,
+            lease_owner=lease_owner,
             lease_valid=lease_valid,
-            unresolved_action=unresolved,
-            duplicate_action_key=duplicate,
+            unresolved_action=unresolved_action,
+            duplicate_action_key=duplicate_action_key,
             game_day_id=request.game_day_id,
+            policy_phase=policy_phase if policy_phase is not None else request.policy_phase,
             promotional_back_count=request.promotional_back_count,
             action_class=request.action_class,
             action_kind=request.action_kind or request.semantic_action,
@@ -94,65 +112,253 @@ class SafeActionExecutor:
             allowed_confirmation_dialogs=request.allowed_confirmation_dialogs,
             semantic_preconditions=request.semantic_preconditions,
             semantic_postconditions=request.semantic_postconditions,
+            runtime_session_id=request.runtime_session_id,
+        )
+
+    def _terminal_with_capability(
+        self,
+        request: PolicyRequest,
+        capability: Optional[InputCapability],
+        *,
+        reason: str,
+        dry_run: bool,
+        calls: int,
+        cancel_prepared: bool,
+        allow_transport: bool = False,
+    ) -> Optional[ExecutionResult]:
+        """Consume capability on every terminal attempt; return a result when dispatch must stop."""
+        if capability is None:
+            if dry_run:
+                if cancel_prepared:
+                    self.store.mark_cancelled(request.action_id, self.wall_clock(), "dry_run:" + reason)
+                return ExecutionResult(
+                    request.action_id, ActionStatus.CANCELLED, CAPABILITY_DRY_RUN_ZERO_TRANSPORT, calls
+                )
+            return None
+        consume = (
+            self.policy.consume_capability(capability, request)
+            if allow_transport and not dry_run
+            else self.policy.retire_capability(capability, request)
+        )
+        self.store.audit(
+            request.task_id,
+            "capability_consume",
+            self.wall_clock(),
+            consume.audit,
+            request.action_id,
+        )
+        if dry_run:
+            dry_run_audit = CapabilityAuditRecord(
+                event=CAPABILITY_EXECUTOR_DRY_RUN,
+                reason_code=CAPABILITY_DRY_RUN_ZERO_TRANSPORT,
+                decision="dry_run",
+                binding_fingerprint=consume.audit.binding_fingerprint,
+                capability_ref=consume.audit.capability_ref,
+                transport_calls=calls,
+                dry_run=True,
+                policy_authorized=False,
+                transport_occurred=False,
+                details=(
+                    ("binding_matched", consume.binding_matched),
+                    ("consumed", consume.consumed),
+                    ("executor_transport_calls", calls),
+                ),
+            )
+            self.store.audit(
+                request.task_id,
+                "capability_executor_dry_run",
+                self.wall_clock(),
+                dry_run_audit,
+                request.action_id,
+            )
+            if cancel_prepared:
+                self.store.mark_cancelled(
+                    request.action_id,
+                    self.wall_clock(),
+                    "dry_run:" + consume.reason_code,
+                )
+            return ExecutionResult(
+                request.action_id, ActionStatus.CANCELLED, CAPABILITY_DRY_RUN_ZERO_TRANSPORT, calls
+            )
+        if not allow_transport or not consume.allow_dispatch:
+            if cancel_prepared:
+                self.store.mark_cancelled(
+                    request.action_id,
+                    self.wall_clock(),
+                    "capability:" + consume.reason_code,
+                )
+            terminal_reason = (
+                reason
+                if not allow_transport and consume.reason_code == CAPABILITY_RETIRED_NO_DISPATCH
+                else consume.reason_code
+            )
+            return ExecutionResult(request.action_id, ActionStatus.CANCELLED, terminal_reason, calls)
+        return None
+
+    def _cancel_malformed_pre_dispatch(
+        self,
+        request: PolicyRequest,
+        capability: Optional[InputCapability],
+        *,
+        dry_run: bool,
+        calls: int,
+    ) -> ExecutionResult:
+        terminal_request = request
+        if self.policy.evaluate(terminal_request).reason_code != CAPABILITY_SCHEMA_INVALID:
+            terminal_request = replace(
+                request,
+                observation=object(),
+                policy_phase="pre_dispatch",
+            )
+        terminal = self._terminal_with_capability(
+            terminal_request,
+            capability,
+            reason=CAPABILITY_SCHEMA_INVALID,
+            dry_run=dry_run,
+            calls=calls,
+            cancel_prepared=True,
+        )
+        if terminal is not None:
+            return terminal
+        self.store.mark_cancelled(
+            terminal_request.action_id,
+            self.wall_clock(),
+            "pre_input_revalidation:" + CAPABILITY_SCHEMA_INVALID,
+        )
+        return ExecutionResult(
+            terminal_request.action_id,
+            ActionStatus.CANCELLED,
+            CAPABILITY_SCHEMA_INVALID,
+            calls,
+        )
+
+    def execute(
+        self,
+        request: PolicyRequest,
+        capability: Optional[InputCapability] = None,
+        *,
+        dry_run: bool = False,
+    ) -> ExecutionResult:
+        calls = 0
+        monotonic_now = self.monotonic_clock()
+        recorded_at = self.wall_clock()
+        pending_capability = capability
+        if self._process_global_block:
+            if pending_capability is not None:
+                terminal = self._terminal_with_capability(
+                    request,
+                    pending_capability,
+                    reason=self._process_global_block,
+                    dry_run=dry_run,
+                    calls=calls,
+                    cancel_prepared=False,
+                )
+                if terminal is not None:
+                    return terminal
+            raise GlobalActionBlock(self._process_global_block)
+        lease_valid = self.store.lease_valid_for(self.owner_id, recorded_at)
+        unresolved = self.store.has_action_block()
+        duplicate = self.store.action_key_exists(request.action_key)
+        request = self._rebuild_request(
+            request,
+            monotonic_now=monotonic_now,
+            lease_owner=self.owner_id if lease_valid else None,
+            lease_valid=lease_valid,
+            unresolved_action=unresolved,
+            duplicate_action_key=duplicate,
         )
         first_policy = self.policy.evaluate(request)
         self.store.audit(request.task_id, "policy_evaluated", recorded_at, first_policy, request.action_id)
         if not first_policy.authorized:
+            terminal = self._terminal_with_capability(
+                request,
+                pending_capability,
+                reason=first_policy.reason_code,
+                dry_run=dry_run,
+                calls=calls,
+                cancel_prepared=False,
+            )
+            pending_capability = None
+            if terminal is not None:
+                return terminal
             return ExecutionResult(request.action_id, ActionStatus.CANCELLED, first_policy.reason_code, calls)
 
         intent = self._intent(request)
         try:
             self.store.prepare_action(intent, first_policy, recorded_at)
         except DuplicateActionError:
+            terminal = self._terminal_with_capability(
+                request,
+                pending_capability,
+                reason="DUPLICATE_ACTION_KEY",
+                dry_run=dry_run,
+                calls=calls,
+                cancel_prepared=False,
+            )
+            pending_capability = None
+            if terminal is not None:
+                return terminal
             return ExecutionResult(request.action_id, ActionStatus.CANCELLED, "DUPLICATE_ACTION_KEY", calls)
 
         immediate = None
+        pre_request = request
         for attempt in range(1, self.max_pre_dispatch_attempts + 1):
-            immediate = self.recapture()
+            try:
+                immediate = self.recapture()
+            except (AttributeError, TypeError, ValueError):
+                return self._cancel_malformed_pre_dispatch(
+                    request,
+                    pending_capability,
+                    dry_run=dry_run,
+                    calls=calls,
+                )
+            if type(immediate) is not Observation:
+                return self._cancel_malformed_pre_dispatch(
+                    request,
+                    pending_capability,
+                    dry_run=dry_run,
+                    calls=calls,
+                )
             pre_now = self.monotonic_clock()
             pre_recorded_at = self.wall_clock()
             lease_valid = self.store.lease_valid_for(self.owner_id, pre_recorded_at)
-            pre_request = request.with_observation(immediate, pre_now)
-            pre_request = PolicyRequest(
-                action_id=pre_request.action_id,
-                action_key=pre_request.action_key,
-                task_id=pre_request.task_id,
-                task_mode=pre_request.task_mode,
-                semantic_action=pre_request.semantic_action,
-                expected_runtime_profile_id=pre_request.expected_runtime_profile_id,
-                observation=pre_request.observation,
-                monotonic_now=pre_request.monotonic_now,
-                observation_max_age_seconds=pre_request.observation_max_age_seconds,
-                dispatch_max_age_seconds=pre_request.dispatch_max_age_seconds,
+            pre_request = self._rebuild_request(
+                request,
+                monotonic_now=pre_now,
                 lease_owner=self.owner_id if lease_valid else None,
                 lease_valid=lease_valid,
                 unresolved_action=self.store.has_action_block(exclude_action_id=request.action_id),
                 duplicate_action_key=False,
-                game_day_id=pre_request.game_day_id,
                 policy_phase="pre_dispatch",
-                promotional_back_count=pre_request.promotional_back_count,
-                action_class=pre_request.action_class,
-                action_kind=pre_request.action_kind,
-                subject=pre_request.subject,
-                resource_or_currency=pre_request.resource_or_currency,
-                maximum_cost=pre_request.maximum_cost,
-                free_only=pre_request.free_only,
-                allowed_confirmation_dialogs=pre_request.allowed_confirmation_dialogs,
-                semantic_preconditions=pre_request.semantic_preconditions,
-                semantic_postconditions=pre_request.semantic_postconditions,
+                observation=immediate,
             )
             pre_policy = self.policy.evaluate(pre_request)
-            changed = self._changed(
-                request.observation,
-                immediate,
-                allow_target_roi_change=(
-                    request.semantic_action in {
-                        "DISMISS_ALLIANCE_FORT_WAVE",
-                        "RESEARCH_BIOENHANCER_FREE",
-                    }
-                ),
-            )
-            reuse_denial = ocr_reuse_denial(request.observation, immediate)
+            if pre_policy.reason_code == CAPABILITY_SCHEMA_INVALID:
+                return self._cancel_malformed_pre_dispatch(
+                    pre_request,
+                    pending_capability,
+                    dry_run=dry_run,
+                    calls=calls,
+                )
+            try:
+                changed = self._changed(
+                    request.observation,
+                    immediate,
+                    allow_target_roi_change=(
+                        request.semantic_action in {
+                            "DISMISS_ALLIANCE_FORT_WAVE",
+                            "RESEARCH_BIOENHANCER_FREE",
+                        }
+                    ),
+                )
+                reuse_denial = ocr_reuse_denial(request.observation, immediate)
+            except (AttributeError, TypeError, ValueError):
+                return self._cancel_malformed_pre_dispatch(
+                    pre_request,
+                    pending_capability,
+                    dry_run=dry_run,
+                    calls=calls,
+                )
             self.store.audit(
                 request.task_id,
                 "pre_input_attempt",
@@ -175,6 +381,17 @@ class SafeActionExecutor:
             if reason == "STALE_FRAME" and attempt < self.max_pre_dispatch_attempts:
                 continue
             if reason:
+                terminal = self._terminal_with_capability(
+                    pre_request,
+                    pending_capability,
+                    reason=reason,
+                    dry_run=dry_run,
+                    calls=calls,
+                    cancel_prepared=True,
+                )
+                pending_capability = None
+                if terminal is not None:
+                    return terminal
                 self.store.mark_cancelled(
                     request.action_id,
                     pre_recorded_at,
@@ -194,6 +411,17 @@ class SafeActionExecutor:
                 )
                 if attempt < self.max_pre_dispatch_attempts:
                     continue
+                terminal = self._terminal_with_capability(
+                    pre_request,
+                    pending_capability,
+                    reason="STALE_FRAME",
+                    dry_run=dry_run,
+                    calls=calls,
+                    cancel_prepared=True,
+                )
+                pending_capability = None
+                if terminal is not None:
+                    return terminal
                 self.store.mark_cancelled(
                     request.action_id,
                     self.wall_clock(),
@@ -203,6 +431,21 @@ class SafeActionExecutor:
             break
 
         assert immediate is not None
+
+        # Final capability boundary: revalidate identity/coordinates/capture and consume one-shot.
+        if pending_capability is not None or dry_run:
+            terminal = self._terminal_with_capability(
+                pre_request,
+                pending_capability,
+                reason="AUTHORIZED",
+                dry_run=dry_run,
+                calls=calls,
+                cancel_prepared=True,
+                allow_transport=not dry_run,
+            )
+            pending_capability = None
+            if terminal is not None:
+                return terminal
 
         dispatch_intent = intent
         if (

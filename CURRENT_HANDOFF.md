@@ -3,18 +3,21 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "cc244c9 (shared radial semantics commit; safe-exit activation base)",
-    "origin_relationship": "main is ahead of origin/main by four local roadmap commits; no push",
+    "head": "4a240a2 (BlueStacks safe-exit binder commit; capability-firewall activation base)",
+    "origin_relationship": "main is ahead of origin/main by five local roadmap commits; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
       "BACKLOG.md",
       "CURRENT_HANDOFF.md",
       "tests/test_governance_validation.py",
-      "tasks/bluestacks_home_safe_exit.py",
-      "tests/test_bluestacks_home_safe_exit.py",
-      "tasks/home_atlas_planner.py",
-      "tests/test_home_atlas_planner.py",
-      "scripts/home_atlas_bluestacks.py"
+      "safe_action_core/models.py",
+      "safe_action_core/policy.py",
+      "safe_action_core/executor.py",
+      "safe_action_core/__init__.py",
+      "tests/test_input_capability_firewall.py",
+      "tests/test_safe_action_core.py",
+      "tests/test_pre_dispatch_freshness.py",
+      "tests/test_navigation_runner.py"
     ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
@@ -34,15 +37,47 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "BLUESTACKS-HOME-SAFE-EXIT-BINDING",
+  "current_task_id": "RUNTIME-INPUT-CAPABILITY-FIREWALL",
   "current_task_state": "completed",
-  "next_task_id": "RUNTIME-INPUT-CAPABILITY-FIREWALL",
+  "next_task_id": "VISION-NATIVE-FRAME-MUTATION-CORPUS",
   "next_task_activation_status": "ready",
-  "phase": "bluestacks_home_safe_exit_binding_completed",
-  "objective": "Implement a reusable offline BlueStacks-only current-frame Home safe-exit binder with complete exclusion clearance and non-authorizing projection provenance.",
-  "last_safe_completed_step": "Completed parent review after hardening frame-bound envelopes, exact geometry, public construction, forged snapshots, ambiguity, and provenance; all 746 tests passed with one expected skip and all completion validators passed; zero runtime input/evidence.",
-  "next_permitted_action": "Commit reviewed BLUESTACKS-HOME-SAFE-EXIT-BINDING locally, then activate RUNTIME-INPUT-CAPABILITY-FIREWALL only; no push or runtime.",
+  "phase": "runtime_input_capability_firewall_completed",
+  "objective": "Extend the existing safe_action_core policy/executor with non-reusable authority-bound navigation-versus-consequential capabilities, dry-run zero-input, final revalidation, and audited fail-closed decisions.",
+  "last_safe_completed_step": "Completed parent review and final offline validation of RUNTIME-INPUT-CAPABILITY-FIREWALL after the malformed-public-schema correction; full repository suite passed 783 tests with 1 expected skip, compilation/governance/handoff JSON/git diff checks passed, and zero runtime transport occurred.",
+  "next_permitted_action": "Commit reviewed RUNTIME-INPUT-CAPABILITY-FIREWALL locally under the standing serial-orchestration authorization, then activate VISION-NATIVE-FRAME-MUTATION-CORPUS only; no runtime or push.",
   "actions_already_performed": [
+    "Final parent completion review found no remaining actionable defect; the full offline repository suite passed 783 tests with 1 expected skip, and compilation, governance, handoff JSON extraction, and git diff checks passed.",
+    "Orchestration-process deviation recorded: the firewall required four correction cycles, exceeding the operating model's three-cycle guideline; the completed implementation was not reopened solely for this process deviation.",
+    "Parent review cycle 4 added exact public PolicyRequest/Observation schema validation for wrong object types, missing or forged attributes, digest types, ROI containers/contents, critical ROI hashes, forbidden regions, booleans, collections, and optional scalar fields while preserving stable timing and action-class denial codes.",
+    "consume_capability and terminal retirement now atomically mark an exact registered capability consumed before interpreting final request fields; malformed final requests return CAPABILITY_SCHEMA_INVALID with CAPABILITY_DISPATCH_REJECTED, allow_dispatch=false, and replay denial.",
+    "evaluate_capability remains non-consuming but returns CAPABILITY_SCHEMA_INVALID without throwing; CentralPolicy.evaluate and issue_capability also return audited schema denials for malformed public objects.",
+    "SafeActionExecutor now turns malformed or exception-raising final recapture into a terminal cancelled prepared action, consumes a supplied capability when possible, and records zero transport without changing ambiguous post-transport semantics.",
+    "Parent review cycle 4 validation: 125 focused firewall/safe-core/freshness/navigation-runner/governance tests passed plus 66 promotional/praise/navigation-session touched regressions (191 combined); py_compile, governance, handoff JSON extraction, touched-diff secret scan, and git diff --check passed. Full suite intentionally not rerun; 767 passed / 1 skipped remains authoritative.",
+    "Parent review cycle 3 made consume_capability re-run complete CentralPolicy evaluation on the exact final request and require registry integrity, exact binding, exact pre_dispatch phase, and final policy authorization before allow_dispatch=true.",
+    "Final policy denial after issuance now consumes one-shot capability while returning the exact policy reason for lease loss, unresolved action, overlay, cost/consequence, foreground/hard-stop, ambiguity, task, and mode changes.",
+    "Separated retire_capability for global-block, initial denial, stale/mismatch, and dry-run terminal paths; retirement consumes without CAPABILITY_DISPATCH_ALLOWED, while executor-owned dry-run remains the only zero-transport proof.",
+    "Validated monotonic_now and both age limits as exact finite nonnegative numbers in base policy and capability comparison; bool, NaN, infinity, negative values, and invalid policy phases fail closed.",
+    "Base CentralPolicy now denies any non-exact ActionClass before branching, including legacy no-capability executor paths with zero transport.",
+    "Parent review cycle 3 validation: 123 focused firewall/safe-core/freshness/navigation-runner/governance tests passed plus 58 promotional/praise/navigation-session touched regressions (181 combined); py_compile passed. Full suite intentionally not rerun; 767 passed / 1 skipped remains authoritative.",
+    "Parent review cycle 2 replaced id(self)/inspectable-secret trust with an opaque issuer handle plus thread-safe policy registry retaining the exact capability object, original immutable binding/fingerprint/ref/mint marker/lock/consumed state; direct mint, object.__new__, foreign policy, lifecycle/id-reuse simulation, and object.__setattr__ mutation fail closed.",
+    "InputCapability now contains no raw secret/token bytes and generic snapshot/asdict/copy/deepcopy/pickle/JSON/iteration pathways reject serialization; audits use explicit redacted references only.",
+    "Capability binding now includes action key, semantic action, runtime profile, native width/height, and in-frame ROI in addition to task/session/action class/action ID/target/capture digest+monotonic; malformed whitespace IDs, bool geometry, nonfinite/negative capture times, and drift have stable denials.",
+    "Capability audits now use closed event/decision/detail schemas with immutable scalar-only canonical details and serialization revalidation; policy issuance/evaluation/consume never claims non-dispatch, while the executor alone records dry-run transport_occurred=false after proving zero calls.",
+    "Navigation control classes now use an exact closed allowlist and case-insensitive forbidden normalization; mixed-case Claim/Train/Upgrade/Purchase/Premium and arbitrary unknown nonempty controls deny capability issuance.",
+    "Executor now consumes supplied capability on the early process-global-block path with zero transport; existing no-capability path and ActionTransaction alias remain unchanged; CONFIRMED_NOT_DISPATCHED remains NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
+    "Parent review cycle 2 validation: 118 focused capability/safe-core/freshness/navigation-runner/governance tests passed; 58 promotional/praise/navigation-session touched regressions passed; combined 176 passed; py_compile passed. Full suite intentionally not rerun; 767 passed / 1 skipped remains authoritative.",
+    "Implemented opaque process-local InputCapability issued by CentralPolicy.issue_capability and consumed by SafeActionExecutor.execute(capability=..., dry_run=...); no parallel executor.",
+    "Bound capability authority to task ID, runtime session ID, action class, action ID/key, semantic action, target identity, runtime profile/native geometry, capture frame hash+monotonic, and exact target ROI; partial/stale/cross-*/digest-only/moved-coordinate matches fail closed.",
+    "Navigation-only capabilities deny consequential/premium/purchase/strategic/Train/Upgrade/Claim/unknown-class intents; existing consequential gates and promotion posture unchanged.",
+    "Final executor boundary revalidates semantic identity/coordinates/capture then atomically consumes one-shot capability; reuse, copy/deepcopy/pickle/JSON, and constructor forgery fail closed; concurrent double-consume allows at most one.",
+    "Dry-run paths issue zero transport calls while auditing allow/reject and never returning reusable authority; audits redact secrets and state policy allow is not non-dispatch proof.",
+    "Preserved CONFIRMED_NOT_DISPATCHED fail-closed NON_DISPATCH_AUTHORITY_UNAVAILABLE regression; transport success remains non-semantic.",
+    "Safe-exit candidates accepted only as non-authorizing inputs; authorize_dispatch/capability_grant claims deny issuance.",
+    "Added tests/test_input_capability_firewall.py and regressions in test_safe_action_core, test_pre_dispatch_freshness, test_navigation_runner.",
+    "Focused suite: 109 passed across capability firewall, safe_action_core, pre-dispatch freshness, navigation runner, and governance; full pytest 767 passed / 1 skipped; py_compile, governance, handoff JSON, touched-file secret scan, and git diff --check passed; zero transport.",
+    "Left RUNTIME-INPUT-CAPABILITY-FIREWALL in_progress and VISION-NATIVE-FRAME-MUTATION-CORPUS dependency_blocked for parent review; no commit; registration/scheduler unchanged.",
+    "Committed reviewed BLUESTACKS-HOME-SAFE-EXIT-BINDING locally as 4a240a2 feat(bluestacks): add home safe-exit binder; no push.",
+    "Activated RUNTIME-INPUT-CAPABILITY-FIREWALL only after safe-exit binder and M7-SAFE-ACTION-CORE dependencies were completed; successor remains dependency_blocked.",
     "Final parent completion validation passed the full repository suite: 746 passed / 1 skipped; Python compilation, governance, handoff JSON parsing, touched-file secret scan, and git diff --check passed.",
     "Parent review cycle 2 added complete NativeFrameIdentity to ProjectedRecoverySearchEnvelope and requires same-capture association at bind/result composition; cross-capture and digest-only envelopes fail closed.",
     "projected_recovery_zone_as_search_envelope now requires an explicit source_frame and rejects all non-exact built-in integer geometry without truncation, including 220.9, 220.0, NumPy integer lookalikes, strings, bool, NaN, and infinity.",
@@ -179,7 +214,7 @@
     "Do not tap either positively recognized radial Train control or any downstream normal Train, quantity, Warehouse, resource-box, premium, or consequential control."
   ],
   "runtime": {
-    "vm_state": "No BlueStacks, ADB, Bliss, Unraid, emulator, VM, or other runtime was operated during this safe-exit binder implementation task",
+    "vm_state": "No BlueStacks, ADB, Bliss, Unraid, emulator, VM, or other runtime was operated during this capability-firewall implementation task",
     "worker_state": "No worker was started, modified, or contacted during this implementation task",
     "active_operator_collector_automation_test_emulator_processes": "None started or used by this implementation task; no live runtime operator role was assumed",
     "adb_exposure_and_connection_state": "ADB was not invoked, connected, inspected, or exposed during this implementation task",
@@ -223,10 +258,10 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "746 tests passed; 1 skipped",
+    "last_full_suite_count": "783 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "Parent review cycle 2: 131 focused safe-exit, planner, radial, perception, and governance tests passed; 48 touched Home atlas/navigation-session regressions passed; final full pytest 746 passed / 1 skipped; zero transport."
+    "last_relevant_focused_tests": "Parent review cycle 4: 125 focused capability firewall, safe_action_core, pre-dispatch freshness, navigation runner, and governance tests passed plus 66 promotional, praise, and navigation-session touched regressions; combined 191 passed. Final full suite passed 783 tests with 1 expected skip; zero transport."
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -265,7 +300,7 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Offline native-frame replay uses two named read-only project-owned fixtures and creates no runtime evidence manifest.",
+    "evidence_requirement_reason": "Offline capability firewall uses mocked/in-memory transport only and creates no runtime evidence manifest.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "collector": {
@@ -282,18 +317,18 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Commit reviewed BLUESTACKS-HOME-SAFE-EXIT-BINDING locally, then activate RUNTIME-INPUT-CAPABILITY-FIREWALL only."
+      "Commit reviewed RUNTIME-INPUT-CAPABILITY-FIREWALL locally under the standing serial-orchestration authorization, then activate VISION-NATIVE-FRAME-MUTATION-CORPUS only."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
       "Any live resume dispatch, facility entry, radial input, Train, Supply Depot collection, Daily Claim, or other consequential control.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Atlas rebuild/reacquisition or broadening Train/consequential authorization.",
-      "Activating RUNTIME-INPUT-CAPABILITY-FIREWALL or any later roadmap task.",
+      "Activating any task after VISION-NATIVE-FRAME-MUTATION-CORPUS.",
       "Any push."
     ],
     "exact_stop_condition": "Stop on commit or activation failure; no runtime action is permitted.",
-    "expected_next_atomic_task": "RUNTIME-INPUT-CAPABILITY-FIREWALL",
+    "expected_next_atomic_task": "VISION-NATIVE-FRAME-MUTATION-CORPUS",
     "expected_next_activation_status": "ready"
   }
 }
@@ -305,28 +340,31 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `cc244c9`; four local roadmap commits ahead of `origin/main`
+- HEAD/base: `4a240a2`; five local roadmap commits ahead of `origin/main`
 - Staged paths: none
 - Relevant unstaged paths: `BACKLOG.md`, `CURRENT_HANDOFF.md`,
-  `tests/test_governance_validation.py`, `tasks/bluestacks_home_safe_exit.py`,
-  `tests/test_bluestacks_home_safe_exit.py`, `tasks/home_atlas_planner.py`,
-  `tests/test_home_atlas_planner.py`, `scripts/home_atlas_bluestacks.py`
+  `tests/test_governance_validation.py`, `safe_action_core/{models,policy,executor,__init__}.py`,
+  `tests/test_input_capability_firewall.py`, `tests/test_safe_action_core.py`,
+  `tests/test_pre_dispatch_freshness.py`, `tests/test_navigation_runner.py`
 - Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
 - Push: prohibited
 
 ## Current task
-- Task ID: `BLUESTACKS-HOME-SAFE-EXIT-BINDING`
-- State: completed after parent review; offline BlueStacks-only binder only
-- Next task ID: `RUNTIME-INPUT-CAPABILITY-FIREWALL` (ready; not activated)
-- Objective: bind a current-frame safe-exit region with complete HUD, building, radial-control,
-  semantic-target, and known-interactive-region clearance while keeping projection non-authorizing.
-- Last safe completed step: parent review completed; full suite and all validators passed.
-- Exact next permitted step: commit this reviewed task locally, then activate the capability firewall only.
+- Task ID: `RUNTIME-INPUT-CAPABILITY-FIREWALL`
+- State: completed after parent review; offline capability-firewall implementation only
+- Next task ID: `VISION-NATIVE-FRAME-MUTATION-CORPUS` (ready; not activated)
+- Objective: bind non-reusable capabilities to task/session/action class/target, keep navigation
+  authority from consequential controls, guarantee dry-run zero input, and audit allow/reject decisions.
+- Last safe completed step: final parent review found no remaining defect; full suite passed
+  783 tests with one expected skip and completion validators passed; zero runtime.
+- Exact next permitted step: commit this reviewed task locally under the standing serial-orchestration
+  authorization, then
+  activate `VISION-NATIVE-FRAME-MUTATION-CORPUS` only.
 - No runtime, evidence, registration, scheduler, worker, or task-row operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains the unrelated post-roadmap successor after the ninth roadmap contract.
 
 ## Runtime
-- VM/runtime state: this offline safe-exit implementation operated no BlueStacks, ADB, Bliss,
+- VM/runtime state: this offline capability-firewall implementation operated no BlueStacks, ADB, Bliss,
   Unraid, emulator, VM, or other runtime.
 - Worker state: no worker was started, modified, or contacted.
 - Active operator/collector/automation: none started or used; this task assumed no live runtime
@@ -362,19 +400,18 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 746 passed, one expected skip
+- Last full-suite count: 783 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
-- Last relevant focused tests: parent review cycle 2 passed 131 across safe-exit, planner,
-  radial semantics, perception bundle, and governance, plus 48 touched Home atlas/navigation
-  session regressions
-- Full suite: final parent completion run passed 746 with one expected skip
+- Last relevant focused tests: parent review cycle 4 passed 125 capability/safe-core/freshness/
+  navigation-runner/governance tests plus 66 promotional/praise/navigation-session regressions
+- Full suite: final parent completion run passed 783 with one expected skip
 - Zero transport
 
 ## Evidence
 - Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`
-- Evidence requirement: NOT_APPLICABLE; offline binder uses fixture identities only and creates no
-  runtime evidence manifest.
+- Evidence requirement: NOT_APPLICABLE; offline capability firewall uses mocked/in-memory transport
+  only and creates no runtime evidence manifest.
 - Troop entry Fighter zero-pan/radial: `.local-captures/troop-training-atlas-entry/fighter-zero-pan/troop-training-20260719T021808597377Z/`
 - Troop entry Fighter final Home: `.local-captures/troop-training-atlas-entry/fighter-exterior-close/troop-training-20260719T023104977845Z/`
 - Troop entry Vehicle calculated pan: `.local-captures/troop-training-atlas-entry/vehicle-calculated-pan-corrected/troop-training-20260719T024102450439Z/`
@@ -391,10 +428,11 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: commit reviewed `BLUESTACKS-HOME-SAFE-EXIT-BINDING`, then activate its successor
-- Prohibited actions: BlueStacks coordinates/transport, runtime/evidence operation, unrelated successor activation, and push
+- Permitted action: commit reviewed `RUNTIME-INPUT-CAPABILITY-FIREWALL` locally under the standing
+  serial-orchestration authorization, then activate `VISION-NATIVE-FRAME-MUTATION-CORPUS` only
+- Prohibited actions: runtime/evidence operation, parallel executor, unsafe non-dispatch verification, later-task activation, and push
 - Exact stop condition: stop on commit or activation failure
-- Expected next atomic task: `RUNTIME-INPUT-CAPABILITY-FIREWALL`
+- Expected next atomic task: `VISION-NATIVE-FRAME-MUTATION-CORPUS`
 - Expected next activation status: ready
 
 ## Ruins Challenge local task handoff — 2026-07-16

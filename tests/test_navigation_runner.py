@@ -113,3 +113,8 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.status,NavigationStatus.NAVIGATION_FAILED)
         self.assertEqual(result.reason,"UNKNOWN_SUCCESSOR")
         self.assertEqual(len(calls),1)
+
+    def test_capability_firewall_does_not_add_parallel_executor(self):
+        from safe_action_core import ActionTransaction, SafeActionExecutor
+        self.assertIs(ActionTransaction, SafeActionExecutor)
+        self.assertEqual(self.runner().__class__.__name__, "NavigationRunner")

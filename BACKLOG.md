@@ -2770,7 +2770,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### RUNTIME-INPUT-CAPABILITY-FIREWALL
 - Task ID: `RUNTIME-INPUT-CAPABILITY-FIREWALL`.
 - Title: Extend safe_action_core with navigation-versus-consequential capability firewall.
-- Status: Pending (dormant; offline contract only; not activated).
+- Status: Complete (2026-07-19; parent review and full offline validation passed; zero runtime).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `BLUESTACKS-HOME-SAFE-EXIT-BINDING` and completed `M7-SAFE-ACTION-CORE`.
 - Blocked by: readiness requires safe-exit binder semantics and the existing central policy/executor
