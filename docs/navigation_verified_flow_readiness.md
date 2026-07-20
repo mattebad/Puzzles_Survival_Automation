@@ -1,18 +1,19 @@
 # Verified-flow composition readiness review
 
-Review date: 2026-07-19 (renewed after `f093812` and `f523f0f`; Home Atlas seams
-closed by `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`)
+Review date: 2026-07-20 (Home Atlas seams closed by `e159dd9`; Supply Depot seams
+closed by `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`)
 
 ## Decision
 
 `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` remains **blocked**.
 
-Home Atlas navigate-building has closed its two recorded readiness findings
-(fresh pre_dispatch + action-ledger parity). Supply Depot still retains the
-remaining gaps listed below, so composition must not activate.
+Home Atlas and Supply Depot readiness findings recorded after `f093812` / `f523f0f`
+are now closed. Composition must not activate until a separate final readiness
+review confirms both real live-validated routes reuse the shared architecture
+without residual bypasses.
 
 No composition engine, DSL, generic autonomous runtime, or new route was
-implemented in this review. `M6-DQ-TRANSITION-CORPUS` remains unactivated.
+implemented in this update. `M6-DQ-TRANSITION-CORPUS` remains unactivated.
 Registration remains `NOT_REGISTERED`. Scheduler remains disabled.
 `CONFIRMED_NOT_DISPATCHED` remains `NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
 
@@ -41,17 +42,17 @@ Registration remains `NOT_REGISTERED`. Scheduler remains disabled.
 | Field | Evidence |
 | --- | --- |
 | Production entry point | `scripts/home_atlas_bluestacks.py` → `command_supply_depot_radial` |
-| Capture binding | Same-capture `NativeFrameIdentity` for building/radial/exit; radial path builds `build_supply_depot_radial_perception_bundle`. Building and exit dispatches bind identity/ROI without a full `FramePerceptionBundle` on those steps |
+| Capture binding | Building, radial, and exit each acquire a genuine `*-pre-dispatch` capture; capability issuance and transport use that fresh frame; same-capture `FramePerceptionBundle` at each stage |
 | Session ownership | One authoritative `NavigationSession` for the route lifecycle with prepare/dispatch/reconcile/safe-exit/home-recovered ledger updates |
 | Observability | Terminal `attach_navigate_terminal_reports` → `report_navigation_session` |
 | Calibration | N/A (non-pan route) |
 | Radial use | Shared radial semantics + same-capture radial perception on the radial step |
-| Safe-exit use | `build_supply_depot_safe_exit_probe` records a non-authorizing same-capture binder result in evidence, but `dispatch_verified_supply_depot_exit_tap` taps the fixed `SUPPLY_DEPOT_EXIT_TARGET_ROI` and does **not** consume the binder candidate geometry |
-| Capability issuance / final consumption | Building, radial, and exit helpers each issue one-shot capability and consume through `SafeActionExecutor` |
+| Safe-exit use | Facility exit runs `build_supply_depot_facility_safe_exit_probe` on the fresh pre_dispatch frame; capability and transport use the binder-selected candidate ROI exactly; fixed-ROI bypass rejected |
+| Capability issuance / final consumption | Building, radial, and exit helpers each issue one-shot capability against the fresh pre_dispatch observation and consume through `SafeActionExecutor` |
 | Transport boundary | `runtime.tap` only inside seal-gated executor transport callbacks; direct bypass fail-closed |
-| Live validation | Passed as `live-radial-5` under `.local-captures/supply-depot-verified-route/` (`building_entry` + `radial_entry` + `safe_exit` all confirmed; `supply_depot_radial_and_home_recovered`; zero claims) |
+| Live validation | Seam-closure under `.local-captures/supply-depot-seam-closure/`: navigate-to-Supply-Depot then radial (`building_entry` + `radial_entry` + `safe_exit` confirmed; `supply_depot_radial_and_home_recovered`; distinct pre_dispatch frames; exit ROI equals facility binder back-arrow; zero claims) |
 | Semantic verification boundary | Post-transport captures and successor recognizers distinct from transport; exit accepts high-confidence `ZOOMED_IN` Home after facility leave |
-| Remaining bypasses | (1) Executor `recapture()` returns cached issuance observation on building/radial/exit helpers — no fresh pre_dispatch capture/rebind. (2) Shared BlueStacks safe-exit binder is probe/evidence-only and does not govern the executed exit ROI. (3) Building/exit steps lack full same-capture `FramePerceptionBundle` consumption. |
+| Remaining bypasses | **None for the three Supply Depot readiness findings.** Fresh pre_dispatch capture/rebind, binder-selected exit ROI, and same-capture bundles are closed as of `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`. |
 
 ### Other routes (unchanged, non-qualifying)
 
@@ -62,34 +63,27 @@ readiness.
 
 ## Exact missing integrations (blocker)
 
-Home Atlas findings (1) fresh pre_dispatch capture/rebind and (3) six-state action-ledger
-parity are **closed** by `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`.
+Home Atlas findings and Supply Depot findings listed in the post-`f093812`/`f523f0f`
+renewed review are **closed**.
 
-Before composition can be reconsidered, Supply Depot must still close:
-
-1. **Fresh pre_dispatch recapture/rebind** on Supply Depot building/radial/exit helpers: the
-   executor `recapture()` callback must not reuse the issuance-time observation object; acquire
-   a genuine fresh pre_dispatch frame, rebuild observation/binding, issue capability against that
-   frame, and fail closed on drift.
-2. **Safe-exit binder consumption** on Supply Depot exit: the executed exit target ROI must come
-   from the shared BlueStacks safe-exit binder candidate bound to the current capture (still
-   non-authorizing until capability issuance), not a parallel fixed ROI that ignores the binder.
-3. **Same-capture perception bundle** on Supply Depot building and exit steps (not only the radial
-   step), or an explicit readiness waiver recorded only if composition contracts prove those steps
-   are out of scope — default is require.
+Composition remains blocked only until a separate final readiness review confirms
+two real live-validated routes reuse the required architecture without residual
+bypasses and records a PASS decision.
 
 Imports, dormant adapters, test mocks, metadata-only probes, and sealed direct
 transport helpers do not count as readiness. Live transport success alone does
-not waive the gaps above.
+not waive a final readiness gate.
 
 ## Prerequisites for reconsideration
 
-1. Close the missing integrations above on the real production route paths.
-2. Re-run offline focused/adversarial/governance/full-suite gates.
+1. Re-run a final readiness review against the closed Home Atlas and Supply Depot
+   production paths (and any other claimed qualifying routes).
+2. Re-run offline focused/adversarial/governance/full-suite gates as required by
+   that review.
 3. Re-run one bounded live reversible validation per touched route when live
    behavior changes.
 4. Renew this document with a PASS decision only when two real live-validated
-   routes reuse the required architecture without the bypasses listed here.
+   routes reuse the required architecture without bypasses.
 5. Only then activate `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 6. Leave `M6-DQ-TRANSITION-CORPUS` unactivated until composition completes under
    its own backlog authorization.

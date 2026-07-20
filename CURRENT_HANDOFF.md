@@ -4,47 +4,52 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "fix(navigation): close home atlas verified route seams (this commit)",
-    "origin_relationship": "main is ahead of origin/main by fourteen local roadmap commits before this commit; no push",
+    "head": "fix(navigation): close supply depot verified route seams (this commit)",
+    "origin_relationship": "main is ahead of origin/main by sixteen local roadmap commits after this commit; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
       ".local-reference/**",
+      ".local-captures/**",
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
+      "e159dd9 fix(navigation): close home atlas verified route seams",
+      "9d814d3 docs(navigation): renew flow readiness blocker",
       "f523f0f feat(navigation): integrate verified supply depot route",
-      "f093812 feat(navigation): integrate verified home atlas route",
       "f093812 feat(navigation): integrate verified home atlas route",
       "75086cc fix(governance): align blocked roadmap handoff",
       "a55e35e docs(navigation): record flow readiness blocker",
       "843fd10 feat(navigation): add bounded session calibration",
       "ca60cd9 feat(home): add navigation session observability",
       "e7324c7 test(vision): add native-frame mutation corpus",
-      "1b44629 fix(tools): acknowledge passive capture finalization",
-      "1bfee81 fix(tools): detect elevated BlueStacks hooks",
-      "4660d1b fix(tools): handle Windows DPI in passive capture",
-      "a37888e fix(tools): capture passive BlueStacks mouse events",
-      "58d8898 fix(tools): correct passive Windows hook handles",
-      "e76964b feat(tools): add passive BlueStacks capture mode",
-      "501f9fb feat(tools): add BlueStacks flow collector"
+      "3472128 feat(runtime): add input capability firewall",
+      "4a240a2 feat(bluestacks): add home safe-exit binder",
+      "cc244c9 feat(home): add shared radial semantics"
     ]
   },
-  "current_task_id": "HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE",
+  "current_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE",
   "current_task_state": "completed",
   "next_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
   "next_task_activation_status": "dependency_blocked",
-  "phase": "home_atlas_verified_route_seam_closure_completed",
-  "objective": "Home Atlas seams closed; composition remains blocked on remaining Supply Depot readiness gaps; leave M6 unactivated.",
-  "last_safe_completed_step": "HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE offline+live passed; committing fix(navigation): close home atlas verified route seams.",
-  "next_permitted_action": "After this commit, leave composition blocked; next work is Supply Depot seam closure or renewed readiness only after Supply Depot seams close; no claims; no push; leave M6 unactivated.",
+  "phase": "supply_depot_verified_route_seam_closure_completed",
+  "objective": "Supply Depot seams closed; composition remains blocked pending separate final readiness review; leave M6 unactivated.",
+  "last_safe_completed_step": "SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE offline+live passed; committing fix(navigation): close supply depot verified route seams.",
+  "next_permitted_action": "Leave composition blocked pending separate final readiness review; leave M6 unactivated; no claims; no push.",
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
     "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity.",
-    "Partial HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION WIP already existed in the working tree before formal task activation; it is preserved and must be completed rather than discarded."
+    "Partial HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION WIP already existed in the working tree before formal task activation; it is preserved and must be completed rather than discarded.",
+    "SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE parent review used two correction cycles: (1) facility exit binder must not use Home exterior-close (claim risk) and must positively recognize facility screen on fresh pre_dispatch; (2) result evidence must record the exit-stage binder that governed the tap, not only the early Home probe."
   ],
   "actions_already_performed": [
+    "Parent-reviewed Grok implementation of SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE with two correction cycles; focused 26 + regressions 320 + full suite 900 passed / 1 skipped.",
+    "Live: navigate-building to Supply Depot (2 pans); supply-depot-radial building_entry+radial_entry+safe_exit all capability-bound confirmed; reason supply_depot_radial_and_home_recovered; distinct *-pre-dispatch frames; exit ROI (0,0,150,105) equals facility binder-selected back-arrow; zero claims; artifacts under .local-captures/supply-depot-seam-closure/.",
+    "Post-live zoom recovery left Home fully_zoomed_out localized (recognized=true, confidence ~0.99).",
+    "Updated docs/navigation_verified_flow_readiness.md: Supply Depot findings closed; composition still blocked pending separate final readiness review; M6 unactivated.",
+    "Verified expected state: branch main; working tree clean at e159dd9; commits f093812/f523f0f/9d814d3/e159dd9 present; last full suite 891 passed / 1 skipped; Home Atlas readiness findings closed; composition dependency_blocked; M6 unactivated; registration/scheduler disabled; CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
+    "Created and activated durable BACKLOG contract SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE; composition remains dependency_blocked pending separate final readiness review; M6 unactivated.",
     "Parent-reviewed Grok implementation of HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE; offline 22 focused + 153 regressions + full suite 891 passed / 1 skipped.",
     "Live Bank navigate 1 pan: action_ledger complete; planning digest != pre_dispatch_frame_sha256; capability-bound SafeActionExecutor swipe; building_opened=false.",
     "Live HQ return 2 pans: each planning!=pre_dispatch with requested/authorized/dispatched/transport_observed/verified/completed; Home left fully_zoomed_out localized.",
@@ -328,10 +333,10 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "871 tests passed; 1 skipped",
+    "last_full_suite_count": "900 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "tests.test_home_atlas_verified_route 19 passed; touched regressions 232; full suite 871/1; live Bank+HQ navigate completed"
+    "last_relevant_focused_tests": "SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE: focused 26 + regressions 320 + full suite 900/1; live radial seam closure completed"
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -452,18 +457,19 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Offline implement/review SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION with at most three correction cycles.",
-      "Authorize one bounded live reversible BlueStacks radial/safe-exit/return-home validation only after offline review passes; zero claims.",
-      "Commit feat(navigation): integrate verified supply depot route only after offline and live both pass; no push."
+      "Leave RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION blocked pending a separate final readiness review.",
+      "Do not activate M6-DQ-TRANSITION-CORPUS.",
+      "No claims; no push."
     ],
     "prohibited_actions": [
       "Any Supply Depot claim, free-hold, purchase, premium, or other consequential gameplay.",
       "Any Bliss, Unraid, public ADB exposure, Docker operation.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
-      "Activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION implementation or M6-DQ-TRANSITION-CORPUS before renewed readiness.",
+      "Activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION implementation or M6-DQ-TRANSITION-CORPUS.",
+      "Reopening Home Atlas findings closed by e159dd9 or Supply Depot findings closed by this task.",
       "Enabling CONFIRMED_NOT_DISPATCHED, registration/scheduler changes, or any push."
     ],
-    "exact_stop_condition": "Offline first; live only if authorized; commit only after offline+live; never push.",
+    "exact_stop_condition": "Composition remains dependency_blocked; never push.",
     "expected_next_atomic_task": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
     "expected_next_activation_status": "dependency_blocked"
   }
@@ -476,12 +482,12 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `75086cc`; eleven local roadmap commits ahead of `origin/main`
-- Staged paths: none
-- Relevant unstaged paths: `BACKLOG.md`, `CURRENT_HANDOFF.md`,
-  `scripts/home_atlas_bluestacks.py`, `tests/test_home_atlas_verified_route.py`
-- Protected untracked paths or categories: evidence/**, .local-reference/**, and other
-  pre-existing untracked files
+- HEAD/base: pending commit `fix(navigation): close supply depot verified route seams`; sixteen
+  local roadmap commits ahead of `origin/main` after commit
+- Staged paths: none before commit
+- Relevant unstaged paths: task-scoped seam-closure files before commit
+- Protected untracked paths or categories: evidence/**, .local-reference/**,
+  .local-captures/**, and other pre-existing untracked files
 - Push: prohibited
 
 ## Process deviations
@@ -491,15 +497,18 @@ This document is a volatile operational boundary, not a complete project history
   fresh Grok 4.5 High implementation subagent; parent review and offline validation were completed.
 - Partial `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION` WIP already existed before formal activation and
   is preserved (do not discard).
+- `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` parent review used two correction cycles (facility
+  exit binder vs Home exterior-close; exit-stage binder evidence in results).
 
 ## Current task
-- Task ID: `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`
-- State: completed; fresh pre_dispatch + action-ledger parity closed offline and live
+- Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`
+- State: completed; fresh pre_dispatch + binder-selected exit ROI + same-capture bundles closed
+  offline and live
 - Next task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` (dependency blocked; not activated)
-- Objective: leave composition blocked until Supply Depot seams close; leave M6 unactivated.
-- Last safe completed step: live Bank + HQ return seam-closure regression; Home fully_zoomed_out.
-- Exact next permitted step: commit `fix(navigation): close home atlas verified route seams`;
-  do not activate composition or M6; no claims; no push.
+- Objective: leave composition blocked pending separate final readiness review; leave M6 unactivated.
+- Last safe completed step: live Supply Depot radial seam-closure + Home fully_zoomed_out recovery.
+- Exact next permitted step: leave composition blocked; do not activate composition or M6; no claims;
+  no push.
 - No registration, scheduler, worker, or protected-evidence operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains unactivated.
 
@@ -541,28 +550,27 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 852 passed, one expected skip
+- Last full-suite count: 900 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
-- New regressions: none recorded at activation
-- Last relevant focused tests: preserved WIP probe `tests.test_home_atlas_verified_route`
-  12 passed / 7 failed before activation
-- Zero transport during activation
+- New regressions: none
+- Last relevant focused tests: Supply Depot seam closure focused 26 + regressions 320; full 900/1
+- Live: zero claims; three navigation-only capability-bound taps
 
 ## Evidence
 - Active evidence manifest: none (`NOT_APPLICABLE`)
 - Evidence requirement: NOT_APPLICABLE; offline fixtures authorize review; live artifacts stay under
-  `.local-captures` and must not stage protected `evidence/**`
+  `.local-captures/supply-depot-seam-closure/` and must not stage protected `evidence/**`
 - Prior navigation/collection local capture references remain listed in structured state above
 - Must-retain artifacts: MVP manifest, exact MVP references, current governance manifest, and
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: parent review of offline `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`; then
-  authorize one bounded live reversible navigate-building validation if review passes
-- Prohibited actions: consequential gameplay, atlas expansion, composition/M6 activation, push,
-  enabling `CONFIRMED_NOT_DISPATCHED`, registration/scheduler changes
-- Exact stop condition: stopped for parent review after offline gates; live only if authorized;
-  commit only after offline+live
+- Permitted action: leave composition blocked pending separate final readiness review; leave M6
+  unactivated; no claims; no push
+- Prohibited actions: consequential gameplay, claims, composition/M6 activation, reopening closed
+  Home Atlas or Supply Depot findings, push, enabling `CONFIRMED_NOT_DISPATCHED`,
+  registration/scheduler changes
+- Exact stop condition: composition remains `dependency_blocked`; never push
 - Expected next atomic task: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`
 - Expected next activation status: `dependency_blocked`
 

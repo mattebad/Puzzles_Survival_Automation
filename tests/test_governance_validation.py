@@ -24,7 +24,7 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         self.assertEqual(
             state["current_task_id"],
-            "HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE",
+            "SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE",
         )
         self.assertEqual(state["current_task_state"], "completed")
         self.assertEqual(

@@ -3497,26 +3497,179 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   exit successor accepts high-confidence ZOOMED_IN Home after facility leave; zero claims; local
   artifacts under `.local-captures/supply-depot-verified-route/`; registration/scheduler unchanged;
   `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
-- Next: Supply Depot seam closure still required before renewing
-  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` readiness; leave `M6-DQ-TRANSITION-CORPUS`
-  unactivated until then.
+- Next: active seam closure `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`; leave
+  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` blocked until that seam closure completes and
+  readiness is renewed; leave `M6-DQ-TRANSITION-CORPUS` unactivated until then.
+
+### SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE
+- Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`.
+- Title: Close Supply Depot verified-route readiness seams (fresh pre_dispatch, binder ROI, bundles).
+- Status: Completed (2026-07-20; offline review + bounded live BlueStacks reversible
+  Supply Depot radial/safe-exit/return-home validation passed; local commit
+  `fix(navigation): close supply depot verified route seams`; no push).
+- Milestone: Durable offline navigation architecture roadmap; composition-readiness prerequisite.
+- Dependencies: completed `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION` (`f523f0f`), completed
+  `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE` (`e159dd9`), renewed readiness review recorded in
+  `docs/navigation_verified_flow_readiness.md` (`9d814d3`).
+- Blocked by: None remaining for this task. Do not reopen Home Atlas findings closed by `e159dd9`.
+  Do not activate composition or M6. Do not claim supplies.
+- Objective: close only the three Supply Depot findings from the renewed readiness review:
+  (1) replace cached issuance-observation reuse in Supply Depot building/radial/exit helpers'
+  executor `recapture()` with genuinely fresh immediate pre_dispatch capture and semantic rebind;
+  issue each capability against that fresh pre_dispatch frame; rebuild executor observation from
+  the same authoritative fresh capture rather than returning the issuance object by identity;
+  (2) consume the shared BlueStacks safe-exit binder’s selected candidate ROI as the actual
+  capability-bound exit dispatch target (projection may constrain search but must never authorize
+  or replace the binder result; fixed-ROI bypass rejected); (3) ensure building, radial, and
+  safe-exit stages each derive semantic state from a complete authoritative same-capture
+  `FramePerceptionBundle`.
+- Established facts: Supply Depot radial route already uses NavigationSession, observability,
+  shared radial semantics, CentralPolicy, SafeActionExecutor, and seal-gated taps; live-radial-5
+  validated reversible navigation-only behavior; readiness still records cached `recapture()`,
+  fixed `SUPPLY_DEPOT_EXIT_TARGET_ROI` dispatch ignoring binder candidate geometry, and missing
+  full same-capture bundles on building/exit steps; Home Atlas findings are closed by `e159dd9`
+  and must remain intact; `CONFIRMED_NOT_DISPATCHED` remains `NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
+- Direct implementation files: `scripts/home_atlas_bluestacks.py` (Supply Depot verified helpers /
+  `command_supply_depot_radial` only; Home Atlas only for a narrowly necessary shared compatibility
+  change), `tests/test_supply_depot_verified_route.py`, narrowly required shared adoption touches
+  only when required (`safe_action_core/*`, `tasks/navigation_session.py`,
+  `tasks/navigation_observability.py`, `tasks/radial_semantics.py`,
+  `tasks/bluestacks_home_safe_exit.py`, `tasks/perception_bundle.py`,
+  `tasks/supply_depot_vision.py`), `BACKLOG.md`, `CURRENT_HANDOFF.md`,
+  `docs/navigation_verified_flow_readiness.md` only to record Supply Depot findings closed, and
+  `tests/test_governance_validation.py` only if durable identity coverage changes.
+- Shared dependencies: existing Supply Depot vision binders, Home Atlas runtime adapters,
+  CentralPolicy, SafeActionExecutor, NavigationSession, observability, radial semantics, safe-exit
+  binder, and perception bundle; no production registration.
+- Transitive regression set: supply-depot verified-route, radial, safe-exit, perception-bundle,
+  semantic OCR, navigation session/observability, capability/firewall, Home Atlas verified-route
+  (prove `e159dd9` intact), and governance focused suites.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above;
+  no atlas expansion; no new destinations; no claims/collections; no Home Atlas reopen of closed
+  findings.
+- Prohibited changes: Supply Depot claims/collections/free-hold, consequential gameplay, fixed-ROI
+  or legacy OCR fallback for exit, weakening same-capture/frame-identity/semantic-owner/capability
+  checks, second perception/radial/safe-exit/session/capability/executor/ledger system, enabling
+  `CONFIRMED_NOT_DISPATCHED`, registration, scheduler, workers, task rows, composition activation,
+  M6 activation, force-push, amend, rebase, reset/clean, or push.
+- Authorized runtime action: after offline review passes, exactly one bounded live BlueStacks
+  Supply Depot regression using only reversible navigation already owned by the route (navigate to
+  Supply Depot, open building, reversible radial, binder-selected safe-exit, return Home, normalize
+  supported Home zoom when required by existing bounded recovery). Zero claims and zero free-attempt
+  consumption.
+- Maximum transport inputs: offline phase zero; live phase only the minimum navigation-only inputs
+  required to prove fresh pre_dispatch capability binding, binder-selected exit ROI, same-capture
+  bundles, and ledger/session reconciliation.
+- Navigation-only recovery: bounded recovery already owned by the route may run; no identical
+  retries without a concrete new hypothesis.
+- Consequential action: None; claims, purchases, premium, training, healing, research, upgrades,
+  crafting, resource consumption, and troop deployment remain forbidden.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior terminally confirmed Supply Depot collection keys,
+  including `supply-depot-free:bluestacks:no-reset:attempts-9:food` and
+  `supply-depot-free-hold:bluestacks:no-reset:attempts-8:food`.
+- Required source: current immutable native 800x1280 frames from the existing BlueStacks Supply
+  Depot radial route; offline tests may use fixtures/mocks without live capture.
+- Exact target semantics: positively recognized Home/radial/supply-depot checkpoint; fresh
+  pre_dispatch capture with semantic rebind for building, radial, and exit; capability issued
+  against that fresh frame; exit target geometry exactly equals binder-selected candidate ROI;
+  complete same-capture `FramePerceptionBundle` at each stage; executor-only dispatch; distinct
+  transport-observed vs semantically verified/completed; full session/ledger/observability/
+  capability/journal reconciliation.
+- Required local association: every authorized input cites navigation session id, action id/key,
+  target identity/ROI, fresh capture digest+monotonic, and capability audit; observability
+  attaches without mutating authority; safe-exit binding remains non-authorizing until capability
+  issuance.
+- Negative controls: returning the issuance Observation object from `recapture()` without a new
+  capture, fixed-ROI exit bypass, missing/ambiguous safe-exit candidates, partial or mixed-capture
+  bundle assembly, capability reuse/forgery, stale/cross-capture dispatch, treating transport
+  success as semantic success, Supply Depot claims, and atlas expansion.
+- Coordinate space: BlueStacks native 800x1280 full-frame evidence only; no scaled previews or Bliss
+  coordinate reuse.
+- Accepted signals: offline focused/adversarial/governance/full-suite gates; live reversible Supply
+  Depot navigation proving capability issued against fresh pre_dispatch frames, binder-selected
+  exit ROI, same-capture bundles, SafeActionExecutor-only dispatch, expected-successor verification,
+  and reconciled session/ledger/observability/capability/journal with zero claims.
+- Rejected weak signals: imports-only or metadata-only adoption, dry-run-only live claims, and
+  transport success without successor verification.
+- Ambiguous-result behavior: fail closed to unresolved/blocked; never blind-retry identical input.
+- Zero-cost requirement: navigation-only building/radial/safe-exit/return-home; no resource or
+  premium spend.
+- Quantity limits: one existing supply-depot-radial route family; no new destinations; one bounded
+  live validation after offline pass; zero supply claims.
+- Resource consumption policy: no game resources consumed; do not reduce free Supply Depot attempts.
+- Premium or strategic restrictions: no premium/purchase/strategic controls.
+- Active evidence manifest: None for offline work; live session artifacts remain under
+  `.local-captures` and must not stage protected `evidence/**`.
+- Required artifacts: updated Supply Depot building/radial/exit helpers with fresh pre_dispatch
+  capture/rebind; binder-selected exit ROI consumption; same-capture bundles on all three stages;
+  focused offline tests including adversarial stale/cross-capture/cached-recapture/fixed-ROI/
+  missing-candidate/partial-bundle probes; live navigation-only session result retained locally
+  when live validation runs.
+- Immediate-before/immediate-post/result/journal: required for each live authorized input; offline
+  fixtures substitute during offline review.
+- Additional task-specific artifacts: terminal observability report attachment, safe-exit binder
+  evidence proving selected candidate ROI equals dispatched target, and preserved
+  `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
+- Focused tests: `tests.test_supply_depot_verified_route` plus touched radial/safe-exit/perception/
+  semantic-OCR/capability/session/observability/home-atlas verified-route regressions.
+- Integration tests: offline mocked fresh-pre_dispatch capability-bound building/radial/exit path;
+  after offline pass, one bounded live reversible Supply Depot regression without claims.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, adversarial
+  probes, then the full repository suite before live validation and before commit.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON
+  parsing, JSON parsing for route session/result artifacts when touched, touched-file secret
+  scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because offline fixtures authorize implementation review and
+  any live BlueStacks navigation artifacts remain local under `.local-captures` without promoting
+  into protected `evidence/**`.
+- Valid blocked outcomes: inability to implement fresh pre_dispatch without weakening bindings,
+  binder ROI consumption failure, same-capture bundle failure, live consequential pressure, or
+  offline suite regressions.
+- Blocked-result commit policy: record the blocker; do not commit a partial seam-preserving route
+  as complete; preserve WIP and evidence.
+- Commit policy: one reviewed conventional local commit after both offline and live validation pass;
+  no push.
+- Expected focused commits: `fix(navigation): close supply depot verified route seams`; allowed
+  paths are the direct implementation files above.
+- Completion criteria: Supply Depot building/radial/exit use genuine fresh pre_dispatch
+  capture/rebind with capability issued against those frames; exit target equals binder-selected
+  candidate ROI; complete same-capture `FramePerceptionBundle` at each stage; offline gates pass;
+  one bounded live reversible validation passes with zero claims; Home Atlas `e159dd9` remains
+  intact; registration/scheduler unchanged; `CONFIRMED_NOT_DISPATCHED` still unavailable;
+  composition remains blocked pending separate final readiness review; M6 unactivated; commit
+  created locally without push.
+- Established completion evidence: offline focused 26 + regressions 320 + full suite 900 passed /
+  1 skipped (then 900+ after cycle-2 reporting); live navigate-to-Supply-Depot (2 pans) +
+  supply-depot-radial with building_entry+radial_entry+safe_exit all capability-bound
+  transport_observed+verified+completed (`supply_depot_radial_and_home_recovered`); distinct
+  `*-pre-dispatch` frames for each stage; exit dispatch ROI `(0,0,150,105)` equals facility
+  binder-selected back-arrow candidate (events.jsonl); zero claims; Home left
+  `fully_zoomed_out` recognized after zoom recovery; artifacts under
+  `.local-captures/supply-depot-seam-closure/`; registration/scheduler unchanged;
+  `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
+- Next: leave `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` blocked pending a separate final
+  readiness review after this seam closure; leave `M6-DQ-TRANSITION-CORPUS` unactivated.
 
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 - Title: Narrow declarative verified-flow composition over existing navigation contracts.
-- Status: Blocked (2026-07-19; renewed readiness after `f093812`/`f523f0f` still fails;
-  exact missing integrations recorded in `docs/navigation_verified_flow_readiness.md`).
+- Status: Blocked (2026-07-20; Home Atlas and Supply Depot seam findings are closed; composition
+  remains blocked pending a separate final readiness review before activation; see
+  `docs/navigation_verified_flow_readiness.md`).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed shared roadmap contracts for
   perception/session/radial/safe-exit/capability reuse, existing `NavigationStep` /
-  `NavigationRunner` contracts, completed `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, and at least one
-  additional real live-validated route integration (prefer `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`)
-  that consumes those shared seams without bypasses.
-- Blocked by: Home Atlas seam findings closed by `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`; remaining
-  Supply Depot gaps still block readiness — (1) Supply Depot exit does not consume the shared
-  BlueStacks safe-exit binder candidate for the executed ROI; (2) Supply Depot building/exit steps
-  lack full same-capture `FramePerceptionBundle` consumption; (3) Supply Depot verified dispatch
-  helpers still reuse cached issuance observations in executor `recapture()`. See
+  `NavigationRunner` contracts, completed `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, completed
+  `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`, completed `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`, and
+  completed `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` that consumes those shared seams without
+  bypasses.
+- Blocked by: Home Atlas seam findings closed by `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`
+  (`e159dd9`); Supply Depot seam findings closed by `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`;
+  composition still requires a separate final readiness review before activation. See
   `docs/navigation_verified_flow_readiness.md`. No broad DSL or generic autonomous runtime is
   authorized.
 - Objective: after a positive readiness review, extend existing `NavigationStep`, `NavigationRunner`,

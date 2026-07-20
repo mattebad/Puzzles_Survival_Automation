@@ -21,9 +21,14 @@ from scripts.home_atlas_bluestacks import (
     CONFIRMED_NOT_DISPATCHED_STATUS,
     SUPPLY_DEPOT_BUILDING_SEMANTIC_ACTION,
     SUPPLY_DEPOT_EXIT_SEMANTIC_ACTION,
+    SUPPLY_DEPOT_EXIT_TARGET_ROI,
     SUPPLY_DEPOT_RADIAL_POSTCONDITION,
+    SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI,
     build_supply_depot_building_observation,
+    build_supply_depot_building_perception_bundle,
     build_supply_depot_exit_observation,
+    build_supply_depot_exit_perception_bundle,
+    build_supply_depot_facility_safe_exit_probe,
     SUPPLY_DEPOT_RADIAL_TARGET_IDENTITY,
     SUPPLY_DEPOT_ROUTE_TASK_ID,
     build_supply_depot_radial_observation,
@@ -36,6 +41,8 @@ from scripts.home_atlas_bluestacks import (
     identity_from_captured,
     recognize_supply_depot_home_successor,
     reject_direct_supply_depot_radial_transport,
+    reject_fixed_exit_roi_bypass,
+    require_binder_selected_safe_exit_roi,
 )
 from safe_action_core import ActionClass, ActionStatus, CentralPolicy, SafetyStore
 from safe_action_core.models import navigation_capability_forbidden_reason
@@ -64,6 +71,16 @@ def _open_store(directory: Path, *, name: str = "safety.sqlite3") -> Iterator[Sa
         store.close()
 
 
+class _MonoClock:
+    """Keep executor timing just ahead of FakeRuntime capture ordinals."""
+
+    def __init__(self, runtime: "_FakeRuntime") -> None:
+        self._runtime = runtime
+
+    def __call__(self) -> float:
+        return float(self._runtime.ordinal) + 0.2
+
+
 class _FakeRuntime:
     execute = True
     in_flight_action = None
@@ -72,18 +89,24 @@ class _FakeRuntime:
         self.session = session
         self.ordinal = 0
         self.taps: list[dict[str, object]] = []
+        self.captured_frames: list[tuple[str, CapturedNativeFrame]] = []
 
     def capture(self, label: str) -> CapturedNativeFrame:
         self.ordinal += 1
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         frame[0, 0] = (self.ordinal, 10, 20)
-        return CapturedNativeFrame(
+        captured = CapturedNativeFrame(
             frame,
             ("a" * 64).encode("ascii"),
             "a" * 64,
             float(self.ordinal),
             self.session / f"{label}.png",
         )
+        self.captured_frames.append((label, captured))
+        return captured
+
+    def captures_labeled(self, label: str) -> list[CapturedNativeFrame]:
+        return [captured for name, captured in self.captured_frames if name == label]
 
     def tap(
         self,
@@ -101,6 +124,7 @@ class _FakeRuntime:
                 "action_key": action_key,
                 "consequential": consequential,
                 "sha256": captured.sha256,
+                "frame_digest": frame_digest(captured.frame),
             }
         )
 
@@ -118,6 +142,12 @@ def _binding(frame: np.ndarray) -> BuildingBinding:
         overlay_intersects=False,
         ambiguous_overlap=False,
     )
+
+
+def _rebind_from_frame(frame: np.ndarray, identity) -> BuildingBinding:
+    binding = _binding(frame)
+    assert binding.frame_sha256 == identity.semantic_sha256
+    return binding
 
 
 def _identity(
@@ -155,6 +185,16 @@ def _home_successor(frame: np.ndarray) -> SimpleNamespace:
         confidence=0.99,
         residual_px=0.0,
         profile_id=BLUESTACKS_PROFILE_ID,
+        platform=BLUESTACKS_PLATFORM,
+        zoom_identity=ZoomIdentity.FULLY_ZOOMED_OUT,
+        screen_to_atlas=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        viewport_polygon=((0, 0), (800, 0), (800, 1280), (0, 1280)),
+        supporting_landmarks=(),
+        ambiguity_state=AmbiguityState.NONE,
+        map_edge_state="none",
+        timestamp=0.0,
+        stale=False,
+        overlay=False,
     )
 
 
@@ -212,6 +252,14 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                 runtime.taps[1]["target_identity"],
                 "supply-depot-back-arrow",
             )
+            self.assertEqual(
+                runtime.taps[1]["target_roi"],
+                SUPPLY_DEPOT_EXIT_TARGET_ROI,
+            )
+            self.assertNotEqual(
+                runtime.taps[1]["target_roi"],
+                SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI,
+            )
             self.assertFalse(runtime.taps[0]["consequential"])
             payload = json.loads(
                 (root / "radial-result.json").read_text(
@@ -225,13 +273,14 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
             self.assertTrue(payload["transport_observed"])
             self.assertTrue(payload["verified"])
             self.assertTrue(payload["completed"])
-            self.assertEqual(payload["immediate_post_identity"]["capture_ordinal"], 3)
-            self.assertEqual(payload["settled_identity"]["capture_ordinal"], 4)
+            # Planning (2) + radial pre_dispatch (3) + immediate_post (4) + settled (5)
+            self.assertEqual(payload["immediate_post_identity"]["capture_ordinal"], 4)
+            self.assertEqual(payload["settled_identity"]["capture_ordinal"], 5)
             self.assertEqual(
                 payload["settled_perception_bundle"]["bundle"]["frame"][
                     "capture_ordinal"
                 ],
-                4,
+                5,
             )
             self.assertEqual(payload["production_registration"], "NOT_REGISTERED")
             self.assertIs(payload["scheduler_eligibility"], False)
@@ -255,6 +304,39 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                 payload["safe_exit_binding"]["safe_exit_binding"]["reason_code"],
                 "SAFE_EXIT_CANDIDATE_BOUND",
             )
+            self.assertEqual(
+                payload["safe_exit_binding"]["safe_exit_binding"]["candidate"][
+                    "candidate_id"
+                ],
+                "supply-depot-facility-back-arrow",
+            )
+            self.assertEqual(
+                tuple(payload["exit_target_roi"]),
+                SUPPLY_DEPOT_EXIT_TARGET_ROI,
+            )
+            self.assertEqual(
+                tuple(payload["actions"]["safe_exit"]["exit_target_roi"]),
+                SUPPLY_DEPOT_EXIT_TARGET_ROI,
+            )
+            self.assertEqual(
+                payload["home_safe_exit_probe"]["safe_exit_binding"]["candidate"][
+                    "candidate_id"
+                ],
+                "supply-depot-exterior-close-anchor",
+            )
+            self.assertIn(
+                "pre_dispatch_frame_sha256",
+                payload["actions"]["radial_entry"],
+            )
+            self.assertIn(
+                "pre_dispatch_frame_sha256",
+                payload["actions"]["safe_exit"],
+            )
+            if "building_entry" in payload["actions"]:
+                self.assertIn(
+                    "pre_dispatch_frame_sha256",
+                    payload["actions"]["building_entry"],
+                )
 
             session_payload = json.loads(
                 (root / "radial-navigation-session.json").read_text(
@@ -329,6 +411,10 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                     "supply-depot-back-arrow",
                 ],
             )
+            self.assertEqual(
+                runtime.taps[2]["target_roi"],
+                SUPPLY_DEPOT_EXIT_TARGET_ROI,
+            )
             payload = json.loads(
                 (root / "radial-result.json").read_text(encoding="utf-8")
             )
@@ -393,6 +479,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                     build_supply_depot_exit_observation(
                         identity=identity,
                         recognized_screen=True,
+                        target_roi=SUPPLY_DEPOT_EXIT_TARGET_ROI,
                     ),
                 ),
             ):
@@ -413,6 +500,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                         observation=build_supply_depot_exit_observation(
                             identity=identity,
                             recognized_screen=False,
+                            target_roi=SUPPLY_DEPOT_EXIT_TARGET_ROI,
                         ),
                     )
                 ),
@@ -433,6 +521,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
             runtime = _FakeRuntime(root)
             captured = runtime.capture("dry-run-entry")
             identity = _identity(runtime, captured)
+            clock = _MonoClock(runtime)
             with _open_store(root) as store:
                 building_issued, building_execution, _, _ = (
                     dispatch_verified_supply_depot_building_tap(
@@ -447,31 +536,36 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                         lease_owner="owner",
                         policy=_policy(),
                         store=store,
-                        monotonic_clock=lambda: 1.2,
+                        monotonic_clock=clock,
                         wall_clock=lambda: _TEST_WALL,
                         dry_run=True,
+                        rebind_building=_rebind_from_frame,
                     )
                 )
-                exit_issued, exit_execution, _, _ = (
-                    dispatch_verified_supply_depot_exit_tap(
-                        runtime=runtime,
-                        immediate_before=captured,
-                        identity=identity,
-                        action_id="dry-exit",
-                        action_key="dry-exit-key",
-                        task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
-                        navigation_session_id="dry-session",
-                        lease_owner="owner",
-                        policy=_policy(),
-                        store=store,
-                        home_successor_recognizer=lambda *args, **kwargs: (
-                            _home_successor(captured.frame)
-                        ),
-                        monotonic_clock=lambda: 1.2,
-                        wall_clock=lambda: _TEST_WALL,
-                        dry_run=True,
+                with patch(
+                    "scripts.home_atlas_bluestacks.recognize_supply_depot_screen",
+                    side_effect=lambda frame, *, source_frame=None: _successor(frame),
+                ):
+                    exit_issued, exit_execution, _, _ = (
+                        dispatch_verified_supply_depot_exit_tap(
+                            runtime=runtime,
+                            immediate_before=captured,
+                            identity=identity,
+                            action_id="dry-exit",
+                            action_key="dry-exit-key",
+                            task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
+                            navigation_session_id="dry-session",
+                            lease_owner="owner",
+                            policy=_policy(),
+                            store=store,
+                            home_successor_recognizer=lambda *args, **kwargs: (
+                                _home_successor(captured.frame)
+                            ),
+                            monotonic_clock=clock,
+                            wall_clock=lambda: _TEST_WALL,
+                            dry_run=True,
+                        )
                     )
-                )
             self.assertTrue(building_issued.authorized)
             self.assertTrue(exit_issued.authorized)
             self.assertEqual(
@@ -521,8 +615,9 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                         lease_owner="owner",
                         policy=CentralPolicy(supervised_tasks=frozenset({"OTHER"})),
                         store=store,
-                        monotonic_clock=lambda: 1.2,
+                        monotonic_clock=_MonoClock(runtime),
                         wall_clock=lambda: _TEST_WALL,
+                        rebind_radial=_rebind_from_frame,
                     )
                 )
             self.assertFalse(issued.authorized)
@@ -531,6 +626,10 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
             self.assertTrue(telemetry["requested"])
             self.assertFalse(telemetry["authorized"])
             self.assertFalse(telemetry["dispatched"])
+            self.assertNotEqual(
+                telemetry["pre_dispatch_frame_sha256"],
+                identity.semantic_sha256,
+            )
 
     def test_dry_run_consumes_capability_without_transport(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -552,9 +651,10 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                         lease_owner="owner",
                         policy=_policy(),
                         store=store,
-                        monotonic_clock=lambda: 1.2,
+                        monotonic_clock=_MonoClock(runtime),
                         wall_clock=lambda: _TEST_WALL,
                         dry_run=True,
+                        rebind_radial=_rebind_from_frame,
                     )
                 )
             self.assertTrue(issued.authorized)
@@ -581,8 +681,9 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                 lease_owner="owner",
                 policy=_policy(),
                 settle_seconds=0,
-                monotonic_clock=lambda: float(runtime.ordinal) + 0.2,
+                monotonic_clock=_MonoClock(runtime),
                 wall_clock=lambda: _TEST_WALL,
+                rebind_radial=_rebind_from_frame,
             )
             with patch(
                 "scripts.home_atlas_bluestacks.recognize_supply_depot_screen",
@@ -788,6 +889,427 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
         source = Path(module.__file__).read_text(encoding="utf-8")
         self.assertIn('production_registration"] = "NOT_REGISTERED"', source)
         self.assertIn('scheduler_eligibility"] = False', source)
+
+    def test_fresh_pre_dispatch_capture_before_each_stage_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = _FakeRuntime(root)
+            planning = runtime.capture("planning")
+            planning_identity = _identity(runtime, planning)
+            clock = _MonoClock(runtime)
+            with patch(
+                "scripts.home_atlas_bluestacks.recognize_supply_depot_screen",
+                side_effect=lambda frame, *, source_frame=None: _successor(frame),
+            ), _open_store(root) as store:
+                for label, dispatch, extra in (
+                    (
+                        "supply-depot-building-pre-dispatch",
+                        dispatch_verified_supply_depot_building_tap,
+                        {
+                            "binding": _binding(planning.frame),
+                            "rebind_building": _rebind_from_frame,
+                        },
+                    ),
+                    (
+                        "supply-depot-radial-pre-dispatch",
+                        dispatch_verified_supply_depot_radial_tap,
+                        {
+                            "binding": _binding(planning.frame),
+                            "rebind_radial": _rebind_from_frame,
+                        },
+                    ),
+                    (
+                        "supply-depot-exit-pre-dispatch",
+                        dispatch_verified_supply_depot_exit_tap,
+                        {
+                            "radial_binding": _binding(planning.frame),
+                            "home_successor_recognizer": (
+                                lambda frame, *, source_frame: _home_successor(frame)
+                            ),
+                        },
+                    ),
+                ):
+                    before_ordinal = runtime.ordinal
+                    issued, execution, obs, telemetry = dispatch(
+                        runtime=runtime,
+                        immediate_before=planning,
+                        identity=planning_identity,
+                        action_id=f"{label}-id",
+                        action_key=f"{label}-key",
+                        task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
+                        navigation_session_id="nav-fresh",
+                        lease_owner="owner",
+                        policy=_policy(),
+                        store=store,
+                        monotonic_clock=clock,
+                        wall_clock=lambda: _TEST_WALL,
+                        **extra,
+                    )
+                    self.assertTrue(issued.authorized)
+                    fresh = runtime.captures_labeled(label)
+                    self.assertEqual(len(fresh), 1)
+                    self.assertGreater(runtime.ordinal, before_ordinal)
+                    self.assertNotEqual(obs.frame_sha256, planning_identity.semantic_sha256)
+                    self.assertEqual(
+                        obs.frame_sha256, frame_digest(fresh[0].frame)
+                    )
+                    self.assertEqual(
+                        telemetry["pre_dispatch_frame_sha256"], obs.frame_sha256
+                    )
+                    self.assertEqual(
+                        telemetry["pre_dispatch_capture_ordinal"],
+                        fresh[0].captured_monotonic,
+                    )
+                    self.assertEqual(obs.capture_completed_monotonic, float(fresh[0].captured_monotonic))
+                    if execution is not None and execution.transport_calls:
+                        self.assertEqual(
+                            runtime.taps[-1]["frame_digest"], obs.frame_sha256
+                        )
+
+    def test_recapture_rebuilds_distinct_observation_not_issuance_identity(self) -> None:
+        module = importlib.import_module("scripts.home_atlas_bluestacks")
+        real_executor = module.SafeActionExecutor
+        recorded: dict[str, object] = {}
+
+        def _spy(*args, **kwargs):
+            instance = real_executor(*args, **kwargs)
+            recorded["recapture"] = instance.recapture
+            return instance
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            captured = runtime.capture("before")
+            identity = _identity(runtime, captured)
+            with _open_store(Path(directory)) as store:
+                with patch(
+                    "scripts.home_atlas_bluestacks.SafeActionExecutor", _spy
+                ), patch(
+                    "scripts.home_atlas_bluestacks.recognize_supply_depot_screen",
+                    side_effect=lambda frame, *, source_frame=None: _successor(frame),
+                ):
+                    issued, execution, obs, _telemetry = (
+                        dispatch_verified_supply_depot_radial_tap(
+                            runtime=runtime,
+                            immediate_before=captured,
+                            identity=identity,
+                            binding=_binding(captured.frame),
+                            action_id="rebind-1",
+                            action_key="rebind-key-1",
+                            task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
+                            navigation_session_id="nav-rebind",
+                            lease_owner="owner",
+                            policy=_policy(),
+                            store=store,
+                            monotonic_clock=_MonoClock(runtime),
+                            wall_clock=lambda: _TEST_WALL,
+                            rebind_radial=_rebind_from_frame,
+                        )
+                    )
+                self.assertTrue(issued.authorized)
+                assert execution is not None
+                recapture = recorded["recapture"]
+                first = recapture()
+                second = recapture()
+                self.assertIsNot(first, second)
+                self.assertIsNot(first, obs)
+                self.assertIsNot(second, obs)
+                self.assertEqual(first.frame_sha256, obs.frame_sha256)
+                self.assertEqual(
+                    first.capture_completed_monotonic,
+                    obs.capture_completed_monotonic,
+                )
+
+    def test_stale_pre_dispatch_ordinal_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            captured = runtime.capture("planning")
+            identity = _identity(runtime, captured)
+
+            class _StaleRuntime:
+                session = runtime.session
+                ordinal = identity.capture_ordinal
+                taps: list = []
+
+                def capture(self, label: str):
+                    # Do not advance ordinal — stale relative to planning.
+                    frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+                    return CapturedNativeFrame(
+                        frame,
+                        b"a" * 64,
+                        "a" * 64,
+                        float(self.ordinal),
+                        self.session / f"{label}.png",
+                    )
+
+            with self.assertRaises(PerceptionBundleError) as raised:
+                dispatch_verified_supply_depot_radial_tap(
+                    runtime=_StaleRuntime(),
+                    immediate_before=captured,
+                    identity=identity,
+                    binding=_binding(captured.frame),
+                    action_id="stale-1",
+                    action_key="stale-key",
+                    task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
+                    navigation_session_id="nav-stale",
+                    lease_owner="owner",
+                    policy=_policy(),
+                    store=SafetyStore(Path(directory) / "stale.sqlite3"),
+                    monotonic_clock=lambda: float(identity.capture_ordinal) + 0.2,
+                    wall_clock=lambda: _TEST_WALL,
+                    rebind_radial=_rebind_from_frame,
+                )
+            self.assertEqual(raised.exception.reason_code, "PRE_DISPATCH_FRAME_STALE")
+
+    def test_recapture_scene_drift_fails_closed_zero_transport(self) -> None:
+        from safe_action_core import SafeActionExecutor, TransportResult
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            first = runtime.capture("pre-dispatch")
+            first_identity = _identity(runtime, first)
+            drifted = runtime.capture("drifted")
+            drifted_identity = _identity(runtime, drifted)
+            obs = build_supply_depot_radial_observation(
+                identity=first_identity,
+                binding=_binding(first.frame),
+            )
+            drifted_obs = build_supply_depot_radial_observation(
+                identity=drifted_identity,
+                binding=_binding(drifted.frame),
+            )
+            self.assertNotEqual(obs.frame_sha256, drifted_obs.frame_sha256)
+            with _open_store(Path(directory)) as store:
+                policy = _policy()
+                from scripts.home_atlas_bluestacks import (
+                    build_supply_depot_radial_policy_request,
+                )
+
+                issued = policy.issue_capability(
+                    build_supply_depot_radial_policy_request(
+                        observation=obs,
+                        action_id="drift-1",
+                        action_key="drift-key",
+                        task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
+                        navigation_session_id="nav-drift",
+                        lease_owner="owner",
+                        monotonic_now=obs.capture_completed_monotonic + 0.2,
+                    )
+                )
+                self.assertTrue(issued.authorized)
+                calls: list[int] = []
+
+                def transport(_intent):
+                    calls.append(1)
+                    return TransportResult(True, "SHOULD_NOT_RUN")
+
+                proposal = replace(
+                    obs,
+                    capture_completed_monotonic=obs.capture_completed_monotonic - 0.05,
+                )
+                executor = SafeActionExecutor(
+                    store,
+                    policy,
+                    "owner",
+                    lambda: obs.capture_completed_monotonic + 0.2,
+                    transport,
+                    lambda: drifted_obs,
+                    lambda: (),
+                    lambda *_: True,
+                    wall_clock=lambda: _TEST_WALL,
+                    max_pre_dispatch_attempts=1,
+                )
+                result = executor.execute(
+                    build_supply_depot_radial_policy_request(
+                        observation=proposal,
+                        action_id="drift-1",
+                        action_key="drift-key",
+                        task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
+                        navigation_session_id="nav-drift",
+                        lease_owner="owner",
+                        monotonic_now=obs.capture_completed_monotonic + 0.2,
+                    ),
+                    issued.capability,
+                )
+                self.assertEqual(calls, [])
+                self.assertNotEqual(result.status, ActionStatus.CONFIRMED)
+
+    def test_safe_exit_dispatch_roi_equals_binder_selected_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            captured = runtime.capture("exit-plan")
+            identity = _identity(runtime, captured)
+            with patch(
+                "scripts.home_atlas_bluestacks.recognize_supply_depot_screen",
+                side_effect=lambda frame, *, source_frame=None: _successor(frame),
+            ), _open_store(Path(directory)) as store:
+                issued, execution, obs, telemetry = (
+                    dispatch_verified_supply_depot_exit_tap(
+                        runtime=runtime,
+                        immediate_before=captured,
+                        identity=identity,
+                        action_id="exit-roi-1",
+                        action_key="exit-roi-key",
+                        task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
+                        navigation_session_id="nav-exit-roi",
+                        lease_owner="owner",
+                        policy=_policy(),
+                        store=store,
+                        home_successor_recognizer=lambda frame, *, source_frame: (
+                            _home_successor(frame)
+                        ),
+                        monotonic_clock=_MonoClock(runtime),
+                        wall_clock=lambda: _TEST_WALL,
+                    )
+                )
+            self.assertTrue(issued.authorized)
+            assert execution is not None
+            self.assertEqual(execution.status, ActionStatus.CONFIRMED)
+            binding = telemetry["safe_exit_binding"]
+            selected = tuple(binding.candidate.box)
+            self.assertEqual(tuple(obs.target_roi), selected)
+            self.assertEqual(runtime.taps[0]["target_roi"], selected)
+            self.assertEqual(telemetry["exit_target_roi"], selected)
+            # Facility binder selects the chrome Back-arrow proposal; geometry may
+            # equal the legacy constant, but authority is binder selection.
+            self.assertEqual(selected, SUPPLY_DEPOT_EXIT_TARGET_ROI)
+            self.assertNotEqual(selected, SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI)
+            self.assertFalse(binding.authorize_dispatch)
+            self.assertEqual(
+                binding.candidate.candidate_id, "supply-depot-facility-back-arrow"
+            )
+
+    def test_fixed_exit_roi_bypass_is_rejected(self) -> None:
+        with self.assertRaises(PerceptionBundleError) as raised:
+            reject_fixed_exit_roi_bypass(
+                dispatch_roi=SUPPLY_DEPOT_EXIT_TARGET_ROI,
+                binder_selected_roi=SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI,
+            )
+        self.assertEqual(raised.exception.reason_code, "FIXED_EXIT_ROI_BYPASS_REJECTED")
+
+    def test_missing_or_ambiguous_safe_exit_candidates_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            captured = runtime.capture("exit-missing")
+            identity = _identity(runtime, captured)
+            # Facility exit requires positive facility recognition on fresh frame.
+            with patch(
+                "scripts.home_atlas_bluestacks.recognize_supply_depot_screen",
+                side_effect=lambda frame, *, source_frame=None: SimpleNamespace(
+                    recognized=False,
+                    frame_sha256=frame_digest(frame),
+                    ambiguity="not_facility",
+                ),
+            ):
+                with self.assertRaises(PerceptionBundleError) as missing:
+                    dispatch_verified_supply_depot_exit_tap(
+                        runtime=runtime,
+                        immediate_before=captured,
+                        identity=identity,
+                        action_id="exit-missing",
+                        action_key="exit-missing-key",
+                        task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
+                        navigation_session_id="nav-exit-missing",
+                        lease_owner="owner",
+                        policy=_policy(),
+                        store=SafetyStore(Path(directory) / "missing.sqlite3"),
+                        home_successor_recognizer=lambda *a, **k: None,
+                        monotonic_clock=_MonoClock(runtime),
+                        wall_clock=lambda: _TEST_WALL,
+                    )
+            self.assertEqual(
+                missing.exception.reason_code,
+                "FACILITY_SCREEN_NOT_RECOGNIZED_PRE_DISPATCH",
+            )
+
+            overlapping = replace(
+                _binding(captured.frame),
+                target_roi=SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI,
+            )
+            probe = build_supply_depot_safe_exit_probe(
+                identity,
+                radial_binding=overlapping,
+            )
+            with self.assertRaises(PerceptionBundleError) as ambiguous:
+                require_binder_selected_safe_exit_roi(probe)
+            self.assertIn(
+                ambiguous.exception.reason_code,
+                {
+                    "NO_VALID_SAFE_EXIT_CANDIDATE",
+                    "AMBIGUOUS_MULTIPLE_VALID_CANDIDATES",
+                    "SAFE_EXIT_CANDIDATE_REQUIRED",
+                },
+            )
+
+            facility = build_supply_depot_facility_safe_exit_probe(identity)
+            selected = require_binder_selected_safe_exit_roi(facility)
+            self.assertEqual(selected, SUPPLY_DEPOT_EXIT_TARGET_ROI)
+
+    def test_building_and_exit_partial_or_mixed_capture_bundles_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            first = runtime.capture("first")
+            second = runtime.capture("second")
+            first_identity = _identity(runtime, first, ordinal=1)
+            second_identity = _identity(runtime, second)
+            with self.assertRaises(PerceptionBundleError) as building:
+                build_supply_depot_building_perception_bundle(
+                    first_identity,
+                    replace(
+                        _binding(first.frame),
+                        frame_sha256=second_identity.semantic_sha256,
+                    ),
+                )
+            self.assertEqual(building.exception.reason_code, "SEMANTIC_DIGEST_MISMATCH")
+
+            probe = build_supply_depot_safe_exit_probe(
+                second_identity,
+                radial_binding=_binding(second.frame),
+            )
+            with self.assertRaises(PerceptionBundleError) as exit_bundle:
+                build_supply_depot_exit_perception_bundle(
+                    first_identity,
+                    safe_exit_result=probe,
+                    recognized_screen=True,
+                )
+            self.assertEqual(exit_bundle.exception.reason_code, "SEMANTIC_DIGEST_MISMATCH")
+
+    def test_zero_claim_consequential_controls_remain_denied(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            captured = runtime.capture("claim-deny")
+            identity = _identity(runtime, captured)
+            observation = build_supply_depot_radial_observation(
+                identity=identity,
+                binding=_binding(captured.frame),
+            )
+            for semantic in (
+                "SUPPLY_DEPOT_CLAIM",
+                "CLAIM_SUPPLY",
+                "SUPPLY_DEPOT_PURCHASE",
+            ):
+                self.assertEqual(
+                    navigation_capability_forbidden_reason(
+                        SimpleNamespace(
+                            action_class=ActionClass.NAVIGATION_ONLY,
+                            semantic_action=semantic,
+                            observation=observation,
+                        )
+                    ),
+                    "CAPABILITY_NAVIGATION_CONSEQUENTIAL_DENIED",
+                )
+            claim_obs = replace(observation, control_class="CLAIM", consequence="claim")
+            # Radial navigation exception keeps CLAIM control for navigation-only
+            # SUPPLY_DEPOT_RADIAL_NAVIGATION; consequential claim semantics stay denied.
+            self.assertEqual(
+                navigation_capability_forbidden_reason(
+                    SimpleNamespace(
+                        action_class=ActionClass.NAVIGATION_ONLY,
+                        semantic_action="SUPPLY_DEPOT_CLAIM",
+                        observation=claim_obs,
+                    )
+                ),
+                "CAPABILITY_NAVIGATION_CONSEQUENTIAL_DENIED",
+            )
 
 
 if __name__ == "__main__":

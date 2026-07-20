@@ -108,6 +108,7 @@ from tasks.perception_bundle import (
     ImmutableFrameValidationObservation,
     ImmutableRadialObservation,
     ImmutableRecognizedScreenObservation,
+    ImmutableTargetObservation,
     NativeFrameIdentity,
     PerceptionBundleError,
     binding_from_result,
@@ -131,6 +132,8 @@ from tasks.bluestacks_home_safe_exit import (
     ExclusionCategory,
     ExclusionRegion,
     ExclusionInventory,
+    SafeExitActionability,
+    SafeExitBindingStatus,
     SafeExitCandidateProposal,
     SafeExitBindingResult,
     bind_bluestacks_home_safe_exit,
@@ -1223,6 +1226,70 @@ def build_supply_depot_radial_perception_bundle(
     return classify_and_attach(bundle)
 
 
+def build_supply_depot_building_perception_bundle(
+    identity: NativeFrameIdentity,
+    binding: BuildingBinding,
+) -> FramePerceptionBundle:
+    """Compose same-capture building-entry semantics for Supply Depot."""
+
+    if binding.building_id != SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY:
+        raise PerceptionBundleError("BUILDING_OWNER_IDENTITY_MISMATCH")
+    if binding.frame_sha256 != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    return classify_and_attach(
+        bundle_from_identity(identity)
+        .with_frame_validation(bluestacks_frame_validation(identity))
+        .with_building_binding(binding_from_result(identity, binding))
+    )
+
+
+def build_supply_depot_exit_perception_bundle(
+    identity: NativeFrameIdentity,
+    *,
+    safe_exit_result: SafeExitBindingResult,
+    recognized_screen: bool,
+) -> FramePerceptionBundle:
+    """Compose same-capture facility-exit semantics from binder selection."""
+
+    if not identity.same_capture_event(safe_exit_result.source_frame):
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    if safe_exit_result.source_frame.semantic_sha256 != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    candidate = safe_exit_result.candidate
+    if candidate is None:
+        raise PerceptionBundleError("SAFE_EXIT_CANDIDATE_REQUIRED")
+    if not identity.same_capture_event(candidate.source_frame):
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    exit_roi = tuple(candidate.box)
+    return classify_and_attach(
+        bundle_from_identity(identity)
+        .with_frame_validation(bluestacks_frame_validation(identity))
+        .with_recognized_screen(
+            ImmutableRecognizedScreenObservation(
+                source_frame=identity,
+                screen_identity="facility.supply_depot",
+                confidence=0.99 if recognized_screen else 0.0,
+                supporting_evidence=(
+                    "Supply Depot facility screen before safe-exit",
+                    "binder-selected safe-exit candidate",
+                ),
+                surface_safe_targets=(
+                    ImmutableTargetObservation(
+                        source_frame=identity,
+                        target_identity=SUPPLY_DEPOT_EXIT_TARGET_IDENTITY,
+                        target_roi=exit_roi,
+                        confidence=0.99,
+                        supporting_evidence=(
+                            "same-capture safe-exit binder candidate",
+                            str(candidate.candidate_id),
+                        ),
+                    ),
+                ),
+            )
+        )
+    )
+
+
 def build_supply_depot_screen_perception_bundle(
     identity: NativeFrameIdentity,
     successor,
@@ -1247,6 +1314,71 @@ def build_supply_depot_screen_perception_bundle(
             )
         )
     )
+
+
+def _acquire_supply_depot_pre_dispatch(
+    runtime,
+    *,
+    planning_identity: NativeFrameIdentity,
+    label: str,
+) -> tuple[CapturedNativeFrame, NativeFrameIdentity]:
+    """Acquire a genuine fresh pre_dispatch capture distinct from planning."""
+
+    fresh_capture = runtime.capture(label)
+    fresh_ordinal = getattr(runtime, "ordinal", None)
+    if fresh_ordinal is None:
+        fresh_ordinal = int(planning_identity.capture_ordinal) + 1
+    if int(fresh_ordinal) <= int(planning_identity.capture_ordinal):
+        raise PerceptionBundleError("PRE_DISPATCH_FRAME_STALE")
+    fresh_identity = identity_from_captured(
+        fresh_capture,
+        session_id=str(runtime.session),
+        ordinal=int(fresh_ordinal),
+        label=label,
+    )
+    fresh_validation = bluestacks_frame_validation(fresh_identity)
+    if fresh_validation.validity is not FrameValidityState.VALID_NATIVE:
+        raise PerceptionBundleError("PRE_DISPATCH_FRAME_INVALID")
+    if len(str(fresh_identity.semantic_sha256)) != 64:
+        raise PerceptionBundleError("PRE_DISPATCH_DIGEST_INCONSISTENT")
+    return fresh_capture, fresh_identity
+
+
+def require_binder_selected_safe_exit_roi(
+    result: SafeExitBindingResult,
+) -> tuple[int, int, int, int]:
+    """Fail closed unless the binder positively selected one actionable ROI."""
+
+    if bool(result.authorize_dispatch):
+        raise PerceptionBundleError("SAFE_EXIT_MUST_NOT_AUTHORIZE")
+    if result.status is not SafeExitBindingStatus.BOUND:
+        raise PerceptionBundleError(str(result.reason_code))
+    candidate = result.candidate
+    if candidate is None:
+        raise PerceptionBundleError("SAFE_EXIT_CANDIDATE_REQUIRED")
+    if candidate.actionability is not SafeExitActionability.CANDIDATE:
+        raise PerceptionBundleError("SAFE_EXIT_CANDIDATE_NOT_ACTIONABLE")
+    if bool(candidate.authorize_dispatch):
+        raise PerceptionBundleError("SAFE_EXIT_MUST_NOT_AUTHORIZE")
+    return tuple(candidate.box)
+
+
+def reject_fixed_exit_roi_bypass(
+    *,
+    dispatch_roi: tuple[int, int, int, int],
+    binder_selected_roi: tuple[int, int, int, int],
+) -> None:
+    """Reject dispatching the legacy fixed ROI when the binder selected otherwise."""
+
+    selected = tuple(binder_selected_roi)
+    intended = tuple(dispatch_roi)
+    if (
+        intended == tuple(SUPPLY_DEPOT_EXIT_TARGET_ROI)
+        and selected != tuple(SUPPLY_DEPOT_EXIT_TARGET_ROI)
+    ):
+        raise PerceptionBundleError("FIXED_EXIT_ROI_BYPASS_REJECTED")
+    if intended != selected:
+        raise PerceptionBundleError("SAFE_EXIT_ROI_MISMATCH")
 
 
 def build_supply_depot_safe_exit_probe(
@@ -1377,6 +1509,111 @@ def build_supply_depot_safe_exit_probe(
             "candidate_proposals": "known_map_space_exterior_close_anchor",
             "building_binding": "bound" if building_binding is not None else "unavailable",
             "radial_binding": "bound" if radial_binding is not None else "unavailable",
+        },
+    )
+
+
+def build_supply_depot_facility_safe_exit_probe(
+    identity: NativeFrameIdentity,
+) -> SafeExitBindingResult:
+    """Bind the facility Back-arrow chrome through the shared safe-exit binder.
+
+    Home exterior-close geometry is intentionally not used here: the center
+    interaction anchor can land on Supply Depot Free/claim controls. The binder
+    remains non-authorizing; capability issuance is the only dispatch authority.
+    The legacy ``SUPPLY_DEPOT_EXIT_TARGET_ROI`` constant is only a proposal input
+    and the tight permitted space that can contain that single chrome control.
+    """
+
+    def region(
+        category: ExclusionCategory,
+        region_id: str,
+        box: tuple[int, int, int, int],
+        *evidence: str,
+    ) -> ExclusionRegion:
+        return ExclusionRegion(
+            source_frame=identity,
+            category=category,
+            region_id=region_id,
+            box=box,
+            supporting_evidence=tuple(evidence),
+        )
+
+    # Home HUD masks cover the Back arrow. Facility exit uses chrome strips that
+    # deliberately leave a one-pixel open clearance around the proposed exit band.
+    hud_regions = (
+        region(
+            ExclusionCategory.HUD,
+            "facility-top-bar-right-of-exit",
+            (151, 0, 800, 150),
+            "facility HUD top bar excluding Back-arrow exit band",
+        ),
+        region(
+            ExclusionCategory.HUD,
+            "facility-top-bar-below-exit",
+            (0, 106, 150, 150),
+            "facility HUD remnant below Back-arrow exit band",
+        ),
+        region(
+            ExclusionCategory.HUD,
+            "facility-bottom-nav",
+            (0, 1020, 800, 1280),
+            "facility bottom navigation HUD",
+        ),
+    )
+    # Consequential Free/claim body is excluded from the tiny chrome permitted
+    # space by geometry; still prove non-empty interactive surface inventory.
+    interactive_regions = (
+        region(
+            ExclusionCategory.KNOWN_INTERACTIVE_REGIONS,
+            "facility-body-consequential-band",
+            (145, 180, 650, 1010),
+            "facility body containing Free/claim controls; outside exit chrome",
+        ),
+    )
+    semantic_regions = (
+        region(
+            ExclusionCategory.SEMANTIC_TARGETS,
+            "facility-body-semantic-band",
+            (145, 180, 650, 1010),
+            "facility semantic Free/claim surface; outside exit chrome",
+        ),
+    )
+    coverage_data = {
+        ExclusionCategory.HUD: (hud_regions, False),
+        ExclusionCategory.BUILDINGS: ((), True),
+        ExclusionCategory.RADIAL_CONTROLS: ((), True),
+        ExclusionCategory.SEMANTIC_TARGETS: (semantic_regions, False),
+        ExclusionCategory.KNOWN_INTERACTIVE_REGIONS: (interactive_regions, False),
+    }
+    coverage = tuple(
+        CategoryCoverageProof(
+            source_frame=identity,
+            category=category,
+            regions=regions,
+            observed_empty=observed_empty,
+        )
+        for category, (regions, observed_empty) in sorted(
+            coverage_data.items(), key=lambda item: item[0].value
+        )
+    )
+    inventory = ExclusionInventory(source_frame=identity, coverage=coverage)
+    return bind_bluestacks_home_safe_exit(
+        source_frame=identity,
+        permitted_safe_space=SUPPLY_DEPOT_EXIT_TARGET_ROI,
+        exclusion_inventory=inventory,
+        proposed_candidates=(
+            SafeExitCandidateProposal(
+                source_frame=identity,
+                candidate_id="supply-depot-facility-back-arrow",
+                box=SUPPLY_DEPOT_EXIT_TARGET_ROI,
+            ),
+        ),
+        metadata={
+            "route": "supply-depot-radial",
+            "dispatch_authority": "none",
+            "candidate_proposals": "facility_back_arrow_chrome",
+            "surface": "facility.supply_depot",
         },
     )
 
@@ -1559,8 +1796,15 @@ def build_supply_depot_exit_observation(
     *,
     identity: NativeFrameIdentity,
     recognized_screen: bool,
+    target_roi: tuple[int, int, int, int],
 ) -> Observation:
-    """Build the navigation-only facility Back-arrow observation."""
+    """Build the navigation-only facility safe-exit observation.
+
+    ``target_roi`` must be the binder-selected candidate box. The fixed
+    ``SUPPLY_DEPOT_EXIT_TARGET_ROI`` constant is never an independent dispatch
+    authority; it remains only as a non-authorizing probe proposal input via
+    ``SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI`` inside the shared binder.
+    """
 
     return Observation(
         frame_sha256=str(identity.semantic_sha256),
@@ -1574,7 +1818,7 @@ def build_supply_depot_exit_observation(
         source_state="SUPPLY_DEPOT_SCREEN",
         overlay_state="none_observed",
         target_identity=SUPPLY_DEPOT_EXIT_TARGET_IDENTITY,
-        target_roi=SUPPLY_DEPOT_EXIT_TARGET_ROI,
+        target_roi=tuple(target_roi),
         recognized=bool(recognized_screen),
         consequence="navigate_zero_cost",
         cost_type="none",
@@ -1716,18 +1960,36 @@ def dispatch_verified_supply_depot_radial_tap(
     dry_run: bool = False,
     monotonic_clock: Callable[[], float] | None = None,
     wall_clock: Callable[[], float] | None = None,
+    rebind_radial: Callable[
+        [np.ndarray, NativeFrameIdentity], BuildingBinding | None
+    ]
+    | None = None,
 ) -> tuple[object, object | None, Observation, dict[str, object]]:
-    """Issue and consume one capability for the navigation-only radial tap.
-
-    The transport callback is the only place that can reach ``runtime.tap``.
-    The executor recaptures/revalidates through the same issuance-frame
-    observation, while the proposal intentionally uses the same digest with an
-    earlier monotonic value.
-    """
-
+    fresh_capture, fresh_identity = _acquire_supply_depot_pre_dispatch(
+        runtime,
+        planning_identity=identity,
+        label="supply-depot-radial-pre-dispatch",
+    )
+    if rebind_radial is None:
+        fresh_binding = bind_supply_depot_claim_supply(
+            fresh_capture.frame,
+            source_frame=fresh_identity,
+        )
+    else:
+        fresh_binding = rebind_radial(fresh_capture.frame, fresh_identity)
+    if (
+        fresh_binding is None
+        or fresh_binding.frame_sha256 != fresh_identity.semantic_sha256
+        or fresh_binding.building_id != "home.building.supply_depot"
+    ):
+        raise PerceptionBundleError("RADIAL_REBIND_FAILED")
+    pre_dispatch_bundle = build_supply_depot_radial_perception_bundle(
+        fresh_identity,
+        fresh_binding,
+    )
     pre_observation = build_supply_depot_radial_observation(
-        identity=identity,
-        binding=binding,
+        identity=fresh_identity,
+        binding=fresh_binding,
     )
     proposal_observation = replace(
         pre_observation,
@@ -1737,7 +1999,6 @@ def dispatch_verified_supply_depot_radial_tap(
     )
     mono_clock = monotonic_clock or time.monotonic
     wall = wall_clock or time.time
-    now = float(mono_clock())
     issue_request = build_supply_depot_radial_policy_request(
         observation=pre_observation,
         action_id=action_id,
@@ -1745,7 +2006,7 @@ def dispatch_verified_supply_depot_radial_tap(
         task_id=task_id,
         navigation_session_id=navigation_session_id,
         lease_owner=lease_owner,
-        monotonic_now=now,
+        monotonic_now=float(mono_clock()),
     )
     issued = policy.issue_capability(issue_request)
     telemetry: dict[str, object] = {
@@ -1755,6 +2016,9 @@ def dispatch_verified_supply_depot_radial_tap(
         "transport_observed": False,
         "verified": False,
         "completed": False,
+        "pre_dispatch_frame_sha256": fresh_identity.semantic_sha256,
+        "pre_dispatch_capture_ordinal": fresh_identity.capture_ordinal,
+        "pre_dispatch_perception_bundle": pre_dispatch_bundle,
     }
     if not issued.authorized or issued.capability is None:
         return issued, None, pre_observation, telemetry
@@ -1766,9 +2030,9 @@ def dispatch_verified_supply_depot_radial_tap(
         if dry_run:
             raise RuntimeError("DRY_RUN_TRANSPORT_MUST_NOT_RUN")
         runtime.tap(
-            immediate_before,
+            fresh_capture,
             target_identity=SUPPLY_DEPOT_RADIAL_TARGET_IDENTITY,
-            target_roi=tuple(binding.target_roi),
+            target_roi=tuple(fresh_binding.target_roi),
             action_key=action_key,
             consequential=False,
         )
@@ -1776,16 +2040,19 @@ def dispatch_verified_supply_depot_radial_tap(
         return TransportResult(True, "SUPPLY_DEPOT_RADIAL_DISPATCHED")
 
     def recapture() -> Observation:
-        # The executor's immediate recapture is the issuance-frame observation.
-        # Its monotonic clock and exact capability binding still run at the
-        # final pre_dispatch boundary.
-        return pre_observation
+        rebuilt = build_supply_depot_radial_observation(
+            identity=fresh_identity,
+            binding=fresh_binding,
+        )
+        if rebuilt is pre_observation:
+            raise RuntimeError("RECAPTURE_MUST_REBUILD_DISTINCT_OBSERVATION")
+        return rebuilt
 
     def post_observe():
         immediate_post = runtime.capture("radial-immediate-post")
         immediate_post_ordinal = getattr(runtime, "ordinal", None)
         if immediate_post_ordinal is None:
-            immediate_post_ordinal = identity.capture_ordinal + 1
+            immediate_post_ordinal = fresh_identity.capture_ordinal + 1
         immediate_post_identity = identity_from_captured(
             immediate_post,
             session_id=str(runtime.session),
@@ -1903,12 +2170,38 @@ def dispatch_verified_supply_depot_building_tap(
     dry_run: bool = False,
     monotonic_clock: Callable[[], float] | None = None,
     wall_clock: Callable[[], float] | None = None,
+    atlas_path: Path | None = None,
+    rebind_building: Callable[
+        [np.ndarray, NativeFrameIdentity], BuildingBinding | None
+    ]
+    | None = None,
 ) -> tuple[object, object | None, Observation, dict[str, object]]:
-    """Open the Supply Depot radial through the verified executor path."""
-
+    fresh_capture, fresh_identity = _acquire_supply_depot_pre_dispatch(
+        runtime,
+        planning_identity=identity,
+        label="supply-depot-building-pre-dispatch",
+    )
+    if rebind_building is None:
+        fresh_binding = bind_supply_depot_home_building(
+            fresh_capture.frame,
+            atlas_path=atlas_path,
+            source_frame=fresh_identity,
+        )
+    else:
+        fresh_binding = rebind_building(fresh_capture.frame, fresh_identity)
+    if (
+        fresh_binding is None
+        or fresh_binding.frame_sha256 != fresh_identity.semantic_sha256
+        or fresh_binding.building_id != SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY
+    ):
+        raise PerceptionBundleError("BUILDING_REBIND_FAILED")
+    pre_dispatch_bundle = build_supply_depot_building_perception_bundle(
+        fresh_identity,
+        fresh_binding,
+    )
     pre_observation = build_supply_depot_building_observation(
-        identity=identity,
-        binding=binding,
+        identity=fresh_identity,
+        binding=fresh_binding,
     )
     proposal_observation = replace(
         pre_observation,
@@ -1935,6 +2228,9 @@ def dispatch_verified_supply_depot_building_tap(
         "transport_observed": False,
         "verified": False,
         "completed": False,
+        "pre_dispatch_frame_sha256": fresh_identity.semantic_sha256,
+        "pre_dispatch_capture_ordinal": fresh_identity.capture_ordinal,
+        "pre_dispatch_perception_bundle": pre_dispatch_bundle,
     }
     if not issued.authorized or issued.capability is None:
         return issued, None, pre_observation, telemetry
@@ -1946,9 +2242,9 @@ def dispatch_verified_supply_depot_building_tap(
         if dry_run:
             raise RuntimeError("DRY_RUN_TRANSPORT_MUST_NOT_RUN")
         runtime.tap(
-            immediate_before,
+            fresh_capture,
             target_identity=SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY,
-            target_roi=tuple(binding.target_roi),
+            target_roi=tuple(fresh_binding.target_roi),
             action_key=action_key,
             consequential=False,
         )
@@ -1956,13 +2252,19 @@ def dispatch_verified_supply_depot_building_tap(
         return TransportResult(True, "SUPPLY_DEPOT_BUILDING_DISPATCHED")
 
     def recapture() -> Observation:
-        return pre_observation
+        rebuilt = build_supply_depot_building_observation(
+            identity=fresh_identity,
+            binding=fresh_binding,
+        )
+        if rebuilt is pre_observation:
+            raise RuntimeError("RECAPTURE_MUST_REBUILD_DISTINCT_OBSERVATION")
+        return rebuilt
 
     def post_observe():
         immediate_post = runtime.capture("supply-depot-building-immediate-post")
         immediate_post_ordinal = getattr(runtime, "ordinal", None)
         if immediate_post_ordinal is None:
-            immediate_post_ordinal = identity.capture_ordinal + 1
+            immediate_post_ordinal = fresh_identity.capture_ordinal + 1
         immediate_post_identity = identity_from_captured(
             immediate_post,
             session_id=str(runtime.session),
@@ -2079,12 +2381,54 @@ def dispatch_verified_supply_depot_exit_tap(
     dry_run: bool = False,
     monotonic_clock: Callable[[], float] | None = None,
     wall_clock: Callable[[], float] | None = None,
+    building_binding: BuildingBinding | None = None,
+    radial_binding: BuildingBinding | None = None,
 ) -> tuple[object, object | None, Observation, dict[str, object]]:
-    """Return from the facility through a capability-bound Back-arrow tap."""
-
-    pre_observation = build_supply_depot_exit_observation(
-        identity=identity,
+    # building_binding / radial_binding remain accepted for call-site
+    # compatibility with the route command; facility exit no longer forges
+    # Home exclusion digests onto the pre_dispatch frame.
+    del building_binding, radial_binding
+    fresh_capture, fresh_identity = _acquire_supply_depot_pre_dispatch(
+        runtime,
+        planning_identity=identity,
+        label="supply-depot-exit-pre-dispatch",
+    )
+    exit_screen = recognize_supply_depot_screen(
+        fresh_capture.frame,
+        source_frame=fresh_identity,
+    )
+    if (
+        not bool(getattr(exit_screen, "recognized", False))
+        or getattr(exit_screen, "frame_sha256", None) != fresh_identity.semantic_sha256
+    ):
+        raise PerceptionBundleError("FACILITY_SCREEN_NOT_RECOGNIZED_PRE_DISPATCH")
+    safe_exit_result = build_supply_depot_facility_safe_exit_probe(fresh_identity)
+    exit_roi = require_binder_selected_safe_exit_roi(safe_exit_result)
+    # Defense in depth: never allow a parallel fixed-ROI path to diverge from
+    # the binder-selected geometry that capability/transport will use.
+    if safe_exit_result.candidate is None:
+        raise PerceptionBundleError("SAFE_EXIT_CANDIDATE_REQUIRED")
+    reject_fixed_exit_roi_bypass(
+        dispatch_roi=exit_roi,
+        binder_selected_roi=tuple(safe_exit_result.candidate.box),
+    )
+    search_envelope = getattr(safe_exit_result, "search_envelope", None)
+    if (
+        search_envelope is not None
+        and bool(getattr(search_envelope, "available", False))
+        and getattr(search_envelope, "zone_box", None) is not None
+        and tuple(search_envelope.zone_box) == tuple(exit_roi)
+    ):
+        raise PerceptionBundleError("PROJECTION_ZONE_MUST_NOT_BECOME_CANDIDATE_ROI")
+    pre_dispatch_bundle = build_supply_depot_exit_perception_bundle(
+        fresh_identity,
+        safe_exit_result=safe_exit_result,
         recognized_screen=True,
+    )
+    pre_observation = build_supply_depot_exit_observation(
+        identity=fresh_identity,
+        recognized_screen=True,
+        target_roi=exit_roi,
     )
     proposal_observation = replace(
         pre_observation,
@@ -2111,6 +2455,11 @@ def dispatch_verified_supply_depot_exit_tap(
         "transport_observed": False,
         "verified": False,
         "completed": False,
+        "pre_dispatch_frame_sha256": fresh_identity.semantic_sha256,
+        "pre_dispatch_capture_ordinal": fresh_identity.capture_ordinal,
+        "pre_dispatch_perception_bundle": pre_dispatch_bundle,
+        "safe_exit_binding": safe_exit_result,
+        "exit_target_roi": exit_roi,
     }
     if not issued.authorized or issued.capability is None:
         return issued, None, pre_observation, telemetry
@@ -2121,10 +2470,14 @@ def dispatch_verified_supply_depot_exit_tap(
         )
         if dry_run:
             raise RuntimeError("DRY_RUN_TRANSPORT_MUST_NOT_RUN")
+        reject_fixed_exit_roi_bypass(
+            dispatch_roi=exit_roi,
+            binder_selected_roi=tuple(safe_exit_result.candidate.box),
+        )
         runtime.tap(
-            immediate_before,
+            fresh_capture,
             target_identity=SUPPLY_DEPOT_EXIT_TARGET_IDENTITY,
-            target_roi=SUPPLY_DEPOT_EXIT_TARGET_ROI,
+            target_roi=exit_roi,
             action_key=action_key,
             consequential=False,
         )
@@ -2132,13 +2485,20 @@ def dispatch_verified_supply_depot_exit_tap(
         return TransportResult(True, "SUPPLY_DEPOT_EXIT_DISPATCHED")
 
     def recapture() -> Observation:
-        return pre_observation
+        rebuilt = build_supply_depot_exit_observation(
+            identity=fresh_identity,
+            recognized_screen=True,
+            target_roi=exit_roi,
+        )
+        if rebuilt is pre_observation:
+            raise RuntimeError("RECAPTURE_MUST_REBUILD_DISTINCT_OBSERVATION")
+        return rebuilt
 
     def post_observe():
         immediate_post = runtime.capture("supply-depot-exit-immediate-post")
         immediate_post_ordinal = getattr(runtime, "ordinal", None)
         if immediate_post_ordinal is None:
-            immediate_post_ordinal = identity.capture_ordinal + 1
+            immediate_post_ordinal = fresh_identity.capture_ordinal + 1
         immediate_post_identity = identity_from_captured(
             immediate_post,
             session_id=str(runtime.session),
@@ -2249,7 +2609,6 @@ def dispatch_verified_supply_depot_exit_tap(
         and telemetry.get("verified") is True
     )
     return issued, execution, pre_observation, telemetry
-
 
 def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCalibration]:
     """Return only the empirically measured local BlueStacks geometry.
@@ -3227,6 +3586,8 @@ def command_supply_depot_radial(args) -> int:
     radial_semantics = None
     radial_perception = None
     safe_exit_result = None
+    facility_safe_exit_result = None
+    facility_exit_target_roi = None
     action_results: dict[str, dict[str, object]] = {}
 
     def _ensure_store() -> SafetyStore:
@@ -3247,9 +3608,17 @@ def command_supply_depot_radial(args) -> int:
                 radial_perception
             )
         if safe_exit_result is not None:
-            enriched["safe_exit_binding"] = safe_exit_evidence_snapshot(
+            # Early Home/radial probe remains non-authorizing route evidence.
+            enriched["home_safe_exit_probe"] = safe_exit_evidence_snapshot(
                 safe_exit_result
             )
+        if facility_safe_exit_result is not None:
+            # Exit-stage binder selection that governed the capability-bound tap.
+            enriched["safe_exit_binding"] = safe_exit_evidence_snapshot(
+                facility_safe_exit_result
+            )
+            if facility_exit_target_roi is not None:
+                enriched["exit_target_roi"] = tuple(facility_exit_target_roi)
         enriched["production_registration"] = "NOT_REGISTERED"
         enriched["scheduler_eligibility"] = False
         enriched["navigation_session"] = str(session_path)
@@ -3263,7 +3632,7 @@ def command_supply_depot_radial(args) -> int:
         execution,
         telemetry: dict[str, object],
     ) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "requested": bool(telemetry.get("requested")),
             "authorized": bool(telemetry.get("authorized")),
             "dispatched": bool(telemetry.get("dispatched")),
@@ -3281,6 +3650,17 @@ def command_supply_depot_radial(args) -> int:
                 execution.transport_calls if execution is not None else 0
             ),
         }
+        if "pre_dispatch_frame_sha256" in telemetry:
+            payload["pre_dispatch_frame_sha256"] = telemetry[
+                "pre_dispatch_frame_sha256"
+            ]
+        if "pre_dispatch_capture_ordinal" in telemetry:
+            payload["pre_dispatch_capture_ordinal"] = telemetry[
+                "pre_dispatch_capture_ordinal"
+            ]
+        if "exit_target_roi" in telemetry:
+            payload["exit_target_roi"] = tuple(telemetry["exit_target_roi"])
+        return payload
 
     def _blocked(
         reason: str,
@@ -3451,6 +3831,7 @@ def command_supply_depot_radial(args) -> int:
                     policy=policy,
                     store=_ensure_store(),
                     settle_seconds=args.settle_seconds,
+                    atlas_path=getattr(args, "atlas", None),
                 )
             )
             action_results["building_entry"] = _execution_payload(
@@ -3736,11 +4117,15 @@ def command_supply_depot_radial(args) -> int:
                     )
                 ),
                 settle_seconds=args.settle_seconds,
+                building_binding=building_binding,
+                radial_binding=radial_binding,
             )
         )
         action_results["safe_exit"] = _execution_payload(
             exit_issued, exit_execution, exit_telemetry
         )
+        facility_safe_exit_result = exit_telemetry.get("safe_exit_binding")
+        facility_exit_target_roi = exit_telemetry.get("exit_target_roi")
         if exit_execution is None:
             return _blocked(
                 "safe_exit_capability_issuance_denied",
