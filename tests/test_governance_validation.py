@@ -22,11 +22,14 @@ class GovernanceValidationTests(unittest.TestCase):
 
     def test_handoff_has_distinct_current_and_next_task_fields(self):
         state = validate_governance.parse_handoff()
-        self.assertEqual(state["current_task_id"], "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION")
-        self.assertEqual(state["current_task_state"], "in_progress")
+        self.assertEqual(
+            state["current_task_id"],
+            "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
+        )
+        self.assertEqual(state["current_task_state"], "blocked")
         self.assertEqual(
             state["next_task_id"],
-            "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
+            "M6-DQ-TRANSITION-CORPUS",
         )
         self.assertEqual(
             state["next_task_activation_status"],
@@ -80,9 +83,8 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
         next_block = validate_governance.task_block(backlog, state["next_task_id"])
-        self.assertIn("RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION", next_block)
-        self.assertIn("Pending", next_block)
-        self.assertIn("not activated", next_block)
+        self.assertIn("M6-DQ-TRANSITION-CORPUS", next_block)
+        self.assertIn("Status: Pending", next_block)
         validate_governance.validate_successor(backlog, state)
         validate_governance.validate_repository(ROOT)
 

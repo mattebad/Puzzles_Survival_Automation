@@ -4,7 +4,7 @@
   "repository": {
     "branch": "main",
     "head": "HEAD (roadmap readiness blocked; calibration commit 843fd10 preserved)",
-    "origin_relationship": "main is ahead of origin/main by ten local roadmap commits; no push",
+    "origin_relationship": "main is ahead of origin/main by eleven local roadmap commits; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
       "BACKLOG.md",
@@ -35,7 +35,7 @@
   "current_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
   "current_task_state": "blocked",
   "next_task_id": "M6-DQ-TRANSITION-CORPUS",
-  "next_task_activation_status": "not_activated",
+  "next_task_activation_status": "dependency_blocked",
   "phase": "runtime_declarative_verified_flow_composition_readiness_blocked",
   "objective": "Truthfully determine whether multiple real routes already reuse the stable perception, session, observability, radial, safe-exit, and capability contracts before allowing shared flow composition.",
   "last_safe_completed_step": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION parent-reviewed and committed as 843fd10; mandatory final-task readiness review found no two qualifying real routes and recorded exact missing integrations in docs/navigation_verified_flow_readiness.md; final task remains blocked; M6 remains unactivated; no runtime/push.",
@@ -58,6 +58,7 @@
     "Committed reviewed HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION locally as 843fd10 feat(navigation): add bounded session calibration; no push.",
     "Performed mandatory RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION readiness review against Home atlas, Noah's Tavern, Troop Training, and Ruins route consumers; no two real routes jointly reuse the required stable contracts, so the task is blocked without implementation or activation.",
     "Added docs/navigation_verified_flow_readiness.md documenting route evidence, direct transport/capability bypasses, absent observability/session/bundle/safe-exit integrations, and exact prerequisites for reconsideration; M6-DQ-TRANSITION-CORPUS remains unactivated.",
+    "Corrected the terminal handoff activation token to canonical dependency_blocked and aligned governance expectations with the blocked final-task/M6 successor state; no implementation, runtime, or push.",
     "Implemented tasks/navigation_observability.py as a read-only immutable NavigationSession ledger reporter with exact public schema, deterministic ordered JSON serialization, explicit unknown/unavailable fields, and authority separation for requested/authorized/dispatched/transport-confirmed/verified.",
     "Added tests/test_navigation_observability.py covering complete, incomplete, failed, resumed/uncertain, recovery-only, duplicate-suppressed, malformed/contradictory ledgers, clamp/repeated-viewport signals, serialization revalidation, no NumPy retention, no session mutation, and CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
     "Cycle-2 hardened tasks/navigation_observability.py against coercive malformed ledger fields, bool/int and finite-value lookalikes, forged report graphs, mutable nested values, and malformed/duplicate/non-finite serialized snapshots; added strict deserialization and deep graph revalidation.",
