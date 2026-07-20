@@ -3033,7 +3033,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION
 - Task ID: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`.
 - Title: Strictly bounded session-local BlueStacks gesture calibration adaptation.
-- Status: Pending (dormant; offline contract only; not activated).
+- Status: Completed (2026-07-19; cycle-2 exact schema hardening parent-reviewed; zero runtime).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-NAVIGATION-OBSERVABILITY` and completed
   `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS`.
@@ -3125,7 +3125,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 - Title: Narrow declarative verified-flow composition over existing navigation contracts.
-- Status: Pending (dormant; offline contract only; not activated).
+- Status: Pending (dependency-blocked; readiness review required after calibration; not activated).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed shared roadmap contracts for
   perception/session/radial/safe-exit/capability reuse, and existing `NavigationStep` /

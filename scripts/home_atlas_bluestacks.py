@@ -636,6 +636,51 @@ def bluestacks_home_safe_exit_adapter_profile() -> dict[str, object]:
     }
 
 
+def bluestacks_session_calibration_adapter_profile() -> dict[str, object]:
+    """Adapter-owned BlueStacks original calibration binding for session-local adaptation.
+
+    Extends the existing BlueStacks gesture calibration contract only. Does not create
+    a second calibration framework, persist learned scales, grant dispatch authority,
+    or connect runtime transport. Bliss calibration remains forbidden.
+    """
+
+    from tasks.navigation_session_calibration import (
+        assert_no_persistence_api,
+        calibration_identity_for,
+    )
+
+    assert_no_persistence_api()
+    _, calibration = bluestacks_direct_pan_contract()
+    return {
+        "platform": calibration.platform,
+        "profile_id": calibration.profile_id,
+        "calibration_id": calibration_identity_for(calibration),
+        "camera_px_per_drag_x": calibration.camera_px_per_drag_x,
+        "camera_px_per_drag_y": calibration.camera_px_per_drag_y,
+        "drag_origin": calibration.drag_origin,
+        "drag_bounds": calibration.drag_bounds,
+        "authorize_dispatch": False,
+        "persistence_authorized": False,
+        "capability_grant": None,
+    }
+
+
+def create_bluestacks_session_calibration(navigation_session_id: str):
+    """Create a session-local BlueStacks calibration state over the adapter original.
+
+    The returned state preserves the original calibration snapshot and never writes
+    learned adjustments to disk or profile storage.
+    """
+
+    from tasks.navigation_session_calibration import create_session_calibration
+
+    _, calibration = bluestacks_direct_pan_contract()
+    return create_session_calibration(
+        navigation_session_id=navigation_session_id,
+        original_calibration=calibration,
+    )
+
+
 def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCalibration]:
     """Return only the empirically measured local BlueStacks geometry.
 

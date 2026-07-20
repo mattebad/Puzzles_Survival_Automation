@@ -3,14 +3,15 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "HEAD (observability commit; observability task closed)",
-    "origin_relationship": "main is ahead of origin/main by seven local roadmap commits; no push",
+    "head": "HEAD (bounded session calibration commit; readiness review pending)",
+    "origin_relationship": "main is ahead of origin/main by eight local roadmap commits; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
       "BACKLOG.md",
       "CURRENT_HANDOFF.md",
-      "tasks/navigation_observability.py",
-      "tests/test_navigation_observability.py",
+      "tasks/navigation_session_calibration.py",
+      "scripts/home_atlas_bluestacks.py",
+      "tests/test_navigation_session_calibration.py",
       "tests/test_governance_validation.py"
     ],
     "protected_untracked_paths_or_categories": [
@@ -19,6 +20,8 @@
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
+      "ca60cd9 feat(home): add navigation session observability",
+      "e7324c7 test(vision): add native-frame mutation corpus",
       "1b44629 fix(tools): acknowledge passive capture finalization",
       "1bfee81 fix(tools): detect elevated BlueStacks hooks",
       "4660d1b fix(tools): handle Windows DPI in passive capture",
@@ -31,19 +34,29 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "HOME-NAVIGATION-OBSERVABILITY",
+  "current_task_id": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION",
   "current_task_state": "completed",
-  "next_task_id": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION",
-  "next_task_activation_status": "not_activated",
-  "phase": "home_navigation_observability_completed",
-  "objective": "Produce deterministic offline reporting over the existing NavigationSession ledger without creating a second store, mutating session state, or inferring absent transport.",
-  "last_safe_completed_step": "HOME-NAVIGATION-OBSERVABILITY final cycle-3 correction completed and parent-reviewed offline: field-specific availability/value invariants now reject retained values under unknown/non-present statuses; structured unknown maps remain exact; all concrete object and serialized probes fail closed; task is complete; successor remains inactive; no push/runtime.",
-  "next_permitted_action": "No further action for this completed task; successor HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION remains inactive pending explicit promotion; no push or runtime.",
+  "next_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
+  "next_task_activation_status": "dependency_blocked",
+  "phase": "home_navigation_bounded_session_calibration_completed_readiness_pending",
+  "objective": "Add strictly bounded session-local BlueStacks gesture adaptation while preserving the original calibration, rejecting invalid measurements, and never persisting learned calibration or granting input authority.",
+  "last_safe_completed_step": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION cycle-2 exact schema hardening parent-reviewed offline: full state/report graph validation, strict nested deserialization, immutable baseline/effective calibration, bounded adjustments, and adversarial probes all pass; successor RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains dependency-blocked; no commit/push/runtime.",
+  "next_permitted_action": "Create the single reviewed local calibration commit, then perform the mandatory readiness review for RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION before any final-task activation; no push or runtime.",
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
     "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity."
   ],
   "actions_already_performed": [
+    "Implemented tasks/navigation_session_calibration.py with immutable original calibration preservation, session-local effective GestureCalibration adaptation, explicit deterministic limits, closed rejection reasons, mint-token public state, and versioned strict JSON reporting that never authorizes persistence.",
+    "Extended scripts/home_atlas_bluestacks.py with bluestacks_session_calibration_adapter_profile and create_bluestacks_session_calibration over the existing BlueStacks pan contract only; Bliss remains forbidden; authorize_dispatch and persistence_authorized remain false.",
+    "Added tests/test_navigation_session_calibration.py covering baseline, one/multiple adjustments, determinism, original unchanged, rejection isolation, wrong-direction/no-progress/nonfinite/bool/lookalike/implausible/outlier/clamp/repeated-viewport/localization/stale/cross-capture/cross-session/platform/profile/calibration/duplicate/reordered/missing/contradictory, max accepted/evidence, immutability, forged constructors, strict serialization/duplicate keys, no persistent write, no capability/dispatch authority, CONFIRMED_NOT_DISPATCHED unchanged, and observability integration without ledger mutation.",
+    "Updated tests/test_governance_validation.py durable identity coverage for active HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION and dependency-blocked RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION.",
+    "Cycle-1 validation: 29 focused calibration tests passed; combined calibration/observability/session/governance 99 passed; planner/perception/replay/radial/safe-exit/firewall regressions 180 passed; py_compile, governance, handoff JSON, touched-file secret scan, and git diff --check passed; zero transport; no commit/push.",
+    "Cycle-2 hardened complete exact public and nested schema validation for state graphs, snapshots, measurements, proposals, adjustments, considerations, drift, report counts/revisions/reasons, observability integration, authority fields, duplicate keys, and forged-object revalidation; added five parent-probe regressions plus malformed nested/duplicate and explicit per-adjustment-bound tests.",
+    "Cycle-2 validation: 32 focused calibration tests passed; combined calibration/observability/session/governance 102 passed; py_compile passed; zero transport; no commit/push.",
+    "Cycle-2 final offline repository validation: 852 passed / 1 skipped; compilation, governance, handoff JSON, touched-file secret scan, and git diff checks passed; zero runtime/transport; no commit/push.",
+    "Parent completion review reproduced all five cycle-1 forged-report/state probes as stable SessionCalibrationError failures, reran 32 focused tests plus 102 core and 226 touched regressions, and passed the full offline repository suite: 852 passed / 1 skipped.",
+    "Marked HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION complete after parent review; RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains dependency-blocked pending mandatory readiness review.",
     "Implemented tasks/navigation_observability.py as a read-only immutable NavigationSession ledger reporter with exact public schema, deterministic ordered JSON serialization, explicit unknown/unavailable fields, and authority separation for requested/authorized/dispatched/transport-confirmed/verified.",
     "Added tests/test_navigation_observability.py covering complete, incomplete, failed, resumed/uncertain, recovery-only, duplicate-suppressed, malformed/contradictory ledgers, clamp/repeated-viewport signals, serialization revalidation, no NumPy retention, no session mutation, and CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
     "Cycle-2 hardened tasks/navigation_observability.py against coercive malformed ledger fields, bool/int and finite-value lookalikes, forged report graphs, mutable nested values, and malformed/duplicate/non-finite serialized snapshots; added strict deserialization and deep graph revalidation.",
@@ -52,7 +65,7 @@
     "Final cycle-3 added direct object-level and serialized-snapshot probes for non-dispatch value removal, unknown localization confidence with retained value, and unknown source checkpoint with retained value.",
     "Final cycle-3 validation: 24 observability tests passed; combined observability/navigation-session/governance/perception/safe-exit regressions passed 135; py_compile passed; zero transport; no commit/push; navigation_session.py left untouched.",
     "Parent completion review reproduced the three forged availability/value probes as fail-closed, reran 24 focused tests plus 135 required regressions, and passed the full offline repository suite: 820 passed / 1 skipped; compilation, handoff JSON, and git diff checks passed.",
-    "Marked HOME-NAVIGATION-OBSERVABILITY complete after parent review; HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION remains inactive pending explicit promotion.",
+    "Marked HOME-NAVIGATION-OBSERVABILITY complete after parent review and committed ca60cd9; promoted HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION as the sole active task with RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION dependency-blocked.",
     "Activated VISION-NATIVE-FRAME-MUTATION-CORPUS only after RUNTIME-INPUT-CAPABILITY-FIREWALL completion; successor HOME-NAVIGATION-OBSERVABILITY remains dependency_blocked.",
     "Implemented tasks/native_frame_mutation.py with bounded brightness, contrast, compression, translation, occlusion, distractor-text, crop-truncation, and stale-substitution operators.",
     "Added exact tests/fixtures/native_frame_mutation_manifest.json with parent fixture paths/hashes, operator parameters, expected outcomes, and temporary output names.",
@@ -317,7 +330,7 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Offline capability firewall uses mocked/in-memory transport only and creates no runtime evidence manifest.",
+    "evidence_requirement_reason": "Offline bounded session-local BlueStacks calibration adaptation uses in-memory fixtures only and creates no runtime evidence manifest.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
   },
   "collector": {
@@ -334,18 +347,18 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Launch exactly one fresh local Grok 4.5 High implementation subagent for HOME-NAVIGATION-OBSERVABILITY."
+      "Parent-review HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION cycle-2 hardened schema implementation; commit only after review authorization."
     ],
     "prohibited_actions": [
       "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
       "Any live resume dispatch, facility entry, radial input, Train, Supply Depot collection, Daily Claim, or other consequential control.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Atlas rebuild/reacquisition or broadening Train/consequential authorization.",
-      "Activating HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION or any later roadmap task.",
-      "Any push."
+      "Activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION or any later roadmap task.",
+      "Auto-persisting learned calibration, enabling CONFIRMED_NOT_DISPATCHED, or any push."
     ],
-    "exact_stop_condition": "Stop on subagent completion, review blocker, or three-cycle limit; no runtime action is permitted.",
-    "expected_next_atomic_task": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION",
+    "exact_stop_condition": "Stop on parent review blocker or three-cycle limit; no runtime action is permitted.",
+    "expected_next_atomic_task": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
     "expected_next_activation_status": "dependency_blocked"
   }
 }
@@ -357,10 +370,11 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `e7324c7`; seven local roadmap commits ahead of `origin/main`
+- HEAD/base: `ca60cd9`; eight local roadmap commits ahead of `origin/main`
 - Staged paths: none
 - Relevant unstaged paths: `BACKLOG.md`, `CURRENT_HANDOFF.md`,
-  `tests/test_governance_validation.py`
+  `tasks/navigation_session_calibration.py`, `scripts/home_atlas_bluestacks.py`,
+  `tests/test_navigation_session_calibration.py`, `tests/test_governance_validation.py`
 - Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
 - Push: prohibited
 
@@ -371,22 +385,21 @@ This document is a volatile operational boundary, not a complete project history
   fresh Grok 4.5 High implementation subagent; parent review and offline validation were completed.
 
 ## Current task
-- Task ID: `HOME-NAVIGATION-OBSERVABILITY`
-- State: in progress; final cycle-3 availability-invariant correction implemented; awaiting parent review
-- Next task ID: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION` (dependency blocked; not activated)
-- Objective: report ledger-backed localization, displacement, residuals, direction, progress,
-  corrections, repeated viewports, clamps, binding confidence, safe-exit availability, timing,
-  frame counts, and terminal state without creating a second store or mutating sessions.
-- Last safe completed step: final cycle-3 field-specific availability/value invariants, mandatory
-  structured maps, and direct object/serialized probe tests completed offline with zero transport;
-  no commit/push; successor not activated.
-- Exact next permitted step: parent review of final cycle-3; no successor activation, commit, push, or
+- Task ID: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`
+- State: in progress; cycle-2 exact schema hardening implemented; awaiting parent review
+- Next task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` (dependency blocked; not activated)
+- Objective: allow strictly bounded session-local BlueStacks gesture adaptation that preserves the
+  original calibration, rejects invalid measurements, never auto-persists learned calibration, and
+  grants no capability/dispatch authority.
+- Last safe completed step: cycle-2 schema hardening and focused/regression validation completed
+  offline with zero transport; no commit/push; successor not activated.
+- Exact next permitted step: parent review of cycle-2; no successor activation, commit, push, or
   runtime by the implementation subagent.
 - No runtime, evidence, registration, scheduler, worker, or task-row operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains the unrelated post-roadmap successor after the ninth roadmap contract.
 
 ## Runtime
-- VM/runtime state: this offline observability task operates no BlueStacks, ADB, Bliss,
+- VM/runtime state: this offline calibration task operates no BlueStacks, ADB, Bliss,
   Unraid, emulator, VM, or other runtime.
 - Worker state: no worker was started, modified, or contacted.
 - Active operator/collector/automation: none started or used; this task assumed no live runtime
