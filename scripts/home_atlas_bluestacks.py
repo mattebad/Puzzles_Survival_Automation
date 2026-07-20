@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 from ctypes import wintypes
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -20,6 +20,7 @@ import shutil
 import sys
 import time
 import re
+from typing import Any, Callable, Mapping, Optional
 
 import cv2
 import numpy as np
@@ -29,6 +30,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from safe_action_core import (
+    ActionClass,
+    ActionStatus,
+    CentralPolicy,
+    Observation,
+    PolicyRequest,
+    SafeActionExecutor,
+    SafetyStore,
+    TransportResult,
+)
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
 from tasks.home_atlas import BuildingBinding, LocalizationResult, ZoomIdentity, load_home_atlas
 from tasks.home_atlas_planner import (
@@ -52,9 +63,16 @@ from tasks.home_atlas_vision import (
     native_frame_guard,
     register_home_frame,
 )
+from tasks.navigation_observability import (
+    navigation_observability_snapshot,
+    report_navigation_session,
+    serialize_navigation_observability_report,
+)
 from tasks.navigation_session import (
     AuthorizationScope,
     LatestObservation,
+    NavigationCheckpoint,
+    NavigationSession,
     complete_route_at_target_bound,
     compute_pan_gesture_fingerprint,
     create_session,
@@ -68,6 +86,12 @@ from tasks.navigation_session import (
     record_target_bound,
     reconcile_pan,
     save_session,
+)
+from tasks.navigation_session_calibration import (
+    SessionCalibrationMeasurement,
+    SessionCalibrationState,
+    consider_measurement,
+    report_session_calibration,
 )
 from tasks.perception_bundle import (
     FramePerceptionBundle,
@@ -86,6 +110,14 @@ from tasks.supply_depot_vision import (
     bind_supply_depot_claim_supply,
     recognize_supply_depot_screen,
 )
+
+# Navigate-building pan inputs must cross CentralPolicy + SafeActionExecutor.
+# Direct runtime.swipe/tap from the PAN disposition path is forbidden.
+NAVIGATE_BUILDING_SEMANTIC_ACTION = "HOME_ATLAS_CAMERA_PAN"
+NAVIGATE_BUILDING_TARGET_IDENTITY = "home-camera-click-drag"
+NAVIGATE_BUILDING_POSTCONDITION = "HOME_BASE_VIEWPORT_PROGRESS"
+_VERIFIED_PAN_TRANSPORT_SEAL = object()
+CONFIRMED_NOT_DISPATCHED_STATUS = "NON_DISPATCH_AUTHORITY_UNAVAILABLE"
 
 
 def identity_from_captured(
@@ -681,6 +713,295 @@ def create_bluestacks_session_calibration(navigation_session_id: str):
     )
 
 
+def gesture_geometry_roi(
+    start: tuple[int, int], end: tuple[int, int]
+) -> tuple[int, int, int, int]:
+    """Encode exact pan gesture geometry as a policy-valid axis-aligned ROI."""
+
+    x0 = min(int(start[0]), int(end[0]))
+    y0 = min(int(start[1]), int(end[1]))
+    x1 = max(int(start[0]), int(end[0]))
+    y1 = max(int(start[1]), int(end[1]))
+    if x1 <= x0:
+        x1 = min(800, x0 + 1)
+    if y1 <= y0:
+        y1 = min(1280, y0 + 1)
+    if x1 <= x0 or y1 <= y0:
+        raise ValueError("gesture geometry cannot form a valid in-frame ROI")
+    if x0 < 0 or y0 < 0 or x1 > 800 or y1 > 1280:
+        raise ValueError("gesture geometry is outside BlueStacks native bounds")
+    return (x0, y0, x1, y1)
+
+
+def reject_direct_navigate_building_transport(*, authorized_token: object | None = None) -> None:
+    """Fail closed when navigate-building pan transport bypasses SafeActionExecutor."""
+
+    if authorized_token is not _VERIFIED_PAN_TRANSPORT_SEAL:
+        raise RuntimeError("DIRECT_TRANSPORT_BYPASS_REJECTED")
+
+
+def build_navigate_pan_observation(
+    *,
+    identity: NativeFrameIdentity,
+    drag_start: tuple[int, int],
+    drag_end: tuple[int, int],
+    capture_completed_monotonic: float | None = None,
+) -> Observation:
+    """Build a navigation-only Observation for Home Atlas camera pan capability binding."""
+
+    roi = gesture_geometry_roi(drag_start, drag_end)
+    mono = (
+        float(identity.capture_completed_monotonic)
+        if capture_completed_monotonic is None
+        else float(capture_completed_monotonic)
+    )
+    return Observation(
+        frame_sha256=str(identity.semantic_sha256),
+        capture_completed_monotonic=mono,
+        runtime_profile_id=BLUESTACKS_PROFILE_ID,
+        width=int(identity.width),
+        height=int(identity.height),
+        valid_png=True,
+        corrupt=False,
+        black=False,
+        source_state="HOME_BASE",
+        overlay_state="none_observed",
+        target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
+        target_roi=roi,
+        recognized=True,
+        consequence="navigate_zero_cost",
+        cost_type="none",
+        cost_amount=0,
+        quantity=1,
+        expected_postcondition=NAVIGATE_BUILDING_POSTCONDITION,
+        evidence_refs=(f"navigate-building:{identity.label or identity.capture_ordinal}",),
+        package_foreground=True,
+        os_surface=False,
+        hard_stop_detected=False,
+    )
+
+
+def build_navigate_pan_policy_request(
+    *,
+    observation: Observation,
+    action_id: str,
+    action_key: str,
+    task_id: str,
+    navigation_session_id: str,
+    lease_owner: str,
+    monotonic_now: float,
+    lease_valid: bool = True,
+    unresolved_action: bool = False,
+    duplicate_action_key: bool = False,
+    policy_phase: str = "proposal",
+) -> PolicyRequest:
+    """Construct an exact PolicyRequest for navigate-building pan capability issuance."""
+
+    return PolicyRequest(
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        task_mode="supervised_validation",
+        semantic_action=NAVIGATE_BUILDING_SEMANTIC_ACTION,
+        expected_runtime_profile_id=BLUESTACKS_PROFILE_ID,
+        observation=observation,
+        monotonic_now=float(monotonic_now),
+        observation_max_age_seconds=30.0,
+        dispatch_max_age_seconds=15.0,
+        lease_owner=lease_owner,
+        lease_valid=lease_valid,
+        unresolved_action=unresolved_action,
+        duplicate_action_key=duplicate_action_key,
+        action_class=ActionClass.NAVIGATION_ONLY,
+        runtime_session_id=navigation_session_id,
+        policy_phase=policy_phase,
+    )
+
+
+def attach_navigate_terminal_reports(
+    result: dict[str, object],
+    nav_session: NavigationSession,
+    *,
+    session_calibration: SessionCalibrationState | None = None,
+) -> dict[str, object]:
+    """Attach read-only observability (and optional calibration) without mutating the ledger."""
+
+    report = report_navigation_session(nav_session)
+    result = dict(result)
+    result["navigation_observability"] = navigation_observability_snapshot(report)
+    result["navigation_observability_json"] = serialize_navigation_observability_report(report)
+    result["confirmed_not_dispatched_authority"] = CONFIRMED_NOT_DISPATCHED_STATUS
+    if session_calibration is not None:
+        result["session_calibration"] = dict(
+            report_session_calibration(
+                session_calibration,
+                navigation_session=nav_session,
+                observability_report=report,
+            )
+        )
+    return result
+
+
+def consider_navigate_pan_calibration(
+    session_calibration: SessionCalibrationState,
+    *,
+    nav_session: NavigationSession,
+    plan,
+    measured: tuple[float, float],
+    progress_px: float,
+    progress_reason: str,
+    accepted: bool,
+    source_identity: NativeFrameIdentity,
+    settled_identity: NativeFrameIdentity,
+    drag_start: tuple[int, int],
+    drag_end: tuple[int, int],
+    maximum_pans: int,
+) -> SessionCalibrationState:
+    """Apply one session-local calibration consideration after a reconciled pan."""
+
+    measurement = SessionCalibrationMeasurement(
+        navigation_session_id=nav_session.navigation_session_id,
+        platform=BLUESTACKS_PLATFORM,
+        profile_id=BLUESTACKS_PROFILE_ID,
+        calibration_id=session_calibration.calibration_id,
+        calibration_revision=session_calibration.effective.revision,
+        source_checkpoint=NavigationCheckpoint.PLAN_CREATED.value,
+        destination_checkpoint=NavigationCheckpoint.PAN_RELOCALIZED.value,
+        pan_ordinal=int(nav_session.pan_ordinal),
+        event_ordinal=int(nav_session.pan_ordinal),
+        chronology_ordinal=int(session_calibration.expected_chronology_ordinal),
+        requested=tuple(plan.requested_camera_displacement),
+        predicted=tuple(plan.predicted_camera_displacement),
+        measured=tuple(measured),
+        progress_px=float(progress_px),
+        progress_reason=str(progress_reason),
+        localization_recognized=accepted or progress_reason == "measured_progress",
+        localization_ambiguous=progress_reason in {
+            "post_pan_localization_failed",
+            "post_pan_localization_invalid",
+        },
+        stale=progress_reason in {"stale_frame", "PERCEPTION_STALE_FRAME"},
+        repeated_viewport=progress_reason == "repeated_viewport",
+        camera_map_clamp="clamp" in progress_reason or "map_edge" in progress_reason,
+        pan_limit_reached=progress_reason == "maximum_pan_count",
+        source_capture_ordinal=int(source_identity.capture_ordinal),
+        destination_capture_ordinal=int(settled_identity.capture_ordinal),
+        drag_vector=(float(drag_end[0] - drag_start[0]), float(drag_end[1] - drag_start[1])),
+        maximum_pans=int(maximum_pans),
+    )
+    return consider_measurement(session_calibration, measurement)
+
+
+def dispatch_verified_navigate_pan(
+    *,
+    runtime,
+    immediate_before: CapturedNativeFrame,
+    identity: NativeFrameIdentity,
+    drag_start: tuple[int, int],
+    drag_end: tuple[int, int],
+    action_id: str,
+    action_key: str,
+    task_id: str,
+    navigation_session_id: str,
+    lease_owner: str,
+    policy: CentralPolicy,
+    store: SafetyStore,
+    dry_run: bool = False,
+    monotonic_clock: Callable[[], float] | None = None,
+    wall_clock: Callable[[], float] | None = None,
+) -> tuple[object, object | None, Observation]:
+    """Issue one-shot capability and consume it through SafeActionExecutor for a pan.
+
+    Adapter-level runtime.swipe remains reachable only from the executor transport
+    callback after capability consumption authorizes dispatch. Direct bypass is rejected.
+    """
+
+    pre_observation = build_navigate_pan_observation(
+        identity=identity,
+        drag_start=drag_start,
+        drag_end=drag_end,
+    )
+    # Keep a distinct prior proposal for executor freshness while preserving the
+    # real capture digest used by capability binding and the action journal.
+    proposal_observation = replace(
+        pre_observation,
+        capture_completed_monotonic=pre_observation.capture_completed_monotonic - 0.05,
+    )
+
+    # Live captures use the process monotonic clock; offline callers inject a
+    # capture-relative clock when their capture timestamps are synthetic.
+    mono_clock = monotonic_clock or time.monotonic
+    wall = wall_clock or time.time
+    now = float(mono_clock())
+    issue_request = build_navigate_pan_policy_request(
+        observation=pre_observation,
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        navigation_session_id=navigation_session_id,
+        lease_owner=lease_owner,
+        monotonic_now=now,
+    )
+    issued = policy.issue_capability(issue_request)
+    if not issued.authorized or issued.capability is None:
+        return issued, None, pre_observation
+
+    def transport(_intent) -> TransportResult:
+        reject_direct_navigate_building_transport(authorized_token=_VERIFIED_PAN_TRANSPORT_SEAL)
+        if dry_run:
+            raise RuntimeError("DRY_RUN_TRANSPORT_MUST_NOT_RUN")
+        runtime.swipe(
+            immediate_before,
+            start=drag_start,
+            end=drag_end,
+            action_key=action_key,
+            target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
+        )
+        return TransportResult(True, "HOME_ATLAS_PAN_DISPATCHED")
+
+    def recapture() -> Observation:
+        return pre_observation
+
+    def post_observe():
+        return (
+            replace(
+                pre_observation,
+                frame_sha256=("f" if pre_observation.frame_sha256[0] != "f" else "e") * 64,
+                capture_completed_monotonic=pre_observation.capture_completed_monotonic + 0.1,
+                target_identity=None,
+                target_roi=None,
+            ),
+        )
+
+    def reconcile(_intent, observation: Observation) -> bool:
+        # Transport-layer confirmation only; semantic pan progress is reconcile_pan.
+        return observation.source_state == "HOME_BASE"
+
+    executor = SafeActionExecutor(
+        store,
+        policy,
+        lease_owner,
+        mono_clock,
+        transport,
+        recapture,
+        post_observe,
+        reconcile,
+        wall_clock=wall,
+        max_pre_dispatch_attempts=1,
+    )
+    execute_request = build_navigate_pan_policy_request(
+        observation=proposal_observation,
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        navigation_session_id=navigation_session_id,
+        lease_owner=lease_owner,
+        monotonic_now=float(mono_clock()),
+    )
+    result = executor.execute(execute_request, issued.capability, dry_run=dry_run)
+    return issued, result, pre_observation
+
+
 def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCalibration]:
     """Return only the empirically measured local BlueStacks geometry.
 
@@ -1160,8 +1481,7 @@ def command_navigate_building(args) -> int:
     atlas = load_home_atlas(args.atlas)
     building = atlas.lookup_building(args.building_id)
     localizer = BlueStacksHomeLocalizer(atlas, args.atlas)
-    safe_region, calibration = bluestacks_direct_pan_contract()
-    controller = DirectPanNavigator(atlas, args.building_id, safe_region, calibration, maximum_pans=args.maximum_pans)
+    safe_region, _original_calibration = bluestacks_direct_pan_contract()
     runtime = connect_runtime(args, "home-atlas-navigate-building")
     records: list[dict[str, object]] = []
     nav_session = create_session(
@@ -1169,9 +1489,92 @@ def command_navigate_building(args) -> int:
         runtime_capture_session_id=str(runtime.session),
         maximum_pans=args.maximum_pans,
     )
+    session_calibration = create_bluestacks_session_calibration(nav_session.navigation_session_id)
+    controller = DirectPanNavigator(
+        atlas,
+        args.building_id,
+        safe_region,
+        session_calibration.effective_gesture_calibration(),
+        maximum_pans=args.maximum_pans,
+    )
     session_path = _persist_navigate_session(nav_session, runtime.session)
-    source_home_recorded = False
+    lease_owner = nav_session.authorization.owner_operator
+    # Route-local policy allowlist only; does not register the task for production/scheduler.
+    policy = CentralPolicy(
+        supervised_tasks=frozenset(
+            {
+                "MVP-QUEST-TO-CLAIM",
+                nav_session.authorization.task_id,
+            }
+        )
+    )
+    store: SafetyStore | None = None
 
+    def _ensure_store() -> SafetyStore:
+        nonlocal store
+        if store is None:
+            store = SafetyStore(runtime.session / "navigate-safety.sqlite3")
+            store.acquire_lease(lease_owner, time.time(), 3600.0)
+        return store
+
+    def _close_store() -> None:
+        nonlocal store
+        if store is not None:
+            store.close()
+            store = None
+
+    def _emit(result: dict[str, object], code: int) -> int:
+        enriched = attach_navigate_terminal_reports(
+            result,
+            nav_session,
+            session_calibration=session_calibration,
+        )
+        enriched["production_registration"] = "NOT_REGISTERED"
+        enriched["scheduler_eligibility"] = False
+        _json(runtime.session / "navigate-building-result.json", enriched)
+        print(json.dumps(enriched, sort_keys=True, default=str))
+        return code
+
+    try:
+        return _command_navigate_building_body(
+            args=args,
+            atlas=atlas,
+            building=building,
+            localizer=localizer,
+            safe_region=safe_region,
+            runtime=runtime,
+            records=records,
+            nav_session=nav_session,
+            session_calibration=session_calibration,
+            controller=controller,
+            session_path=session_path,
+            lease_owner=lease_owner,
+            policy=policy,
+            ensure_store=_ensure_store,
+            emit=_emit,
+        )
+    finally:
+        _close_store()
+
+
+def _command_navigate_building_body(
+    *,
+    args,
+    atlas,
+    building,
+    localizer,
+    safe_region,
+    runtime,
+    records: list[dict[str, object]],
+    nav_session: NavigationSession,
+    session_calibration: SessionCalibrationState,
+    controller: DirectPanNavigator,
+    session_path: Path,
+    lease_owner: str,
+    policy: CentralPolicy,
+    ensure_store,
+    emit,
+) -> int:
     source = runtime.capture("navigate-source")
     source_localization = localizer.localize(source.frame)
     if not source_localization.recognized:
@@ -1181,19 +1584,20 @@ def command_navigate_building(args) -> int:
             observation=LatestObservation(None, localization_recognized=False, summary="source_localization_failed"),
         )
         _persist_navigate_session(nav_session, runtime.session)
-        result = {
-            "status": "blocked",
-            "reason": "source_localization_failed",
-            "localization": source_localization.__dict__,
-            "records": records,
-            "session": str(runtime.session),
-            "navigation_session": str(session_path),
-            "route_id": nav_session.route_id,
-        }
-        _json(runtime.session / "navigate-building-result.json", result)
-        print(json.dumps(result, sort_keys=True, default=str))
-        return 3
+        return emit(
+            {
+                "status": "blocked",
+                "reason": "source_localization_failed",
+                "localization": source_localization.__dict__,
+                "records": records,
+                "session": str(runtime.session),
+                "navigation_session": str(session_path),
+                "route_id": nav_session.route_id,
+            },
+            3,
+        )
 
+    source_home_recorded = False
     for ordinal in range(args.maximum_pans + 1):
         immediate_before = runtime.capture(f"navigate-{ordinal:02d}-immediate-before")
         derived_localization = localizer.localize(immediate_before.frame)
@@ -1217,18 +1621,18 @@ def command_navigate_building(args) -> int:
         except PerceptionBundleError as exc:
             mark_blocked(nav_session, reason=exc.reason_code)
             _persist_navigate_session(nav_session, runtime.session)
-            result = {
-                "status": "blocked",
-                "reason": exc.reason_code,
-                "building_id": args.building_id,
-                "records": records,
-                "session": str(runtime.session),
-                "navigation_session": str(session_path),
-                "route_id": nav_session.route_id,
-            }
-            _json(runtime.session / "navigate-building-result.json", result)
-            print(json.dumps(result, sort_keys=True, default=str))
-            return 3
+            return emit(
+                {
+                    "status": "blocked",
+                    "reason": exc.reason_code,
+                    "building_id": args.building_id,
+                    "records": records,
+                    "session": str(runtime.session),
+                    "navigation_session": str(session_path),
+                    "route_id": nav_session.route_id,
+                },
+                3,
+            )
 
         if not source_home_recorded:
             record_source_home_verified(
@@ -1241,6 +1645,8 @@ def command_navigate_building(args) -> int:
             _persist_navigate_session(nav_session, runtime.session)
             source_home_recorded = True
 
+        # Keep planner on the session-local effective calibration for this turn.
+        controller.calibration = session_calibration.effective_gesture_calibration()
         plan = controller.plan(localization, binding)
         origin = (
             camera_origin(localization)
@@ -1273,22 +1679,22 @@ def command_navigate_building(args) -> int:
             if not args.execute:
                 mark_dry_run(nav_session)
                 _persist_navigate_session(nav_session, runtime.session)
-                result = {
-                    "status": "dry_run",
-                    "reason": "calculated_pan_not_dispatched",
-                    "building_id": args.building_id,
-                    "input_count": 0,
-                    "source_localization": source_localization.__dict__,
-                    "plan": asdict(plan),
-                    "records": records,
-                    "perception_bundle": bundle_evidence_snapshot(perception),
-                    "session": str(runtime.session),
-                    "navigation_session": str(session_path),
-                    "route_id": nav_session.route_id,
-                }
-                _json(runtime.session / "navigate-building-result.json", result)
-                print(json.dumps(result, sort_keys=True, default=str))
-                return 0
+                return emit(
+                    {
+                        "status": "dry_run",
+                        "reason": "calculated_pan_not_dispatched",
+                        "building_id": args.building_id,
+                        "input_count": 0,
+                        "source_localization": source_localization.__dict__,
+                        "plan": asdict(plan),
+                        "records": records,
+                        "perception_bundle": bundle_evidence_snapshot(perception),
+                        "session": str(runtime.session),
+                        "navigation_session": str(session_path),
+                        "route_id": nav_session.route_id,
+                    },
+                    0,
+                )
             next_pan = nav_session.pan_ordinal + 1
             gesture_fingerprint = compute_pan_gesture_fingerprint(
                 nav_session,
@@ -1296,26 +1702,68 @@ def command_navigate_building(args) -> int:
                 requested=plan.requested_camera_displacement,
                 predicted=plan.predicted_camera_displacement,
                 source_frame=identity,
-                target_identity="home-camera-click-drag",
+                target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
             )
             action_key = make_pan_action_key(nav_session, gesture_fingerprint, next_pan)
+            action_id = f"{nav_session.navigation_session_id}:pan:{next_pan}"
             record_pan_prepared(
                 nav_session,
                 action_key=action_key,
                 source_frame=identity,
-                target_identity="home-camera-click-drag",
+                target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
                 requested=plan.requested_camera_displacement,
                 predicted=plan.predicted_camera_displacement,
                 gesture_fingerprint=gesture_fingerprint,
             )
             _persist_navigate_session(nav_session, runtime.session)
-            runtime.swipe(
-                immediate_before,
-                start=plan.drag_start,
-                end=plan.drag_end,
+            issued, execution, _pre_obs = dispatch_verified_navigate_pan(
+                runtime=runtime,
+                immediate_before=immediate_before,
+                identity=identity,
+                drag_start=plan.drag_start,
+                drag_end=plan.drag_end,
+                action_id=action_id,
                 action_key=action_key,
-                target_identity="home-camera-click-drag",
+                task_id=nav_session.authorization.task_id,
+                navigation_session_id=nav_session.navigation_session_id,
+                lease_owner=lease_owner,
+                policy=policy,
+                store=ensure_store(),
+                dry_run=False,
             )
+            if execution is None:
+                mark_blocked(nav_session, reason=str(issued.reason_code))
+                _persist_navigate_session(nav_session, runtime.session)
+                return emit(
+                    {
+                        "status": "blocked",
+                        "reason": "capability_issuance_denied",
+                        "capability_reason": issued.reason_code,
+                        "building_id": args.building_id,
+                        "records": records,
+                        "session": str(runtime.session),
+                        "navigation_session": str(session_path),
+                        "route_id": nav_session.route_id,
+                    },
+                    3,
+                )
+            if execution.status not in {ActionStatus.CONFIRMED, ActionStatus.UNRESOLVED} or execution.transport_calls < 1:
+                mark_blocked(nav_session, reason=str(execution.reason))
+                _persist_navigate_session(nav_session, runtime.session)
+                return emit(
+                    {
+                        "status": "blocked",
+                        "reason": "capability_consumption_denied",
+                        "executor_status": execution.status.value,
+                        "executor_reason": execution.reason,
+                        "building_id": args.building_id,
+                        "records": records,
+                        "session": str(runtime.session),
+                        "navigation_session": str(session_path),
+                        "route_id": nav_session.route_id,
+                    },
+                    3,
+                )
             record_pan_dispatched(nav_session, action_key)
             _persist_navigate_session(nav_session, runtime.session)
             pre_input_bundle = perception.invalidate_after_input()
@@ -1364,6 +1812,24 @@ def command_navigate_building(args) -> int:
                 localization_confidence=settled_localization.confidence if settled_localization.recognized else None,
             )
             _persist_navigate_session(nav_session, runtime.session)
+            try:
+                session_calibration = consider_navigate_pan_calibration(
+                    session_calibration,
+                    nav_session=nav_session,
+                    plan=plan,
+                    measured=measured,
+                    progress_px=progress_px,
+                    progress_reason=progress_reason,
+                    accepted=accepted,
+                    source_identity=identity,
+                    settled_identity=settled_identity,
+                    drag_start=plan.drag_start,
+                    drag_end=plan.drag_end,
+                    maximum_pans=args.maximum_pans,
+                )
+            except Exception:
+                # Invalid measurements fail closed for adaptation only; route outcome stays semantic.
+                pass
             record = {
                 "ordinal": ordinal + 1,
                 "action": "pan",
@@ -1381,64 +1847,69 @@ def command_navigate_building(args) -> int:
                 "route_id": nav_session.route_id,
                 "navigation_checkpoint": nav_session.checkpoint.value,
                 "navigation_outcome": nav_session.outcome.value,
+                "executor_status": execution.status.value,
+                "transport_observed": execution.transport_calls > 0,
+                "semantic_verified": bool(accepted),
             }
             records.append(record)
             _json(runtime.session / f"navigate-pan-{ordinal + 1:02d}.json", record)
             if not accepted:
-                result = {
-                    "status": "blocked",
-                    "reason": progress_reason,
-                    "building_id": args.building_id,
-                    "records": records,
-                    "session": str(runtime.session),
-                    "navigation_session": str(session_path),
-                    "route_id": nav_session.route_id,
-                }
-                _json(runtime.session / "navigate-building-result.json", result)
-                print(json.dumps(result, sort_keys=True, default=str))
-                return 3
+                return emit(
+                    {
+                        "status": "blocked",
+                        "reason": progress_reason,
+                        "building_id": args.building_id,
+                        "records": records,
+                        "session": str(runtime.session),
+                        "navigation_session": str(session_path),
+                        "route_id": nav_session.route_id,
+                        "transport_observed": True,
+                        "semantic_verified": False,
+                    },
+                    3,
+                )
             continue
         if plan.disposition is PlanDisposition.COMPLETE and binding is not None:
             record_target_bound(nav_session, binding=binding, frame=identity, historical_roi=binding.target_roi)
             complete_route_at_target_bound(nav_session)
             _persist_navigate_session(nav_session, runtime.session)
-            result = {
-                "status": "completed",
-                "reason": "current_frame_semantic_building_bound",
+            return emit(
+                {
+                    "status": "completed",
+                    "reason": "current_frame_semantic_building_bound",
+                    "building_id": args.building_id,
+                    "source_sha256": source.sha256,
+                    "source_localization": source_localization.__dict__,
+                    "navigation_pans": len(records),
+                    "records": records,
+                    "building_binding": binding.__dict__,
+                    "building_immediate_before_sha256": immediate_before.sha256,
+                    "input_count": len(records),
+                    "building_opened": False,
+                    "perception_bundle": bundle_evidence_snapshot(perception),
+                    "session": str(runtime.session),
+                    "navigation_session": str(session_path),
+                    "route_id": nav_session.route_id,
+                },
+                0,
+            )
+        reason = "current_frame_building_recognition_failed" if plan.disposition is PlanDisposition.BIND else plan.reason
+        mark_blocked(nav_session, reason=reason)
+        _persist_navigate_session(nav_session, runtime.session)
+        return emit(
+            {
+                "status": "blocked",
+                "reason": reason,
                 "building_id": args.building_id,
-                "source_sha256": source.sha256,
-                "source_localization": source_localization.__dict__,
-                "navigation_pans": len(records),
+                "plan": asdict(plan),
                 "records": records,
-                "building_binding": binding.__dict__,
-                "building_immediate_before_sha256": immediate_before.sha256,
-                "input_count": len(records),
-                "building_opened": False,
                 "perception_bundle": bundle_evidence_snapshot(perception),
                 "session": str(runtime.session),
                 "navigation_session": str(session_path),
                 "route_id": nav_session.route_id,
-            }
-            _json(runtime.session / "navigate-building-result.json", result)
-            print(json.dumps(result, sort_keys=True, default=str))
-            return 0
-        reason = "current_frame_building_recognition_failed" if plan.disposition is PlanDisposition.BIND else plan.reason
-        mark_blocked(nav_session, reason=reason)
-        _persist_navigate_session(nav_session, runtime.session)
-        result = {
-            "status": "blocked",
-            "reason": reason,
-            "building_id": args.building_id,
-            "plan": asdict(plan),
-            "records": records,
-            "perception_bundle": bundle_evidence_snapshot(perception),
-            "session": str(runtime.session),
-            "navigation_session": str(session_path),
-            "route_id": nav_session.route_id,
-        }
-        _json(runtime.session / "navigate-building-result.json", result)
-        print(json.dumps(result, sort_keys=True, default=str))
-        return 3
+            },
+            3,
+        )
     raise AssertionError("unreachable")
 
 

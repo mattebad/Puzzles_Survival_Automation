@@ -1101,7 +1101,10 @@ class NavigationSessionTests(unittest.TestCase):
                 "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer", return_value=fake_localizer
             ), patch("scripts.home_atlas_bluestacks.connect_runtime", return_value=runtime), patch(
                 "scripts.home_atlas_bluestacks.bind_visible_building", return_value=None
-            ), patch("scripts.home_atlas_bluestacks.save_session", side_effect=tracking_save):
+            ), patch("scripts.home_atlas_bluestacks.save_session", side_effect=tracking_save), patch(
+                "scripts.home_atlas_bluestacks.time.monotonic",
+                side_effect=lambda: float(runtime.ordinal) + 0.2,
+            ):
                 command_navigate_building(args)
 
             prepared_indices = [i for i, e in enumerate(events) if e.endswith(":prepared")]

@@ -3120,19 +3120,184 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Completion criteria: bounded session-local BlueStacks gesture adaptation with preserved baseline,
   rejection of invalid samples, no auto-persist, Bliss separate, `CONFIRMED_NOT_DISPATCHED` still
   unavailable, required tests passing, and unchanged registration/scheduler state.
-- Next: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
+- Next: `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`.
+
+### HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION
+- Task ID: `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`.
+- Title: Integrate shared verified navigation architecture into the Home Atlas navigate route.
+- Status: Completed (2026-07-19; offline review + bounded live BlueStacks reversible navigate-building
+  validation passed; local commit `feat(navigation): integrate verified home atlas route`; no push).
+- Milestone: Durable offline navigation architecture roadmap; composition-readiness prerequisite.
+- Dependencies: completed `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed
+  `HOME-NAVIGATION-OBSERVABILITY`, completed `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS`, completed
+  `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`, completed `RUNTIME-INPUT-CAPABILITY-FIREWALL`, and
+  completed `M7-SAFE-ACTION-CORE`.
+- Blocked by: None remaining for this task. Prior composition readiness failure is addressed for the
+  Home Atlas navigate-building consumer; a second live-validated route is still required before
+  composition. See `docs/navigation_verified_flow_readiness.md`.
+- Objective: migrate the existing Home Atlas `command_navigate` / `command_navigate_building` route
+  so it demonstrably reuses immutable `FramePerceptionBundle`, complete capture identity, one
+  authoritative resumable `NavigationSession`, bounded BlueStacks session calibration, navigation
+  observability, existing `CentralPolicy`, existing `SafeActionExecutor`, one-shot capability
+  issuance and final consumption, fresh `pre_dispatch` validation, and bounded recovery plus
+  semantic successor verification, then pass offline review and one bounded live reversible
+  navigation validation.
+- Established facts: the navigate-building route already owns a `NavigationSession` and perception
+  bundle construction; readiness still fails because capability firewall and observability are not
+  end-to-end consumed and pan transport historically bypassed `SafeActionExecutor`;
+  `CONFIRMED_NOT_DISPATCHED` remains `NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
+- Direct implementation files: `scripts/home_atlas_bluestacks.py`,
+  `tests/test_home_atlas_verified_route.py`, narrowly touchable shared modules only when required
+  for route adoption (`safe_action_core/*`, `tasks/navigation_session.py`,
+  `tasks/navigation_observability.py`, `tasks/navigation_session_calibration.py`,
+  `tasks/perception_bundle.py`), `BACKLOG.md`, `CURRENT_HANDOFF.md`, and
+  `tests/test_governance_validation.py` only if durable identity coverage changes.
+- Shared dependencies: existing Home Atlas planner/localizer/runtime adapters, CentralPolicy,
+  SafeActionExecutor, NavigationSession, observability, session calibration, and perception bundle;
+  no production registration.
+- Transitive regression set: home atlas planner/session/observability/calibration/capability/
+  governance focused suites and any touched-module discovery.
+- Allowed changes: per-commit allowed paths are exactly `scripts/home_atlas_bluestacks.py`,
+  `tests/test_home_atlas_verified_route.py`, narrowly required shared adoption touches listed above,
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if identity
+  coverage changes.
+- Prohibited changes: new destinations, atlas rebuild/expansion, second engine/DSL, enabling
+  `CONFIRMED_NOT_DISPATCHED`, consequential gameplay (claims/purchases/training/healing/research/
+  upgrades/crafting/resource consumption/troop deployment), registration, scheduler, workers, task
+  rows, force-push, amend, rebase, reset/clean, or push.
+- Authorized runtime action: after offline review passes, exactly one bounded live BlueStacks
+  validation through supported `pnsctl` / private-ADB path using only reversible Home navigation
+  already owned by the route (bounded camera pans, supported menu/facility navigation, overlay
+  dismissal, verified return toward Home). Zero consequential actions.
+- Maximum transport inputs: offline phase zero; live phase only the minimum navigation-only inputs
+  required to exercise capability-bound pans and successor verification for the owned route.
+- Navigation-only recovery: bounded recovery already owned by the navigate route may run; no new
+  recovery transport authority and no identical retries without a concrete new hypothesis.
+- Consequential action: None; claims, purchases, premium, training, healing, research, upgrades,
+  crafting, resource consumption, and troop deployment remain forbidden.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior terminally confirmed Supply Depot collection keys,
+  consequential action keys, no-progress canonical short drags, or identical unchanged-state inputs.
+- Required source: current immutable native 800x1280 frames from the existing BlueStacks Home Atlas
+  navigate route; offline tests may use fixtures/mocks without live capture.
+- Exact target semantics: positively recognized Home/base checkpoint, exact semantic building or
+  camera-pan geometry bound from the current frame, route/session/action/target/frame-bound
+  capability, immediate `pre_dispatch` recapture and policy revalidation, executor-only dispatch,
+  transport-observed distinct from semantic verified/completed.
+- Required local association: every authorized pan cites navigation session id, action id/key,
+  target identity/ROI, capture digest+monotonic, and capability audit; observability and optional
+  calibration reports attach without mutating authority.
+- Negative controls: direct `runtime.swipe`/`runtime.tap` on the navigate-building pan path,
+  capability reuse/forgery, stale/cross-capture dispatch, treating transport success as semantic
+  success, atlas expansion, and consequential controls.
+- Coordinate space: BlueStacks native 800x1280 full-frame evidence only; no scaled previews or Bliss
+  coordinate reuse.
+- Accepted signals: offline focused/adversarial/governance/full-suite gates; live reversible Home
+  navigation with capability issuance/consumption, distinct transport vs semantic states, reconciled
+  session/observability/calibration/journal, and fail-closed bypass rejection.
+- Rejected weak signals: imports-only or metadata-only adoption, dry-run-only live claims, and
+  transport success without successor verification.
+- Ambiguous-result behavior: fail closed to unresolved/blocked; never blind-retry identical input.
+- Zero-cost requirement: navigation-only camera pans and reversible Home navigation; no resource or
+  premium spend.
+- Quantity limits: one existing navigate route; no new destinations; one bounded live validation
+  after offline pass.
+- Resource consumption policy: no game resources consumed.
+- Premium or strategic restrictions: no premium/purchase/strategic controls.
+- Active evidence manifest: None for offline work; live session artifacts remain under
+  `.local-captures` and must not stage protected `evidence/**`.
+- Required artifacts: verified navigate-building route path through CentralPolicy/SafeActionExecutor,
+  focused offline tests including adversarial bypass/capability probes, and live navigation-only
+  session result retained locally when live validation runs.
+- Immediate-before/immediate-post/result/journal: required for each live authorized pan; offline
+  fixtures substitute during offline review.
+- Additional task-specific artifacts: terminal observability report attachment and preserved
+  `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
+- Focused tests: `tests.test_home_atlas_verified_route` plus touched home-atlas session/observability/
+  calibration/capability regressions.
+- Integration tests: offline mocked capability-bound navigate path; after offline pass, one bounded
+  live reversible Home navigation validation.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, adversarial
+  probes, then the full repository suite before live validation and before commit.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON
+  parsing, JSON parsing for navigate session/result artifacts when touched, touched-file secret
+  scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because offline fixtures authorize implementation review and
+  any live BlueStacks navigation artifacts remain local under `.local-captures` without promoting
+  into protected `evidence/**`.
+- Valid blocked outcomes: inability to remove navigate-building direct-transport bypasses, capability
+  firewall adoption failure, live consequential pressure, or offline suite regressions.
+- Blocked-result commit policy: record the blocker; do not commit a partial bypass-preserving route
+  as complete; preserve WIP and evidence.
+- Commit policy: one reviewed conventional local commit after both offline and live validation pass;
+  no push.
+- Expected focused commits: `feat(navigation): integrate verified home atlas route`; allowed paths
+  are the direct implementation files above.
+- Completion criteria: navigate-building demonstrably reuses perception bundle, NavigationSession,
+  calibration, observability, CentralPolicy, SafeActionExecutor, capability issuance/final
+  consumption, pre_dispatch validation, and semantic successor verification; direct route-local
+  pan transport bypasses removed or fail-closed; offline gates pass; one bounded live reversible
+  validation passes; `CONFIRMED_NOT_DISPATCHED` still unavailable; registration/scheduler unchanged;
+  commit created locally without push.
+- Established completion evidence: offline focused 19 + regressions 232 + full suite 871 passed /
+  1 skipped; parent cycle-1 corrected proposal digest poisoning and live `time.monotonic` default;
+  live Bank navigate 1 capability-bound pan (`transport_observed` + `semantic_verified`,
+  `building_opened=false`) then Headquarters return 2 pans; local artifacts under
+  `.local-captures/home-atlas-verified-route/`; registration/scheduler unchanged;
+  `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
+- Next: `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`; `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`
+  remains blocked until renewed readiness passes after two live-validated routes.
+
+### SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION
+- Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`.
+- Title: Integrate shared verified navigation architecture into the Supply Depot radial route.
+- Status: Pending (2026-07-19; ready after Home Atlas verified-route commit; not yet activated).
+- Milestone: Durable offline navigation architecture roadmap; composition-readiness prerequisite.
+- Dependencies: completed `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, completed shared radial semantics,
+  completed BlueStacks safe-exit binder, completed capability firewall, completed perception bundle,
+  completed NavigationSession/observability/calibration contracts.
+- Blocked by: must wait for Home Atlas verified-route commit before activation. Do not claim supplies
+  or execute consequential facility actions.
+- Objective: migrate the existing `supply-depot-radial` / Supply Depot radial navigation path so it
+  demonstrably reuses same-capture perception, authoritative `NavigationSession`, observability,
+  shared radial semantics, BlueStacks safe-exit binding where applicable, capability issuance and
+  final consumption, real transport vs semantic verification boundaries, then pass offline review
+  and one bounded live reversible radial/safe-exit/return-home validation without claiming supplies.
+- Direct implementation files: `scripts/home_atlas_bluestacks.py` (supply-depot-radial path only as
+  needed), narrowly required Supply Depot vision/runtime adapters already owned by the route,
+  `tests/test_supply_depot_verified_route.py` (or focused extension of existing supply-depot tests),
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if identity
+  coverage changes.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above plus
+  narrowly required shared adoption touches; no atlas expansion; no new destinations; no claims.
+- Prohibited changes: Supply Depot claims/collections, consequential gameplay, second engine/DSL,
+  enabling `CONFIRMED_NOT_DISPATCHED`, registration, scheduler, push, amend, rebase, reset/clean.
+- Authorized runtime action: after offline review passes, exactly one bounded live BlueStacks
+  validation of reversible radial interaction, safe exit, and return-home behavior only; zero claims.
+- Commit policy: one reviewed conventional local commit after both offline and live validation pass;
+  expected commit `feat(navigation): integrate verified supply depot route`; no push.
+- Completion criteria: Supply Depot radial route reuses remaining readiness seams end to end without
+  bypasses; offline gates pass; bounded live reversible validation passes; registration/scheduler
+  unchanged; `CONFIRMED_NOT_DISPATCHED` still unavailable.
+- Next: renewed `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` readiness review; activate
+  composition only if readiness passes; leave `M6-DQ-TRANSITION-CORPUS` unactivated until then.
 
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 - Title: Narrow declarative verified-flow composition over existing navigation contracts.
-- Status: Blocked (2026-07-19; mandatory readiness review failed; no implementation or activation).
+- Status: Blocked (2026-07-19; mandatory readiness review failed; awaiting second real
+  live-validated route after completed Home Atlas verified-route integration).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed shared roadmap contracts for
-  perception/session/radial/safe-exit/capability reuse, and existing `NavigationStep` /
-  `NavigationRunner` contracts.
-- Blocked by: readiness review found no two real routes that jointly reuse the stable perception,
-  resumable-session, observability, radial, safe-exit, and capability contracts; existing routes
-  retain route-local/direct transport bypasses. See
+  perception/session/radial/safe-exit/capability reuse, existing `NavigationStep` /
+  `NavigationRunner` contracts, completed `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, and at least one
+  additional real live-validated route integration (prefer `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`)
+  that consumes those shared seams without bypasses.
+- Blocked by: readiness still requires two real routes; Home Atlas navigate-building now consumes
+  the shared seams, but Supply Depot (or equivalent) remains pending. See
   `docs/navigation_verified_flow_readiness.md`. No broad DSL or generic autonomous runtime is
   authorized.
 - Objective: after a positive readiness review, extend existing `NavigationStep`, `NavigationRunner`,

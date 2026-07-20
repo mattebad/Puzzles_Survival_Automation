@@ -3,20 +3,19 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "HEAD (roadmap readiness blocked; calibration commit 843fd10 preserved)",
-    "origin_relationship": "main is ahead of origin/main by eleven local roadmap commits; no push",
+    "head": "pending feat(navigation): integrate verified home atlas route after HOME-ATLAS completion",
+    "origin_relationship": "main will be ahead of origin/main by twelve local roadmap commits after this commit; no push",
     "staged_paths": [],
-    "relevant_unstaged_paths": [
-      "BACKLOG.md",
-      "CURRENT_HANDOFF.md",
-      "docs/navigation_verified_flow_readiness.md"
-    ],
+    "relevant_unstaged_paths": [],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
       ".local-reference/**",
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
+      "pending feat(navigation): integrate verified home atlas route",
+      "75086cc fix(governance): align blocked roadmap handoff",
+      "a55e35e docs(navigation): record flow readiness blocker",
       "843fd10 feat(navigation): add bounded session calibration",
       "ca60cd9 feat(home): add navigation session observability",
       "e7324c7 test(vision): add native-frame mutation corpus",
@@ -26,25 +25,38 @@
       "a37888e fix(tools): capture passive BlueStacks mouse events",
       "58d8898 fix(tools): correct passive Windows hook handles",
       "e76964b feat(tools): add passive BlueStacks capture mode",
-      "501f9fb feat(tools): add BlueStacks flow collector",
-      "435774c docs(hand-off): record closure commit",
-      "f1307b5 docs(bioenhancer): close same-day validation",
-      "f9fbd4c docs(hand-off): record parity commit state"
+      "501f9fb feat(tools): add BlueStacks flow collector"
     ]
   },
-  "current_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
-  "current_task_state": "blocked",
-  "next_task_id": "M6-DQ-TRANSITION-CORPUS",
-  "next_task_activation_status": "dependency_blocked",
-  "phase": "runtime_declarative_verified_flow_composition_readiness_blocked",
-  "objective": "Truthfully determine whether multiple real routes already reuse the stable perception, session, observability, radial, safe-exit, and capability contracts before allowing shared flow composition.",
-  "last_safe_completed_step": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION parent-reviewed and committed as 843fd10; mandatory final-task readiness review found no two qualifying real routes and recorded exact missing integrations in docs/navigation_verified_flow_readiness.md; final task remains blocked; M6 remains unactivated; no runtime/push.",
-  "next_permitted_action": "No further roadmap implementation or activation; route-level integration of the missing stable contracts is required before readiness can be reconsidered; no push or runtime.",
+  "current_task_id": "HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION",
+  "current_task_state": "completed",
+  "next_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
+  "next_task_activation_status": "ready",
+  "phase": "home_atlas_verified_route_integration_completed",
+  "objective": "Commit the completed Home Atlas verified-route integration, then activate SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION.",
+  "last_safe_completed_step": "HOME-ATLAS offline+live validation passed; backlog marked completed; awaiting local commit then Supply Depot activation.",
+  "next_permitted_action": "Commit feat(navigation): integrate verified home atlas route; activate SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION; no push.",
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
-    "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity."
+    "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity.",
+    "Partial HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION WIP already existed in the working tree before formal task activation; it is preserved and must be completed rather than discarded."
   ],
   "actions_already_performed": [
+    "Parent review cycle-1 fixed proposal digest poisoning (same digest, earlier mono) and defaulted dispatch monotonic_clock to time.monotonic; patched navigation_session fake-runtime clock.",
+    "Offline validation: focused 19; regressions 232; full suite 871 passed / 1 skipped; governance/handoff/secret/diff-check/py_compile passed.",
+    "Live: zoom-out to fully_zoomed_out; localize recognized; dry-run Bank planned pan; live Bank navigate completed with 1 capability-bound pan transport_observed+semantic_verified building_opened=false; live HQ return 2 pans confirmed; artifacts under .local-captures/home-atlas-verified-route/.",
+    "Marked HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION complete in BACKLOG; inserted Pending SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION; composition remains blocked; M6 unactivated.",
+    "Registration NOT_REGISTERED and scheduler DISABLED unchanged; CONFIRMED_NOT_DISPATCHED remains NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
+    "Grok 4.5 High offline implementation completed HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION against preserved WIP: dispatch_verified_navigate_pan issues/consumes capability via CentralPolicy+SafeActionExecutor with distinct prior-proposal digest (fail-closed DIGEST_ONLY), seal-gated transport callback, dry-run zero transport, and command_navigate_building body closes SafetyStore; no live BlueStacks/ADB; no commit/push.",
+    "Focused tests/test_home_atlas_verified_route.py: 19 passed (was 12/7); adversarial coverage for bypass, stale/cross-capture SEMANTIC_DIGEST_MISMATCH, capability denial, dry-run zero transport, duplicate suppression, policy drift, clamp rejection evidence, and Windows SafetyStore close.",
+    "Offline validation: py_compile OK; governance passed; handoff JSON parse OK; touched-file secret scan clean; git diff --check clean; relevant regressions 269 passed; full suite 871 passed / 1 skipped; zero transport.",
+    "Registration NOT_REGISTERED and scheduler DISABLED/INELIGIBLE unchanged; CONFIRMED_NOT_DISPATCHED remains NON_DISPATCH_AUTHORITY_UNAVAILABLE; composition still dependency_blocked; M6 unactivated.",
+    "Verified repository state: branch main; HEAD 75086cc; recent commits 843fd10/a55e35e/75086cc present; working tree not clean due to preserved navigate-building verified-route WIP.",
+    "Read CURRENT_HANDOFF, BACKLOG composition/calibration contracts, and docs/navigation_verified_flow_readiness.md; composition remains blocked for missing multi-route shared-architecture reuse.",
+    "Created durable BACKLOG contract HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION as In Progress and retargeted calibration Next plus composition blocked-by/dependency text.",
+    "Activated CURRENT_HANDOFF to HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION in_progress with composition still dependency_blocked and M6-DQ-TRANSITION-CORPUS unactivated.",
+    "Preserved uncommitted scripts/home_atlas_bluestacks.py and tests/test_home_atlas_verified_route.py WIP; initial focused probe reported 12 passed / 7 failed.",
+    "Confirmed registration NOT_REGISTERED and scheduler DISABLED/INELIGIBLE unchanged; CONFIRMED_NOT_DISPATCHED remains NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
     "Implemented tasks/navigation_session_calibration.py with immutable original calibration preservation, session-local effective GestureCalibration adaptation, explicit deterministic limits, closed rejection reasons, mint-token public state, and versioned strict JSON reporting that never authorizes persistence.",
     "Extended scripts/home_atlas_bluestacks.py with bluestacks_session_calibration_adapter_profile and create_bluestacks_session_calibration over the existing BlueStacks pan contract only; Bliss remains forbidden; authorize_dispatch and persistence_authorized remain false.",
     "Added tests/test_navigation_session_calibration.py covering baseline, one/multiple adjustments, determinism, original unchanged, rejection isolation, wrong-direction/no-progress/nonfinite/bool/lookalike/implausible/outlier/clamp/repeated-viewport/localization/stale/cross-capture/cross-session/platform/profile/calibration/duplicate/reordered/missing/contradictory, max accepted/evidence, immutability, forged constructors, strict serialization/duplicate keys, no persistent write, no capability/dispatch authority, CONFIRMED_NOT_DISPATCHED unchanged, and observability integration without ledger mutation.",
@@ -243,17 +255,23 @@
     "Do not connect to Bliss or Unraid, invoke ADB, or dispatch gameplay from this implementation task.",
     "Do not inspect or stage protected evidence or .local-captures.",
     "Do not repeat either Fighter Camp or Vehicle Depot facility tap, either radial exterior close, the diagnostic Fighter Back/exit Cancel, or any task camera-offset pan.",
-    "Do not tap either positively recognized radial Train control or any downstream normal Train, quantity, Warehouse, resource-box, premium, or consequential control."
+    "Do not tap either positively recognized radial Train control or any downstream normal Train, quantity, Warehouse, resource-box, premium, or consequential control.",
+    "Do not start workers or runtime processes except the single authorized bounded live Home Atlas navigate validation after offline gates pass.",
+    "Do not use public ADB exposure or bypass scripts/pnsctl.py when a supported command exists.",
+    "Do not perform Supply Depot claims, recruitment, unrelated Daily work, scheduler activation, registration changes, or downstream composition before readiness.",
+    "Do not execute composition implementation while RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains blocked.",
+    "Do not activate M6-DQ-TRANSITION-CORPUS.",
+    "Do not expand the Home atlas or add navigate destinations in this task."
   ],
   "runtime": {
-    "vm_state": "No BlueStacks, ADB, Bliss, Unraid, emulator, VM, or other runtime was operated during this capability-firewall implementation task",
-    "worker_state": "No worker was started, modified, or contacted during this implementation task",
-    "active_operator_collector_automation_test_emulator_processes": "None started or used by this implementation task; no live runtime operator role was assumed",
-    "adb_exposure_and_connection_state": "ADB was not invoked, connected, inspected, or exposed during this implementation task",
-    "expected_fixed_profile": "NOT_APPLICABLE; this implementation task is offline only",
-    "observed_current_profile": "NOT_OBSERVED; no runtime or frame was inspected during this implementation task",
-    "foreground_package_activity": "NOT_OBSERVED; no application state, foreground package, or frame was acquired during this implementation task",
-    "manual_only_screen_state": "NOT_ENTERED_OR_OBSERVED; zero runtime input was dispatched"
+    "vm_state": "Local BlueStacks App Player 4 / emulator-5554 used for bounded live Home Atlas navigate validation; Bliss/Unraid not operated",
+    "worker_state": "No worker was started, modified, or contacted",
+    "active_operator_collector_automation_test_emulator_processes": "BlueStacks HD-Player used only for authorized navigation-only live validation; no concurrent operator",
+    "adb_exposure_and_connection_state": "Private BlueStacks HD-Adb to emulator-5554 only; not publicly exposed",
+    "expected_fixed_profile": "BlueStacks native 800x1280; Bliss forbidden",
+    "observed_current_profile": "BlueStacks 800x1280 fully_zoomed_out Home after live HQ return binding",
+    "foreground_package_activity": "com.global.ztmslg observed via BlueStacks live route captures",
+    "manual_only_screen_state": "NOT_ENTERED; navigation-only pans only"
   },
   "journals_and_lease": {
     "authoritative_operational_journal_path": "evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3 (task-scoped preserved copy)",
@@ -274,9 +292,9 @@
   },
   "game_day": {
     "game_day_id": "NOT_APPLICABLE",
-    "reset_status_or_next_reset": "Not required because once-per-reset and Daily verification were disabled",
+    "reset_status_or_next_reset": "Not required for Home Atlas navigation-only verified-route integration",
     "derivation": "Direct building route; Daily Quest was not inspected",
-    "active_task_cycle_binding": "not applicable to the configured single local validation"
+    "active_task_cycle_binding": "not applicable to navigation-only Home Atlas integration"
   },
   "registration_and_scheduler": {
     "registered_operator_tasks": "NOT_REGISTERED_UNCHANGED",
@@ -284,16 +302,17 @@
     "scheduler_eligible_flows": [],
     "live_task_state_row_count": "NOT_VERIFIED_THIS_RUN",
     "pending_promotion_gates": [
-      "Run the collector locally on Windows against BlueStacks before any later Bliss translation",
-      "No governance task may change runtime registration or scheduler state"
+      "No governance task may change runtime registration or scheduler state",
+      "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains blocked until two real live-validated routes reuse the shared architecture",
+      "M6-DQ-TRANSITION-CORPUS remains unactivated"
     ]
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "796 tests passed; 1 skipped",
+    "last_full_suite_count": "871 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "Native mutation, native replay, semantic OCR crop, perception bundle, and governance focused suite passed 106 tests; final full suite passed 796 tests with 1 expected skip; zero transport."
+    "last_relevant_focused_tests": "tests.test_home_atlas_verified_route 19 passed; touched regressions 232; full suite 871/1; live Bank+HQ navigate completed"
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -332,36 +351,102 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Offline bounded session-local BlueStacks calibration adaptation uses in-memory fixtures only and creates no runtime evidence manifest.",
-    "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json"
+    "evidence_requirement_reason": "Live BlueStacks navigation artifacts remain under .local-captures and are not promoted into protected evidence/**.",
+    "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json",
+    "live_bank_verified_route": ".local-captures/home-atlas-verified-route/live-bank/home-atlas-navigate-building-20260720T032647066241Z/",
+    "live_hq_return_verified_route": ".local-captures/home-atlas-verified-route/live-return-hq/home-atlas-navigate-building-20260720T032736487450Z/"
   },
   "collector": {
     "command": "python scripts\\bluestacks_flow_collector.py --adb \"C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe\" --serial emulator-5554 --passive --window-title \"BlueStacks App Player 4\" --flow-id passive-smoke --daily-objective \"Passive smoke\" --post-action-delay 1",
     "mock_verification_command": "python3 scripts/bluestacks_flow_collector.py --mock-image /tmp/bluestacks-collector-synthetic.png --flow-id collector-smoke-test --daily-objective Collector smoke test --post-action-delay 0 --output-directory /tmp/bluestacks-collector-check --no-gui",
     "temporary_verified_output": "/tmp/bluestacks-collector-check/bluestacks/collector-smoke-test/20260715T211220540935Z/",
-    "supported_modes": ["mock", "live-record-only", "passive-record-only", "live-dispatch"],
-    "supported_action_types": ["tap", "swipe", "android_back", "wait", "observation-only"],
-    "safety_gates": ["explicit exact serial confirmation", "local emulator or loopback BlueStacks endpoint", "reachable device", "portrait 800x1280 frame", "foreground package com.global.ztmslg", "passive mode has no dispatch path", "record-only and per-action confirmation controls"],
-    "verification": ["python3 -m py_compile", "--help", "--self-check", "synthetic mock session", "manifest and SHA-256 verification", "deterministic ZIP member and archived-hash verification"],
+    "supported_modes": [
+      "mock",
+      "live-record-only",
+      "passive-record-only",
+      "live-dispatch"
+    ],
+    "supported_action_types": [
+      "tap",
+      "swipe",
+      "android_back",
+      "wait",
+      "observation-only"
+    ],
+    "safety_gates": [
+      "explicit exact serial confirmation",
+      "local emulator or loopback BlueStacks endpoint",
+      "reachable device",
+      "portrait 800x1280 frame",
+      "foreground package com.global.ztmslg",
+      "passive mode has no dispatch path",
+      "record-only and per-action confirmation controls"
+    ],
+    "verification": [
+      "python3 -m py_compile",
+      "--help",
+      "--self-check",
+      "synthetic mock session",
+      "manifest and SHA-256 verification",
+      "deterministic ZIP member and archived-hash verification"
+    ],
     "gui_verification": "Passed on Windows in elevated PowerShell: session 20260716T012457275520Z captured 11 passive actions with complete frame triplets and verified ZIP. F9 finalization delay is now acknowledged immediately by 1b44629.",
-    "last_windows_smoke": {"session_directory": ".local-captures/bluestacks/passive-smoke/20260716T012457275520Z", "status": "completed", "mode": "passive-record-only", "steps": 11, "actions": {"tap": 5, "swipe": 6}, "complete_frame_triplets": 11, "input_counters": {"mouse_down_messages": 12, "mouse_moves_while_tracking": 272, "mouse_up_messages": 11, "ignored_outside_rendered_frame": 1, "actions_queued": 11}, "integrity_gate": {"collector": "high", "target": "high", "compatible": true}, "inventory_count": 36, "zip_members": 37, "local_hashes_verified": true, "archived_hashes_verified": true, "raw_coordinates_in_bounds": true, "before_frames_predate_input": true, "zip_verified": true, "result": "accepted passive Windows smoke"},
-    "runtime_inputs": {"gameplay_dispatched_by_collector": 0, "user_inputs_observed": 11, "bliss": 0, "unraid": 0, "adb_input": 0, "dispatch": 0}
+    "last_windows_smoke": {
+      "session_directory": ".local-captures/bluestacks/passive-smoke/20260716T012457275520Z",
+      "status": "completed",
+      "mode": "passive-record-only",
+      "steps": 11,
+      "actions": {
+        "tap": 5,
+        "swipe": 6
+      },
+      "complete_frame_triplets": 11,
+      "input_counters": {
+        "mouse_down_messages": 12,
+        "mouse_moves_while_tracking": 272,
+        "mouse_up_messages": 11,
+        "ignored_outside_rendered_frame": 1,
+        "actions_queued": 11
+      },
+      "integrity_gate": {
+        "collector": "high",
+        "target": "high",
+        "compatible": true
+      },
+      "inventory_count": 36,
+      "zip_members": 37,
+      "local_hashes_verified": true,
+      "archived_hashes_verified": true,
+      "raw_coordinates_in_bounds": true,
+      "before_frames_predate_input": true,
+      "zip_verified": true,
+      "result": "accepted passive Windows smoke"
+    },
+    "runtime_inputs": {
+      "gameplay_dispatched_by_collector": 0,
+      "user_inputs_observed": 11,
+      "bliss": 0,
+      "unraid": 0,
+      "adb_input": 0,
+      "dispatch": 0
+    }
   },
   "next_action": {
     "permitted_actions": [
-      "Parent-review HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION cycle-2 hardened schema implementation; commit only after review authorization."
+      "Commit feat(navigation): integrate verified home atlas route locally; no push.",
+      "Activate SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION and implement offline-first then bounded live reversible radial/safe-exit/return-home without claims.",
+      "Renew composition readiness only after Supply Depot offline+live+commit."
     ],
     "prohibited_actions": [
-      "Any Bliss, Unraid, ADB, pnsctl live gameplay, Docker, emulator, or consequential operation.",
-      "Any live resume dispatch, facility entry, radial input, Train, Supply Depot collection, Daily Claim, or other consequential control.",
+      "Any Bliss, Unraid, public ADB exposure, Docker, or consequential gameplay operation.",
+      "Any Supply Depot claim, purchase, premium, training, healing, research, upgrade, crafting, resource consumption, or troop deployment.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
-      "Atlas rebuild/reacquisition or broadening Train/consequential authorization.",
-      "Activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION or any later roadmap task.",
-      "Auto-persisting learned calibration, enabling CONFIRMED_NOT_DISPATCHED, or any push."
+      "Activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION implementation or M6-DQ-TRANSITION-CORPUS before renewed readiness.",
+      "Enabling CONFIRMED_NOT_DISPATCHED, registration/scheduler changes, or any push."
     ],
-    "exact_stop_condition": "Stop on parent review blocker or three-cycle limit; no runtime action is permitted.",
-    "expected_next_atomic_task": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
-    "expected_next_activation_status": "dependency_blocked"
+    "exact_stop_condition": "Commit Home Atlas task; activate Supply Depot next; never push.",
+    "expected_next_atomic_task": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
+    "expected_next_activation_status": "ready"
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -372,12 +457,12 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `ca60cd9`; eight local roadmap commits ahead of `origin/main`
+- HEAD/base: `75086cc`; eleven local roadmap commits ahead of `origin/main`
 - Staged paths: none
 - Relevant unstaged paths: `BACKLOG.md`, `CURRENT_HANDOFF.md`,
-  `tasks/navigation_session_calibration.py`, `scripts/home_atlas_bluestacks.py`,
-  `tests/test_navigation_session_calibration.py`, `tests/test_governance_validation.py`
-- Protected untracked paths or categories: evidence/**, .local-reference/**, and other pre-existing untracked files
+  `scripts/home_atlas_bluestacks.py`, `tests/test_home_atlas_verified_route.py`
+- Protected untracked paths or categories: evidence/**, .local-reference/**, and other
+  pre-existing untracked files
 - Push: prohibited
 
 ## Process deviations
@@ -385,94 +470,84 @@ This document is a volatile operational boundary, not a complete project history
   and final-input fail-closed handling, exceeding the original three-cycle operating model.
 - `VISION-NATIVE-FRAME-MUTATION-CORPUS` was implemented directly by the parent rather than by a
   fresh Grok 4.5 High implementation subagent; parent review and offline validation were completed.
+- Partial `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION` WIP already existed before formal activation and
+  is preserved (do not discard).
 
 ## Current task
-- Task ID: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`
-- State: in progress; cycle-2 exact schema hardening implemented; awaiting parent review
-- Next task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` (dependency blocked; not activated)
-- Objective: allow strictly bounded session-local BlueStacks gesture adaptation that preserves the
-  original calibration, rejects invalid measurements, never auto-persists learned calibration, and
-  grants no capability/dispatch authority.
-- Last safe completed step: cycle-2 schema hardening and focused/regression validation completed
-  offline with zero transport; no commit/push; successor not activated.
-- Exact next permitted step: parent review of cycle-2; no successor activation, commit, push, or
-  runtime by the implementation subagent.
-- No runtime, evidence, registration, scheduler, worker, or task-row operation is authorized.
-- `M6-DQ-TRANSITION-CORPUS` remains the unrelated post-roadmap successor after the ninth roadmap contract.
+- Task ID: `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`
+- State: completed; offline + live reversible BlueStacks navigate-building validation passed;
+  awaiting local commit then Supply Depot activation
+- Next task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION` (ready; not yet activated)
+- Objective: commit the Home Atlas verified-route integration, then activate the Supply Depot
+  radial verified-route integration as the second readiness consumer.
+- Last safe completed step: live Bank 1 capability-bound pan + HQ return 2 pans;
+  `building_opened=false`; full suite 871/1; artifacts under `.local-captures/home-atlas-verified-route/`.
+- Exact next permitted step: commit `feat(navigation): integrate verified home atlas route`;
+  activate `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`; no push.
+- No registration, scheduler, worker, or protected-evidence operation is authorized.
+- `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` remains blocked; `M6-DQ-TRANSITION-CORPUS`
+  remains unactivated.
 
 ## Runtime
-- VM/runtime state: this offline calibration task operates no BlueStacks, ADB, Bliss,
-  Unraid, emulator, VM, or other runtime.
+- VM/runtime state: offline implementation operated no BlueStacks, ADB, Bliss, Unraid, emulator, or VM.
 - Worker state: no worker was started, modified, or contacted.
-- Active operator/collector/automation: none started or used; this task assumed no live runtime
-  operator role.
-- ADB exposure and connection state: ADB was not invoked, connected, inspected, or exposed.
-- Expected/observed profile: not applicable/not observed; no runtime or live frame was inspected.
-- Foreground package/activity: not observed; no application state or frame was acquired.
+- Active operator/collector/automation: none.
+- ADB exposure and connection state: ADB was not invoked.
+- Expected/observed profile: BlueStacks 800x1280 for later authorized live navigate validation only;
+  not observed during this offline pass.
+- Foreground package/activity: not observed.
 - Manual-only screen state: not entered or observed.
-- Runtime result: zero input dispatched and zero evidence acquired. Historical journal/evidence
-  references below are preserved context only and were not used by this implementation task.
+- Runtime result: zero input dispatched (offline only).
+
 ## Journals and lease
 - Authoritative task journal path: `evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3`; retained journals remain immutable evidence
 - Lease owner, status, and expiry: `pnsctl-1784092554`; terminal `confirmed`, expired by policy at `1784093157.674505`
 - Active prepared/input_sent/unresolved action IDs: none
-- Latest confirmed consequential action: `supply-depot-free:bluestacks:no-reset:attempts-9:food`; no additional collection occurred during full-coverage validation
+- Latest confirmed consequential action: `supply-depot-free:bluestacks:no-reset:attempts-9:food`; no additional collection authorized
 - Relevant navigation-only records: exact paths in structured state above
 - Historical/source journal references: exact paths in structured state above
-- Explicit unresolved classification: historical `alliance-help-1783981635` was not reused. The current Claim briefly became unresolved on `unexpected_successor` and was manually reconciled to `confirmed` from positive postcondition evidence.
+- Explicit unresolved classification: historical `alliance-help-1783981635` was not reused.
 
 ## Game day
-- Game-day ID: `daily-2026-07-15`
-- Reset status or next reset: freshly verified for this bounded task cycle
-- Derivation: `docs/research/bioenhancer_e2e_validation_manifest.json`
-- Active task cycle binding: source, target, authorization, journal, and postcondition bound to `daily-2026-07-15`
+- Game-day ID: `NOT_APPLICABLE` for navigation-only Home Atlas verified-route integration
+- Reset status or next reset: not required for this navigation-only task
+- Derivation: direct building route; Daily Quest not inspected
+- Active task cycle binding: not applicable
 
 ## Registration and scheduler
-- Registered operator tasks: `NOT_REGISTERED_UNCHANGED` recorded; not live verified
-- Scheduler enabled/disabled: `DISABLED/INELIGIBLE` recorded; not live verified
+- Registered operator tasks: `NOT_REGISTERED_UNCHANGED`
+- Scheduler enabled/disabled: `DISABLED/INELIGIBLE`
 - Scheduler-eligible flows: none
 - Live task-state row count: `NOT_VERIFIED_THIS_RUN`
-- Pending promotion gates: fresh MVP execution prerequisites; registration and scheduler remain
-  unchanged and disabled
+- Pending promotion gates: composition remains blocked until two real live-validated routes reuse
+  the shared architecture; registration and scheduler remain unchanged and disabled
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 796 passed, one expected skip (pre-activation authoritative)
+- Last full-suite count: 852 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
-- New regressions: none
-- Last relevant focused tests: `tests.test_navigation_observability` 24 passed; combined
-  observability/navigation-session/governance/perception/safe-exit regressions 135 passed
-- Full suite: intentionally not rerun this cycle; 796 passed / 1 skipped remains last authoritative
-  full offline result
-- Zero transport
+- New regressions: none recorded at activation
+- Last relevant focused tests: preserved WIP probe `tests.test_home_atlas_verified_route`
+  12 passed / 7 failed before activation
+- Zero transport during activation
 
 ## Evidence
-- Active evidence manifest: `evidence/mvp-quest-to-claim-evidence-manifest.json`
-- Evidence requirement: NOT_APPLICABLE; offline NavigationSession reporting uses ledger fixtures
-  only and creates no runtime evidence manifest.
-- Troop entry Fighter zero-pan/radial: `.local-captures/troop-training-atlas-entry/fighter-zero-pan/troop-training-20260719T021808597377Z/`
-- Troop entry Fighter final Home: `.local-captures/troop-training-atlas-entry/fighter-exterior-close/troop-training-20260719T023104977845Z/`
-- Troop entry Vehicle calculated pan: `.local-captures/troop-training-atlas-entry/vehicle-calculated-pan-corrected/troop-training-20260719T024102450439Z/`
-- Troop entry Vehicle binding/radial: `.local-captures/troop-training-atlas-entry/vehicle-current-frame-continuation/troop-training-20260719T024310202414Z/`
-- Troop entry Vehicle final Home: `.local-captures/troop-training-atlas-entry/vehicle-exterior-close/troop-training-20260719T024522835241Z/`
-- Raw source: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-source.png`
-- Immediate-before: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-immediate-before-1.png`
-- Immediate-post: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-post-2.png`
-- Semantic result: `evidence/sessions/20260715-mvp-quest-to-claim/daily-claim-1784092554-result.json`
-- Operational journal: `evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3`; confirmed after positive postcondition reconciliation
-- Historical/source journal: `evidence/sessions/20260714-bioenhancer-live-transaction/actions-bioenhancer-free-1784069057.sqlite3`
-- Unresolved evidence: `evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json`
+- Active evidence manifest: none (`NOT_APPLICABLE`)
+- Evidence requirement: NOT_APPLICABLE; offline fixtures authorize review; live artifacts stay under
+  `.local-captures` and must not stage protected `evidence/**`
+- Prior navigation/collection local capture references remain listed in structured state above
 - Must-retain artifacts: MVP manifest, exact MVP references, current governance manifest, and
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: launch one fresh local Grok 4.5 High implementation subagent for
-  `HOME-NAVIGATION-OBSERVABILITY`
-- Prohibited actions: runtime/evidence operation, second session store, calibration changes,
-  later-task activation, and push
-- Exact stop condition: stop on subagent completion, review blocker, or cycle limit
-- Expected next atomic task: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`
-- Expected next activation status: dependency_blocked
+- Permitted action: parent review of offline `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`; then
+  authorize one bounded live reversible navigate-building validation if review passes
+- Prohibited actions: consequential gameplay, atlas expansion, composition/M6 activation, push,
+  enabling `CONFIRMED_NOT_DISPATCHED`, registration/scheduler changes
+- Exact stop condition: stopped for parent review after offline gates; live only if authorized;
+  commit only after offline+live
+- Expected next atomic task: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`
+- Expected next activation status: `dependency_blocked`
 
 ## Ruins Challenge local task handoff — 2026-07-16
 
