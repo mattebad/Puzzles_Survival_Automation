@@ -3125,15 +3125,16 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 - Title: Narrow declarative verified-flow composition over existing navigation contracts.
-- Status: Pending (dependency-blocked; readiness review required after calibration; not activated).
+- Status: Blocked (2026-07-19; mandatory readiness review failed; no implementation or activation).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed shared roadmap contracts for
   perception/session/radial/safe-exit/capability reuse, and existing `NavigationStep` /
   `NavigationRunner` contracts.
-- Blocked by: readiness review must first demonstrate that multiple routes already reuse stable
-  perception, session, radial, safe-exit, and capability contracts; if reuse is not demonstrable,
-  stop as a valid blocked outcome without building a second engine. No broad DSL or generic
-  autonomous runtime is authorized.
+- Blocked by: readiness review found no two real routes that jointly reuse the stable perception,
+  resumable-session, observability, radial, safe-exit, and capability contracts; existing routes
+  retain route-local/direct transport bypasses. See
+  `docs/navigation_verified_flow_readiness.md`. No broad DSL or generic autonomous runtime is
+  authorized.
 - Objective: after a positive readiness review, extend existing `NavigationStep`, `NavigationRunner`,
   contracts, and semantic planners for declarative verified-flow composition of one reference route
   only, reusing the stable shared contracts rather than inventing a second engine.

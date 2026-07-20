@@ -3,16 +3,13 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "HEAD (bounded session calibration commit; readiness review pending)",
-    "origin_relationship": "main is ahead of origin/main by eight local roadmap commits; no push",
+    "head": "HEAD (roadmap readiness blocked; calibration commit 843fd10 preserved)",
+    "origin_relationship": "main is ahead of origin/main by ten local roadmap commits; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
       "BACKLOG.md",
       "CURRENT_HANDOFF.md",
-      "tasks/navigation_session_calibration.py",
-      "scripts/home_atlas_bluestacks.py",
-      "tests/test_navigation_session_calibration.py",
-      "tests/test_governance_validation.py"
+      "docs/navigation_verified_flow_readiness.md"
     ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
@@ -20,6 +17,7 @@
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
+      "843fd10 feat(navigation): add bounded session calibration",
       "ca60cd9 feat(home): add navigation session observability",
       "e7324c7 test(vision): add native-frame mutation corpus",
       "1b44629 fix(tools): acknowledge passive capture finalization",
@@ -34,14 +32,14 @@
       "f9fbd4c docs(hand-off): record parity commit state"
     ]
   },
-  "current_task_id": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION",
-  "current_task_state": "completed",
-  "next_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
-  "next_task_activation_status": "dependency_blocked",
-  "phase": "home_navigation_bounded_session_calibration_completed_readiness_pending",
-  "objective": "Add strictly bounded session-local BlueStacks gesture adaptation while preserving the original calibration, rejecting invalid measurements, and never persisting learned calibration or granting input authority.",
-  "last_safe_completed_step": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION cycle-2 exact schema hardening parent-reviewed offline: full state/report graph validation, strict nested deserialization, immutable baseline/effective calibration, bounded adjustments, and adversarial probes all pass; successor RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains dependency-blocked; no commit/push/runtime.",
-  "next_permitted_action": "Create the single reviewed local calibration commit, then perform the mandatory readiness review for RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION before any final-task activation; no push or runtime.",
+  "current_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
+  "current_task_state": "blocked",
+  "next_task_id": "M6-DQ-TRANSITION-CORPUS",
+  "next_task_activation_status": "not_activated",
+  "phase": "runtime_declarative_verified_flow_composition_readiness_blocked",
+  "objective": "Truthfully determine whether multiple real routes already reuse the stable perception, session, observability, radial, safe-exit, and capability contracts before allowing shared flow composition.",
+  "last_safe_completed_step": "HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION parent-reviewed and committed as 843fd10; mandatory final-task readiness review found no two qualifying real routes and recorded exact missing integrations in docs/navigation_verified_flow_readiness.md; final task remains blocked; M6 remains unactivated; no runtime/push.",
+  "next_permitted_action": "No further roadmap implementation or activation; route-level integration of the missing stable contracts is required before readiness can be reconsidered; no push or runtime.",
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
     "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity."
@@ -57,6 +55,9 @@
     "Cycle-2 final offline repository validation: 852 passed / 1 skipped; compilation, governance, handoff JSON, touched-file secret scan, and git diff checks passed; zero runtime/transport; no commit/push.",
     "Parent completion review reproduced all five cycle-1 forged-report/state probes as stable SessionCalibrationError failures, reran 32 focused tests plus 102 core and 226 touched regressions, and passed the full offline repository suite: 852 passed / 1 skipped.",
     "Marked HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION complete after parent review; RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains dependency-blocked pending mandatory readiness review.",
+    "Committed reviewed HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION locally as 843fd10 feat(navigation): add bounded session calibration; no push.",
+    "Performed mandatory RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION readiness review against Home atlas, Noah's Tavern, Troop Training, and Ruins route consumers; no two real routes jointly reuse the required stable contracts, so the task is blocked without implementation or activation.",
+    "Added docs/navigation_verified_flow_readiness.md documenting route evidence, direct transport/capability bypasses, absent observability/session/bundle/safe-exit integrations, and exact prerequisites for reconsideration; M6-DQ-TRANSITION-CORPUS remains unactivated.",
     "Implemented tasks/navigation_observability.py as a read-only immutable NavigationSession ledger reporter with exact public schema, deterministic ordered JSON serialization, explicit unknown/unavailable fields, and authority separation for requested/authorized/dispatched/transport-confirmed/verified.",
     "Added tests/test_navigation_observability.py covering complete, incomplete, failed, resumed/uncertain, recovery-only, duplicate-suppressed, malformed/contradictory ledgers, clamp/repeated-viewport signals, serialization revalidation, no NumPy retention, no session mutation, and CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
     "Cycle-2 hardened tasks/navigation_observability.py against coercive malformed ledger fields, bool/int and finite-value lookalikes, forged report graphs, mutable nested values, and malformed/duplicate/non-finite serialized snapshots; added strict deserialization and deep graph revalidation.",
