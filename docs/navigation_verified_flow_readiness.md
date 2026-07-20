@@ -1,17 +1,15 @@
 # Verified-flow composition readiness review
 
-Review date: 2026-07-19 (renewed after `f093812` and `f523f0f`)
+Review date: 2026-07-19 (renewed after `f093812` and `f523f0f`; Home Atlas seams
+closed by `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`)
 
 ## Decision
 
 `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` remains **blocked**.
 
-Two real BlueStacks routes now live-validated capability-bound navigation
-(`HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION` as `f093812`,
-`SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION` as `f523f0f`), but they do **not** yet
-jointly reuse the complete shared architecture without remaining integration
-gaps. Composition must not activate until the missing integrations below are
-closed on the production route paths.
+Home Atlas navigate-building has closed its two recorded readiness findings
+(fresh pre_dispatch + action-ledger parity). Supply Depot still retains the
+remaining gaps listed below, so composition must not activate.
 
 No composition engine, DSL, generic autonomous runtime, or new route was
 implemented in this review. `M6-DQ-TRANSITION-CORPUS` remains unactivated.
@@ -25,17 +23,18 @@ Registration remains `NOT_REGISTERED`. Scheduler remains disabled.
 | Field | Evidence |
 | --- | --- |
 | Production entry point | `scripts/home_atlas_bluestacks.py` → `command_navigate_building` |
-| Capture binding | `identity_from_captured` + `build_navigate_perception_bundle` / checked navigation inputs on the immediate-before frame |
+| Capture binding | `identity_from_captured` + `build_navigate_perception_bundle` / checked navigation inputs on the planning frame; each pan additionally acquires a genuine `navigate-pan-pre-dispatch` capture |
 | Session ownership | Creates and persists one authoritative `NavigationSession`; pans prepare/dispatch/reconcile against it |
 | Observability | Terminal `attach_navigate_terminal_reports` → `report_navigation_session` |
 | Calibration | `create_bluestacks_session_calibration` considered after reconciled pans |
 | Radial use | N/A for this pan route |
 | Safe-exit use | N/A for this pan route |
-| Capability issuance / final consumption | `dispatch_verified_navigate_pan` → `CentralPolicy.issue_capability` + `SafeActionExecutor.execute` |
+| Capability issuance / final consumption | `dispatch_verified_navigate_pan` issues against the fresh pre_dispatch observation, then `SafeActionExecutor.execute` consumes; transport swipes that fresh capture only inside the seal-gated callback |
 | Transport boundary | `runtime.swipe` only inside seal-gated executor transport callback; direct bypass fail-closed |
-| Live validation | Passed under `.local-captures/home-atlas-verified-route/` (Bank pan + HQ return; `building_opened=false`) |
+| Live validation | Seam-closure regression under `.local-captures/home-atlas-seam-closure/`: Bank 1 pan + HQ return 2 pans; `building_opened=false`; each pan `planning digest ≠ pre_dispatch_frame_sha256` |
 | Semantic verification boundary | Settled capture + pan reconciliation distinct from transport confirmation |
-| Remaining bypasses | Executor `recapture()` returns the cached issuance observation (no fresh frame capture/rebind at the final pre_dispatch boundary). Result payload exposes executor/transport/semantic fields but not the full distinct requested/authorized/dispatched/transport_observed/verified/completed ledger required for composition parity. |
+| Action ledger | Per-pan `action_ledger` exposes requested / authorized / dispatched / transport_observed / verified / completed / failed / unresolved |
+| Remaining bypasses | **None for the two Home Atlas readiness findings.** Fresh pre_dispatch capture/rebind and full action-ledger parity are closed as of `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`. |
 
 ### Supply Depot radial
 
@@ -63,23 +62,21 @@ readiness.
 
 ## Exact missing integrations (blocker)
 
-Before composition can be reconsidered, the two qualifying routes must close:
+Home Atlas findings (1) fresh pre_dispatch capture/rebind and (3) six-state action-ledger
+parity are **closed** by `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`.
 
-1. **Fresh pre_dispatch recapture/rebind** on every verified dispatch helper
-   (`dispatch_verified_navigate_pan`, Supply Depot building/radial/exit): the
-   executor `recapture()` callback must capture a new immutable frame, rebuild
-   observation/binding from that frame, and fail closed on drift — not reuse the
-   issuance-time observation object.
-2. **Safe-exit binder consumption** on Supply Depot exit: the executed exit
-   target ROI must come from the shared BlueStacks safe-exit binder candidate
-   bound to the current capture (still non-authorizing until capability issuance),
-   not a parallel fixed ROI that ignores the binder.
-3. **Home Atlas six-state action ledger parity** (requested / authorized /
-   dispatched / transport_observed / verified / completed) on the navigate-building
-   result path, matching Supply Depot `_execution_payload` semantics.
-4. **Same-capture perception bundle** on Supply Depot building and exit steps
-   (not only the radial step), or an explicit readiness waiver recorded only if
-   composition contracts prove those steps are out of scope — default is require.
+Before composition can be reconsidered, Supply Depot must still close:
+
+1. **Fresh pre_dispatch recapture/rebind** on Supply Depot building/radial/exit helpers: the
+   executor `recapture()` callback must not reuse the issuance-time observation object; acquire
+   a genuine fresh pre_dispatch frame, rebuild observation/binding, issue capability against that
+   frame, and fail closed on drift.
+2. **Safe-exit binder consumption** on Supply Depot exit: the executed exit target ROI must come
+   from the shared BlueStacks safe-exit binder candidate bound to the current capture (still
+   non-authorizing until capability issuance), not a parallel fixed ROI that ignores the binder.
+3. **Same-capture perception bundle** on Supply Depot building and exit steps (not only the radial
+   step), or an explicit readiness waiver recorded only if composition contracts prove those steps
+   are out of scope — default is require.
 
 Imports, dormant adapters, test mocks, metadata-only probes, and sealed direct
 transport helpers do not count as readiness. Live transport success alone does

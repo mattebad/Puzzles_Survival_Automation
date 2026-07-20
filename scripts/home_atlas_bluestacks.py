@@ -960,20 +960,45 @@ def dispatch_verified_navigate_pan(
     dry_run: bool = False,
     monotonic_clock: Callable[[], float] | None = None,
     wall_clock: Callable[[], float] | None = None,
-) -> tuple[object, object | None, Observation]:
-    """Issue one-shot capability and consume it through SafeActionExecutor for a pan.
+) -> tuple[object, object | None, Observation, dict[str, object]]:
+    """Issue one-shot capability against a fresh pre_dispatch frame and consume it.
 
-    Adapter-level runtime.swipe remains reachable only from the executor transport
-    callback after capability consumption authorizes dispatch. Direct bypass is rejected.
+    The caller's ``immediate_before`` / ``identity`` describe only the planning
+    frame used to compute the drag geometry. This helper acquires its own genuine
+    fresh pre_dispatch capture, issues the capability against that frame, and both
+    the executor recapture (semantic rebind) and the transport swipe operate on
+    that same fresh capture. Adapter-level ``runtime.swipe`` remains reachable only
+    from the executor transport callback after capability consumption authorizes
+    dispatch. Direct bypass is rejected.
     """
 
+    # Finding 1: acquire a genuine fresh pre_dispatch frame. The planning
+    # ``immediate_before`` must never be treated as the issuance frame.
+    fresh_capture = runtime.capture("navigate-pan-pre-dispatch")
+    fresh_ordinal = getattr(runtime, "ordinal", None)
+    if fresh_ordinal is None:
+        fresh_ordinal = int(identity.capture_ordinal) + 1
+    fresh_identity = identity_from_captured(
+        fresh_capture,
+        session_id=str(runtime.session),
+        ordinal=int(fresh_ordinal),
+        label="navigate-pan-pre-dispatch",
+    )
+    # Fail closed on an inconsistent fresh capture before any capability issuance.
+    fresh_validation = bluestacks_frame_validation(fresh_identity)
+    if fresh_validation.validity is not FrameValidityState.VALID_NATIVE:
+        raise PerceptionBundleError("PRE_DISPATCH_FRAME_INVALID")
+    if len(str(fresh_identity.semantic_sha256)) != 64:
+        raise PerceptionBundleError("PRE_DISPATCH_DIGEST_INCONSISTENT")
+
+    # The capability is bound to THIS fresh pre_dispatch observation.
     pre_observation = build_navigate_pan_observation(
-        identity=identity,
+        identity=fresh_identity,
         drag_start=drag_start,
         drag_end=drag_end,
     )
     # Keep a distinct prior proposal for executor freshness while preserving the
-    # real capture digest used by capability binding and the action journal.
+    # real fresh-capture digest used by capability binding and the action journal.
     proposal_observation = replace(
         pre_observation,
         capture_completed_monotonic=pre_observation.capture_completed_monotonic - 0.05,
@@ -994,24 +1019,46 @@ def dispatch_verified_navigate_pan(
         monotonic_now=now,
     )
     issued = policy.issue_capability(issue_request)
+    telemetry: dict[str, object] = {
+        "requested": True,
+        "authorized": bool(issued.authorized and issued.capability is not None),
+        "dispatched": False,
+        "transport_observed": False,
+        "pre_dispatch_frame_sha256": str(fresh_identity.semantic_sha256),
+        "pre_dispatch_capture_ordinal": int(fresh_identity.capture_ordinal),
+    }
     if not issued.authorized or issued.capability is None:
-        return issued, None, pre_observation
+        return issued, None, pre_observation, telemetry
 
     def transport(_intent) -> TransportResult:
         reject_direct_navigate_building_transport(authorized_token=_VERIFIED_PAN_TRANSPORT_SEAL)
         if dry_run:
             raise RuntimeError("DRY_RUN_TRANSPORT_MUST_NOT_RUN")
+        # Transport swipes on the fresh pre_dispatch capture the capability is
+        # bound to, never the stale planning frame.
         runtime.swipe(
-            immediate_before,
+            fresh_capture,
             start=drag_start,
             end=drag_end,
             action_key=action_key,
             target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
         )
+        telemetry["dispatched"] = True
         return TransportResult(True, "HOME_ATLAS_PAN_DISPATCHED")
 
     def recapture() -> Observation:
-        return pre_observation
+        # Semantic rebind: build a NEW Observation from the same fresh
+        # pre_dispatch capture/identity used for issuance. Never return the
+        # issuance object by identity. Identical digest+monotonic let capability
+        # consume succeed only when the scene is unchanged; drift fails closed.
+        rebuilt = build_navigate_pan_observation(
+            identity=fresh_identity,
+            drag_start=drag_start,
+            drag_end=drag_end,
+        )
+        if rebuilt is pre_observation:
+            raise RuntimeError("RECAPTURE_MUST_REBUILD_DISTINCT_OBSERVATION")
+        return rebuilt
 
     def post_observe():
         return (
@@ -1050,7 +1097,46 @@ def dispatch_verified_navigate_pan(
         monotonic_now=float(mono_clock()),
     )
     result = executor.execute(execute_request, issued.capability, dry_run=dry_run)
-    return issued, result, pre_observation
+    telemetry["transport_observed"] = bool(result.transport_calls > 0)
+    return issued, result, pre_observation, telemetry
+
+
+def navigate_pan_execution_payload(
+    issued,
+    execution,
+    telemetry: dict[str, object],
+    *,
+    semantic_verified: bool,
+) -> dict[str, object]:
+    """Full shared action-ledger parity for one navigate-building pan.
+
+    Mirrors Supply Depot ``_execution_payload`` field semantics while sourcing the
+    semantic verification signal (pan progress accepted) from the caller's
+    reconciliation. Transport confirmation is distinct from semantic verification;
+    ``completed`` requires both. ``failed`` / ``unresolved`` are derived from the
+    executor status so terminal states are never conflated with success.
+    """
+
+    executor_status = execution.status if execution is not None else None
+    transport_observed = bool(execution is not None and execution.transport_calls > 0)
+    verified = bool(semantic_verified)
+    completed = bool(executor_status is ActionStatus.CONFIRMED and verified)
+    unresolved = bool(executor_status is ActionStatus.UNRESOLVED)
+    return {
+        "requested": bool(telemetry.get("requested")),
+        "authorized": bool(telemetry.get("authorized")),
+        "dispatched": bool(telemetry.get("dispatched")),
+        "transport_observed": transport_observed,
+        "verified": verified,
+        "completed": completed,
+        "failed": bool(not completed and not unresolved),
+        "unresolved": unresolved,
+        "capability_reason": getattr(issued, "reason_code", None),
+        "executor_status": executor_status.value if executor_status is not None else None,
+        "executor_reason": execution.reason if execution is not None else None,
+        "input_count": execution.transport_calls if execution is not None else 0,
+        "pre_dispatch_frame_sha256": telemetry.get("pre_dispatch_frame_sha256"),
+    }
 
 
 def build_supply_depot_radial_semantics(
@@ -2761,6 +2847,8 @@ def _command_navigate_building_body(
         )
 
     source_home_recorded = False
+    # Route-level action-ledger aggregates for shared parity across pans.
+    pan_transport_inputs = 0
     for ordinal in range(args.maximum_pans + 1):
         immediate_before = runtime.capture(f"navigate-{ordinal:02d}-immediate-before")
         derived_localization = localizer.localize(immediate_before.frame)
@@ -2879,7 +2967,7 @@ def _command_navigate_building_body(
                 gesture_fingerprint=gesture_fingerprint,
             )
             _persist_navigate_session(nav_session, runtime.session)
-            issued, execution, _pre_obs = dispatch_verified_navigate_pan(
+            issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
                 runtime=runtime,
                 immediate_before=immediate_before,
                 identity=identity,
@@ -2895,6 +2983,9 @@ def _command_navigate_building_body(
                 dry_run=False,
             )
             if execution is None:
+                pan_ledger = navigate_pan_execution_payload(
+                    issued, None, pan_telemetry, semantic_verified=False
+                )
                 mark_blocked(nav_session, reason=str(issued.reason_code))
                 _persist_navigate_session(nav_session, runtime.session)
                 return emit(
@@ -2907,10 +2998,15 @@ def _command_navigate_building_body(
                         "session": str(runtime.session),
                         "navigation_session": str(session_path),
                         "route_id": nav_session.route_id,
+                        "action_ledger": pan_ledger,
+                        **pan_ledger,
                     },
                     3,
                 )
             if execution.status not in {ActionStatus.CONFIRMED, ActionStatus.UNRESOLVED} or execution.transport_calls < 1:
+                pan_ledger = navigate_pan_execution_payload(
+                    issued, execution, pan_telemetry, semantic_verified=False
+                )
                 mark_blocked(nav_session, reason=str(execution.reason))
                 _persist_navigate_session(nav_session, runtime.session)
                 return emit(
@@ -2924,10 +3020,13 @@ def _command_navigate_building_body(
                         "session": str(runtime.session),
                         "navigation_session": str(session_path),
                         "route_id": nav_session.route_id,
+                        "action_ledger": pan_ledger,
+                        **pan_ledger,
                     },
                     3,
                 )
             record_pan_dispatched(nav_session, action_key)
+            pan_transport_inputs += int(execution.transport_calls)
             _persist_navigate_session(nav_session, runtime.session)
             pre_input_bundle = perception.invalidate_after_input()
             immediate_post = runtime.capture(f"navigate-{ordinal:02d}-immediate-post")
@@ -2993,6 +3092,9 @@ def _command_navigate_building_body(
             except Exception:
                 # Invalid measurements fail closed for adaptation only; route outcome stays semantic.
                 pass
+            pan_ledger = navigate_pan_execution_payload(
+                issued, execution, pan_telemetry, semantic_verified=accepted
+            )
             record = {
                 "ordinal": ordinal + 1,
                 "action": "pan",
@@ -3010,9 +3112,12 @@ def _command_navigate_building_body(
                 "route_id": nav_session.route_id,
                 "navigation_checkpoint": nav_session.checkpoint.value,
                 "navigation_outcome": nav_session.outcome.value,
+                # Backwards-compatible transport/semantic fields plus full ledger parity.
                 "executor_status": execution.status.value,
                 "transport_observed": execution.transport_calls > 0,
                 "semantic_verified": bool(accepted),
+                "action_ledger": pan_ledger,
+                **pan_ledger,
             }
             records.append(record)
             _json(runtime.session / f"navigate-pan-{ordinal + 1:02d}.json", record)
@@ -3026,8 +3131,9 @@ def _command_navigate_building_body(
                         "session": str(runtime.session),
                         "navigation_session": str(session_path),
                         "route_id": nav_session.route_id,
-                        "transport_observed": True,
                         "semantic_verified": False,
+                        "action_ledger": pan_ledger,
+                        **pan_ledger,
                     },
                     3,
                 )
@@ -3036,6 +3142,22 @@ def _command_navigate_building_body(
             record_target_bound(nav_session, binding=binding, frame=identity, historical_roi=binding.target_roi)
             complete_route_at_target_bound(nav_session)
             _persist_navigate_session(nav_session, runtime.session)
+            # Route-level ledger parity: the target is semantically bound. Any pans
+            # dispatched to reach it are recorded above with their own action ledgers.
+            completion_ledger = {
+                "requested": True,
+                "authorized": True,
+                "dispatched": bool(pan_transport_inputs > 0),
+                "transport_observed": bool(pan_transport_inputs > 0),
+                "verified": True,
+                "completed": True,
+                "failed": False,
+                "unresolved": False,
+                "capability_reason": None,
+                "executor_status": None,
+                "executor_reason": None,
+                "input_count": int(pan_transport_inputs),
+            }
             return emit(
                 {
                     "status": "completed",
@@ -3053,6 +3175,8 @@ def _command_navigate_building_body(
                     "session": str(runtime.session),
                     "navigation_session": str(session_path),
                     "route_id": nav_session.route_id,
+                    "action_ledger": completion_ledger,
+                    **completion_ledger,
                 },
                 0,
             )

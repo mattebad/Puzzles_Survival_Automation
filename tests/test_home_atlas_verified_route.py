@@ -64,13 +64,19 @@ _TEST_LEASE_TTL = 100.0
 
 
 class _MonoClock:
-    """Keep offline executor timing relative to FakeRuntime capture ordinals."""
+    """Keep offline executor timing relative to FakeRuntime capture ordinals.
 
-    def __init__(self, captured: CapturedNativeFrame) -> None:
-        self.value = float(captured.captured_monotonic) + 0.2
+    ``dispatch_verified_navigate_pan`` acquires its own fresh pre_dispatch capture,
+    so the injected clock must stay just ahead of the most recent capture monotonic.
+    FakeRuntime sets ``captured_monotonic == ordinal``; tracking the live ordinal
+    keeps observation/dispatch ages small and positive after the extra capture.
+    """
+
+    def __init__(self, runtime: "_FakeRuntime") -> None:
+        self._runtime = runtime
 
     def __call__(self) -> float:
-        return self.value
+        return float(self._runtime.ordinal) + 0.2
 
 
 @contextmanager
@@ -171,6 +177,7 @@ class _FakeRuntime:
         self.ordinal = 0
         self._origin = (0.0, 0.0)
         self.progress_after_swipe = False
+        self.captured_frames: list[tuple[str, CapturedNativeFrame]] = []
 
     def capture(self, label: str) -> CapturedNativeFrame:
         self.ordinal += 1
@@ -179,13 +186,18 @@ class _FakeRuntime:
         if self.progress_after_swipe and "settled" in label:
             # Distinct pixels so semantic digest changes with progress origin.
             frame[10, 10] = (40, 40, 40)
-        return CapturedNativeFrame(
+        captured = CapturedNativeFrame(
             frame,
             f"png-{self.ordinal}".encode(),
             "f" * 64,
             float(self.ordinal),
             self.session / f"{label}.png",
         )
+        self.captured_frames.append((label, captured))
+        return captured
+
+    def captures_labeled(self, label: str) -> list[CapturedNativeFrame]:
+        return [captured for name, captured in self.captured_frames if name == label]
 
     def swipe(self, captured, *, start, end, action_key, target_identity):
         self.swipes.append(
@@ -255,6 +267,24 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             self.assertIn("navigation_observability", payload)
             self.assertEqual(payload["production_registration"], "NOT_REGISTERED")
             self.assertIs(payload["scheduler_eligibility"], False)
+            # Finding 2: terminal completed emit carries full action-ledger parity.
+            for field in (
+                "requested",
+                "authorized",
+                "dispatched",
+                "transport_observed",
+                "verified",
+                "completed",
+                "failed",
+                "unresolved",
+            ):
+                self.assertIn(field, payload, msg=f"missing ledger field {field}")
+                self.assertIn(field, payload["action_ledger"])
+            self.assertIs(payload["completed"], True)
+            self.assertIs(payload["verified"], True)
+            self.assertIs(payload["failed"], False)
+            # Zero-pan completion dispatched no transport.
+            self.assertIs(payload["transport_observed"], False)
 
     def test_immutable_perception_consumption(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -410,7 +440,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             )
             with _open_safety_store(Path(directory)) as store:
                 policy = CentralPolicy(supervised_tasks=frozenset({"OTHER-TASK"}))
-                issued, execution, _obs = dispatch_verified_navigate_pan(
+                issued, execution, _obs, _telemetry = dispatch_verified_navigate_pan(
                     runtime=runtime,
                     immediate_before=captured,
                     identity=identity,
@@ -423,7 +453,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                     lease_owner="owner",
                     policy=policy,
                     store=store,
-                    monotonic_clock=_MonoClock(captured),
+                    monotonic_clock=_MonoClock(runtime),
                     wall_clock=lambda: _TEST_WALL,
                 )
                 self.assertFalse(issued.authorized)
@@ -432,7 +462,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
 
             with _open_safety_store(Path(directory), name="safety2.sqlite3") as store2:
                 policy2 = _policy_for("RUNTIME-RESUMABLE-NAVIGATION-SESSIONS")
-                issued2, execution2, obs = dispatch_verified_navigate_pan(
+                issued2, execution2, obs, _telemetry2 = dispatch_verified_navigate_pan(
                     runtime=runtime,
                     immediate_before=captured,
                     identity=identity,
@@ -445,7 +475,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                     lease_owner="owner",
                     policy=policy2,
                     store=store2,
-                    monotonic_clock=_MonoClock(captured),
+                    monotonic_clock=_MonoClock(runtime),
                     wall_clock=lambda: _TEST_WALL,
                 )
                 self.assertTrue(issued2.authorized)
@@ -579,7 +609,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 captured, session_id=str(runtime.session), ordinal=1, label="before"
             )
             with _open_safety_store(Path(directory)) as store:
-                issued, execution, _obs = dispatch_verified_navigate_pan(
+                issued, execution, _obs, _telemetry = dispatch_verified_navigate_pan(
                     runtime=runtime,
                     immediate_before=captured,
                     identity=identity,
@@ -592,7 +622,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                     lease_owner="owner",
                     policy=_policy_for("RUNTIME-RESUMABLE-NAVIGATION-SESSIONS"),
                     store=store,
-                    monotonic_clock=_MonoClock(captured),
+                    monotonic_clock=_MonoClock(runtime),
                     dry_run=True,
                     wall_clock=lambda: _TEST_WALL,
                 )
@@ -623,7 +653,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                     lease_owner="owner",
                     policy=policy,
                     store=store,
-                    monotonic_clock=_MonoClock(captured),
+                    monotonic_clock=_MonoClock(runtime),
                     wall_clock=lambda: _TEST_WALL,
                 )
                 first = dispatch_verified_navigate_pan(**kwargs)
@@ -663,6 +693,23 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             self.assertTrue(payload.get("transport_observed"))
             self.assertFalse(payload.get("semantic_verified"))
             self.assertEqual(payload["reason"], "no_measured_progress")
+            # Finding 2: distinct requested/authorized/dispatched/transport/verified/
+            # completed states are all present; transport observed but not verified.
+            ledger = payload["action_ledger"]
+            self.assertIs(ledger["requested"], True)
+            self.assertIs(ledger["authorized"], True)
+            self.assertIs(ledger["dispatched"], True)
+            self.assertIs(ledger["transport_observed"], True)
+            self.assertIs(ledger["verified"], False)
+            self.assertIs(ledger["completed"], False)
+            self.assertIs(ledger["failed"], True)
+            self.assertIs(ledger["unresolved"], False)
+            self.assertEqual(ledger["executor_status"], "confirmed")
+            # The single pan record mirrors the same ledger fields.
+            pan_record = payload["records"][-1]
+            self.assertEqual(pan_record["action_ledger"], ledger)
+            self.assertTrue(pan_record["transport_observed"])
+            self.assertFalse(pan_record["semantic_verified"])
 
     def test_semantic_verification_failure_and_observability(self) -> None:
         world = _atlas(_far_building())
@@ -752,7 +799,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 captured, session_id=str(runtime.session), ordinal=1, label="before"
             )
             with _open_safety_store(Path(directory)) as store:
-                issued, execution, obs = dispatch_verified_navigate_pan(
+                issued, execution, obs, telemetry = dispatch_verified_navigate_pan(
                     runtime=runtime,
                     immediate_before=captured,
                     identity=identity,
@@ -765,7 +812,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                     lease_owner="owner",
                     policy=_policy_for("RUNTIME-RESUMABLE-NAVIGATION-SESSIONS"),
                     store=store,
-                    monotonic_clock=_MonoClock(captured),
+                    monotonic_clock=_MonoClock(runtime),
                     wall_clock=lambda: _TEST_WALL,
                 )
                 self.assertTrue(issued.authorized)
@@ -776,6 +823,186 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 self.assertEqual(runtime.swipes[0]["target_identity"], NAVIGATE_BUILDING_TARGET_IDENTITY)
                 self.assertEqual(obs.target_roi, roi)
                 self.assertEqual(obs.consequence, "navigate_zero_cost")
+                # The capability is bound to the fresh pre_dispatch capture, not
+                # the caller's planning frame; transport swiped that fresh frame.
+                fresh_frames = runtime.captures_labeled("navigate-pan-pre-dispatch")
+                self.assertEqual(len(fresh_frames), 1)
+                self.assertEqual(obs.frame_sha256, frame_digest(fresh_frames[0].frame))
+                self.assertNotEqual(obs.frame_sha256, identity.semantic_sha256)
+                self.assertTrue(telemetry["transport_observed"])
+                self.assertEqual(
+                    telemetry["pre_dispatch_frame_sha256"], obs.frame_sha256
+                )
+
+    def test_recapture_rebuilds_distinct_semantic_observation(self) -> None:
+        # Finding 1 negative control: the executor recapture must rebuild a NEW
+        # Observation from the fresh pre_dispatch capture, never return the
+        # issuance object by identity, while matching digest+monotonic exactly.
+        module = importlib.import_module("scripts.home_atlas_bluestacks")
+        real_executor = module.SafeActionExecutor
+        recorded: dict[str, object] = {}
+
+        def _spy(*args, **kwargs):
+            instance = real_executor(*args, **kwargs)
+            recorded["recapture"] = instance.recapture
+            return instance
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            captured = runtime.capture("before")
+            identity = identity_from_captured(
+                captured, session_id=str(runtime.session), ordinal=1, label="before"
+            )
+            with _open_safety_store(Path(directory)) as store:
+                with patch("scripts.home_atlas_bluestacks.SafeActionExecutor", _spy):
+                    issued, execution, obs, _telemetry = dispatch_verified_navigate_pan(
+                        runtime=runtime,
+                        immediate_before=captured,
+                        identity=identity,
+                        drag_start=(450, 500),
+                        drag_end=(300, 450),
+                        action_id="rebind-1",
+                        action_key="rebind-key-1",
+                        task_id="RUNTIME-RESUMABLE-NAVIGATION-SESSIONS",
+                        navigation_session_id="nav-rebind",
+                        lease_owner="owner",
+                        policy=_policy_for("RUNTIME-RESUMABLE-NAVIGATION-SESSIONS"),
+                        store=store,
+                        monotonic_clock=_MonoClock(runtime),
+                        wall_clock=lambda: _TEST_WALL,
+                    )
+                self.assertTrue(issued.authorized)
+                assert execution is not None
+                self.assertEqual(execution.status, ActionStatus.CONFIRMED)
+                recapture = recorded["recapture"]
+                first = recapture()
+                second = recapture()
+                # Distinct object each call and never the issuance observation.
+                self.assertIsNot(first, second)
+                self.assertIsNot(first, obs)
+                self.assertIsNot(second, obs)
+                # ...yet digest + monotonic match so consume can succeed unchanged.
+                self.assertEqual(first.frame_sha256, obs.frame_sha256)
+                self.assertEqual(
+                    first.capture_completed_monotonic, obs.capture_completed_monotonic
+                )
+                self.assertEqual(second.frame_sha256, obs.frame_sha256)
+
+    def test_fresh_pre_dispatch_capture_distinct_from_planning_frame(self) -> None:
+        # Finding 1: a genuine fresh pre_dispatch capture is acquired; the
+        # planning immediate_before is never treated as the issuance frame.
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            captured = runtime.capture("before")
+            identity = identity_from_captured(
+                captured, session_id=str(runtime.session), ordinal=1, label="before"
+            )
+            with _open_safety_store(Path(directory)) as store:
+                issued, execution, obs, telemetry = dispatch_verified_navigate_pan(
+                    runtime=runtime,
+                    immediate_before=captured,
+                    identity=identity,
+                    drag_start=(450, 500),
+                    drag_end=(300, 450),
+                    action_id="fresh-1",
+                    action_key="fresh-key-1",
+                    task_id="RUNTIME-RESUMABLE-NAVIGATION-SESSIONS",
+                    navigation_session_id="nav-fresh",
+                    lease_owner="owner",
+                    policy=_policy_for("RUNTIME-RESUMABLE-NAVIGATION-SESSIONS"),
+                    store=store,
+                    monotonic_clock=_MonoClock(runtime),
+                    wall_clock=lambda: _TEST_WALL,
+                )
+                self.assertTrue(issued.authorized)
+                assert execution is not None
+                fresh_frames = runtime.captures_labeled("navigate-pan-pre-dispatch")
+                self.assertEqual(len(fresh_frames), 1)
+                fresh = fresh_frames[0]
+                # Capability is bound to the fresh capture, not the planning frame.
+                self.assertEqual(obs.frame_sha256, frame_digest(fresh.frame))
+                self.assertNotEqual(obs.frame_sha256, identity.semantic_sha256)
+                self.assertEqual(
+                    telemetry["pre_dispatch_frame_sha256"], frame_digest(fresh.frame)
+                )
+                # Transport swiped the fresh capture the capability is bound to.
+                self.assertEqual(len(runtime.swipes), 1)
+                self.assertEqual(runtime.swipes[0]["sha256"], fresh.sha256)
+
+    def test_recapture_scene_drift_fails_closed(self) -> None:
+        # Finding 1: if the rebuilt pre_dispatch observation drifts to a different
+        # capture (cross-capture / scene change), consume fails closed with zero
+        # transport. Transport success is never inferred from issuance.
+        from safe_action_core import SafeActionExecutor, TransportResult
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            first = runtime.capture("pre-dispatch")
+            first_identity = identity_from_captured(
+                first, session_id=str(runtime.session), ordinal=1, label="pre-dispatch"
+            )
+            drifted = runtime.capture("drifted")
+            drifted_identity = identity_from_captured(
+                drifted, session_id=str(runtime.session), ordinal=2, label="drifted"
+            )
+            obs = build_navigate_pan_observation(
+                identity=first_identity, drag_start=(450, 500), drag_end=(300, 450)
+            )
+            drifted_obs = build_navigate_pan_observation(
+                identity=drifted_identity, drag_start=(450, 500), drag_end=(300, 450)
+            )
+            self.assertNotEqual(obs.frame_sha256, drifted_obs.frame_sha256)
+            with _open_safety_store(Path(directory)) as store:
+                policy = _policy_for("RUNTIME-RESUMABLE-NAVIGATION-SESSIONS")
+                issued = policy.issue_capability(
+                    build_navigate_pan_policy_request(
+                        observation=obs,
+                        action_id="drift-scene-1",
+                        action_key="drift-scene-key-1",
+                        task_id="RUNTIME-RESUMABLE-NAVIGATION-SESSIONS",
+                        navigation_session_id="nav-drift-scene",
+                        lease_owner="owner",
+                        monotonic_now=obs.capture_completed_monotonic + 0.2,
+                    )
+                )
+                self.assertTrue(issued.authorized)
+                assert issued.capability is not None
+                calls: list[int] = []
+
+                def transport(_intent):
+                    calls.append(1)
+                    return TransportResult(True, "SHOULD_NOT_RUN")
+
+                proposal = replace(
+                    obs,
+                    capture_completed_monotonic=obs.capture_completed_monotonic - 0.05,
+                )
+                executor = SafeActionExecutor(
+                    store,
+                    policy,
+                    "owner",
+                    lambda: obs.capture_completed_monotonic + 0.2,
+                    transport,
+                    lambda: drifted_obs,
+                    lambda: (),
+                    lambda *_: True,
+                    wall_clock=lambda: _TEST_WALL,
+                    max_pre_dispatch_attempts=1,
+                )
+                result = executor.execute(
+                    build_navigate_pan_policy_request(
+                        observation=proposal,
+                        action_id="drift-scene-1",
+                        action_key="drift-scene-key-1",
+                        task_id="RUNTIME-RESUMABLE-NAVIGATION-SESSIONS",
+                        navigation_session_id="nav-drift-scene",
+                        lease_owner="owner",
+                        monotonic_now=obs.capture_completed_monotonic + 0.2,
+                    ),
+                    issued.capability,
+                )
+                self.assertEqual(calls, [])
+                self.assertNotEqual(result.status, ActionStatus.CONFIRMED)
 
     def test_regression_module_imports(self) -> None:
         modules = (

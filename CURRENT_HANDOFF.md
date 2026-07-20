@@ -4,14 +4,10 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "f523f0f feat(navigation): integrate verified supply depot route",
-    "origin_relationship": "main is ahead of origin/main by thirteen local roadmap commits; no push",
+    "head": "fix(navigation): close home atlas verified route seams (this commit)",
+    "origin_relationship": "main is ahead of origin/main by fourteen local roadmap commits before this commit; no push",
     "staged_paths": [],
-    "relevant_unstaged_paths": [
-      "docs/navigation_verified_flow_readiness.md",
-      "BACKLOG.md",
-      "CURRENT_HANDOFF.md"
-    ],
+    "relevant_unstaged_paths": [],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
       ".local-reference/**",
@@ -35,20 +31,26 @@
       "501f9fb feat(tools): add BlueStacks flow collector"
     ]
   },
-  "current_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
+  "current_task_id": "HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE",
   "current_task_state": "completed",
   "next_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
   "next_task_activation_status": "dependency_blocked",
-  "phase": "composition_readiness_renewed_blocked",
-  "objective": "Composition remains blocked after renewed readiness FAIL; close exact missing integrations before activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION; leave M6 unactivated.",
-  "last_safe_completed_step": "Committed f523f0f Supply Depot verified-route; renewed readiness FAIL recorded in docs/navigation_verified_flow_readiness.md.",
-  "next_permitted_action": "Commit renewed readiness blocker documentation locally without push; do not activate composition or M6; no claims; no push. Next work must close exact missing integrations listed in readiness doc before reconsideration.",
+  "phase": "home_atlas_verified_route_seam_closure_completed",
+  "objective": "Home Atlas seams closed; composition remains blocked on remaining Supply Depot readiness gaps; leave M6 unactivated.",
+  "last_safe_completed_step": "HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE offline+live passed; committing fix(navigation): close home atlas verified route seams.",
+  "next_permitted_action": "After this commit, leave composition blocked; next work is Supply Depot seam closure or renewed readiness only after Supply Depot seams close; no claims; no push; leave M6 unactivated.",
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
     "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity.",
     "Partial HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION WIP already existed in the working tree before formal task activation; it is preserved and must be completed rather than discarded."
   ],
   "actions_already_performed": [
+    "Parent-reviewed Grok implementation of HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE; offline 22 focused + 153 regressions + full suite 891 passed / 1 skipped.",
+    "Live Bank navigate 1 pan: action_ledger complete; planning digest != pre_dispatch_frame_sha256; capability-bound SafeActionExecutor swipe; building_opened=false.",
+    "Live HQ return 2 pans: each planning!=pre_dispatch with requested/authorized/dispatched/transport_observed/verified/completed; Home left fully_zoomed_out localized.",
+    "Updated docs/navigation_verified_flow_readiness.md: Home Atlas findings closed; composition still blocked on Supply Depot gaps; M6 unactivated.",
+    "Verified expected state: main clean at 9d814d3; commits f093812/f523f0f/9d814d3 present; composition dependency_blocked; M6 unactivated; registration/scheduler disabled.",
+    "Created and activated durable BACKLOG contract HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE; composition remains dependency_blocked; M6 unactivated.",
     "Committed SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION as f523f0f feat(navigation): integrate verified supply depot route; no push.",
     "Renewed composition readiness review after f093812 and f523f0f: FAIL. Gaps: cached executor recapture (no fresh pre_dispatch capture/rebind); Supply Depot exit ignores safe-exit binder candidate ROI; Home Atlas missing six-state ledger parity; Supply Depot building/exit missing full FramePerceptionBundle.",
     "Updated docs/navigation_verified_flow_readiness.md with PASS/FAIL decision and per-route evidence; composition remains dependency_blocked; M6 unactivated.",
@@ -491,14 +493,13 @@ This document is a volatile operational boundary, not a complete project history
   is preserved (do not discard).
 
 ## Current task
-- Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`
-- State: completed (`f523f0f`); renewed composition readiness FAIL
+- Task ID: `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`
+- State: completed; fresh pre_dispatch + action-ledger parity closed offline and live
 - Next task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` (dependency blocked; not activated)
-- Objective: close exact missing integrations in `docs/navigation_verified_flow_readiness.md` before
-  reconsidering composition; leave M6 unactivated.
-- Last safe completed step: Supply Depot verified-route committed; readiness renewed and blocked.
-- Exact next permitted step: commit readiness blocker documentation; do not activate composition or
-  M6; no claims; no push.
+- Objective: leave composition blocked until Supply Depot seams close; leave M6 unactivated.
+- Last safe completed step: live Bank + HQ return seam-closure regression; Home fully_zoomed_out.
+- Exact next permitted step: commit `fix(navigation): close home atlas verified route seams`;
+  do not activate composition or M6; no claims; no push.
 - No registration, scheduler, worker, or protected-evidence operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains unactivated.
 
