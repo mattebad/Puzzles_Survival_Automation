@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "queue_kind": "development_flow_delivery",
   "purpose": "Select and track serial gameplay-flow development work. This is not the gameplay scheduler and never authorizes gameplay input.",
   "gameplay_scheduler": false,
@@ -55,6 +55,8 @@
       "consequence_policy": "Preserve existing AP and battle logic, observe remembered Campaign state, and require exact destination verification before AP execution; unknown stage, AP cost, or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
       "maximum_live_attempts": 3,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
@@ -92,6 +94,8 @@
       "consequence_policy": "Existing zero-cost cooldown-bound Praise behavior is preserved; migration validation performs navigation only.",
       "product_policy_status": "navigation_only_validation",
       "maximum_live_attempts": 1,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_nova_praise.py",
         "tests/test_home_atlas_verified_route.py"
@@ -127,6 +131,8 @@
       "consequence_policy": "No recruitment is authorized by this migration; unknown free state or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
       "maximum_live_attempts": 1,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_noahs_tavern_recruit.py",
         "tests/test_home_atlas_verified_route.py"
@@ -162,6 +168,8 @@
       "consequence_policy": "Navigation migration only; challenge entry/combat remains policy-disabled.",
       "product_policy_status": "navigation_only_validation",
       "maximum_live_attempts": 1,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_ruins_challenge.py",
         "tests/test_home_atlas_verified_route.py"
@@ -197,6 +205,8 @@
       "consequence_policy": "Training tier, quantity, resource-box, and resource-spend policy remains unresolved; validation stops before Train.",
       "product_policy_status": "navigation_only_validation",
       "maximum_live_attempts": 4,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_troop_training_entry.py",
         "tests/test_troop_training.py",
@@ -234,6 +244,8 @@
       "consequence_policy": "Free-only behavior remains separate and must never spend currency; adapter retirement authorizes no claim.",
       "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_supply_depot_verified_route.py",
         "tests/test_supply_depot_vision.py",
@@ -266,6 +278,8 @@
       "consequence_policy": "Objective completion never implies Claim readiness; unknown row, target, game day, or successor fails closed.",
       "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 1,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_available_daily_claim.py"
       ],
@@ -298,6 +312,8 @@
       "consequence_policy": "Milestone Claim is separate from ordinary row Claim; unknown points, chest state, or successor fails closed.",
       "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 1,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_activity_milestones.py"
       ],
@@ -330,6 +346,8 @@
       "consequence_policy": "Exactly one one-star material; no Auto Select, higher-star material, premium currency, or unidentified item.",
       "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 3,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_enhancement.py",
         "tests/test_daily_enhancement.py",
@@ -366,6 +384,8 @@
       "consequence_policy": "Unidentified crafting materials, cost, recipe, or timer fail closed; Material Production and Inherit are excluded.",
       "product_policy_status": "unresolved_user_decision",
       "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_nanoweapon.py",
         "tests/test_daily_nanoweapon.py"
@@ -397,6 +417,8 @@
       "consequence_policy": "Premium, 10x, item-backed, arbitrary, or unidentified recruitment is prohibited.",
       "product_policy_status": "unresolved_user_decision",
       "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_noahs_tavern_recruit.py",
         "tests/test_daily_recruitment.py",
@@ -429,6 +451,8 @@
       "consequence_policy": "Navigation only; unknown map, target, occupancy, march, or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
       "maximum_live_attempts": 1,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_world_stamina.py",
         "tests/test_home_atlas_verified_route.py"
@@ -465,6 +489,8 @@
       "consequence_policy": "Never override an existing march or occupied target; unknown resource, node, occupancy, march slot, or result fails closed.",
       "product_policy_status": "unresolved_user_decision",
       "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_gathering.py",
         "tests/test_world_stamina.py"
@@ -499,6 +525,8 @@
       "consequence_policy": "Never join level 60; unknown level, stamina, march, target, or result fails closed.",
       "product_policy_status": "unresolved_user_decision",
       "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_zombie_lair.py",
         "tests/test_daily_zombie_lair.py",

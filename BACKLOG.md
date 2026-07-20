@@ -4232,6 +4232,241 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Next: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` remains the first ready development
   flow after this bootstrap completes; declarative composition remains blocked and excluded.
 
+### AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-HARDENING
+- Task ID: `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-HARDENING`.
+- Title: Keep serial flow delivery inside the current Cursor IDE parent conversation.
+- Status: Completed (2026-07-20 through
+  `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-RECEIPT-CLOSURE`; native Task receipts now carry
+  required proof and the installed hook is an honest optional cross-check).
+- Milestone: Final offline orchestration correction before Campaign implementation.
+- Dependencies: completed `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR` at `ba2a4d6`;
+  inactive development queue; released development/runtime ownership; no nonterminal action.
+- Closure: The current Cursor native `Subagent` tool successfully returned recon agent
+  `e608f027-0f45-41a2-842f-50085a95265b`, but it did not dispatch the workspace
+  `subagentStart` hook: no routing-events file was created, the canary lease remained unbound, and
+  the passive validator failed closed. Completion requires a Cursor session where native
+  custom-subagent calls emit the checked-in hook event; no CLI or synthetic-event fallback is
+  permitted. The closure confirmed the same installed behavior after reload and removed hook
+  availability as a mandatory gate without weakening native Task exclusivity.
+- Objective: remove every detached Cursor CLI/SDK/ACP/MCP subagent fallback; require serial native
+  IDE `Subagent`/`Task` delegation; passively validate lease-bound routing events; add durable live
+  attempts, repository anchors, validation receipts, commit verification, and route-specific
+  BlueStacks runner/verifier/recovery dispatch that fails closed when unregistered.
+- Established facts: `ba2a4d6` is the completed bootstrap; its validator launches a detached Cursor
+  parent; the queue is inactive with Campaign first ready; no development/runtime owner or current
+  unresolved action exists; registration and scheduler are disabled.
+- Authority boundary: this task hardens the existing queue/controller/skill/operator only. It does
+  not implement Campaign or another flow, create a second queue/orchestrator, schedule gameplay,
+  register production tasks, or authorize runtime input.
+- Direct implementation files: `scripts/flow_delivery_control.py`,
+  `scripts/validate_flow_delivery_model_probe.py`, `scripts/pnsctl.py`,
+  `tasks/flow_delivery_queue.json`, one small BlueStacks delivery registry when needed,
+  `.cursor/skills/pns-flow-delivery/SKILL.md`, `.cursor/agents/*.md`,
+  `.cursor/hooks.json`, `.cursor/hooks/pns_flow_subagent_guard.py`,
+  `.cursor/rules/pns-flow-delivery-subagents.mdc`,
+  `.cursor/commands/pns-flow-delivery-loop.md`, focused tests, `BACKLOG.md`, and
+  `CURRENT_HANDOFF.md`.
+- Shared dependencies: current queue/product policy, Git history, journal/lease policy, Cursor
+  native custom-agent hook schema, and existing verified navigation/input safety contracts.
+- Transitive regression set: existing flow-delivery, `pnsctl`, catalog, governance, handoff, and
+  authoritative repository tests.
+- Allowed changes: per-commit allowed paths are only the direct implementation files above plus narrow relevant `pnsctl` and
+  governance-test expectations. Preserve unrelated `.cursorindexingignore`, `.specstory/**`, the
+  untracked project ZIP, retained evidence, scheduler state, and gameplay code.
+- Prohibited changes: Cursor CLI/`cursor-agent`/`agent`/SDK/ACP/MCP detached delegation; built-in
+  subagent substitution; direct parent completion of delegated production work; `/multitask`;
+  Campaign or other gameplay implementation; live BlueStacks/ADB input; scheduler/registration/M6/
+  composition/Bliss changes; worktrees; reset/clean/amend/rebase/force-push; or push.
+- Authorized runtime action: None. One final native IDE `pns-flow-recon` canary may read only the
+  first heading of `AGENTS.md`; it may not edit or issue runtime input.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Not applicable; this task must not contact or operate BlueStacks.
+- Consequential action: None.
+- Registration changes: None; preserve `NOT_REGISTERED`.
+- Scheduler changes: None; preserve disabled/ineligible state.
+- Actions that must not be repeated: no historical gameplay action, live recovery, detached Cursor
+  invocation, or prior routing probe may be replayed.
+- Required source: authoritative repository/Git state, active handoff/task contract, checked-in
+  queue/policy/controller/operator, and IDE-native hook event from this parent conversation.
+- Exact target semantics: one current IDE parent, one serial foreground custom subagent, exact
+  stage/type/model/session binding, and no detached delegation.
+- Required local association: lease owner/session, parent conversation, active flow or canary,
+  active stage, repository anchors, working-tree fingerprint, and native subagent ID.
+- Negative controls: wrong model/agent/session/flow/stage, stale events/markers/receipts, repository
+  drift, unresolved attempts/actions, runtime held/unknown at activation, arbitrary commit strings,
+  and missing route handlers all fail closed.
+- Coordinate space: fixed BlueStacks 800×1280 contract is retained but unused; zero coordinates or
+  runtime frames are acquired.
+- Accepted signals: passive current-lease hook event, exact Grok model, terminal native tool result,
+  machine-readable receipts, real reachable reviewed commit, passing offline gates, and released
+  ownership.
+- Rejected weak signals: frontmatter alone, stale hook events, command-line pass booleans, file
+  existence alone, transport success, package text outside actual focus, or generic recovery.
+- Ambiguous-result behavior: stop without fallback, queue advancement, retry, or authority mutation.
+- Zero-cost requirement: no game resource, AP, stamina, currency, material, or march consumption.
+- Quantity limits: one canary, one active flow maximum, one foreground subagent at a time, one
+  writable marker, and zero live transport inputs.
+- Resource consumption policy: no gameplay resource consumption is authorized.
+- Premium or strategic restrictions: all premium, purchase, donation, upgrade, PvP, speedup, and
+  unidentified consequential behavior remains prohibited.
+- Active evidence manifest: None; no runtime evidence is created.
+- Required artifacts: hardened skill/rule/agents/hook/validator/controller, queue schema, BlueStacks
+  registry/operator dispatch, IDE command, tests, passive local canary report, and governance state.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs.
+- Additional task-specific artifacts: ignored `.local-orchestrator/model-routing-events.jsonl` and
+  `model-routing-probe-report.json` for the one native canary.
+- Focused tests: `tests.test_flow_delivery_ide_native_hardening`,
+  `tests.test_flow_delivery_orchestrator`, relevant `tests.test_catalog_and_pnsctl`, and governance.
+- Integration tests: synthetic queue/lease/event/attempt/receipt/commit transitions and fixed
+  BlueStacks registry dispatch; no runtime connection.
+- Transitive regression tests: existing controller, scheduler, pnsctl, governance, and full suite.
+- Full-suite requirement: authoritative `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: JSON/schema validation, structured handoff parse, Python compilation, touched-file
+  secret scan, passive routing validator, `git diff --check`, focused tests, and full suite.
+- Known baseline failures: None; the completed bootstrap recorded 925 passed and one expected skip.
+- Evidence requirement: NOT_APPLICABLE because this is offline orchestration hardening and the
+  canary creates only ignored IDE routing metadata.
+- Valid blocked outcomes: native custom-subagent tool unavailable/rejected, missing or mismatched
+  hook metadata, unsupported hook schema, baseline/touched regression, or unsafe ownership/action
+  state.
+- Blocked-result commit policy: record the blocker, release safe local ownership, preserve files,
+  do not claim completion, and no push.
+- Commit policy: one reviewed conventional local commit after all gates and canary pass; no push.
+- Expected focused commits: `fix(automation): keep flow delivery in Cursor IDE`.
+- Native delegation contract: foreground `is_background: false`; one visible IDE-native custom
+  subagent call at a time; no nesting or writable overlap; missing native delegation terminates as
+  `IDE_NATIVE_SUBAGENT_TOOL_UNAVAILABLE` without fallback.
+- Routing evidence: the parent atomically records each visible native Task result against the
+  current lease, parent/session, flow, stage, exact custom agent/model, returned ID, foreground
+  status, terminal outcome, timestamp, and HEAD. When a current `subagentStart` event exists it is
+  cross-checked; when the installed surface emits none, absence is reported honestly and is not a
+  delegation fallback. The validator and controller never launch an agent.
+- Controller contract: persistent begin/finish live-attempt records and attempt budgets; terminal
+  diagnosis before retry; runtime/unresolved/writer-marker gates; immutable acquisition HEAD plus
+  expected HEAD and working-tree fingerprint; evidence-bound validation receipts; dedicated
+  reviewed-commit transition; real reachable implementation-commit verification.
+- BlueStacks contract: parse the actual focused package; route through a checked-in flow registry;
+  require route-specific runner/evidence validator/safe recovery; return
+  `FLOW_DELIVERY_RUNNER_UNAVAILABLE` or `FLOW_RECOVERY_HANDLER_UNAVAILABLE` when absent; never guess
+  Cultivation Center or use Android Back on Home.
+- Required validation: hardening-focused and existing orchestrator/pnsctl/governance tests,
+  structured handoff parse, Python compilation, touched-file secret scan, attributable
+  `git diff --check`, passive native-canary validation, and the authoritative full suite.
+- Completion criteria: detached Cursor launch path removed; native delegation mandatory; visible
+  recon canary succeeds in this parent conversation and proves `cursor-grok-4.5-high`; live attempts,
+  runtime/action/repository/receipt/commit gates fail closed; route placeholders no longer pass;
+  Campaign remains first ready with no active flow/lease/runtime/writer marker; composition remains
+  blocked; M6, registration, scheduler, and Bliss unchanged; one local commit
+  `fix(automation): keep flow delivery in Cursor IDE`; no push.
+- Next: after this task commits, Campaign returns to first-ready status but remains unactivated.
+
+### AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-RECEIPT-CLOSURE
+- Task ID: `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-RECEIPT-CLOSURE`.
+- Title: Close IDE-native flow-delivery proof with installed-hook evidence or a native Task receipt.
+- Status: Completed (2026-07-20; native-receipt proof selected after the reloaded installed hook
+  service again emitted no `subagentStart` event for a successful visible native Task).
+- Milestone: Final offline closure of IDE-native orchestration before Campaign.
+- Dependencies: blocked `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-HARDENING`,
+  preserved uncommitted hardening patch, inactive queue, released development/runtime ownership,
+  and no current unresolved consequential action.
+- Blocked by: None. One reconditioned native canary and bounded installed hook-log
+  diagnosis select either hook-backed proof or native-receipt proof with an optional hook cross-check.
+- Objective: complete and commit the preserved hardening patch without requiring an unavailable
+  project `subagentStart` event, while keeping visible native custom Task execution mandatory and
+  every detached Cursor CLI/SDK/ACP/MCP fallback prohibited.
+- Established facts: Cursor `task_v2` visibly returned foreground custom `pns-flow-recon` under
+  requested model `cursor-grok-4.5-high` with a terminal result and subagent ID; the prior passive
+  hook validator produced no event and the canary lease remained unbound; the lease was released,
+  80 focused tests and 947 full-suite tests passed, and no CLI fallback, runtime input, commit, or
+  push occurred.
+- Direct implementation files: preserved IDE-native hardening paths; `scripts/flow_delivery_control.py`;
+  `scripts/validate_flow_delivery_model_probe.py`; `.cursor/hooks.json`;
+  `.cursor/hooks/pns_flow_subagent_guard.py`; `.cursor/skills/pns-flow-delivery/SKILL.md`;
+  `.cursor/commands/pns-flow-delivery-loop.md`; `.cursor/agents/*.md`;
+  `tests/test_flow_delivery_ide_native_hardening.py`;
+  `tests/test_flow_delivery_orchestrator.py`; `BACKLOG.md`; and `CURRENT_HANDOFF.md`.
+- Shared dependencies: current queue/product-policy schemas, Git anchors, the four exact custom
+  agents, installed Cursor hook service/log behavior, and preserved attempt/receipt/operator gates.
+- Transitive regression set: IDE-native hardening, flow-delivery controller, pnsctl/catalog,
+  governance/handoff, scheduler isolation, and the authoritative full repository suite.
+- Allowed changes: per-commit allowed paths are only the direct implementation files above and
+  directly required governance-test expectations; preserve unrelated `.cursorindexingignore`,
+  `.specstory/**`, the untracked project ZIP, protected evidence, scheduler state, and gameplay code.
+- Prohibited changes: Cursor CLI/`cursor-agent`/`agent`, terminal delegation, SDK, ACP, MCP,
+  detached/built-in/alternate parents, synthetic hook events, Campaign or other gameplay
+  implementation, live BlueStacks/ADB input, registration/scheduler/M6/composition/Bliss changes,
+  reset/restore/clean/rebase/amend/force-push, or push.
+- Authorized runtime action: None. One foreground native IDE recon canary may only read the first
+  Markdown heading of `AGENTS.md`.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Not applicable; no BlueStacks contact or input is permitted.
+- Consequential action: None.
+- Registration changes: None; preserve `NOT_REGISTERED`.
+- Scheduler changes: None; preserve disabled/ineligible state.
+- Actions that must not be repeated: prior gameplay actions, prior hookless canary under the
+  pre-reload condition, detached routing probes, and any synthetic or CLI fallback proof.
+- Required source: repository/Git state, preserved patch, current handoff/queue/lease state, the
+  installed `cursor.hooks` log, one visible native Task result, and any event actually emitted.
+- Exact target semantics: one foreground native custom Task with exact agent/model/stage binding,
+  followed immediately by one atomic lease-bound invocation receipt; hooks add a cross-check only
+  when the installed execution surface emits them.
+- Required local association: active flow or canary, active stage, lease owner/session, current
+  parent conversation/session identity, exact custom agent/model, returned subagent ID, foreground
+  flag, terminal result, timestamp, and repository HEAD.
+- Negative controls: built-in/wrong agent, wrong model/stage/parent/flow/HEAD, background or
+  nonterminal invocation, stale/duplicate receipt, mismatched optional hook, CLI fallback, and
+  stage advancement without the required current receipt all fail closed.
+- Coordinate space: retained fixed BlueStacks 800×1280 contract is unused; no frame or coordinate
+  is acquired.
+- Accepted signals: visible native custom Task result, valid current lease-bound invocation
+  receipt, matching optional installed hook evidence when available, passing focused/full tests,
+  released ownership, and one focused local commit.
+- Rejected weak signals: frontmatter alone, prose claims, stale receipts/events, absent terminal
+  result, hook absence represented as hook enforcement, file existence, or transport success.
+- Ambiguous-result behavior: stop without retry, fallback, queue advancement, or authority mutation.
+- Zero-cost requirement: no gameplay resource, currency, AP, stamina, material, or march usage.
+- Quantity limits: exactly one reconditioned canary, one active lease, one foreground native
+  subagent, one receipt per invocation, one writable marker maximum, and zero runtime inputs.
+- Resource consumption policy: no gameplay resource consumption is authorized.
+- Premium or strategic restrictions: all premium, purchase, donation, upgrade, PvP, speedup, and
+  unidentified consequential behavior remains prohibited.
+- Active evidence manifest: None; hook logs and invocation receipts are local development metadata,
+  not gameplay evidence.
+- Required artifacts: bounded hook diagnosis, selected proof-mode implementation, atomic native
+  invocation receipt, optional hook cross-check, updated skill/command/tests/governance, and the
+  complete preserved hardening patch.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs.
+- Additional task-specific artifacts: ignored local canary receipt/report and any actual bounded
+  routing event; no logs are copied into the repository.
+- Focused tests: `tests.test_flow_delivery_ide_native_hardening`,
+  `tests.test_flow_delivery_orchestrator`, relevant `tests.test_catalog_and_pnsctl`, and governance.
+- Integration tests: synthetic current/stale/duplicate/wrong-model/wrong-agent/background/
+  wrong-stage/wrong-parent/wrong-HEAD receipts plus optional hook cross-check; no agent subprocess.
+- Transitive regression tests: existing attempt, runtime, repository, validation, commit,
+  BlueStacks registry/operator, scheduler, and governance tests.
+- Full-suite requirement: authoritative `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: installed hook-log inspection, queue/lease status, Python compilation, governance,
+  structured handoff parse, touched-file secret scan, attributable `git diff --check`, focused tests,
+  and full suite.
+- Known baseline failures: None; last authoritative suite passed 947 tests with one expected skip.
+- Evidence requirement: NOT_APPLICABLE because this is offline orchestration closure with local
+  development receipts and no gameplay evidence.
+- Valid blocked outcomes: native Task unavailable/rejected/nonterminal, inability to prove its
+  exact returned identity/model/foreground state, unsafe lease/runtime/action state, or new
+  attributable test failure.
+- Blocked-result commit policy: record the exact blocker, release safe ownership, preserve the
+  patch, do not claim completion, and no push.
+- Commit policy: on PASS, one reviewed conventional local commit containing the full preserved
+  hardening patch and this closure; no push.
+- Expected focused commits: `fix(automation): keep flow delivery in Cursor IDE`.
+- Completion criteria: one installed-behavior canary selects honest hook-backed or native-receipt
+  proof; native Task remains exclusive; current receipt gates stage advancement; optional hooks
+  never become fabricated or mandatory when absent; preserved hardening remains green; original
+  hardening and this closure are completed; Campaign remains first ready with no active
+  flow/lease/runtime/writer; composition remains blocked; M6, registration, scheduler, and Bliss
+  remain unchanged; one local focused commit; no push.
+- Next: Campaign remains first ready but is not activated by this closure.
+
 ### CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION
 - Task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.
 - Title: Migrate Campaign AP entry to Home Atlas and verified destination navigation.

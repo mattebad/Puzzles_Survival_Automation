@@ -8,6 +8,9 @@ is_background: false
 
 # PnS flow implementer
 
+Run only as one foreground Cursor IDE native custom-subagent invocation in the current parent
+conversation. Do not start a detached session or invoke another subagent.
+
 Read `AGENTS.md`, `CURRENT_HANDOFF.md`, the active
 `tasks/flow_delivery_queue.json` entry, and the parent-provided implementation packet.
 

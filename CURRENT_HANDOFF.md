@@ -4,12 +4,13 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "the commit containing this handoff: feat(automation): add serial flow delivery orchestrator",
-    "origin_relationship": "main is ahead of origin/main by twenty-one local commits after the containing commit; no push",
+    "head": "the commit containing this handoff: fix(automation): keep flow delivery in Cursor IDE",
+    "origin_relationship": "main is ahead of origin/main by twenty-two local commits after the containing commit; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
       ".cursorindexingignore (pre-existing user-owned modification)",
-      ".specstory/** (pre-existing user-owned untracked files)"
+      ".specstory/** (pre-existing user-owned untracked files)",
+      "Puzzle_Survival_Runtime_POC.zip (unrelated user-owned untracked archive)"
     ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
@@ -18,6 +19,7 @@
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
+      "fix(automation): keep flow delivery in Cursor IDE (containing commit)",
       "feat(automation): add serial flow delivery orchestrator (containing commit)",
       "3255eed fix(navigation): close supply depot radial target binding seam",
       "8d33b9e docs(navigation): block supply depot binder evidence",
@@ -38,14 +40,14 @@
       "3472128 feat(runtime): add input capability firewall"
     ]
   },
-  "current_task_id": "AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR",
+  "current_task_id": "AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-RECEIPT-CLOSURE",
   "current_task_state": "completed",
   "next_task_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
   "next_task_activation_status": "ready",
-  "phase": "development_flow_orchestrator_bootstrap_complete",
-  "objective": "The offline serial development-delivery orchestrator is complete; Campaign remains first ready and no gameplay flow is active.",
-  "last_safe_completed_step": "Validated the queue, policy, controller, custom-agent routing, governance, and BlueStacks command contract offline; released the development lease; no runtime input or push.",
-  "next_permitted_action": "Use .cursor/skills/pns-flow-delivery/SKILL.md to acquire the development lease and activate only CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION; composition, M6, Bliss, registration, and the gameplay scheduler remain excluded.",
+  "phase": "development_flow_orchestrator_ide_native_receipt_closure_complete",
+  "objective": "Completed: native Task receipts are mandatory, installed hook evidence is an optional cross-check, and no detached delegation path exists.",
+  "last_safe_completed_step": "Reloaded-window native recon 855203ba-236a-4d67-8ecb-2260720f545a returned terminally under explicit cursor-grok-4.5-high in the foreground; no subagentStart event fired; receipt-mode hardening passed 87 focused tests and 954 full-suite tests with one expected skip; all temporary ownership was released.",
+  "next_permitted_action": "Stop this atomic closure after the containing local commit. Campaign remains first ready and may only be activated as a separate subsequent task; no runtime input or push is authorized here.",
   "flow_delivery": {
     "queue_path": "tasks/flow_delivery_queue.json",
     "product_policy_path": "tasks/flow_delivery_product_policy.json",
@@ -64,6 +66,13 @@
     "SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE root cause: _claim_supply_roi_from_data unioned building-title Sup with radial Claim/Suppl, inflating ROI over Upgrade."
   ],
   "actions_already_performed": [
+    "IDE-NATIVE-RECEIPT-CLOSURE PASS: installed cursor.hooks log loaded both project hooks but the successful reloaded native pns-flow-recon call emitted no subagentStart step, command execution, payload, routing event, or lease binding; selected native receipt with optional hook cross-check.",
+    "Reloaded native canary used custom pns-flow-recon, explicit cursor-grok-4.5-high, foreground execution, and returned terminal agent 855203ba-236a-4d67-8ecb-2260720f545a with heading '# Permanent agent invariants'; temporary no-runtime lease was released and no fallback occurred.",
+    "Implemented atomic record-subagent-invocation receipts with exact lease/parent/session/flow/stage/agent/model/ID/foreground/outcome/timestamp/HEAD gates; delegated-stage advancement now requires a completed current receipt; current hook evidence is cross-checked when present and absence is honest.",
+    "IDE-native receipt closure passed 87 focused/relevant tests and the authoritative 954-test suite with one expected skip; Python compilation and lints passed; no runtime input, gameplay flow implementation, registration/scheduler change, or push.",
+    "IDE-NATIVE-HARDENING offline implementation passed 80 focused/relevant tests and the authoritative 947-test suite with one expected skip; compilation, governance, handoff parse, touched-secret scan, and attributable diff check passed; no runtime input.",
+    "Visible native Cursor Subagent call pns-flow-recon returned AGENTS.md heading '# Permanent agent invariants' as agent e608f027-0f45-41a2-842f-50085a95265b in this parent conversation.",
+    "Native canary routing proof BLOCKED: workspace subagentStart hook did not emit model-routing-events.jsonl, lease bound_parent_conversation_id remained null, passive validator failed closed, and the temporary no-runtime lease was released; no fallback, retry, commit, or push.",
     "Completed AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR offline: queue 8 ready / 2 blocked / 4 needs_product_decision; all four custom agents resolved to cursor-grok-4.5-high under gpt-5.6-sol-high; 58 focused tests and authoritative 925-test suite passed with one expected skip; no runtime input or push.",
     "RENEWAL live attempt 1 PASS: localize recognized; navigate Supply Depot (0 pans, already in frame); supply-depot-radial completed reason supply_depot_radial_and_home_recovered; Claim Supply [641,620,729,684] (old [555,551,725,657] absent); facility safe_exit_binding=supply-depot-facility-back-arrow [0,0,150,105] equals exit_target_roi/policy/event/SafetyStore; three pre_dispatch semantic digests correlated; zero claims/consequential; zoom-out left recognized fully_zoomed_out (~0.995); artifacts .local-captures/supply-depot-live-binder-evidence-renewal/live-radial/supply-depot-radial-20260720T185203014854Z/.",
     "Marked SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE-RENEWAL completed; composition remains dependency_blocked pending separate final-readiness review; M6 unactivated; no push.",
@@ -555,16 +564,17 @@ This document is a volatile operational boundary, not a complete project history
   building-title `Sup` with radial `Claim`/`Suppl`, inflating ROI over Upgrade.
 
 ## Current task
-- Task ID: `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR`
-- State: completed by the containing focused task commit
+- Task ID: `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-RECEIPT-CLOSURE`
+- State: completed through the containing local commit; no push
 - Next task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`
-  (`ready`, not activated)
-- Objective: completed offline serial queue/controller, policy registry, named custom agents, parent
-  skill, scoped routing guard, governance alignment, and narrow BlueStacks operator contract
-- Last safe completed step: all offline gates and model-routing probe passed; development lease
-  released; no runtime input
-- Exact next permitted step: acquire the development lease through the checked-in skill and activate
-  only the first Campaign flow
+  (`ready`; first ready queue flow, not activated)
+- Objective: completed the preserved IDE-native hardening with mandatory native Task receipts and
+  an optional hook cross-check that is used only when installed behavior emits an event
+- Last safe completed step: native recon `855203ba-236a-4d67-8ecb-2260720f545a` returned the
+  expected heading under explicit Grok 4.5 High, installed hook absence was confirmed, the
+  temporary lease was released, and all 954 repository tests passed with one expected skip
+- Exact next permitted step: stop after the containing local commit; Campaign activation is a
+  separate future task and no gameplay, runtime, scheduler, registration, or push action is allowed
 - `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` remains blocked and excluded from autonomous
   gameplay-delivery selection.
 - No registration, scheduler, worker, or protected-evidence operation is authorized.
@@ -607,10 +617,10 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 925 passed, one expected skip (pre-commit gate)
+- Last full-suite count: 954 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
-- Last relevant focused tests: supply-depot vision + verified-route + governance → 57 passed
+- Last relevant focused tests: IDE-native receipt hardening + orchestrator + pnsctl + governance → 87 passed
 - Live: one RENEWAL Supply Depot radial under `3255eed` PASS
 
 ## Evidence
@@ -625,11 +635,13 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: complete the offline orchestrator bootstrap and its one local commit.
-- Prohibited actions: live runtime input; gameplay-flow implementation; composition/M6/Bliss
-  activation; `CONFIRMED_NOT_DISPATCHED`, registration, scheduler, worker, or push changes.
-- Exact stop condition: bootstrap committed, queue inactive with Campaign first ready, and local
-  development lease released.
+- Permitted action: no further action in this completed closure after its local commit; a separate
+  authorized task may activate Campaign while preserving all delivery gates.
+- Prohibited actions: Cursor CLI/SDK/ACP/MCP subagent fallback; live runtime input; gameplay-flow
+  implementation; composition/M6/Bliss activation; `CONFIRMED_NOT_DISPATCHED`, registration,
+  scheduler, worker, or push changes.
+- Exact stop condition: reached by the containing commit with queue inactive, Campaign first ready,
+  all ownership released, no synthesized event, no runtime input, and no push.
 - Expected next atomic task: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.
 - Composition remains blocked and is not the next autonomous gameplay-delivery action.
 

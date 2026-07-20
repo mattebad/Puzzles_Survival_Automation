@@ -8,6 +8,9 @@ is_background: false
 
 # PnS flow reconnaissance
 
+Run only as one foreground Cursor IDE native custom-subagent invocation in the current parent
+conversation. Do not start a detached session or invoke another subagent.
+
 Read `AGENTS.md`, `CURRENT_HANDOFF.md`, the active entry in
 `tasks/flow_delivery_queue.json`, its direct dependencies, attributable production entrypoints,
 existing retained evidence named by those sources, and relevant focused tests.

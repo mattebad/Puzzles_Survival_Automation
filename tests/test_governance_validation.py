@@ -24,7 +24,7 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         self.assertEqual(
             state["current_task_id"],
-            "AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR",
+            "AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-RECEIPT-CLOSURE",
         )
         self.assertEqual(state["current_task_state"], "completed")
         self.assertEqual(

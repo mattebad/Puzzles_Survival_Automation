@@ -51,7 +51,9 @@ BLUESTACKS_NATIVE_HEIGHT = 1280
 BLUESTACKS_ARTIFACT_ROOT = REPO_ROOT / ".local-captures" / "flow-delivery"
 FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
-HOME_ATLAS = REPO_ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
+    REPO_ROOT / "tasks" / "flow_delivery_bluestacks_registry.json"
+)
 BLUESTACKS_FLOW_IDS = (
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
     "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
@@ -68,6 +70,11 @@ BLUESTACKS_FLOW_IDS = (
     "GATHERING-BLUESTACKS-INTEGRATION",
     "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
 )
+# Handler IDs are fixed code bindings, never arbitrary commands. They remain empty until a flow's
+# reviewed implementation registers all three route-specific capabilities.
+_BLUESTACKS_FLOW_RUNNERS: dict[str, Any] = {}
+_BLUESTACKS_EVIDENCE_VALIDATORS: dict[str, Any] = {}
+_BLUESTACKS_RECOVERY_HANDLERS: dict[str, Any] = {}
 
 
 class OperatorError(RuntimeError):
@@ -503,7 +510,10 @@ def cleanup(cfg: OperatorConfig) -> str:
     return run_remote(cfg, "ss -ltn | grep -E ':(5042|5555)\\b' || true")
 
 
-def _load_flow_delivery_state() -> tuple[dict[str, Any], dict[str, Any]]:
+def _load_flow_delivery_state(
+    *,
+    require_runtime_held: bool = True,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     try:
         queue = json.loads(FLOW_DELIVERY_QUEUE.read_text(encoding="utf-8"))
         lease = json.loads(FLOW_DELIVERY_LEASE.read_text(encoding="utf-8"))
@@ -513,14 +523,69 @@ def _load_flow_delivery_state() -> tuple[dict[str, Any], dict[str, Any]]:
         raise OperatorError("invalid flow-delivery queue authority")
     if lease.get("workflow") != "pns-flow-delivery":
         raise OperatorError("invalid flow-delivery lease authority")
-    if lease.get("runtime_ownership_state") != "held":
+    if require_runtime_held and lease.get("runtime_ownership_state") != "held":
         raise OperatorError("the parent must hold BlueStacks runtime ownership")
+    if not require_runtime_held and lease.get("runtime_ownership_state") not in {
+        "none",
+        "released",
+        "held",
+    }:
+        raise OperatorError("BlueStacks runtime ownership is unknown")
+    if lease.get("unresolved_action_state") != "clear":
+        raise OperatorError("the global unresolved-action gate is not clear")
     active_flow = queue.get("active_flow_id")
     if not active_flow or lease.get("active_flow") != active_flow:
         raise OperatorError("queue and lease must identify one active development flow")
     if active_flow not in BLUESTACKS_FLOW_IDS:
         raise OperatorError("active flow is not in the BlueStacks allowlist")
     return queue, lease
+
+
+def _load_bluestacks_flow_registry() -> dict[str, dict[str, str]]:
+    try:
+        registry = json.loads(
+            FLOW_DELIVERY_BLUESTACKS_REGISTRY.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("invalid BlueStacks flow-delivery registry") from exc
+    if (
+        not isinstance(registry, dict)
+        or registry.get("schema_version") != 1
+        or registry.get("registry_kind") != "flow_delivery_bluestacks"
+        or not isinstance(registry.get("flows"), dict)
+    ):
+        raise OperatorError("invalid BlueStacks flow-delivery registry")
+    required = {
+        "runner",
+        "evidence_validator",
+        "recovery_handler",
+        "consequence_class",
+    }
+    for flow_id, contract in registry["flows"].items():
+        if flow_id not in BLUESTACKS_FLOW_IDS or not isinstance(contract, dict):
+            raise OperatorError("BlueStacks registry contains an unknown flow")
+        if set(contract) != required or any(
+            not isinstance(contract[field], str) or not contract[field].strip()
+            for field in required
+        ):
+            raise OperatorError("BlueStacks flow registry contract is incomplete")
+        if contract["consequence_class"] not in {"navigation_only", "consequential"}:
+            raise OperatorError("BlueStacks flow registry consequence class is invalid")
+    return registry["flows"]
+
+
+def _focused_package(dumpsys_output: str) -> str:
+    patterns = (
+        r"(?m)^\s*mCurrentFocus=Window\{[^\r\n]*?\s(?:u\d+\s+)?"
+        r"(?P<package>[A-Za-z0-9._]+)/[^\s}]+",
+        r"(?m)^\s*mFocusedApp=ActivityRecord\{[^\r\n]*?\s(?:u\d+\s+)?"
+        r"(?P<package>[A-Za-z0-9._]+)/[^\s}]+",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, dumpsys_output)
+        if match:
+            return match.group("package")
+    raise OperatorError("focused Android application could not be parsed")
 
 
 def _run_fixed_bluestacks_adb(*arguments: str, binary: bool = False) -> bytes | str:
@@ -551,7 +616,8 @@ def bluestacks_preflight() -> str:
         raise OperatorError("approved BlueStacks serial is not in device state")
     if (width, height) != (BLUESTACKS_NATIVE_WIDTH, BLUESTACKS_NATIVE_HEIGHT):
         raise OperatorError("BlueStacks native frame is not 800x1280")
-    if PACKAGE not in focus:
+    focused_package = _focused_package(focus)
+    if focused_package != PACKAGE:
         raise OperatorError("Puzzles & Survival is not the foreground package")
     return json.dumps(
         {
@@ -562,7 +628,7 @@ def bluestacks_preflight() -> str:
             "private_serial": True,
             "native_width": width,
             "native_height": height,
-            "foreground_package": PACKAGE,
+            "foreground_package": focused_package,
             "runtime_ownership_state": "held",
             "dispatch": False,
         },
@@ -573,9 +639,17 @@ def bluestacks_preflight() -> str:
 def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
     if flow_id not in BLUESTACKS_FLOW_IDS:
         raise OperatorError("flow ID is not in the checked-in BlueStacks allowlist")
+    contract = _load_bluestacks_flow_registry().get(flow_id)
+    if contract is None or contract["runner"] not in _BLUESTACKS_FLOW_RUNNERS:
+        raise OperatorError("FLOW_DELIVERY_RUNNER_UNAVAILABLE")
     if not live:
         return json.dumps(
-            {"status": "dry_run", "flow_id": flow_id, "dispatch": False},
+            {
+                "status": "dry_run",
+                "flow_id": flow_id,
+                "runner": contract["runner"],
+                "dispatch": False,
+            },
             sort_keys=True,
         )
     queue, lease = _load_flow_delivery_state()
@@ -584,12 +658,7 @@ def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
     flow = next(item for item in queue["flows"] if item["flow_id"] == flow_id)
     if flow.get("last_completed_stage") != "live_execution":
         raise OperatorError("controller has not admitted the flow to live_execution")
-    if flow_id == "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION":
-        raise OperatorError(
-            "Campaign delivery runner is intentionally unavailable until the active migration "
-            "implements exact navigation-only support for 1-20-9, 1-2-9, and ultimate-challenge"
-        )
-    raise OperatorError("the allowlisted flow has no checked-in BlueStacks delivery runner yet")
+    return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](queue, lease)
 
 
 def _session_relative_path(session: Path, value: Any, field: str) -> Path:
@@ -605,7 +674,7 @@ def _session_relative_path(session: Path, value: Any, field: str) -> Path:
     return candidate
 
 
-def bluestacks_verify_flow(session_directory: Path) -> str:
+def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     session = session_directory.resolve()
     allowed_root = (REPO_ROOT / ".local-captures").resolve()
     try:
@@ -654,46 +723,48 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
         str(_session_relative_path(session, value, "frames").relative_to(session))
         for value in frames
     ]
-    return json.dumps(
-        {
-            "status": "verified",
-            "flow_id": result["flow_id"],
-            "session_directory": str(session),
-            "actions": len(actions),
-            "frames": verified_frames,
-            "artifacts": verified_paths,
-            "terminal_runtime_state": result["terminal_runtime_state"],
-        },
-        sort_keys=True,
+    return {
+        "result": result,
+        "session_directory": str(session),
+        "actions": len(actions),
+        "frames": verified_frames,
+        "artifacts": verified_paths,
+        "terminal_runtime_state": result["terminal_runtime_state"],
+    }
+
+
+def bluestacks_verify_flow(session_directory: Path) -> str:
+    queue, lease = _load_flow_delivery_state(require_runtime_held=False)
+    if lease.get("active_stage") != "evidence_review":
+        raise OperatorError("verify-flow requires the active evidence_review stage")
+    flow_id = queue["active_flow_id"]
+    contract = _load_bluestacks_flow_registry().get(flow_id)
+    if (
+        contract is None
+        or contract["evidence_validator"] not in _BLUESTACKS_EVIDENCE_VALIDATORS
+    ):
+        raise OperatorError("FLOW_EVIDENCE_VALIDATOR_UNAVAILABLE")
+    structure = _verify_flow_structure(session_directory)
+    if structure["result"].get("flow_id") != flow_id:
+        raise OperatorError("flow evidence belongs to another active flow")
+    verdict = _BLUESTACKS_EVIDENCE_VALIDATORS[contract["evidence_validator"]](
+        structure,
+        queue,
+        lease,
     )
+    if not isinstance(verdict, dict) or verdict.get("status") != "verified":
+        raise OperatorError("route-specific evidence validator did not return a verified verdict")
+    return json.dumps(verdict, sort_keys=True)
 
 
 def bluestacks_recover_home() -> str:
     queue, lease = _load_flow_delivery_state()
     if lease.get("active_stage") not in {"live_preflight", "live_execution", "evidence_review"}:
         raise OperatorError("recover-home is available only during an admitted live delivery stage")
-    output_root = BLUESTACKS_ARTIFACT_ROOT / queue["active_flow_id"] / "recovery"
-    command = [
-        sys.executable,
-        str(REPO_ROOT / "scripts" / "home_atlas_bluestacks.py"),
-        "recover-home",
-        "--adb",
-        str(BLUESTACKS_ADB),
-        "--serial",
-        BLUESTACKS_SERIAL,
-        "--output-directory",
-        str(output_root),
-        "--atlas",
-        str(HOME_ATLAS),
-        "--expected-title",
-        "cultivation-center",
-        "--execute",
-        "--yes",
-    ]
-    result = subprocess.run(command, cwd=REPO_ROOT, check=False, capture_output=True, text=True)
-    if result.returncode:
-        raise OperatorError("bounded recover-home failed: " + (result.stderr or result.stdout).strip())
-    return result.stdout.strip()
+    contract = _load_bluestacks_flow_registry().get(queue["active_flow_id"])
+    if contract is None or contract["recovery_handler"] not in _BLUESTACKS_RECOVERY_HANDLERS:
+        raise OperatorError("FLOW_RECOVERY_HANDLER_UNAVAILABLE")
+    return _BLUESTACKS_RECOVERY_HANDLERS[contract["recovery_handler"]](queue, lease)
 
 
 def parser() -> argparse.ArgumentParser:

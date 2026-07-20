@@ -1,258 +1,246 @@
 #!/usr/bin/env python3
-"""Validate runtime routing events for the four PnS custom subagents."""
+"""Passively validate one lease-bound Cursor IDE-native Task invocation receipt."""
 
 from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
-import shutil
-import subprocess
 import sys
 import tempfile
+from typing import Any, Mapping, Sequence
 
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL_ROOT = ROOT / ".local-orchestrator"
-EVENTS = LOCAL_ROOT / "model-routing-events.jsonl"
-REPORT = LOCAL_ROOT / "model-routing-probe-report.json"
+DEFAULT_LEASE = LOCAL_ROOT / "flow-delivery-lease.json"
+DEFAULT_EVENTS = LOCAL_ROOT / "model-routing-events.jsonl"
+DEFAULT_REPORT = LOCAL_ROOT / "model-routing-probe-report.json"
 EXPECTED_MODEL = "cursor-grok-4.5-high"
-PARENT_MODEL = "gpt-5.6-sol-high"
-AGENTS = (
-    "pns-flow-recon",
-    "pns-flow-implementer",
-    "pns-flow-reviewer",
-    "pns-evidence-reviewer",
-)
+STAGE_AGENTS = {
+    "reconnaissance": "pns-flow-recon",
+    "implementation": "pns-flow-implementer",
+    "correction": "pns-flow-implementer",
+    "implementation_review": "pns-flow-reviewer",
+    "evidence_review": "pns-evidence-reviewer",
+}
 
 
-def _agent_command() -> list[str]:
-    if os.name == "nt":
-        powershell = (
-            Path(os.environ.get("SystemRoot", r"C:\Windows"))
-            / "System32"
-            / "WindowsPowerShell"
-            / "v1.0"
-            / "powershell.exe"
-        )
-        launcher = (
-            Path(os.environ.get("LOCALAPPDATA", ""))
-            / "cursor-agent"
-            / "cursor-agent.ps1"
-        )
-        if powershell.is_file() and launcher.is_file():
-            return [
-                str(powershell),
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(launcher),
-            ]
-    executable = shutil.which("agent")
-    if not executable:
-        raise RuntimeError("authenticated Cursor Agent CLI is unavailable")
-    return [executable]
+class RoutingValidationError(RuntimeError):
+    """Raised when IDE-native routing evidence is absent, stale, or mismatched."""
 
 
-def _git_tree_state() -> bytes:
-    completed = subprocess.run(
-        ["git", "status", "--porcelain=v1", "-z"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-    )
-    return completed.stdout
+def _read_object(path: Path, label: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RoutingValidationError(f"{label} is unavailable or invalid") from exc
+    if not isinstance(payload, dict):
+        raise RoutingValidationError(f"{label} must be an object")
+    return payload
 
 
-def run_probe() -> tuple[list[dict[str, object]], dict[str, object]]:
-    command = _agent_command()
-    catalog = subprocess.run(
-        [*command, "models"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    ).stdout
-    if PARENT_MODEL not in catalog or EXPECTED_MODEL not in catalog:
-        raise RuntimeError("installed Cursor model catalog lacks a required pinned model")
-    prompt = (
-        "Controlled routing probe only. Invoke each project custom subagent serially by exact "
-        "name: pns-flow-recon, pns-flow-implementer, pns-flow-reviewer, and "
-        "pns-evidence-reviewer. Give each the same harmless read-only task: return exactly the "
-        "first Markdown heading of AGENTS.md. The implementer must not edit anything. Do not use "
-        "a built-in subagent, edit files, run tests, or issue runtime input."
-    )
-    before = _git_tree_state()
-    completed = subprocess.run(
-        [
-            *command,
-            "-p",
-            "--trust",
-            "--model",
-            PARENT_MODEL,
-            "--output-format",
-            "stream-json",
-            prompt,
-        ],
-        cwd=ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
-    after = _git_tree_state()
-    if after != before:
-        raise RuntimeError("model-routing probe changed the Git working tree")
-    if completed.returncode:
-        raise RuntimeError(
-            "Cursor Agent routing probe failed: "
-            + (completed.stderr or completed.stdout)[-1000:]
-        )
-    parent_runtime_model: str | None = None
-    events: list[dict[str, object]] = []
-    completed_agents: set[str] = set()
-    unexpected_subagents: list[object] = []
-    for line in completed.stdout.splitlines():
-        try:
-            item = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if item.get("type") == "system" and item.get("subtype") == "init":
-            parent_runtime_model = item.get("model")
-        if item.get("type") != "tool_call":
-            continue
-        task_call = item.get("tool_call", {}).get("taskToolCall", {})
-        args = task_call.get("args", {})
-        custom = args.get("subagentType", {}).get("custom", {})
-        name = custom.get("name") if isinstance(custom, dict) else None
-        if item.get("subtype") == "started":
-            if name not in AGENTS:
-                unexpected_subagents.append(args.get("subagentType"))
-                continue
-            events.append(
-                {
-                    "subagent_type": name,
-                    "subagent_model": args.get("model"),
-                    "subagent_id": args.get("agentId"),
-                    "model_params": None,
-                    "cursor_version": None,
-                }
-            )
-        elif item.get("subtype") == "completed" and name in AGENTS:
-            result = task_call.get("result", {})
-            if isinstance(result, dict) and "success" in result:
-                completed_agents.add(name)
-    if unexpected_subagents:
-        raise RuntimeError(
-            f"routing probe invoked non-allowlisted subagents: {unexpected_subagents}"
-        )
-    counts = {name: sum(event["subagent_type"] == name for event in events) for name in AGENTS}
-    if any(count != 1 for count in counts.values()):
-        raise RuntimeError(f"routing probe did not invoke each custom subagent exactly once: {counts}")
-    if set(AGENTS) != completed_agents:
-        missing = sorted(set(AGENTS) - completed_agents)
-        raise RuntimeError(f"custom subagent probe did not complete: {missing}")
-    metadata = {
-        "source": "cursor_agent_stream_json",
-        "parent_configured_model": PARENT_MODEL,
-        "parent_runtime_model": parent_runtime_model,
-        "model_catalog_validated": True,
-    }
-    return events, metadata
+def _parse_timestamp(value: object, field: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise RoutingValidationError(f"{field} must be a timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise RoutingValidationError(f"{field} must be an ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None:
+        raise RoutingValidationError(f"{field} must include a timezone")
+    return parsed.astimezone(timezone.utc)
 
 
-def frontmatter_model(path: Path) -> str | None:
-    text = path.read_text(encoding="utf-8")
+def _frontmatter_model(agent: str) -> str | None:
+    path = ROOT / ".cursor" / "agents" / f"{agent}.md"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
     match = re.search(r"(?m)^model:\s*(\S+)\s*$", text)
     return match.group(1) if match else None
 
 
-def atomic_report(payload: dict[str, object]) -> None:
-    LOCAL_ROOT.mkdir(parents=True, exist_ok=True)
+def _read_events(path: Path, *, required: bool = False) -> list[dict[str, Any]]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        if not required:
+            return []
+        raise RoutingValidationError("IDE-native subagentStart events are unavailable")
+    except (OSError, UnicodeError) as exc:
+        raise RoutingValidationError("IDE-native subagentStart events are unavailable") from exc
+    events: list[dict[str, Any]] = []
+    for ordinal, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise RoutingValidationError(f"routing event line {ordinal} is invalid") from exc
+        if not isinstance(event, dict):
+            raise RoutingValidationError(f"routing event line {ordinal} must be an object")
+        events.append(event)
+    return events
+
+
+def _atomic_report(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(
-        prefix=".model-routing-probe-report.",
+        prefix=f".{path.name}.",
         suffix=".tmp",
-        dir=LOCAL_ROOT,
+        dir=path.parent,
     )
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
             stream.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, REPORT)
+        os.replace(temporary, path)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)
         raise
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--run",
-        action="store_true",
-        help="invoke all four custom agents and validate stream metadata",
-    )
-    args = parser.parse_args(argv)
-    configured = {
-        name: frontmatter_model(ROOT / ".cursor" / "agents" / f"{name}.md")
-        for name in AGENTS
+def validate_event(
+    *,
+    expected_agent: str,
+    expected_stage: str,
+    lease_session_id: str,
+    lease_path: Path = DEFAULT_LEASE,
+    events_path: Path = DEFAULT_EVENTS,
+) -> dict[str, Any]:
+    if STAGE_AGENTS.get(expected_stage) != expected_agent:
+        raise RoutingValidationError("expected agent does not match the delivery stage")
+    lease = _read_object(lease_path, "active development lease")
+    if lease.get("workflow") != "pns-flow-delivery":
+        raise RoutingValidationError("active development lease has the wrong workflow")
+    if lease.get("process_or_session_identity") != lease_session_id:
+        raise RoutingValidationError("lease session identity mismatch")
+    if lease.get("active_stage") != expected_stage:
+        raise RoutingValidationError("active delivery stage mismatch")
+    active_flow = lease.get("active_flow")
+    if not isinstance(active_flow, str) or not active_flow.strip():
+        raise RoutingValidationError("active lease does not bind a flow or IDE canary")
+    parent_conversation_id = lease.get("bound_parent_conversation_id")
+    if not isinstance(parent_conversation_id, str) or not parent_conversation_id.strip():
+        raise RoutingValidationError("lease is not bound to the current IDE parent conversation")
+    acquired_at = _parse_timestamp(lease.get("acquisition_timestamp"), "lease acquisition")
+    receipts = lease.get("subagent_invocation_receipts")
+    if not isinstance(receipts, list):
+        raise RoutingValidationError("lease does not contain native invocation receipts")
+    current_receipts: list[tuple[datetime, dict[str, Any]]] = []
+    for receipt in receipts:
+        if not isinstance(receipt, dict):
+            raise RoutingValidationError("native invocation receipt must be an object")
+        receipt_at = _parse_timestamp(receipt.get("timestamp"), "receipt timestamp")
+        if receipt_at >= acquired_at:
+            current_receipts.append((receipt_at, receipt))
+    if not current_receipts:
+        raise RoutingValidationError("no native invocation receipt exists for the current lease")
+    receipt_at, receipt = max(current_receipts, key=lambda item: item[0])
+    expected_bindings = {
+        "lease_owner": lease.get("owner"),
+        "lease_session": lease_session_id,
+        "parent_conversation_id": parent_conversation_id,
+        "active_flow": active_flow,
+        "active_stage": expected_stage,
+        "custom_agent": expected_agent,
+        "requested_model": EXPECTED_MODEL,
+        "repository_head": lease.get("expected_repository_head"),
     }
-    events: list[dict[str, object]] = []
-    metadata: dict[str, object] = {"source": "subagent_start_hook"}
+    for field, expected in expected_bindings.items():
+        if receipt.get(field) != expected:
+            raise RoutingValidationError(f"native invocation receipt {field} mismatch")
+    if receipt.get("is_background") is not False:
+        raise RoutingValidationError("native invocation receipt is not foreground")
+    if receipt.get("terminal_outcome") != "completed":
+        raise RoutingValidationError("native invocation receipt is not completed")
+    subagent_id = receipt.get("subagent_id")
+    if not isinstance(subagent_id, str) or not subagent_id.strip():
+        raise RoutingValidationError("native invocation receipt lacks a subagent ID")
+    if _frontmatter_model(expected_agent) != EXPECTED_MODEL:
+        raise RoutingValidationError("custom-agent frontmatter model does not match")
+    if receipt_at > datetime.now(timezone.utc):
+        raise RoutingValidationError("native invocation receipt is from the future")
+    unsigned = dict(receipt)
+    digest = unsigned.pop("receipt_digest", None)
+    expected_digest = hashlib.sha256(
+        json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    if digest != expected_digest:
+        raise RoutingValidationError("native invocation receipt digest mismatch")
+    hook = receipt.get("hook_cross_check")
+    if not isinstance(hook, dict) or hook.get("required") is not False:
+        raise RoutingValidationError("optional hook cross-check status is invalid")
+    hook_status = hook.get("status")
+    if hook_status not in {"matched", "not_emitted"}:
+        raise RoutingValidationError("optional hook mode is not reported honestly")
+    if hook_status == "matched":
+        matching = [
+            event
+            for event in _read_events(events_path, required=True)
+            if event.get("subagent_id") == subagent_id
+        ]
+        if not matching or hook.get("event_digest") not in {
+            hashlib.sha256(
+                json.dumps(event, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+            for event in matching
+        }:
+            raise RoutingValidationError("optional hook cross-check evidence mismatch")
+    return {
+        "schema_version": 3,
+        "status": "passed",
+        "source": "cursor_ide_native_task_receipt",
+        "lease_owner": lease["owner"],
+        "lease_session": lease_session_id,
+        "parent_conversation_id": parent_conversation_id,
+        "active_flow": active_flow,
+        "active_stage": expected_stage,
+        "subagent_type": expected_agent,
+        "subagent_id": subagent_id,
+        "resolved_model": EXPECTED_MODEL,
+        "receipt_timestamp": receipt.get("timestamp"),
+        "receipt_digest": digest,
+        "hook_cross_check": hook,
+    }
+
+
+def parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(description=__doc__)
+    root.add_argument("--expected-agent", required=True, choices=sorted(set(STAGE_AGENTS.values())))
+    root.add_argument("--expected-stage", required=True, choices=sorted(STAGE_AGENTS))
+    root.add_argument("--lease-session-id", required=True)
+    root.add_argument("--lease", type=Path, default=DEFAULT_LEASE)
+    root.add_argument("--events", type=Path, default=DEFAULT_EVENTS)
+    root.add_argument("--report", type=Path, default=DEFAULT_REPORT)
+    return root
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parser().parse_args(argv)
     try:
-        if args.run:
-            events, metadata = run_probe()
-        else:
-            for line in EVENTS.read_text(encoding="utf-8").splitlines():
-                if line.strip():
-                    item = json.loads(line)
-                    if isinstance(item, dict):
-                        events.append(item)
-    except (OSError, UnicodeError, json.JSONDecodeError, RuntimeError, subprocess.SubprocessError) as exc:
-        metadata = {"source": "probe_error", "error": str(exc)}
-        events = []
-    latest = {
-        name: next(
-            (event for event in reversed(events) if event.get("subagent_type") == name),
-            None,
+        result = validate_event(
+            expected_agent=args.expected_agent,
+            expected_stage=args.expected_stage,
+            lease_session_id=args.lease_session_id,
+            lease_path=args.lease,
+            events_path=args.events,
         )
-        for name in AGENTS
-    }
-    checks: dict[str, dict[str, object]] = {}
-    passed = True
-    for name in AGENTS:
-        event = latest[name]
-        runtime_model = event.get("subagent_model") if event else None
-        runtime_params = event.get("model_params") if event else None
-        configured_ok = configured[name] == EXPECTED_MODEL
-        runtime_ok = runtime_model == EXPECTED_MODEL
-        agent_passed = configured_ok and runtime_ok
-        passed = passed and agent_passed
-        checks[name] = {
-            "configured_model": configured[name],
-            "runtime_model": runtime_model,
-            "runtime_model_params": runtime_params,
-            "cursor_version": event.get("cursor_version") if event else None,
-            "subagent_id": event.get("subagent_id") if event else None,
-            "passed": agent_passed,
-        }
-    payload = {
-        "schema_version": 1,
-        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "expected_model": EXPECTED_MODEL,
-        "parent_expected_model": PARENT_MODEL,
-        "probe": metadata,
-        "checks": checks,
-        "passed": passed,
-    }
-    atomic_report(payload)
-    print(json.dumps(payload, sort_keys=True))
-    return 0 if passed else 2
+    except RoutingValidationError as exc:
+        result = {"schema_version": 3, "status": "failed", "error": str(exc)}
+        _atomic_report(args.report, result)
+        print(json.dumps(result, sort_keys=True))
+        return 2
+    _atomic_report(args.report, result)
+    print(json.dumps(result, sort_keys=True))
+    return 0
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "registry_kind": "flow_delivery_bluestacks",
+  "purpose": "Map only implemented flow-delivery routes to fixed runner, evidence-validator, recovery-handler, and consequence contracts.",
+  "flows": {}
+}

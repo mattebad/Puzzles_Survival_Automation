@@ -19,4 +19,10 @@ subagent must never spawn another subagent. The parent alone selects tasks, acce
 issues correction instructions, runs the full suite, owns BlueStacks input, accepts evidence,
 commits, and changes queue state.
 
+Launch every named agent only through one foreground Cursor IDE native `Subagent`/`Task` tool call
+visible in the current parent conversation. Wait for its terminal result before continuing. Cursor
+CLI, `cursor-agent`, `agent`, terminal subprocesses, SDK, ACP, MCP, slash-command prose,
+`/multitask`, detached parents, and direct-parent substitution are forbidden. If native delegation
+is unavailable, stop with `IDE_NATIVE_SUBAGENT_TOOL_UNAVAILABLE`; never fall back.
+
 Outside an active PnS flow-delivery lease, this rule does not restrict ordinary Cursor usage.

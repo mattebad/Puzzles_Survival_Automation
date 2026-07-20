@@ -8,6 +8,9 @@ is_background: false
 
 # PnS flow reviewer
 
+Run only as one foreground Cursor IDE native custom-subagent invocation in the current parent
+conversation. Do not start a detached session or invoke another subagent.
+
 Read `AGENTS.md`, the active `tasks/flow_delivery_queue.json` entry, the parent-approved
 implementation packet, the attributable diff, and the affected production call graph and tests.
 
