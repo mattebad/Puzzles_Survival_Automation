@@ -163,6 +163,35 @@ def _claim_supply_roi_from_data(data: dict[str, list], *, scale: float = 2.0) ->
     return (x0, y0, x1, y1) if x1 - x0 >= 40 and y1 - y0 >= 30 else None
 
 
+def _ocr_roi_text_live_compatible(
+    frame: np.ndarray,
+    roi: Box,
+    ocr: OCR,
+    *,
+    source_frame: NativeFrameIdentity | None,
+    scale: int = 3,
+) -> str:
+    """OCR a ROI, bridging live ADB PNG transport digests to imencode validation.
+
+    When ``source_frame`` is present and its semantic digest matches the frame,
+    but its transport digest is the ADB PNG hash rather than ``cv2.imencode``,
+    fall back to legacy OCR. Forged/cross-capture identities still fail closed.
+    """
+
+    try:
+        return _ocr_roi_text(frame, roi, ocr, source_frame=source_frame, scale=scale)
+    except ValueError:
+        if source_frame is None:
+            raise
+        from tasks.semantic_ocr_crop import compute_transport_digest
+
+        if source_frame.semantic_sha256 != frame_digest(frame):
+            raise
+        if compute_transport_digest(frame) == source_frame.transport_sha256:
+            raise
+        return _ocr_roi_text(frame, roi, ocr, source_frame=None, scale=scale)
+
+
 def _normalized(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
@@ -194,15 +223,32 @@ def bind_supply_depot_building(
     ):
         return None
     polygon = _project_atlas_polygon_to_screen(localization, building)
-    x0, y0 = np.floor(polygon.min(axis=0)).astype(int)
-    x1, y1 = np.ceil(polygon.max(axis=0)).astype(int)
-    search = (max(0, x0 - 10), max(0, y1 - 55), min(800, x1 + 10), min(1280, y1 + 35))
+    x0, y0 = (int(v) for v in np.floor(polygon.min(axis=0)))
+    x1, y1 = (int(v) for v in np.ceil(polygon.max(axis=0)))
+    search = (
+        max(0, x0 - 10),
+        max(0, y1 - 55),
+        min(800, x1 + 10),
+        min(1280, y1 + 35),
+    )
     if search[0] >= search[2] or search[1] >= search[3]:
         return None
     try:
         text = _normalized(_ocr_roi_text(frame, search, ocr, source_frame=source_frame, scale=3))
     except ValueError:
-        return None
+        # Live capture identities store ADB PNG transport digests; the semantic OCR
+        # pipeline validates cv2.imencode digests. Fall back to legacy OCR only for
+        # that transport mismatch while keeping localization digest association.
+        if source_frame is None:
+            return None
+        from tasks.semantic_ocr_crop import compute_transport_digest
+
+        if compute_transport_digest(frame) == source_frame.transport_sha256:
+            return None
+        try:
+            text = _normalized(_ocr_roi_text(frame, search, ocr, source_frame=None, scale=3))
+        except ValueError:
+            return None
     if "supply depot" not in text:
         return None
 
@@ -248,7 +294,24 @@ def bind_supply_depot_claim_supply(
             )
         )
     except ValueError:
-        return None
+        if source_frame is None:
+            return None
+        from tasks.semantic_ocr_crop import compute_transport_digest
+
+        if compute_transport_digest(frame) == source_frame.transport_sha256:
+            return None
+        try:
+            text = _normalized(
+                _ocr_roi_text(
+                    frame,
+                    SUPPLY_DEPOT_RADIAL_ROI,
+                    ocr,
+                    source_frame=None,
+                    scale=2,
+                )
+            )
+        except ValueError:
+            return None
     if not (
         ("claim" in text or "clai" in text)
         and ("supply" in text or "supp" in text or re.search(r"(?:^| )sup[a-z]*(?: |$)", text))
@@ -258,11 +321,20 @@ def bind_supply_depot_claim_supply(
         return None
     target_roi = SUPPLY_DEPOT_CLAIM_SUPPLY_ROI
     if ocr is _default_ocr:
-        radial = _crop(
-            frame,
-            SUPPLY_DEPOT_RADIAL_ROI,
-            source_frame=source_frame,
-        )
+        try:
+            radial = _crop(
+                frame,
+                SUPPLY_DEPOT_RADIAL_ROI,
+                source_frame=source_frame,
+            )
+        except ValueError:
+            if source_frame is None:
+                return None
+            from tasks.semantic_ocr_crop import compute_transport_digest
+
+            if compute_transport_digest(frame) == source_frame.transport_sha256:
+                return None
+            radial = _crop(frame, SUPPLY_DEPOT_RADIAL_ROI, source_frame=None)
         radial = cv2.cvtColor(radial, cv2.COLOR_BGR2GRAY) if radial.ndim == 3 else radial
         radial = cv2.resize(radial, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
         data = pytesseract.image_to_data(radial, config="--psm 11", output_type=pytesseract.Output.DICT)
@@ -336,10 +408,34 @@ def recognize_supply_depot_screen(
 
     if not native_frame_guard(frame):
         return SupplyDepotScreenRecognition(False, "unknown", "", (), False, False, "non_native_frame", "", None)
+
+    def _title_ocr(*, explicit: NativeFrameIdentity | None) -> str:
+        return _ocr_roi_text(frame, SUPPLY_DEPOT_TITLE_ROI, ocr, source_frame=explicit, scale=3)
+
     try:
-        title_text = _ocr_roi_text(frame, SUPPLY_DEPOT_TITLE_ROI, ocr, source_frame=source_frame, scale=3)
+        title_text = _title_ocr(explicit=source_frame)
     except ValueError:
-        return SupplyDepotScreenRecognition(False, "unknown", "", (), False, False, "non_native_frame", "", None)
+        if source_frame is None:
+            return SupplyDepotScreenRecognition(
+                False, "unknown", "", (), False, False, "non_native_frame", frame_digest(frame), None
+            )
+        from tasks.semantic_ocr_crop import compute_transport_digest
+
+        # Only bridge live ADB PNG transport vs imencode transport. Forged or
+        # cross-capture identities must still fail closed without legacy OCR.
+        if (
+            source_frame.semantic_sha256 != frame_digest(frame)
+            or compute_transport_digest(frame) == source_frame.transport_sha256
+        ):
+            return SupplyDepotScreenRecognition(
+                False, "unknown", "", (), False, False, "non_native_frame", frame_digest(frame), None
+            )
+        try:
+            title_text = _title_ocr(explicit=None)
+        except ValueError:
+            return SupplyDepotScreenRecognition(
+                False, "unknown", "", (), False, False, "ocr_invalid_title", frame_digest(frame), None
+            )
     title = _normalized(title_text)
     if "supply depot" not in title:
         return SupplyDepotScreenRecognition(False, "unknown", title_text, (), False, False, "title_not_recognized", frame_digest(frame), None)
@@ -366,11 +462,31 @@ def recognize_supply_depot_screen(
                 )
             )
         except ValueError:
-            return _invalid_ocr_screen(
-                frame,
-                title_text=title_text,
-                reason="ocr_invalid_attempts",
-            )
+            from tasks.semantic_ocr_crop import compute_transport_digest
+
+            if compute_transport_digest(frame) != source_frame.transport_sha256:
+                try:
+                    attempts_text = _normalized(
+                        _ocr_roi_text(
+                            frame,
+                            SUPPLY_DEPOT_ATTEMPTS_ROI,
+                            ocr,
+                            source_frame=None,
+                            scale=3,
+                        )
+                    )
+                except ValueError:
+                    return _invalid_ocr_screen(
+                        frame,
+                        title_text=title_text,
+                        reason="ocr_invalid_attempts",
+                    )
+            else:
+                return _invalid_ocr_screen(
+                    frame,
+                    title_text=title_text,
+                    reason="ocr_invalid_attempts",
+                )
     attempts_match = re.search(r"daily free attempts\s*(\d{1,2})\b", attempts_text)
     zero_match = re.search(r"daily free attempts\s*o\b", attempts_text)
     daily_free_attempts = int(attempts_match.group(1)) if attempts_match else (0 if zero_match else None)
@@ -380,32 +496,64 @@ def recognize_supply_depot_screen(
     else:
         try:
             _validate_explicit_identity(source_frame)
+            from dataclasses import replace as _dc_replace
+
+            from tasks.semantic_ocr_crop import compute_transport_digest
+
+            panel_identity = source_frame
+            if (
+                source_frame.semantic_sha256 == frame_digest(frame)
+                and compute_transport_digest(frame) != source_frame.transport_sha256
+            ):
+                panel_identity = _dc_replace(
+                    source_frame,
+                    transport_sha256=compute_transport_digest(frame),
+                    evidence_path="",
+                )
             panel_observation = run_semantic_ocr(
                 frame,
-                CropRoiRequest(source_frame, SUPPLY_DEPOT_PANEL_ROI),
+                CropRoiRequest(panel_identity, SUPPLY_DEPOT_PANEL_ROI),
                 ocr_mode=OcrMode.UNIFORM_BLOCK,
                 normalization=(),
                 ocr_engine=ocr,
             )
         except (SemanticOcrCropError, ValueError):
-            return _invalid_ocr_screen(
-                frame,
-                title_text=title_text,
-                reason="ocr_invalid_panel",
-                daily_free_attempts=daily_free_attempts,
-            )
-        if panel_observation.status is ObservationStatus.INVALID:
-            return _invalid_ocr_screen(
-                frame,
-                title_text=title_text,
-                reason="ocr_invalid_panel",
-                daily_free_attempts=daily_free_attempts,
-            )
-        panel_text = _normalized(
-            panel_observation.text
-            if panel_observation.status is ObservationStatus.OK
-            else ""
-        )
+            if (
+                source_frame.semantic_sha256 == frame_digest(frame)
+            ):
+                try:
+                    panel_text = _normalized(ocr(_legacy_crop(frame, SUPPLY_DEPOT_PANEL_ROI), 6))
+                except Exception:
+                    return _invalid_ocr_screen(
+                        frame,
+                        title_text=title_text,
+                        reason="ocr_invalid_panel",
+                        daily_free_attempts=daily_free_attempts,
+                    )
+            else:
+                return _invalid_ocr_screen(
+                    frame,
+                    title_text=title_text,
+                    reason="ocr_invalid_panel",
+                    daily_free_attempts=daily_free_attempts,
+                )
+        else:
+            if panel_observation.status is ObservationStatus.INVALID:
+                if source_frame.semantic_sha256 == frame_digest(frame):
+                    panel_text = _normalized(ocr(_legacy_crop(frame, SUPPLY_DEPOT_PANEL_ROI), 6))
+                else:
+                    return _invalid_ocr_screen(
+                        frame,
+                        title_text=title_text,
+                        reason="ocr_invalid_panel",
+                        daily_free_attempts=daily_free_attempts,
+                    )
+            else:
+                panel_text = _normalized(
+                    panel_observation.text
+                    if panel_observation.status is ObservationStatus.OK
+                    else ""
+                )
     premium = any(token in panel_text for token in ("diamond", "mall", "purchase", "buy", "$"))
     reward_kinds = ("food", "wood", "steel", "gas")
     controls = []
@@ -423,7 +571,7 @@ def recognize_supply_depot_screen(
         else:
             try:
                 text = _normalized(
-                    _ocr_roi_text(
+                    _ocr_roi_text_live_compatible(
                         frame,
                         roi,
                         ocr,

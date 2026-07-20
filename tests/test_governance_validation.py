@@ -24,16 +24,16 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         self.assertEqual(
             state["current_task_id"],
-            "HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION",
+            "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
         )
         self.assertEqual(state["current_task_state"], "completed")
         self.assertEqual(
             state["next_task_id"],
-            "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
+            "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
         )
         self.assertEqual(
             state["next_task_activation_status"],
-            "ready",
+            "dependency_blocked",
         )
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
 
@@ -85,10 +85,10 @@ class GovernanceValidationTests(unittest.TestCase):
         next_block = validate_governance.task_block(backlog, state["next_task_id"])
         self.assertEqual(
             state["next_task_id"],
-            "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
+            "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
         )
-        self.assertIn("Status: Pending", next_block)
-        self.assertIn("RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION", next_block)
+        self.assertIn("Status: Blocked", next_block)
+        self.assertIn("M6-DQ-TRANSITION-CORPUS", next_block)
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
         validate_governance.validate_successor(backlog, state)
         validate_governance.validate_repository(ROOT)

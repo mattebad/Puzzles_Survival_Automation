@@ -55,6 +55,7 @@ from tasks.home_atlas_vision import (
     BLUESTACKS_PLATFORM,
     BLUESTACKS_PROFILE_ID,
     BLUESTACKS_SAFE_INTERACTION_BOX,
+    HUD_MASK_RECTS,
     BlueStacksHomeLocalizer,
     bind_visible_building,
     classify_zoom,
@@ -76,12 +77,20 @@ from tasks.navigation_session import (
     complete_route_at_target_bound,
     compute_pan_gesture_fingerprint,
     create_session,
+    complete_route_at_radial_successor,
     make_pan_action_key,
     mark_blocked,
     mark_dry_run,
+    mark_uncertain,
     record_pan_dispatched,
     record_pan_prepared,
     record_plan,
+    record_navigation_action_dispatched,
+    record_navigation_action_prepared,
+    record_home_recovered,
+    record_radial_verified,
+    record_safe_exit,
+    reconcile_navigation_action,
     record_source_home_verified,
     record_target_bound,
     reconcile_pan,
@@ -97,6 +106,8 @@ from tasks.perception_bundle import (
     FramePerceptionBundle,
     FrameValidityState,
     ImmutableFrameValidationObservation,
+    ImmutableRadialObservation,
+    ImmutableRecognizedScreenObservation,
     NativeFrameIdentity,
     PerceptionBundleError,
     binding_from_result,
@@ -104,6 +115,26 @@ from tasks.perception_bundle import (
     bundle_from_identity,
     classify_and_attach,
     localization_from_result,
+)
+from tasks.radial_semantics import (
+    ActionabilityState,
+    ControlRole,
+    HomeRadialSemantics,
+    OwningFacilityObservation,
+    RadialAmbiguityState,
+    RadialControlObservation,
+    RecognitionState,
+    radial_semantics_evidence_snapshot,
+)
+from tasks.bluestacks_home_safe_exit import (
+    CategoryCoverageProof,
+    ExclusionCategory,
+    ExclusionRegion,
+    ExclusionInventory,
+    SafeExitCandidateProposal,
+    SafeExitBindingResult,
+    bind_bluestacks_home_safe_exit,
+    safe_exit_evidence_snapshot,
 )
 from tasks.supply_depot_vision import (
     bind_supply_depot_building,
@@ -118,6 +149,26 @@ NAVIGATE_BUILDING_TARGET_IDENTITY = "home-camera-click-drag"
 NAVIGATE_BUILDING_POSTCONDITION = "HOME_BASE_VIEWPORT_PROGRESS"
 _VERIFIED_PAN_TRANSPORT_SEAL = object()
 CONFIRMED_NOT_DISPATCHED_STATUS = "NON_DISPATCH_AUTHORITY_UNAVAILABLE"
+
+SUPPLY_DEPOT_RADIAL_SEMANTIC_ACTION = "SUPPLY_DEPOT_RADIAL_NAVIGATION"
+SUPPLY_DEPOT_RADIAL_TARGET_IDENTITY = "supply-depot-claim-supply-navigation"
+SUPPLY_DEPOT_RADIAL_POSTCONDITION = "SUPPLY_DEPOT_SCREEN"
+SUPPLY_DEPOT_BUILDING_SEMANTIC_ACTION = "SUPPLY_DEPOT_BUILDING_NAVIGATION"
+SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY = "home.building.supply_depot"
+SUPPLY_DEPOT_BUILDING_POSTCONDITION = "SUPPLY_DEPOT_RADIAL"
+SUPPLY_DEPOT_EXIT_SEMANTIC_ACTION = "SUPPLY_DEPOT_SAFE_EXIT"
+SUPPLY_DEPOT_EXIT_TARGET_IDENTITY = "supply-depot-back-arrow"
+SUPPLY_DEPOT_EXIT_POSTCONDITION = "HOME_BASE"
+SUPPLY_DEPOT_EXIT_TARGET_ROI = (0, 0, 150, 105)
+SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI = (
+    int(BLUESTACKS_INTERACTION_ANCHOR[0] - 20),
+    int(BLUESTACKS_INTERACTION_ANCHOR[1] - 20),
+    int(BLUESTACKS_INTERACTION_ANCHOR[0] + 20),
+    int(BLUESTACKS_INTERACTION_ANCHOR[1] + 20),
+)
+SUPPLY_DEPOT_ROUTE_TASK_ID = "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION"
+_VERIFIED_SUPPLY_DEPOT_RADIAL_TRANSPORT_SEAL = object()
+_VERIFIED_SUPPLY_DEPOT_NAVIGATION_TRANSPORT_SEAL = object()
 
 
 def identity_from_captured(
@@ -1000,6 +1051,1118 @@ def dispatch_verified_navigate_pan(
     )
     result = executor.execute(execute_request, issued.capability, dry_run=dry_run)
     return issued, result, pre_observation
+
+
+def build_supply_depot_radial_semantics(
+    identity: NativeFrameIdentity,
+    binding: BuildingBinding,
+) -> HomeRadialSemantics:
+    """Build exact same-capture Supply Depot radial semantics.
+
+    The visual label remains Claim Supply, while the typed semantic contract
+    explicitly limits the control to opening the zero-cost facility screen.
+    """
+
+    if binding.building_id != "home.building.supply_depot":
+        raise PerceptionBundleError("RADIAL_OWNER_IDENTITY_MISMATCH")
+    if binding.frame_sha256 != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    owner = OwningFacilityObservation(
+        source_frame=identity,
+        facility_semantic_id="home.building.supply_depot",
+        recognition_state=RecognitionState.RECOGNIZED,
+        recognition_confidence=float(binding.confidence),
+        ambiguity_state=RadialAmbiguityState.NONE,
+        supporting_evidence=(
+            "current-frame Supply Depot radial owner",
+            "navigation-only facility entry",
+        ),
+    )
+    control = RadialControlObservation(
+        source_frame=identity,
+        control_id=SUPPLY_DEPOT_RADIAL_TARGET_IDENTITY,
+        label="Claim Supply",
+        role=ControlRole.CLAIM,
+        recognition_state=RecognitionState.RECOGNIZED,
+        recognition_confidence=float(binding.confidence),
+        actionability_state=ActionabilityState.ACTIONABLE,
+        actionability_reason="navigation_only_facility_entry",
+        expected_successors=("facility.screen",),
+        forbidden_successors=("facility.claim_supply",),
+        owner_facility_semantic_id="home.building.supply_depot",
+        ambiguity_state=RadialAmbiguityState.NONE,
+        supporting_evidence=tuple(binding.semantic_evidence),
+        metadata={
+            "historical_control_identity": SUPPLY_DEPOT_RADIAL_TARGET_IDENTITY,
+            "cost": "none",
+            "consequence": "navigation_only",
+        },
+    )
+    return HomeRadialSemantics(
+        source_frame=identity,
+        radial_identity="home.radial.supply_depot",
+        recognition_state=RecognitionState.RECOGNIZED,
+        recognition_confidence=float(binding.confidence),
+        owning_facility=owner,
+        controls=(control,),
+        ambiguity_state=RadialAmbiguityState.NONE,
+        supporting_evidence=(
+            "same-capture Supply Depot radial",
+            "Claim Supply label is navigation-only",
+        ),
+        metadata={"route": "supply-depot-radial"},
+    )
+
+
+def build_supply_depot_radial_perception_bundle(
+    identity: NativeFrameIdentity,
+    binding: BuildingBinding,
+) -> FramePerceptionBundle:
+    """Compose immutable native validation and typed radial semantics."""
+
+    semantics = build_supply_depot_radial_semantics(identity, binding)
+    bundle = (
+        bundle_from_identity(identity)
+        .with_frame_validation(bluestacks_frame_validation(identity))
+        .with_radial(
+            ImmutableRadialObservation(
+                source_frame=identity,
+                facility_identity="home.building.supply_depot",
+                confidence=semantics.recognition_confidence,
+                supporting_evidence=semantics.supporting_evidence,
+                semantics=semantics,
+            )
+        )
+    )
+    return classify_and_attach(bundle)
+
+
+def build_supply_depot_screen_perception_bundle(
+    identity: NativeFrameIdentity,
+    successor,
+) -> FramePerceptionBundle:
+    """Compose the semantic Supply Depot successor on its own capture event."""
+
+    if successor.frame_sha256 != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    return classify_and_attach(
+        bundle_from_identity(identity)
+        .with_frame_validation(bluestacks_frame_validation(identity))
+        .with_recognized_screen(
+            ImmutableRecognizedScreenObservation(
+                source_frame=identity,
+                screen_identity="facility.supply_depot",
+                confidence=0.99 if successor.recognized else 0.0,
+                supporting_evidence=(
+                    "Supply Depot title recognition"
+                    if successor.recognized
+                    else successor.ambiguity,
+                ),
+            )
+        )
+    )
+
+
+def build_supply_depot_safe_exit_probe(
+    identity: NativeFrameIdentity,
+    *,
+    building_binding: BuildingBinding | None = None,
+    radial_binding: BuildingBinding | None = None,
+) -> SafeExitBindingResult:
+    """Evaluate a real same-capture exterior-close candidate without authority.
+
+    The candidate is a known map-space close target around the existing
+    BlueStacks interaction anchor. Every exclusion category is populated from
+    fixed HUD geometry or the route's positively recognized current-frame
+    bindings. A category is marked empty only when the corresponding recognizer
+    explicitly found no such control on this frame.
+    """
+
+    if building_binding is not None and building_binding.frame_sha256 != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    if radial_binding is not None and radial_binding.frame_sha256 != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    bound = radial_binding or building_binding
+    if bound is None:
+        raise PerceptionBundleError("SAFE_EXIT_SOURCE_BINDING_REQUIRED")
+
+    def region(
+        category: ExclusionCategory,
+        region_id: str,
+        box: tuple[int, int, int, int],
+        *evidence: str,
+    ) -> ExclusionRegion:
+        return ExclusionRegion(
+            source_frame=identity,
+            category=category,
+            region_id=region_id,
+            box=box,
+            supporting_evidence=tuple(evidence),
+        )
+
+    hud_regions = tuple(
+        region(
+            ExclusionCategory.HUD,
+            f"fixed-hud-{index}",
+            tuple(rect),
+            "Home Atlas fixed HUD exclusion",
+        )
+        for index, rect in enumerate(HUD_MASK_RECTS)
+    )
+    building_regions = (
+        (
+            region(
+                ExclusionCategory.BUILDINGS,
+                "supply-depot-building-bound",
+                tuple(building_binding.target_roi),
+                "same-capture Supply Depot building binding",
+            ),
+        )
+        if building_binding is not None
+        else ()
+    )
+    radial_regions = (
+        (
+            region(
+                ExclusionCategory.RADIAL_CONTROLS,
+                "supply-depot-radial-control-bound",
+                tuple(radial_binding.target_roi),
+                "same-capture Supply Depot radial binding",
+            ),
+        )
+        if radial_binding is not None
+        else ()
+    )
+    semantic_regions = (
+        region(
+            ExclusionCategory.SEMANTIC_TARGETS,
+            "supply-depot-semantic-target-bound",
+            tuple(bound.target_roi),
+            "same-capture Supply Depot route target",
+        ),
+    )
+    interactive_regions = (
+        region(
+            ExclusionCategory.KNOWN_INTERACTIVE_REGIONS,
+            "supply-depot-known-interactive-target",
+            tuple(bound.target_roi),
+            "same-capture route interaction target",
+        ),
+    )
+    coverage_data = {
+        ExclusionCategory.HUD: (hud_regions, False),
+        ExclusionCategory.BUILDINGS: (
+            building_regions,
+            building_binding is None,
+        ),
+        ExclusionCategory.RADIAL_CONTROLS: (
+            radial_regions,
+            radial_binding is None,
+        ),
+        ExclusionCategory.SEMANTIC_TARGETS: (semantic_regions, False),
+        ExclusionCategory.KNOWN_INTERACTIVE_REGIONS: (interactive_regions, False),
+    }
+    coverage = tuple(
+        CategoryCoverageProof(
+            source_frame=identity,
+            category=category,
+            regions=regions,
+            observed_empty=observed_empty,
+        )
+        for category, (regions, observed_empty) in sorted(
+            coverage_data.items(), key=lambda item: item[0].value
+        )
+    )
+    inventory = ExclusionInventory(source_frame=identity, coverage=coverage)
+    return bind_bluestacks_home_safe_exit(
+        source_frame=identity,
+        permitted_safe_space=BLUESTACKS_SAFE_INTERACTION_BOX,
+        exclusion_inventory=inventory,
+        proposed_candidates=(
+            SafeExitCandidateProposal(
+                source_frame=identity,
+                candidate_id="supply-depot-exterior-close-anchor",
+                box=SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI,
+            ),
+        ),
+        metadata={
+            "route": "supply-depot-radial",
+            "dispatch_authority": "none",
+            "candidate_proposals": "known_map_space_exterior_close_anchor",
+            "building_binding": "bound" if building_binding is not None else "unavailable",
+            "radial_binding": "bound" if radial_binding is not None else "unavailable",
+        },
+    )
+
+
+def reject_direct_supply_depot_radial_transport(
+    *,
+    authorized_token: object | None = None,
+) -> None:
+    """Fail closed when radial transport bypasses the sealed executor callback."""
+
+    if authorized_token is not _VERIFIED_SUPPLY_DEPOT_RADIAL_TRANSPORT_SEAL:
+        raise RuntimeError("DIRECT_TRANSPORT_BYPASS_REJECTED")
+
+
+def reject_direct_supply_depot_navigation_transport(
+    *,
+    authorized_token: object | None = None,
+) -> None:
+    """Fail closed for every non-radial Supply Depot navigation transport."""
+
+    if authorized_token is not _VERIFIED_SUPPLY_DEPOT_NAVIGATION_TRANSPORT_SEAL:
+        raise RuntimeError("DIRECT_TRANSPORT_BYPASS_REJECTED")
+
+
+def bind_supply_depot_home_building(
+    frame: np.ndarray,
+    *,
+    atlas_path: Path | None,
+    source_frame: NativeFrameIdentity,
+) -> BuildingBinding | None:
+    """Bind the Supply Depot building only from a positively recognized Home frame."""
+
+    if atlas_path is None:
+        return None
+    try:
+        atlas = load_home_atlas(atlas_path)
+        localizer = BlueStacksHomeLocalizer(atlas, atlas_path)
+        localization = localizer.localize(frame)
+        if (
+            not localization.recognized
+            or localization.frame_sha256 != source_frame.semantic_sha256
+        ):
+            return None
+        building = atlas.lookup_building("home.building.supply_depot")
+        return bind_supply_depot_building(
+            frame,
+            localization,
+            building,
+            source_frame=source_frame,
+        )
+    except (KeyError, OSError, ValueError):
+        return None
+
+
+def recognize_supply_depot_home_successor(
+    frame: np.ndarray,
+    *,
+    atlas_path: Path | None,
+    source_frame: NativeFrameIdentity,
+):
+    """Return a fresh Home localization associated with one settled capture.
+
+    Safe-exit may leave Home at non-canonical zoom. Atlas localization requires
+    fully_zoomed_out for recognized=True, but a high-confidence ZOOMED_IN Home
+    scene that is no longer the Supply Depot facility still verifies HOME_BASE.
+    """
+
+    if atlas_path is None:
+        return None
+    try:
+        facility = recognize_supply_depot_screen(
+            frame,
+            source_frame=source_frame,
+        )
+    except (OSError, ValueError, TypeError):
+        facility = None
+    if facility is not None and bool(getattr(facility, "recognized", False)):
+        return None
+    try:
+        atlas = load_home_atlas(atlas_path)
+        localizer = BlueStacksHomeLocalizer(atlas, atlas_path)
+        localization = localizer.localize(frame)
+    except (OSError, ValueError):
+        return None
+    if localization.frame_sha256 != source_frame.semantic_sha256:
+        return None
+    if localization.recognized:
+        return localization
+    if (
+        localization.zoom_identity is ZoomIdentity.ZOOMED_IN
+        and float(localization.confidence) >= 0.85
+        and not localization.overlay
+        and not localization.stale
+    ):
+        return replace(localization, recognized=True)
+    return None
+
+
+def build_supply_depot_radial_observation(
+    *,
+    identity: NativeFrameIdentity,
+    binding: BuildingBinding,
+) -> Observation:
+    """Build the navigation-only policy observation from the current bundle."""
+
+    if binding.frame_sha256 != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    return Observation(
+        frame_sha256=str(identity.semantic_sha256),
+        capture_completed_monotonic=float(identity.capture_completed_monotonic),
+        runtime_profile_id=BLUESTACKS_PROFILE_ID,
+        width=int(identity.width),
+        height=int(identity.height),
+        valid_png=True,
+        corrupt=False,
+        black=False,
+        source_state="HOME_BASE",
+        overlay_state="none_observed",
+        target_identity=SUPPLY_DEPOT_RADIAL_TARGET_IDENTITY,
+        target_roi=tuple(binding.target_roi),
+        recognized=True,
+        consequence="navigate_zero_cost",
+        cost_type="none",
+        cost_amount=0,
+        quantity=1,
+        expected_postcondition=SUPPLY_DEPOT_RADIAL_POSTCONDITION,
+        evidence_refs=(
+            "supply-depot-radial:same-capture",
+            SUPPLY_DEPOT_RADIAL_TARGET_IDENTITY,
+        ),
+        package_foreground=True,
+        os_surface=False,
+        hard_stop_detected=False,
+        control_class="CLAIM",
+    )
+
+
+def build_supply_depot_building_observation(
+    *,
+    identity: NativeFrameIdentity,
+    binding: BuildingBinding,
+) -> Observation:
+    """Build the navigation-only Home building-entry observation."""
+
+    if binding.building_id != SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY:
+        raise PerceptionBundleError("BUILDING_OWNER_IDENTITY_MISMATCH")
+    if binding.frame_sha256 != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    return Observation(
+        frame_sha256=str(identity.semantic_sha256),
+        capture_completed_monotonic=float(identity.capture_completed_monotonic),
+        runtime_profile_id=BLUESTACKS_PROFILE_ID,
+        width=int(identity.width),
+        height=int(identity.height),
+        valid_png=True,
+        corrupt=False,
+        black=False,
+        source_state="HOME_BASE",
+        overlay_state="none_observed",
+        target_identity=SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY,
+        target_roi=tuple(binding.target_roi),
+        recognized=True,
+        consequence="navigate_zero_cost",
+        cost_type="none",
+        cost_amount=0,
+        quantity=1,
+        expected_postcondition=SUPPLY_DEPOT_BUILDING_POSTCONDITION,
+        evidence_refs=(
+            "supply-depot-building:same-capture",
+            SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY,
+        ),
+        package_foreground=True,
+        os_surface=False,
+        hard_stop_detected=False,
+        control_class="GO",
+    )
+
+
+def build_supply_depot_exit_observation(
+    *,
+    identity: NativeFrameIdentity,
+    recognized_screen: bool,
+) -> Observation:
+    """Build the navigation-only facility Back-arrow observation."""
+
+    return Observation(
+        frame_sha256=str(identity.semantic_sha256),
+        capture_completed_monotonic=float(identity.capture_completed_monotonic),
+        runtime_profile_id=BLUESTACKS_PROFILE_ID,
+        width=int(identity.width),
+        height=int(identity.height),
+        valid_png=True,
+        corrupt=False,
+        black=False,
+        source_state="SUPPLY_DEPOT_SCREEN",
+        overlay_state="none_observed",
+        target_identity=SUPPLY_DEPOT_EXIT_TARGET_IDENTITY,
+        target_roi=SUPPLY_DEPOT_EXIT_TARGET_ROI,
+        recognized=bool(recognized_screen),
+        consequence="navigate_zero_cost",
+        cost_type="none",
+        cost_amount=0,
+        quantity=1,
+        expected_postcondition=SUPPLY_DEPOT_EXIT_POSTCONDITION,
+        evidence_refs=(
+            "supply-depot-exit:same-capture",
+            SUPPLY_DEPOT_EXIT_TARGET_IDENTITY,
+        ),
+        package_foreground=True,
+        os_surface=False,
+        hard_stop_detected=False,
+        control_class="CLOSE",
+    )
+
+
+def build_supply_depot_radial_policy_request(
+    *,
+    observation: Observation,
+    action_id: str,
+    action_key: str,
+    task_id: str,
+    navigation_session_id: str,
+    lease_owner: str,
+    monotonic_now: float,
+    lease_valid: bool = True,
+    unresolved_action: bool = False,
+    duplicate_action_key: bool = False,
+    policy_phase: str = "proposal",
+) -> PolicyRequest:
+    """Construct the exact navigation-only Supply Depot radial request."""
+
+    return PolicyRequest(
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        task_mode="supervised_validation",
+        semantic_action=SUPPLY_DEPOT_RADIAL_SEMANTIC_ACTION,
+        expected_runtime_profile_id=BLUESTACKS_PROFILE_ID,
+        observation=observation,
+        monotonic_now=float(monotonic_now),
+        observation_max_age_seconds=30.0,
+        dispatch_max_age_seconds=15.0,
+        lease_owner=lease_owner,
+        lease_valid=lease_valid,
+        unresolved_action=unresolved_action,
+        duplicate_action_key=duplicate_action_key,
+        action_class=ActionClass.NAVIGATION_ONLY,
+        runtime_session_id=navigation_session_id,
+        policy_phase=policy_phase,
+    )
+
+
+def build_supply_depot_building_policy_request(
+    *,
+    observation: Observation,
+    action_id: str,
+    action_key: str,
+    task_id: str,
+    navigation_session_id: str,
+    lease_owner: str,
+    monotonic_now: float,
+    lease_valid: bool = True,
+    unresolved_action: bool = False,
+    duplicate_action_key: bool = False,
+    policy_phase: str = "proposal",
+) -> PolicyRequest:
+    return PolicyRequest(
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        task_mode="supervised_validation",
+        semantic_action=SUPPLY_DEPOT_BUILDING_SEMANTIC_ACTION,
+        expected_runtime_profile_id=BLUESTACKS_PROFILE_ID,
+        observation=observation,
+        monotonic_now=float(monotonic_now),
+        observation_max_age_seconds=30.0,
+        dispatch_max_age_seconds=15.0,
+        lease_owner=lease_owner,
+        lease_valid=lease_valid,
+        unresolved_action=unresolved_action,
+        duplicate_action_key=duplicate_action_key,
+        action_class=ActionClass.NAVIGATION_ONLY,
+        runtime_session_id=navigation_session_id,
+        policy_phase=policy_phase,
+    )
+
+
+def build_supply_depot_exit_policy_request(
+    *,
+    observation: Observation,
+    action_id: str,
+    action_key: str,
+    task_id: str,
+    navigation_session_id: str,
+    lease_owner: str,
+    monotonic_now: float,
+    lease_valid: bool = True,
+    unresolved_action: bool = False,
+    duplicate_action_key: bool = False,
+    policy_phase: str = "proposal",
+) -> PolicyRequest:
+    return PolicyRequest(
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        task_mode="supervised_validation",
+        semantic_action=SUPPLY_DEPOT_EXIT_SEMANTIC_ACTION,
+        expected_runtime_profile_id=BLUESTACKS_PROFILE_ID,
+        observation=observation,
+        monotonic_now=float(monotonic_now),
+        observation_max_age_seconds=30.0,
+        dispatch_max_age_seconds=15.0,
+        lease_owner=lease_owner,
+        lease_valid=lease_valid,
+        unresolved_action=unresolved_action,
+        duplicate_action_key=duplicate_action_key,
+        action_class=ActionClass.NAVIGATION_ONLY,
+        runtime_session_id=navigation_session_id,
+        policy_phase=policy_phase,
+    )
+
+
+def dispatch_verified_supply_depot_radial_tap(
+    *,
+    runtime,
+    immediate_before: CapturedNativeFrame,
+    identity: NativeFrameIdentity,
+    binding: BuildingBinding,
+    action_id: str,
+    action_key: str,
+    task_id: str,
+    navigation_session_id: str,
+    lease_owner: str,
+    policy: CentralPolicy,
+    store: SafetyStore,
+    settle_seconds: float = 0.0,
+    dry_run: bool = False,
+    monotonic_clock: Callable[[], float] | None = None,
+    wall_clock: Callable[[], float] | None = None,
+) -> tuple[object, object | None, Observation, dict[str, object]]:
+    """Issue and consume one capability for the navigation-only radial tap.
+
+    The transport callback is the only place that can reach ``runtime.tap``.
+    The executor recaptures/revalidates through the same issuance-frame
+    observation, while the proposal intentionally uses the same digest with an
+    earlier monotonic value.
+    """
+
+    pre_observation = build_supply_depot_radial_observation(
+        identity=identity,
+        binding=binding,
+    )
+    proposal_observation = replace(
+        pre_observation,
+        capture_completed_monotonic=(
+            pre_observation.capture_completed_monotonic - 0.05
+        ),
+    )
+    mono_clock = monotonic_clock or time.monotonic
+    wall = wall_clock or time.time
+    now = float(mono_clock())
+    issue_request = build_supply_depot_radial_policy_request(
+        observation=pre_observation,
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        navigation_session_id=navigation_session_id,
+        lease_owner=lease_owner,
+        monotonic_now=now,
+    )
+    issued = policy.issue_capability(issue_request)
+    telemetry: dict[str, object] = {
+        "requested": True,
+        "authorized": bool(issued.authorized and issued.capability is not None),
+        "dispatched": False,
+        "transport_observed": False,
+        "verified": False,
+        "completed": False,
+    }
+    if not issued.authorized or issued.capability is None:
+        return issued, None, pre_observation, telemetry
+
+    def transport(_intent) -> TransportResult:
+        reject_direct_supply_depot_radial_transport(
+            authorized_token=_VERIFIED_SUPPLY_DEPOT_RADIAL_TRANSPORT_SEAL
+        )
+        if dry_run:
+            raise RuntimeError("DRY_RUN_TRANSPORT_MUST_NOT_RUN")
+        runtime.tap(
+            immediate_before,
+            target_identity=SUPPLY_DEPOT_RADIAL_TARGET_IDENTITY,
+            target_roi=tuple(binding.target_roi),
+            action_key=action_key,
+            consequential=False,
+        )
+        telemetry["dispatched"] = True
+        return TransportResult(True, "SUPPLY_DEPOT_RADIAL_DISPATCHED")
+
+    def recapture() -> Observation:
+        # The executor's immediate recapture is the issuance-frame observation.
+        # Its monotonic clock and exact capability binding still run at the
+        # final pre_dispatch boundary.
+        return pre_observation
+
+    def post_observe():
+        immediate_post = runtime.capture("radial-immediate-post")
+        immediate_post_ordinal = getattr(runtime, "ordinal", None)
+        if immediate_post_ordinal is None:
+            immediate_post_ordinal = identity.capture_ordinal + 1
+        immediate_post_identity = identity_from_captured(
+            immediate_post,
+            session_id=str(runtime.session),
+            ordinal=int(immediate_post_ordinal),
+            label="radial-immediate-post",
+        )
+        if settle_seconds > 0:
+            time.sleep(settle_seconds)
+        settled = runtime.capture("radial-settled")
+        settled_ordinal = getattr(runtime, "ordinal", None)
+        if settled_ordinal is None:
+            settled_ordinal = int(immediate_post_ordinal) + 1
+        settled_identity = identity_from_captured(
+            settled,
+            session_id=str(runtime.session),
+            ordinal=int(settled_ordinal),
+            label="radial-settled",
+        )
+        successor = recognize_supply_depot_screen(
+            settled.frame,
+            source_frame=settled_identity,
+        )
+        settled_bundle = build_supply_depot_screen_perception_bundle(
+            settled_identity,
+            successor,
+        )
+        telemetry.update(
+            {
+                "immediate_post": immediate_post,
+                "immediate_post_identity": immediate_post_identity,
+                "settled": settled,
+                "settled_identity": settled_identity,
+                "successor": successor,
+                "settled_perception_bundle": settled_bundle,
+                "verified": bool(successor.recognized),
+            }
+        )
+        return (
+            replace(
+                pre_observation,
+                frame_sha256=settled_identity.semantic_sha256,
+                capture_completed_monotonic=(
+                    settled_identity.capture_completed_monotonic
+                ),
+                source_state=(
+                    "SUPPLY_DEPOT_SCREEN"
+                    if successor.recognized
+                    else "UNKNOWN"
+                ),
+                target_identity=None,
+                target_roi=None,
+                recognized=bool(successor.recognized),
+                expected_postcondition=SUPPLY_DEPOT_RADIAL_POSTCONDITION,
+                evidence_refs=("supply-depot-screen-successor",),
+            ),
+        )
+
+    def reconcile(_intent, observation: Observation) -> bool:
+        successor = telemetry.get("successor")
+        return bool(
+            successor is not None
+            and getattr(successor, "recognized", False)
+            and observation.frame_sha256
+            == getattr(telemetry.get("settled_identity"), "semantic_sha256", "")
+        )
+
+    executor = SafeActionExecutor(
+        store,
+        policy,
+        lease_owner,
+        mono_clock,
+        transport,
+        recapture,
+        post_observe,
+        reconcile,
+        wall_clock=wall,
+        max_pre_dispatch_attempts=1,
+    )
+    execute_request = build_supply_depot_radial_policy_request(
+        observation=proposal_observation,
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        navigation_session_id=navigation_session_id,
+        lease_owner=lease_owner,
+        monotonic_now=float(mono_clock()),
+    )
+    execution = executor.execute(
+        execute_request,
+        issued.capability,
+        dry_run=dry_run,
+    )
+    telemetry["transport_observed"] = bool(execution.transport_calls > 0)
+    telemetry["completed"] = bool(
+        execution.status is ActionStatus.CONFIRMED
+        and telemetry.get("verified") is True
+    )
+    return issued, execution, pre_observation, telemetry
+
+
+def dispatch_verified_supply_depot_building_tap(
+    *,
+    runtime,
+    immediate_before: CapturedNativeFrame,
+    identity: NativeFrameIdentity,
+    binding: BuildingBinding,
+    action_id: str,
+    action_key: str,
+    task_id: str,
+    navigation_session_id: str,
+    lease_owner: str,
+    policy: CentralPolicy,
+    store: SafetyStore,
+    settle_seconds: float = 0.0,
+    dry_run: bool = False,
+    monotonic_clock: Callable[[], float] | None = None,
+    wall_clock: Callable[[], float] | None = None,
+) -> tuple[object, object | None, Observation, dict[str, object]]:
+    """Open the Supply Depot radial through the verified executor path."""
+
+    pre_observation = build_supply_depot_building_observation(
+        identity=identity,
+        binding=binding,
+    )
+    proposal_observation = replace(
+        pre_observation,
+        capture_completed_monotonic=(
+            pre_observation.capture_completed_monotonic - 0.05
+        ),
+    )
+    mono_clock = monotonic_clock or time.monotonic
+    wall = wall_clock or time.time
+    issue_request = build_supply_depot_building_policy_request(
+        observation=pre_observation,
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        navigation_session_id=navigation_session_id,
+        lease_owner=lease_owner,
+        monotonic_now=float(mono_clock()),
+    )
+    issued = policy.issue_capability(issue_request)
+    telemetry: dict[str, object] = {
+        "requested": True,
+        "authorized": bool(issued.authorized and issued.capability is not None),
+        "dispatched": False,
+        "transport_observed": False,
+        "verified": False,
+        "completed": False,
+    }
+    if not issued.authorized or issued.capability is None:
+        return issued, None, pre_observation, telemetry
+
+    def transport(_intent) -> TransportResult:
+        reject_direct_supply_depot_navigation_transport(
+            authorized_token=_VERIFIED_SUPPLY_DEPOT_NAVIGATION_TRANSPORT_SEAL
+        )
+        if dry_run:
+            raise RuntimeError("DRY_RUN_TRANSPORT_MUST_NOT_RUN")
+        runtime.tap(
+            immediate_before,
+            target_identity=SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY,
+            target_roi=tuple(binding.target_roi),
+            action_key=action_key,
+            consequential=False,
+        )
+        telemetry["dispatched"] = True
+        return TransportResult(True, "SUPPLY_DEPOT_BUILDING_DISPATCHED")
+
+    def recapture() -> Observation:
+        return pre_observation
+
+    def post_observe():
+        immediate_post = runtime.capture("supply-depot-building-immediate-post")
+        immediate_post_ordinal = getattr(runtime, "ordinal", None)
+        if immediate_post_ordinal is None:
+            immediate_post_ordinal = identity.capture_ordinal + 1
+        immediate_post_identity = identity_from_captured(
+            immediate_post,
+            session_id=str(runtime.session),
+            ordinal=int(immediate_post_ordinal),
+            label="supply-depot-building-immediate-post",
+        )
+        if settle_seconds > 0:
+            time.sleep(settle_seconds)
+        settled = runtime.capture("supply-depot-radial-settled")
+        settled_ordinal = getattr(runtime, "ordinal", None)
+        if settled_ordinal is None:
+            settled_ordinal = int(immediate_post_ordinal) + 1
+        settled_identity = identity_from_captured(
+            settled,
+            session_id=str(runtime.session),
+            ordinal=int(settled_ordinal),
+            label="supply-depot-radial-settled",
+        )
+        radial_binding = bind_supply_depot_claim_supply(
+            settled.frame,
+            source_frame=settled_identity,
+        )
+        radial_bundle = None
+        if (
+            radial_binding is not None
+            and radial_binding.frame_sha256 == settled_identity.semantic_sha256
+        ):
+            radial_bundle = build_supply_depot_radial_perception_bundle(
+                settled_identity,
+                radial_binding,
+            )
+        telemetry.update(
+            {
+                "immediate_post": immediate_post,
+                "immediate_post_identity": immediate_post_identity,
+                "settled": settled,
+                "settled_identity": settled_identity,
+                "radial_binding": radial_binding,
+                "settled_perception_bundle": radial_bundle,
+                "verified": radial_bundle is not None,
+            }
+        )
+        return (
+            replace(
+                pre_observation,
+                frame_sha256=settled_identity.semantic_sha256,
+                capture_completed_monotonic=settled_identity.capture_completed_monotonic,
+                source_state="HOME_BASE",
+                target_identity=None,
+                target_roi=None,
+                recognized=radial_bundle is not None,
+                expected_postcondition=SUPPLY_DEPOT_BUILDING_POSTCONDITION,
+                evidence_refs=("supply-depot-radial-successor",),
+            ),
+        )
+
+    def reconcile(_intent, observation: Observation) -> bool:
+        radial_binding = telemetry.get("radial_binding")
+        return bool(
+            telemetry.get("verified") is True
+            and radial_binding is not None
+            and observation.frame_sha256
+            == getattr(telemetry.get("settled_identity"), "semantic_sha256", "")
+        )
+
+    executor = SafeActionExecutor(
+        store,
+        policy,
+        lease_owner,
+        mono_clock,
+        transport,
+        recapture,
+        post_observe,
+        reconcile,
+        wall_clock=wall,
+        max_pre_dispatch_attempts=1,
+    )
+    execute_request = build_supply_depot_building_policy_request(
+        observation=proposal_observation,
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        navigation_session_id=navigation_session_id,
+        lease_owner=lease_owner,
+        monotonic_now=float(mono_clock()),
+    )
+    execution = executor.execute(
+        execute_request,
+        issued.capability,
+        dry_run=dry_run,
+    )
+    telemetry["transport_observed"] = bool(execution.transport_calls > 0)
+    telemetry["completed"] = bool(
+        execution.status is ActionStatus.CONFIRMED
+        and telemetry.get("verified") is True
+    )
+    return issued, execution, pre_observation, telemetry
+
+
+def dispatch_verified_supply_depot_exit_tap(
+    *,
+    runtime,
+    immediate_before: CapturedNativeFrame,
+    identity: NativeFrameIdentity,
+    action_id: str,
+    action_key: str,
+    task_id: str,
+    navigation_session_id: str,
+    lease_owner: str,
+    policy: CentralPolicy,
+    store: SafetyStore,
+    home_successor_recognizer: Callable[..., object | None],
+    settle_seconds: float = 0.0,
+    dry_run: bool = False,
+    monotonic_clock: Callable[[], float] | None = None,
+    wall_clock: Callable[[], float] | None = None,
+) -> tuple[object, object | None, Observation, dict[str, object]]:
+    """Return from the facility through a capability-bound Back-arrow tap."""
+
+    pre_observation = build_supply_depot_exit_observation(
+        identity=identity,
+        recognized_screen=True,
+    )
+    proposal_observation = replace(
+        pre_observation,
+        capture_completed_monotonic=(
+            pre_observation.capture_completed_monotonic - 0.05
+        ),
+    )
+    mono_clock = monotonic_clock or time.monotonic
+    wall = wall_clock or time.time
+    issue_request = build_supply_depot_exit_policy_request(
+        observation=pre_observation,
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        navigation_session_id=navigation_session_id,
+        lease_owner=lease_owner,
+        monotonic_now=float(mono_clock()),
+    )
+    issued = policy.issue_capability(issue_request)
+    telemetry: dict[str, object] = {
+        "requested": True,
+        "authorized": bool(issued.authorized and issued.capability is not None),
+        "dispatched": False,
+        "transport_observed": False,
+        "verified": False,
+        "completed": False,
+    }
+    if not issued.authorized or issued.capability is None:
+        return issued, None, pre_observation, telemetry
+
+    def transport(_intent) -> TransportResult:
+        reject_direct_supply_depot_navigation_transport(
+            authorized_token=_VERIFIED_SUPPLY_DEPOT_NAVIGATION_TRANSPORT_SEAL
+        )
+        if dry_run:
+            raise RuntimeError("DRY_RUN_TRANSPORT_MUST_NOT_RUN")
+        runtime.tap(
+            immediate_before,
+            target_identity=SUPPLY_DEPOT_EXIT_TARGET_IDENTITY,
+            target_roi=SUPPLY_DEPOT_EXIT_TARGET_ROI,
+            action_key=action_key,
+            consequential=False,
+        )
+        telemetry["dispatched"] = True
+        return TransportResult(True, "SUPPLY_DEPOT_EXIT_DISPATCHED")
+
+    def recapture() -> Observation:
+        return pre_observation
+
+    def post_observe():
+        immediate_post = runtime.capture("supply-depot-exit-immediate-post")
+        immediate_post_ordinal = getattr(runtime, "ordinal", None)
+        if immediate_post_ordinal is None:
+            immediate_post_ordinal = identity.capture_ordinal + 1
+        immediate_post_identity = identity_from_captured(
+            immediate_post,
+            session_id=str(runtime.session),
+            ordinal=int(immediate_post_ordinal),
+            label="supply-depot-exit-immediate-post",
+        )
+        if settle_seconds > 0:
+            time.sleep(settle_seconds)
+        settled = runtime.capture("supply-depot-home-settled")
+        settled_ordinal = getattr(runtime, "ordinal", None)
+        if settled_ordinal is None:
+            settled_ordinal = int(immediate_post_ordinal) + 1
+        settled_identity = identity_from_captured(
+            settled,
+            session_id=str(runtime.session),
+            ordinal=int(settled_ordinal),
+            label="supply-depot-home-settled",
+        )
+        home_localization = home_successor_recognizer(
+            settled.frame,
+            source_frame=settled_identity,
+        )
+        home_bundle = None
+        if home_localization is not None and getattr(
+            home_localization, "recognized", False
+        ):
+            try:
+                home_bundle = classify_and_attach(
+                    bundle_from_identity(settled_identity)
+                    .with_frame_validation(
+                        bluestacks_frame_validation(settled_identity)
+                    )
+                    .with_localization(
+                        localization_from_result(
+                            settled_identity, home_localization
+                        )
+                    )
+                )
+            except (PerceptionBundleError, ValueError, AttributeError):
+                home_bundle = None
+        telemetry.update(
+            {
+                "immediate_post": immediate_post,
+                "immediate_post_identity": immediate_post_identity,
+                "settled": settled,
+                "settled_identity": settled_identity,
+                "home_localization": home_localization,
+                "settled_perception_bundle": home_bundle,
+                "verified": bool(
+                    home_localization is not None
+                    and getattr(home_localization, "recognized", False)
+                ),
+            }
+        )
+        return (
+            replace(
+                pre_observation,
+                frame_sha256=settled_identity.semantic_sha256,
+                capture_completed_monotonic=settled_identity.capture_completed_monotonic,
+                source_state="HOME_BASE",
+                target_identity=None,
+                target_roi=None,
+                recognized=bool(
+                    home_localization is not None
+                    and getattr(home_localization, "recognized", False)
+                ),
+                expected_postcondition=SUPPLY_DEPOT_EXIT_POSTCONDITION,
+                evidence_refs=("home-semantic-successor",),
+            ),
+        )
+
+    def reconcile(_intent, observation: Observation) -> bool:
+        return bool(
+            telemetry.get("verified") is True
+            and observation.frame_sha256
+            == getattr(telemetry.get("settled_identity"), "semantic_sha256", "")
+        )
+
+    executor = SafeActionExecutor(
+        store,
+        policy,
+        lease_owner,
+        mono_clock,
+        transport,
+        recapture,
+        post_observe,
+        reconcile,
+        wall_clock=wall,
+        max_pre_dispatch_attempts=1,
+    )
+    execute_request = build_supply_depot_exit_policy_request(
+        observation=proposal_observation,
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        navigation_session_id=navigation_session_id,
+        lease_owner=lease_owner,
+        monotonic_now=float(mono_clock()),
+    )
+    execution = executor.execute(
+        execute_request,
+        issued.capability,
+        dry_run=dry_run,
+    )
+    telemetry["transport_observed"] = bool(execution.transport_calls > 0)
+    telemetry["completed"] = bool(
+        execution.status is ActionStatus.CONFIRMED
+        and telemetry.get("verified") is True
+    )
+    return issued, execution, pre_observation, telemetry
 
 
 def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCalibration]:
@@ -1917,43 +3080,660 @@ def command_supply_depot_radial(args) -> int:
     if not args.execute or not args.yes:
         raise SystemExit("supply-depot-radial requires both --execute and --yes")
     runtime = connect_runtime(args, "supply-depot-radial")
-    source = runtime.capture("radial-source")
-    source_binding = bind_supply_depot_claim_supply(source.frame)
-    if source_binding is None:
-        print(json.dumps({"status": "blocked", "reason": "source_radial_not_recognized"}, sort_keys=True))
-        return 3
-    immediate_before = runtime.capture("radial-immediate-before")
-    binding = bind_supply_depot_claim_supply(immediate_before.frame)
-    if binding is None or binding.frame_sha256 != frame_digest(immediate_before.frame):
-        print(json.dumps({"status": "blocked", "reason": "immediate_before_radial_not_recognized"}, sort_keys=True))
-        return 3
-    action_key = f"supply-depot-claim-supply-{int(time.time() * 1000)}"
-    runtime.tap(
-        immediate_before,
-        target_identity="supply-depot-claim-supply-navigation",
-        target_roi=binding.target_roi,
-        action_key=action_key,
-        consequential=False,
+    nav_session = create_session(
+        AuthorizationScope(
+            task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
+            owner_operator="supply-depot-radial",
+            action_class="navigation_only",
+            platform=BLUESTACKS_PLATFORM,
+            profile=BLUESTACKS_PROFILE_ID,
+            environment="local_bluestacks",
+            target_building_id="home.building.supply_depot",
+        ),
+        runtime_capture_session_id=str(runtime.session),
+        maximum_pans=1,
     )
-    immediate_post = runtime.capture("radial-immediate-post")
-    time.sleep(args.settle_seconds)
-    settled = runtime.capture("radial-settled")
-    successor = recognize_supply_depot_screen(settled.frame)
-    result = {
-        "status": "completed" if successor.recognized else "blocked",
-        "reason": "exact_supply_depot_successor" if successor.recognized else "supply_depot_successor_not_recognized",
-        "action_key": action_key,
-        "source_sha256": source.sha256,
-        "immediate_before_sha256": immediate_before.sha256,
-        "immediate_post_sha256": immediate_post.sha256,
-        "settled_sha256": settled.sha256,
-        "binding": binding.__dict__,
-        "successor": successor.__dict__,
-        "session": str(runtime.session),
-    }
-    _json(runtime.session / "radial-result.json", result)
-    print(json.dumps(result, sort_keys=True, default=str))
-    return 0 if successor.recognized else 3
+    session_path = runtime.session / "radial-navigation-session.json"
+    save_session(nav_session, session_path)
+    lease_owner = nav_session.authorization.owner_operator
+    policy = CentralPolicy(
+        supervised_tasks=frozenset({"MVP-QUEST-TO-CLAIM", SUPPLY_DEPOT_ROUTE_TASK_ID})
+    )
+    store: SafetyStore | None = None
+    radial_semantics = None
+    radial_perception = None
+    safe_exit_result = None
+    action_results: dict[str, dict[str, object]] = {}
+
+    def _ensure_store() -> SafetyStore:
+        nonlocal store
+        if store is None:
+            store = SafetyStore(runtime.session / "radial-safety.sqlite3")
+            store.acquire_lease(lease_owner, time.time(), 3600.0)
+        return store
+
+    def _emit(result: dict[str, object], code: int) -> int:
+        enriched = attach_navigate_terminal_reports(result, nav_session)
+        if radial_semantics is not None:
+            enriched["radial_semantics"] = radial_semantics_evidence_snapshot(
+                radial_semantics
+            )
+        if radial_perception is not None:
+            enriched["radial_perception_bundle"] = bundle_evidence_snapshot(
+                radial_perception
+            )
+        if safe_exit_result is not None:
+            enriched["safe_exit_binding"] = safe_exit_evidence_snapshot(
+                safe_exit_result
+            )
+        enriched["production_registration"] = "NOT_REGISTERED"
+        enriched["scheduler_eligibility"] = False
+        enriched["navigation_session"] = str(session_path)
+        enriched["route_id"] = nav_session.route_id
+        _json(runtime.session / "radial-result.json", enriched)
+        print(json.dumps(enriched, sort_keys=True, default=str))
+        return code
+
+    def _execution_payload(
+        issued,
+        execution,
+        telemetry: dict[str, object],
+    ) -> dict[str, object]:
+        return {
+            "requested": bool(telemetry.get("requested")),
+            "authorized": bool(telemetry.get("authorized")),
+            "dispatched": bool(telemetry.get("dispatched")),
+            "transport_observed": bool(telemetry.get("transport_observed")),
+            "verified": bool(telemetry.get("verified")),
+            "completed": bool(telemetry.get("completed")),
+            "capability_reason": getattr(issued, "reason_code", None),
+            "executor_status": (
+                execution.status.value if execution is not None else None
+            ),
+            "executor_reason": (
+                execution.reason if execution is not None else None
+            ),
+            "input_count": (
+                execution.transport_calls if execution is not None else 0
+            ),
+        }
+
+    def _blocked(
+        reason: str,
+        *,
+        source: CapturedNativeFrame,
+        immediate_before: CapturedNativeFrame | None = None,
+        extra: Mapping[str, object] | None = None,
+    ) -> int:
+        mark_blocked(nav_session, reason=reason)
+        save_session(nav_session, session_path)
+        result: dict[str, object] = {
+            "status": "blocked",
+            "reason": reason,
+            "source_sha256": source.sha256,
+            "requested": True,
+            "authorized": False,
+            "dispatched": False,
+            "transport_observed": False,
+            "verified": False,
+            "completed": False,
+            "session": str(runtime.session),
+        }
+        if immediate_before is not None:
+            result["immediate_before_sha256"] = immediate_before.sha256
+        if extra:
+            result.update(extra)
+        return _emit(result, 3)
+
+    try:
+        source = runtime.capture("radial-source")
+        source_ordinal = getattr(runtime, "ordinal", None) or 1
+        source_identity = identity_from_captured(
+            source,
+            session_id=str(runtime.session),
+            ordinal=int(source_ordinal),
+            label="radial-source",
+        )
+        source_radial_binding = bind_supply_depot_claim_supply(
+            source.frame,
+            source_frame=source_identity,
+        )
+        source_building_binding = None
+        if source_radial_binding is None:
+            source_building_binding = bind_supply_depot_home_building(
+                source.frame,
+                atlas_path=getattr(args, "atlas", None),
+                source_frame=source_identity,
+            )
+            if source_building_binding is None:
+                return _blocked(
+                    "source_radial_or_building_not_recognized",
+                    source=source,
+                )
+
+        immediate_before = runtime.capture(
+            "supply-depot-building-immediate-before"
+            if source_radial_binding is None
+            else "radial-immediate-before"
+        )
+        before_ordinal = getattr(runtime, "ordinal", None) or int(source_ordinal) + 1
+        identity = identity_from_captured(
+            immediate_before,
+            session_id=str(runtime.session),
+            ordinal=int(before_ordinal),
+            label=(
+                "supply-depot-building-immediate-before"
+                if source_radial_binding is None
+                else "radial-immediate-before"
+            ),
+        )
+        if source_radial_binding is None:
+            building_binding = bind_supply_depot_home_building(
+                immediate_before.frame,
+                atlas_path=getattr(args, "atlas", None),
+                source_frame=identity,
+            )
+            radial_binding = None
+        else:
+            building_binding = (
+                bind_supply_depot_home_building(
+                    immediate_before.frame,
+                    atlas_path=getattr(args, "atlas", None),
+                    source_frame=identity,
+                )
+                if getattr(args, "atlas", None) is not None
+                else None
+            )
+            radial_binding = bind_supply_depot_claim_supply(
+                immediate_before.frame,
+                source_frame=identity,
+            )
+        if (
+            (radial_binding is None and building_binding is None)
+            or (
+                radial_binding is not None
+                and radial_binding.frame_sha256 != identity.semantic_sha256
+            )
+            or (
+                building_binding is not None
+                and building_binding.frame_sha256 != identity.semantic_sha256
+            )
+        ):
+            return _blocked(
+                "immediate_before_radial_or_building_not_recognized",
+                source=source,
+                immediate_before=immediate_before,
+            )
+
+        safe_exit_result = build_supply_depot_safe_exit_probe(
+            identity,
+            building_binding=building_binding,
+            radial_binding=radial_binding,
+        )
+        record_source_home_verified(
+            nav_session,
+            frame=identity,
+            contextual_class=(
+                "home_with_known_radial"
+                if radial_binding is not None
+                else "home_with_supply_depot_building"
+            ),
+        )
+        record_plan(
+            nav_session,
+            requested=(0.0, 0.0),
+            predicted=(0.0, 0.0),
+            remaining=(0.0, 0.0),
+            reason=(
+                "current_frame_radial"
+                if radial_binding is not None
+                else "current_frame_supply_depot_building"
+            ),
+        )
+        record_target_bound(
+            nav_session,
+            binding=radial_binding or building_binding,
+            frame=identity,
+            historical_roi=(radial_binding or building_binding).target_roi,
+        )
+        save_session(nav_session, session_path)
+
+        if building_binding is not None:
+            building_action_key = (
+                f"supply-depot-building-navigation:"
+                f"{nav_session.navigation_session_id}:{int(time.time() * 1000)}"
+            )
+            building_action_id = (
+                f"{nav_session.navigation_session_id}:building:1"
+            )
+            record_navigation_action_prepared(
+                nav_session,
+                action_key=building_action_key,
+                source_frame=identity,
+                target_identity=SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY,
+                kind="building_tap",
+            )
+            issued, execution, _pre_observation, building_telemetry = (
+                dispatch_verified_supply_depot_building_tap(
+                    runtime=runtime,
+                    immediate_before=immediate_before,
+                    identity=identity,
+                    binding=building_binding,
+                    action_id=building_action_id,
+                    action_key=building_action_key,
+                    task_id=nav_session.authorization.task_id,
+                    navigation_session_id=nav_session.navigation_session_id,
+                    lease_owner=lease_owner,
+                    policy=policy,
+                    store=_ensure_store(),
+                    settle_seconds=args.settle_seconds,
+                )
+            )
+            action_results["building_entry"] = _execution_payload(
+                issued, execution, building_telemetry
+            )
+            if execution is None:
+                return _blocked(
+                    "building_capability_issuance_denied",
+                    source=source,
+                    immediate_before=immediate_before,
+                    extra={"actions": action_results},
+                )
+            building_transport = execution.transport_calls > 0
+            if building_transport:
+                record_navigation_action_dispatched(
+                    nav_session, building_action_key
+                )
+            settled_building_identity = building_telemetry.get(
+                "settled_identity"
+            )
+            building_verified = bool(
+                execution.status is ActionStatus.CONFIRMED
+                and building_telemetry.get("verified") is True
+                and isinstance(settled_building_identity, NativeFrameIdentity)
+            )
+            if building_verified:
+                assert isinstance(settled_building_identity, NativeFrameIdentity)
+                reconcile_navigation_action(
+                    nav_session,
+                    building_action_key,
+                    post_frame=settled_building_identity,
+                    verified=True,
+                    reason="exact_supply_depot_radial_successor",
+                )
+                record_radial_verified(
+                    nav_session,
+                    frame=settled_building_identity,
+                )
+                save_session(nav_session, session_path)
+                immediate_before = runtime.capture(
+                    "radial-after-building-immediate-before"
+                )
+                before_ordinal = (
+                    getattr(runtime, "ordinal", None)
+                    or settled_building_identity.capture_ordinal + 1
+                )
+                identity = identity_from_captured(
+                    immediate_before,
+                    session_id=str(runtime.session),
+                    ordinal=int(before_ordinal),
+                    label="radial-after-building-immediate-before",
+                )
+                radial_binding = bind_supply_depot_claim_supply(
+                    immediate_before.frame,
+                    source_frame=identity,
+                )
+                if (
+                    radial_binding is None
+                    or radial_binding.frame_sha256 != identity.semantic_sha256
+                ):
+                    return _blocked(
+                        "radial_not_recognized_after_building_entry",
+                        source=source,
+                        immediate_before=immediate_before,
+                        extra={"actions": action_results},
+                    )
+            elif execution.status is ActionStatus.UNRESOLVED and building_transport:
+                mark_uncertain(
+                    nav_session,
+                    reason=execution.reason,
+                    suppress_action_keys=(building_action_key,),
+                )
+                save_session(nav_session, session_path)
+                return _emit(
+                    {
+                        "status": "blocked",
+                        "reason": execution.reason,
+                        "actions": action_results,
+                        "requested": True,
+                        "authorized": bool(issued.authorized),
+                        "dispatched": bool(building_transport),
+                        "transport_observed": bool(building_transport),
+                        "verified": False,
+                        "completed": False,
+                    },
+                    3,
+                )
+            else:
+                return _blocked(
+                    "building_successor_not_recognized",
+                    source=source,
+                    immediate_before=immediate_before,
+                    extra={"actions": action_results},
+                )
+
+        assert radial_binding is not None
+        radial_perception = build_supply_depot_radial_perception_bundle(
+            identity,
+            radial_binding,
+        )
+        radial_semantics = radial_perception.radial.semantics
+        if nav_session.checkpoint is NavigationCheckpoint.TARGET_BOUND:
+            record_radial_verified(nav_session, frame=identity)
+        save_session(nav_session, session_path)
+
+        action_key = (
+            f"supply-depot-claim-supply-navigation:"
+            f"{nav_session.navigation_session_id}:{int(time.time() * 1000)}"
+        )
+        action_id = f"{nav_session.navigation_session_id}:radial:1"
+        record_navigation_action_prepared(
+            nav_session,
+            action_key=action_key,
+            source_frame=identity,
+            target_identity=SUPPLY_DEPOT_RADIAL_TARGET_IDENTITY,
+            kind="radial_tap",
+        )
+        save_session(nav_session, session_path)
+        issued, execution, _pre_observation, telemetry = (
+            dispatch_verified_supply_depot_radial_tap(
+                runtime=runtime,
+                immediate_before=immediate_before,
+                identity=identity,
+                binding=radial_binding,
+                action_id=action_id,
+                action_key=action_key,
+                task_id=nav_session.authorization.task_id,
+                navigation_session_id=nav_session.navigation_session_id,
+                lease_owner=lease_owner,
+                policy=policy,
+                store=_ensure_store(),
+                settle_seconds=args.settle_seconds,
+            )
+        )
+        if execution is None:
+            return _blocked(
+                "radial_capability_issuance_denied",
+                source=source,
+                immediate_before=immediate_before,
+                extra={
+                    "action_key": action_key,
+                    "actions": action_results,
+                },
+            )
+
+        transport_observed = execution.transport_calls > 0
+        if transport_observed:
+            record_navigation_action_dispatched(nav_session, action_key)
+            save_session(nav_session, session_path)
+
+        action_results["radial_entry"] = _execution_payload(
+            issued, execution, telemetry
+        )
+        settled_identity = telemetry.get("settled_identity")
+        successor = telemetry.get("successor")
+        radial_verified = bool(
+            execution.status is ActionStatus.CONFIRMED
+            and telemetry.get("verified") is True
+            and settled_identity is not None
+            and successor is not None
+        )
+        if radial_verified:
+            assert isinstance(settled_identity, NativeFrameIdentity)
+            reconcile_navigation_action(
+                nav_session,
+                action_key,
+                post_frame=settled_identity,
+                verified=True,
+                reason="exact_supply_depot_successor",
+            )
+        elif execution.status is ActionStatus.UNRESOLVED and transport_observed:
+            mark_uncertain(
+                nav_session,
+                reason=execution.reason,
+                suppress_action_keys=(action_key,),
+            )
+            save_session(nav_session, session_path)
+            return _emit(
+                {
+                    "status": "blocked",
+                    "reason": execution.reason,
+                    "action_key": action_key,
+                    "actions": action_results,
+                    "radial_verified": False,
+                    "requested": True,
+                    "authorized": bool(issued.authorized),
+                    "dispatched": True,
+                    "transport_observed": True,
+                    "verified": False,
+                    "completed": False,
+                },
+                3,
+            )
+        elif transport_observed and isinstance(settled_identity, NativeFrameIdentity):
+            reconcile_navigation_action(
+                nav_session,
+                action_key,
+                post_frame=settled_identity,
+                verified=False,
+                reason="supply_depot_successor_not_recognized",
+            )
+            save_session(nav_session, session_path)
+            return _emit(
+                {
+                    "status": "blocked",
+                    "reason": "supply_depot_successor_not_recognized",
+                    "action_key": action_key,
+                    "actions": action_results,
+                    "radial_verified": False,
+                    "requested": True,
+                    "authorized": bool(issued.authorized),
+                    "dispatched": True,
+                    "transport_observed": True,
+                    "verified": False,
+                    "completed": False,
+                },
+                3,
+            )
+        else:
+            return _blocked(
+                "radial_transport_not_observed",
+                source=source,
+                immediate_before=immediate_before,
+                extra={"action_key": action_key, "actions": action_results},
+            )
+
+        assert radial_verified
+        assert isinstance(settled_identity, NativeFrameIdentity)
+        exit_before = runtime.capture("supply-depot-exit-immediate-before")
+        exit_ordinal = getattr(runtime, "ordinal", None) or (
+            settled_identity.capture_ordinal + 1
+        )
+        exit_identity = identity_from_captured(
+            exit_before,
+            session_id=str(runtime.session),
+            ordinal=int(exit_ordinal),
+            label="supply-depot-exit-immediate-before",
+        )
+        exit_screen = recognize_supply_depot_screen(
+            exit_before.frame,
+            source_frame=exit_identity,
+        )
+        if not exit_screen.recognized:
+            return _blocked(
+                "facility_screen_not_recognized_before_exit",
+                source=source,
+                immediate_before=exit_before,
+                extra={
+                    "action_key": action_key,
+                    "actions": action_results,
+                    "radial_verified": True,
+                },
+            )
+        exit_action_key = (
+            f"supply-depot-safe-exit:{nav_session.navigation_session_id}:"
+            f"{int(time.time() * 1000)}"
+        )
+        exit_action_id = f"{nav_session.navigation_session_id}:exit:1"
+        record_navigation_action_prepared(
+            nav_session,
+            action_key=exit_action_key,
+            source_frame=exit_identity,
+            target_identity=SUPPLY_DEPOT_EXIT_TARGET_IDENTITY,
+            kind="safe_exit_tap",
+        )
+        exit_issued, exit_execution, _exit_observation, exit_telemetry = (
+            dispatch_verified_supply_depot_exit_tap(
+                runtime=runtime,
+                immediate_before=exit_before,
+                identity=exit_identity,
+                action_id=exit_action_id,
+                action_key=exit_action_key,
+                task_id=nav_session.authorization.task_id,
+                navigation_session_id=nav_session.navigation_session_id,
+                lease_owner=lease_owner,
+                policy=policy,
+                store=_ensure_store(),
+                home_successor_recognizer=lambda frame, *, source_frame: (
+                    recognize_supply_depot_home_successor(
+                        frame,
+                        atlas_path=getattr(args, "atlas", None),
+                        source_frame=source_frame,
+                    )
+                ),
+                settle_seconds=args.settle_seconds,
+            )
+        )
+        action_results["safe_exit"] = _execution_payload(
+            exit_issued, exit_execution, exit_telemetry
+        )
+        if exit_execution is None:
+            return _blocked(
+                "safe_exit_capability_issuance_denied",
+                source=source,
+                immediate_before=exit_before,
+                extra={"action_key": action_key, "actions": action_results},
+            )
+        exit_transport_observed = exit_execution.transport_calls > 0
+        if exit_transport_observed:
+            record_navigation_action_dispatched(nav_session, exit_action_key)
+        home_identity = exit_telemetry.get("settled_identity")
+        home_verified = bool(
+            exit_execution.status is ActionStatus.CONFIRMED
+            and exit_telemetry.get("verified") is True
+            and isinstance(home_identity, NativeFrameIdentity)
+        )
+        if home_verified:
+            assert isinstance(home_identity, NativeFrameIdentity)
+            reconcile_navigation_action(
+                nav_session,
+                exit_action_key,
+                post_frame=home_identity,
+                verified=True,
+                reason="fresh_home_semantic_successor",
+            )
+            record_safe_exit(nav_session, frame=home_identity)
+            record_home_recovered(nav_session, frame=home_identity)
+        elif exit_execution.status is ActionStatus.UNRESOLVED and exit_transport_observed:
+            mark_uncertain(
+                nav_session,
+                reason=exit_execution.reason,
+                suppress_action_keys=(exit_action_key,),
+            )
+        elif exit_transport_observed and isinstance(home_identity, NativeFrameIdentity):
+            reconcile_navigation_action(
+                nav_session,
+                exit_action_key,
+                post_frame=home_identity,
+                verified=False,
+                reason="home_successor_not_recognized",
+            )
+        else:
+            mark_blocked(nav_session, reason=exit_execution.reason)
+        save_session(nav_session, session_path)
+        successor_payload = (
+            successor.__dict__ if successor is not None else None
+        )
+        result = {
+            "status": "completed" if home_verified else "blocked",
+            "reason": (
+                "supply_depot_radial_and_home_recovered"
+                if home_verified
+                else exit_execution.reason
+            ),
+            "action_key": action_key,
+            "action_id": action_id,
+            "source_sha256": source.sha256,
+            "immediate_before_sha256": immediate_before.sha256,
+            "binding": radial_binding.__dict__,
+            "successor": successor_payload,
+            "executor_status": execution.status.value,
+            "executor_reason": execution.reason,
+            "input_count": execution.transport_calls,
+            "actions": action_results,
+            "radial_verified": True,
+            "home_recovered": bool(home_verified),
+            "requested": all(
+                item["requested"] for item in action_results.values()
+            ),
+            "authorized": all(
+                item["authorized"] for item in action_results.values()
+            ),
+            "dispatched": all(
+                item["dispatched"] for item in action_results.values()
+            ),
+            "transport_observed": all(
+                item["transport_observed"] for item in action_results.values()
+            ),
+            "verified": bool(home_verified),
+            "completed": bool(home_verified),
+            "session": str(runtime.session),
+        }
+        if "immediate_post" in telemetry:
+            result["immediate_post_sha256"] = telemetry["immediate_post"].sha256
+        if "settled" in telemetry:
+            result["settled_sha256"] = telemetry["settled"].sha256
+        if "immediate_post_identity" in telemetry:
+            result["immediate_post_identity"] = asdict(
+                telemetry["immediate_post_identity"]
+            )
+        if "settled_identity" in telemetry:
+            result["settled_identity"] = asdict(telemetry["settled_identity"])
+        if "settled_perception_bundle" in telemetry:
+            result["settled_perception_bundle"] = bundle_evidence_snapshot(
+                telemetry["settled_perception_bundle"]
+            )
+        if "home_localization" in exit_telemetry:
+            localization = exit_telemetry["home_localization"]
+            result["home_localization"] = (
+                localization.__dict__
+                if hasattr(localization, "__dict__")
+                else localization
+            )
+        if "settled_identity" in exit_telemetry:
+            result["home_settled_identity"] = asdict(
+                exit_telemetry["settled_identity"]
+            )
+        if exit_telemetry.get("settled_perception_bundle") is not None:
+            result["home_perception_bundle"] = bundle_evidence_snapshot(
+                exit_telemetry["settled_perception_bundle"]
+            )
+        result["exit_action_key"] = exit_action_key
+        result["exit_action_id"] = exit_action_id
+        return _emit(result, 0 if home_verified else 3)
+    finally:
+        if store is not None:
+            store.close()
 
 
 def _recognize_exact_title(frame: np.ndarray, expected: str) -> tuple[bool, str]:
@@ -2183,6 +3963,7 @@ def parser() -> argparse.ArgumentParser:
             item.add_argument("--execute", action="store_true")
             item.add_argument("--yes", action="store_true")
         elif name == "supply-depot-radial":
+            item.add_argument("--atlas", type=Path, required=True)
             item.add_argument("--settle-seconds", type=float, default=2.0)
             item.add_argument("--execute", action="store_true")
             item.add_argument("--yes", action="store_true")

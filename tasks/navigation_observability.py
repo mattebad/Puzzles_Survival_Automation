@@ -800,6 +800,7 @@ def _detect_contradiction(snapshot: _SessionSnapshot) -> str | None:
             return None
         if snapshot.route_status in ("completed", "dry_run", "leg_complete") and snapshot.checkpoint in (
             NavigationCheckpoint.TARGET_BOUND,
+            NavigationCheckpoint.RADIAL_VERIFIED,
             NavigationCheckpoint.HOME_RECOVERED,
         ):
             return None

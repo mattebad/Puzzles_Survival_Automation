@@ -1313,6 +1313,203 @@ def record_radial_verified(
     session.continuation_mode = ContinuationMode.RECOVERY_ONLY
 
 
+def _navigation_action_fingerprint(
+    session: NavigationSession,
+    *,
+    action_key: str,
+    source_frame: FrameIdentityRecord,
+    target_identity: str,
+    kind: str,
+) -> str:
+    payload = {
+        "action_key": action_key,
+        "kind": kind,
+        "navigation_session_id": session.navigation_session_id,
+        "route_id": session.route_id,
+        "source_semantic_sha256": source_frame.semantic_sha256,
+        "source_transport_sha256": source_frame.transport_sha256,
+        "target_identity": target_identity,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def record_navigation_action_prepared(
+    session: NavigationSession,
+    *,
+    action_key: str,
+    source_frame: NativeFrameIdentity | FrameIdentityRecord,
+    target_identity: str,
+    kind: str = "navigation_tap",
+) -> ActionLedgerEntry:
+    """Record a non-pan navigation input without changing the route checkpoint.
+
+    Radial taps are prepared only after the same-capture radial checkpoint has
+    been verified. The ledger is the resumable source of truth; it carries no
+    executable coordinates.
+    """
+
+    validate_session(session)
+    allowed_checkpoints = {
+        NavigationCheckpoint.RADIAL_VERIFIED,
+        NavigationCheckpoint.TARGET_BOUND,
+    }
+    if session.checkpoint not in allowed_checkpoints:
+        raise NavigationSessionError(
+            "NAVIGATION_ACTION_PREPARE_NOT_PERMITTED",
+            session.checkpoint.value,
+        )
+    if (
+        session.checkpoint is NavigationCheckpoint.TARGET_BOUND
+        and kind != "building_tap"
+    ):
+        raise NavigationSessionError(
+            "NAVIGATION_ACTION_PREPARE_NOT_PERMITTED",
+            f"{session.checkpoint.value}:{kind}",
+        )
+    if not isinstance(action_key, str) or not action_key:
+        raise NavigationSessionError("MISSING_ACTION_KEY")
+    if not isinstance(target_identity, str) or not target_identity:
+        raise NavigationSessionError("MISSING_TARGET_IDENTITY")
+    if not isinstance(kind, str) or not kind:
+        raise NavigationSessionError("MISSING_ACTION_KIND")
+    if action_key in session.pending_suppressions:
+        raise NavigationSessionError("DUPLICATE_INPUT_SUPPRESSED", action_key)
+    if any(entry.action_key == action_key for entry in session.action_ledger):
+        raise NavigationSessionError("DUPLICATE_ACTION_KEY", action_key)
+    frame = _coerce_frame(source_frame)
+    _validate_frame_record(frame, "FRAME_IDENTITY_INVALID")
+    fingerprint = _navigation_action_fingerprint(
+        session,
+        action_key=action_key,
+        source_frame=frame,
+        target_identity=target_identity,
+        kind=kind,
+    )
+    if fingerprint in session.pending_gesture_suppressions or any(
+        entry.gesture_fingerprint == fingerprint
+        for entry in session.action_ledger
+        if entry.gesture_fingerprint
+    ):
+        raise NavigationSessionError("DUPLICATE_GESTURE_SUPPRESSED", fingerprint)
+    entry = ActionLedgerEntry(
+        action_key=action_key,
+        kind=kind,
+        status=LedgerStatus.PREPARED,
+        source_frame=frame,
+        target_identity=target_identity,
+        pan_ordinal=session.pan_ordinal,
+        event_ordinal=session.event_ordinal + 1,
+        gesture_fingerprint=fingerprint,
+    )
+    session.remember_frame(frame)
+    session.action_ledger.append(entry)
+    return entry
+
+
+def record_navigation_action_dispatched(
+    session: NavigationSession,
+    action_key: str,
+) -> ActionLedgerEntry:
+    """Record transport submission for a non-pan navigation action."""
+
+    validate_session(session)
+    entry = _require_ledger_entry(session, action_key)
+    if entry.status is not LedgerStatus.PREPARED:
+        raise NavigationSessionError("DISPATCH_REQUIRES_PREPARED", entry.status.value)
+    if entry.action_key in session.pending_suppressions:
+        raise NavigationSessionError("DUPLICATE_INPUT_SUPPRESSED", action_key)
+    updated = replace(entry, status=LedgerStatus.DISPATCHED)
+    session.action_ledger = [
+        updated if item.action_key == action_key else item
+        for item in session.action_ledger
+    ]
+    return updated
+
+
+def reconcile_navigation_action(
+    session: NavigationSession,
+    action_key: str,
+    *,
+    post_frame: NativeFrameIdentity | FrameIdentityRecord,
+    verified: bool,
+    reason: str,
+) -> None:
+    """Reconcile a capability-bound non-pan action against a fresh result frame."""
+
+    validate_session(session)
+    entry = _require_ledger_entry(session, action_key)
+    if entry.status is not LedgerStatus.DISPATCHED:
+        raise NavigationSessionError(
+            "RECONCILE_REQUIRES_DISPATCHED",
+            entry.status.value,
+        )
+    post = _coerce_frame(post_frame)
+    _validate_fresh_post(session, entry.source_frame, post)
+    _validate_observation_frame(post)
+    session.remember_frame(post)
+    session.latest_observation = LatestObservation(
+        frame=post,
+        localization_recognized=bool(verified),
+        summary=reason,
+    )
+    if not verified:
+        session.outcome = SessionOutcome.BLOCKED
+        session.terminal_reason = reason
+        _update_route_result(
+            session,
+            status="blocked",
+            reason=reason,
+            pan_count=session.pan_ordinal,
+        )
+        return
+    updated = replace(entry, status=LedgerStatus.RECONCILED)
+    session.action_ledger = [
+        updated if item.action_key == action_key else item
+        for item in session.action_ledger
+    ]
+    session.outcome = SessionOutcome.ACTIVE
+    session.terminal_reason = None
+    _update_route_result(
+        session,
+        status="leg_complete",
+        reason=reason,
+        pan_count=session.pan_ordinal,
+    )
+
+
+def complete_route_at_radial_successor(
+    session: NavigationSession,
+    *,
+    action_key: str,
+) -> None:
+    """Complete a radial-only route after its semantic successor is verified."""
+
+    validate_session(session)
+    if session.checkpoint is not NavigationCheckpoint.RADIAL_VERIFIED:
+        raise NavigationSessionError(
+            "RADIAL_SUCCESSOR_COMPLETION_NOT_PERMITTED",
+            session.checkpoint.value,
+        )
+    entry = _require_ledger_entry(session, action_key)
+    if entry.status is not LedgerStatus.RECONCILED:
+        raise NavigationSessionError(
+            "RADIAL_SUCCESSOR_REQUIRES_VERIFIED_ACTION",
+            entry.status.value,
+        )
+    if session.latest_observation.frame is None:
+        raise NavigationSessionError("RADIAL_SUCCESSOR_FRAME_MISSING")
+    session.outcome = SessionOutcome.COMPLETED
+    session.terminal_reason = "radial_successor_verified"
+    _update_route_result(
+        session,
+        status="completed",
+        reason=session.terminal_reason,
+        pan_count=session.pan_ordinal,
+    )
+
+
 def record_safe_exit(
     session: NavigationSession,
     *,
@@ -1898,7 +2095,11 @@ def validate_session(session: NavigationSession) -> None:
     if session.outcome is SessionOutcome.COMPLETED:
         if session.checkpoint is not NavigationCheckpoint.HOME_RECOVERED and not (
             session.route_result.status == "dry_run"
-            or session.checkpoint is NavigationCheckpoint.TARGET_BOUND
+            or session.checkpoint
+            in {
+                NavigationCheckpoint.TARGET_BOUND,
+                NavigationCheckpoint.RADIAL_VERIFIED,
+            }
         ):
             raise NavigationSessionError("COMPLETED_CHECKPOINT_MISMATCH")
     if session.checkpoint is NavigationCheckpoint.HOME_RECOVERED and session.outcome is not SessionOutcome.COMPLETED:

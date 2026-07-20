@@ -1,11 +1,22 @@
+
 <!-- CURRENT_HANDOFF_STATE_BEGIN -->
 {
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "pending feat(navigation): integrate verified home atlas route after HOME-ATLAS completion",
-    "origin_relationship": "main will be ahead of origin/main by twelve local roadmap commits after this commit; no push",
-    "staged_paths": [],
+    "head": "feat(navigation): integrate verified supply depot route (this commit)",
+    "origin_relationship": "main is ahead of origin/main by twelve local roadmap commits; no push",
+    "staged_paths": [
+      "BACKLOG.md",
+      "CURRENT_HANDOFF.md",
+      "safe_action_core/models.py",
+      "scripts/home_atlas_bluestacks.py",
+      "tasks/navigation_observability.py",
+      "tasks/navigation_session.py",
+      "tasks/supply_depot_vision.py",
+      "tests/test_governance_validation.py",
+      "tests/test_supply_depot_verified_route.py"
+    ],
     "relevant_unstaged_paths": [],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
@@ -13,7 +24,7 @@
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
-      "pending feat(navigation): integrate verified home atlas route",
+      "f093812 feat(navigation): integrate verified home atlas route",
       "75086cc fix(governance): align blocked roadmap handoff",
       "a55e35e docs(navigation): record flow readiness blocker",
       "843fd10 feat(navigation): add bounded session calibration",
@@ -28,20 +39,27 @@
       "501f9fb feat(tools): add BlueStacks flow collector"
     ]
   },
-  "current_task_id": "HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION",
+  "current_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
   "current_task_state": "completed",
-  "next_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
-  "next_task_activation_status": "ready",
-  "phase": "home_atlas_verified_route_integration_completed",
-  "objective": "Commit the completed Home Atlas verified-route integration, then activate SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION.",
-  "last_safe_completed_step": "HOME-ATLAS offline+live validation passed; backlog marked completed; awaiting local commit then Supply Depot activation.",
-  "next_permitted_action": "Commit feat(navigation): integrate verified home atlas route; activate SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION; no push.",
+  "next_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
+  "next_task_activation_status": "dependency_blocked",
+  "phase": "supply_depot_verified_route_integration_completed",
+  "objective": "Renew composition readiness review after Home Atlas and Supply Depot live-validated verified-route integrations; activate composition only if readiness passes; leave M6 unactivated.",
+  "last_safe_completed_step": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION offline+live passed; committing feat(navigation): integrate verified supply depot route.",
+  "next_permitted_action": "After this commit, renew docs/navigation_verified_flow_readiness.md; activate RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION only if readiness passes; leave M6 unactivated; no claims; no push.",
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
     "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity.",
     "Partial HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION WIP already existed in the working tree before formal task activation; it is preserved and must be completed rather than discarded."
   ],
   "actions_already_performed": [
+    "Live-radial-5 completed: building_entry+radial_entry+safe_exit all capability-bound confirmed; reason supply_depot_radial_and_home_recovered; zero claims; artifacts under .local-captures/supply-depot-verified-route/live-radial-5/.",
+    "Fixed recognize_supply_depot_home_successor to accept high-confidence ZOOMED_IN Home after facility leave (live-radial-4 unexpected_successor root cause); added focused tests.",
+    "Offline gates: focused 17; regressions 106; full suite 888 passed / 1 skipped; py_compile/governance/handoff/secret/diff-check passed.",
+    "Recovered Exit-the-game dialog via Cancel; left runtime at fully_zoomed_out Home localized after post-live zoom-out.",
+    "Marked SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION complete in BACKLOG; composition remains dependency_blocked pending renewed readiness; M6 unactivated.",
+    "Committed HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION as f093812 feat(navigation): integrate verified home atlas route; no push.",
+    "Activated SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION with full durable backlog contract; composition remains dependency_blocked; M6 unactivated.",
     "Parent review cycle-1 fixed proposal digest poisoning (same digest, earlier mono) and defaulted dispatch monotonic_clock to time.monotonic; patched navigation_session fake-runtime clock.",
     "Offline validation: focused 19; regressions 232; full suite 871 passed / 1 skipped; governance/handoff/secret/diff-check/py_compile passed.",
     "Live: zoom-out to fully_zoomed_out; localize recognized; dry-run Bank planned pan; live Bank navigate completed with 1 capability-bound pan transport_observed+semantic_verified building_opened=false; live HQ return 2 pans confirmed; artifacts under .local-captures/home-atlas-verified-route/.",
@@ -351,7 +369,7 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Live BlueStacks navigation artifacts remain under .local-captures and are not promoted into protected evidence/**.",
+    "evidence_requirement_reason": "Offline fixtures authorize Supply Depot verified-route implementation review; live artifacts remain under .local-captures and must not stage protected evidence/**.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json",
     "live_bank_verified_route": ".local-captures/home-atlas-verified-route/live-bank/home-atlas-navigate-building-20260720T032647066241Z/",
     "live_hq_return_verified_route": ".local-captures/home-atlas-verified-route/live-return-hq/home-atlas-navigate-building-20260720T032736487450Z/"
@@ -433,20 +451,20 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Commit feat(navigation): integrate verified home atlas route locally; no push.",
-      "Activate SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION and implement offline-first then bounded live reversible radial/safe-exit/return-home without claims.",
-      "Renew composition readiness only after Supply Depot offline+live+commit."
+      "Offline implement/review SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION with at most three correction cycles.",
+      "Authorize one bounded live reversible BlueStacks radial/safe-exit/return-home validation only after offline review passes; zero claims.",
+      "Commit feat(navigation): integrate verified supply depot route only after offline and live both pass; no push."
     ],
     "prohibited_actions": [
-      "Any Bliss, Unraid, public ADB exposure, Docker, or consequential gameplay operation.",
-      "Any Supply Depot claim, purchase, premium, training, healing, research, upgrade, crafting, resource consumption, or troop deployment.",
+      "Any Supply Depot claim, free-hold, purchase, premium, or other consequential gameplay.",
+      "Any Bliss, Unraid, public ADB exposure, Docker operation.",
       "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
       "Activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION implementation or M6-DQ-TRANSITION-CORPUS before renewed readiness.",
       "Enabling CONFIRMED_NOT_DISPATCHED, registration/scheduler changes, or any push."
     ],
-    "exact_stop_condition": "Commit Home Atlas task; activate Supply Depot next; never push.",
-    "expected_next_atomic_task": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
-    "expected_next_activation_status": "ready"
+    "exact_stop_condition": "Offline first; live only if authorized; commit only after offline+live; never push.",
+    "expected_next_atomic_task": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
+    "expected_next_activation_status": "dependency_blocked"
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -474,30 +492,29 @@ This document is a volatile operational boundary, not a complete project history
   is preserved (do not discard).
 
 ## Current task
-- Task ID: `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`
-- State: completed; offline + live reversible BlueStacks navigate-building validation passed;
-  awaiting local commit then Supply Depot activation
-- Next task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION` (ready; not yet activated)
-- Objective: commit the Home Atlas verified-route integration, then activate the Supply Depot
-  radial verified-route integration as the second readiness consumer.
-- Last safe completed step: live Bank 1 capability-bound pan + HQ return 2 pans;
-  `building_opened=false`; full suite 871/1; artifacts under `.local-captures/home-atlas-verified-route/`.
-- Exact next permitted step: commit `feat(navigation): integrate verified home atlas route`;
-  activate `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`; no push.
+- Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`
+- State: completed; offline gates + live-radial-5 building/radial/safe-exit/home recovered; commit pending in this change set
+- Next task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` (dependency blocked until renewed readiness)
+- Objective: renew composition readiness after Home Atlas and Supply Depot live-validated route
+  integrations; activate composition only if readiness passes; leave M6 unactivated.
+- Last safe completed step: Supply Depot verified-route offline+live passed (live-radial-5).
+- Exact next permitted step: commit `feat(navigation): integrate verified supply depot route` locally;
+  then renew `docs/navigation_verified_flow_readiness.md`; no claims; no push.
 - No registration, scheduler, worker, or protected-evidence operation is authorized.
-- `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` remains blocked; `M6-DQ-TRANSITION-CORPUS`
-  remains unactivated.
+- `M6-DQ-TRANSITION-CORPUS` remains unactivated.
 
 ## Runtime
-- VM/runtime state: offline implementation operated no BlueStacks, ADB, Bliss, Unraid, emulator, or VM.
+- VM/runtime state: local BlueStacks App Player 4; left at fully_zoomed_out Home after post-live
+  zoom-out + localize (`recognized=true`, confidence ~0.99).
 - Worker state: no worker was started, modified, or contacted.
 - Active operator/collector/automation: none.
-- ADB exposure and connection state: ADB was not invoked.
-- Expected/observed profile: BlueStacks 800x1280 for later authorized live navigate validation only;
-  not observed during this offline pass.
-- Foreground package/activity: not observed.
-- Manual-only screen state: not entered or observed.
-- Runtime result: zero input dispatched (offline only).
+- ADB exposure and connection state: private local `HD-Adb` / `emulator-5554` only; not public.
+- Expected/observed profile: BlueStacks 800x1280.
+- Foreground package/activity: game foreground during live-radial-5; Exit-the-game dialog canceled
+  during earlier recovery.
+- Manual-only screen state: not entered.
+- Runtime result: live-radial-5 dispatched three navigation-only capability-bound taps
+  (building_entry, radial_entry, safe_exit); zero claims / free-attempt consumption.
 
 ## Journals and lease
 - Authoritative task journal path: `evidence/sessions/20260715-mvp-quest-to-claim/actions-daily-claim-1784092554-reconciled-v2.sqlite3`; retained journals remain immutable evidence

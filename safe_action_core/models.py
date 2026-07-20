@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, fields as dataclass_fields, replace
 from enum import Enum
 from types import MappingProxyType
 from typing import Any, Dict, Mapping, Optional, Tuple
@@ -640,6 +640,49 @@ def navigation_capability_forbidden_reason(request: "PolicyRequest") -> Optional
         if type(control) is not str or not control or control != control.strip():
             return CAPABILITY_NAVIGATION_CONSEQUENTIAL_DENIED
         normalized_control = control.upper().replace("-", "_").replace(" ", "_")
+        # The historical Supply Depot radial label is visually "Claim Supply",
+        # but this exact action identity is a navigation-only facility entry.
+        # Keep the control classified as CLAIM for semantic honesty while
+        # requiring the complete non-consequential route contract here.
+        if normalized_control == "CLAIM":
+            if not (
+                control == "CLAIM"
+                and request.semantic_action == "SUPPLY_DEPOT_RADIAL_NAVIGATION"
+                and request.observation.target_identity
+                == "supply-depot-claim-supply-navigation"
+                and request.observation.source_state == "HOME_BASE"
+                and request.observation.recognized is True
+                and request.observation.consequence == "navigate_zero_cost"
+                and request.observation.expected_postcondition
+                == "SUPPLY_DEPOT_SCREEN"
+            ):
+                return CAPABILITY_NAVIGATION_CONSEQUENTIAL_DENIED
+            return None
+        if request.semantic_action == "SUPPLY_DEPOT_BUILDING_NAVIGATION":
+            if not (
+                control == "GO"
+                and request.observation.target_identity
+                == "home.building.supply_depot"
+                and request.observation.source_state == "HOME_BASE"
+                and request.observation.recognized is True
+                and request.observation.consequence == "navigate_zero_cost"
+                and request.observation.expected_postcondition
+                == "SUPPLY_DEPOT_RADIAL"
+            ):
+                return CAPABILITY_NAVIGATION_CONSEQUENTIAL_DENIED
+            return None
+        if request.semantic_action == "SUPPLY_DEPOT_SAFE_EXIT":
+            if not (
+                control == "CLOSE"
+                and request.observation.target_identity
+                == "supply-depot-back-arrow"
+                and request.observation.source_state == "SUPPLY_DEPOT_SCREEN"
+                and request.observation.recognized is True
+                and request.observation.consequence == "navigate_zero_cost"
+                and request.observation.expected_postcondition == "HOME_BASE"
+            ):
+                return CAPABILITY_NAVIGATION_CONSEQUENTIAL_DENIED
+            return None
         if (
             normalized_control in _NAVIGATION_FORBIDDEN_CONTROL_CLASSES
             or control not in _NAVIGATION_CONTROL_ALLOWLIST
@@ -810,7 +853,12 @@ def snapshot(value: Any) -> Any:
     if isinstance(value, CapabilityAuditRecord):
         return value.as_dict()
     if hasattr(value, "__dataclass_fields__"):
-        value = asdict(value)
+        # Recurse field-by-field instead of dataclasses.asdict: immutable
+        # MappingProxyType values are intentionally not deepcopy-able.
+        return {
+            item.name: snapshot(getattr(value, item.name))
+            for item in dataclass_fields(value)
+        }
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, tuple):

@@ -3254,52 +3254,144 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION
 - Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`.
 - Title: Integrate shared verified navigation architecture into the Supply Depot radial route.
-- Status: Pending (2026-07-19; ready after Home Atlas verified-route commit; not yet activated).
+- Status: Completed (2026-07-19; offline review + bounded live BlueStacks reversible
+  radial/safe-exit/return-home validation passed; local commit
+  `feat(navigation): integrate verified supply depot route`; no push).
 - Milestone: Durable offline navigation architecture roadmap; composition-readiness prerequisite.
-- Dependencies: completed `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, completed shared radial semantics,
-  completed BlueStacks safe-exit binder, completed capability firewall, completed perception bundle,
-  completed NavigationSession/observability/calibration contracts.
-- Blocked by: must wait for Home Atlas verified-route commit before activation. Do not claim supplies
-  or execute consequential facility actions.
-- Objective: migrate the existing `supply-depot-radial` / Supply Depot radial navigation path so it
-  demonstrably reuses same-capture perception, authoritative `NavigationSession`, observability,
-  shared radial semantics, BlueStacks safe-exit binding where applicable, capability issuance and
-  final consumption, real transport vs semantic verification boundaries, then pass offline review
-  and one bounded live reversible radial/safe-exit/return-home validation without claiming supplies.
-- Direct implementation files: `scripts/home_atlas_bluestacks.py` (supply-depot-radial path only as
-  needed), narrowly required Supply Depot vision/runtime adapters already owned by the route,
-  `tests/test_supply_depot_verified_route.py` (or focused extension of existing supply-depot tests),
-  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if identity
-  coverage changes.
-- Allowed changes: per-commit allowed paths are exactly the direct implementation files above plus
-  narrowly required shared adoption touches; no atlas expansion; no new destinations; no claims.
-- Prohibited changes: Supply Depot claims/collections, consequential gameplay, second engine/DSL,
-  enabling `CONFIRMED_NOT_DISPATCHED`, registration, scheduler, push, amend, rebase, reset/clean.
+- Dependencies: completed `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, completed
+  `HOME-SHARED-RADIAL-SEMANTIC-CONTRACT`, completed `BLUESTACKS-HOME-SAFE-EXIT-BINDING`, completed
+  `RUNTIME-INPUT-CAPABILITY-FIREWALL`, completed `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`,
+  completed `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS`, completed `HOME-NAVIGATION-OBSERVABILITY`, and
+  completed `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`.
+- Blocked by: None remaining for this task. Do not claim supplies or execute consequential facility
+  actions.
+- Objective: migrate the existing `command_supply_depot_radial` route (and its owned reversible
+  safe-exit / return-home seams as required) so it demonstrably reuses same-capture perception,
+  authoritative `NavigationSession`, observability, shared radial semantics, BlueStacks safe-exit
+  binding where applicable, capability issuance and final consumption, real transport versus
+  semantic verification boundaries, then pass offline review and one bounded live reversible
+  radial/safe-exit/return-home validation without claiming supplies.
+- Established facts: `command_supply_depot_radial` historically used direct `runtime.tap` and did not
+  consume session/observability/radial/safe-exit/capability seams end to end; Home Atlas
+  navigate-building already demonstrates those seams; `CONFIRMED_NOT_DISPATCHED` remains
+  `NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
+- Direct implementation files: `scripts/home_atlas_bluestacks.py` (supply-depot-radial and narrowly
+  required owned reversible exit/return helpers only), `tests/test_supply_depot_verified_route.py`,
+  narrowly required shared adoption touches only when required (`safe_action_core/*`,
+  `tasks/navigation_session.py`, `tasks/navigation_observability.py`, `tasks/radial_semantics.py`,
+  `tasks/bluestacks_home_safe_exit.py`, `tasks/perception_bundle.py`, `tasks/supply_depot_vision.py`),
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if durable
+  identity coverage changes.
+- Shared dependencies: existing Supply Depot vision binders, Home Atlas runtime adapters,
+  CentralPolicy, SafeActionExecutor, NavigationSession, observability, radial semantics, safe-exit
+  binder, and perception bundle; no production registration.
+- Transitive regression set: supply-depot vision/route, radial, safe-exit, capability, session,
+  observability, home-atlas verified-route, and governance focused suites.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above;
+  no atlas expansion; no new destinations; no claims/collections.
+- Prohibited changes: Supply Depot claims/collections/free-hold, consequential gameplay, second
+  engine/DSL, enabling `CONFIRMED_NOT_DISPATCHED`, registration, scheduler, workers, task rows,
+  force-push, amend, rebase, reset/clean, or push.
 - Authorized runtime action: after offline review passes, exactly one bounded live BlueStacks
-  validation of reversible radial interaction, safe exit, and return-home behavior only; zero claims.
+  validation of reversible radial interaction, safe exit, and return-home behavior only; zero
+  claims and zero free-attempt consumption.
+- Maximum transport inputs: offline phase zero; live phase only the minimum navigation-only inputs
+  required to exercise capability-bound radial/safe-exit/return-home for the owned route.
+- Navigation-only recovery: bounded recovery already owned by the route may run; no identical
+  retries without a concrete new hypothesis.
+- Consequential action: None; claims, purchases, premium, training, healing, research, upgrades,
+  crafting, resource consumption, and troop deployment remain forbidden.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior terminally confirmed Supply Depot collection keys,
+  including `supply-depot-free:bluestacks:no-reset:attempts-9:food` and
+  `supply-depot-free-hold:bluestacks:no-reset:attempts-8:food`.
+- Required source: current immutable native 800x1280 frames from the existing BlueStacks Supply
+  Depot radial route; offline tests may use fixtures/mocks without live capture.
+- Exact target semantics: positively recognized Home/radial/supply-depot checkpoint, exact
+  radial or safe-exit geometry bound from the current frame, route/session/action/target/frame-bound
+  capability, immediate `pre_dispatch` recapture and policy revalidation, executor-only dispatch,
+  transport-observed distinct from semantic verified/completed.
+- Required local association: every authorized input cites navigation session id, action id/key,
+  target identity/ROI, capture digest+monotonic, and capability audit; observability attaches
+  without mutating authority; safe-exit binding remains non-authorizing until capability issuance.
+- Negative controls: direct `runtime.tap`/`runtime.swipe` on the verified radial/safe-exit path,
+  capability reuse/forgery, stale/cross-capture dispatch, treating transport success as semantic
+  success, Supply Depot claims, and atlas expansion.
+- Coordinate space: BlueStacks native 800x1280 full-frame evidence only; no scaled previews or Bliss
+  coordinate reuse.
+- Accepted signals: offline focused/adversarial/governance/full-suite gates; live reversible radial
+  and safe-exit/return-home with capability issuance/consumption, distinct transport vs semantic
+  states, reconciled session/observability/journal, and fail-closed bypass rejection.
+- Rejected weak signals: imports-only or metadata-only adoption, dry-run-only live claims, and
+  transport success without successor verification.
+- Ambiguous-result behavior: fail closed to unresolved/blocked; never blind-retry identical input.
+- Zero-cost requirement: navigation-only radial/safe-exit/return-home; no resource or premium spend.
+- Quantity limits: one existing supply-depot-radial route family; no new destinations; one bounded
+  live validation after offline pass; zero supply claims.
+- Resource consumption policy: no game resources consumed; do not reduce free Supply Depot attempts.
+- Premium or strategic restrictions: no premium/purchase/strategic controls.
+- Active evidence manifest: None for offline work; live session artifacts remain under
+  `.local-captures` and must not stage protected `evidence/**`.
+- Required artifacts: verified supply-depot-radial path through CentralPolicy/SafeActionExecutor,
+  focused offline tests including adversarial bypass/capability/radial/safe-exit probes, and live
+  navigation-only session result retained locally when live validation runs.
+- Immediate-before/immediate-post/result/journal: required for each live authorized input; offline
+  fixtures substitute during offline review.
+- Additional task-specific artifacts: terminal observability report attachment, radial semantics
+  evidence, safe-exit binding evidence where used, and preserved
+  `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
+- Focused tests: `tests.test_supply_depot_verified_route` plus touched radial/safe-exit/capability/
+  session/observability/supply-depot regressions.
+- Integration tests: offline mocked capability-bound radial/safe-exit path; after offline pass, one
+  bounded live reversible validation without claims.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched-component regressions, adversarial
+  probes, then the full repository suite before live validation and before commit.
+- Validators: Python compilation, focused tests, governance validation, CURRENT_HANDOFF JSON
+  parsing, JSON parsing for route session/result artifacts when touched, touched-file secret scan,
+  and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because offline fixtures authorize implementation review and
+  any live BlueStacks navigation artifacts remain local under `.local-captures` without promoting
+  into protected `evidence/**`.
+- Valid blocked outcomes: inability to remove radial direct-transport bypasses, capability/radial/
+  safe-exit adoption failure, live claim pressure, or offline suite regressions.
+- Blocked-result commit policy: record the blocker; do not commit a partial bypass-preserving route
+  as complete; preserve WIP and evidence.
 - Commit policy: one reviewed conventional local commit after both offline and live validation pass;
-  expected commit `feat(navigation): integrate verified supply depot route`; no push.
-- Completion criteria: Supply Depot radial route reuses remaining readiness seams end to end without
-  bypasses; offline gates pass; bounded live reversible validation passes; registration/scheduler
-  unchanged; `CONFIRMED_NOT_DISPATCHED` still unavailable.
-- Next: renewed `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` readiness review; activate
-  composition only if readiness passes; leave `M6-DQ-TRANSITION-CORPUS` unactivated until then.
+  no push.
+- Expected focused commits: `feat(navigation): integrate verified supply depot route`; allowed paths
+  are the direct implementation files above.
+- Completion criteria: supply-depot-radial demonstrably reuses perception bundle, NavigationSession,
+  observability, shared radial semantics, safe-exit binder where applicable, CentralPolicy,
+  SafeActionExecutor, capability issuance/final consumption, pre_dispatch validation, and semantic
+  successor verification; direct route-local transport bypasses removed or fail-closed; offline
+  gates pass; one bounded live reversible validation passes without claims; registration/scheduler
+  unchanged; `CONFIRMED_NOT_DISPATCHED` still unavailable; commit created locally without push.
+- Established completion evidence: offline focused 17 + regressions 106 + full suite 888 passed /
+  1 skipped; live-radial-5 completed with capability-bound building_entry, radial_entry, and
+  safe_exit all transport_observed+verified+completed (`supply_depot_radial_and_home_recovered`);
+  exit successor accepts high-confidence ZOOMED_IN Home after facility leave; zero claims; local
+  artifacts under `.local-captures/supply-depot-verified-route/`; registration/scheduler unchanged;
+  `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
+- Next: renew `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` readiness review; activate composition
+  only if readiness passes; leave `M6-DQ-TRANSITION-CORPUS` unactivated until then.
 
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 - Title: Narrow declarative verified-flow composition over existing navigation contracts.
-- Status: Blocked (2026-07-19; mandatory readiness review failed; awaiting second real
-  live-validated route after completed Home Atlas verified-route integration).
+- Status: Blocked (2026-07-19; awaiting renewed readiness review after completed Home Atlas and
+  Supply Depot verified-route integrations).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed shared roadmap contracts for
   perception/session/radial/safe-exit/capability reuse, existing `NavigationStep` /
   `NavigationRunner` contracts, completed `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, and at least one
   additional real live-validated route integration (prefer `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`)
   that consumes those shared seams without bypasses.
-- Blocked by: readiness still requires two real routes; Home Atlas navigate-building now consumes
-  the shared seams, but Supply Depot (or equivalent) remains pending. See
-  `docs/navigation_verified_flow_readiness.md`. No broad DSL or generic autonomous runtime is
-  authorized.
+- Blocked by: renewed readiness review not yet recorded after both live-validated route
+  integrations. See `docs/navigation_verified_flow_readiness.md`. No broad DSL or generic
+  autonomous runtime is authorized.
 - Objective: after a positive readiness review, extend existing `NavigationStep`, `NavigationRunner`,
   contracts, and semantic planners for declarative verified-flow composition of one reference route
   only, reusing the stable shared contracts rather than inventing a second engine.
