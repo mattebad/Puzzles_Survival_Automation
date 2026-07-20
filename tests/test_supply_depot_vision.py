@@ -204,6 +204,50 @@ class SupplyDepotVisionTests(unittest.TestCase):
         }
         self.assertEqual(_claim_supply_roi_from_data(data), (641, 763, 707, 827))
 
+    def test_claim_supply_roi_rejects_building_label_sup_contamination(self):
+        """Live binder attempt-1 OCR: building title Sup inflated ROI over Upgrade."""
+
+        # Coordinates are already in the radial crop's upscaled image_to_data space
+        # (scale=2), matching the live 0007 pre-dispatch frame tokens.
+        data = {
+            "text": ["Sup", "Depot", "Detail", "Claim", "Upgrade", "Suppl"],
+            "left": [331, 413, 138, 522, 306, 509],
+            "top": [222, 222, 306, 306, 351, 353],
+            "width": [36, 63, 114, 107, 170, 113],
+            "height": [16, 19, 33, 33, 39, 40],
+        }
+        # Legacy union of all clai*/sup* tokens produced the Upgrade-covering ROI.
+        self.assertNotEqual(_claim_supply_roi_from_data(data), (555, 551, 725, 657))
+        paired = _claim_supply_roi_from_data(data)
+        self.assertEqual(paired, (644, 593, 725, 657))
+        upgrade = (553.0, 625.5, 638.0, 645.0)
+        self.assertTrue(
+            upgrade[2] <= paired[0]
+            or upgrade[0] >= paired[2]
+            or upgrade[3] <= paired[1]
+            or upgrade[1] >= paired[3]
+        )
+
+    def test_claim_supply_roi_fails_closed_when_only_building_label_supply(self):
+        data = {
+            "text": ["Sup", "Depot", "Detail", "Claim", "Upgrade"],
+            "left": [331, 413, 138, 522, 306],
+            "top": [222, 222, 306, 306, 351],
+            "width": [36, 63, 114, 107, 170],
+            "height": [16, 19, 33, 33, 39],
+        }
+        self.assertIsNone(_claim_supply_roi_from_data(data))
+
+    def test_upgrade_geometry_cannot_satisfy_claim_supply_pairing(self):
+        data = {
+            "text": ["Upgrade", "Claim"],
+            "left": [306, 522],
+            "top": [351, 306],
+            "width": [170, 107],
+            "height": [39, 33],
+        }
+        self.assertIsNone(_claim_supply_roi_from_data(data))
+
     def test_omitted_identity_preserves_legacy_results_without_pipeline(self):
         with (
             mock.patch.object(

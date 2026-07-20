@@ -3790,9 +3790,12 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Milestone: Durable offline navigation architecture roadmap; composition-readiness prerequisite.
 - Dependencies: completed `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` (`437a52c`), completed
   `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` FAIL record in
-  `docs/navigation_verified_flow_readiness.md`.
-- Blocked by: None remaining for this task once activated. Do not implement composition. Do not
-  activate M6. Do not claim supplies. Do not reopen Home Atlas findings closed by `e159dd9`.
+  `docs/navigation_verified_flow_readiness.md`, and completed
+  `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE` before renewal.
+- Blocked by: pending renewal under corrected Claim Supply pairing from completed
+  `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE` (do not retry identical pre-fix ROI
+  `[555,551,725,657]`). Do not implement composition. Do not activate M6. Do not claim supplies.
+  Do not reopen Home Atlas findings closed by `e159dd9`.
 - Objective: run exactly one bounded live BlueStacks Supply Depot radial re-validation under current
   HEAD so retained artifacts match the committed binder evidence schema: early Home probe under
   `home_safe_exit_probe`, facility binder under `safe_exit_binding` with candidate
@@ -3882,28 +3885,140 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   Home Atlas remains intact; registration/scheduler unchanged; `CONFIRMED_NOT_DISPATCHED` still
   unavailable; composition remains blocked until readiness is renewed with PASS; M6 unactivated;
   commit created locally without push.
-- Next: authorize a separate Claim Supply ROI-binding/framing fix before renewing this live
-  binder-evidence task; leave `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` dependency-blocked;
-  leave `M6-DQ-TRANSITION-CORPUS` unactivated.
+- Next: renew this live binder-evidence task only after
+  `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE` completes; leave
+  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` dependency-blocked; leave
+  `M6-DQ-TRANSITION-CORPUS` unactivated.
+
+### SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE
+- Task ID: `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE`.
+- Title: Close Supply Depot radial Claim Supply target-binding seam that selected Upgrade.
+- Status: Completed (2026-07-20; offline root-cause closure: Claim+Supply OCR proximity
+  pairing rejects building-title `Sup` contamination that produced Upgrade-covering
+  `[555,551,725,657]`; local commit
+  `fix(navigation): close supply depot radial target binding seam`; no push; no live retry).
+- Milestone: Durable offline navigation architecture roadmap; composition-readiness prerequisite.
+- Dependencies: blocked `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` (attempt 1 ROI
+  `[555,551,725,657]` opened Upgrade; attempt 2 `RADIAL_REBIND_FAILED`), completed
+  `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` (`437a52c`), retained live frames under
+  `.local-captures/supply-depot-live-binder-evidence/`.
+- Blocked by: None remaining for this task once activated. Do not modify safe-exit binder behavior.
+  Do not implement composition. Do not activate M6. Do not claim supplies. Do not repeat identical
+  failed live ROI attempts.
+- Objective: make Supply Depot radial Claim Supply target binding deterministic enough that the
+  existing facility safe-exit binder path can later be live-validated. Trace
+  `command_supply_depot_radial` → building entry → radial acquisition → radial pre-dispatch →
+  Claim Supply binding → `SafeActionExecutor`; correct the narrow perception/binding defect that
+  caused ROI `[555,551,725,657]` to hit Upgrade; preserve fail-closed behavior.
+- Established facts: attempt-1 live OCR showed building-title `Sup` plus radial `Claim`/`Suppl`;
+  `_claim_supply_roi_from_data` unioned all `clai*`/`sup*` tokens into Upgrade-covering
+  `[555,551,725,657]`; attempt 2 fail-closed without Details OCR (`RADIAL_REBIND_FAILED`); safe-exit
+  packaging already emits `home_safe_exit_probe` when exit is reached; this task is not a claim or
+  safe-exit rewrite.
+- Direct implementation files: `tasks/supply_depot_vision.py`,
+  `tests/test_supply_depot_vision.py`, `tests/test_supply_depot_verified_route.py` only if route
+  regressions require it, `BACKLOG.md`, `CURRENT_HANDOFF.md`,
+  `docs/navigation_verified_flow_readiness.md` only if blocker status materially changes, and
+  `tests/test_governance_validation.py` for durable identity coverage.
+- Shared dependencies: existing Supply Depot verified route, radial semantics, perception bundle,
+  capability firewall, `SafeActionExecutor`; no production registration.
+- Transitive regression set: supply-depot vision/verified-route, radial semantics, perception
+  bundle, capability firewall, SafeActionExecutor, governance.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above.
+- Prohibited changes: safe-exit binder behavior, facility exit logic, new navigation engines,
+  new perception models, LLM/runtime inference, weakening capability validation, bypassing
+  `SafeActionExecutor`, fixed-coordinate authorization, direct transport, gameplay/claims,
+  composition/M6 activation, registration/scheduler changes, enabling
+  `CONFIRMED_NOT_DISPATCHED`, force-push, amend, rebase, reset/clean, or push.
+- Authorized runtime action: None required for offline binding closure. Live validation is
+  permitted only if the exact failure cause is identified, the correction is bounded, and no
+  unchanged failed attempt is repeated; otherwise leave live to a renewed LIVE-BINDER task.
+- Maximum transport inputs: Zero unless a separately justified bounded live proof is required
+  after offline gates; default is offline-only.
+- Navigation-only recovery: Home dismissal uses supported non-consequential map deselection only;
+  do not use Android Back on Home map.
+- Consequential action: None; claims, purchases, premium, training, healing, research, upgrades,
+  crafting, resource consumption, and troop deployment remain forbidden.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: identical Claim Supply ROI `[555,551,725,657]`; any prior
+  terminally confirmed Supply Depot collection keys; Android Back on Home map.
+- Required source: retained live attempt-1/2 radial pre-dispatch frames plus offline OCR/box
+  fixtures proving building-label contamination versus paired Claim Supply geometry.
+- Exact target semantics: Claim Supply ROI binds only co-located Claim+Supply OCR tokens; Upgrade
+  and building-title Supply/Sup cannot satisfy the binding; fresh pre-dispatch geometry remains
+  authoritative; capability issuance still requires valid semantic target binding.
+- Required local association: binding cites current-frame OCR boxes and fail-closed pairing;
+  capability path retains fresh capture digest + rebound ROI.
+- Negative controls: union-all `sup*` contamination; Upgrade-as-Claim-Supply; fixed-ROI independent
+  authorization; claims; composition activation.
+- Coordinate space: BlueStacks native 800x1280 full-frame evidence only.
+- Accepted signals: offline proof that live attempt-1 contamination ROI is rejected, paired Claim
+  Supply ROI excludes Upgrade, and capability/route regressions remain green.
+- Rejected weak signals: coordinate-only guesses without OCR contamination proof; transport success
+  as semantic proof.
+- Ambiguous-result behavior: fail closed; never blind-retry identical input.
+- Zero-cost requirement: navigation-only; no resource or premium spend.
+- Quantity limits: one atomic binding closure; zero supply claims.
+- Resource consumption policy: no game resources consumed.
+- Premium or strategic restrictions: no premium/purchase/strategic controls.
+- Active evidence manifest: None; retain prior live artifacts under `.local-captures` without
+  staging protected `evidence/**`.
+- Required artifacts: corrected Claim Supply ROI pairing; focused adversarial tests; updated
+  backlog/handoff (and readiness note only if blocker status changes).
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE for offline-only closure.
+- Additional task-specific artifacts: none beyond code/tests/docs listed above.
+- Focused tests: `tests.test_supply_depot_vision`, `tests.test_supply_depot_verified_route`, radial
+  semantics, perception bundle, capability firewall, SafeActionExecutor, governance.
+- Integration tests: offline mocked Supply Depot verified route remains green.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched regressions, then the full
+  repository suite before commit. Expected baseline: 900 passed, 1 skipped (count may rise with
+  new focused cases).
+- Validators: Python compilation for any touched Python files, focused tests, governance
+  validation, CURRENT_HANDOFF JSON parsing, touched-file secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this task corrects offline binding using retained
+  local captures without promoting into protected `evidence/**`.
+- Valid blocked outcomes: inability to prove contamination root cause; pressure to weaken
+  capability/safe-exit; live consequential pressure; offline suite regressions.
+- Blocked-result commit policy: if setup-only, record the exact setup correction without production
+  code change; do not claim composition readiness.
+- Commit policy: one reviewed conventional local commit; no push. Prefer
+  `fix(navigation): close supply depot radial target binding seam` when production changes; else
+  `docs(navigation): record supply depot radial binding blocker`.
+- Expected focused commits: exactly one of the commit messages above; allowed paths are the direct
+  implementation files above.
+- Completion criteria: root cause identified; smallest atomic correction (or setup-only record)
+  applied; focused/adversarial tests prove Upgrade and building-label Supply cannot satisfy Claim
+  Supply binding; offline gates pass; composition remains dependency_blocked; M6 unactivated;
+  registration/scheduler disabled; `CONFIRMED_NOT_DISPATCHED` unchanged; commit created locally
+  without push.
+- Next: renew `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` under the corrected binding; leave
+  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` dependency-blocked until that evidence and
+  renewed readiness PASS; leave `M6-DQ-TRANSITION-CORPUS` unactivated.
 
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 - Title: Narrow declarative verified-flow composition over existing navigation contracts.
-- Status: Blocked (2026-07-20; FINAL-READINESS FAIL retained; LIVE-BINDER-EVIDENCE also Blocked —
-  Claim Supply ROI/Upgrade successor and RADIAL_REBIND_FAILED; waiting on resolved binder-evidence
-  then renewed PASS).
+- Status: Blocked (2026-07-20; FINAL-READINESS FAIL retained; LIVE-BINDER-EVIDENCE Blocked;
+  `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE` completed offline — renew LIVE-BINDER under
+  corrected Claim Supply pairing before composition; waiting on resolved binder-evidence then
+  renewed PASS).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed shared roadmap contracts for
   perception/session/radial/safe-exit/capability reuse, existing `NavigationStep` /
   `NavigationRunner` contracts, completed `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, completed
   `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`, completed `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`,
   completed `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`, completed
-  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` with PASS, and completed
+  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` with PASS, completed
+  `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE`, and completed
   `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` when required by the FAIL record.
 - Blocked by: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` FAIL on Supply Depot
   live binder-evidence correspondence; blocked
-  `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` (Claim Supply dynamic ROI opened Upgrade /
-  RADIAL_REBIND_FAILED; facility exit binder live proof still missing). See
+  `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` (facility exit binder live proof still
+  missing; Claim Supply Upgrade-ROI contamination closed offline by
+  `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE`). See
   `docs/navigation_verified_flow_readiness.md`. No broad DSL or generic autonomous runtime is
   authorized.
 - Objective: after a positive readiness review, extend existing `NavigationStep`, `NavigationRunner`,

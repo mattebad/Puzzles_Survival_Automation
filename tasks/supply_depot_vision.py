@@ -142,20 +142,60 @@ def _ocr_roi_text(
         raise ValueError("ROI is outside native BlueStacks bounds") from exc
 
 
+def _box_center(box: tuple[float, float, float, float]) -> tuple[float, float]:
+    return ((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
+
+
+def _pair_claim_supply_boxes(
+    claim_boxes: list[tuple[float, float, float, float]],
+    supply_boxes: list[tuple[float, float, float, float]],
+) -> tuple[tuple[float, float, float, float], tuple[float, float, float, float]] | None:
+    """Pair Claim with a nearby Supply token; reject distant building-label Supply/Sup.
+
+    Live failure mode: OCR also reads the building title ``Sup`` / ``Supply Depot`` inside
+    ``SUPPLY_DEPOT_RADIAL_ROI``. Unioning that token with radial ``Claim`` / ``Suppl`` inflated
+    the target ROI over Upgrade. Require horizontal alignment and Supply near/below Claim.
+    """
+
+    best: tuple[tuple[float, float, float, float], tuple[float, float, float, float]] | None = None
+    best_score: float | None = None
+    for claim in claim_boxes:
+        claim_cx, claim_cy = _box_center(claim)
+        for supply in supply_boxes:
+            supply_cx, supply_cy = _box_center(supply)
+            dx = abs(supply_cx - claim_cx)
+            dy = supply_cy - claim_cy
+            # Stacked Claim Supply control: centers nearly aligned; Supply near or just below Claim.
+            if dx > 80.0 or dy < -20.0 or dy > 90.0:
+                continue
+            score = dx + abs(dy)
+            if best_score is None or score < best_score:
+                best_score = score
+                best = (claim, supply)
+    return best
+
+
 def _claim_supply_roi_from_data(data: dict[str, list], *, scale: float = 2.0) -> Box | None:
-    boxes = []
+    claim_boxes: list[tuple[float, float, float, float]] = []
+    supply_boxes: list[tuple[float, float, float, float]] = []
     ox, oy = SUPPLY_DEPOT_RADIAL_ROI[:2]
     for index, raw in enumerate(data.get("text", ())):
         token = _normalized(str(raw))
-        if not (token.startswith("clai") or token.startswith("sup")):
+        if not token:
             continue
         x0 = ox + float(data["left"][index]) / scale
         y0 = oy + float(data["top"][index]) / scale
         x1 = x0 + float(data["width"][index]) / scale
         y1 = y0 + float(data["height"][index]) / scale
-        boxes.append((x0, y0, x1, y1))
-    if len(boxes) < 2:
+        box = (x0, y0, x1, y1)
+        if token.startswith("clai"):
+            claim_boxes.append(box)
+        elif token.startswith("sup"):
+            supply_boxes.append(box)
+    paired = _pair_claim_supply_boxes(claim_boxes, supply_boxes)
+    if paired is None:
         return None
+    boxes = paired
     x0 = max(SUPPLY_DEPOT_RADIAL_ROI[0], int(math.floor(min(box[0] for box in boxes) - 10)))
     y0 = max(SUPPLY_DEPOT_RADIAL_ROI[1], int(math.floor(min(box[1] for box in boxes) - 10)))
     x1 = min(SUPPLY_DEPOT_RADIAL_ROI[2], int(math.ceil(max(box[2] for box in boxes) + 10)))

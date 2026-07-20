@@ -4,15 +4,10 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "5f7ebcd docs(navigation): retain verified flow composition blocker",
-    "origin_relationship": "main is ahead of origin/main by seventeen local roadmap commits; no push",
+    "head": "8d33b9e docs(navigation): block supply depot binder evidence",
+    "origin_relationship": "main is ahead of origin/main by eighteen local roadmap commits; no push",
     "staged_paths": [],
-    "relevant_unstaged_paths": [
-      "BACKLOG.md",
-      "CURRENT_HANDOFF.md",
-      "docs/navigation_verified_flow_readiness.md",
-      "tests/test_governance_validation.py"
-    ],
+    "relevant_unstaged_paths": [],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
       ".local-reference/**",
@@ -20,6 +15,7 @@
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
+      "8d33b9e docs(navigation): block supply depot binder evidence",
       "437a52c fix(navigation): close supply depot verified route seams",
       "e159dd9 fix(navigation): close home atlas verified route seams",
       "9d814d3 docs(navigation): renew flow readiness blocker",
@@ -33,22 +29,27 @@
       "3472128 feat(runtime): add input capability firewall"
     ]
   },
-  "current_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
-  "current_task_state": "blocked",
-  "next_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
+  "current_task_id": "SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE",
+  "current_task_state": "completed",
+  "next_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
   "next_task_activation_status": "dependency_blocked",
-  "phase": "supply_depot_live_binder_evidence_blocked",
-  "objective": "Live binder-evidence revalidation under HEAD failed without facility exit binder proof; leave composition blocked; leave M6 unactivated; no Claim Supply ROI-binding change in this task.",
-  "last_safe_completed_step": "Recovered Exit-the-game Cancel; left Home recognized fully_zoomed_out; recorded LIVE-BINDER-EVIDENCE Blocked with retained local artifacts.",
-  "next_permitted_action": "Do not retry identical Claim Supply ROI; authorize a separate narrow Claim Supply ROI-binding/framing fix before another live binder-evidence attempt; leave composition dependency_blocked; leave M6 unactivated; no push.",
+  "phase": "supply_depot_radial_target_binding_closure",
+  "objective": "Completed: pair Claim+Supply OCR; reject building-title Sup contamination; leave composition blocked; leave M6 unactivated; no claims; no push.",
+  "last_safe_completed_step": "Closed Claim Supply ROI pairing; offline suites green (903/1); no live retry; composition remains dependency_blocked; M6 unactivated.",
+  "next_permitted_action": "Renew SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE under corrected Claim Supply pairing; leave composition dependency_blocked; leave M6 unactivated; no push.",
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
     "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity.",
     "Partial HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION WIP already existed in the working tree before formal task activation; it is preserved and must be completed rather than discarded.",
     "SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE parent review used two correction cycles: (1) facility exit binder must not use Home exterior-close (claim risk) and must positively recognize facility screen on fresh pre_dispatch; (2) result evidence must record the exit-stage binder that governed the tap, not only the early Home probe.",
-    "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE: attempt 1 Claim Supply ROI [555,551,725,657] opened Upgrade panel; attempt 2 RADIAL_REBIND_FAILED; Android Back during recovery briefly raised Exit-the-game (Cancel recovered); packaging not the blocker."
+    "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE: attempt 1 Claim Supply ROI [555,551,725,657] opened Upgrade panel; attempt 2 RADIAL_REBIND_FAILED; Android Back during recovery briefly raised Exit-the-game (Cancel recovered); packaging not the blocker.",
+    "SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE root cause: _claim_supply_roi_from_data unioned building-title Sup with radial Claim/Suppl, inflating ROI over Upgrade."
   ],
   "actions_already_performed": [
+    "Completed SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE offline: Claim+Supply proximity pairing rejects building-title Sup; live attempt-1 frame now binds (644,593,725,657) excluding Upgrade; focused 197 + full suite 903 passed / 1 skipped; no live input; no push.",
+    "Verified expected state: branch main; HEAD 8d33b9e; working tree clean; ahead 18; Supply Depot seam closure 437a52c; composition dependency_blocked; M6 unactivated; registration/scheduler disabled; CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
+    "Activated durable BACKLOG contract SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE; LIVE-BINDER remains blocked pending this closure; composition remains dependency_blocked; M6 unactivated.",
+    "Reproduced attempt-1 OCR: Sup (building) + Claim + Suppl unioned to [555,551,725,657] covering Upgrade; attempt-2 binding None via missing Details OCR.",
     "LIVE-BINDER attempt 1: localize Home; navigate Supply Depot; supply-depot-radial building_entry verified with pre_dispatch digest; Claim Supply [555,551,725,657] opened Upgrade → unexpected_successor; home_safe_exit_probe emitted; facility exit not reached; session live-radial/…T165456489362Z.",
     "Recovered Upgrade panel via Android Back; zoom-out + localize restored recognized fully_zoomed_out Home.",
     "LIVE-BINDER attempt 2 (after Upgrade-ROI diagnosis): navigate Supply Depot; supply-depot-radial building dispatched; radial pre-dispatch RADIAL_REBIND_FAILED (no Claim Supply tap); session live-radial-2/…T165939763069Z; no terminal radial-result.json.",
@@ -347,16 +348,17 @@
     "live_task_state_row_count": "NOT_VERIFIED_THIS_RUN",
     "pending_promotion_gates": [
       "No governance task may change runtime registration or scheduler state",
+      "SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE must complete before renewing LIVE-BINDER",
       "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains blocked until live binder evidence matches HEAD and readiness records PASS",
       "M6-DQ-TRANSITION-CORPUS remains unactivated"
     ]
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "900 tests passed; 1 skipped",
+    "last_full_suite_count": "903 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "FINAL-READINESS: focused verified-route 48; architecture regressions 270; full suite 900/1"
+    "last_relevant_focused_tests": "RADIAL-BINDING-CLOSURE: vision/verified-route/radial/perception/firewall/safe-core/governance 197; full suite 903/1"
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -479,20 +481,20 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Bounded live BlueStacks Supply Depot radial binder-evidence revalidation under HEAD.",
-      "Leave RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION dependency_blocked.",
+      "Renew SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE under corrected Claim Supply pairing.",
+      "Leave RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION dependency_blocked until LIVE-BINDER and readiness PASS.",
       "Do not activate M6-DQ-TRANSITION-CORPUS.",
-      "No claims; no composition implementation; no push."
+      "No claims; no identical pre-fix live ROI retry; no push."
     ],
     "prohibited_actions": [
+      "Identical pre-fix Claim Supply ROI [555,551,725,657] retry.",
       "Any Supply Depot claim, free-hold, purchase, premium, or consequential gameplay.",
-      "Broadening architecture or gameplay behavior unless packaging cannot emit required fields.",
-      "Activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION or M6-DQ-TRANSITION-CORPUS.",
+      "Activating composition or M6-DQ-TRANSITION-CORPUS before LIVE-BINDER/readiness PASS.",
       "Enabling CONFIRMED_NOT_DISPATCHED, registration/scheduler changes, or any push.",
       "Staging .local-captures/** or protected evidence/**."
     ],
-    "exact_stop_condition": "Stop after one successful HEAD-matching live radial (or safe FAIL recovery); never push.",
-    "expected_next_atomic_task": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
+    "exact_stop_condition": "Binding closure committed; renew LIVE-BINDER separately; never push.",
+    "expected_next_atomic_task": "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
     "expected_next_activation_status": "dependency_blocked"
   }
 }
@@ -504,10 +506,10 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: pending commit `docs(navigation): retain verified flow composition blocker`; was
-  `437a52c`; sixteen local roadmap commits ahead of `origin/main` before this commit
+- HEAD/base: `8d33b9e` `docs(navigation): block supply depot binder evidence`; eighteen local
+  roadmap commits ahead of `origin/main`
 - Staged paths: none before commit
-- Relevant unstaged paths: FINAL-READINESS FAIL review files before commit
+- Relevant unstaged paths: radial binding closure files before commit
 - Protected untracked paths or categories: evidence/**, .local-reference/**,
   .local-captures/**, and other pre-existing untracked files
 - Push: prohibited
@@ -526,20 +528,20 @@ This document is a volatile operational boundary, not a complete project history
 - `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` live attempts under HEAD: Claim Supply ROI
   `[555,551,725,657]` opened Upgrade; second attempt `RADIAL_REBIND_FAILED`; packaging emits
   `home_safe_exit_probe` but facility binder live proof was not reached.
+- `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE` root cause: `_claim_supply_roi_from_data` unioned
+  building-title `Sup` with radial `Claim`/`Suppl`, inflating ROI over Upgrade.
 
 ## Current task
-- Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`
-- State: blocked; live binder-evidence revalidation under HEAD failed without facility exit binder
-  proof (Claim Supply ROI → Upgrade; RADIAL_REBIND_FAILED)
-- Next task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` (dependency_blocked)
-- Objective: leave composition blocked until live binder evidence matches HEAD; leave M6
-  unactivated; do not change Claim Supply binding in this evidence-only task
-- Last safe completed step: Exit-the-game Cancel recovered; Home recognized `fully_zoomed_out`;
-  LIVE-BINDER-EVIDENCE recorded Blocked with artifacts under
-  `.local-captures/supply-depot-live-binder-evidence/`
-- Exact next permitted step: do not retry identical Claim Supply ROI; authorize a separate narrow
-  Claim Supply ROI-binding/framing fix before another live binder-evidence attempt; do not
-  activate composition or M6; no claims; no push
+- Task ID: `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE`
+- State: completed; Claim Supply radial ROI pairing rejects building-title `Sup` contamination
+  that produced Upgrade-covering `[555,551,725,657]`
+- Next task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` (dependency_blocked until
+  renewed under the corrected binding)
+- Objective: completed offline binding closure; leave composition blocked; leave M6 unactivated;
+  no claims; no push
+- Last safe completed step: offline suites green (903 passed / 1 skipped); no live retry
+- Exact next permitted step: renew LIVE-BINDER under corrected pairing; do not retry identical
+  pre-fix live ROI; do not activate composition or M6; no push
 - No registration, scheduler, worker, or protected-evidence operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains unactivated.
 
@@ -599,18 +601,16 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: authorize a separate narrow Claim Supply ROI-binding/framing fix before another
-  live binder-evidence attempt; leave composition dependency_blocked; leave M6 unactivated; no
-  claims; no push
-- Prohibited actions: identical Claim Supply ROI retry; treating mismatched prior live binder
-  fields as readiness proof; consequential gameplay; claims; composition/M6 activation; push;
-  enabling `CONFIRMED_NOT_DISPATCHED`; registration/scheduler changes; production binding changes
-  under this blocked evidence task without a new backlog contract
-- Exact stop condition: composition remains `dependency_blocked` until live binder evidence matches
-  HEAD and readiness PASS; never push
-- Expected next atomic task: separate Claim Supply ROI-binding/framing fix (then renew
-  `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`)
-- Expected next activation status: `blocked` until that fix is authorized
+- Permitted action: renew `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` under corrected Claim
+  Supply pairing; leave composition dependency_blocked; leave M6 unactivated; no claims; no push
+- Prohibited actions: identical pre-fix Claim Supply ROI `[555,551,725,657]` retry; treating
+  mismatched prior live binder fields as readiness proof; consequential gameplay; claims;
+  composition/M6 activation; push; enabling `CONFIRMED_NOT_DISPATCHED`; registration/scheduler
+  changes
+- Exact stop condition: binding closure committed; composition remains `dependency_blocked` until
+  live binder evidence matches HEAD and readiness PASS; never push
+- Expected next atomic task: renew `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`
+- Expected next activation status: `dependency_blocked` until that renewal is authorized
 
 ## Ruins Challenge local task handoff — 2026-07-16
 

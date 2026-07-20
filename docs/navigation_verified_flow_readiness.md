@@ -116,7 +116,7 @@ Two real production routes exist (not wrappers around one route; not test-only r
 
 ## Narrow follow-on
 
-`SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` was activated and is now **Blocked**.
+`SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` remains **Blocked**.
 
 Live revalidation under HEAD (artifacts under
 `.local-captures/supply-depot-live-binder-evidence/`) did **not** produce facility binder evidence:
@@ -126,15 +126,18 @@ Live revalidation under HEAD (artifacts under
 | 1 | `live-radial/…T165456489362Z` | Building entry verified; Claim Supply dispatched at `[555,551,725,657]` opened Upgrade panel → `unexpected_successor` / blocked; `home_safe_exit_probe` emitted (packaging OK); facility `safe_exit_binding` / `exit_target_roi` never reached |
 | 2 | `live-radial-2/…T165939763069Z` | Building entry dispatched; fresh radial pre-dispatch fail-closed with `RADIAL_REBIND_FAILED` (no Claim Supply tap); no terminal `radial-result.json` |
 
-This is **not** a result-packaging bug: HEAD already separates `home_safe_exit_probe` from facility
-`safe_exit_binding` and records action `pre_dispatch_frame_sha256` when stages complete. Completing
-facility exit binder proof requires a separate authorized Claim Supply ROI-binding correction (or
-equivalent framing that yields a safe non-Upgrade ROI), then a renewed live binder-evidence run.
-Do not treat the pre-`437a52c` seam-closure session as HEAD-corresponding binder evidence.
+**Root cause (binding closure):** attempt-1 radial OCR included building-title `Sup` inside
+`SUPPLY_DEPOT_RADIAL_ROI`. `_claim_supply_roi_from_data` previously unioned every `clai*`/`sup*`
+token, so `Sup` + `Claim` + `Suppl` produced Upgrade-covering `[555,551,725,657]`. Active task
+`SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE` pairs Claim with a nearby Supply token and rejects
+distant building-label contamination. This is **not** a result-packaging bug: HEAD already
+separates `home_safe_exit_probe` from facility `safe_exit_binding`. Renew LIVE-BINDER only after
+the binding closure commit; do not treat the pre-`437a52c` seam-closure session as
+HEAD-corresponding binder evidence.
 
 ## Prerequisites for reconsideration
 
-1. Resolve the Claim Supply binding/framing blocker, then complete
+1. Complete `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE`, then renew
    `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` with retained artifacts matching HEAD
    (`safe_exit_binding` = `supply-depot-facility-back-arrow`, `exit_target_roi` equals binder and
    dispatched ROI, `home_safe_exit_probe` isolated, action `pre_dispatch_*` present).
