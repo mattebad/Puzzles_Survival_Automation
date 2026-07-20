@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "registry_kind": "flow_delivery_coverage",
+  "purpose": "Machine-readable development-flow coverage states. Campaign AP and Ultimate Challenge remain separate objectives.",
+  "status_vocabulary": [
+    "contracted_not_implemented",
+    "preserved_existing_behavior_separate_from_destination_verification",
+    "explicit_allowlist",
+    "not_applicable_to_this_flow"
+  ],
+  "flows": {
+    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
+      "objective": "campaign_ap_farming",
+      "home_navigation_state": "contracted_not_implemented",
+      "story_destination_navigation_state": "contracted_not_implemented",
+      "ap_execution_state": "preserved_existing_behavior_separate_from_destination_verification",
+      "supported_story_destinations": [
+        "1-20-9",
+        "1-15-9",
+        "2-2-9"
+      ],
+      "rejected_destinations": [
+        "1-2-9",
+        "ultimate-challenge"
+      ],
+      "ultimate_challenge_coverage": "not_applicable_to_this_flow"
+    },
+    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
+      "objective": "ultimate_challenge_daily",
+      "campaign_entry_state": "contracted_not_implemented",
+      "ultimate_challenge_navigation_state": "contracted_not_implemented",
+      "daily_execution_state": "contracted_not_implemented",
+      "already_completed_detection_state": "contracted_not_implemented",
+      "reset_idempotency_state": "contracted_not_implemented",
+      "campaign_ap_coverage": "not_applicable_to_this_flow",
+      "supported_story_destinations": []
+    }
+  }
+}

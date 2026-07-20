@@ -4467,17 +4467,127 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   remain unchanged; one local focused commit; no push.
 - Next: Campaign remains first ready but is not activated by this closure.
 
+### CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION
+- Task ID: `CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION`.
+- Title: Separate Campaign AP farming from Ultimate Challenge in delivery contracts.
+- Status: Completed (2026-07-20; offline queue/policy/coverage/parser correction validated and
+  committed locally; no push).
+- Milestone: Development tooling / product-contract correction; not gameplay implementation.
+- Dependencies: completed IDE-native receipt closure at `20811eb`; inactive development queue;
+  released development/runtime ownership; no nonterminal consequential action.
+- Blocked by: None for offline correction. Live BlueStacks input and subagents are prohibited.
+- Objective: correct the autonomous delivery queue and product contracts so Campaign AP farming and
+  Ultimate Challenge are two separate gameplay flows, without implementing either flow.
+- Established facts: previous Campaign destinations were `1-20-9`, `1-2-9`, and `ultimate-challenge`;
+  product tuple format is `<story difficulty>-<stage>-<chapter>`; Campaign flow ID
+  `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` is retained; production registration and
+  scheduler remain disabled; composition remains blocked and excluded.
+- Direct implementation files: `tasks/flow_delivery_queue.json`,
+  `tasks/flow_delivery_product_policy.json`, `tasks/flow_delivery_coverage.json`,
+  `docs/flow_delivery_coverage.md`, `tasks/campaign_auto_battle.py`,
+  `scripts/bluestacks_campaign_ap.py` only for destination-parser wiring,
+  `tests/test_flow_delivery_orchestrator.py`, `tests/test_campaign_story_destinations.py`,
+  `tests/test_governance_validation.py`, `BACKLOG.md`, and `CURRENT_HANDOFF.md`.
+- Shared dependencies: flow-delivery controller/schemas, existing Campaign stage identity strings,
+  Home Atlas prerequisites for later flows; no gameplay scheduler integration.
+- Transitive regression set: flow-delivery orchestrator tests, Campaign destination parser tests,
+  governance/handoff, scheduler isolation, and the full repository suite.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above;
+  preserve unrelated `.cursorindexingignore`, `.specstory/**`, and project ZIP files.
+- Prohibited changes: Campaign navigation implementation, Ultimate Challenge implementation, live
+  validation, composition, Bliss migration, M6 activation, production registration, gameplay
+  scheduler mutation, BlueStacks/ADB input, subagents, amend/reset/clean/restore, or push.
+- Authorized runtime action: None; offline contract correction only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden.
+- Consequential action: None.
+- Registration changes: None; production remains not registered.
+- Scheduler changes: None; gameplay scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any historical Campaign or Ultimate Challenge live input.
+- Required source: repository queue/policy, hardening commit `20811eb`, and explicit product
+  direction in this task.
+- Exact target semantics: Campaign supported destinations exactly `1-20-9`, `1-15-9`, `2-2-9`;
+  reject `1-2-9`, `ultimate-challenge`, and unsupported tuples; add distinct
+  `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` queue/policy/coverage entries.
+- Required local association: queue order Campaign → Ultimate Challenge → Nova → Noah → Ruins →
+  Troop Training → Supply Depot → retained subsequent order.
+- Negative controls: retaining removed destinations as aliases; collapsing Campaign and Ultimate
+  Challenge coverage; inventing premium/AP/arbitrary-stage/repeated-challenge authorization;
+  marking Ultimate Challenge completed because Campaign scripts exist.
+- Coordinate space: none; no coordinate operation.
+- Accepted signals: deterministic queue selection with Campaign first, distinct Ultimate Challenge
+  entry, allowlist parser fail-closed behavior, unchanged registration/scheduler, released ownership.
+- Rejected weak signals: Campaign script existence as Ultimate Challenge live proof; transport
+  success; silent alias retention of `1-2-9` or `ultimate-challenge`.
+- Ambiguous-result behavior: fail closed; do not invent destinations or challenge actions.
+- Zero-cost requirement: no gameplay resources consumed.
+- Quantity limits: exactly one active correction task; zero live inputs; three Campaign destinations.
+- Resource consumption policy: no AP, stamina, premium, or challenge expenditure.
+- Premium or strategic restrictions: premium spending, arbitrary Campaign tuples, AP outside
+  supported Campaign flow, repeated Ultimate Challenge, and unidentified challenge actions remain
+  unauthorized.
+- Active evidence manifest: None.
+- Required artifacts: corrected queue/policy/coverage, Campaign destination allowlist parser,
+  backlog/handoff contracts, and focused tests.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: `docs/flow_delivery_coverage.md`.
+- Focused tests: `tests.test_flow_delivery_orchestrator`,
+  `tests.test_campaign_story_destinations`, and `tests.test_governance_validation`.
+- Integration tests: controller validate/status/selection; no BlueStacks connection.
+- Transitive regression tests: flow-delivery, Campaign parser, governance, scheduler isolation,
+  and full repository suite.
+- Full-suite requirement: authoritative local `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: Python compilation, governance validation, structured handoff parsing, touched-file
+  secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE — offline queue/policy/parser correction creates no runtime
+  evidence manifest.
+- Valid blocked outcomes: inability to keep Campaign first ready, inability to separate Ultimate
+  Challenge without inventing authorization, or any registration/scheduler/runtime mutation pressure.
+- Blocked-result commit policy: record the exact blocker, preserve authority, release any accidental
+  lease, and do not claim completion or push.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `fix(automation): separate campaign and ultimate challenge flows`.
+- Completion criteria: corrected destinations and distinct Ultimate Challenge queue/policy/coverage;
+  parser tests pass; focused and full suite pass; Campaign first ready; no active flow/lease/runtime
+  owner/writable agent; registration/scheduler unchanged; one local commit; no push.
+- Next: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` remains first ready and is not activated
+  by this correction.
+
 ### CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION
 - Task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.
 - Title: Migrate Campaign AP entry to Home Atlas and verified destination navigation.
 - Status: Ready; first ready development-queue flow, not activated.
-- Scope: replace legacy `HOME_PAN_GESTURES` with canonical Home Atlas entry, observe remembered
-  Campaign state, and add feedback-controlled exact navigation for only `1-20-9`, `1-2-9`, and
-  `ultimate-challenge`.
-- Safety boundary: preserve existing AP/battle logic; navigation-only live validation until
-  separate AP policy is explicit; exact destination verification is mandatory before AP execution.
+- Scope: replace legacy `HOME_PAN_GESTURES` with canonical Home Atlas entry; recognize Campaign
+  Story mode; support difficulty 1 and 2; feedback-controlled Stage selection for Stages 20, 15,
+  and 2; Chapter 9 selection; exact tuple verification for only `1-20-9`, `1-15-9`, and `2-2-9`;
+  separate destination verification from AP-consuming execution; preserve existing AP/battle
+  behavior; reject Ultimate Challenge as a Campaign AP destination.
+- Product tuple format: `<story difficulty>-<stage>-<chapter>` (example `1-20-9` = difficulty 1,
+  Stage 20, Chapter 9). Removed from the supported-destination contract: `1-2-9` and
+  `ultimate-challenge` (not retained as aliases). All other Story destination tuples fail closed.
+- Safety boundary: navigation-only live validation until separate AP policy is explicit; exact
+  destination verification is mandatory before AP execution.
 - Authority: full normalized task state and tests are in `tasks/flow_delivery_queue.json`; this
   dormant pointer does not activate implementation, runtime input, registration, or scheduling.
+
+### ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION
+- Task ID: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`.
+- Title: Integrate Ultimate Challenge daily task as a distinct BlueStacks flow.
+- Status: Ready; second development-queue flow after Campaign; not activated; not implemented.
+- Scope: recognized Home → Home Atlas navigation to Campaign → verified Campaign screen → verified
+  Ultimate Challenge entry → determine whether today’s action is still required → execute only an
+  authorized daily action → verify completion or `already_completed` → record daily/reset state →
+  recover safely.
+- Cadence and idempotency: normally evaluated once per game daily reset; must not rerun after
+  verified completion in the same reset window; may return `already_completed`; requires persistent
+  last-success/reset-window state before unattended scheduling; fails closed when reset identity or
+  completion state is ambiguous; separate from ordinary Campaign AP expenditure.
+- Safety boundary: not embedded in or dispatched as Campaign AP farming; production registration
+  and recurring scheduling remain disabled; unidentified challenge actions and repeated execution
+  are unauthorized.
+- Authority: full normalized task state is in `tasks/flow_delivery_queue.json` and
+  `tasks/flow_delivery_product_policy.json`; this dormant pointer does not activate implementation.
 
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.

@@ -4,8 +4,8 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "the commit containing this handoff: fix(automation): keep flow delivery in Cursor IDE",
-    "origin_relationship": "main is ahead of origin/main by twenty-two local commits after the containing commit; no push",
+    "head": "the commit containing this handoff: fix(automation): separate campaign and ultimate challenge flows",
+    "origin_relationship": "main is ahead of origin/main by twenty-three local commits after the containing commit; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
       ".cursorindexingignore (pre-existing user-owned modification)",
@@ -19,15 +19,12 @@
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
-      "fix(automation): keep flow delivery in Cursor IDE (containing commit)",
+      "fix(automation): separate campaign and ultimate challenge flows (containing commit)",
+      "fix(automation): keep flow delivery in Cursor IDE (20811eb)",
       "feat(automation): add serial flow delivery orchestrator (containing commit)",
       "3255eed fix(navigation): close supply depot radial target binding seam",
       "8d33b9e docs(navigation): block supply depot binder evidence",
       "437a52c fix(navigation): close supply depot verified route seams",
-      "e159dd9 fix(navigation): close home atlas verified route seams",
-      "9d814d3 docs(navigation): renew flow readiness blocker",
-      "f523f0f feat(navigation): integrate verified supply depot route",
-      "f093812 feat(navigation): integrate verified home atlas route",
       "e159dd9 fix(navigation): close home atlas verified route seams",
       "9d814d3 docs(navigation): renew flow readiness blocker",
       "f523f0f feat(navigation): integrate verified supply depot route",
@@ -40,21 +37,23 @@
       "3472128 feat(runtime): add input capability firewall"
     ]
   },
-  "current_task_id": "AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-RECEIPT-CLOSURE",
+  "current_task_id": "CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION",
   "current_task_state": "completed",
   "next_task_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
   "next_task_activation_status": "ready",
-  "phase": "development_flow_orchestrator_ide_native_receipt_closure_complete",
-  "objective": "Completed: native Task receipts are mandatory, installed hook evidence is an optional cross-check, and no detached delegation path exists.",
-  "last_safe_completed_step": "Reloaded-window native recon 855203ba-236a-4d67-8ecb-2260720f545a returned terminally under explicit cursor-grok-4.5-high in the foreground; no subagentStart event fired; receipt-mode hardening passed 87 focused tests and 954 full-suite tests with one expected skip; all temporary ownership was released.",
-  "next_permitted_action": "Stop this atomic closure after the containing local commit. Campaign remains first ready and may only be activated as a separate subsequent task; no runtime input or push is authorized here.",
+  "phase": "campaign_ultimate_challenge_flow_scope_correction_complete",
+  "objective": "Completed: Campaign AP and Ultimate Challenge are separate delivery flows with corrected destinations and coverage; neither gameplay flow was implemented.",
+  "last_safe_completed_step": "Offline correction passed focused queue/policy/parser/governance tests and the authoritative 966-test suite with one expected skip; Campaign remains first ready; Ultimate Challenge is a distinct ready queue entry at priority 15; no lease, writable agent, active flow, runtime owner, BlueStacks input, subagents, registration/scheduler change, or push.",
+  "next_permitted_action": "Stop after the containing local commit. Campaign remains first ready and may only be activated as a separate subsequent task; Ultimate Challenge remains a distinct later flow; no runtime input or push is authorized here.",
   "flow_delivery": {
     "queue_path": "tasks/flow_delivery_queue.json",
     "product_policy_path": "tasks/flow_delivery_product_policy.json",
+    "coverage_path": "tasks/flow_delivery_coverage.json",
     "local_lease_path": ".local-orchestrator/flow-delivery-lease.json",
     "lease_status": "released",
     "active_flow": null,
     "first_ready_flow": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+    "second_ready_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
     "composition_excluded": true
   },
   "process_deviations": [
@@ -66,6 +65,8 @@
     "SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE root cause: _claim_supply_roi_from_data unioned building-title Sup with radial Claim/Suppl, inflating ROI over Upgrade."
   ],
   "actions_already_performed": [
+    "CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION PASS: Campaign destinations corrected to 1-20-9/1-15-9/2-2-9; removed 1-2-9 and ultimate-challenge without aliases; Ultimate Challenge added as distinct ready queue/policy/coverage entry at priority 15; allowlist parser and focused/full suite validated; ownership left released.",
+    "CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION activated: preserved unrelated .cursorindexingignore/.specstory/**/ZIP; verified no lease/writable agent/active flow/runtime owner; Campaign remains first ready and is not activated.",
     "IDE-NATIVE-RECEIPT-CLOSURE PASS: installed cursor.hooks log loaded both project hooks but the successful reloaded native pns-flow-recon call emitted no subagentStart step, command execution, payload, routing event, or lease binding; selected native receipt with optional hook cross-check.",
     "Reloaded native canary used custom pns-flow-recon, explicit cursor-grok-4.5-high, foreground execution, and returned terminal agent 855203ba-236a-4d67-8ecb-2260720f545a with heading '# Permanent agent invariants'; temporary no-runtime lease was released and no fallback occurred.",
     "Implemented atomic record-subagent-invocation receipts with exact lease/parent/session/flow/stage/agent/model/ID/foreground/outcome/timestamp/HEAD gates; delegated-stage advancement now requires a completed current receipt; current hook evidence is cross-checked when present and absence is honest.",
@@ -387,10 +388,10 @@
   },
   "tests": {
     "pinned_environment": "Repository Python environment; governance validator uses standard library only",
-    "last_full_suite_count": "903 tests passed; 1 skipped",
+    "last_full_suite_count": "966 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "RADIAL-BINDING-CLOSURE: vision/verified-route/radial/perception/firewall/safe-core/governance 197; full suite 903/1"
+    "last_relevant_focused_tests": "CAMPAIGN-UC-SCOPE-CORRECTION: story destinations/orchestrator/governance focused gates; full suite 966/1"
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -513,20 +514,20 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Implement and validate the serial development-flow orchestrator bootstrap only.",
-      "Leave Campaign first ready without implementing it in this bootstrap.",
-      "Leave composition blocked and M6 unactivated.",
+      "Stop after the containing local commit for this correction.",
+      "A separate authorized task may activate Campaign while preserving all delivery gates.",
+      "Leave Ultimate Challenge as a distinct later queue entry.",
       "No runtime input and no push."
     ],
     "prohibited_actions": [
-      "Any BlueStacks, Bliss, ADB, gameplay, or worker input during bootstrap.",
-      "Implementing Campaign, another gameplay flow, composition, M6, or Bliss migration.",
-      "Enabling CONFIRMED_NOT_DISPATCHED, registration/scheduler changes, or any push.",
-      "Staging .local-captures/** or protected evidence/**."
+      "Any BlueStacks, Bliss, ADB, gameplay, or worker input in this completed correction.",
+      "Activating Campaign or Ultimate Challenge inside this completed correction.",
+      "Enabling production registration or the gameplay scheduler.",
+      "Staging .cursorindexingignore, .specstory/**, ZIP archives, .local-captures/**, or protected evidence/**."
     ],
-    "exact_stop_condition": "Bootstrap passes, one local commit exists, lease is released, Campaign remains first ready, and no push occurs.",
+    "exact_stop_condition": "Correction completed, one local commit exists, lease remains released, Campaign remains first ready, Ultimate Challenge is distinct, and no push occurs.",
     "expected_next_atomic_task": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-    "expected_next_activation_status": "dependency_blocked"
+    "expected_next_activation_status": "ready"
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -537,11 +538,11 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `b138c9d` `docs(navigation): renew supply depot binder evidence`;
-  twenty local commits ahead of `origin/main`
-- Staged paths: none
-- Relevant unstaged paths: orchestrator activation files; pre-existing user-owned
-  `.cursorindexingignore` modification and `.specstory/**` remain outside task ownership
+- HEAD/base: containing commit `fix(automation): separate campaign and ultimate challenge flows`
+  after `20811eb`; twenty-three local commits ahead of `origin/main` after that commit
+- Staged paths: none after commit
+- Relevant unstaged paths: pre-existing user-owned `.cursorindexingignore` modification,
+  `.specstory/**`, and project ZIP archives remain outside task ownership
 - Protected untracked paths or categories: evidence/**, .local-reference/**,
   .local-captures/**, and other pre-existing untracked files
 - Push: prohibited
@@ -564,17 +565,16 @@ This document is a volatile operational boundary, not a complete project history
   building-title `Sup` with radial `Claim`/`Suppl`, inflating ROI over Upgrade.
 
 ## Current task
-- Task ID: `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-RECEIPT-CLOSURE`
+- Task ID: `CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION`
 - State: completed through the containing local commit; no push
 - Next task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`
   (`ready`; first ready queue flow, not activated)
-- Objective: completed the preserved IDE-native hardening with mandatory native Task receipts and
-  an optional hook cross-check that is used only when installed behavior emits an event
-- Last safe completed step: native recon `855203ba-236a-4d67-8ecb-2260720f545a` returned the
-  expected heading under explicit Grok 4.5 High, installed hook absence was confirmed, the
-  temporary lease was released, and all 954 repository tests passed with one expected skip
+- Objective: completed separating Campaign AP farming from Ultimate Challenge in queue/policy/
+  coverage/parser contracts without implementing either gameplay flow
+- Last safe completed step: focused and full offline suites passed (966/1); Campaign first ready;
+  Ultimate Challenge distinct ready entry; ownership released
 - Exact next permitted step: stop after the containing local commit; Campaign activation is a
-  separate future task and no gameplay, runtime, scheduler, registration, or push action is allowed
+  separate future task; no gameplay, runtime, scheduler, registration, or push action is allowed
 - `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` remains blocked and excluded from autonomous
   gameplay-delivery selection.
 - No registration, scheduler, worker, or protected-evidence operation is authorized.
@@ -635,13 +635,13 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: no further action in this completed closure after its local commit; a separate
-  authorized task may activate Campaign while preserving all delivery gates.
-- Prohibited actions: Cursor CLI/SDK/ACP/MCP subagent fallback; live runtime input; gameplay-flow
-  implementation; composition/M6/Bliss activation; `CONFIRMED_NOT_DISPATCHED`, registration,
-  scheduler, worker, or push changes.
+- Permitted action: no further action in this completed correction after its local commit; a
+  separate authorized task may activate Campaign while preserving all delivery gates.
+- Prohibited actions: BlueStacks/subagent invocation; Campaign or Ultimate Challenge gameplay
+  implementation in this completed correction; composition/M6/Bliss activation; registration,
+  scheduler, worker, or push changes; staging unrelated user-owned files.
 - Exact stop condition: reached by the containing commit with queue inactive, Campaign first ready,
-  all ownership released, no synthesized event, no runtime input, and no push.
+  Ultimate Challenge distinct, all ownership released, no runtime input, and no push.
 - Expected next atomic task: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.
 - Composition remains blocked and is not the next autonomous gameplay-delivery action.
 

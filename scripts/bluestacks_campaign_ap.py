@@ -25,7 +25,11 @@ if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bluestacks_flow_collector import ADBRunner, is_permitted_local_bluestacks_serial
-from tasks.campaign_auto_battle import CampaignAutoBattleConfig, CampaignScreen, CampaignStage
+from tasks.campaign_auto_battle import (
+    CampaignAutoBattleConfig,
+    CampaignScreen,
+    parse_supported_campaign_story_destination,
+)
 from tasks.campaign_auto_battle_runtime import CampaignRuntimeController
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 
@@ -52,7 +56,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adb", required=True, help="BlueStacks HD-Adb.exe path")
     parser.add_argument("--serial", required=True, help="exact local BlueStacks serial")
-    parser.add_argument("--stage", required=True, help="tier-chapter-stage, for example 1-20-9")
+    parser.add_argument(
+        "--stage",
+        required=True,
+        help="supported Story destination difficulty-stage-chapter, for example 1-20-9",
+    )
     parser.add_argument("--ap-cost", required=True, type=int)
     parser.add_argument("--ap-budget", required=True, type=int)
     parser.add_argument("--max-runs", required=True, type=int)
@@ -68,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not is_permitted_local_bluestacks_serial(args.serial):
         parser.error("serial is not a permitted local BlueStacks endpoint")
-    stage = CampaignStage.parse(args.stage)
+    stage = parse_supported_campaign_story_destination(args.stage)
     config = CampaignAutoBattleConfig(
         target_stage=stage,
         ap_cost=args.ap_cost,

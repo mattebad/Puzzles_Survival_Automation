@@ -24,7 +24,7 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         self.assertEqual(
             state["current_task_id"],
-            "AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-RECEIPT-CLOSURE",
+            "CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION",
         )
         self.assertEqual(state["current_task_state"], "completed")
         self.assertEqual(
@@ -89,6 +89,13 @@ class GovernanceValidationTests(unittest.TestCase):
         )
         self.assertIn("Status: Ready", next_block)
         self.assertIn("HOME_PAN_GESTURES", next_block)
+        self.assertIn("`1-20-9`", next_block)
+        self.assertIn("`1-15-9`", next_block)
+        self.assertIn("`2-2-9`", next_block)
+        self.assertIn("Removed from the supported-destination contract", next_block)
+        self.assertIn("`1-2-9`", next_block)
+        self.assertIn("`ultimate-challenge`", next_block)
+        self.assertIn("reject Ultimate Challenge as a Campaign AP destination", next_block)
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
         validate_governance.validate_successor(backlog, state)
         validate_governance.validate_repository(ROOT)

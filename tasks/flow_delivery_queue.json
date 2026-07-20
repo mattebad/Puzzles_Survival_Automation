@@ -51,15 +51,25 @@
       ],
       "navigation_model": "canonical_home_atlas_plus_feedback_controlled_campaign_destination",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "Navigation-only validation for exactly 1-20-9, 1-2-9, and ultimate-challenge; no AP execution without separate explicit policy.",
-      "consequence_policy": "Preserve existing AP and battle logic, observe remembered Campaign state, and require exact destination verification before AP execution; unknown stage, AP cost, or consequence fails closed.",
+      "live_validation_scope": "Navigation-only validation for exactly 1-20-9, 1-15-9, and 2-2-9; no AP execution without separate explicit policy; Ultimate Challenge is not a Campaign AP destination.",
+      "consequence_policy": "Preserve existing AP and battle logic; require Home Atlas Campaign entry, Story-mode recognition, difficulty 1/2, Stages 20/15/2, Chapter 9, and exact tuple verification before AP execution; unknown stage, AP cost, or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
+      "supported_story_destinations": [
+        "1-20-9",
+        "1-15-9",
+        "2-2-9"
+      ],
+      "rejected_destinations": [
+        "1-2-9",
+        "ultimate-challenge"
+      ],
       "maximum_live_attempts": 3,
       "live_attempt_count": 0,
       "live_attempts": [],
       "focused_tests": [
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
+        "tests/test_campaign_story_destinations.py",
         "tests/test_home_atlas_verified_route.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
@@ -69,10 +79,44 @@
         "relocalization_residual_pixels"
       ],
       "blocked_reason": "",
-      "next_concrete_action": "Replace legacy HOME_PAN_GESTURES with the canonical Home Atlas and add remembered-state feedback control for the three approved destinations.",
+      "next_concrete_action": "Replace legacy HOME_PAN_GESTURES with the canonical Home Atlas and add remembered-state feedback control for the three approved Story destinations.",
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+    },
+    {
+      "flow_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+      "title": "Integrate Ultimate Challenge daily task with BlueStacks",
+      "kind": "daily_challenge_integration",
+      "priority": 15,
+      "status": "ready",
+      "backlog_task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/home_atlas_bluestacks.py"
+      ],
+      "navigation_model": "canonical_home_atlas_to_campaign_ultimate_challenge_entry",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "Navigation-only Home-to-Campaign-to-Ultimate-Challenge entry validation first; supervised daily execution requires separate explicit policy and is not part of Campaign AP farming.",
+      "consequence_policy": "Evaluate once per game daily reset; do not rerun after verified completion in the same reset window; already_completed is a valid terminal state; fail closed when reset identity or completion state is ambiguous; unidentified challenge actions are unauthorized.",
+      "product_policy_status": "navigation_only_validation",
+      "maximum_live_attempts": 1,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "navigation_input_count",
+        "home_recovery_latency_seconds"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "Implement Home Atlas Campaign entry and verified Ultimate Challenge navigation without embedding it in Campaign AP destination parsing.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
     },
     {
       "flow_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",

@@ -55,9 +55,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
         )
         active = deepcopy(self.queue)
-        active["flows"][3]["status"] = "active"
-        active["flows"][3]["last_completed_stage"] = "implementation"
-        active["active_flow_id"] = active["flows"][3]["flow_id"]
+        active["flows"][4]["status"] = "active"
+        active["flows"][4]["last_completed_stage"] = "implementation"
+        active["active_flow_id"] = active["flows"][4]["flow_id"]
         self.assertEqual(
             controller.select_next(active)["flow_id"],
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
@@ -71,7 +71,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         queue["flows"][1]["product_policy_status"] = "prohibited"
         queue["flows"][1]["blocked_reason"] = "test policy"
         selected = control.FlowDeliveryController().select_next(queue)
-        self.assertEqual(selected["flow_id"], "NOAHS-TAVERN-HOME-ATLAS-MIGRATION")
+        self.assertEqual(selected["flow_id"], "NOVA-PRAISE-HOME-ATLAS-MIGRATION")
 
     def test_composition_bliss_and_gameplay_scheduler_are_excluded(self) -> None:
         identities = {item["flow_id"] for item in self.queue["flows"]}
@@ -86,6 +86,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
     def test_initial_order_and_normalized_counts(self) -> None:
         expected = [
             "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
             "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
@@ -105,23 +106,42 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             status: sum(item["status"] == status for item in self.queue["flows"])
             for status in control.QUEUE_STATUSES
         }
-        self.assertEqual(counts["ready"], 8)
+        self.assertEqual(counts["ready"], 9)
         self.assertEqual(counts["blocked"], 2)
         self.assertEqual(counts["needs_product_decision"], 4)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
         campaign = self.queue["flows"][0]
         scope = campaign["live_validation_scope"]
-        for destination in ("1-20-9", "1-2-9", "ultimate-challenge"):
+        for destination in ("1-20-9", "1-15-9", "2-2-9"):
             self.assertIn(destination, scope)
+            self.assertIn(destination, campaign["supported_story_destinations"])
+        for rejected in ("1-2-9", "ultimate-challenge"):
+            self.assertNotIn(rejected, campaign["supported_story_destinations"])
+            self.assertIn(rejected, campaign["rejected_destinations"])
+        self.assertNotIn("1-2-9", scope)
+        self.assertNotIn("ultimate-challenge", scope)
         campaign_source = (ROOT / "scripts" / "bluestacks_campaign_ap.py").read_text(
             encoding="utf-8"
         )
         self.assertIn("--stage", campaign_source)
+        self.assertIn("parse_supported_campaign_story_destination", campaign_source)
         runtime_source = (
             ROOT / "tasks" / "campaign_auto_battle_runtime.py"
         ).read_text(encoding="utf-8")
         self.assertIn("HOME_PAN_GESTURES", runtime_source)
+
+    def test_ultimate_challenge_is_second_ready_flow(self) -> None:
+        ultimate = self.queue["flows"][1]
+        self.assertEqual(
+            ultimate["flow_id"],
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+        )
+        self.assertEqual(ultimate["status"], "ready")
+        self.assertEqual(ultimate["priority"], 15)
+        self.assertEqual(ultimate["product_policy_status"], "navigation_only_validation")
+        policy_ids = {item["policy_id"] for item in self.policy["policies"]}
+        self.assertIn("ultimate-challenge-flow-separation", policy_ids)
 
 
 class FlowDeliveryControllerTests(unittest.TestCase):

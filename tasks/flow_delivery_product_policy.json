@@ -15,22 +15,94 @@
       "policy_id": "campaign-supported-destinations",
       "scope": "campaign.destination",
       "status": "explicitly_approved",
-      "decision": "Only 1-20-9, 1-2-9, and ultimate-challenge are supported.",
+      "decision": "Only Story destinations 1-20-9, 1-15-9, and 2-2-9 are supported for Campaign AP. Tuple format is <story difficulty>-<stage>-<chapter>. 1-2-9 and ultimate-challenge are removed and are not aliases.",
+      "supported_story_destinations": [
+        "1-20-9",
+        "1-15-9",
+        "2-2-9"
+      ],
+      "rejected_destinations": [
+        "1-2-9",
+        "ultimate-challenge"
+      ],
       "source": "explicit_user_direction"
     },
     {
       "policy_id": "campaign-navigation-validation",
       "scope": "campaign.navigation",
       "status": "navigation_only_validation",
-      "decision": "Home Atlas migration, remembered-state observation, and feedback-controlled exact destination verification may be validated without AP execution.",
+      "decision": "Home Atlas Campaign entry, Story-mode recognition, difficulty 1/2 selection, Stages 20/15/2, Chapter 9, and exact tuple verification may be validated without AP execution.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "campaign-destination-versus-ap-execution",
+      "scope": "campaign.destination_versus_ap",
+      "status": "explicitly_approved",
+      "decision": "Destination verification is separate from AP-consuming execution; existing AP and battle behavior is preserved and not authorized by navigation-only validation.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "campaign-rejects-ultimate-challenge",
+      "scope": "campaign.ultimate_challenge_exclusion",
+      "status": "prohibited",
+      "decision": "Ultimate Challenge is not a Campaign AP destination and must not be selected by the Campaign destination parser.",
       "source": "explicit_user_direction"
     },
     {
       "policy_id": "campaign-ap-budget",
       "scope": "campaign.ap_spend",
       "status": "unresolved_user_decision",
-      "decision": "No arbitrary AP amount, stage execution count, or refill behavior is approved.",
+      "decision": "No arbitrary AP amount, stage execution count, refill behavior, or AP spend outside the supported Campaign Story destinations is approved.",
       "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "ultimate-challenge-flow-separation",
+      "scope": "ultimate_challenge.flow_identity",
+      "status": "explicitly_approved",
+      "decision": "Ultimate Challenge is a distinct gameplay flow from Campaign AP farming and must not be embedded in or dispatched as Campaign AP.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "ultimate-challenge-navigation-validation",
+      "scope": "ultimate_challenge.navigation",
+      "status": "navigation_only_validation",
+      "decision": "Home Atlas navigation to Campaign, verified Campaign screen, and verified Ultimate Challenge entry may be validated without executing the daily challenge action.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "ultimate-challenge-supervised-daily-execution",
+      "scope": "ultimate_challenge.daily_execution",
+      "status": "supervised_consequential_validation",
+      "decision": "Supervised daily execution may occur only after positive entry recognition and only for an explicitly authorized challenge action; unidentified challenge actions remain unauthorized.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "ultimate-challenge-already-completed-detection",
+      "scope": "ultimate_challenge.already_completed",
+      "status": "explicitly_approved",
+      "decision": "A verified already_completed terminal state is permitted and must not be treated as Campaign AP completion.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "ultimate-challenge-one-success-per-reset",
+      "scope": "ultimate_challenge.reset_idempotency",
+      "status": "explicitly_approved",
+      "decision": "Ultimate Challenge is normally evaluated once per game daily reset and must not rerun after verified completion in the same reset window; persistent last-success/reset-window state is required before unattended scheduling.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "ultimate-challenge-unresolved-execution-details",
+      "scope": "ultimate_challenge.unresolved_execution",
+      "status": "unresolved_user_decision",
+      "decision": "Exact challenge-action control identity and postcondition details remain unresolved; fail closed when reset identity, completion state, or action identity is ambiguous.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "ultimate-challenge-repeated-execution",
+      "scope": "ultimate_challenge.repeated_execution",
+      "status": "prohibited",
+      "decision": "Repeated Ultimate Challenge execution in the same verified reset window is prohibited.",
+      "source": "explicit_user_direction"
     },
     {
       "policy_id": "supply-depot-free-only",

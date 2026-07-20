@@ -15,6 +15,19 @@ import re
 
 _STAGE_RE = re.compile(r"^(?:campaign-stage-)?([1-9]\d*)-([1-9]\d*)-([1-9]\d*)$")
 
+# Product tuple format: <story difficulty>-<stage>-<chapter>
+# Example: 1-20-9 means difficulty 1, Stage 20, Chapter 9.
+# CampaignStage field names remain legacy (tier/chapter/stage) for battle-route compatibility;
+# identity strings preserve difficulty-stage-chapter order.
+SUPPORTED_CAMPAIGN_STORY_DESTINATIONS = frozenset({"1-20-9", "1-15-9", "2-2-9"})
+REJECTED_CAMPAIGN_AP_DESTINATIONS = frozenset({"1-2-9", "ultimate-challenge"})
+SUPPORTED_CAMPAIGN_DIFFICULTIES = frozenset({1, 2})
+SUPPORTED_CAMPAIGN_STAGES_BY_DIFFICULTY = {
+    1: frozenset({20, 15}),
+    2: frozenset({2}),
+}
+SUPPORTED_CAMPAIGN_CHAPTER = 9
+
 
 class CampaignScreen(str, Enum):
     HOME_BASE = "HOME_BASE"
@@ -67,7 +80,9 @@ class CampaignStage:
     def parse(cls, value: str) -> "CampaignStage":
         match = _STAGE_RE.fullmatch(value.strip())
         if not match:
-            raise ValueError("stage must use positive tier-chapter-stage form, for example 1-20-9")
+            raise ValueError(
+                "stage must use positive difficulty-stage-chapter form, for example 1-20-9"
+            )
         return cls(*(int(part) for part in match.groups()))
 
     @property
@@ -77,6 +92,66 @@ class CampaignStage:
     @property
     def dialog_identity(self) -> str:
         return f"[{self.chapter}-{self.stage}]"
+
+    @property
+    def story_difficulty(self) -> int:
+        """Product story difficulty (legacy field name: tier)."""
+
+        return self.tier
+
+    @property
+    def story_stage(self) -> int:
+        """Product Stage number (legacy field name: chapter)."""
+
+        return self.chapter
+
+    @property
+    def story_chapter(self) -> int:
+        """Product Chapter number (legacy field name: stage)."""
+
+        return self.stage
+
+
+def parse_supported_campaign_story_destination(value: str) -> CampaignStage:
+    """Accept only the product-approved Campaign AP Story destinations.
+
+    Rejects removed destinations such as ``1-2-9`` and ``ultimate-challenge`` without treating
+    them as aliases, and fails closed on any other Story tuple.
+    """
+
+    raw = value.strip()
+    lowered = raw.lower()
+    if lowered == "ultimate-challenge" or raw in REJECTED_CAMPAIGN_AP_DESTINATIONS:
+        raise ValueError(
+            f"{raw!r} is not a supported Campaign AP Story destination"
+        )
+    try:
+        stage = CampaignStage.parse(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"{raw!r} is not a supported Campaign AP Story destination"
+        ) from exc
+    if stage.identity not in SUPPORTED_CAMPAIGN_STORY_DESTINATIONS:
+        raise ValueError(
+            f"{stage.identity!r} is not a supported Campaign AP Story destination"
+        )
+    if stage.story_difficulty not in SUPPORTED_CAMPAIGN_DIFFICULTIES:
+        raise ValueError(
+            f"difficulty {stage.story_difficulty} is not registered for Campaign AP"
+        )
+    allowed_stages = SUPPORTED_CAMPAIGN_STAGES_BY_DIFFICULTY.get(
+        stage.story_difficulty, frozenset()
+    )
+    if stage.story_stage not in allowed_stages:
+        raise ValueError(
+            f"stage {stage.story_stage} is not registered for difficulty "
+            f"{stage.story_difficulty}"
+        )
+    if stage.story_chapter != SUPPORTED_CAMPAIGN_CHAPTER:
+        raise ValueError(
+            f"chapter {stage.story_chapter} is not registered for Campaign AP"
+        )
+    return stage
 
 
 @dataclass(frozen=True)
