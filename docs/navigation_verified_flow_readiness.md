@@ -1,103 +1,98 @@
 # Verified-flow composition readiness review
 
-Review date: 2026-07-19
+Review date: 2026-07-19 (renewed after `f093812` and `f523f0f`)
 
 ## Decision
 
-`RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` is blocked. The repository does
-not currently contain two real, production-relevant routes that demonstrably
-reuse the complete stable architecture:
+`RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` remains **blocked**.
 
-- immutable perception bundle;
-- resumable `NavigationSession`;
-- navigation observability;
-- radial semantic contract where applicable;
-- BlueStacks safe-exit binder where applicable;
-- input capability issuance and final consumption.
+Two real BlueStacks routes now live-validated capability-bound navigation
+(`HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION` as `f093812`,
+`SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION` as `f523f0f`), but they do **not** yet
+jointly reuse the complete shared architecture without remaining integration
+gaps. Composition must not activate until the missing integrations below are
+closed on the production route paths.
 
 No composition engine, DSL, generic autonomous runtime, or new route was
-implemented.
+implemented in this review. `M6-DQ-TRANSITION-CORPUS` remains unactivated.
+Registration remains `NOT_REGISTERED`. Scheduler remains disabled.
+`CONFIRMED_NOT_DISPATCHED` remains `NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
 
 ## Route evidence
 
-### Home atlas navigation
+### Home Atlas navigate-building
 
-Implementation: `scripts/home_atlas_bluestacks.py`, the
-`command_navigate` route.
+| Field | Evidence |
+| --- | --- |
+| Production entry point | `scripts/home_atlas_bluestacks.py` → `command_navigate_building` |
+| Capture binding | `identity_from_captured` + `build_navigate_perception_bundle` / checked navigation inputs on the immediate-before frame |
+| Session ownership | Creates and persists one authoritative `NavigationSession`; pans prepare/dispatch/reconcile against it |
+| Observability | Terminal `attach_navigate_terminal_reports` → `report_navigation_session` |
+| Calibration | `create_bluestacks_session_calibration` considered after reconciled pans |
+| Radial use | N/A for this pan route |
+| Safe-exit use | N/A for this pan route |
+| Capability issuance / final consumption | `dispatch_verified_navigate_pan` → `CentralPolicy.issue_capability` + `SafeActionExecutor.execute` |
+| Transport boundary | `runtime.swipe` only inside seal-gated executor transport callback; direct bypass fail-closed |
+| Live validation | Passed under `.local-captures/home-atlas-verified-route/` (Bank pan + HQ return; `building_opened=false`) |
+| Semantic verification boundary | Settled capture + pan reconciliation distinct from transport confirmation |
+| Remaining bypasses | Executor `recapture()` returns the cached issuance observation (no fresh frame capture/rebind at the final pre_dispatch boundary). Result payload exposes executor/transport/semantic fields but not the full distinct requested/authorized/dispatched/transport_observed/verified/completed ledger required for composition parity. |
 
-- Perception entry: uses `BlueStacksHomeLocalizer`, constructs a
-  `FramePerceptionBundle`, and calls `checked_navigation_inputs()`.
-- Session ownership: creates and persists a `NavigationSession` while planning,
-  preparing, dispatching, and reconciling camera pans.
-- Semantic binding: binds the visible atlas building through the current
-  perception bundle.
-- Radial use: the route has a separate Supply Depot radial navigation path, but
-  no demonstrated shared composition seam.
-- Safe exit: the module exposes an adapter profile helper, but this route does
-  not consume the safe-exit binder as an executed route contract.
-- Observability: it records the session ledger but does not consume
-  `report_navigation_session`.
-- Capability boundary: no `CentralPolicy.issue_capability` or final capability
-  consumption is present.
-- Transport/verification: dispatches directly through `runtime.swipe`; it
-  retains route-local immediate-post and settled checks rather than the input
-  capability firewall.
-- Remaining bypasses: no capability issuance/consumption, no observability
-  integration, and direct transport prevent this route from qualifying.
+### Supply Depot radial
 
-### Noah's Tavern integrated route
+| Field | Evidence |
+| --- | --- |
+| Production entry point | `scripts/home_atlas_bluestacks.py` → `command_supply_depot_radial` |
+| Capture binding | Same-capture `NativeFrameIdentity` for building/radial/exit; radial path builds `build_supply_depot_radial_perception_bundle`. Building and exit dispatches bind identity/ROI without a full `FramePerceptionBundle` on those steps |
+| Session ownership | One authoritative `NavigationSession` for the route lifecycle with prepare/dispatch/reconcile/safe-exit/home-recovered ledger updates |
+| Observability | Terminal `attach_navigate_terminal_reports` → `report_navigation_session` |
+| Calibration | N/A (non-pan route) |
+| Radial use | Shared radial semantics + same-capture radial perception on the radial step |
+| Safe-exit use | `build_supply_depot_safe_exit_probe` records a non-authorizing same-capture binder result in evidence, but `dispatch_verified_supply_depot_exit_tap` taps the fixed `SUPPLY_DEPOT_EXIT_TARGET_ROI` and does **not** consume the binder candidate geometry |
+| Capability issuance / final consumption | Building, radial, and exit helpers each issue one-shot capability and consume through `SafeActionExecutor` |
+| Transport boundary | `runtime.tap` only inside seal-gated executor transport callbacks; direct bypass fail-closed |
+| Live validation | Passed as `live-radial-5` under `.local-captures/supply-depot-verified-route/` (`building_entry` + `radial_entry` + `safe_exit` all confirmed; `supply_depot_radial_and_home_recovered`; zero claims) |
+| Semantic verification boundary | Post-transport captures and successor recognizers distinct from transport; exit accepts high-confidence `ZOOMED_IN` Home after facility leave |
+| Remaining bypasses | (1) Executor `recapture()` returns cached issuance observation on building/radial/exit helpers — no fresh pre_dispatch capture/rebind. (2) Shared BlueStacks safe-exit binder is probe/evidence-only and does not govern the executed exit ROI. (3) Building/exit steps lack full same-capture `FramePerceptionBundle` consumption. |
 
-Implementation: `scripts/noahs_tavern_recruit_bluestacks.py`,
-`NoahTavernIntegratedRoute`.
+### Other routes (unchanged, non-qualifying)
 
-- Perception entry: calls the route-local
-  `recognize_noahs_tavern_frame` recognizer.
-- Session ownership: uses `NativeRuntimePort` session/recovery records, not
-  the resumable `NavigationSession` contract.
-- Semantic binding: uses route-controller commands and target ROIs.
-- Radial use: no shared radial semantic contract.
-- Safe exit: no BlueStacks safe-exit binder.
-- Observability: no `report_navigation_session` integration.
-- Capability boundary: no capability issuance or final consumption; transport
-  is direct `NativeRuntimePort.tap/back`.
-- Transport/verification: route-local result and cooldown reconciliation.
-- Remaining bypasses: perception bundle, resumable navigation session,
-  observability, safe-exit, and capability firewall are absent.
+Noah's Tavern and Troop-training return-home remain on route-local recognition and
+direct `NativeRuntimePort` transport without `NavigationSession`, observability,
+shared safe-exit binder, or capability firewall consumption. They do not close
+readiness.
 
-### Troop-training return-home route
+## Exact missing integrations (blocker)
 
-Implementation: `scripts/troop_training_bluestacks.py`,
-`TroopTrainingReturnHomeRoute`.
+Before composition can be reconsidered, the two qualifying routes must close:
 
-- Perception entry: route-local Home, training, exit-dialog, and radial
-  recognizers.
-- Session ownership: `NativeRuntimePort` session only; no
-  `NavigationSession`.
-- Semantic binding: radial facility identity and an exterior-close target are
-  locally checked.
-- Radial use: route-local radial recognition and safe exterior-close binding.
-- Safe exit: local target binding is not the shared BlueStacks safe-exit
-  binder contract.
-- Observability: no `report_navigation_session` integration.
-- Capability boundary: no capability issuance or final consumption; direct
-  `runtime.tap/back` transport.
-- Transport/verification: route-local Home recognition after input.
-- Remaining bypasses: no shared perception bundle, resumable session,
-  observability, safe-exit binder, or capability firewall.
+1. **Fresh pre_dispatch recapture/rebind** on every verified dispatch helper
+   (`dispatch_verified_navigate_pan`, Supply Depot building/radial/exit): the
+   executor `recapture()` callback must capture a new immutable frame, rebuild
+   observation/binding from that frame, and fail closed on drift — not reuse the
+   issuance-time observation object.
+2. **Safe-exit binder consumption** on Supply Depot exit: the executed exit
+   target ROI must come from the shared BlueStacks safe-exit binder candidate
+   bound to the current capture (still non-authorizing until capability issuance),
+   not a parallel fixed ROI that ignores the binder.
+3. **Home Atlas six-state action ledger parity** (requested / authorized /
+   dispatched / transport_observed / verified / completed) on the navigate-building
+   result path, matching Supply Depot `_execution_payload` semantics.
+4. **Same-capture perception bundle** on Supply Depot building and exit steps
+   (not only the radial step), or an explicit readiness waiver recorded only if
+   composition contracts prove those steps are out of scope — default is require.
 
-## Missing readiness integrations
+Imports, dormant adapters, test mocks, metadata-only probes, and sealed direct
+transport helpers do not count as readiness. Live transport success alone does
+not waive the gaps above.
 
-Before composition can be reconsidered, at least two real routes must:
+## Prerequisites for reconsideration
 
-1. own a `NavigationSession` for the route lifecycle;
-2. build and consume same-capture immutable perception bundles;
-3. emit navigation observability from that session;
-4. use the shared radial semantics when a radial surface is involved;
-5. use the shared BlueStacks safe-exit binder for safe-exit behavior;
-6. issue and finally consume one-shot input capabilities through the central
-   capability firewall at the transport boundary;
-7. retain distinct transport-observed and semantic-verification states.
-
-The existing routes are dormant/unregistered or use route-local and direct
-transport paths. Imports, helper functions, and test-only composition do not
-establish readiness. Registration and scheduler state remain unchanged.
+1. Close the missing integrations above on the real production route paths.
+2. Re-run offline focused/adversarial/governance/full-suite gates.
+3. Re-run one bounded live reversible validation per touched route when live
+   behavior changes.
+4. Renew this document with a PASS decision only when two real live-validated
+   routes reuse the required architecture without the bypasses listed here.
+5. Only then activate `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
+6. Leave `M6-DQ-TRANSITION-CORPUS` unactivated until composition completes under
+   its own backlog authorization.

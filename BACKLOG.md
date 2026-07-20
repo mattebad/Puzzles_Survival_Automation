@@ -3381,17 +3381,21 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 - Title: Narrow declarative verified-flow composition over existing navigation contracts.
-- Status: Blocked (2026-07-19; awaiting renewed readiness review after completed Home Atlas and
-  Supply Depot verified-route integrations).
+- Status: Blocked (2026-07-19; renewed readiness after `f093812`/`f523f0f` still fails;
+  exact missing integrations recorded in `docs/navigation_verified_flow_readiness.md`).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed shared roadmap contracts for
   perception/session/radial/safe-exit/capability reuse, existing `NavigationStep` /
   `NavigationRunner` contracts, completed `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, and at least one
   additional real live-validated route integration (prefer `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`)
   that consumes those shared seams without bypasses.
-- Blocked by: renewed readiness review not yet recorded after both live-validated route
-  integrations. See `docs/navigation_verified_flow_readiness.md`. No broad DSL or generic
-  autonomous runtime is authorized.
+- Blocked by: renewed readiness FAIL — (1) verified dispatch helpers reuse cached issuance
+  observations in executor `recapture()` instead of fresh pre_dispatch capture/rebind;
+  (2) Supply Depot exit does not consume the shared BlueStacks safe-exit binder candidate for the
+  executed ROI; (3) Home Atlas navigate-building lacks full six-state action ledger parity;
+  (4) Supply Depot building/exit steps lack full same-capture `FramePerceptionBundle` consumption.
+  See `docs/navigation_verified_flow_readiness.md`. No broad DSL or generic autonomous runtime is
+  authorized.
 - Objective: after a positive readiness review, extend existing `NavigationStep`, `NavigationRunner`,
   contracts, and semantic planners for declarative verified-flow composition of one reference route
   only, reusing the stable shared contracts rather than inventing a second engine.

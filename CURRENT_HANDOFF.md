@@ -4,26 +4,22 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "feat(navigation): integrate verified supply depot route (this commit)",
-    "origin_relationship": "main is ahead of origin/main by twelve local roadmap commits; no push",
-    "staged_paths": [
+    "head": "f523f0f feat(navigation): integrate verified supply depot route",
+    "origin_relationship": "main is ahead of origin/main by thirteen local roadmap commits; no push",
+    "staged_paths": [],
+    "relevant_unstaged_paths": [
+      "docs/navigation_verified_flow_readiness.md",
       "BACKLOG.md",
-      "CURRENT_HANDOFF.md",
-      "safe_action_core/models.py",
-      "scripts/home_atlas_bluestacks.py",
-      "tasks/navigation_observability.py",
-      "tasks/navigation_session.py",
-      "tasks/supply_depot_vision.py",
-      "tests/test_governance_validation.py",
-      "tests/test_supply_depot_verified_route.py"
+      "CURRENT_HANDOFF.md"
     ],
-    "relevant_unstaged_paths": [],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
       ".local-reference/**",
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
+      "f523f0f feat(navigation): integrate verified supply depot route",
+      "f093812 feat(navigation): integrate verified home atlas route",
       "f093812 feat(navigation): integrate verified home atlas route",
       "75086cc fix(governance): align blocked roadmap handoff",
       "a55e35e docs(navigation): record flow readiness blocker",
@@ -43,16 +39,19 @@
   "current_task_state": "completed",
   "next_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
   "next_task_activation_status": "dependency_blocked",
-  "phase": "supply_depot_verified_route_integration_completed",
-  "objective": "Renew composition readiness review after Home Atlas and Supply Depot live-validated verified-route integrations; activate composition only if readiness passes; leave M6 unactivated.",
-  "last_safe_completed_step": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION offline+live passed; committing feat(navigation): integrate verified supply depot route.",
-  "next_permitted_action": "After this commit, renew docs/navigation_verified_flow_readiness.md; activate RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION only if readiness passes; leave M6 unactivated; no claims; no push.",
+  "phase": "composition_readiness_renewed_blocked",
+  "objective": "Composition remains blocked after renewed readiness FAIL; close exact missing integrations before activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION; leave M6 unactivated.",
+  "last_safe_completed_step": "Committed f523f0f Supply Depot verified-route; renewed readiness FAIL recorded in docs/navigation_verified_flow_readiness.md.",
+  "next_permitted_action": "Commit renewed readiness blocker documentation locally without push; do not activate composition or M6; no claims; no push. Next work must close exact missing integrations listed in readiness doc before reconsideration.",
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
     "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity.",
     "Partial HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION WIP already existed in the working tree before formal task activation; it is preserved and must be completed rather than discarded."
   ],
   "actions_already_performed": [
+    "Committed SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION as f523f0f feat(navigation): integrate verified supply depot route; no push.",
+    "Renewed composition readiness review after f093812 and f523f0f: FAIL. Gaps: cached executor recapture (no fresh pre_dispatch capture/rebind); Supply Depot exit ignores safe-exit binder candidate ROI; Home Atlas missing six-state ledger parity; Supply Depot building/exit missing full FramePerceptionBundle.",
+    "Updated docs/navigation_verified_flow_readiness.md with PASS/FAIL decision and per-route evidence; composition remains dependency_blocked; M6 unactivated.",
     "Live-radial-5 completed: building_entry+radial_entry+safe_exit all capability-bound confirmed; reason supply_depot_radial_and_home_recovered; zero claims; artifacts under .local-captures/supply-depot-verified-route/live-radial-5/.",
     "Fixed recognize_supply_depot_home_successor to accept high-confidence ZOOMED_IN Home after facility leave (live-radial-4 unexpected_successor root cause); added focused tests.",
     "Offline gates: focused 17; regressions 106; full suite 888 passed / 1 skipped; py_compile/governance/handoff/secret/diff-check passed.",
@@ -493,13 +492,13 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Current task
 - Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`
-- State: completed; offline gates + live-radial-5 building/radial/safe-exit/home recovered; commit pending in this change set
-- Next task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` (dependency blocked until renewed readiness)
-- Objective: renew composition readiness after Home Atlas and Supply Depot live-validated route
-  integrations; activate composition only if readiness passes; leave M6 unactivated.
-- Last safe completed step: Supply Depot verified-route offline+live passed (live-radial-5).
-- Exact next permitted step: commit `feat(navigation): integrate verified supply depot route` locally;
-  then renew `docs/navigation_verified_flow_readiness.md`; no claims; no push.
+- State: completed (`f523f0f`); renewed composition readiness FAIL
+- Next task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` (dependency blocked; not activated)
+- Objective: close exact missing integrations in `docs/navigation_verified_flow_readiness.md` before
+  reconsidering composition; leave M6 unactivated.
+- Last safe completed step: Supply Depot verified-route committed; readiness renewed and blocked.
+- Exact next permitted step: commit readiness blocker documentation; do not activate composition or
+  M6; no claims; no push.
 - No registration, scheduler, worker, or protected-evidence operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains unactivated.
 
