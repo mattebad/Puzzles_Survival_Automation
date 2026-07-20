@@ -1,4 +1,11 @@
-Use Plan Mode only. Do not implement code yet.
+# Obsolete exploratory prompt — non-authoritative
+
+This file is retained as historical planning material only. It is not an execution controller and
+must not be used to select, authorize, or run work. Use
+`.cursor/skills/pns-flow-delivery/SKILL.md` with `scripts/flow_delivery_control.py` instead.
+
+The original exploratory request follows for provenance; its former Plan-Mode-only instruction is
+retired.
 
 I want to explore and plan a local personal-use automation project for a mobile game. The goal is to understand the best way to build a maintainable automation loop that uses ordinary UI interaction only: screenshots, OCR, computer vision, accessibility/UI automation if available, taps, swipes, waits, and safe recovery.
 

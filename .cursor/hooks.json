@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "hooks": {
+    "subagentStart": [
+      {
+        "command": "python .cursor/hooks/pns_flow_subagent_guard.py",
+        "timeout": 10,
+        "failClosed": true
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "python .cursor/hooks/pns_flow_subagent_guard.py",
+        "timeout": 10
+      }
+    ]
+  }
+}

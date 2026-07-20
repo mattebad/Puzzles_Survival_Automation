@@ -4123,6 +4123,127 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Next: leave `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` dependency-blocked pending a separate
   final-readiness review after this evidence; leave `M6-DQ-TRANSITION-CORPUS` unactivated.
 
+### AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR
+- Task ID: `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR`.
+- Title: Add a serial development-delivery orchestrator for BlueStacks gameplay flows.
+- Status: Completed (2026-07-20; offline bootstrap validated by the parent and committed in the
+  containing focused task commit).
+- Milestone: Development tooling only; not gameplay scheduling or runtime registration.
+- Dependencies: completed Home Atlas and Supply Depot verified-route foundations; current clean
+  attributable tree ownership; no active runtime owner; no nonterminal consequential action.
+- Blocked by: None for offline bootstrap. Live BlueStacks input is prohibited for this task.
+- Objective: create the minimum durable queue, product-policy registry, atomic controller and local
+  development lease, four allowlisted Grok custom agents, parent orchestration skill, scoped
+  routing enforcement, governance alignment, obsolete-prompt retirement, and narrow `pnsctl`
+  BlueStacks delivery contract needed to deliver one gameplay flow at a time.
+- Authority boundary: the development queue selects implementation work only. `tasks/scheduler.py`
+  and persisted task state remain dormant gameplay-runtime infrastructure and may not select
+  development backlog work. The execution matrix, current policy, production code, retained
+  evidence, registration, and scheduler state normalize queue status; a Backlog `Passed` label or
+  offline adapter test alone does not prove live verification.
+- Established facts: `tasks/scheduler.py` and task-state persistence are dormant runtime
+  infrastructure; scheduler eligibility is false; composition is blocked; Campaign retains
+  `HOME_PAN_GESTURES`; Nova, Noah, and Ruins use dedicated routes; Troop Training only partially
+  consumes Home Atlas; a legacy Supply Depot adapter remains; no project custom agents exist at
+  activation; `autonomous_iteration_prompt.md` is obsolete; `pnsctl.py` lacks this local contract.
+- Direct implementation files: `tasks/flow_delivery_queue.json`,
+  `tasks/flow_delivery_product_policy.json`, `scripts/flow_delivery_control.py`, narrow
+  `scripts/pnsctl.py` BlueStacks command-contract changes, `.cursor/agents/*.md`,
+  `.cursor/skills/pns-flow-delivery/SKILL.md`, a scoped `.cursor/rules/*.mdc`, hook files only when
+  the installed schema supports workflow scoping, `AGENTS.md`, `CURRENT_HANDOFF.md`,
+  `autonomous_iteration_prompt.md`, focused tests, and this task contract.
+- Shared dependencies: current execution matrix/catalog, Home Atlas verified route,
+  `SafeActionExecutor`, journal/lease policy, Cursor custom-agent/frontmatter schema, and hook
+  schema; no gameplay scheduler integration.
+- Transitive regression set: controller/queue/policy tests, governance, handoff parsing, custom
+  agent/skill/hook contracts, existing `pnsctl` tests, and full repository suite.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above plus
+  `.gitignore`, `docs/pns-operations-runbook.md`,
+  `scripts/validate_flow_delivery_model_probe.py`, and
+  `tests/test_flow_delivery_orchestrator.py`.
+- Prohibited changes: Campaign or other gameplay-flow implementation, declarative composition,
+  Bliss migration, M6 activation, production registration, gameplay scheduler/state mutation,
+  workers, live BlueStacks/ADB input, arbitrary transport endpoints, protected evidence, worktrees,
+  reset/clean/amend/rebase/force-push, or push.
+- Authorized runtime action: None; this bootstrap is offline only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Not applicable; no runtime connection or input is allowed.
+- Consequential action: None.
+- Registration changes: None; preserve current registration.
+- Scheduler changes: None; preserve disabled/ineligible gameplay scheduler posture.
+- Actions that must not be repeated: prior terminal gameplay actions, protected evidence
+  acquisition, or any historical Supply Depot/Campaign input.
+- Required source: actual repository/Git state, execution matrix/catalog, retained named evidence,
+  installed Cursor 3.12.17 metadata, and official current custom-agent/hook schemas.
+- Exact target semantics: one serial development queue, one active flow, one writable implementer,
+  one parent-owned runtime, and exact allowlisted custom-agent identities.
+- Required local association: development lease binds owner, host, session/process, HEAD, active
+  flow/stage, heartbeat, and runtime-ownership state.
+- Negative controls: gameplay scheduler mutation, SafetyStore mutation, unknown status/stage,
+  invalid transition, concurrent lease/writer/runtime owner, fallback model, arbitrary ADB or
+  coordinates, composition/Bliss/M6 activation, and live bootstrap input.
+- Coordinate space: any future BlueStacks contract is fixed native 800×1280 on private
+  `emulator-5554`; this bootstrap performs no coordinate operation.
+- Accepted signals: deterministic selection/resume, atomic failures, scoped routing enforcement,
+  verified model metadata, passing offline gates, released lease, and one focused local commit.
+- Rejected weak signals: Backlog `Passed` alone, offline adapter tests as live proof, frontmatter
+  without runtime probe metadata, transport success, or prose-only orchestration.
+- Ambiguous-result behavior: fail closed without mutating queue/lease authority or runtime state.
+- Zero-cost requirement: no gameplay resources, currency, AP, stamina, materials, or march slots.
+- Quantity limits: exactly one active development flow, one writable implementer, four named custom
+  agents, and zero live inputs.
+- Resource consumption policy: no gameplay resource consumption.
+- Premium or strategic restrictions: all premium, purchase, donation, upgrade, PvP, speedup, and
+  unidentified consequential behavior remains prohibited.
+- Active evidence manifest: None; local ignored routing-probe metadata only.
+- Required artifacts: canonical queue/policy, controller/lease, four custom agents, scoped
+  rule/hook, parent skill, obsolete-prompt marker, BlueStacks CLI contract, governance/handoff
+  alignment, focused tests, and local routing-probe report.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs.
+- Additional task-specific artifacts: `.local-orchestrator/model-routing-probe-report.json`
+  remains ignored and proves configured/runtime model routing without repository evidence changes.
+- Focused tests: `tests.test_flow_delivery_orchestrator`,
+  `tests.test_catalog_and_pnsctl`, and `tests.test_governance_validation`.
+- Integration tests: controller CLI validate/status/selection and synthetic lease/transition
+  tests; no BlueStacks connection.
+- Transitive regression tests: existing `pnsctl`, scheduler, governance, and full repository suite.
+- Full-suite requirement: authoritative local `python -m unittest discover -s tests -p
+  "test_*.py"` after focused gates.
+- Validators: JSON parsing, Python compilation, governance validation, structured handoff parsing,
+  touched-file secret scan, model-routing probe, and `git diff --check`.
+- Known baseline failures: None; authoritative activation baseline 904 passed with one expected skip.
+- Evidence requirement: NOT_APPLICABLE because bootstrap creates no runtime evidence and keeps the
+  routing probe local/ignored.
+- Valid blocked outcomes: unavailable/fallback custom-agent model, unsupported scoped hook schema,
+  baseline or touched regression, unresolved runtime/journal ownership, unsafe queue normalization,
+  or inability to keep scheduler/registration/composition/Bliss unchanged.
+- Blocked-result commit policy: record the exact blocker, preserve files and authority, release any
+  safe local lease, and do not claim completion or push.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(automation): add serial flow delivery orchestrator`.
+- Required validation: focused orchestration tests, governance validation, structured handoff
+  parsing, Python compilation, touched-file secret scan, relevant `pnsctl` tests,
+  `git diff --check`, and the authoritative full repository suite.
+- Completion criteria: all deliverables and validation pass; model-routing probes verify all four
+  custom agents used the configured Grok model without fallback; local development lease released;
+  no active flow or runtime owner; Campaign is first `ready`; composition remains blocked; M6,
+  registration, production scheduling, and Bliss remain unchanged; one focused local commit
+  `feat(automation): add serial flow delivery orchestrator`; no push.
+- Next: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` remains the first ready development
+  flow after this bootstrap completes; declarative composition remains blocked and excluded.
+
+### CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION
+- Task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.
+- Title: Migrate Campaign AP entry to Home Atlas and verified destination navigation.
+- Status: Ready; first ready development-queue flow, not activated.
+- Scope: replace legacy `HOME_PAN_GESTURES` with canonical Home Atlas entry, observe remembered
+  Campaign state, and add feedback-controlled exact navigation for only `1-20-9`, `1-2-9`, and
+  `ultimate-challenge`.
+- Safety boundary: preserve existing AP/battle logic; navigation-only live validation until
+  separate AP policy is explicit; exact destination verification is mandatory before AP execution.
+- Authority: full normalized task state and tests are in `tasks/flow_delivery_queue.json`; this
+  dormant pointer does not activate implementation, runtime input, registration, or scheduling.
+
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 - Title: Narrow declarative verified-flow composition over existing navigation contracts.

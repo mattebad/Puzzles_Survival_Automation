@@ -1,0 +1,22 @@
+---
+description: Restricts the PnS development-flow delivery loop to its four named project subagents.
+alwaysApply: true
+---
+
+# PnS flow-delivery subagent routing
+
+When `.local-orchestrator/flow-delivery-lease.json` exists with
+`workflow: pns-flow-delivery`, the parent may invoke only:
+
+- `pns-flow-recon`
+- `pns-flow-implementer`
+- `pns-flow-reviewer`
+- `pns-evidence-reviewer`
+
+Do not invoke built-in, automatically selected, or other custom subagents during that delivery
+lease. Only `pns-flow-implementer` may write, and only one invocation of it may be active. A named
+subagent must never spawn another subagent. The parent alone selects tasks, accepts architecture,
+issues correction instructions, runs the full suite, owns BlueStacks input, accepts evidence,
+commits, and changes queue state.
+
+Outside an active PnS flow-delivery lease, this rule does not restrict ordinary Cursor usage.

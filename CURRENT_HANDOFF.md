@@ -4,14 +4,12 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "3255eed fix(navigation): close supply depot radial target binding seam",
-    "origin_relationship": "main is ahead of origin/main by nineteen local roadmap commits before this docs commit; no push",
+    "head": "the commit containing this handoff: feat(automation): add serial flow delivery orchestrator",
+    "origin_relationship": "main is ahead of origin/main by twenty-one local commits after the containing commit; no push",
     "staged_paths": [],
     "relevant_unstaged_paths": [
-      "BACKLOG.md",
-      "CURRENT_HANDOFF.md",
-      "docs/navigation_verified_flow_readiness.md",
-      "tests/test_governance_validation.py"
+      ".cursorindexingignore (pre-existing user-owned modification)",
+      ".specstory/** (pre-existing user-owned untracked files)"
     ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
@@ -20,6 +18,7 @@
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
+      "feat(automation): add serial flow delivery orchestrator (containing commit)",
       "3255eed fix(navigation): close supply depot radial target binding seam",
       "8d33b9e docs(navigation): block supply depot binder evidence",
       "437a52c fix(navigation): close supply depot verified route seams",
@@ -39,14 +38,23 @@
       "3472128 feat(runtime): add input capability firewall"
     ]
   },
-  "current_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE-RENEWAL",
+  "current_task_id": "AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR",
   "current_task_state": "completed",
-  "next_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
-  "next_task_activation_status": "dependency_blocked",
-  "phase": "supply_depot_live_binder_evidence_renewal_complete",
-  "objective": "Completed: live under 3255eed proved corrected Claim Supply binding, facility safe-exit binder authority, and ROI equality; leave composition blocked pending separate final-readiness review; leave M6 unactivated; no claims; no push.",
-  "last_safe_completed_step": "Live radial session supply-depot-radial-20260720T185203014854Z: building/radial/exit verified; Claim Supply [641,620,729,684]; facility back-arrow [0,0,150,105]; Home fully_zoomed_out recognized after zoom recovery; focused+governance green; full suite pending commit gate.",
-  "next_permitted_action": "Authorize a separate final-readiness review before composition; leave composition dependency_blocked; leave M6 unactivated; no claims; no push.",
+  "next_task_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+  "next_task_activation_status": "ready",
+  "phase": "development_flow_orchestrator_bootstrap_complete",
+  "objective": "The offline serial development-delivery orchestrator is complete; Campaign remains first ready and no gameplay flow is active.",
+  "last_safe_completed_step": "Validated the queue, policy, controller, custom-agent routing, governance, and BlueStacks command contract offline; released the development lease; no runtime input or push.",
+  "next_permitted_action": "Use .cursor/skills/pns-flow-delivery/SKILL.md to acquire the development lease and activate only CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION; composition, M6, Bliss, registration, and the gameplay scheduler remain excluded.",
+  "flow_delivery": {
+    "queue_path": "tasks/flow_delivery_queue.json",
+    "product_policy_path": "tasks/flow_delivery_product_policy.json",
+    "local_lease_path": ".local-orchestrator/flow-delivery-lease.json",
+    "lease_status": "released",
+    "active_flow": null,
+    "first_ready_flow": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+    "composition_excluded": true
+  },
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
     "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity.",
@@ -56,6 +64,7 @@
     "SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE root cause: _claim_supply_roi_from_data unioned building-title Sup with radial Claim/Suppl, inflating ROI over Upgrade."
   ],
   "actions_already_performed": [
+    "Completed AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR offline: queue 8 ready / 2 blocked / 4 needs_product_decision; all four custom agents resolved to cursor-grok-4.5-high under gpt-5.6-sol-high; 58 focused tests and authoritative 925-test suite passed with one expected skip; no runtime input or push.",
     "RENEWAL live attempt 1 PASS: localize recognized; navigate Supply Depot (0 pans, already in frame); supply-depot-radial completed reason supply_depot_radial_and_home_recovered; Claim Supply [641,620,729,684] (old [555,551,725,657] absent); facility safe_exit_binding=supply-depot-facility-back-arrow [0,0,150,105] equals exit_target_roi/policy/event/SafetyStore; three pre_dispatch semantic digests correlated; zero claims/consequential; zoom-out left recognized fully_zoomed_out (~0.995); artifacts .local-captures/supply-depot-live-binder-evidence-renewal/live-radial/supply-depot-radial-20260720T185203014854Z/.",
     "Marked SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE-RENEWAL completed; composition remains dependency_blocked pending separate final-readiness review; M6 unactivated; no push.",
     "Verified expected state: branch main; HEAD 3255eed; working tree clean before activation; ahead 19; corrected Claim Supply binds (644,593,725,657) rejecting old ROI [555,551,725,657]; composition dependency_blocked; M6 unactivated; registration/scheduler disabled; CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
@@ -362,8 +371,8 @@
     "live_task_state_row_count": "NOT_VERIFIED_THIS_RUN",
     "pending_promotion_gates": [
       "No governance task may change runtime registration or scheduler state",
-      "SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE must complete before renewing LIVE-BINDER",
-      "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains blocked until live binder evidence matches HEAD and readiness records PASS",
+      "Development flow delivery does not promote production registration or scheduler eligibility",
+      "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains blocked and excluded from the development queue",
       "M6-DQ-TRANSITION-CORPUS remains unactivated"
     ]
   },
@@ -495,20 +504,19 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Renew SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE under corrected Claim Supply pairing.",
-      "Leave RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION dependency_blocked until LIVE-BINDER and readiness PASS.",
-      "Do not activate M6-DQ-TRANSITION-CORPUS.",
-      "No claims; no identical pre-fix live ROI retry; no push."
+      "Implement and validate the serial development-flow orchestrator bootstrap only.",
+      "Leave Campaign first ready without implementing it in this bootstrap.",
+      "Leave composition blocked and M6 unactivated.",
+      "No runtime input and no push."
     ],
     "prohibited_actions": [
-      "Identical pre-fix Claim Supply ROI [555,551,725,657] retry.",
-      "Any Supply Depot claim, free-hold, purchase, premium, or consequential gameplay.",
-      "Activating composition or M6-DQ-TRANSITION-CORPUS before LIVE-BINDER/readiness PASS.",
+      "Any BlueStacks, Bliss, ADB, gameplay, or worker input during bootstrap.",
+      "Implementing Campaign, another gameplay flow, composition, M6, or Bliss migration.",
       "Enabling CONFIRMED_NOT_DISPATCHED, registration/scheduler changes, or any push.",
       "Staging .local-captures/** or protected evidence/**."
     ],
-    "exact_stop_condition": "Binding closure committed; renew LIVE-BINDER separately; never push.",
-    "expected_next_atomic_task": "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
+    "exact_stop_condition": "Bootstrap passes, one local commit exists, lease is released, Campaign remains first ready, and no push occurs.",
+    "expected_next_atomic_task": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
     "expected_next_activation_status": "dependency_blocked"
   }
 }
@@ -520,10 +528,11 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: `3255eed` `fix(navigation): close supply depot radial target binding seam`;
-  nineteen local roadmap commits ahead of `origin/main`
+- HEAD/base: `b138c9d` `docs(navigation): renew supply depot binder evidence`;
+  twenty local commits ahead of `origin/main`
 - Staged paths: none
-- Relevant unstaged paths: RENEWAL activation files before commit
+- Relevant unstaged paths: orchestrator activation files; pre-existing user-owned
+  `.cursorindexingignore` modification and `.specstory/**` remain outside task ownership
 - Protected untracked paths or categories: evidence/**, .local-reference/**,
   .local-captures/**, and other pre-existing untracked files
 - Push: prohibited
@@ -546,17 +555,18 @@ This document is a volatile operational boundary, not a complete project history
   building-title `Sup` with radial `Claim`/`Suppl`, inflating ROI over Upgrade.
 
 ## Current task
-- Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE-RENEWAL`
-- State: completed; live under `3255eed` proved corrected Claim+Supply binding, facility
-  safe-exit binder authority, and binder/capability/event/transport/SafetyStore ROI equality
-- Next task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` (`dependency_blocked` pending
-  separate final-readiness review)
-- Objective: completed evidence acquisition; leave composition blocked; leave M6 unactivated; no
-  claims; no push
-- Last safe completed step: session `…T185203014854Z` PASS; Home recognized `fully_zoomed_out`
-  after zoom recovery; focused/governance green
-- Exact next permitted step: authorize a separate final-readiness review before composition; do
-  not activate composition or M6; no push
+- Task ID: `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR`
+- State: completed by the containing focused task commit
+- Next task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`
+  (`ready`, not activated)
+- Objective: completed offline serial queue/controller, policy registry, named custom agents, parent
+  skill, scoped routing guard, governance alignment, and narrow BlueStacks operator contract
+- Last safe completed step: all offline gates and model-routing probe passed; development lease
+  released; no runtime input
+- Exact next permitted step: acquire the development lease through the checked-in skill and activate
+  only the first Campaign flow
+- `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` remains blocked and excluded from autonomous
+  gameplay-delivery selection.
 - No registration, scheduler, worker, or protected-evidence operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains unactivated.
 
@@ -597,7 +607,7 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
-- Last full-suite count: 903 passed, one expected skip (pre-commit gate)
+- Last full-suite count: 925 passed, one expected skip (pre-commit gate)
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
 - Last relevant focused tests: supply-depot vision + verified-route + governance → 57 passed
@@ -615,15 +625,13 @@ This document is a volatile operational boundary, not a complete project history
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: authorize a separate final-readiness review before composition; leave
-  composition dependency_blocked; leave M6 unactivated; no claims; no push
-- Prohibited actions: identical pre-fix Claim Supply ROI `[555,551,725,657]` retry; consequential
-  gameplay; claims; composition/M6 activation; push; enabling `CONFIRMED_NOT_DISPATCHED`;
-  registration/scheduler changes
-- Exact stop condition: composition remains `dependency_blocked` until renewed readiness PASS;
-  never push
-- Expected next atomic task: separate final-readiness review (not yet activated)
-- Expected next activation status: `dependency_blocked` for composition until readiness PASS
+- Permitted action: complete the offline orchestrator bootstrap and its one local commit.
+- Prohibited actions: live runtime input; gameplay-flow implementation; composition/M6/Bliss
+  activation; `CONFIRMED_NOT_DISPATCHED`, registration, scheduler, worker, or push changes.
+- Exact stop condition: bootstrap committed, queue inactive with Campaign first ready, and local
+  development lease released.
+- Expected next atomic task: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.
+- Composition remains blocked and is not the next autonomous gameplay-delivery action.
 
 ## Ruins Challenge local task handoff — 2026-07-16
 

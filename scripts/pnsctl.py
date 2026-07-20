@@ -44,6 +44,30 @@ M6_ASSET_ROOT = "evidence/sessions/20260712-m6-dq-bootstrap/assets"
 NAVIGATION_ASSET_ROOT = "tasks/assets/navigation/800x1280"
 CASH_REFERENCE = NAVIGATION_ASSET_ROOT + "/cash_mall_startup.png"
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+BLUESTACKS_ADB = Path(r"C:\Program Files\BlueStacks_nxt\HD-Adb.exe")
+BLUESTACKS_SERIAL = "emulator-5554"
+BLUESTACKS_NATIVE_WIDTH = 800
+BLUESTACKS_NATIVE_HEIGHT = 1280
+BLUESTACKS_ARTIFACT_ROOT = REPO_ROOT / ".local-captures" / "flow-delivery"
+FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
+FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
+HOME_ATLAS = REPO_ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+BLUESTACKS_FLOW_IDS = (
+    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+    "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+    "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+    "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+    "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
+    "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
+    "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+    "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
+    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+    "NANOWEAPON-BLUESTACKS-INTEGRATION",
+    "RECRUITMENT-BLUESTACKS-INTEGRATION",
+    "WORLD-MAP-NAVIGATION-FOUNDATION",
+    "GATHERING-BLUESTACKS-INTEGRATION",
+    "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
+)
 
 
 class OperatorError(RuntimeError):
@@ -479,6 +503,199 @@ def cleanup(cfg: OperatorConfig) -> str:
     return run_remote(cfg, "ss -ltn | grep -E ':(5042|5555)\\b' || true")
 
 
+def _load_flow_delivery_state() -> tuple[dict[str, Any], dict[str, Any]]:
+    try:
+        queue = json.loads(FLOW_DELIVERY_QUEUE.read_text(encoding="utf-8"))
+        lease = json.loads(FLOW_DELIVERY_LEASE.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("a valid local flow-delivery queue and lease are required") from exc
+    if queue.get("queue_kind") != "development_flow_delivery":
+        raise OperatorError("invalid flow-delivery queue authority")
+    if lease.get("workflow") != "pns-flow-delivery":
+        raise OperatorError("invalid flow-delivery lease authority")
+    if lease.get("runtime_ownership_state") != "held":
+        raise OperatorError("the parent must hold BlueStacks runtime ownership")
+    active_flow = queue.get("active_flow_id")
+    if not active_flow or lease.get("active_flow") != active_flow:
+        raise OperatorError("queue and lease must identify one active development flow")
+    if active_flow not in BLUESTACKS_FLOW_IDS:
+        raise OperatorError("active flow is not in the BlueStacks allowlist")
+    return queue, lease
+
+
+def _run_fixed_bluestacks_adb(*arguments: str, binary: bool = False) -> bytes | str:
+    if not BLUESTACKS_ADB.is_file():
+        raise OperatorError("approved BlueStacks HD-Adb executable is unavailable")
+    result = subprocess.run(
+        [str(BLUESTACKS_ADB), "-s", BLUESTACKS_SERIAL, *arguments],
+        check=False,
+        capture_output=True,
+        text=not binary,
+    )
+    if result.returncode:
+        stderr = result.stderr if isinstance(result.stderr, str) else result.stderr.decode(errors="replace")
+        raise OperatorError("fixed BlueStacks ADB operation failed: " + stderr.strip())
+    return result.stdout
+
+
+def bluestacks_preflight() -> str:
+    queue, lease = _load_flow_delivery_state()
+    state = str(_run_fixed_bluestacks_adb("get-state")).strip()
+    frame = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
+    if not isinstance(frame, bytes) or frame[:8] != b"\x89PNG\r\n\x1a\n" or len(frame) < 24:
+        raise OperatorError("BlueStacks preflight did not receive a valid PNG frame")
+    width = int.from_bytes(frame[16:20], "big")
+    height = int.from_bytes(frame[20:24], "big")
+    focus = str(_run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
+    if state != "device":
+        raise OperatorError("approved BlueStacks serial is not in device state")
+    if (width, height) != (BLUESTACKS_NATIVE_WIDTH, BLUESTACKS_NATIVE_HEIGHT):
+        raise OperatorError("BlueStacks native frame is not 800x1280")
+    if PACKAGE not in focus:
+        raise OperatorError("Puzzles & Survival is not the foreground package")
+    return json.dumps(
+        {
+            "status": "ready",
+            "flow_id": queue["active_flow_id"],
+            "lease_owner": lease["owner"],
+            "serial": BLUESTACKS_SERIAL,
+            "private_serial": True,
+            "native_width": width,
+            "native_height": height,
+            "foreground_package": PACKAGE,
+            "runtime_ownership_state": "held",
+            "dispatch": False,
+        },
+        sort_keys=True,
+    )
+
+
+def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
+    if flow_id not in BLUESTACKS_FLOW_IDS:
+        raise OperatorError("flow ID is not in the checked-in BlueStacks allowlist")
+    if not live:
+        return json.dumps(
+            {"status": "dry_run", "flow_id": flow_id, "dispatch": False},
+            sort_keys=True,
+        )
+    queue, lease = _load_flow_delivery_state()
+    if queue["active_flow_id"] != flow_id:
+        raise OperatorError("only the active development flow may run")
+    flow = next(item for item in queue["flows"] if item["flow_id"] == flow_id)
+    if flow.get("last_completed_stage") != "live_execution":
+        raise OperatorError("controller has not admitted the flow to live_execution")
+    if flow_id == "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION":
+        raise OperatorError(
+            "Campaign delivery runner is intentionally unavailable until the active migration "
+            "implements exact navigation-only support for 1-20-9, 1-2-9, and ultimate-challenge"
+        )
+    raise OperatorError("the allowlisted flow has no checked-in BlueStacks delivery runner yet")
+
+
+def _session_relative_path(session: Path, value: Any, field: str) -> Path:
+    if not isinstance(value, str) or not value.strip():
+        raise OperatorError(f"{field} must be a non-empty relative path")
+    candidate = (session / value).resolve()
+    try:
+        candidate.relative_to(session)
+    except ValueError as exc:
+        raise OperatorError(f"{field} escapes the session directory") from exc
+    if not candidate.is_file():
+        raise OperatorError(f"{field} does not exist")
+    return candidate
+
+
+def bluestacks_verify_flow(session_directory: Path) -> str:
+    session = session_directory.resolve()
+    allowed_root = (REPO_ROOT / ".local-captures").resolve()
+    try:
+        session.relative_to(allowed_root)
+    except ValueError as exc:
+        raise OperatorError("session directory must remain under .local-captures") from exc
+    if not session.is_dir() or session.is_symlink():
+        raise OperatorError("session directory is unavailable or unsafe")
+    result_path = session / "flow-delivery-result.json"
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("flow-delivery-result.json is required") from exc
+    if result.get("schema_version") != 1 or result.get("flow_id") not in BLUESTACKS_FLOW_IDS:
+        raise OperatorError("unsupported flow-delivery result identity")
+    if result.get("status") != "completed":
+        raise OperatorError("flow result is not terminally completed")
+    if result.get("serial") != BLUESTACKS_SERIAL:
+        raise OperatorError("flow result used an unapproved serial")
+    if (result.get("native_width"), result.get("native_height")) != (
+        BLUESTACKS_NATIVE_WIDTH,
+        BLUESTACKS_NATIVE_HEIGHT,
+    ):
+        raise OperatorError("flow result is not native 800x1280")
+    if not isinstance(result.get("runtime_owner"), str) or not result["runtime_owner"].strip():
+        raise OperatorError("flow result does not identify the runtime owner")
+    if result.get("terminal_runtime_state") not in {"recognized_home", "safe_blocked_terminal"}:
+        raise OperatorError("terminal runtime state is missing or unsafe")
+    actions = result.get("actions")
+    if not isinstance(actions, list):
+        raise OperatorError("flow result actions must be a list")
+    required_paths = {
+        "events_path": result.get("events_path"),
+        "ledger_path": result.get("ledger_path"),
+        "capability_audit_path": result.get("capability_audit_path"),
+        "journal_path": result.get("journal_path"),
+    }
+    verified_paths = {
+        field: str(_session_relative_path(session, value, field).relative_to(session))
+        for field, value in required_paths.items()
+    }
+    frames = result.get("frames")
+    if not isinstance(frames, list) or not frames:
+        raise OperatorError("flow result requires frame evidence")
+    verified_frames = [
+        str(_session_relative_path(session, value, "frames").relative_to(session))
+        for value in frames
+    ]
+    return json.dumps(
+        {
+            "status": "verified",
+            "flow_id": result["flow_id"],
+            "session_directory": str(session),
+            "actions": len(actions),
+            "frames": verified_frames,
+            "artifacts": verified_paths,
+            "terminal_runtime_state": result["terminal_runtime_state"],
+        },
+        sort_keys=True,
+    )
+
+
+def bluestacks_recover_home() -> str:
+    queue, lease = _load_flow_delivery_state()
+    if lease.get("active_stage") not in {"live_preflight", "live_execution", "evidence_review"}:
+        raise OperatorError("recover-home is available only during an admitted live delivery stage")
+    output_root = BLUESTACKS_ARTIFACT_ROOT / queue["active_flow_id"] / "recovery"
+    command = [
+        sys.executable,
+        str(REPO_ROOT / "scripts" / "home_atlas_bluestacks.py"),
+        "recover-home",
+        "--adb",
+        str(BLUESTACKS_ADB),
+        "--serial",
+        BLUESTACKS_SERIAL,
+        "--output-directory",
+        str(output_root),
+        "--atlas",
+        str(HOME_ATLAS),
+        "--expected-title",
+        "cultivation-center",
+        "--execute",
+        "--yes",
+    ]
+    result = subprocess.run(command, cwd=REPO_ROOT, check=False, capture_output=True, text=True)
+    if result.returncode:
+        raise OperatorError("bounded recover-home failed: " + (result.stderr or result.stdout).strip())
+    return result.stdout.strip()
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     root.add_argument("--run-id", default="help-all-20260713")
@@ -508,6 +725,15 @@ def parser() -> argparse.ArgumentParser:
     rec.add_argument("--evidence", nargs="+", required=True)
     rec.add_argument("--outcome", choices=("proven_no_effect", "positive_postcondition"), default="proven_no_effect")
     rec.add_argument("--reason", default="positive_postcondition")
+    bluestacks = sub.add_parser("bluestacks")
+    bluestacks_sub = bluestacks.add_subparsers(dest="bluestacks_command", required=True)
+    bluestacks_sub.add_parser("preflight")
+    run_flow = bluestacks_sub.add_parser("run-flow")
+    run_flow.add_argument("flow_id", choices=BLUESTACKS_FLOW_IDS)
+    run_flow.add_argument("--live", action="store_true")
+    verify_flow = bluestacks_sub.add_parser("verify-flow")
+    verify_flow.add_argument("session_directory", type=Path)
+    bluestacks_sub.add_parser("recover-home")
     return root
 
 
@@ -516,6 +742,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "reconcile":
         print(reconcile(args))
         return 0
+    if args.command == "bluestacks":
+        try:
+            if args.bluestacks_command == "preflight":
+                output = bluestacks_preflight()
+            elif args.bluestacks_command == "run-flow":
+                output = bluestacks_run_flow(args.flow_id, live=args.live)
+            elif args.bluestacks_command == "verify-flow":
+                output = bluestacks_verify_flow(args.session_directory)
+            elif args.bluestacks_command == "recover-home":
+                output = bluestacks_recover_home()
+            else:
+                raise OperatorError("unknown BlueStacks command")
+            print(output)
+            return 0
+        except (OperatorError, OSError, subprocess.SubprocessError) as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "command": f"bluestacks {args.bluestacks_command}",
+                        "error": str(exc),
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 2
     cfg = OperatorConfig()
     handlers = {
         "preflight": lambda: run_remote(cfg, "set -eu; printf 'vm='; virsh domstate PnS-BlissOS-PoC; printf 'worker='; docker ps --filter name=^%s$ --format '{{.Names}}' || true; printf 'listeners='; ss -ltn | grep -E ':(5037|5042|5555)\\b' || true; test -f /mnt/cache/domains/PnS-BlissOS-PoC/rollback/20260711-rt017-runtime-backup/system.qcow2 && echo backup=intact" % re.escape(cfg.container)),

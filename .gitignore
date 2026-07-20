@@ -18,6 +18,7 @@ id_ed25519*
 
 # Local tooling and OS files
 .local-captures/
+.local-orchestrator/
 .venv/
 __pycache__/
 .pytest_cache/

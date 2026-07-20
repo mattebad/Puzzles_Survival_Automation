@@ -17,6 +17,11 @@
 
 - Complete only the active atomic backlog task. Do not begin downstream or unrelated work after
   completion or a valid blocker.
+- Exception: the named development flow-delivery orchestrator may advance from one completed
+  atomic flow to the next only after the prior flow has a terminal runtime state, reconciled
+  evidence, passing required tests, a focused commit, a clean attributable tree, and an atomic
+  queue transition. It may never have two active flows, two writable agents, or concurrent
+  BlueStacks operators.
 - Preserve passed experiments, valid uncommitted work, retained evidence, and Git history. Do not
   repeat passed experiments without contradictory evidence.
 - Update and stage only files directly attributable to the active task.

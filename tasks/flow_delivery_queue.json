@@ -1,0 +1,516 @@
+{
+  "schema_version": 1,
+  "queue_kind": "development_flow_delivery",
+  "purpose": "Select and track serial gameplay-flow development work. This is not the gameplay scheduler and never authorizes gameplay input.",
+  "gameplay_scheduler": false,
+  "status_vocabulary": [
+    "ready",
+    "active",
+    "blocked",
+    "completed",
+    "needs_product_decision"
+  ],
+  "stage_vocabulary": [
+    "selected",
+    "reconnaissance",
+    "implementation",
+    "implementation_review",
+    "correction",
+    "focused_validation",
+    "full_validation",
+    "live_preflight",
+    "live_execution",
+    "evidence_review",
+    "commit",
+    "completed",
+    "blocked"
+  ],
+  "selection_order": [
+    "readiness",
+    "dependency",
+    "product_policy",
+    "priority",
+    "flow_id"
+  ],
+  "active_flow_id": null,
+  "flows": [
+    {
+      "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+      "title": "Migrate Campaign AP entry to Home Atlas and verified destination navigation",
+      "kind": "navigation_migration",
+      "priority": 10,
+      "status": "ready",
+      "backlog_task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/bluestacks_campaign_ap.py",
+        "tasks/campaign_auto_battle.py",
+        "tasks/campaign_auto_battle_runtime.py",
+        "tasks/campaign_auto_battle_vision.py",
+        "scripts/home_atlas_bluestacks.py"
+      ],
+      "navigation_model": "canonical_home_atlas_plus_feedback_controlled_campaign_destination",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "Navigation-only validation for exactly 1-20-9, 1-2-9, and ultimate-challenge; no AP execution without separate explicit policy.",
+      "consequence_policy": "Preserve existing AP and battle logic, observe remembered Campaign state, and require exact destination verification before AP execution; unknown stage, AP cost, or consequence fails closed.",
+      "product_policy_status": "navigation_only_validation",
+      "maximum_live_attempts": 3,
+      "focused_tests": [
+        "tests/test_campaign_auto_battle.py",
+        "tests/test_campaign_auto_battle_runtime.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "destination_verification_latency_seconds",
+        "navigation_input_count",
+        "relocalization_residual_pixels"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "Replace legacy HOME_PAN_GESTURES with the canonical Home Atlas and add remembered-state feedback control for the three approved destinations.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+    },
+    {
+      "flow_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+      "title": "Migrate Nova Praise entry and return to the canonical Home Atlas",
+      "kind": "navigation_migration",
+      "priority": 20,
+      "status": "ready",
+      "backlog_task_id": "DQ-FLOW-NOVA-PRAISE-BLUESTACKS",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/nova_praise_bluestacks.py",
+        "tasks/nova_praise_runtime.py",
+        "tasks/nova_praise_vision.py",
+        "scripts/home_atlas_bluestacks.py"
+      ],
+      "navigation_model": "dedicated_route_to_canonical_home_atlas",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "One bounded navigation-only Home-to-Nova-to-Home route; Praise dispatch is outside migration validation.",
+      "consequence_policy": "Existing zero-cost cooldown-bound Praise behavior is preserved; migration validation performs navigation only.",
+      "product_policy_status": "navigation_only_validation",
+      "maximum_live_attempts": 1,
+      "focused_tests": [
+        "tests/test_nova_praise.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "navigation_input_count",
+        "home_recovery_latency_seconds"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "Replace dedicated Home entry and generic Back recovery with verified Home Atlas bindings.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION"
+    },
+    {
+      "flow_id": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+      "title": "Migrate Noah's Tavern entry and return to the canonical Home Atlas",
+      "kind": "navigation_migration",
+      "priority": 30,
+      "status": "ready",
+      "backlog_task_id": "DQ-FLOW-NOAHS-TAVERN-BLUESTACKS",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/noahs_tavern_recruit_bluestacks.py",
+        "tasks/noahs_tavern_recruit_runtime.py",
+        "tasks/noahs_tavern_recruit_vision.py",
+        "scripts/home_atlas_bluestacks.py"
+      ],
+      "navigation_model": "dedicated_route_to_canonical_home_atlas",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "One bounded navigation-only Home-to-Tavern-to-Home route; recruitment dispatch is prohibited.",
+      "consequence_policy": "No recruitment is authorized by this migration; unknown free state or consequence fails closed.",
+      "product_policy_status": "navigation_only_validation",
+      "maximum_live_attempts": 1,
+      "focused_tests": [
+        "tests/test_noahs_tavern_recruit.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "navigation_input_count",
+        "home_recovery_latency_seconds"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "Adopt canonical Home Atlas entry and safe-exit contracts without changing recruitment behavior.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/NOAHS-TAVERN-HOME-ATLAS-MIGRATION"
+    },
+    {
+      "flow_id": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+      "title": "Migrate Ruins Challenge entry and return to the canonical Home Atlas",
+      "kind": "navigation_migration",
+      "priority": 40,
+      "status": "ready",
+      "backlog_task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/ruins_challenge_bluestacks.py",
+        "tasks/ruins_challenge_runtime.py",
+        "tasks/ruins_challenge_vision.py",
+        "scripts/home_atlas_bluestacks.py"
+      ],
+      "navigation_model": "dedicated_route_to_canonical_home_atlas",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "One bounded navigation-only Home-to-Ruins-to-Home route; challenge, chest, exchange, and purchase actions are prohibited.",
+      "consequence_policy": "Navigation migration only; challenge entry/combat remains policy-disabled.",
+      "product_policy_status": "navigation_only_validation",
+      "maximum_live_attempts": 1,
+      "focused_tests": [
+        "tests/test_ruins_challenge.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "navigation_input_count",
+        "home_recovery_latency_seconds"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "Replace direct building binding and repeated Back recovery with canonical Home Atlas navigation and safe exit.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+    },
+    {
+      "flow_id": "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
+      "title": "Converge Troop Training entry and return on verified navigation",
+      "kind": "navigation_convergence",
+      "priority": 50,
+      "status": "ready",
+      "backlog_task_id": "DQ-FLOW-TROOP-TRAINING-BLUESTACKS",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/troop_training_bluestacks.py",
+        "tasks/troop_training.py",
+        "tasks/troop_training_vision.py",
+        "scripts/home_atlas_bluestacks.py"
+      ],
+      "navigation_model": "partial_home_atlas_to_verified_route_convergence",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "Navigation-only entry and safe return for the four training facilities; never tap Train.",
+      "consequence_policy": "Training tier, quantity, resource-box, and resource-spend policy remains unresolved; validation stops before Train.",
+      "product_policy_status": "navigation_only_validation",
+      "maximum_live_attempts": 4,
+      "focused_tests": [
+        "tests/test_troop_training_entry.py",
+        "tests/test_troop_training.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "navigation_input_count",
+        "facility_binding_confidence",
+        "home_recovery_latency_seconds"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "Route all four entry-only facility paths through shared verified navigation while preserving the Train prohibition.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE"
+    },
+    {
+      "flow_id": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
+      "title": "Retire the legacy Supply Depot adapter beside the canonical route",
+      "kind": "legacy_adapter_retirement",
+      "priority": 60,
+      "status": "ready",
+      "backlog_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/supply_depot_bluestacks.py",
+        "scripts/home_atlas_bluestacks.py",
+        "tasks/supply_depot.py",
+        "tasks/supply_depot_vision.py"
+      ],
+      "navigation_model": "canonical_verified_supply_depot_route_only",
+      "requires_bluestacks_live": false,
+      "live_validation_scope": "No new live input; use retained canonical-route evidence and offline call-graph validation.",
+      "consequence_policy": "Free-only behavior remains separate and must never spend currency; adapter retirement authorizes no claim.",
+      "product_policy_status": "explicitly_approved",
+      "maximum_live_attempts": 0,
+      "focused_tests": [
+        "tests/test_supply_depot_verified_route.py",
+        "tests/test_supply_depot_vision.py",
+        "tests/test_daily_supply_depot.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "",
+      "next_concrete_action": "Trace callers, migrate any remaining supported entrypoint, and remove only the redundant adapter.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT"
+    },
+    {
+      "flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+      "title": "Integrate generalized Daily row Claim with BlueStacks",
+      "kind": "consequential_integration",
+      "priority": 70,
+      "status": "blocked",
+      "backlog_task_id": "DQ-CLAIM-DAILY",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/available_daily_claim.py",
+        "tasks/daily_quest.py",
+        "scripts/bluestacks_native_runtime.py"
+      ],
+      "navigation_model": "selected_daily_row_local_binding",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "One supervised exact ordinary-row Claim only after fresh target and postcondition evidence exists.",
+      "consequence_policy": "Objective completion never implies Claim readiness; unknown row, target, game day, or successor fails closed.",
+      "product_policy_status": "supervised_consequential_validation",
+      "maximum_live_attempts": 1,
+      "focused_tests": [
+        "tests/test_available_daily_claim.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "claim_binding_latency_seconds"
+      ],
+      "blocked_reason": "Generalized ordinary-row BlueStacks Claim target and positive postcondition evidence are missing.",
+      "next_concrete_action": "Acquire separately authorized navigation-only evidence before implementation or dispatch.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
+      "title": "Integrate Daily milestone Claim with BlueStacks",
+      "kind": "consequential_integration",
+      "priority": 80,
+      "status": "blocked",
+      "backlog_task_id": "DQ-CLAIM-MILESTONE",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/activity_milestones.py",
+        "tasks/daily_quest.py",
+        "scripts/bluestacks_native_runtime.py"
+      ],
+      "navigation_model": "daily_milestone_panel_local_binding",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "One supervised ready milestone chest only after fresh target and postcondition evidence exists.",
+      "consequence_policy": "Milestone Claim is separate from ordinary row Claim; unknown points, chest state, or successor fails closed.",
+      "product_policy_status": "supervised_consequential_validation",
+      "maximum_live_attempts": 1,
+      "focused_tests": [
+        "tests/test_activity_milestones.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "claim_binding_latency_seconds"
+      ],
+      "blocked_reason": "Fresh BlueStacks ready-milestone target and positive postcondition evidence are missing.",
+      "next_concrete_action": "Acquire separately authorized navigation-only milestone evidence before implementation or dispatch.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+      "title": "Integrate Gear, Chip, and Module enhancement with BlueStacks",
+      "kind": "consequential_integration",
+      "priority": 90,
+      "status": "ready",
+      "backlog_task_id": "DQ-FLOW-ENHANCEMENT",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/enhancement.py",
+        "tasks/daily_enhancement.py",
+        "scripts/bluestacks_native_runtime.py"
+      ],
+      "navigation_model": "commander_info_category_parameterized_route",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "At most one supervised exact one-star material action for each selected Gear, Chip, or Module variant.",
+      "consequence_policy": "Exactly one one-star material; no Auto Select, higher-star material, premium currency, or unidentified item.",
+      "product_policy_status": "supervised_consequential_validation",
+      "maximum_live_attempts": 3,
+      "focused_tests": [
+        "tests/test_enhancement.py",
+        "tests/test_daily_enhancement.py",
+        "tests/test_daily_enhancement_chip.py",
+        "tests/test_daily_enhancement_module.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "material_binding_latency_seconds",
+        "postcondition_latency_seconds"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "Add a category-parameterized BlueStacks route with exact one-star quantity-one binding and fail-closed postconditions.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "NANOWEAPON-BLUESTACKS-INTEGRATION",
+      "title": "Integrate Nanoweapon crafting with BlueStacks",
+      "kind": "consequential_integration",
+      "priority": 100,
+      "status": "needs_product_decision",
+      "backlog_task_id": "DQ-FLOW-NANOWEAPON",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/nanoweapon.py",
+        "tasks/daily_nanoweapon.py",
+        "scripts/bluestacks_native_runtime.py"
+      ],
+      "navigation_model": "gear_factory_craft_weapon_route",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "None until an exact crafting-material and timer policy is approved.",
+      "consequence_policy": "Unidentified crafting materials, cost, recipe, or timer fail closed; Material Production and Inherit are excluded.",
+      "product_policy_status": "unresolved_user_decision",
+      "maximum_live_attempts": 0,
+      "focused_tests": [
+        "tests/test_nanoweapon.py",
+        "tests/test_daily_nanoweapon.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "No approved crafting-material, recipe-cost, or long-timer policy exists.",
+      "next_concrete_action": "Obtain a product decision defining an exact free or allowlisted material policy.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/NANOWEAPON-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "RECRUITMENT-BLUESTACKS-INTEGRATION",
+      "title": "Integrate Daily recruitment with BlueStacks",
+      "kind": "consequential_integration",
+      "priority": 110,
+      "status": "needs_product_decision",
+      "backlog_task_id": "DQ-FLOW-RECRUITMENT",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/noahs_tavern_recruit_bluestacks.py",
+        "tasks/noahs_tavern_recruit.py",
+        "tasks/daily_recruitment.py"
+      ],
+      "navigation_model": "canonical_home_atlas_to_tavern",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "None until the allowed number and type of free recruitment actions is approved.",
+      "consequence_policy": "Premium, 10x, item-backed, arbitrary, or unidentified recruitment is prohibited.",
+      "product_policy_status": "unresolved_user_decision",
+      "maximum_live_attempts": 0,
+      "focused_tests": [
+        "tests/test_noahs_tavern_recruit.py",
+        "tests/test_daily_recruitment.py",
+        "tests/test_free_recruitment.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "The repository leaves whether five free singles are permitted as an unresolved product decision.",
+      "next_concrete_action": "Obtain an exact free-recruit quantity and reset/cooldown policy.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/RECRUITMENT-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "WORLD-MAP-NAVIGATION-FOUNDATION",
+      "title": "Build verified World Map navigation foundation",
+      "kind": "navigation_foundation",
+      "priority": 120,
+      "status": "ready",
+      "backlog_task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/world_stamina.py",
+        "scripts/bluestacks_native_runtime.py",
+        "scripts/home_atlas_bluestacks.py"
+      ],
+      "navigation_model": "verified_home_world_search_home",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "Navigation-only Home-to-World/search-to-Home validation; no march, attack, stamina, or AP dispatch.",
+      "consequence_policy": "Navigation only; unknown map, target, occupancy, march, or consequence fails closed.",
+      "product_policy_status": "navigation_only_validation",
+      "maximum_live_attempts": 1,
+      "focused_tests": [
+        "tests/test_world_stamina.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "navigation_input_count",
+        "home_recovery_latency_seconds"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "Implement current-frame verified Home-to-World, bounded search entry, and safe Home recovery without march authority.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION"
+    },
+    {
+      "flow_id": "GATHERING-BLUESTACKS-INTEGRATION",
+      "title": "Integrate gathering marches with BlueStacks",
+      "kind": "map_march_integration",
+      "priority": 130,
+      "status": "needs_product_decision",
+      "backlog_task_id": "DQ-FLOW-GATHERING",
+      "dependencies": [
+        "WORLD-MAP-NAVIGATION-FOUNDATION"
+      ],
+      "implementation_entrypoints": [
+        "tasks/gathering.py",
+        "tasks/world_stamina.py",
+        "scripts/bluestacks_native_runtime.py"
+      ],
+      "navigation_model": "verified_world_search_node_march",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "None until exact resource, node-level, and march-slot policy is approved.",
+      "consequence_policy": "Never override an existing march or occupied target; unknown resource, node, occupancy, march slot, or result fails closed.",
+      "product_policy_status": "unresolved_user_decision",
+      "maximum_live_attempts": 0,
+      "focused_tests": [
+        "tests/test_gathering.py",
+        "tests/test_world_stamina.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Resource choice, node-level bounds, and march-slot budget remain unresolved.",
+      "next_concrete_action": "Complete World Map foundation and obtain exact gathering policy.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/GATHERING-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
+      "title": "Integrate Zombie Lair participation with BlueStacks",
+      "kind": "combat_march_integration",
+      "priority": 140,
+      "status": "needs_product_decision",
+      "backlog_task_id": "DQ-FLOW-ZOMBIE-LAIR",
+      "dependencies": [
+        "WORLD-MAP-NAVIGATION-FOUNDATION"
+      ],
+      "implementation_entrypoints": [
+        "tasks/zombie_lair.py",
+        "tasks/daily_zombie_lair.py",
+        "tasks/world_stamina.py",
+        "scripts/bluestacks_native_runtime.py"
+      ],
+      "navigation_model": "verified_world_lair_march",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "None until allowed lair levels, stamina budget, and march policy are approved.",
+      "consequence_policy": "Never join level 60; unknown level, stamina, march, target, or result fails closed.",
+      "product_policy_status": "unresolved_user_decision",
+      "maximum_live_attempts": 0,
+      "focused_tests": [
+        "tests/test_zombie_lair.py",
+        "tests/test_daily_zombie_lair.py",
+        "tests/test_world_stamina.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Allowed non-60 lair levels, stamina budget, and march policy remain unresolved.",
+      "next_concrete_action": "Complete World Map foundation and obtain exact lair/stamina/march policy.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/ZOMBIE-LAIR-BLUESTACKS-INTEGRATION"
+    }
+  ]
+}

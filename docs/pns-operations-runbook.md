@@ -37,6 +37,29 @@ python3 scripts/pnsctl.py preserve-evidence \
 python3 scripts/pnsctl.py cleanup
 ```
 
+## Local BlueStacks flow-delivery contract
+
+The development-delivery orchestrator uses a separate, local, fixed-profile command family:
+
+```text
+python scripts/pnsctl.py bluestacks preflight
+python scripts/pnsctl.py bluestacks run-flow <flow-id> --live
+python scripts/pnsctl.py bluestacks verify-flow <session-directory>
+python scripts/pnsctl.py bluestacks recover-home
+```
+
+This is not the gameplay scheduler. Live commands require the checked-in development queue and a
+parent-held `.local-orchestrator/flow-delivery-lease.json`. The interface fixes the private serial
+to `emulator-5554`, requires native 800×1280 and package `com.global.ztmslg`, accepts only
+checked-in flow IDs, writes under `.local-captures/flow-delivery/`, and returns structured results
+with nonzero failure. It exposes no arbitrary ADB, coordinate, tap, or swipe endpoint.
+
+`run-flow` fails closed until the active flow supplies its dedicated checked-in runner.
+`verify-flow` validates the session's result, frames, events, ledger, capability audit, journal,
+runtime owner, and terminal state. `recover-home` delegates only to the existing
+Cultivation-Center-to-Home verified recovery and cannot issue Android Back from an unrecognized
+Home screen.
+
 `navigate` accepts only the checked-in route names and uses the existing safe-action executor.
 `preserve-evidence` requires one or more exact `--name` values. An omitted name fails before
 creating the destination; cumulative `remote_evidence/*` downloads are intentionally disabled.

@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "registry_kind": "flow_delivery_product_policy",
+  "purpose": "Record product decisions used by the development-flow queue. This registry does not authorize runtime input by itself.",
+  "status_vocabulary": [
+    "explicitly_approved",
+    "navigation_only_validation",
+    "supervised_consequential_validation",
+    "unresolved_user_decision",
+    "prohibited"
+  ],
+  "fail_closed_default": "Unknown cost, target, stage, level, resource, material, or consequence is prohibited.",
+  "policies": [
+    {
+      "policy_id": "campaign-supported-destinations",
+      "scope": "campaign.destination",
+      "status": "explicitly_approved",
+      "decision": "Only 1-20-9, 1-2-9, and ultimate-challenge are supported.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "campaign-navigation-validation",
+      "scope": "campaign.navigation",
+      "status": "navigation_only_validation",
+      "decision": "Home Atlas migration, remembered-state observation, and feedback-controlled exact destination verification may be validated without AP execution.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "campaign-ap-budget",
+      "scope": "campaign.ap_spend",
+      "status": "unresolved_user_decision",
+      "decision": "No arbitrary AP amount, stage execution count, or refill behavior is approved.",
+      "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "supply-depot-free-only",
+      "scope": "supply_depot.collection",
+      "status": "supervised_consequential_validation",
+      "decision": "Only a positively identified free collection may be considered; stop when Free disappears.",
+      "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "supply-depot-currency-spend",
+      "scope": "supply_depot.currency_spend",
+      "status": "prohibited",
+      "decision": "Never spend currency.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "bioenhancer-free-research",
+      "scope": "bioenhancer.research",
+      "status": "supervised_consequential_validation",
+      "decision": "One positively identified free Research 1x is permitted; paid and 10x behavior is prohibited.",
+      "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "enhancement-one-star-one-material",
+      "scope": "enhancement.gear_chip_module",
+      "status": "supervised_consequential_validation",
+      "decision": "Use exactly one one-star material for the selected Gear, Chip, or Module Enhance action.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "enhancement-other-materials-and-actions",
+      "scope": "enhancement.non_allowlisted",
+      "status": "prohibited",
+      "decision": "Auto Select, higher-star materials, premium currency, Promote, Modify, Replace, Unequip, Inherit, and unidentified materials are prohibited.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "zombie-lair-level-60",
+      "scope": "zombie_lair.level_60",
+      "status": "prohibited",
+      "decision": "Never join level 60.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "zombie-lair-level-stamina-march",
+      "scope": "zombie_lair.allowed_levels_and_budget",
+      "status": "unresolved_user_decision",
+      "decision": "Allowed non-60 levels, stamina budget, and march policy are not approved.",
+      "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "gathering-existing-march-or-occupied-target",
+      "scope": "gathering.safety",
+      "status": "prohibited",
+      "decision": "Never override an existing march and never dispatch to an occupied or already-targeted node.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "gathering-resource-node-march-policy",
+      "scope": "gathering.resource_and_march",
+      "status": "unresolved_user_decision",
+      "decision": "Resource choice, node-level bounds, and march-slot budget remain unresolved.",
+      "source": "execution_matrix"
+    },
+    {
+      "policy_id": "troop-training-resource-policy",
+      "scope": "troop_training.resource_tier_quantity",
+      "status": "unresolved_user_decision",
+      "decision": "Tier, quantity, resource budget, and resource-box behavior are not approved for automated Train dispatch.",
+      "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "recruitment-quantity-and-resource-policy",
+      "scope": "recruitment.execution",
+      "status": "unresolved_user_decision",
+      "decision": "Arbitrary recruitment and the number of free singles to use are not approved.",
+      "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "nanoweapon-material-policy",
+      "scope": "nanoweapon.crafting",
+      "status": "unresolved_user_decision",
+      "decision": "No unidentified crafting material, recipe, cost, or timer is approved.",
+      "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "ordinary-daily-row-claim",
+      "scope": "daily_claim.ordinary_row",
+      "status": "supervised_consequential_validation",
+      "decision": "One exact row-local Claim may be validated only after fresh generalized target and positive postcondition evidence exists.",
+      "source": "execution_matrix"
+    },
+    {
+      "policy_id": "daily-milestone-claim",
+      "scope": "daily_claim.milestone",
+      "status": "supervised_consequential_validation",
+      "decision": "One exact ready milestone may be validated only after fresh target and positive postcondition evidence exists.",
+      "source": "execution_matrix"
+    },
+    {
+      "policy_id": "ruins-navigation-only",
+      "scope": "ruins.navigation",
+      "status": "navigation_only_validation",
+      "decision": "Home-to-Ruins-to-Home migration may be validated without challenge, chest, exchange, or purchase input.",
+      "source": "explicit_user_direction_and_execution_matrix"
+    },
+    {
+      "policy_id": "nova-navigation-only",
+      "scope": "nova.navigation",
+      "status": "navigation_only_validation",
+      "decision": "Home Atlas migration may be validated without Praise input.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "noahs-tavern-navigation-only",
+      "scope": "noahs_tavern.navigation",
+      "status": "navigation_only_validation",
+      "decision": "Home Atlas migration may be validated without recruitment input.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "world-map-navigation-only",
+      "scope": "world_map.navigation",
+      "status": "navigation_only_validation",
+      "decision": "Home-to-World/search-to-Home may be validated without march, attack, stamina, or AP input.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "premium-spending",
+      "scope": "global.premium_spending",
+      "status": "prohibited",
+      "decision": "Premium spending is not approved.",
+      "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "purchases-donations-upgrades-pvp-speedups",
+      "scope": "global.policy_disabled_actions",
+      "status": "prohibited",
+      "decision": "Purchases, donations, upgrades, PvP, and speedups remain policy-disabled.",
+      "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "unknown-consequence",
+      "scope": "global.unknown",
+      "status": "prohibited",
+      "decision": "Unknown cost, target, stage, level, resource, material, or consequence fails closed.",
+      "source": "explicit_user_direction"
+    }
+  ]
+}
