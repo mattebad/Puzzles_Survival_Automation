@@ -4,10 +4,15 @@
   "schema_version": 1,
   "repository": {
     "branch": "main",
-    "head": "fix(navigation): close supply depot verified route seams (this commit)",
-    "origin_relationship": "main is ahead of origin/main by sixteen local roadmap commits after this commit; no push",
+    "head": "pending commit docs(navigation): retain verified flow composition blocker",
+    "origin_relationship": "main is ahead of origin/main by sixteen local roadmap commits before this commit; seventeen after; no push",
     "staged_paths": [],
-    "relevant_unstaged_paths": [],
+    "relevant_unstaged_paths": [
+      "BACKLOG.md",
+      "CURRENT_HANDOFF.md",
+      "docs/navigation_verified_flow_readiness.md",
+      "tests/test_governance_validation.py"
+    ],
     "protected_untracked_paths_or_categories": [
       "evidence/** raw captures, journals, sidecars, and transfer copies",
       ".local-reference/**",
@@ -15,6 +20,7 @@
       "other pre-existing untracked files not explicitly allowlisted"
     ],
     "most_recent_task_scoped_commits": [
+      "437a52c fix(navigation): close supply depot verified route seams",
       "e159dd9 fix(navigation): close home atlas verified route seams",
       "9d814d3 docs(navigation): renew flow readiness blocker",
       "f523f0f feat(navigation): integrate verified supply depot route",
@@ -24,19 +30,17 @@
       "843fd10 feat(navigation): add bounded session calibration",
       "ca60cd9 feat(home): add navigation session observability",
       "e7324c7 test(vision): add native-frame mutation corpus",
-      "3472128 feat(runtime): add input capability firewall",
-      "4a240a2 feat(bluestacks): add home safe-exit binder",
-      "cc244c9 feat(home): add shared radial semantics"
+      "3472128 feat(runtime): add input capability firewall"
     ]
   },
-  "current_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE",
+  "current_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS",
   "current_task_state": "completed",
-  "next_task_id": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
-  "next_task_activation_status": "dependency_blocked",
-  "phase": "supply_depot_verified_route_seam_closure_completed",
-  "objective": "Supply Depot seams closed; composition remains blocked pending separate final readiness review; leave M6 unactivated.",
-  "last_safe_completed_step": "SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE offline+live passed; committing fix(navigation): close supply depot verified route seams.",
-  "next_permitted_action": "Leave composition blocked pending separate final readiness review; leave M6 unactivated; no claims; no push.",
+  "next_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
+  "next_task_activation_status": "ready",
+  "phase": "verified_flow_composition_final_readiness_failed",
+  "objective": "FINAL-READINESS FAIL: Home Atlas qualifies; Supply Depot live binder-evidence correspondence blocks composition; leave M6 unactivated.",
+  "last_safe_completed_step": "FINAL-READINESS completed with FAIL; readiness doc rewritten; follow-on SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE created.",
+  "next_permitted_action": "Activate SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE for one bounded live binder-evidence revalidation; leave composition blocked; leave M6 unactivated; no push.",
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle for malformed public-schema and final-input fail-closed handling, exceeding the original three-cycle operating model; the reviewed implementation and evidence remain preserved.",
     "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than by a fresh Grok 4.5 High implementation subagent; it received parent review, adversarial focused tests, full-suite validation, and no runtime activity.",
@@ -44,6 +48,14 @@
     "SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE parent review used two correction cycles: (1) facility exit binder must not use Home exterior-close (claim risk) and must positively recognize facility screen on fresh pre_dispatch; (2) result evidence must record the exit-stage binder that governed the tap, not only the early Home probe."
   ],
   "actions_already_performed": [
+    "FINAL-READINESS: Grok 4.5 High review parent-verified FAIL — COMPOSITION REMAINS BLOCKED.",
+    "Home Atlas production path and live Bank/HQ artifacts qualify end-to-end.",
+    "Supply Depot HEAD code qualifies, but live radial-result.json predates 437a52c and still records Home exterior-close under safe_exit_binding; missing exit_target_roi/home_safe_exit_probe/action pre_dispatch digests.",
+    "Rewrote docs/navigation_verified_flow_readiness.md with explicit FAIL and per-route matrices.",
+    "Created Pending SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE; composition remains dependency_blocked; M6 unactivated.",
+    "Offline: focused 48 + architecture regressions 270 + full suite 900 passed / 1 skipped; governance passed; no live input; no push.",
+    "Verified expected state: branch main; HEAD 437a52c; working tree clean; ahead of origin/main by 16; commits f093812/f523f0f/9d814d3/e159dd9/437a52c present; last full suite 900 passed / 1 skipped; composition dependency_blocked; M6 unactivated; registration/scheduler disabled; CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE.",
+    "Created and activated durable BACKLOG contract RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS; composition remains dependency_blocked pending this review; M6 unactivated.",
     "Parent-reviewed Grok implementation of SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE with two correction cycles; focused 26 + regressions 320 + full suite 900 passed / 1 skipped.",
     "Live: navigate-building to Supply Depot (2 pans); supply-depot-radial building_entry+radial_entry+safe_exit all capability-bound confirmed; reason supply_depot_radial_and_home_recovered; distinct *-pre-dispatch frames; exit ROI (0,0,150,105) equals facility binder-selected back-arrow; zero claims; artifacts under .local-captures/supply-depot-seam-closure/.",
     "Post-live zoom recovery left Home fully_zoomed_out localized (recognized=true, confidence ~0.99).",
@@ -327,7 +339,7 @@
     "live_task_state_row_count": "NOT_VERIFIED_THIS_RUN",
     "pending_promotion_gates": [
       "No governance task may change runtime registration or scheduler state",
-      "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains blocked until two real live-validated routes reuse the shared architecture",
+      "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION remains blocked until live binder evidence matches HEAD and readiness records PASS",
       "M6-DQ-TRANSITION-CORPUS remains unactivated"
     ]
   },
@@ -336,7 +348,7 @@
     "last_full_suite_count": "900 tests passed; 1 skipped",
     "known_accepted_baseline_failures": "None; one expected skip",
     "new_regressions": [],
-    "last_relevant_focused_tests": "SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE: focused 26 + regressions 320 + full suite 900/1; live radial seam closure completed"
+    "last_relevant_focused_tests": "FINAL-READINESS: focused verified-route 48; architecture regressions 270; full suite 900/1"
   },
   "evidence": {
     "active_evidence_manifest": null,
@@ -375,10 +387,12 @@
     ],
     "do_not_recursively_inspect_parent_evidence_tree": true,
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Offline fixtures authorize Supply Depot verified-route implementation review; live artifacts remain under .local-captures and must not stage protected evidence/**.",
+    "evidence_requirement_reason": "Offline fixtures and retained local seam-closure artifacts authorized this final readiness review; do not stage protected evidence/** or .local-captures/**.",
     "prior_active_evidence_manifest": "evidence/mvp-quest-to-claim-evidence-manifest.json",
     "live_bank_verified_route": ".local-captures/home-atlas-verified-route/live-bank/home-atlas-navigate-building-20260720T032647066241Z/",
-    "live_hq_return_verified_route": ".local-captures/home-atlas-verified-route/live-return-hq/home-atlas-navigate-building-20260720T032736487450Z/"
+    "live_hq_return_verified_route": ".local-captures/home-atlas-verified-route/live-return-hq/home-atlas-navigate-building-20260720T032736487450Z/",
+    "home_atlas_seam_closure": ".local-captures/home-atlas-seam-closure/",
+    "supply_depot_seam_closure": ".local-captures/supply-depot-seam-closure/"
   },
   "collector": {
     "command": "python scripts\\bluestacks_flow_collector.py --adb \"C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe\" --serial emulator-5554 --passive --window-title \"BlueStacks App Player 4\" --flow-id passive-smoke --daily-objective \"Passive smoke\" --post-action-delay 1",
@@ -457,21 +471,21 @@
   },
   "next_action": {
     "permitted_actions": [
-      "Leave RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION blocked pending a separate final readiness review.",
+      "Activate SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE for one bounded live binder-evidence revalidation under HEAD.",
+      "Leave RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION dependency_blocked.",
       "Do not activate M6-DQ-TRANSITION-CORPUS.",
-      "No claims; no push."
+      "No claims; no composition implementation; no push."
     ],
     "prohibited_actions": [
+      "Treating the mismatched 20260720T053642 live radial-result.json as composition-ready binder proof.",
       "Any Supply Depot claim, free-hold, purchase, premium, or other consequential gameplay.",
-      "Any Bliss, Unraid, public ADB exposure, Docker operation.",
-      "Evidence deletion, movement, compaction, recursive inspection, or protected staging.",
-      "Activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION implementation or M6-DQ-TRANSITION-CORPUS.",
-      "Reopening Home Atlas findings closed by e159dd9 or Supply Depot findings closed by this task.",
+      "Implementing NavigationStep/NavigationRunner composition, DSL, or second engine.",
+      "Activating RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION or M6-DQ-TRANSITION-CORPUS.",
       "Enabling CONFIRMED_NOT_DISPATCHED, registration/scheduler changes, or any push."
     ],
-    "exact_stop_condition": "Composition remains dependency_blocked; never push.",
-    "expected_next_atomic_task": "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
-    "expected_next_activation_status": "dependency_blocked"
+    "exact_stop_condition": "Composition remains dependency_blocked until live binder evidence matches HEAD and readiness PASS; never push.",
+    "expected_next_atomic_task": "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
+    "expected_next_activation_status": "ready"
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -482,10 +496,10 @@ This document is a volatile operational boundary, not a complete project history
 
 ## Repository
 - Branch: `main`
-- HEAD/base: pending commit `fix(navigation): close supply depot verified route seams`; sixteen
-  local roadmap commits ahead of `origin/main` after commit
+- HEAD/base: pending commit `docs(navigation): retain verified flow composition blocker`; was
+  `437a52c`; sixteen local roadmap commits ahead of `origin/main` before this commit
 - Staged paths: none before commit
-- Relevant unstaged paths: task-scoped seam-closure files before commit
+- Relevant unstaged paths: FINAL-READINESS FAIL review files before commit
 - Protected untracked paths or categories: evidence/**, .local-reference/**,
   .local-captures/**, and other pre-existing untracked files
 - Push: prohibited
@@ -499,16 +513,19 @@ This document is a volatile operational boundary, not a complete project history
   is preserved (do not discard).
 - `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` parent review used two correction cycles (facility
   exit binder vs Home exterior-close; exit-stage binder evidence in results).
+- FINAL-READINESS found Supply Depot live session `20260720T053642329260Z` predates commit
+  `437a52c`, so retained `radial-result.json` binder fields do not match HEAD evidence schema.
 
 ## Current task
-- Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`
-- State: completed; fresh pre_dispatch + binder-selected exit ROI + same-capture bundles closed
-  offline and live
-- Next task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` (dependency blocked; not activated)
-- Objective: leave composition blocked pending separate final readiness review; leave M6 unactivated.
-- Last safe completed step: live Supply Depot radial seam-closure + Home fully_zoomed_out recovery.
-- Exact next permitted step: leave composition blocked; do not activate composition or M6; no claims;
-  no push.
+- Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS`
+- State: completed; verdict FAIL — COMPOSITION REMAINS BLOCKED
+- Next task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` (ready)
+- Objective: leave composition blocked until live binder evidence matches HEAD; leave M6
+  unactivated.
+- Last safe completed step: FINAL-READINESS FAIL recorded; follow-on live binder evidence task
+  created.
+- Exact next permitted step: activate `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`; do not
+  activate composition or M6; no claims; no push.
 - No registration, scheduler, worker, or protected-evidence operation is authorized.
 - `M6-DQ-TRANSITION-CORPUS` remains unactivated.
 
@@ -545,34 +562,38 @@ This document is a volatile operational boundary, not a complete project history
 - Scheduler enabled/disabled: `DISABLED/INELIGIBLE`
 - Scheduler-eligible flows: none
 - Live task-state row count: `NOT_VERIFIED_THIS_RUN`
-- Pending promotion gates: composition remains blocked until two real live-validated routes reuse
-  the shared architecture; registration and scheduler remain unchanged and disabled
+- Pending promotion gates: composition remains blocked until live binder evidence matches HEAD and
+  readiness records PASS; registration and scheduler remain unchanged and disabled
 
 ## Tests
 - Pinned environment: repository Python environment; standard library governance validator
 - Last full-suite count: 900 passed, one expected skip
 - Known accepted baseline failures: none; one expected skip
 - New regressions: none
-- Last relevant focused tests: Supply Depot seam closure focused 26 + regressions 320; full 900/1
-- Live: zero claims; three navigation-only capability-bound taps
+- Last relevant focused tests: FINAL-READINESS focused verified-route 48 + architecture 270;
+  full 900/1
+- Live: not rerun during FINAL-READINESS; prior seam-closure live artifacts retained
 
 ## Evidence
 - Active evidence manifest: none (`NOT_APPLICABLE`)
-- Evidence requirement: NOT_APPLICABLE; offline fixtures authorize review; live artifacts stay under
-  `.local-captures/supply-depot-seam-closure/` and must not stage protected `evidence/**`
+- Evidence requirement: NOT_APPLICABLE; offline fixtures and retained local seam-closure artifacts
+  under `.local-captures/home-atlas-seam-closure/` and
+  `.local-captures/supply-depot-seam-closure/`; do not stage protected `evidence/**` or
+  `.local-captures/**`
 - Prior navigation/collection local capture references remain listed in structured state above
 - Must-retain artifacts: MVP manifest, exact MVP references, current governance manifest, and
   prior canonical operational/historical journals
 
 ## Next action
-- Permitted action: leave composition blocked pending separate final readiness review; leave M6
-  unactivated; no claims; no push
-- Prohibited actions: consequential gameplay, claims, composition/M6 activation, reopening closed
-  Home Atlas or Supply Depot findings, push, enabling `CONFIRMED_NOT_DISPATCHED`,
-  registration/scheduler changes
-- Exact stop condition: composition remains `dependency_blocked`; never push
-- Expected next atomic task: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`
-- Expected next activation status: `dependency_blocked`
+- Permitted action: activate `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`; leave composition
+  blocked; leave M6 unactivated; no claims; no push
+- Prohibited actions: treating mismatched prior live binder fields as readiness proof;
+  consequential gameplay; claims; composition/M6 activation; push; enabling
+  `CONFIRMED_NOT_DISPATCHED`; registration/scheduler changes
+- Exact stop condition: composition remains `dependency_blocked` until live binder evidence matches
+  HEAD and readiness PASS; never push
+- Expected next atomic task: `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`
+- Expected next activation status: `ready`
 
 ## Ruins Challenge local task handoff — 2026-07-16
 

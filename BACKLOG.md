@@ -3651,25 +3651,247 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   `fully_zoomed_out` recognized after zoom recovery; artifacts under
   `.local-captures/supply-depot-seam-closure/`; registration/scheduler unchanged;
   `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
-- Next: leave `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` blocked pending a separate final
-  readiness review after this seam closure; leave `M6-DQ-TRANSITION-CORPUS` unactivated.
+- Next: active final readiness review
+  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS`; leave
+  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` blocked until that review records PASS; leave
+  `M6-DQ-TRANSITION-CORPUS` unactivated.
+
+### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS
+- Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS`.
+- Title: Final evidence-based composition-readiness review after Home Atlas and Supply Depot seam closures.
+- Status: Completed (2026-07-20; FAIL — COMPOSITION REMAINS BLOCKED; Home Atlas qualifies; Supply Depot
+  live binder-evidence correspondence fails; local commit
+  `docs(navigation): retain verified flow composition blocker`; no push).
+- Milestone: Durable offline navigation architecture roadmap; composition activation gate.
+- Dependencies: completed `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE` (`e159dd9`), completed
+  `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` (`437a52c`), retained live artifacts under
+  `.local-captures/home-atlas-seam-closure/` and `.local-captures/supply-depot-seam-closure/`, and
+  current `docs/navigation_verified_flow_readiness.md`.
+- Blocked by: None remaining for this review task. Do not implement composition. Do not activate M6.
+  Do not claim supplies or reopen closed seam findings as implementation work.
+- Objective: perform one final evidence-based review of the committed Home Atlas and Supply Depot
+  production routes and determine an explicit binary verdict
+  `PASS — COMPOSITION READY` or `FAIL — COMPOSITION REMAINS BLOCKED` on whether both real
+  live-validated production entry points consume the required shared navigation architecture end to
+  end without material transport, perception, session, capability, verification, radial, safe-exit,
+  or ledger bypasses. Rewrite `docs/navigation_verified_flow_readiness.md` as the final review
+  record. Do not implement declarative composition in this task.
+- Established facts: Home Atlas seams closed by `e159dd9`; Supply Depot seams closed by `437a52c`;
+  both routes have bounded live reversible validation claims; composition remains dependency-blocked
+  pending this review; `M6-DQ-TRANSITION-CORPUS` unactivated; registration/scheduler disabled;
+  `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`; last full suite baseline
+  `900 passed, 1 skipped`.
+- Direct implementation files: `docs/navigation_verified_flow_readiness.md`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tests/test_governance_validation.py` only if durable identity coverage
+  changes.
+- Shared dependencies: committed Home Atlas and Supply Depot verified routes in
+  `scripts/home_atlas_bluestacks.py`, shared perception/session/observability/calibration/radial/
+  safe-exit/capability/executor contracts, retained local seam-closure artifacts, and offline tests.
+- Transitive regression set: home-atlas and supply-depot verified-route suites plus perception-
+  bundle, navigation-session, navigation-observability, session-calibration, radial-semantics,
+  BlueStacks safe-exit binder, capability-firewall, SafeActionExecutor, and governance tests.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above;
+  review documentation and governance/handoff/backlog status only; no production route logic edits.
+- Prohibited changes: `NavigationStep`/`NavigationRunner` composition implementation, DSL, second
+  engine/executor/session/perception/capability/radial/safe-exit/ledger, gameplay behavior changes,
+  new destinations, atlas expansion, live runtime input, claims/consequential actions, M6
+  activation, registration/scheduler changes, enabling `CONFIRMED_NOT_DISPATCHED`, force-push,
+  amend, rebase, reset/clean, or push.
+- Authorized runtime action: None; offline review and retained local artifacts only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: None authorized in this review task.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior terminally confirmed Supply Depot collection keys,
+  consequential action keys, or identical unchanged-state gameplay inputs.
+- Required source: committed production code at `e159dd9`/`437a52c` and exact retained local
+  artifacts referenced by handoff/backlog/readiness docs; offline fixtures for tests.
+- Exact target semantics: binary readiness verdict from traced production call graphs and retained
+  live evidence; PASS only when both routes demonstrably reuse the required architecture without
+  material bypass; FAIL when any required seam is absent, bypassed, test-only, unverified, or
+  contradicted.
+- Required local association: readiness document cites exact entry points, transport paths,
+  commits, and artifact paths; governance/handoff identity remains consistent.
+- Negative controls: treating imports/types/comments/mocks/dormant adapters as reuse; transport
+  success as semantic verification; live artifacts that do not correspond to committed code;
+  implementing composition inside this review; activating M6; live input.
+- Coordinate space: BlueStacks native 800x1280 full-frame evidence references only; no Bliss reuse.
+- Accepted signals: parent-verified Grok 4.5 High review plus parent independent inspection;
+  offline focused/regression/governance/full-suite gates at or above baseline; explicit PASS or FAIL
+  verdict with no ambiguity.
+- Rejected weak signals: aspirational reuse, metadata-only adoption, and unqualified/ambiguous
+  readiness language.
+- Ambiguous-result behavior: record FAIL and keep composition dependency-blocked.
+- Zero-cost requirement: review-only; no game resources.
+- Quantity limits: exactly one atomic review task; no composition implementation; no live re-run.
+- Resource consumption policy: no game resources consumed.
+- Premium or strategic restrictions: no premium/purchase/strategic controls.
+- Active evidence manifest: None; offline review plus retained `.local-captures` references only.
+- Required artifacts: rewritten `docs/navigation_verified_flow_readiness.md` with per-route matrices
+  and one explicit overall verdict; updated backlog/handoff/governance for PASS or FAIL outcomes.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE for this offline review.
+- Additional task-specific artifacts: exact references to
+  `.local-captures/home-atlas-seam-closure/` and `.local-captures/supply-depot-seam-closure/` only;
+  do not stage `.local-captures/**` or inspect protected `evidence/**` recursively.
+- Focused tests: `tests.test_home_atlas_verified_route`, `tests.test_supply_depot_verified_route`,
+  perception-bundle, navigation-session, navigation-observability, session-calibration,
+  radial-semantics, BlueStacks safe-exit binder, capability-firewall, SafeActionExecutor, and
+  governance validation.
+- Integration tests: offline only; no live BlueStacks/ADB/game input.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched regressions, then the full
+  repository suite; baseline at least `900 passed, 1 skipped`; any new failure blocks PASS.
+- Validators: Python compilation for any touched Python files, focused tests, governance
+  validation, CURRENT_HANDOFF JSON parsing, touched-file secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because this offline review creates no runtime evidence
+  manifest and must not promote `.local-captures` into protected `evidence/**`.
+- Valid blocked outcomes: any material missing/bypassed/test-only/unverified/contradicted seam on
+  either qualifying route; each must record FAIL, keep composition dependency-blocked, and create
+  only the narrowest follow-on closure task(s) without implementing the missing seam here.
+- Blocked-result commit policy: on FAIL, commit only documentation/governance recording the blocker
+  with subject `docs(navigation): retain verified flow composition blocker`; do not implement the
+  missing seam in this task.
+- Commit policy: one reviewed conventional local commit; no push. PASS subject
+  `docs(navigation): approve verified flow composition readiness`; FAIL subject
+  `docs(navigation): retain verified flow composition blocker`.
+- Expected focused commits: exactly one of the commit subjects above; allowed paths are the direct
+  implementation files above.
+- Completion criteria: parent-accepted final readiness review with explicit PASS or FAIL; readiness
+  document rewritten; backlog/handoff/governance updated consistently; offline gates pass at or
+  above baseline; composition left unimplemented; M6 unactivated; registration/scheduler unchanged;
+  `CONFIRMED_NOT_DISPATCHED` still unavailable; local commit created without push. On PASS,
+  composition readiness dependency is satisfied and composition becomes the next permitted atomic
+  task ready for a separate activation/implementation prompt. On FAIL, composition remains
+  dependency-blocked.
+- Established completion evidence: Grok 4.5 High review parent-verified; Home Atlas PASS; Supply
+  Depot FAIL on live binder-evidence correspondence (`radial-result.json` predates `437a52c` and
+  still records Home exterior-close under `safe_exit_binding`); focused 48 + regressions 270 +
+  full suite 900 passed / 1 skipped; no live input this review; composition remains blocked;
+  follow-on `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` created.
+- Next: `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`; leave
+  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` dependency-blocked; leave
+  `M6-DQ-TRANSITION-CORPUS` unactivated.
+
+### SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE
+- Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`.
+- Title: Re-validate live Supply Depot binder evidence against committed HEAD result schema.
+- Status: Pending (2026-07-20; ready for separate activation after FINAL-READINESS FAIL; no push).
+- Milestone: Durable offline navigation architecture roadmap; composition-readiness prerequisite.
+- Dependencies: completed `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` (`437a52c`), completed
+  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` FAIL record in
+  `docs/navigation_verified_flow_readiness.md`.
+- Blocked by: None remaining for this task once activated. Do not implement composition. Do not
+  activate M6. Do not claim supplies. Do not reopen Home Atlas findings closed by `e159dd9`.
+- Objective: run exactly one bounded live BlueStacks Supply Depot radial re-validation under current
+  HEAD so retained artifacts match the committed binder evidence schema: early Home probe under
+  `home_safe_exit_probe`, facility binder under `safe_exit_binding` with candidate
+  `supply-depot-facility-back-arrow`, `exit_target_roi` exactly equal to binder-selected and
+  dispatched ROI, and action-level `pre_dispatch_frame_sha256` for building/radial/exit. Expect
+  zero production code change unless the live run exposes a residual reporting bug; if a bug is
+  found, fix only the narrow reporting path and re-run the bounded live validation.
+- Established facts: HEAD production path already uses facility binder + `SafeActionExecutor`;
+  offline tests already assert the required result schema; prior live session
+  `20260720T053642329260Z` predates `437a52c` and still misattributes Home exterior-close as
+  `safe_exit_binding`; events from that session already show exit ROI `(0,0,150,105)` with
+  `supply-depot-back-arrow`, but that alone does not satisfy the final readiness evidence bar.
+- Direct implementation files: `scripts/home_atlas_bluestacks.py` only if a residual reporting bug
+  is proven, `tests/test_supply_depot_verified_route.py` only if needed for the reporting fix,
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`, `docs/navigation_verified_flow_readiness.md`, and
+  `tests/test_governance_validation.py` only if durable identity coverage changes.
+- Shared dependencies: existing Supply Depot verified route, safe-exit binder, capability/executor,
+  NavigationSession/observability; no production registration.
+- Transitive regression set: supply-depot verified-route, safe-exit, radial, perception-bundle,
+  capability/firewall, governance.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above;
+  retain new live artifacts under `.local-captures` without staging them.
+- Prohibited changes: composition implementation, DSL/second engine, claims/free-hold/consequential
+  gameplay, atlas expansion, M6 activation, registration/scheduler changes, enabling
+  `CONFIRMED_NOT_DISPATCHED`, force-push, amend, rebase, reset/clean, or push.
+- Authorized runtime action: after offline gates pass, exactly one bounded live BlueStacks Supply
+  Depot radial regression (navigate to Supply Depot if needed, building, reversible radial,
+  binder-selected safe-exit, Home recovery, supported zoom recovery). Zero claims.
+- Maximum transport inputs: offline phase zero; live phase only the minimum navigation-only inputs
+  required to prove HEAD binder evidence correspondence.
+- Navigation-only recovery: bounded recovery already owned by the route may run; no identical
+  retries without a concrete new hypothesis.
+- Consequential action: None; claims, purchases, premium, training, healing, research, upgrades,
+  crafting, resource consumption, and troop deployment remain forbidden.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any prior terminally confirmed Supply Depot collection keys.
+- Required source: current immutable native 800x1280 BlueStacks frames from the Supply Depot radial
+  route under HEAD.
+- Exact target semantics: facility binder candidate recorded as the authoritative
+  `safe_exit_binding`; `exit_target_roi` equals binder-selected and dispatched ROI; early Home
+  probe isolated under `home_safe_exit_probe`; action `pre_dispatch_frame_sha256` present; Home
+  recovered; zero claims.
+- Required local association: every authorized input cites navigation session id, action id/key,
+  target identity/ROI, fresh capture digest+monotonic, and capability audit.
+- Negative controls: treating the prior mismatched live result as sufficient; fixed-ROI independent
+  authorization; claims; composition activation.
+- Coordinate space: BlueStacks native 800x1280 full-frame evidence only.
+- Accepted signals: offline gates; one bounded live session whose result schema matches HEAD binder
+  evidence expectations and proves reversible navigation-only completion.
+- Rejected weak signals: transport success without matching binder result fields; imports-only
+  claims.
+- Ambiguous-result behavior: fail closed to unresolved/blocked; never blind-retry identical input.
+- Zero-cost requirement: navigation-only; no resource or premium spend.
+- Quantity limits: one bounded live validation family; zero supply claims.
+- Resource consumption policy: no game resources consumed; do not reduce free Supply Depot attempts.
+- Premium or strategic restrictions: no premium/purchase/strategic controls.
+- Active evidence manifest: None for offline work; live session artifacts remain under
+  `.local-captures` and must not stage protected `evidence/**`.
+- Required artifacts: new live radial session result matching HEAD binder evidence schema; updated
+  readiness note after success.
+- Immediate-before/immediate-post/result/journal: required for each live authorized input.
+- Additional task-specific artifacts: events proving exit ROI equals recorded `exit_target_roi` and
+  facility binder candidate box.
+- Focused tests: `tests.test_supply_depot_verified_route` plus touched regressions if code changes.
+- Integration tests: offline mocked path remains green; one bounded live reversible Supply Depot
+  regression without claims.
+- Transitive regression tests: governance validation and focused discovery of touched modules.
+- Full-suite requirement: run focused tests first, then touched regressions, then the full
+  repository suite before live validation when code changes, and before commit.
+- Validators: Python compilation for any touched Python files, focused tests, governance
+  validation, CURRENT_HANDOFF JSON parsing, touched-file secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE because live BlueStacks navigation artifacts remain local
+  under `.local-captures` without promoting into protected `evidence/**`.
+- Valid blocked outcomes: inability to produce HEAD-matching binder evidence without weakening
+  bindings; live consequential pressure; offline suite regressions.
+- Blocked-result commit policy: record the blocker; do not claim composition readiness; preserve
+  evidence.
+- Commit policy: one reviewed conventional local commit after offline and live validation pass; no
+  push.
+- Expected focused commits: `test(navigation): revalidate supply depot binder live evidence` or, if
+  a residual reporting bug is fixed first,
+  `fix(navigation): align supply depot binder live evidence`; allowed paths are the direct
+  implementation files above.
+- Completion criteria: new live artifacts match HEAD binder evidence schema; offline gates pass;
+  Home Atlas remains intact; registration/scheduler unchanged; `CONFIRMED_NOT_DISPATCHED` still
+  unavailable; composition remains blocked until readiness is renewed with PASS; M6 unactivated;
+  commit created locally without push.
+- Next: renew `docs/navigation_verified_flow_readiness.md` / composition readiness before activating
+  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`; leave `M6-DQ-TRANSITION-CORPUS` unactivated.
 
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 - Title: Narrow declarative verified-flow composition over existing navigation contracts.
-- Status: Blocked (2026-07-20; Home Atlas and Supply Depot seam findings are closed; composition
-  remains blocked pending a separate final readiness review before activation; see
-  `docs/navigation_verified_flow_readiness.md`).
+- Status: Blocked (2026-07-20; FINAL-READINESS recorded FAIL — COMPOSITION REMAINS BLOCKED; waiting
+  on `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` then renewed PASS).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed shared roadmap contracts for
   perception/session/radial/safe-exit/capability reuse, existing `NavigationStep` /
   `NavigationRunner` contracts, completed `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, completed
-  `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`, completed `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`, and
-  completed `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` that consumes those shared seams without
-  bypasses.
-- Blocked by: Home Atlas seam findings closed by `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`
-  (`e159dd9`); Supply Depot seam findings closed by `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`;
-  composition still requires a separate final readiness review before activation. See
+  `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`, completed `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`,
+  completed `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`, completed
+  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` with PASS, and completed
+  `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` when required by the FAIL record.
+- Blocked by: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` FAIL on Supply Depot
+  live binder-evidence correspondence; pending
+  `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`. See
   `docs/navigation_verified_flow_readiness.md`. No broad DSL or generic autonomous runtime is
   authorized.
 - Objective: after a positive readiness review, extend existing `NavigationStep`, `NavigationRunner`,

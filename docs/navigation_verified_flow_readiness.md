@@ -1,89 +1,139 @@
 # Verified-flow composition readiness review
 
-Review date: 2026-07-20 (Home Atlas seams closed by `e159dd9`; Supply Depot seams
-closed by `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`)
+Review date: 2026-07-20
+Review task: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS`
+Reviewer model: Grok 4.5 High (parent-verified)
 
 ## Decision
 
-`RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` remains **blocked**.
+**FAIL — COMPOSITION REMAINS BLOCKED**
 
-Home Atlas and Supply Depot readiness findings recorded after `f093812` / `f523f0f`
-are now closed. Composition must not activate until a separate final readiness
-review confirms both real live-validated routes reuse the shared architecture
-without residual bypasses.
+Home Atlas navigate-building qualifies on production call graph, offline tests, and
+retained live Bank / Headquarters-return evidence under
+`.local-captures/home-atlas-seam-closure/`.
+
+Supply Depot radial qualifies on committed production code at `437a52c` and on
+offline adversarial tests, and the live session proves navigation-only building
+entry, reversible radial interaction, Home recovery, and exit dispatch ROI
+`(0,0,150,105)` via `events.jsonl`. However, the retained live
+`radial-result.json` was produced about eight minutes before commit `437a52c`
+and does **not** correspond to the committed exit-stage binder evidence schema:
+it records Home exterior-close (`supply-depot-exterior-close-anchor` at
+`[380,580,420,620]`) under `safe_exit_binding`, omits `exit_target_roi` and
+`home_safe_exit_probe`, and omits action-level `pre_dispatch_frame_sha256`
+fields that HEAD would emit. Under this review’s standard, live artifacts that
+do not correspond to the committed implementation cannot close the
+binder-authority seam.
 
 No composition engine, DSL, generic autonomous runtime, or new route was
-implemented in this update. `M6-DQ-TRANSITION-CORPUS` remains unactivated.
+implemented in this review. `M6-DQ-TRANSITION-CORPUS` remains unactivated.
 Registration remains `NOT_REGISTERED`. Scheduler remains disabled.
 `CONFIRMED_NOT_DISPATCHED` remains `NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
 
-## Route evidence
-
-### Home Atlas navigate-building
+## Route 1 — Home Atlas
 
 | Field | Evidence |
 | --- | --- |
-| Production entry point | `scripts/home_atlas_bluestacks.py` → `command_navigate_building` |
-| Capture binding | `identity_from_captured` + `build_navigate_perception_bundle` / checked navigation inputs on the planning frame; each pan additionally acquires a genuine `navigate-pan-pre-dispatch` capture |
-| Session ownership | Creates and persists one authoritative `NavigationSession`; pans prepare/dispatch/reconcile against it |
+| Committed implementation hash | `e159dd9` (`fix(navigation): close home atlas verified route seams`); integration base `f093812` |
+| Production entry point | `scripts/home_atlas_bluestacks.py` → `command_navigate_building` (CLI `navigate-building`; no separate `command_navigate`) |
+| Actual transport call path | `command_navigate_building` → `_command_navigate_building_body` → `dispatch_verified_navigate_pan` → `CentralPolicy.issue_capability` → `SafeActionExecutor.execute` → seal-gated `runtime.swipe(fresh_capture, …)` → settled capture + `reconcile_pan` → `attach_navigate_terminal_reports` |
+| Planning-frame binding | Planning frame used for disposition / drag geometry only; never used as issuance frame |
+| Final pre-dispatch capture and semantic rebind | `runtime.capture("navigate-pan-pre-dispatch")` + `identity_from_captured` + `bluestacks_frame_validation`; capability issued against that fresh identity |
+| Perception-bundle ownership | Planning: `build_navigate_perception_bundle` + `checked_navigation_inputs`; pre-dispatch binds complete `NativeFrameIdentity` |
+| Session ownership | One `NavigationSession` from `create_session`; prepare / dispatch / reconcile against it |
 | Observability | Terminal `attach_navigate_terminal_reports` → `report_navigation_session` |
-| Calibration | `create_bluestacks_session_calibration` considered after reconciled pans |
-| Radial use | N/A for this pan route |
-| Safe-exit use | N/A for this pan route |
-| Capability issuance / final consumption | `dispatch_verified_navigate_pan` issues against the fresh pre_dispatch observation, then `SafeActionExecutor.execute` consumes; transport swipes that fresh capture only inside the seal-gated callback |
-| Transport boundary | `runtime.swipe` only inside seal-gated executor transport callback; direct bypass fail-closed |
-| Live validation | Seam-closure regression under `.local-captures/home-atlas-seam-closure/`: Bank 1 pan + HQ return 2 pans; `building_opened=false`; each pan `planning digest ≠ pre_dispatch_frame_sha256` |
-| Semantic verification boundary | Settled capture + pan reconciliation distinct from transport confirmation |
-| Action ledger | Per-pan `action_ledger` exposes requested / authorized / dispatched / transport_observed / verified / completed / failed / unresolved |
-| Remaining bypasses | **None for the two Home Atlas readiness findings.** Fresh pre_dispatch capture/rebind and full action-ledger parity are closed as of `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`. |
+| Calibration | `create_bluestacks_session_calibration` consumed by `DirectPanNavigator` / post-pan consideration |
+| Radial semantics | N/A for this pan route |
+| Safe-exit binder | N/A for this pan route |
+| Policy boundary | Route-local `CentralPolicy` allowlist including the navigation task id; no production registration |
+| Capability issuance and final consumption | Issue against fresh pre_dispatch observation; `SafeActionExecutor` consumes one-shot capability; seal token required for transport |
+| Action-ledger states | `navigate_pan_execution_payload` exposes requested / authorized / dispatched / transport_observed / verified / completed / failed / unresolved |
+| Transport-observed boundary | Executor `transport_calls > 0` / seal-gated swipe only |
+| Semantic-verification boundary | Distinct `reconcile_pan` / `semantic_verified` after settled capture; transport success alone is not completion |
+| Recovery boundary | Bounded navigate recovery already owned by the route; no consequential reopen |
+| Exact live validation artifacts and result | `.local-captures/home-atlas-seam-closure/nav-bank/…045343322855Z/` (1 pan) and `…/nav-hq-return/…045441483238Z/` (2 pans); each pan planning digest ≠ `pre_dispatch_frame_sha256`; full action_ledger; `building_opened=false`; observability attached |
+| Remaining direct bypasses | None on the qualifying navigate-building path. Sibling commands (`command_pan`, `command_scan_grid`, `command_open_building`, `command_recover_home`, `command_return_canonical`) still use direct transport but are outside this qualification graph |
+| Qualification verdict | **PASS** for Home Atlas |
 
-### Supply Depot radial
+## Route 2 — Supply Depot
 
 | Field | Evidence |
 | --- | --- |
+| Committed implementation hash | `437a52c` (`fix(navigation): close supply depot verified route seams`); integration base `f523f0f` |
 | Production entry point | `scripts/home_atlas_bluestacks.py` → `command_supply_depot_radial` |
-| Capture binding | Building, radial, and exit each acquire a genuine `*-pre-dispatch` capture; capability issuance and transport use that fresh frame; same-capture `FramePerceptionBundle` at each stage |
-| Session ownership | One authoritative `NavigationSession` for the route lifecycle with prepare/dispatch/reconcile/safe-exit/home-recovered ledger updates |
-| Observability | Terminal `attach_navigate_terminal_reports` → `report_navigation_session` |
+| Actual transport call path | `command_supply_depot_radial` → `dispatch_verified_supply_depot_building_tap` → `dispatch_verified_supply_depot_radial_tap` → `dispatch_verified_supply_depot_exit_tap` (each: fresh pre_dispatch → `CentralPolicy.issue_capability` → `SafeActionExecutor.execute` → seal-gated `runtime.tap`) → Home successor reconcile → `record_home_recovered` → `attach_navigate_terminal_reports` |
+| Planning-frame binding | Planning / immediate-before frames exist per stage; final issuance uses distinct `*-pre-dispatch` captures |
+| Final pre-dispatch capture and semantic rebind | `_acquire_supply_depot_pre_dispatch` for building / radial / exit; live frames `0003`, `0007`, `0011` are distinct native 800×1280 pre-dispatch captures |
+| Perception-bundle ownership | `build_supply_depot_building_perception_bundle`, `build_supply_depot_radial_perception_bundle`, `build_supply_depot_exit_perception_bundle` on the critical path before capability issuance |
+| Session ownership | One `NavigationSession` owns building, radial, safe-exit, and Home recovery; live checkpoint `home_recovered` |
+| Observability | Terminal `attach_navigate_terminal_reports` → `report_navigation_session`; live terminal success with three reconciled ledger entries |
 | Calibration | N/A (non-pan route) |
-| Radial use | Shared radial semantics + same-capture radial perception on the radial step |
-| Safe-exit use | Facility exit runs `build_supply_depot_facility_safe_exit_probe` on the fresh pre_dispatch frame; capability and transport use the binder-selected candidate ROI exactly; fixed-ROI bypass rejected |
-| Capability issuance / final consumption | Building, radial, and exit helpers each issue one-shot capability against the fresh pre_dispatch observation and consume through `SafeActionExecutor` |
-| Transport boundary | `runtime.tap` only inside seal-gated executor transport callbacks; direct bypass fail-closed |
-| Live validation | Seam-closure under `.local-captures/supply-depot-seam-closure/`: navigate-to-Supply-Depot then radial (`building_entry` + `radial_entry` + `safe_exit` confirmed; `supply_depot_radial_and_home_recovered`; distinct pre_dispatch frames; exit ROI equals facility binder back-arrow; zero claims) |
-| Semantic verification boundary | Post-transport captures and successor recognizers distinct from transport; exit accepts high-confidence `ZOOMED_IN` Home after facility leave |
-| Remaining bypasses | **None for the three Supply Depot readiness findings.** Fresh pre_dispatch capture/rebind, binder-selected exit ROI, and same-capture bundles are closed as of `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`. |
+| Radial semantics | `build_supply_depot_radial_semantics` consumed on the production radial path; live `radial_semantics` / `radial_perception_bundle` present |
+| Safe-exit binder consumption | HEAD: `build_supply_depot_facility_safe_exit_probe` → `require_binder_selected_safe_exit_roi` → `reject_fixed_exit_roi_bypass`; `_emit` separates `home_safe_exit_probe` vs facility `safe_exit_binding` and records `exit_target_roi`. **Live retained result does not match that schema** (see blocker) |
+| Policy boundary | Route-local `CentralPolicy` allowlist; `authorize_dispatch=false` on binder; capability is sole dispatch authority |
+| Capability issuance and final consumption | Each stage issues against its fresh pre_dispatch observation and exact rebound ROI; executor consumes one-shot capability |
+| Action-ledger states | `_execution_payload` requested / authorized / dispatched / transport_observed / verified / completed (+ optional pre_dispatch / exit_target fields under HEAD) |
+| Transport-observed boundary | Seal-gated `runtime.tap` only inside executor callbacks |
+| Semantic-verification boundary | Post-transport captures + successor recognizers distinct from transport; exit accepts high-confidence Home after facility leave |
+| Recovery boundary | Bounded Home recovery + post-live zoom recovery dirs; no claim path |
+| Exact live validation artifacts and result | `.local-captures/supply-depot-seam-closure/live-radial/supply-depot-radial-20260720T053642329260Z/`: reason `supply_depot_radial_and_home_recovered`; building/radial/safe_exit all transport_observed+verified+completed; `events.jsonl` exit tap `supply-depot-back-arrow` ROI `[0,0,150,105]`; Home recovered; `daily_free_attempts` remains 9; `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`. Supporting nav under `…/nav-supply-depot/` |
+| Remaining direct bypasses | Committed code closes cached-recapture, fixed-ROI independent authorization, and exterior-close-as-exit on the radial path. **Retained live result still misattributes Home exterior-close as `safe_exit_binding`**, so binder-governed live proof remains open under this review bar |
+| Qualification verdict | **FAIL** for composition (live binder-evidence correspondence) |
 
-### Other routes (unchanged, non-qualifying)
+## Shared architecture qualification
 
-Noah's Tavern and Troop-training return-home remain on route-local recognition and
-direct `NativeRuntimePort` transport without `NavigationSession`, observability,
-shared safe-exit binder, or capability firewall consumption. They do not close
-readiness.
+| Seam | Home Atlas | Supply Depot | Jointly qualifies |
+| --- | --- | --- | --- |
+| Immutable same-capture perception | yes | yes (code + live frames) | no (SD live binder evidence gap) |
+| Complete native-frame identity | yes | yes | yes |
+| Authoritative resumable `NavigationSession` | yes | yes | yes |
+| Navigation observability | yes | yes | yes |
+| Bounded calibration | yes | N/A | yes where applicable |
+| Shared radial semantics | N/A | yes | yes where applicable |
+| Shared BlueStacks safe-exit binding | N/A | code yes / live evidence no | **no** |
+| `CentralPolicy` | yes | yes | yes |
+| `SafeActionExecutor` | yes | yes | yes |
+| One-shot capability issuance and final consumption | yes | yes | yes |
+| Fresh pre-dispatch capture and semantic rebind | yes | yes | yes |
+| Route/session/action/target/profile/frame/geometry binding | yes | yes | yes |
+| Executor-only transport | yes | yes | yes |
+| Separate transport and semantic-verification boundaries | yes | yes | yes |
+| Complete action-ledger and terminal reconciliation | yes | yes (session/SafetyStore); result JSON incomplete vs HEAD | borderline → no for this bar |
+| Bounded recovery | yes | yes | yes |
+| Live reversible validation | yes | partial (transport/Home yes; binder result schema no) | **no** |
+| Fail-closed stale/ambiguous/mixed-capture/unauthorized | yes | yes (offline) | yes offline |
 
-## Exact missing integrations (blocker)
+Two real production routes exist (not wrappers around one route; not test-only reuse). Joint composition readiness still fails on Supply Depot live binder-evidence correspondence.
 
-Home Atlas findings and Supply Depot findings listed in the post-`f093812`/`f523f0f`
-renewed review are **closed**.
+## Exact blocker
 
-Composition remains blocked only until a separate final readiness review confirms
-two real live-validated routes reuse the required architecture without residual
-bypasses and records a PASS decision.
+| Field | Value |
+| --- | --- |
+| Route | Supply Depot radial |
+| Production functions | `command_supply_depot_radial` / `dispatch_verified_supply_depot_exit_tap` / `_emit` |
+| Missing seam | Live-proven facility safe-exit binder selection recorded in artifacts that match committed HEAD (`safe_exit_binding` = `supply-depot-facility-back-arrow`, `exit_target_roi` equals binder-selected and dispatched ROI, early Home probe under `home_safe_exit_probe`, action `pre_dispatch_frame_sha256` fields) |
+| Why it prevents composition | Retained live `radial-result.json` (session `20260720T053642329260Z`, ~00:36 local) predates `437a52c` (~00:44 local) and still presents Home exterior-close as `safe_exit_binding`. Review standard rejects treating non-corresponding live artifacts, or exit ROI coincidence with the legacy constant alone, as binder-governed production reuse proof |
 
-Imports, dormant adapters, test mocks, metadata-only probes, and sealed direct
-transport helpers do not count as readiness. Live transport success alone does
-not waive a final readiness gate.
+## Narrow follow-on
+
+Create and leave ready for separate activation:
+
+`SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`
+
+Objective: one bounded live BlueStacks Supply Depot radial re-validation under current HEAD only, producing result artifacts that match the committed binder evidence schema. No composition implementation. No claims. Expect zero production code change unless the live run exposes a residual reporting bug.
 
 ## Prerequisites for reconsideration
 
-1. Re-run a final readiness review against the closed Home Atlas and Supply Depot
-   production paths (and any other claimed qualifying routes).
-2. Re-run offline focused/adversarial/governance/full-suite gates as required by
-   that review.
-3. Re-run one bounded live reversible validation per touched route when live
-   behavior changes.
-4. Renew this document with a PASS decision only when two real live-validated
-   routes reuse the required architecture without bypasses.
-5. Only then activate `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
-6. Leave `M6-DQ-TRANSITION-CORPUS` unactivated until composition completes under
-   its own backlog authorization.
+1. Complete `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` with retained artifacts matching HEAD.
+2. Renew this document with an explicit PASS only when both routes jointly qualify without residual bypasses.
+3. Only then activate `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
+4. Leave `M6-DQ-TRANSITION-CORPUS` unactivated until composition completes under its own backlog authorization.
+
+## Offline validation (this review)
+
+- Focused: `tests/test_home_atlas_verified_route.py` + `tests/test_supply_depot_verified_route.py` → 48 passed
+- Architecture regressions: perception-bundle, navigation-session, observability, calibration, radial, safe-exit, capability-firewall, SafeActionExecutor, governance → 270 passed
+- Full repository suite → **900 passed, 1 skipped**
+- Governance validation passed; handoff JSON parse OK
+- No live BlueStacks/ADB/game input during this review
+- No push
