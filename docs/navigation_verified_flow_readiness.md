@@ -1,32 +1,27 @@
 # Verified-flow composition readiness review
 
 Review date: 2026-07-20
-Review task: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS`
-Reviewer model: Grok 4.5 High (parent-verified)
+Review task: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` (historical FAIL)
+Renewal evidence: `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE-RENEWAL` under `3255eed`
+Reviewer model: Grok 4.5 High (parent-verified historical FAIL; renewal live evidence added)
 
 ## Decision
 
-**FAIL — COMPOSITION REMAINS BLOCKED**
+**FAIL — COMPOSITION REMAINS BLOCKED** (pending a separate final-readiness review)
 
 Home Atlas navigate-building qualifies on production call graph, offline tests, and
 retained live Bank / Headquarters-return evidence under
 `.local-captures/home-atlas-seam-closure/`.
 
-Supply Depot radial qualifies on committed production code at `437a52c` and on
-offline adversarial tests, and the live session proves navigation-only building
-entry, reversible radial interaction, Home recovery, and exit dispatch ROI
-`(0,0,150,105)` via `events.jsonl`. However, the retained live
-`radial-result.json` was produced about eight minutes before commit `437a52c`
-and does **not** correspond to the committed exit-stage binder evidence schema:
-it records Home exterior-close (`supply-depot-exterior-close-anchor` at
-`[380,580,420,620]`) under `safe_exit_binding`, omits `exit_target_roi` and
-`home_safe_exit_probe`, and omits action-level `pre_dispatch_frame_sha256`
-fields that HEAD would emit. Under this review’s standard, live artifacts that
-do not correspond to the committed implementation cannot close the
-binder-authority seam.
+Supply Depot radial now has HEAD-corresponding live binder evidence under
+`.local-captures/supply-depot-live-binder-evidence-renewal/live-radial/supply-depot-radial-20260720T185203014854Z/`
+at commit `3255eed` (Claim Supply pairing) atop seam closure `437a52c`. That renewal closes
+the prior live binder-evidence correspondence gap for composition prerequisites, but this
+document does **not** flip to overall PASS: composition remains dependency-blocked until a
+separate final-readiness review explicitly re-verdicts both routes jointly.
 
 No composition engine, DSL, generic autonomous runtime, or new route was
-implemented in this review. `M6-DQ-TRANSITION-CORPUS` remains unactivated.
+implemented. `M6-DQ-TRANSITION-CORPUS` remains unactivated.
 Registration remains `NOT_REGISTERED`. Scheduler remains disabled.
 `CONFIRMED_NOT_DISPATCHED` remains `NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
 
@@ -59,38 +54,38 @@ Registration remains `NOT_REGISTERED`. Scheduler remains disabled.
 
 | Field | Evidence |
 | --- | --- |
-| Committed implementation hash | `437a52c` (`fix(navigation): close supply depot verified route seams`); integration base `f523f0f` |
+| Committed implementation hash | `3255eed` (Claim Supply pairing) atop `437a52c` (facility exit binder seams); integration base `f523f0f` |
 | Production entry point | `scripts/home_atlas_bluestacks.py` → `command_supply_depot_radial` |
 | Actual transport call path | `command_supply_depot_radial` → `dispatch_verified_supply_depot_building_tap` → `dispatch_verified_supply_depot_radial_tap` → `dispatch_verified_supply_depot_exit_tap` (each: fresh pre_dispatch → `CentralPolicy.issue_capability` → `SafeActionExecutor.execute` → seal-gated `runtime.tap`) → Home successor reconcile → `record_home_recovered` → `attach_navigate_terminal_reports` |
 | Planning-frame binding | Planning / immediate-before frames exist per stage; final issuance uses distinct `*-pre-dispatch` captures |
-| Final pre-dispatch capture and semantic rebind | `_acquire_supply_depot_pre_dispatch` for building / radial / exit; live frames `0003`, `0007`, `0011` are distinct native 800×1280 pre-dispatch captures |
+| Final pre-dispatch capture and semantic rebind | `_acquire_supply_depot_pre_dispatch` for building / radial / exit; renewal frames `0003`, `0007`, `0011` are distinct native 800×1280 pre-dispatch captures |
 | Perception-bundle ownership | `build_supply_depot_building_perception_bundle`, `build_supply_depot_radial_perception_bundle`, `build_supply_depot_exit_perception_bundle` on the critical path before capability issuance |
-| Session ownership | One `NavigationSession` owns building, radial, safe-exit, and Home recovery; live checkpoint `home_recovered` |
-| Observability | Terminal `attach_navigate_terminal_reports` → `report_navigation_session`; live terminal success with three reconciled ledger entries |
+| Session ownership | One `NavigationSession` owns building, radial, safe-exit, and Home recovery; live checkpoint home recovered |
+| Observability | Terminal `attach_navigate_terminal_reports` → `report_navigation_session`; renewal terminal success with three reconciled ledger entries |
 | Calibration | N/A (non-pan route) |
 | Radial semantics | `build_supply_depot_radial_semantics` consumed on the production radial path; live `radial_semantics` / `radial_perception_bundle` present |
-| Safe-exit binder consumption | HEAD: `build_supply_depot_facility_safe_exit_probe` → `require_binder_selected_safe_exit_roi` → `reject_fixed_exit_roi_bypass`; `_emit` separates `home_safe_exit_probe` vs facility `safe_exit_binding` and records `exit_target_roi`. **Live retained result does not match that schema** (see blocker) |
+| Safe-exit binder consumption | `build_supply_depot_facility_safe_exit_probe` → `require_binder_selected_safe_exit_roi` → `reject_fixed_exit_roi_bypass`; `_emit` separates `home_safe_exit_probe` vs facility `safe_exit_binding` and records `exit_target_roi`. **Renewal live result matches that schema** |
 | Policy boundary | Route-local `CentralPolicy` allowlist; `authorize_dispatch=false` on binder; capability is sole dispatch authority |
 | Capability issuance and final consumption | Each stage issues against its fresh pre_dispatch observation and exact rebound ROI; executor consumes one-shot capability |
-| Action-ledger states | `_execution_payload` requested / authorized / dispatched / transport_observed / verified / completed (+ optional pre_dispatch / exit_target fields under HEAD) |
+| Action-ledger states | `_execution_payload` requested / authorized / dispatched / transport_observed / verified / completed (+ pre_dispatch / exit_target fields) |
 | Transport-observed boundary | Seal-gated `runtime.tap` only inside executor callbacks |
 | Semantic-verification boundary | Post-transport captures + successor recognizers distinct from transport; exit accepts high-confidence Home after facility leave |
 | Recovery boundary | Bounded Home recovery + post-live zoom recovery dirs; no claim path |
-| Exact live validation artifacts and result | `.local-captures/supply-depot-seam-closure/live-radial/supply-depot-radial-20260720T053642329260Z/`: reason `supply_depot_radial_and_home_recovered`; building/radial/safe_exit all transport_observed+verified+completed; `events.jsonl` exit tap `supply-depot-back-arrow` ROI `[0,0,150,105]`; Home recovered; `daily_free_attempts` remains 9; `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`. Supporting nav under `…/nav-supply-depot/` |
-| Remaining direct bypasses | Committed code closes cached-recapture, fixed-ROI independent authorization, and exterior-close-as-exit on the radial path. **Retained live result still misattributes Home exterior-close as `safe_exit_binding`**, so binder-governed live proof remains open under this review bar |
-| Qualification verdict | **FAIL** for composition (live binder-evidence correspondence) |
+| Exact live validation artifacts and result | `.local-captures/supply-depot-live-binder-evidence-renewal/live-radial/supply-depot-radial-20260720T185203014854Z/`: reason `supply_depot_radial_and_home_recovered`; Claim Supply event/SafetyStore/policy ROI `[641,620,729,684]` (old `[555,551,725,657]` absent; live rebind confirms Claim+Supply); facility `safe_exit_binding` candidate `supply-depot-facility-back-arrow` box `[0,0,150,105]` equals `exit_target_roi`, policy `target_roi`, dispatch event ROI, and SafetyStore `target_roi_json`; `home_safe_exit_probe` remains exterior-close `[380,580,420,620]`; building/radial/exit `pre_dispatch_frame_sha256` match SafetyStore `source_frame_sha256` and exit binder `source_frame.semantic_sha256`; all inputs `consequential=false`; `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE` |
+| Remaining direct bypasses | None on the qualifying supply-depot-radial path for binder authority / corrected Claim Supply binding under renewal evidence |
+| Qualification verdict | **PASS** for Supply Depot live binder-evidence correspondence under `3255eed` (composition overall still blocked pending separate final-readiness review) |
 
 ## Shared architecture qualification
 
 | Seam | Home Atlas | Supply Depot | Jointly qualifies |
 | --- | --- | --- | --- |
-| Immutable same-capture perception | yes | yes (code + live frames) | no (SD live binder evidence gap) |
+| Immutable same-capture perception | yes | yes | yes |
 | Complete native-frame identity | yes | yes | yes |
 | Authoritative resumable `NavigationSession` | yes | yes | yes |
 | Navigation observability | yes | yes | yes |
 | Bounded calibration | yes | N/A | yes where applicable |
 | Shared radial semantics | N/A | yes | yes where applicable |
-| Shared BlueStacks safe-exit binding | N/A | code yes / live evidence no | **no** |
+| Shared BlueStacks safe-exit binding | N/A | yes (code + renewal live) | yes |
 | `CentralPolicy` | yes | yes | yes |
 | `SafeActionExecutor` | yes | yes | yes |
 | One-shot capability issuance and final consumption | yes | yes | yes |
@@ -98,58 +93,47 @@ Registration remains `NOT_REGISTERED`. Scheduler remains disabled.
 | Route/session/action/target/profile/frame/geometry binding | yes | yes | yes |
 | Executor-only transport | yes | yes | yes |
 | Separate transport and semantic-verification boundaries | yes | yes | yes |
-| Complete action-ledger and terminal reconciliation | yes | yes (session/SafetyStore); result JSON incomplete vs HEAD | borderline → no for this bar |
+| Complete action-ledger and terminal reconciliation | yes | yes | yes |
 | Bounded recovery | yes | yes | yes |
-| Live reversible validation | yes | partial (transport/Home yes; binder result schema no) | **no** |
-| Fail-closed stale/ambiguous/mixed-capture/unauthorized | yes | yes (offline) | yes offline |
+| Live reversible validation | yes | yes (renewal) | yes |
+| Fail-closed stale/ambiguous/mixed-capture/unauthorized | yes | yes | yes |
 
-Two real production routes exist (not wrappers around one route; not test-only reuse). Joint composition readiness still fails on Supply Depot live binder-evidence correspondence.
+Two real production routes exist. Joint composition readiness evidence now appears complete on the
+prior FAIL seams, but overall decision remains **FAIL / blocked** until a separate final-readiness
+review issues an explicit `PASS — COMPOSITION READY`.
 
-## Exact blocker
+## Exact prior blocker (closed by renewal)
 
 | Field | Value |
 | --- | --- |
 | Route | Supply Depot radial |
-| Production functions | `command_supply_depot_radial` / `dispatch_verified_supply_depot_exit_tap` / `_emit` |
-| Missing seam | Live-proven facility safe-exit binder selection recorded in artifacts that match committed HEAD (`safe_exit_binding` = `supply-depot-facility-back-arrow`, `exit_target_roi` equals binder-selected and dispatched ROI, early Home probe under `home_safe_exit_probe`, action `pre_dispatch_frame_sha256` fields) |
-| Why it prevents composition | Retained live `radial-result.json` (session `20260720T053642329260Z`, ~00:36 local) predates `437a52c` (~00:44 local) and still presents Home exterior-close as `safe_exit_binding`. Review standard rejects treating non-corresponding live artifacts, or exit ROI coincidence with the legacy constant alone, as binder-governed production reuse proof |
+| Prior gap | Live `radial-result.json` predating `437a52c` / Upgrade-ROI contamination `[555,551,725,657]` |
+| Closure | `3255eed` pairing + renewal session `…T185203014854Z` with facility binder + corrected Claim Supply ROI |
+| Remaining gate | Separate final-readiness review before activating `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` |
 
 ## Narrow follow-on
 
-`SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` remains **Blocked**.
+`SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` remains historical **Blocked**.
 
-Live revalidation under HEAD (artifacts under
-`.local-captures/supply-depot-live-binder-evidence/`) did **not** produce facility binder evidence:
+`SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE-RENEWAL` is **Completed** under HEAD `3255eed`.
 
 | Attempt | Session | Outcome |
 | --- | --- | --- |
-| 1 | `live-radial/…T165456489362Z` | Building entry verified; Claim Supply dispatched at `[555,551,725,657]` opened Upgrade panel → `unexpected_successor` / blocked; `home_safe_exit_probe` emitted (packaging OK); facility `safe_exit_binding` / `exit_target_roi` never reached |
-| 2 | `live-radial-2/…T165939763069Z` | Building entry dispatched; fresh radial pre-dispatch fail-closed with `RADIAL_REBIND_FAILED` (no Claim Supply tap); no terminal `radial-result.json` |
-
-**Root cause (binding closure):** attempt-1 radial OCR included building-title `Sup` inside
-`SUPPLY_DEPOT_RADIAL_ROI`. `_claim_supply_roi_from_data` previously unioned every `clai*`/`sup*`
-token, so `Sup` + `Claim` + `Suppl` produced Upgrade-covering `[555,551,725,657]`. Active task
-`SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE` pairs Claim with a nearby Supply token and rejects
-distant building-label contamination. This is **not** a result-packaging bug: HEAD already
-separates `home_safe_exit_probe` from facility `safe_exit_binding`. Renew LIVE-BINDER only after
-the binding closure commit; do not treat the pre-`437a52c` seam-closure session as
-HEAD-corresponding binder evidence.
+| Prior 1 | `…/supply-depot-live-binder-evidence/…T165456489362Z` | Claim Supply `[555,551,725,657]` → Upgrade / blocked |
+| Prior 2 | `…/supply-depot-live-binder-evidence/…T165939763069Z` | `RADIAL_REBIND_FAILED` |
+| Renewal 1 | `…/supply-depot-live-binder-evidence-renewal/…T185203014854Z` | **PASS** — Claim Supply `[641,620,729,684]`; facility exit binder `[0,0,150,105]`; Home recovered + zoom-normalized |
 
 ## Prerequisites for reconsideration
 
-1. Complete `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE`, then renew
-   `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` with retained artifacts matching HEAD
-   (`safe_exit_binding` = `supply-depot-facility-back-arrow`, `exit_target_roi` equals binder and
-   dispatched ROI, `home_safe_exit_probe` isolated, action `pre_dispatch_*` present).
-2. Renew this document with an explicit PASS only when both routes jointly qualify without residual bypasses.
+1. ~~Complete binding closure + renew live binder evidence~~ (**done** under `3255eed` / RENEWAL).
+2. Authorize and complete a separate final-readiness review that rewrites this document with an
+   explicit overall `PASS — COMPOSITION READY` only when both routes jointly qualify without
+   residual bypasses.
 3. Only then activate `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 4. Leave `M6-DQ-TRANSITION-CORPUS` unactivated until composition completes under its own backlog authorization.
 
-## Offline validation (this review)
+## Offline validation (renewal task)
 
-- Focused: `tests/test_home_atlas_verified_route.py` + `tests/test_supply_depot_verified_route.py` → 48 passed
-- Architecture regressions: perception-bundle, navigation-session, observability, calibration, radial, safe-exit, capability-firewall, SafeActionExecutor, governance → 270 passed
-- Full repository suite → **900 passed, 1 skipped**
-- Governance validation passed; handoff JSON parse OK
-- No live BlueStacks/ADB/game input during this review
-- No push
+- Focused: supply-depot vision + verified-route + governance → 57 passed
+- Expected full suite baseline: `903 passed, 1 skipped`
+- Zero claims; registration/scheduler unchanged; `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`

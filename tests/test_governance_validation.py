@@ -24,12 +24,12 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         self.assertEqual(
             state["current_task_id"],
-            "SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE",
+            "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE-RENEWAL",
         )
         self.assertEqual(state["current_task_state"], "completed")
         self.assertEqual(
             state["next_task_id"],
-            "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
+            "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
         )
         self.assertEqual(
             state["next_task_activation_status"],
@@ -85,7 +85,7 @@ class GovernanceValidationTests(unittest.TestCase):
         next_block = validate_governance.task_block(backlog, state["next_task_id"])
         self.assertEqual(
             state["next_task_id"],
-            "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
+            "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
         )
         self.assertIn("Status: Blocked", next_block)
         self.assertIn("M6-DQ-TRANSITION-CORPUS", next_block)
