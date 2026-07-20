@@ -24,16 +24,16 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         self.assertEqual(
             state["current_task_id"],
-            "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS",
+            "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
         )
-        self.assertEqual(state["current_task_state"], "completed")
+        self.assertEqual(state["current_task_state"], "blocked")
         self.assertEqual(
             state["next_task_id"],
-            "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
+            "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
         )
         self.assertEqual(
             state["next_task_activation_status"],
-            "ready",
+            "dependency_blocked",
         )
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
 
@@ -85,18 +85,11 @@ class GovernanceValidationTests(unittest.TestCase):
         next_block = validate_governance.task_block(backlog, state["next_task_id"])
         self.assertEqual(
             state["next_task_id"],
-            "SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE",
-        )
-        self.assertIn("Status: Pending", next_block)
-        self.assertIn("RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION", backlog)
-        self.assertIn("M6-DQ-TRANSITION-CORPUS", backlog)
-        self.assertNotEqual(state["current_task_id"], state["next_task_id"])
-        composition = validate_governance.task_block(
-            backlog,
             "RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION",
         )
-        self.assertIn("Status: Blocked", composition)
-        self.assertIn("M6-DQ-TRANSITION-CORPUS", composition)
+        self.assertIn("Status: Blocked", next_block)
+        self.assertIn("M6-DQ-TRANSITION-CORPUS", next_block)
+        self.assertNotEqual(state["current_task_id"], state["next_task_id"])
         validate_governance.validate_successor(backlog, state)
         validate_governance.validate_repository(ROOT)
 

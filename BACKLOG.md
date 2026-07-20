@@ -3777,7 +3777,16 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE
 - Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`.
 - Title: Re-validate live Supply Depot binder evidence against committed HEAD result schema.
-- Status: Pending (2026-07-20; ready for separate activation after FINAL-READINESS FAIL; no push).
+- Status: Blocked (2026-07-20; live revalidation under HEAD failed to produce facility binder
+  evidence without a Claim Supply ROI-binding change; attempt 1
+  `supply-depot-radial-20260720T165456489362Z` dispatched Claim Supply at `[555,551,725,657]` and
+  opened the Upgrade panel → `unexpected_successor` / blocked; attempt 2
+  `supply-depot-radial-20260720T165939763069Z` fail-closed with `RADIAL_REBIND_FAILED` (no Claim
+  Supply tap); packaging emits `home_safe_exit_probe` and would emit facility
+  `safe_exit_binding`/`exit_target_roi`/`pre_dispatch_*` on a successful exit stage — not a
+  reporting bug; artifacts retained under `.local-captures/supply-depot-live-binder-evidence/`;
+  runtime recovered to recognized `fully_zoomed_out` Home; zero claims; composition remains
+  dependency-blocked; M6 unactivated; no push).
 - Milestone: Durable offline navigation architecture roadmap; composition-readiness prerequisite.
 - Dependencies: completed `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` (`437a52c`), completed
   `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` FAIL record in
@@ -3873,14 +3882,16 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   Home Atlas remains intact; registration/scheduler unchanged; `CONFIRMED_NOT_DISPATCHED` still
   unavailable; composition remains blocked until readiness is renewed with PASS; M6 unactivated;
   commit created locally without push.
-- Next: renew `docs/navigation_verified_flow_readiness.md` / composition readiness before activating
-  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`; leave `M6-DQ-TRANSITION-CORPUS` unactivated.
+- Next: authorize a separate Claim Supply ROI-binding/framing fix before renewing this live
+  binder-evidence task; leave `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` dependency-blocked;
+  leave `M6-DQ-TRANSITION-CORPUS` unactivated.
 
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.
 - Title: Narrow declarative verified-flow composition over existing navigation contracts.
-- Status: Blocked (2026-07-20; FINAL-READINESS recorded FAIL — COMPOSITION REMAINS BLOCKED; waiting
-  on `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` then renewed PASS).
+- Status: Blocked (2026-07-20; FINAL-READINESS FAIL retained; LIVE-BINDER-EVIDENCE also Blocked —
+  Claim Supply ROI/Upgrade successor and RADIAL_REBIND_FAILED; waiting on resolved binder-evidence
+  then renewed PASS).
 - Milestone: Durable offline navigation architecture roadmap.
 - Dependencies: `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, completed shared roadmap contracts for
   perception/session/radial/safe-exit/capability reuse, existing `NavigationStep` /
@@ -3890,8 +3901,9 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` with PASS, and completed
   `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` when required by the FAIL record.
 - Blocked by: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` FAIL on Supply Depot
-  live binder-evidence correspondence; pending
-  `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE`. See
+  live binder-evidence correspondence; blocked
+  `SUPPLY-DEPOT-VERIFIED-ROUTE-LIVE-BINDER-EVIDENCE` (Claim Supply dynamic ROI opened Upgrade /
+  RADIAL_REBIND_FAILED; facility exit binder live proof still missing). See
   `docs/navigation_verified_flow_readiness.md`. No broad DSL or generic autonomous runtime is
   authorized.
 - Objective: after a positive readiness review, extend existing `NavigationStep`, `NavigationRunner`,
