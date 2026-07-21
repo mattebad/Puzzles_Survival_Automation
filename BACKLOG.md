@@ -5657,11 +5657,112 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### GF-MVP-008-NOVA-NAVIGATION-ROUTE-MIGRATION
 - Task ID: `GF-MVP-008-NOVA-NAVIGATION-ROUTE-MIGRATION`.
 - Title: Migrate the no-Praise Nova navigation round trip.
-- Status: Ready; declared Milestone A successor, not yet active.
-- Scope: selectively admit only Home-to-Research-Lab, radial provenance, Nova Lab recognition, and
-  verified safe return using frozen GF-MVP-005 action/replay and GF-MVP-004 Home interfaces.
-- Authority: accepted branch-admission map; no Praise, live input, queue activation, or shared action
-  interface edits.
+- Status: Completed (2026-07-21; navigation-only Home→Research Lab→proven radial→Nova Lab→verified
+  Home route implemented; direct Praise paths require the frozen centralized boundary; retained
+  radial evidence is tracked; no runtime input occurred).
+- Milestone: Gameplay Flow Factory Milestone A.
+- Dependencies: completed `GF-MVP-007-NAMED-SCENARIO-FAILURE-ACCOUNTING` at `188ebd0`; frozen
+  GF-MVP-005 action/replay interfaces; GF-MVP-004 Home driver; branch navigation commits
+  `0d97ca51`, `162b6544`, and `2a0c1c43`.
+- Blocked by: None for offline migration; full round-trip replay remains evidence-required until the
+  GF-MVP-009 live canary and GF-MVP-010 conversion.
+- Objective: selectively admit only the no-Praise Nova navigation round trip while leaving
+  consequential policy/journal/replay semantics unchanged.
+- Established facts: prior route could directly Praise and used generic Back; radial recognition
+  lacked fresh Research Lab tap provenance; branch contains retained radial fixtures; current
+  production Home driver and pnsctl scenario are committed.
+- Direct implementation files: `tasks/nova_praise_vision.py`,
+  `scripts/nova_praise_bluestacks.py`, `scripts/pnsctl.py`,
+  `tasks/gameplay_flow_contracts/NOVA-PRAISE-HOME-ATLAS-MIGRATION.json`,
+  `tests/fixtures/nova_praise_preflight/**`,
+  `tests/fixtures/nova_praise_replay/manifest.json`,
+  `tests/test_nova_navigation_canary.py`, `tests/test_bluestacks_integrated_routes.py`,
+  `tests/test_flow_delivery_evidence_integrity.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, and
+  `tasks/backlog_task_index.json`.
+- Shared dependencies: frozen NovaPraiseActionBoundary, BlueStacksLocalizeFirstHomeDriver,
+  LocalBlueStacksRuntime freshness/duplicate guard, Nova runtime controller, scenario accounting,
+  retained native radial evidence, and pnsctl fixed command.
+- Transitive regression set: Nova vision/runtime/pulse/replay/central boundary, Home driver,
+  BlueStacks integrated routes, pnsctl/evidence/scenario, governance/context, and full suite.
+- Allowed changes: only navigation-owned files/symbols/regions and listed fixtures/tests; per-commit
+  allowed paths are exactly those surfaces; shared action/replay interfaces are read-only.
+- Prohibited changes: Nova consequential boundary, Praise policy/planning/postcondition/journal/
+  reconciliation/disposable replay persistence, retained `6 -> 5` action replay, queue activation,
+  live input, production registration/scheduler, generic popup cleanup, plan edits, or branch
+  merge/cherry-pick/rebase/squash/amend.
+- Authorized runtime action: None; fake runtime records navigation ordering only.
+- Maximum transport inputs: Zero real inputs; synthetic controller tests record bounded in-memory
+  navigation calls only.
+- Navigation-only recovery: code supports bounded zoom plan, Home pan, current-frame Lab/Nova taps,
+  and recognized safe Back return; every input path captures immediate-post and settled successors.
+- Consequential action: Forbidden; adapter/legacy route cannot Praise without centralized boundary,
+  and the canary route never references the Praise target as an input.
+- Registration changes: None; pnsctl reports `NOT_REGISTERED`.
+- Scheduler changes: None.
+- Actions that must not be repeated: retained Praise, radial acquisition, Campaign/Ultimate attempts,
+  or any BlueStacks/ADB/Bliss action.
+- Required source: branch-owned navigation diffs/fixtures, current Home driver, current Nova
+  recognizer/runtime, frozen action interface, v2 contract, and named scenario.
+- Exact target semantics: verified Home; safe current-frame Research Lab binding; fresh post-Lab
+  radial tied to exact Lab tap; fresh current-frame Nova target; Nova Lab recognized; bounded known
+  return states; terminal Home localized; no Praise.
+- Required local association: source/successor frame hashes and times, Research Lab binding/action
+  key/ROI, provenance freshness, radial geometry/OCR, Nova target, exact navigation action order,
+  terminal Home localization, and scenario identity.
+- Negative controls: OCR-only radial, missing/stale/wrong provenance, ambiguous geometry, unbound
+  Nova, unknown return source, direct Praise adapter, route without central boundary, repeated/
+  exhausted Home recovery, and any consequential input.
+- Coordinate space: raw native 800×1280 tracked/retained frames and current-frame bound ROIs only.
+- Accepted signals: tracked radial recognizes only with fresh Lab provenance; controller orders Lab
+  tap, Nova tap, safe Back; every call is nonconsequential and followed by captures; terminal Home
+  is verified; `praise_taps` remains zero.
+- Rejected weak signals: OCR alone, stale radial topology, projected target, generic Back from
+  unknown state, transport success, or synthetic controller test as live evidence.
+- Ambiguous-result behavior: block with exact reason and no further input.
+- Zero-cost requirement: no gameplay resource or consequential action.
+- Quantity limits: bounded Home steps, zoom inputs, and return inputs; no Praise; one named canary.
+- Resource consumption policy: none.
+- Premium or strategic restrictions: all premium/consequential behavior remains prohibited.
+- Active evidence manifest: None; copied fixtures are immutable retained test evidence, not new live
+  task evidence.
+- Required artifacts: navigation route, radial provenance recognizer, tracked branch fixtures,
+  pnsctl runner binding, controller/retained tests, regenerated index, and green full suite.
+- Immediate-before/immediate-post/result/journal: route code captures these around each navigation
+  input and writes substantive result/ledger/audit/journal during later live execution; none created now.
+- Additional task-specific artifacts: `tests/fixtures/nova_praise_preflight/manifest.json` and PNGs.
+- Focused tests: `tests.test_nova_navigation_canary`, `tests.test_nova_praise`,
+  `tests.test_bluestacks_integrated_routes`, `tests.test_nova_praise_centralized_boundary`,
+  `tests.test_flow_delivery_evidence_integrity`, `tests.test_gameplay_flow_contracts`, and
+  `tests.test_flow_scenario_attempts`.
+- Integration tests: retained radial provenance; synthetic controller ordering as non-evidence;
+  pnsctl verified-identity runner binding; frozen central-boundary enforcement.
+- Transitive regression tests: Home/NavigationSession, Nova production replay, governance/context,
+  and full suite.
+- Full-suite requirement: authoritative `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: retained fixture hashes, Python compile, focused tests, production replay, governance,
+  `git diff --check`, full suite, and clean attributable Git status.
+- Known baseline failures: None; prior task passed 1,099 tests with one expected skip.
+- Evidence requirement: NOT_APPLICABLE — offline route migration reuses retained fixtures and creates
+  no new gameplay evidence.
+- Valid blocked outcomes: retained radial does not validate, frozen action interface conflict,
+  route orders Praise/consequential input, or any touched/full-suite regression.
+- Blocked-result commit policy: preserve branch/fixtures/frozen interfaces and exact blocker; do not
+  weaken provenance or use live input; no push.
+- Commit policy: one reviewed conventional commit; stage only allowed paths; no push unless
+  explicitly authorized.
+- Expected focused commits: `feat(flow-factory): migrate Nova navigation canary`.
+- Completion criteria: route is no-Praise and uses shared Home; radial requires provenance; Nova Lab
+  and terminal Home are recognized; pnsctl runner resolves; action boundary stays frozen; available
+  segments are retained while full route remains evidence-required; focused/full tests pass; one commit.
+
+### GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY
+- Task ID: `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`.
+- Title: Run the supervised Nova navigation-only live canary.
+- Status: Ready; separately authorized by the Milestone A execution request, not yet active.
+- Scope: one serial `nova_navigation_round_trip_no_praise` BlueStacks execution through pnsctl;
+  no Praise or consequential action.
+- Authority: accepted plan and explicit user authorization for GF-MVP-009 only; all stop conditions,
+  one-attempt budget, evidence, and runtime ownership rules remain mandatory.
 
 
 

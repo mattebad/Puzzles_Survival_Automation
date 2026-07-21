@@ -324,9 +324,9 @@
     {
       "fixture_id": "research_lab_radial_menu",
       "status": "available",
-      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193425268615Z/frames/0001-step-001-source.png",
-      "sha256": "6a946d2f0d3a8ac278fe98efec5f69c623ea9d4838ad184430132f2f1a17ddda",
-      "notes": "Native Research Lab radial menu with distinct Nova and Bioenhancer controls."
+      "path": "tests/fixtures/nova_praise_preflight/research-lab-radial-07f3d826.png",
+      "sha256": "07f3d8267d7a19384e4064e6439f0f655536d5a86fe41dff9897fca766ee88bd",
+      "notes": "Tracked native Research Lab radial with preceding current-frame Research Lab tap provenance."
     },
     {
       "fixture_id": "nova_lab",

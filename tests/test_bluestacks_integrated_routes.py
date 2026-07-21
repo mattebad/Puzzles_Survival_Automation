@@ -233,7 +233,7 @@ class IntegratedRouteTests(unittest.TestCase):
         self.assertEqual(len([item for item in runtime.taps if item[1].get("consequential")]), 1)
         self.assertTrue(runtime.backs)
 
-    def test_nova_route_uses_controller_and_verifies_exact_decrement(self):
+    def test_nova_route_cannot_bypass_centralized_action_boundary(self):
         runtime = FakeRuntime()
         base = dict(
             research_lab_identity=True,
@@ -256,10 +256,11 @@ class IntegratedRouteTests(unittest.TestCase):
         ))
         route = NovaPraiseIntegratedRoute(runtime, recognizer=lambda *_args, **_kwargs: next(recognitions), post_input_delay=0, postcondition_timeout=1)
         outcome = route.run()
-        self.assertEqual(outcome.status, "completed")
-        self.assertEqual(outcome.actions_completed, 1)
-        self.assertEqual(runtime.reconciliations[0][1], "confirmed")
-        self.assertEqual(len([item for item in runtime.taps if item[1].get("consequential")]), 1)
+        self.assertEqual(outcome.status, "blocked")
+        self.assertEqual(outcome.reason, "centralized_action_boundary_required")
+        self.assertEqual(outcome.actions_completed, 0)
+        self.assertEqual(runtime.reconciliations, [])
+        self.assertEqual(len([item for item in runtime.taps if item[1].get("consequential")]), 0)
 
     def test_ruins_route_executes_controller_chain_and_reconciles_failure(self):
         runtime = FakeRuntime()

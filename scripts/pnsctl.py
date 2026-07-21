@@ -1040,7 +1040,55 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
             },
             sort_keys=True,
         )
-    return runner(args, identity)
+    route_result = json.loads(runner(args, identity))
+    input_count = int(route_result.get("navigation_input_count", 0))
+    status = str(route_result.get("status") or "blocked")
+    if status == "completed":
+        record = ScenarioAttemptRecord(
+            NOVA_CANARY_SCENARIO_ID,
+            ScenarioPhase.EXECUTION,
+            ScenarioOutcome.COMPLETED,
+            candidate_commit,
+            input_count,
+            "navigation_only",
+            True,
+            "verified_safe_return_home",
+            evidence_refs=(str(route_result.get("session_directory") or ""),),
+            terminal_ownership_state="released",
+        )
+    else:
+        reason = str(route_result.get("reason") or "navigation_route_blocked")
+        if input_count == 0:
+            phase = ScenarioPhase.PRE_INPUT
+            input_class = "none"
+            consumes = False
+            failure_class = ScenarioFailureClass.INITIAL_RECOGNITION
+        else:
+            phase = ScenarioPhase.EXECUTION
+            input_class = "navigation_only"
+            consumes = True
+            failure_class = (
+                ScenarioFailureClass.SCREEN_RECOGNITION
+                if "radial" in reason or "nova" in reason
+                else ScenarioFailureClass.SHARED_NAVIGATION
+                if "home" in reason or "zoom" in reason or "pan" in reason
+                else ScenarioFailureClass.TASK_NAVIGATION
+            )
+        record = ScenarioAttemptRecord(
+            NOVA_CANARY_SCENARIO_ID,
+            phase,
+            ScenarioOutcome.BLOCKED,
+            candidate_commit,
+            input_count,
+            input_class,
+            consumes,
+            reason,
+            failure_class=failure_class,
+            evidence_refs=(str(route_result.get("session_directory") or ""),),
+            terminal_ownership_state="released",
+        )
+    route_result["scenario_record"] = record.to_mapping()
+    return json.dumps(route_result, sort_keys=True)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -1089,6 +1137,9 @@ def parser() -> argparse.ArgumentParser:
     nova_pulse.add_argument("--identity-evidence", type=Path)
     nova_pulse.add_argument("--owner")
     nova_pulse.add_argument("--invocation-id")
+    nova_pulse.add_argument("--adb", type=Path, default=BLUESTACKS_ADB)
+    nova_pulse.add_argument("--serial", default=BLUESTACKS_SERIAL)
+    nova_pulse.add_argument("--settle-seconds", type=float, default=1.0)
     nova_pulse.add_argument(
         "--output-directory",
         type=Path,

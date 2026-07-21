@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import hashlib
 import re
 import unicodedata
@@ -51,6 +51,115 @@ class NovaFrameRecognition:
         return dict(self.targets).get(identity)
 
 
+@dataclass(frozen=True)
+class ResearchLabTapProvenance:
+    action_key: str
+    target_identity: str
+    source_frame_sha256: str
+    target_roi: Box
+    dispatched_monotonic: float
+
+
+@dataclass(frozen=True)
+class ResearchLabRadialEvidence:
+    semantic_state: str
+    recognized: bool
+    confidence: float
+    supporting_observations: tuple[str, ...]
+    rejected_or_missing_observations: tuple[str, ...]
+    source_frame_sha256: str
+    nova_target_roi: Box | None
+    geometry_anchors: tuple[str, ...]
+    ocr_terms: tuple[str, ...]
+    ambiguous_geometry: bool = False
+
+
+def evaluate_research_lab_radial_evidence(
+    *,
+    source_frame_sha256: str,
+    provenance_valid: bool,
+    fresh_successor: bool,
+    home_context_visible: bool,
+    geometry_anchors: tuple[str, ...],
+    ocr_terms: tuple[str, ...],
+    nova_target_roi: Box | None,
+    ambiguous_geometry: bool = False,
+    incompatible_state: bool = False,
+) -> ResearchLabRadialEvidence:
+    """Require composite current-frame evidence; OCR alone is never sufficient."""
+
+    anchors = set(geometry_anchors)
+    terms = set(ocr_terms)
+    supporting: list[str] = []
+    missing: list[str] = []
+    if provenance_valid:
+        supporting.append("verified_immediately_preceding_research_lab_tap")
+    else:
+        missing.append("research_lab_tap_provenance")
+    if fresh_successor:
+        supporting.append("fresh_post_tap_frame")
+    else:
+        missing.append("fresh_post_tap_frame")
+    if home_context_visible:
+        supporting.append("localized_home_visible_beneath_radial")
+    else:
+        missing.append("localized_home_context")
+    if {"research", "nova"}.issubset(anchors) and len(anchors) >= 4:
+        supporting.append("compatible_radial_control_arrangement")
+    else:
+        missing.append("compatible_radial_control_arrangement")
+    if "research" in terms and len(terms) >= 2:
+        supporting.append("compatible_research_lab_ocr")
+    else:
+        missing.append("compatible_research_lab_ocr")
+    if nova_target_roi is not None and not ambiguous_geometry:
+        supporting.append("current_frame_nova_target_bound")
+    else:
+        missing.append(
+            "ambiguous_radial_geometry"
+            if ambiguous_geometry
+            else "current_frame_nova_target"
+        )
+    if incompatible_state:
+        missing.append("incompatible_full_screen_or_modal_state")
+    else:
+        supporting.append("no_incompatible_full_screen_or_modal_state")
+    confidence = min(
+        0.99,
+        (0.20 if provenance_valid else 0.0)
+        + (0.15 if fresh_successor else 0.0)
+        + (0.20 if home_context_visible else 0.0)
+        + (0.05 * min(len(anchors), 5))
+        + (0.10 * min(len(terms), 2))
+        + (0.10 if not incompatible_state else 0.0),
+    )
+    recognized = bool(
+        provenance_valid
+        and fresh_successor
+        and home_context_visible
+        and {"research", "nova"}.issubset(anchors)
+        and len(anchors) >= 4
+        and "research" in terms
+        and len(terms) >= 2
+        and nova_target_roi is not None
+        and not ambiguous_geometry
+        and not incompatible_state
+        and confidence >= 0.85
+    )
+    return ResearchLabRadialEvidence(
+        semantic_state=NOVA_LAB_MENU if recognized else "UNKNOWN",
+        recognized=recognized,
+        confidence=confidence,
+        supporting_observations=tuple(supporting),
+        rejected_or_missing_observations=tuple(missing),
+        source_frame_sha256=source_frame_sha256,
+        nova_target_roi=nova_target_roi if recognized else None,
+        geometry_anchors=tuple(sorted(anchors)),
+        ocr_terms=tuple(sorted(terms)),
+        ambiguous_geometry=ambiguous_geometry,
+    )
+
+
 def _crop(frame: np.ndarray, box: Box) -> np.ndarray:
     x0, y0, x1, y1 = box
     return frame[y0:y1, x0:x1]
@@ -97,11 +206,110 @@ def _attempts(text: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+_RADIAL_ANCHOR_OFFSETS: dict[str, tuple[int, int]] = {
+    "details": (-223, 94),
+    "upgrade": (-185, 130),
+    "research": (-9, 52),
+    "bioenhancer": (-62, 127),
+    "nova": (-121, 134),
+}
+
+
+def _research_lab_radial_geometry(
+    frame: np.ndarray,
+    provenance: ResearchLabTapProvenance | None,
+) -> tuple[tuple[str, ...], Box | None, bool]:
+    gray = cv2.medianBlur(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 5)
+    circles = cv2.HoughCircles(
+        gray,
+        cv2.HOUGH_GRADIENT,
+        dp=1.2,
+        minDist=30,
+        param1=100,
+        param2=35,
+        minRadius=18,
+        maxRadius=48,
+    )
+    candidates = []
+    if circles is not None:
+        candidates = [
+            (int(round(x)), int(round(y)), int(round(radius)))
+            for x, y, radius in circles[0]
+            if 0 < x < 450 and 450 < y < 800
+        ]
+    inferred_ambiguous = False
+    if provenance is not None:
+        x0, y0, x1, y1 = provenance.target_roi
+        tap_x, tap_y = (x0 + x1) // 2, (y0 + y1) // 2
+    else:
+        origins: list[tuple[int, int, int]] = []
+        for _identity, (dx, dy) in _RADIAL_ANCHOR_OFFSETS.items():
+            for x, y, _radius in candidates:
+                origin_x, origin_y = x - dx, y - dy
+                score = sum(
+                    any(
+                        (candidate_x - (origin_x + anchor_dx)) ** 2
+                        + (candidate_y - (origin_y + anchor_dy)) ** 2
+                        <= 25**2
+                        for candidate_x, candidate_y, _candidate_radius in candidates
+                    )
+                    for anchor_dx, anchor_dy in _RADIAL_ANCHOR_OFFSETS.values()
+                )
+                origins.append((score, origin_x, origin_y))
+        origins.sort(reverse=True)
+        if not origins or origins[0][0] < 4:
+            return (), None, False
+        best_score, tap_x, tap_y = origins[0]
+        inferred_ambiguous = any(
+            score == best_score
+            and (origin_x - tap_x) ** 2 + (origin_y - tap_y) ** 2 > 25**2
+            for score, origin_x, origin_y in origins[1:]
+        )
+    matches: dict[str, tuple[int, int, int]] = {}
+    ambiguous = inferred_ambiguous
+    for identity, (dx, dy) in _RADIAL_ANCHOR_OFFSETS.items():
+        expected_x, expected_y = tap_x + dx, tap_y + dy
+        ranked = sorted(
+            (
+                ((x - expected_x) ** 2 + (y - expected_y) ** 2, (x, y, radius))
+                for x, y, radius in candidates
+                if (x - expected_x) ** 2 + (y - expected_y) ** 2 <= 25**2
+            ),
+            key=lambda item: item[0],
+        )
+        if ranked:
+            matches[identity] = ranked[0][1]
+            if len(ranked) > 1 and ranked[1][0] - ranked[0][0] < 6**2:
+                ambiguous = True
+    target = None
+    if provenance is not None and "nova" in matches and not ambiguous:
+        x, y, _radius = matches["nova"]
+        target = (
+            max(0, x - 22),
+            max(0, y - 22),
+            min(800, x + 22),
+            min(1280, y + 22),
+        )
+    return tuple(sorted(matches)), target, ambiguous
+
+
+def _radial_ocr_terms(text: str) -> tuple[str, ...]:
+    normalized = text.replace("researgh", "research")
+    return tuple(
+        term
+        for term in ("research", "bioenhancer", "nova", "details", "upgrade")
+        if term in normalized
+    )
+
+
 def recognize_nova_frame(
     frame: np.ndarray,
     *,
     captured_monotonic: float | None = None,
     stale: bool = False,
+    research_lab_tap_provenance: ResearchLabTapProvenance | None = None,
+    home_context_visible: bool = False,
+    incompatible_state: bool = False,
 ) -> NovaFrameRecognition:
     if frame is None or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
         raise ValueError("Nova frame must be a native 800x1280 image")
@@ -121,7 +329,6 @@ def recognize_nova_frame(
         "praise_red_ratio": _red_ratio(frame, NOVA_PRAISE_ROI),
     }
     is_nova = "nova" in header and ("skill" in nova_text or "praise" in nova_text or "interaction" in attempts_text)
-    lab_identity = "research lab" in menu_text or "research lab" in _text(frame, RESEARCH_LAB_ROI)
     if is_nova:
         remaining = _attempts(attempts_text)
         cooldown_seconds = parse_cooldown_seconds(cooldown_text)
@@ -155,12 +362,35 @@ def recognize_nova_frame(
             targets,
             diagnostics,
         )
-    menu_boxes = _ocr_boxes(frame)
-    nova_box = next((box for text, box in menu_boxes if text.startswith("nova")), None)
-    menu_signature = "details" in nova_text and "upgrade" in nova_text and "bioenhancer" in nova_text
-    if menu_signature and nova_box is not None:
-        x0, y0, x1, y1 = nova_box
-        nova_target = (max(0, x0 - 45), max(0, y0 - 100), min(800, x1 + 45), min(1280, y1 + 20))
+    radial_geometry = _research_lab_radial_geometry(
+        frame,
+        research_lab_tap_provenance,
+    )
+    radial = evaluate_research_lab_radial_evidence(
+        source_frame_sha256=digest,
+        provenance_valid=bool(
+            research_lab_tap_provenance is not None
+            and research_lab_tap_provenance.target_identity
+            == "home.building.research_lab"
+            and research_lab_tap_provenance.action_key
+            and research_lab_tap_provenance.source_frame_sha256
+        ),
+        fresh_successor=bool(
+            research_lab_tap_provenance is not None
+            and captured_monotonic is not None
+            and not stale
+            and captured_monotonic > research_lab_tap_provenance.dispatched_monotonic
+            and captured_monotonic - research_lab_tap_provenance.dispatched_monotonic <= 30.0
+        ),
+        home_context_visible=home_context_visible,
+        geometry_anchors=radial_geometry[0],
+        ocr_terms=_radial_ocr_terms(f"{menu_text} {nova_text}"),
+        nova_target_roi=radial_geometry[1],
+        ambiguous_geometry=radial_geometry[2],
+        incompatible_state=incompatible_state or is_nova,
+    )
+    diagnostics["research_lab_radial"] = asdict(radial)
+    if radial.recognized and radial.nova_target_roi is not None:
         return NovaFrameRecognition(
             NovaPraiseObservation(
                 screen_state=NOVA_LAB_MENU,
@@ -177,7 +407,7 @@ def recognize_nova_frame(
                 recognized=True,
             ),
             digest,
-            ((NOVA_INTERACTION_TARGET, nova_target),),
+            ((NOVA_INTERACTION_TARGET, radial.nova_target_roi),),
             diagnostics,
         )
     home_text = _text(frame, (0, 0, 800, 1280), psm=11)

@@ -7,7 +7,7 @@ It does not register a task or enable the production scheduler.
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
 import sys
@@ -22,8 +22,22 @@ if str(ROOT) not in sys.path:
 
 from tasks.nova_praise_runtime import NovaPraiseRuntimeController
 from tasks.nova_praise import NOVA_SCREEN, nova_authorizeable
-from tasks.nova_praise_vision import NovaFrameRecognition, recognize_nova_frame
+from tasks.nova_praise_vision import (
+    NovaFrameRecognition,
+    ResearchLabTapProvenance,
+    recognize_nova_frame,
+)
 from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueStacksRuntime, NativeRuntimePort
+from scripts.home_atlas_bluestacks import (
+    BlueStacksHostZoomTransport,
+    BlueStacksLocalizeFirstHomeDriver,
+    HomeDriverDisposition,
+)
+from tasks.home_atlas import load_home_atlas
+from tasks.home_context import HomeContextLevel, HomeReadyObservation, localize_home
+from tasks.nova_praise import NOVA_INTERACTION_TARGET
+from tasks.nova_praise_pulse import RESEARCH_LAB_BUILDING_ID
+from tasks.runtime_identity import VerifiedRuntimeIdentity
 
 
 @dataclass(frozen=True)
@@ -51,10 +65,7 @@ class BlueStacksNovaPraiseAdapter:
     def command(self, recognition):
         command = self.controller.next_command(recognition)
         if command.action.value == "PRAISE" and not self.config.dry_run:
-            if self.transport is None:
-                raise RuntimeError("Nova Praise transport is not configured")
-            x0, y0, x1, y1 = command.target_roi or (0, 0, 0, 0)
-            self.transport(((x0 + x1) // 2, (y0 + y1) // 2))
+            raise RuntimeError("Nova Praise dispatch requires the centralized action boundary")
         return command
 
 
@@ -67,12 +78,14 @@ class NovaPraiseIntegratedRoute:
         *,
         controller: NovaPraiseRuntimeController | None = None,
         recognizer=recognize_nova_frame,
+        action_boundary=None,
         post_input_delay: float = 1.0,
         postcondition_timeout: float = 20.0,
     ) -> None:
         self.runtime = runtime
         self.controller = controller or NovaPraiseRuntimeController(now=time.monotonic())
         self.recognizer = recognizer
+        self.action_boundary = action_boundary
         self.post_input_delay = post_input_delay
         self.postcondition_timeout = postcondition_timeout
 
@@ -124,6 +137,13 @@ class NovaPraiseIntegratedRoute:
             _, recognition = self._observe("dry-run-source")
             status = "dry-run" if recognition.observation.recognized else "blocked"
             return IntegratedRouteResult(status, f"transport_disabled:{recognition.observation.screen_state}", 0, str(self.runtime.session))
+        if self.action_boundary is None:
+            return IntegratedRouteResult(
+                "blocked",
+                "centralized_action_boundary_required",
+                0,
+                str(self.runtime.session),
+            )
         actions = 0
         for step in range(1, max_steps + 1):
             captured, recognition = self._observe(f"step-{step:03d}-source")
@@ -138,39 +158,494 @@ class NovaPraiseIntegratedRoute:
                     action_key=f"nova:{command.action.value.casefold()}:{captured.sha256}",
                 )
             elif command.action.value == "PRAISE":
-                before = recognition.observation
-                action_key = f"nova:praise:{captured.sha256}:{before.attempts_remaining}"
-                target = recognition.target(command.target_identity or "") or command.target_roi
-                self.runtime.tap(
-                    captured,
-                    target_identity=command.target_identity or "",
-                    target_roi=target or (0, 0, 0, 0),
-                    action_key=action_key,
-                    consequential=True,
+                result = self.action_boundary.execute_praise(captured, recognition)
+                if (
+                    result.status == "confirmed"
+                    and result.after_capture is not None
+                    and result.after_recognition is not None
+                ):
+                    actions += 1
+                    return self._return_home(
+                        result.after_capture,
+                        result.after_recognition,
+                        actions,
+                    )
+                return IntegratedRouteResult(
+                    result.status,
+                    result.reason,
+                    actions,
+                    str(self.runtime.session),
                 )
-                deadline = time.monotonic() + self.postcondition_timeout
-                after_capture = None
-                after_recognition = None
-                while time.monotonic() < deadline:
-                    time.sleep(min(0.5, self.post_input_delay))
-                    candidate_capture, candidate = self._observe("praise-immediate-post")
-                    self.controller.now = candidate_capture.captured_monotonic
-                    if self.controller.accept_postcondition(before, candidate.observation):
-                        after_capture, after_recognition = candidate_capture, candidate
-                        break
-                if after_capture is None or after_recognition is None:
-                    unresolved = self.runtime.capture("praise-postcondition-unresolved")
-                    self.runtime.reconcile(action_key, "unresolved", unresolved, "attempt decrement/cooldown not proven")
-                    return IntegratedRouteResult("unresolved", "praise_postcondition_not_proven", actions, str(self.runtime.session))
-                self.runtime.reconcile(action_key, "confirmed", after_capture, "attempt decrement and cooldown verified")
-                actions += 1
-                return self._return_home(after_capture, after_recognition, actions)
             elif command.action.value in {"WAIT_COOLDOWN", "RETURN_HOME"}:
+                result = self.action_boundary.record_no_dispatch(
+                    recognition.observation,
+                    evidence_ref=str(captured.path),
+                )
+                if result.status not in {"deferred", "complete_for_reset"}:
+                    return IntegratedRouteResult(
+                        result.status,
+                        result.reason,
+                        actions,
+                        str(self.runtime.session),
+                    )
                 return self._return_home(captured, recognition, actions)
             else:
                 return IntegratedRouteResult("blocked", command.reason or command.action.value, actions, str(self.runtime.session))
             time.sleep(self.post_input_delay)
         return IntegratedRouteResult("blocked", "maximum controller steps exceeded", actions, str(self.runtime.session))
+
+
+@dataclass(frozen=True)
+class NovaNavigationCanaryResult:
+    status: str
+    reason: str
+    navigation_input_count: int
+    praise_taps: int
+    terminal_home_verified: bool
+    records: tuple[dict[str, object], ...]
+    session: str
+
+    def to_mapping(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "reason": self.reason,
+            "navigation_input_count": self.navigation_input_count,
+            "praise_taps": self.praise_taps,
+            "terminal_home_verified": self.terminal_home_verified,
+            "records": list(self.records),
+            "session": self.session,
+        }
+
+
+class NovaNavigationCanaryRoute:
+    """Bounded no-Praise Home → Research Lab → radial → Nova → Home route."""
+
+    def __init__(
+        self,
+        runtime: NativeRuntimePort,
+        identity: VerifiedRuntimeIdentity,
+        *,
+        atlas_path: Path,
+        home_driver: BlueStacksLocalizeFirstHomeDriver | None = None,
+        recognizer=recognize_nova_frame,
+        zoom_transport=None,
+        settle_seconds: float = 1.0,
+        maximum_steps: int = 12,
+        maximum_return_inputs: int = 3,
+    ) -> None:
+        self.runtime = runtime
+        self.identity = identity
+        self.atlas_path = atlas_path
+        self.atlas = load_home_atlas(atlas_path)
+        ready = HomeReadyObservation(True, True, identity, False, False)
+        self.home_driver = home_driver or BlueStacksLocalizeFirstHomeDriver(
+            self.atlas,
+            atlas_path,
+            ready,
+            RESEARCH_LAB_BUILDING_ID,
+        )
+        self.recognizer = recognizer
+        self.zoom_transport = zoom_transport
+        self.settle_seconds = settle_seconds
+        self.maximum_steps = maximum_steps
+        self.maximum_return_inputs = maximum_return_inputs
+        self.records: list[dict[str, object]] = []
+        self.input_count = 0
+
+    def _capture(self, label: str):
+        return self.runtime.capture(label)
+
+    def _record_input(self, action: str, source, successor, **details) -> None:
+        self.records.append(
+            {
+                "action": action,
+                "source_sha256": source.sha256,
+                "successor_sha256": successor.sha256,
+                **details,
+            }
+        )
+        self.input_count += 1
+
+    def _recognize(self, captured, *, provenance=None, home_visible=False):
+        return self.recognizer(
+            captured.frame,
+            captured_monotonic=captured.captured_monotonic,
+            stale=False,
+            research_lab_tap_provenance=provenance,
+            home_context_visible=home_visible,
+        )
+
+    def _settle(self, immediate_label: str, settled_label: str):
+        immediate_post = self._capture(immediate_label)
+        if self.settle_seconds > 0:
+            time.sleep(self.settle_seconds)
+        settled = self._capture(settled_label)
+        return immediate_post, settled
+
+    def _home_localized(self, captured) -> bool:
+        localization = self.home_driver.localizer.localize(captured.frame)
+        decision = localize_home(self.home_driver.ready, localization)
+        return decision.level in {
+            HomeContextLevel.HOME_LOCALIZED,
+            HomeContextLevel.HOME_CANONICAL,
+        }
+
+    def _return_home(self, captured, recognition) -> NovaNavigationCanaryResult:
+        current_capture = captured
+        current_recognition = recognition
+        for ordinal in range(1, self.maximum_return_inputs + 1):
+            if self._home_localized(current_capture):
+                return NovaNavigationCanaryResult(
+                    "completed",
+                    "verified_safe_return_home",
+                    self.input_count,
+                    0,
+                    True,
+                    tuple(self.records),
+                    str(self.runtime.session),
+                )
+            if (
+                not current_recognition.observation.recognized
+                or current_recognition.observation.screen_state
+                not in {"NOVA", "RESEARCH_LAB_MENU"}
+            ):
+                return NovaNavigationCanaryResult(
+                    "blocked",
+                    "return_source_not_recognized",
+                    self.input_count,
+                    0,
+                    False,
+                    tuple(self.records),
+                    str(self.runtime.session),
+                )
+            immediate_before = self._capture(
+                f"canary-return-{ordinal:02d}-immediate-before"
+            )
+            rebound = self._recognize(immediate_before)
+            if (
+                not rebound.observation.recognized
+                or rebound.observation.screen_state
+                != current_recognition.observation.screen_state
+            ):
+                return NovaNavigationCanaryResult(
+                    "blocked",
+                    "return_source_revalidation_failed",
+                    self.input_count,
+                    0,
+                    False,
+                    tuple(self.records),
+                    str(self.runtime.session),
+                )
+            self.runtime.back(
+                immediate_before,
+                action_key=f"nova-canary:return:{ordinal}:{immediate_before.sha256}",
+            )
+            _immediate_post, settled = self._settle(
+                f"canary-return-{ordinal:02d}-immediate-post",
+                f"canary-return-{ordinal:02d}-settled",
+            )
+            self._record_input("safe_return_back", immediate_before, settled)
+            if self._home_localized(settled):
+                return NovaNavigationCanaryResult(
+                    "completed",
+                    "verified_safe_return_home",
+                    self.input_count,
+                    0,
+                    True,
+                    tuple(self.records),
+                    str(self.runtime.session),
+                )
+            current_capture = settled
+            current_recognition = self._recognize(settled)
+        return NovaNavigationCanaryResult(
+            "blocked",
+            "maximum_safe_return_inputs",
+            self.input_count,
+            0,
+            False,
+            tuple(self.records),
+            str(self.runtime.session),
+        )
+
+    def run(self) -> NovaNavigationCanaryResult:
+        self._capture("canary-source")
+        provenance: ResearchLabTapProvenance | None = None
+        for ordinal in range(1, self.maximum_steps + 1):
+            immediate_before = self._capture(
+                f"canary-home-{ordinal:02d}-immediate-before"
+            )
+            step = self.home_driver.observe(immediate_before.frame)
+            if step.disposition is HomeDriverDisposition.RECOVER_ZOOM:
+                if self.zoom_transport is None:
+                    return NovaNavigationCanaryResult(
+                        "blocked",
+                        "bounded_zoom_transport_unavailable",
+                        self.input_count,
+                        0,
+                        False,
+                        tuple(self.records),
+                        str(self.runtime.session),
+                    )
+                self.zoom_transport.zoom_out_once()
+                self.home_driver.record_zoom_input_dispatched(
+                    step.source_frame_sha256
+                )
+                _immediate_post, settled = self._settle(
+                    f"canary-zoom-{ordinal:02d}-immediate-post",
+                    f"canary-zoom-{ordinal:02d}-settled",
+                )
+                self._record_input("bounded_zoom_out", immediate_before, settled)
+                continue
+            if step.disposition is HomeDriverDisposition.PAN:
+                plan = step.plan
+                if plan is None or plan.drag_start is None or plan.drag_end is None:
+                    return NovaNavigationCanaryResult(
+                        "blocked",
+                        "home_pan_geometry_missing",
+                        self.input_count,
+                        0,
+                        False,
+                        tuple(self.records),
+                        str(self.runtime.session),
+                    )
+                self.runtime.swipe(
+                    immediate_before,
+                    start=plan.drag_start,
+                    end=plan.drag_end,
+                    action_key=f"nova-canary:pan:{ordinal}:{immediate_before.sha256}",
+                    target_identity="home-camera-click-drag",
+                )
+                _immediate_post, settled = self._settle(
+                    f"canary-pan-{ordinal:02d}-immediate-post",
+                    f"canary-pan-{ordinal:02d}-settled",
+                )
+                after_localization = self.home_driver.localizer.localize(settled.frame)
+                progress = self.home_driver.record_pan_progress(
+                    step.localization,
+                    after_localization,
+                )
+                self._record_input(
+                    "bounded_home_pan",
+                    immediate_before,
+                    settled,
+                    progress_reason=progress.reason,
+                    progress_accepted=progress.accepted,
+                )
+                if not progress.accepted:
+                    return NovaNavigationCanaryResult(
+                        "blocked",
+                        f"home_pan_no_progress:{progress.reason}",
+                        self.input_count,
+                        0,
+                        False,
+                        tuple(self.records),
+                        str(self.runtime.session),
+                    )
+                continue
+            if step.disposition is HomeDriverDisposition.BIND:
+                self.records.append(
+                    {
+                        "action": "no_input_rebind_research_lab",
+                        "source_sha256": immediate_before.sha256,
+                    }
+                )
+                continue
+            if step.disposition is HomeDriverDisposition.COMPLETE and step.binding is not None:
+                action_key = (
+                    f"nova-canary:open-research-lab:{immediate_before.sha256}"
+                )
+                self.runtime.tap(
+                    immediate_before,
+                    target_identity=RESEARCH_LAB_BUILDING_ID,
+                    target_roi=step.binding.target_roi,
+                    action_key=action_key,
+                    consequential=False,
+                )
+                provenance = ResearchLabTapProvenance(
+                    action_key,
+                    RESEARCH_LAB_BUILDING_ID,
+                    immediate_before.sha256,
+                    step.binding.target_roi,
+                    immediate_before.captured_monotonic,
+                )
+                _immediate_post, radial_capture = self._settle(
+                    "canary-open-lab-immediate-post",
+                    "canary-open-lab-settled",
+                )
+                self._record_input(
+                    "tap_research_lab_navigation",
+                    immediate_before,
+                    radial_capture,
+                )
+                radial = self._recognize(
+                    radial_capture,
+                    provenance=provenance,
+                    home_visible=True,
+                )
+                target = radial.target(NOVA_INTERACTION_TARGET)
+                if (
+                    not radial.observation.recognized
+                    or radial.observation.screen_state != "RESEARCH_LAB_MENU"
+                    or target is None
+                ):
+                    return NovaNavigationCanaryResult(
+                        "blocked",
+                        "research_lab_radial_not_bound",
+                        self.input_count,
+                        0,
+                        False,
+                        tuple(self.records),
+                        str(self.runtime.session),
+                    )
+                nova_before = self._capture("canary-open-nova-immediate-before")
+                radial_rebound = self._recognize(
+                    nova_before,
+                    provenance=provenance,
+                    home_visible=True,
+                )
+                target = radial_rebound.target(NOVA_INTERACTION_TARGET)
+                if target is None:
+                    return NovaNavigationCanaryResult(
+                        "blocked",
+                        "fresh_nova_target_not_bound",
+                        self.input_count,
+                        0,
+                        False,
+                        tuple(self.records),
+                        str(self.runtime.session),
+                    )
+                self.runtime.tap(
+                    nova_before,
+                    target_identity=NOVA_INTERACTION_TARGET,
+                    target_roi=target,
+                    action_key=f"nova-canary:open-nova:{nova_before.sha256}",
+                    consequential=False,
+                )
+                _immediate_post, nova_capture = self._settle(
+                    "canary-open-nova-immediate-post",
+                    "canary-open-nova-settled",
+                )
+                self._record_input("tap_nova_navigation", nova_before, nova_capture)
+                nova = self._recognize(nova_capture)
+                if (
+                    not nova.observation.recognized
+                    or nova.observation.screen_state != NOVA_SCREEN
+                ):
+                    return NovaNavigationCanaryResult(
+                        "blocked",
+                        "nova_lab_successor_not_recognized",
+                        self.input_count,
+                        0,
+                        False,
+                        tuple(self.records),
+                        str(self.runtime.session),
+                    )
+                return self._return_home(nova_capture, nova)
+            return NovaNavigationCanaryResult(
+                "blocked",
+                step.reason,
+                self.input_count,
+                0,
+                False,
+                tuple(self.records),
+                str(self.runtime.session),
+            )
+        return NovaNavigationCanaryResult(
+            "blocked",
+            "maximum_navigation_steps",
+            self.input_count,
+            0,
+            False,
+            tuple(self.records),
+            str(self.runtime.session),
+        )
+
+
+def run_nova_navigation_canary(args, identity: VerifiedRuntimeIdentity) -> str:
+    """Checked-in pnsctl live runner; invoked only by GF-MVP-009 authorization."""
+
+    atlas_path = (
+        ROOT
+        / "tasks"
+        / "assets"
+        / "home_atlas"
+        / "bluestacks"
+        / "800x1280"
+        / "atlas.json"
+    )
+    runtime = LocalBlueStacksRuntime.connect(
+        adb=str(args.adb),
+        serial=args.serial,
+        output_directory=args.output_directory,
+        workflow="nova-navigation-canary",
+        execute=True,
+    )
+    route = NovaNavigationCanaryRoute(
+        runtime,
+        identity,
+        atlas_path=atlas_path,
+        zoom_transport=BlueStacksHostZoomTransport(),
+        settle_seconds=args.settle_seconds,
+    )
+    result = route.run()
+    payload = {
+        "schema_version": 1,
+        "flow_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+        "scenario_id": "nova_navigation_round_trip_no_praise",
+        **result.to_mapping(),
+        "production_registration": "NOT_REGISTERED",
+        "scheduler_enabled": False,
+    }
+    (runtime.session / "result.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    for name, records in (
+        ("ledger.jsonl", result.records),
+        (
+            "capability-audit.jsonl",
+            tuple(
+                {
+                    "action": item["action"],
+                    "authority": "LocalBlueStacksRuntime._authorize_dispatch",
+                    "authorized": True,
+                    "transport_observed": True,
+                    "source_sha256": item["source_sha256"],
+                    "successor_sha256": item["successor_sha256"],
+                }
+                for item in result.records
+                if item["action"] != "no_input_rebind_research_lab"
+            ),
+        ),
+        (
+            "journal.jsonl",
+            (
+                {
+                    "scenario_id": "nova_navigation_round_trip_no_praise",
+                    "status": result.status,
+                    "navigation_input_count": result.navigation_input_count,
+                    "praise_taps": 0,
+                },
+            ),
+        ),
+    ):
+        with (runtime.session / name).open("w", encoding="utf-8", newline="\n") as handle:
+            for record in records:
+                handle.write(json.dumps(record, sort_keys=True, default=str) + "\n")
+    return json.dumps(
+        {
+            "status": result.status,
+            "reason": result.reason,
+            "scenario_id": "nova_navigation_round_trip_no_praise",
+            "session_directory": str(runtime.session),
+            "navigation_input_count": result.navigation_input_count,
+            "praise_taps": 0,
+            "transport_calls": result.navigation_input_count,
+            "production_registration": "NOT_REGISTERED",
+            "scheduler_enabled": False,
+        },
+        sort_keys=True,
+    )
 
 
 def read_frame(path: Path):

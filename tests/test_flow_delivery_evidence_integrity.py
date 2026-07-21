@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from scripts import pnsctl
 from scripts.flow_delivery_evidence import (
@@ -115,7 +116,7 @@ class NovaPnsctlBoundaryTests(unittest.TestCase):
         )
         self.assertFalse(result["scenario_record"]["consumes_execution_budget"])
 
-    def test_verified_identity_still_fails_pre_input_until_navigation_route_lands(self) -> None:
+    def test_verified_identity_is_passed_only_to_checked_in_navigation_runner(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             evidence = Path(directory) / "identity.json"
             evidence.write_text(
@@ -148,14 +149,24 @@ class NovaPnsctlBoundaryTests(unittest.TestCase):
                     str(evidence),
                 ]
             )
-            result = json.loads(pnsctl.nova_praise_pulse_live(args))
-            self.assertEqual(result["status"], "blocked")
-            self.assertEqual(result["reason"], "NOVA_NAVIGATION_ROUTE_NOT_INTEGRATED")
-            self.assertFalse(result["runtime_connected"])
-            self.assertEqual(
-                result["scenario_record"]["failure_class"],
-                "executable_registration",
-            )
+            with patch(
+                "scripts.nova_praise_bluestacks.run_nova_navigation_canary",
+                return_value=json.dumps(
+                    {
+                        "status": "completed",
+                        "scenario_id": "nova_navigation_round_trip_no_praise",
+                        "transport_calls": 3,
+                        "navigation_input_count": 3,
+                        "praise_taps": 0,
+                    }
+                ),
+            ) as runner:
+                result = json.loads(pnsctl.nova_praise_pulse_live(args))
+            runner.assert_called_once()
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["praise_taps"], 0)
+            self.assertEqual(result["scenario_record"]["phase"], "execution")
+            self.assertTrue(result["scenario_record"]["consumes_execution_budget"])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "id": "research-lab-radial-07f3d826",
+      "path": "research-lab-radial-07f3d826.png",
+      "file_sha256": "07f3d8267d7a19384e4064e6439f0f655536d5a86fe41dff9897fca766ee88bd",
+      "native_dimensions": [
+        800,
+        1280
+      ],
+      "array_sha256": "ff3f9e88600f22d9765250f31d652d5b1453891c789e6795903aab98991965ae",
+      "source_session": ".local-captures/nova-praise-supervised/nova-praise-centralized-20260721T200017973026Z",
+      "source_capture": "frames/0003-preflight-open-lab-settled.png",
+      "preceding_action": {
+        "action_key": "nova-preflight:open-lab:3adf6ff83acbc2ae8c6422b3778ab28af2fa62b969b8220fc26763cc5a096deb",
+        "consequential": false,
+        "source_sha256": "3adf6ff83acbc2ae8c6422b3778ab28af2fa62b969b8220fc26763cc5a096deb",
+        "target_identity": "home.building.research_lab",
+        "target_roi": [
+          198,
+          407,
+          363,
+          632
+        ],
+        "tap_point": [
+          280,
+          519
+        ]
+      },
+      "derived_geometry": {
+        "method": "Hough circles relative to preceding verified Research Lab tap point",
+        "full_frame_only": true,
+        "nova_expected_center_offset": [
+          -121,
+          134
+        ],
+        "source_frame_digest": "07f3d8267d7a19384e4064e6439f0f655536d5a86fe41dff9897fca766ee88bd"
+      }
+    },
+    {
+      "id": "stale-radial-translated-dff2386b",
+      "path": "stale-radial-translated-dff2386b.png",
+      "file_sha256": "dff2386b41e9a9f08dc67932db8ab100e3e427bb11c681a3436c3a9a0c4886e9",
+      "native_dimensions": [
+        800,
+        1280
+      ],
+      "array_sha256": "f0a3b3ffc500d615ae285633132b4b4873f3e33070b7c0c34c5e56c6497a18e3",
+      "source_session": ".local-captures/nova-praise-supervised/nova-praise-centralized-20260721T202843509184Z",
+      "source_capture": "frames/0001-supervised-preflight-source.png",
+      "current_session_preceding_action": null,
+      "semantic_provenance": {
+        "state": "stale Research Lab radial carried across sessions",
+        "actionable_radial": false,
+        "authorized_recovery": "one verified Back followed by clean Home recognition"
+      },
+      "derived_geometry": {
+        "method": "translation-invariant radial-circle topology plus Home context and radial OCR",
+        "full_frame_only": true,
+        "source_frame_digest": "dff2386b41e9a9f08dc67932db8ab100e3e427bb11c681a3436c3a9a0c4886e9"
+      }
+    },
+    {
+      "id": "post-stale-radial-back-exit-dialog-f15b73cc",
+      "path": "post-stale-radial-back-f15b73cc.png",
+      "file_sha256": "f15b73ccc2b9da5bb260599e9c988de9aaf7260197cbd240090e93e35e827f85",
+      "native_dimensions": [
+        800,
+        1280
+      ],
+      "array_sha256": "96f68634e95b60439c64de4ecc67d36efcf8ad778d20def19385c102e2c7d9c8",
+      "source_session": ".local-captures/nova-praise-supervised/nova-praise-centralized-20260721T205948763513Z",
+      "source_capture": "frames/0002-preflight-safe-exit-settled.png",
+      "preceding_action": {
+        "action": "android_back",
+        "semantic_source": "UNPROVEN_RESEARCH_LAB_RADIAL_OVERLAY",
+        "consequential": false,
+        "successor": "EXIT_GAME_DIALOG"
+      },
+      "semantic_provenance": {
+        "state": "known recoverable in-game exit dialog",
+        "authorized_recovery": "bind and tap Cancel, then recapture"
+      }
+    },
+    {
+      "id": "fresh-radial-076741e5",
+      "path": "fresh-radial-076741e5.png",
+      "file_sha256": "076741e5121a2d011d5a623d81358ad0110b053ebea7c752e0235c7d93e16e55",
+      "native_dimensions": [
+        800,
+        1280
+      ],
+      "array_sha256": "6df482a39c4a81f4ead1557259a87b469fca6e3b7bbf4eb07959c91330235c75",
+      "source_session": ".local-captures/nova-praise-supervised/nova-praise-centralized-20260721T211415509791Z",
+      "source_capture": "frames/0003-preflight-safe-exit-settled.png",
+      "preceding_action": {
+        "action": "refresh_research_lab_radial",
+        "source_sha256": "8ac54d15c9d2e2efa9aab38189c22cc90bf22a0b9915d247522eecd43ffd2f8c",
+        "target_identity": "home.building.research_lab",
+        "consequential": false
+      },
+      "semantic_provenance": {
+        "state": "fresh Research Lab radial",
+        "nova_target_bound": false,
+        "required_next_step": "fresh recapture for current-frame Nova binding"
+      }
+    },
+    {
+      "id": "fresh-radial-nova-bound-ea6fd89e",
+      "path": "radial-expired-before-nova-ea6fd89e.png",
+      "file_sha256": "ea6fd89e9dae862adf965a44fffe15e83653ed84234754f18419d4ac712487cb",
+      "native_dimensions": [
+        800,
+        1280
+      ],
+      "array_sha256": "54cf0189e862decfa166d18f13d90ac019c8df738fb19b4c055424e28fda39c9",
+      "source_session": ".local-captures/nova-praise-supervised/nova-praise-centralized-20260721T211415509791Z",
+      "source_capture": "frames/0004-preflight-open-nova-immediate-before.png",
+      "preceding_action": {
+        "action": "refresh_research_lab_radial",
+        "source_sha256": "8ac54d15c9d2e2efa9aab38189c22cc90bf22a0b9915d247522eecd43ffd2f8c",
+        "target_identity": "home.building.research_lab",
+        "consequential": false
+      },
+      "semantic_provenance": {
+        "state": "fresh Research Lab radial",
+        "nova_target_bound": true,
+        "nova_target_roi": [
+          226,
+          640,
+          270,
+          684
+        ]
+      }
+    },
+    {
+      "id": "fresh-radial-bound-ffe3dd52",
+      "path": "fresh-radial-ffe3dd52.png",
+      "file_sha256": "ffe3dd52c27198ec9739f73a984584791025904b38743a5e69283ead53ff85b7",
+      "native_dimensions": [
+        800,
+        1280
+      ],
+      "array_sha256": "8e1e5a80c09c79c4232a83e815a7d53d0459bc10c0dc1ae775b87edb8aeb65e4",
+      "source_session": ".local-captures/nova-praise-supervised/nova-praise-centralized-20260721T213020358110Z",
+      "source_capture": "frames/0002-preflight-safe-exit-settled.png",
+      "semantic_provenance": {
+        "state": "fresh Research Lab radial",
+        "research_lab_target_roi": [
+          246,
+          504,
+          290,
+          548
+        ],
+        "nova_target_roi": [
+          236,
+          640,
+          280,
+          684
+        ]
+      }
+    },
+    {
+      "id": "fresh-radial-unbound-bca7d5ae",
+      "path": "fresh-radial-unbound-bca7d5ae.png",
+      "file_sha256": "bca7d5ae8773e7edab398ae9f833aaed69fe6dc6f964980983319ba9500b62d8",
+      "native_dimensions": [
+        800,
+        1280
+      ],
+      "array_sha256": "a49056eb33c6970c9082cdb6e79341b8641cb714ea7097e595fc4f78be64bdc4",
+      "source_session": ".local-captures/nova-praise-supervised/nova-praise-centralized-20260721T213020358110Z",
+      "source_capture": "frames/0003-preflight-open-nova-immediate-before.png",
+      "semantic_provenance": {
+        "state": "fresh Research Lab radial",
+        "research_lab_target_roi": [
+          246,
+          504,
+          290,
+          548
+        ],
+        "nova_target_bound": false,
+        "recovery": "bounded recapture without input"
+      }
+    }
+  ]
+}
