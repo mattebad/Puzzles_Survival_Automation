@@ -425,9 +425,17 @@ class ControllerHardeningTests(unittest.TestCase):
     ) -> str:
         self.acquire(controller)
         queue = json.loads(controller.queue_path.read_text(encoding="utf-8"))
+        # Real queue may already have an active flow; demote so fixtures stay singular.
+        for item in queue["flows"]:
+            if item["status"] == "active":
+                item["status"] = "ready"
+                item["last_completed_stage"] = "selected"
         flow = queue["flows"][0]
         flow["status"] = "active"
         flow["last_completed_stage"] = stage
+        flow["live_attempt_count"] = 0
+        flow["live_attempts"] = []
+        flow["blocked_reason"] = ""
         queue["active_flow_id"] = flow["flow_id"]
         controller.queue_path.write_text(json.dumps(queue) + "\n", encoding="utf-8")
         lease = json.loads(controller.lease_path.read_text(encoding="utf-8"))
@@ -832,8 +840,15 @@ class BlueStacksRegistryHardeningTests(unittest.TestCase):
         campaign = flows["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]
         self.assertEqual(campaign["consequence_class"], "navigation_only")
         self.assertEqual(campaign["runner"], "campaign_navigation_only_runner")
+        self.assertIn("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION", flows)
+        ultimate = flows["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]
+        self.assertEqual(ultimate["consequence_class"], "navigation_only")
         self.assertEqual(
-            set(flows) - {"CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"},
+            set(flows)
+            - {
+                "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+                "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+            },
             set(),
         )
 

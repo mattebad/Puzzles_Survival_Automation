@@ -6,7 +6,9 @@
     "contracted_not_implemented",
     "preserved_existing_behavior_separate_from_destination_verification",
     "explicit_allowlist",
-    "not_applicable_to_this_flow"
+    "not_applicable_to_this_flow",
+    "offline_navigation_contract_implemented",
+    "offline_contract_implemented"
   ],
   "flows": {
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
@@ -27,11 +29,11 @@
     },
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
       "objective": "ultimate_challenge_daily",
-      "campaign_entry_state": "contracted_not_implemented",
-      "ultimate_challenge_navigation_state": "contracted_not_implemented",
+      "campaign_entry_state": "offline_navigation_contract_implemented",
+      "ultimate_challenge_navigation_state": "offline_navigation_contract_implemented",
       "daily_execution_state": "contracted_not_implemented",
-      "already_completed_detection_state": "contracted_not_implemented",
-      "reset_idempotency_state": "contracted_not_implemented",
+      "already_completed_detection_state": "offline_contract_implemented",
+      "reset_idempotency_state": "offline_contract_implemented",
       "campaign_ap_coverage": "not_applicable_to_this_flow",
       "supported_story_destinations": []
     }

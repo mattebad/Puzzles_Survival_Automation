@@ -8,6 +8,12 @@
       "evidence_validator": "campaign_navigation_only_evidence",
       "recovery_handler": "campaign_navigation_only_recovery",
       "consequence_class": "navigation_only"
+    },
+    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
+      "runner": "ultimate_challenge_navigation_only_runner",
+      "evidence_validator": "ultimate_challenge_navigation_only_evidence",
+      "recovery_handler": "ultimate_challenge_navigation_only_recovery",
+      "consequence_class": "navigation_only"
     }
   }
 }

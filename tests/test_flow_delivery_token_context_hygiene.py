@@ -95,7 +95,7 @@ class ReadyFlowMetadataTests(unittest.TestCase):
         self.assertNotIn("1-2-9", campaign["supported_story_destinations"])
         self.assertNotIn("ultimate-challenge", campaign["supported_story_destinations"])
         self.assertEqual(ultimate["flow_id"], ULTIMATE_ID)
-        self.assertEqual(ultimate["status"], "ready")
+        self.assertIn(ultimate["status"], {"ready", "active"})
         self.assertEqual(ultimate["priority"], 15)
         self.assertIn("already_completed", ultimate["required_terminal_states"])
         self.assertIn("no Campaign AP coupling", " ".join(ultimate["scope_prohibitions"]))
@@ -428,7 +428,7 @@ class InvariantTests(unittest.TestCase):
         if queue["active_flow_id"] is None:
             self.assertEqual(state["first_ready_flow"], CAMPAIGN_ID)
         else:
-            self.assertEqual(queue["active_flow_id"], CAMPAIGN_ID)
+            self.assertIn(queue["active_flow_id"], {CAMPAIGN_ID, ULTIMATE_ID})
 
 
 if __name__ == "__main__":

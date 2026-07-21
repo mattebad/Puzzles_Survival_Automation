@@ -207,11 +207,19 @@
       "title": "Integrate Ultimate Challenge daily task with BlueStacks",
       "kind": "daily_challenge_integration",
       "priority": 15,
-      "status": "ready",
+      "status": "blocked",
       "backlog_task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
-        "scripts/home_atlas_bluestacks.py"
+        "scripts/home_atlas_bluestacks.py",
+        "scripts/bluestacks_ultimate_challenge.py",
+        "scripts/flow_delivery_ultimate_challenge_bluestacks.py",
+        "scripts/pnsctl.py",
+        "tasks/ultimate_challenge_daily.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/flow_delivery_coverage.json",
+        "docs/flow_delivery_coverage.md",
+        "CURRENT_HANDOFF.md"
       ],
       "navigation_model": "canonical_home_atlas_to_campaign_ultimate_challenge_entry",
       "requires_bluestacks_live": true,
@@ -223,16 +231,19 @@
       "live_attempts": [],
       "focused_tests": [
         "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_home_atlas_verified_route.py"
+        "tests/test_home_atlas_verified_route.py",
+        "tests/test_ultimate_challenge_daily.py",
+        "tests/test_flow_delivery_ide_native_hardening.py",
+        "tests/test_flow_delivery_token_context_hygiene.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "navigation_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "",
+      "blocked_reason": "Parent stopped delivery loop: Ultimate Challenge not ready to finish (offline WIP retained; no live path this session).",
       "next_concrete_action": "Implement Home Atlas Campaign entry and verified Ultimate Challenge navigation without embedding it in Campaign AP destination parsing.",
-      "last_completed_stage": null,
+      "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
       "acceptance_criteria": [

@@ -42,11 +42,14 @@ Flow: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`
 
 | Coverage field | State |
 | --- | --- |
-| `campaign_entry_state` | contracted, not implemented |
-| `ultimate_challenge_navigation_state` | contracted, not implemented |
+| `campaign_entry_state` | offline navigation contract implemented (Home Atlas Campaign door reuse) |
+| `ultimate_challenge_navigation_state` | offline navigation contract implemented (entry bind; no challenge action) |
 | `daily_execution_state` | contracted, not implemented |
-| `already_completed_detection_state` | contracted, not implemented |
-| `reset_idempotency_state` | contracted, not implemented |
+| `already_completed_detection_state` | offline contract implemented |
+| `reset_idempotency_state` | offline contract implemented (one-success-per-reset) |
 
 This flow is separate from ordinary Campaign AP expenditure. Completing Campaign AP does not
 complete Ultimate Challenge, and completing Ultimate Challenge does not complete Campaign AP.
+Navigation-only validation opens Campaign via Home Atlas `home.building.campaign` and verifies
+the Ultimate Challenge entry control; it never routes UC through Campaign story destination
+parsing.

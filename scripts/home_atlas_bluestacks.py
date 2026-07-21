@@ -2903,6 +2903,32 @@ def dispatch_verified_campaign_home_building_tap(
     return issued, result, pre_observation, telemetry
 
 
+def run_verified_ultimate_challenge_campaign_door(
+    runtime: LocalBlueStacksRuntime,
+    *,
+    atlas_path: Path | None = None,
+    maximum_pans: int = 4,
+    execute: bool = False,
+    settle_seconds: float = 1.0,
+    semantic_opened_check: Callable[[np.ndarray], bool] | None = None,
+) -> dict[str, object]:
+    """Open Campaign via Home Atlas for Ultimate Challenge navigation-only.
+
+    Ultimate Challenge must enter Campaign only through ``home.building.campaign``.
+    Never route UC through Campaign story destination parsing
+    (``1-20-9`` / ``1-15-9`` / ``2-2-9`` or ``ultimate-challenge`` as a destination).
+    """
+
+    return run_verified_campaign_home_atlas_entry(
+        runtime,
+        atlas_path=atlas_path,
+        maximum_pans=maximum_pans,
+        execute=execute,
+        settle_seconds=settle_seconds,
+        semantic_opened_check=semantic_opened_check,
+    )
+
+
 def run_verified_campaign_home_atlas_entry(
     runtime: LocalBlueStacksRuntime,
     *,

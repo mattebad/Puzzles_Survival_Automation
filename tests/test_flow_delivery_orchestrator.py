@@ -54,10 +54,14 @@ class FlowDeliveryQueueTests(unittest.TestCase):
     def test_deterministic_selection_and_active_resume(self) -> None:
         controller = control.FlowDeliveryController()
         first = controller.select_next(self.queue)
-        self.assertEqual(
-            first["flow_id"],
-            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-        )
+        # Active flow resumes when present (UC during this delivery); otherwise Campaign.
+        if self.queue.get("active_flow_id"):
+            self.assertEqual(first["flow_id"], self.queue["active_flow_id"])
+        else:
+            self.assertEqual(
+                first["flow_id"],
+                "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+            )
         active = deepcopy(self.queue)
         for flow in active["flows"]:
             if flow["status"] == "active":
@@ -115,8 +119,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             for status in control.QUEUE_STATUSES
         }
         self.assertIn(counts["active"], (0, 1))
-        self.assertEqual(counts["ready"], 9 - counts["active"])
-        self.assertEqual(counts["blocked"], 2)
+        # Campaign + two Daily claim flows are blocked; remaining ready/active cohort is 8.
+        self.assertEqual(counts["ready"] + counts["active"], 8)
+        self.assertEqual(counts["blocked"], 3)
         self.assertEqual(counts["needs_product_decision"], 4)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
@@ -146,11 +151,37 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             ultimate["flow_id"],
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
         )
-        self.assertEqual(ultimate["status"], "ready")
+        self.assertIn(ultimate["status"], {"ready", "active"})
         self.assertEqual(ultimate["priority"], 15)
         self.assertEqual(ultimate["product_policy_status"], "navigation_only_validation")
         policy_ids = {item["policy_id"] for item in self.policy["policies"]}
         self.assertIn("ultimate-challenge-flow-separation", policy_ids)
+        registry = json.loads(
+            (ROOT / "tasks" / "flow_delivery_bluestacks_registry.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        uc_registry = registry["flows"]["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]
+        self.assertEqual(uc_registry["consequence_class"], "navigation_only")
+        self.assertEqual(
+            uc_registry["runner"], "ultimate_challenge_navigation_only_runner"
+        )
+        self.assertTrue(
+            (ROOT / "scripts" / "bluestacks_ultimate_challenge.py").is_file()
+        )
+        self.assertTrue(
+            (ROOT / "scripts" / "flow_delivery_ultimate_challenge_bluestacks.py").is_file()
+        )
+        self.assertTrue((ROOT / "tasks" / "ultimate_challenge_daily.py").is_file())
+        operator = (ROOT / "scripts" / "bluestacks_ultimate_challenge.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("run_verified_ultimate_challenge_campaign_door", operator)
+        self.assertIn("--navigation-only", operator)
+        self.assertNotIn(
+            'parse_supported_campaign_story_destination("ultimate-challenge")',
+            operator,
+        )
 
 
 class FlowDeliveryControllerTests(unittest.TestCase):

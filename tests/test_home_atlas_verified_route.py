@@ -1046,6 +1046,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             reject_direct_campaign_home_building_transport,
             require_campaign_home_atlas_building,
             run_verified_campaign_home_atlas_entry,
+            run_verified_ultimate_challenge_campaign_door,
         )
 
         self.assertEqual(campaign_home_atlas_building_id(), "home.building.campaign")
@@ -1054,9 +1055,20 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
         self.assertTrue(callable(dispatch_verified_navigate_pan))
         self.assertTrue(callable(dispatch_verified_campaign_home_building_tap))
         self.assertTrue(callable(run_verified_campaign_home_atlas_entry))
+        self.assertTrue(callable(run_verified_ultimate_challenge_campaign_door))
         with self.assertRaises(RuntimeError) as raised:
             reject_direct_campaign_home_building_transport()
         self.assertEqual(str(raised.exception), "DIRECT_TRANSPORT_BYPASS_REJECTED")
+
+    def test_ultimate_challenge_campaign_door_reuses_home_atlas_entry(self) -> None:
+        import inspect
+
+        from scripts import home_atlas_bluestacks as home_atlas
+
+        door_src = inspect.getsource(home_atlas.run_verified_ultimate_challenge_campaign_door)
+        self.assertIn("run_verified_campaign_home_atlas_entry", door_src)
+        self.assertIn("home.building.campaign", door_src)
+        self.assertNotIn("parse_supported_campaign_story_destination", door_src)
 
     def test_campaign_home_entry_rejects_false_opened_without_semantic_bind(self) -> None:
         """Transport success without semantic Campaign open must not report status opened."""
