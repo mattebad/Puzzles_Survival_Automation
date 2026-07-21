@@ -47,17 +47,22 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
         self.assertEqual(scenario["maximum_execution_attempts"], 1)
         self.assertEqual(scenario["execution_attempt_count"], 0)
         self.assertEqual(scenario["forbidden_input_classes"], ["consequential"])
+        self.assertEqual(len(scenario["pre_input_results"]), 1)
+        self.assertFalse(
+            scenario["pre_input_results"][0]["consumes_execution_budget"]
+        )
 
     def test_replay_and_pre_input_failure_do_not_consume_budget(self) -> None:
         scenario = _scenario()
+        initial_count = len(scenario["pre_input_results"])
         replay = replay_validated_record(
             candidate_commit="a" * 40,
             evidence_refs=("before.png", "after.png"),
         )
         after_replay = apply_scenario_record(scenario, replay)
         self.assertEqual(after_replay["execution_attempt_count"], 0)
-        self.assertEqual(len(after_replay["pre_input_results"]), 1)
-        self.assertEqual(scenario["pre_input_results"], [])
+        self.assertEqual(len(after_replay["pre_input_results"]), initial_count + 1)
+        self.assertEqual(len(scenario["pre_input_results"]), initial_count)
         failure = ScenarioAttemptRecord(
             NOVA_CANARY_SCENARIO_ID,
             ScenarioPhase.PRE_INPUT,
@@ -71,7 +76,7 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
         )
         after_failure = apply_scenario_record(after_replay, failure)
         self.assertEqual(after_failure["execution_attempt_count"], 0)
-        self.assertEqual(len(after_failure["pre_input_results"]), 2)
+        self.assertEqual(len(after_failure["pre_input_results"]), initial_count + 2)
         self.assertEqual(after_failure["status"], "ready")
 
     def test_first_navigation_input_consumes_and_exhausts_named_budget(self) -> None:
@@ -133,7 +138,11 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
         )
         self.assertEqual(queue, before)
         nova = next(item for item in updated["flows"] if item["flow_id"] == FLOW_ID)
-        self.assertEqual(len(nova["named_scenarios"][0]["pre_input_results"]), 1)
+        original_nova = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
+        self.assertEqual(
+            len(nova["named_scenarios"][0]["pre_input_results"]),
+            len(original_nova["named_scenarios"][0]["pre_input_results"]) + 1,
+        )
         with self.assertRaisesRegex(control.FlowDeliveryError, "only for Nova"):
             control.apply_named_scenario_result(
                 queue,

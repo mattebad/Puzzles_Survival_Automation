@@ -328,7 +328,26 @@
           "maximum_execution_attempts": 1,
           "execution_attempt_count": 0,
           "attempts": [],
-          "pre_input_results": [],
+          "pre_input_results": [
+            {
+              "scenario_id": "nova_navigation_round_trip_no_praise",
+              "phase": "pre_input",
+              "outcome": "blocked",
+              "candidate_commit": "58f73434ca4346ca7942593409e20df3f452a3f6",
+              "input_count": 0,
+              "input_class": "none",
+              "consumes_execution_budget": false,
+              "reason": "home_localization_ambiguous:unknown",
+              "failure_class": "initial_recognition",
+              "material_condition_digest": null,
+              "evidence_refs": [
+                ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T225939582468Z"
+              ],
+              "correction_ref": "GF-MVP-009-known-nova-start-normalization",
+              "terminal_ownership_state": "released",
+              "unresolved_action": false
+            }
+          ],
           "forbidden_input_classes": [
             "consequential"
           ],

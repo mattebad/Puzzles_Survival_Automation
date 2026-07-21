@@ -98,6 +98,23 @@ def _radial_recognition(digest: str) -> NovaFrameRecognition:
     )
 
 
+def _home_recognition(digest: str) -> NovaFrameRecognition:
+    observation = NovaPraiseObservation(
+        screen_state="HOME_BASE",
+        research_lab_identity=True,
+        nova_control_visible=False,
+        selected_nova=False,
+        praise_enabled=False,
+        praise_target_identity="",
+        praise_target_roi=NOVA_PRAISE_ROI,
+        attempts_remaining=None,
+        frame_sha256=digest,
+        captured_monotonic=1.0,
+        recognized=True,
+    )
+    return NovaFrameRecognition(observation, digest, (), {})
+
+
 def _nova_recognition(digest: str) -> NovaFrameRecognition:
     observation = NovaPraiseObservation(
         screen_state=NOVA_SCREEN,
@@ -194,10 +211,12 @@ class NovaNavigationCanaryTests(unittest.TestCase):
     def test_controller_orders_navigation_and_never_plans_praise(self) -> None:
         runtime = FakeRuntime()
         recognizer = RecognitionQueue(
+            _home_recognition("0" * 64),
             _radial_recognition("a" * 64),
             _radial_recognition("b" * 64),
             _nova_recognition("c" * 64),
             _nova_recognition("d" * 64),
+            _home_recognition("e" * 64),
         )
         route = NovaNavigationCanaryRoute(
             runtime,
@@ -207,7 +226,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             recognizer=recognizer,
             settle_seconds=0,
         )
-        with patch.object(route, "_home_localized", side_effect=[False, True]):
+        with patch.object(route, "_home_localized", side_effect=[True, True]):
             result = route.run()
         self.assertEqual(result.status, "completed")
         self.assertTrue(result.terminal_home_verified)
@@ -226,13 +245,43 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             _identity(),
             atlas_path=ATLAS_PATH,
             home_driver=FakeHomeDriver(),
-            recognizer=RecognitionQueue(unbound),
+            recognizer=RecognitionQueue(_home_recognition("0" * 64), unbound),
             settle_seconds=0,
         )
-        result = route.run()
+        with patch.object(route, "_home_localized", return_value=True):
+            result = route.run()
         self.assertEqual(result.status, "blocked")
         self.assertEqual(result.reason, "research_lab_radial_not_bound")
         self.assertEqual([kind for kind, _ in runtime.inputs], ["tap"])
+        self.assertEqual(result.praise_taps, 0)
+
+    def test_known_nova_start_returns_home_before_full_canary_route(self) -> None:
+        runtime = FakeRuntime()
+        recognizer = RecognitionQueue(
+            _nova_recognition("0" * 64),
+            _nova_recognition("1" * 64),
+            _home_recognition("2" * 64),
+            _radial_recognition("3" * 64),
+            _radial_recognition("4" * 64),
+            _nova_recognition("5" * 64),
+            _nova_recognition("6" * 64),
+            _home_recognition("7" * 64),
+        )
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=FakeHomeDriver(),
+            recognizer=recognizer,
+            settle_seconds=0,
+        )
+        with patch.object(route, "_home_localized", side_effect=[True, True]):
+            result = route.run()
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(
+            [kind for kind, _ in runtime.inputs],
+            ["back", "tap", "tap", "back"],
+        )
         self.assertEqual(result.praise_taps, 0)
 
     def test_compatibility_adapter_cannot_dispatch_praise(self) -> None:
