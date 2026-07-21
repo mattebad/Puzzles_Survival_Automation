@@ -26,6 +26,13 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts import flow_delivery_parent_progress as parent_progress
 from scripts import flow_delivery_routing_policy as routing_policy
+from tasks.flow_scenario_attempts import (
+    NOVA_CANARY_SCENARIO_ID,
+    ScenarioAttemptError,
+    ScenarioAttemptRecord,
+    apply_scenario_record,
+    validate_named_scenario_state,
+)
 
 
 DEFAULT_QUEUE_PATH = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
@@ -387,6 +394,16 @@ def validate_queue(payload: Mapping[str, Any]) -> None:
             _validate_attempt(attempt, flow)
             if attempt["ordinal"] != ordinal:
                 raise FlowDeliveryError(f"{identity} live attempt ordinals are not contiguous")
+        named_scenarios = flow.get("named_scenarios")
+        if identity == "NOVA-PRAISE-HOME-ATLAS-MIGRATION":
+            if not isinstance(named_scenarios, list) or len(named_scenarios) != 1:
+                raise FlowDeliveryError("Nova flow requires exactly one named MVP scenario")
+            try:
+                validate_named_scenario_state(named_scenarios[0])
+            except ScenarioAttemptError as exc:
+                raise FlowDeliveryError(f"invalid Nova named scenario: {exc}") from exc
+        elif named_scenarios is not None:
+            raise FlowDeliveryError(f"{identity} has unsupported named_scenarios")
         if flow["product_policy_status"] not in POLICY_STATUSES:
             raise FlowDeliveryError(f"unknown flow product-policy status: {flow['product_policy_status']}")
         if flow["status"] == "ready" and flow["product_policy_status"] in {
@@ -477,6 +494,43 @@ def validate_queue(payload: Mapping[str, Any]) -> None:
 
     for identity in by_id:
         visit(identity)
+
+
+def apply_named_scenario_result(
+    queue: Mapping[str, Any],
+    *,
+    flow_id: str,
+    record: ScenarioAttemptRecord,
+) -> dict[str, Any]:
+    """Return a validated queue copy with one named-scenario result; never persists it."""
+
+    validate_queue(queue)
+    if flow_id != "NOVA-PRAISE-HOME-ATLAS-MIGRATION":
+        raise FlowDeliveryError("named MVP scenario is available only for Nova")
+    updated = deepcopy(dict(queue))
+    flow = next(
+        (item for item in updated["flows"] if item["flow_id"] == flow_id),
+        None,
+    )
+    if flow is None:
+        raise FlowDeliveryError("named scenario flow is missing")
+    scenario = next(
+        (
+            item
+            for item in flow["named_scenarios"]
+            if item["scenario_id"] == NOVA_CANARY_SCENARIO_ID
+        ),
+        None,
+    )
+    if scenario is None:
+        raise FlowDeliveryError("Nova named scenario is missing")
+    try:
+        replacement = apply_scenario_record(scenario, record)
+    except ScenarioAttemptError as exc:
+        raise FlowDeliveryError(str(exc)) from exc
+    flow["named_scenarios"] = [replacement]
+    validate_queue(updated)
+    return updated
 
 
 def validate_lease(payload: Mapping[str, Any]) -> None:

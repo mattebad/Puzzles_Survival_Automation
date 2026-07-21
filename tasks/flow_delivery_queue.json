@@ -321,6 +321,20 @@
       "maximum_live_attempts": 1,
       "live_attempt_count": 0,
       "live_attempts": [],
+      "named_scenarios": [
+        {
+          "scenario_id": "nova_navigation_round_trip_no_praise",
+          "mode": "navigation_only",
+          "maximum_execution_attempts": 1,
+          "execution_attempt_count": 0,
+          "attempts": [],
+          "pre_input_results": [],
+          "forbidden_input_classes": [
+            "consequential"
+          ],
+          "status": "ready"
+        }
+      ],
       "focused_tests": [
         "tests/test_nova_praise.py",
         "tests/test_home_atlas_verified_route.py"
@@ -364,7 +378,7 @@
       ],
       "live_validation_scenarios": [
         {
-          "id": "nova-praise-nav-home-roundtrip",
+          "id": "nova_navigation_round_trip_no_praise",
           "mode": "navigation_only"
         }
       ],

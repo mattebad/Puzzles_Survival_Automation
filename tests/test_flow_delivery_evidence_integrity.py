@@ -90,6 +90,8 @@ class NovaPnsctlBoundaryTests(unittest.TestCase):
         self.assertEqual(result["transport_calls"], 0)
         self.assertEqual(len(result["intended_inputs"]), 1)
         self.assertFalse(result["operational_state_mutated"])
+        self.assertEqual(result["scenario_record"]["phase"], "pre_input")
+        self.assertFalse(result["scenario_record"]["consumes_execution_budget"])
         self.assertEqual(result["production_registration"], "NOT_REGISTERED")
         self.assertFalse(result["scheduler_enabled"])
 
@@ -107,6 +109,11 @@ class NovaPnsctlBoundaryTests(unittest.TestCase):
         self.assertFalse(result["runtime_connected"])
         self.assertEqual(result["transport_calls"], 0)
         self.assertIn("identity_evidence", result["missing_configuration_fields"])
+        self.assertEqual(
+            result["scenario_record"]["failure_class"],
+            "supervised_identity",
+        )
+        self.assertFalse(result["scenario_record"]["consumes_execution_budget"])
 
     def test_verified_identity_still_fails_pre_input_until_navigation_route_lands(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -141,11 +148,14 @@ class NovaPnsctlBoundaryTests(unittest.TestCase):
                     str(evidence),
                 ]
             )
-            with self.assertRaisesRegex(
-                pnsctl.OperatorError,
-                "NOVA_NAVIGATION_ROUTE_NOT_INTEGRATED",
-            ):
-                pnsctl.nova_praise_pulse_live(args)
+            result = json.loads(pnsctl.nova_praise_pulse_live(args))
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(result["reason"], "NOVA_NAVIGATION_ROUTE_NOT_INTEGRATED")
+            self.assertFalse(result["runtime_connected"])
+            self.assertEqual(
+                result["scenario_record"]["failure_class"],
+                "executable_registration",
+            )
 
 
 if __name__ == "__main__":

@@ -5570,10 +5570,98 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### GF-MVP-007-NAMED-SCENARIO-FAILURE-ACCOUNTING
 - Task ID: `GF-MVP-007-NAMED-SCENARIO-FAILURE-ACCOUNTING`.
 - Title: Add named-scenario and pre-input-versus-execution accounting.
+- Status: Completed (2026-07-21; one named no-Praise Nova scenario added with a one-execution budget;
+  pre-input/replay results consume no budget; first navigation input consumes and exhausts the
+  execution budget; consequential input is structurally rejected).
+- Milestone: Gameplay Flow Factory Milestone A.
+- Dependencies: completed `GF-MVP-006-EXECUTABLE-AND-EVIDENCE-INTEGRITY` at `6b89a20`; supported
+  pnsctl command; inactive queue/runtime; no unresolved action.
+- Blocked by: None after pure queue/scenario and command-result tests pass.
+- Objective: add only the named scenario and pre-input-versus-execution accounting needed for the
+  Nova navigation canary.
+- Established facts: legacy global live attempts cannot distinguish configuration from execution;
+  Nova has one authorized navigation-only scenario and one execution attempt; replay and missing
+  identity occur before input; Praise is forbidden.
+- Direct implementation files: `tasks/flow_scenario_attempts.py`,
+  `tasks/flow_delivery_queue.json`, `scripts/flow_delivery_control.py`, `scripts/pnsctl.py`,
+  `tests/test_flow_scenario_attempts.py`, `tests/test_flow_delivery_evidence_integrity.py`,
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tasks/backlog_task_index.json`.
+- Shared dependencies: queue schema-v2, pnsctl Nova command, committed production replay, flow
+  controller validation, and immutable queue history.
+- Transitive regression set: queue/controller, pnsctl/evidence, parent rollover, governance/context,
+  Nova contracts/replay, and full suite.
+- Allowed changes: only direct files and named-scenario hunks; per-commit allowed paths are exactly
+  those files; existing legacy attempts remain unchanged.
+- Prohibited changes: queue activation, lease acquisition, runtime input, global attempt history
+  reclassification, generalized proof engine, product policy, route implementation, Praise,
+  production registration/scheduler, plan edits, or push.
+- Authorized runtime action: None; scenario results are pure/offline.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Not executed; future execution record starts only at first actual
+  navigation input.
+- Consequential action: Structurally prohibited by input_class validation.
+- Registration changes: None.
+- Scheduler changes: None.
+- Actions that must not be repeated: any live attempt, Praise, Campaign/Ultimate input, or pnsctl
+  live command.
+- Required source: Nova v2 canary scenario, queue, GF-MVP-006 command outcomes, and accepted
+  pre-input/execution failure policy.
+- Exact target semantics: scenario `nova_navigation_round_trip_no_praise`; phase pre_input or
+  execution; one navigation-only execution budget; typed outcome/failure class/input count/
+  evidence/correction/ownership/unresolved fields.
+- Required local association: scenario ID, candidate commit, material condition, exact input class/
+  count, failure class, evidence refs, correction ref, terminal ownership, and unresolved state.
+- Negative controls: pre-input transport, pre-input budget consumption, consequential input, missing
+  failure class/reason, malformed Boolean, wrong flow/scenario, second execution, and queue mutation
+  during replay.
+- Coordinate space: None; no frame coordinate or input.
+- Accepted signals: replay_validated and pre-input blocked records append without increment; one
+  input-bearing navigation result increments to one/exhausted; original queue copy remains unchanged
+  under pure application; pnsctl emits classified records.
+- Rejected weak signals: global attempt count alone, transport success, free-form diagnosis without
+  class/phase, or an input-bearing event marked non-consuming.
+- Ambiguous-result behavior: reject malformed record; future unresolved outcome must set unresolved
+  state and consume execution budget.
+- Zero-cost requirement: no gameplay action/resource.
+- Quantity limits: exactly one named scenario and one execution attempt; unlimited retained pre-input
+  diagnostic records do not authorize retry.
+- Resource consumption policy: none.
+- Premium or strategic restrictions: consequential input and all resource behavior prohibited.
+- Active evidence manifest: None.
+- Required artifacts: typed scenario module, Nova queue scenario, controller validation/pure apply,
+  pnsctl scenario records, focused tests, regenerated index, and green full suite.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs.
+- Additional task-specific artifacts: None.
+- Focused tests: `tests.test_flow_scenario_attempts`,
+  `tests.test_flow_delivery_orchestrator`, `tests.test_flow_delivery_evidence_integrity`, and
+  `tests.test_catalog_and_pnsctl`.
+- Integration tests: checked-in queue validation, pure scenario application, pnsctl replay and
+  pre-input failure records.
+- Transitive regression tests: flow-delivery parent/lease, governance/context, and full suite.
+- Full-suite requirement: authoritative `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: JSON parse, Python compile, focused tests, governance, `git diff --check`, full suite,
+  and clean attributable Git status.
+- Known baseline failures: None; prior task passed 1,093 tests with one expected skip.
+- Evidence requirement: NOT_APPLICABLE — offline scenario accounting creates no gameplay evidence.
+- Valid blocked outcomes: queue schema incompatibility, inability to separate pre-input/execution
+  without altering history, or any touched/full-suite regression.
+- Blocked-result commit policy: preserve existing queue/attempts and exact blocker, keep runtime
+  inactive, do not consume budget, and no push.
+- Commit policy: one reviewed conventional commit; stage only allowed paths; no push unless
+  explicitly authorized.
+- Expected focused commits: `feat(flow-factory): add Nova scenario accounting`.
+- Completion criteria: one named scenario exists; replay/pre-input are non-consuming; first
+  navigation input consumes one; consequential input is rejected; queue remains inactive; focused/
+  full tests pass; one focused commit.
+
+### GF-MVP-008-NOVA-NAVIGATION-ROUTE-MIGRATION
+- Task ID: `GF-MVP-008-NOVA-NAVIGATION-ROUTE-MIGRATION`.
+- Title: Migrate the no-Praise Nova navigation round trip.
 - Status: Ready; declared Milestone A successor, not yet active.
-- Scope: add only the Nova no-Praise canary scenario attempt record and budget semantics required
-  before route migration/live admission.
-- Authority: accepted plan; no generalized proof engine, queue activation, or runtime input.
+- Scope: selectively admit only Home-to-Research-Lab, radial provenance, Nova Lab recognition, and
+  verified safe return using frozen GF-MVP-005 action/replay and GF-MVP-004 Home interfaces.
+- Authority: accepted branch-admission map; no Praise, live input, queue activation, or shared action
+  interface edits.
 
 
 

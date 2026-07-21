@@ -808,6 +808,7 @@ def nova_praise_pulse_replay(args: argparse.Namespace) -> str:
     from tasks.gameplay_flow_replay import ReplayNativeRuntime, load_retained_native_frame
     from tasks.home_atlas import load_home_atlas
     from tasks.nova_praise_pulse import NOVA_TASK_ID, NovaPulseController
+    from tasks.flow_scenario_attempts import replay_validated_record
     from tasks.scheduler_task_result import SchedulerIdentity
 
     manifest_path = REPO_ROOT / "tests" / "fixtures" / "nova_praise_replay" / "manifest.json"
@@ -875,6 +876,17 @@ def nova_praise_pulse_replay(args: argparse.Namespace) -> str:
             store.close()
     if actions or scheduler is not None:
         raise OperatorError("Nova replay mutated operational action or scheduler state")
+    candidate_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    scenario_record = replay_validated_record(
+        candidate_commit=candidate_commit,
+        evidence_refs=(str(before.path), str(after.path)),
+    )
     return json.dumps(
         {
             "status": "replay_confirmed",
@@ -885,6 +897,7 @@ def nova_praise_pulse_replay(args: argparse.Namespace) -> str:
             "action_result": action.to_mapping(),
             "cooldown_result": cooldown.to_mapping(),
             "operational_state_mutated": False,
+            "scenario_record": scenario_record.to_mapping(),
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
         },
@@ -957,8 +970,34 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
         raise OperatorError("live Nova navigation requires --supervised-live-opt-in")
     if args.scenario != "nova_navigation_round_trip_no_praise":
         raise OperatorError("unsupported Nova live scenario")
+    from tasks.flow_scenario_attempts import (
+        NOVA_CANARY_SCENARIO_ID,
+        ScenarioAttemptRecord,
+        ScenarioFailureClass,
+        ScenarioOutcome,
+        ScenarioPhase,
+    )
+
+    candidate_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
     identity, missing = _nova_supervised_identity(args)
     if missing:
+        record = ScenarioAttemptRecord(
+            NOVA_CANARY_SCENARIO_ID,
+            ScenarioPhase.PRE_INPUT,
+            ScenarioOutcome.BLOCKED,
+            candidate_commit,
+            0,
+            "none",
+            False,
+            "identity_unverified",
+            failure_class=ScenarioFailureClass.SUPERVISED_IDENTITY,
+        )
         return json.dumps(
             {
                 "status": "manual_required",
@@ -966,6 +1005,7 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                 "missing_configuration_fields": missing,
                 "runtime_connected": False,
                 "transport_calls": 0,
+                "scenario_record": record.to_mapping(),
                 "production_registration": "NOT_REGISTERED",
                 "scheduler_enabled": False,
             },
@@ -977,7 +1017,29 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
         raise OperatorError("Nova navigation route module is unavailable") from exc
     runner = getattr(route_module, "run_nova_navigation_canary", None)
     if not callable(runner):
-        raise OperatorError("NOVA_NAVIGATION_ROUTE_NOT_INTEGRATED")
+        record = ScenarioAttemptRecord(
+            NOVA_CANARY_SCENARIO_ID,
+            ScenarioPhase.PRE_INPUT,
+            ScenarioOutcome.BLOCKED,
+            candidate_commit,
+            0,
+            "none",
+            False,
+            "NOVA_NAVIGATION_ROUTE_NOT_INTEGRATED",
+            failure_class=ScenarioFailureClass.EXECUTABLE_REGISTRATION,
+        )
+        return json.dumps(
+            {
+                "status": "blocked",
+                "reason": "NOVA_NAVIGATION_ROUTE_NOT_INTEGRATED",
+                "runtime_connected": False,
+                "transport_calls": 0,
+                "scenario_record": record.to_mapping(),
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+            },
+            sort_keys=True,
+        )
     return runner(args, identity)
 
 
