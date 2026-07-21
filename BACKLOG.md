@@ -5297,11 +5297,96 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### GF-MVP-004-LOCALIZE-FIRST-HOME-DRIVER
 - Task ID: `GF-MVP-004-LOCALIZE-FIRST-HOME-DRIVER`.
 - Title: Converge the localize-first Home runtime driver.
+- Status: Completed (2026-07-21; localize-first driver added over production Home Atlas and
+  DirectPanNavigator; safe visible bindings avoid pan; offscreen targets plan bounded pans;
+  intermediate/zoomed states require bounded canonical recovery; no input occurred).
+- Milestone: Gameplay Flow Factory Milestone A.
+- Dependencies: completed `GF-MVP-003-SUPERVISED-IDENTITY-AND-PREFLIGHT` at `6f95d0a`; verified
+  Home-ready identity; current production Home Atlas and navigation session/capability stack.
+- Blocked by: None for offline driver convergence.
+- Objective: provide one reusable localize-first BlueStacks Home driver without adding a parallel
+  atlas or fabricating intermediate-zoom transforms.
+- Established facts: production BlueStacks localization supplies a safe atlas transform only for
+  fully-zoomed-out frames; existing DirectPanNavigator, NavigationSession, semantic binder,
+  capability dispatch, fresh recapture, and progress measurement are authoritative.
+- Direct implementation files: `tasks/home_context.py`, `scripts/home_atlas_bluestacks.py`,
+  `tests/test_home_context.py`, `tests/test_home_atlas_verified_route.py`, `BACKLOG.md`,
+  `CURRENT_HANDOFF.md`, and `tasks/backlog_task_index.json`.
+- Shared dependencies: Home Atlas manifest/assets, BlueStacksHomeLocalizer, DirectPanNavigator,
+  NavigationSession, perception bundle, CentralPolicy capability path, and verified identity.
+- Transitive regression set: Home context, Home Atlas vision/planner/verified route, navigation
+  sessions/observability/capability firewall, Nova replay, governance/context, and full suite.
+- Allowed changes: only direct implementation files and reviewed hunks; per-commit allowed paths are
+  exactly those files; production command transport remains unchanged and is reused by callers.
+- Prohibited changes: direct ADB/BlueStacks input, a second navigation stack, guessed coordinates,
+  intermediate/zoomed direct localization, synthetic zoom-identity replacement, queue/policy/
+  registry/SafetyStore changes, Nova route behavior, production registration, plan edits, or push.
+- Authorized runtime action: None; offline policy/driver implementation only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Planned only; no transport. Intermediate/zoomed states return a bounded
+  recovery disposition for caller-owned capability transport and mandatory recapture.
+- Consequential action: Forbidden.
+- Registration changes: None.
+- Scheduler changes: None.
+- Actions that must not be repeated: prior Home/Campaign/Nova inputs, any camera gesture, Praise, or
+  other runtime action.
+- Required source: current production atlas/localizer/planner/navigation-session code, retained Home
+  fixtures, accepted Home-state semantics, and GF-MVP-003 verified identity.
+- Exact target semantics: fully-out localized current viewport; safe current-frame semantic building
+  binding; bounded DirectPan plan when offscreen; RECOVER_ZOOM only for high-confidence
+  intermediate/zoomed Home; block unknown/ambiguous/repeated/no-progress state.
+- Required local association: frame digest, localization transform/zoom/confidence, building ID,
+  semantic binding, safe-region containment, plan, and recovery ordinal all refer to one current frame.
+- Negative controls: synthetic intermediate transform, repeated recovery frame, maximum zoom inputs,
+  unknown zoom, stale/cross-frame binding, unsafe ROI, overlay, repeated viewport, and no progress.
+- Coordinate space: raw native 800×1280 frames and existing atlas coordinates only.
+- Accepted signals: visible safe binding returns COMPLETE with zero pan; offscreen target returns one
+  bounded PAN plan; intermediate/zoomed returns RECOVER_ZOOM; callers must recapture/reobserve after
+  transport; unknown/repeated/exhausted returns BLOCKED.
+- Rejected weak signals: projected coordinate, label-only unsafe ROI, transport success, synthetic
+  transform, configured zoom, or canonical pose as an unconditional prerequisite.
+- Ambiguous-result behavior: block with no input and retain the current-frame reason.
+- Zero-cost requirement: no gameplay action or resource consumption.
+- Quantity limits: maximum pans from DirectPanNavigator; maximum zoom recovery plans configured and
+  counted only after caller records dispatch; zero task-local inputs.
+- Resource consumption policy: none.
+- Premium or strategic restrictions: all consequential and resource behavior remains prohibited.
+- Active evidence manifest: None.
+- Required artifacts: shared driver API, removed intermediate shortcut, focused tests, regenerated
+  backlog index, and passing full suite.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because this task dispatches no input;
+  existing production helpers retain those requirements for later callers.
+- Additional task-specific artifacts: None.
+- Focused tests: `tests.test_home_context`, `tests.test_home_atlas_planner`,
+  `tests.test_home_atlas_verified_route`, and `tests.test_home_atlas`.
+- Integration tests: safe visible binding, offscreen DirectPan plan, bounded zoom recovery, repeated/
+  unknown negative controls, capability bypass, and navigation-session regressions.
+- Transitive regression tests: Nova pulse/replay, Campaign/Ultimate Home entry, governance/context,
+  and full suite.
+- Full-suite requirement: authoritative `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: Python compile, focused tests, governance, `git diff --check`, full suite, and clean
+  attributable Git status.
+- Known baseline failures: None; prior task passed 1,072 tests with one expected skip.
+- Evidence requirement: NOT_APPLICABLE — offline Home-driver convergence creates no gameplay evidence.
+- Valid blocked outcomes: inability to reuse production navigation without unsafe zoom assumptions,
+  a capability/navigation regression, or any new full-suite failure.
+- Blocked-result commit policy: preserve prior identity/contracts and exact blocker, keep runtime
+  inactive, do not claim completion, and no push.
+- Commit policy: one reviewed conventional commit; stage only allowed paths; no push unless
+  explicitly authorized.
+- Expected focused commits: `feat(flow-factory): converge localize-first home`.
+- Completion criteria: production components are reused; fully-out noncanonical Home navigates
+  directly; visible binding avoids pan; offscreen uses bounded DirectPan; unsupported zoom recovers
+  canonically; unknown blocks; focused/full tests pass; no runtime input; one commit.
+
+### GF-MVP-005-PRODUCTION-PATH-REPLAY
+- Task ID: `GF-MVP-005-PRODUCTION-PATH-REPLAY`.
+- Title: Add zero-transport Nova production-path replay parity.
 - Status: Ready; declared Milestone A successor, not yet active.
-- Scope: reuse the production Home Atlas, NavigationSession, DirectPanNavigator, semantic binding,
-  capability transport, and fresh-frame verification; intermediate/zoomed states recover canonically.
-- Authority: accepted Gameplay Flow Factory plan; this pointer authorizes no runtime input or queue
-  activation.
+- Scope: selectively admit the centralized Nova consequential boundary and replay interfaces needed
+  to replay retained `6 -> 5` and cooldown evidence with no transport or operational mutation.
+- Authority: accepted Gameplay Flow Factory plan and Nova branch-admission map; Home/radial/Nova
+  navigation remains owned by GF-MVP-008.
 
 
 

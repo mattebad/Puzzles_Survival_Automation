@@ -177,6 +177,20 @@ class HomeContextTests(unittest.TestCase):
         classified = classify_home_context(_ready(), _loc(recognized=False, zoom=ZoomIdentity.ZOOMED_IN))
         self.assertTrue(classified.requires_canonical_recovery)
 
+    def test_synthetic_intermediate_transform_never_authorizes_direct_navigation(self):
+        intermediate = _loc(zoom=ZoomIdentity.INTERMEDIATE)
+        localized = localize_home(_ready(), intermediate)
+        self.assertEqual(localized.action, HomePrimitiveAction.RECOVER_CANONICAL)
+        self.assertTrue(localized.requires_canonical_recovery)
+        decision = navigate_home_building(
+            _atlas(),
+            "home.building.research_lab",
+            _ready(),
+            intermediate,
+        )
+        self.assertEqual(decision.action, HomePrimitiveAction.RECOVER_CANONICAL)
+        self.assertTrue(decision.requires_canonical_recovery)
+
     def test_configuration_without_verified_identity_cannot_be_home_ready(self):
         decision = ensure_home_ready(_ready(identity=None))
         self.assertIsNone(decision.level)

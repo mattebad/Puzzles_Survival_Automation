@@ -10,8 +10,9 @@ from __future__ import annotations
 import argparse
 import ctypes
 from ctypes import wintypes
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
+from enum import Enum
 import hashlib
 import json
 import math
@@ -63,6 +64,12 @@ from tasks.home_atlas_vision import (
     hud_mask,
     native_frame_guard,
     register_home_frame,
+)
+from tasks.home_context import (
+    HomeContextLevel,
+    HomeReadyObservation,
+    ensure_home_ready,
+    localize_home,
 )
 from tasks.navigation_observability import (
     navigation_observability_snapshot,
@@ -407,6 +414,168 @@ class BlueStacksHostZoomTransport:
             sent = self.user32.SendInput(1, ctypes.byref(up), ctypes.sizeof(_Input))
             if sent != 1:
                 raise RuntimeError("BlueStacks left-Ctrl key-up was incomplete")
+
+
+class HomeDriverDisposition(str, Enum):
+    RECOVER_ZOOM = "recover_zoom"
+    BIND = "bind"
+    PAN = "pan"
+    COMPLETE = "complete"
+    BLOCKED = "blocked"
+
+
+@dataclass(frozen=True)
+class HomeDriverStep:
+    disposition: HomeDriverDisposition
+    reason: str
+    source_frame_sha256: str
+    localization: LocalizationResult
+    binding: BuildingBinding | None = None
+    plan: object | None = None
+    recovery_input_ordinal: int | None = None
+
+
+class BlueStacksLocalizeFirstHomeDriver:
+    """Shared current-frame Home policy over production localizer and DirectPanNavigator.
+
+    The driver plans but never dispatches transport. Callers must route RECOVER_ZOOM and PAN
+    through their existing bounded capability transport, then recapture and call ``observe``.
+    """
+
+    def __init__(
+        self,
+        atlas,
+        atlas_path: Path,
+        ready: HomeReadyObservation,
+        building_id: str,
+        *,
+        localizer=None,
+        maximum_pans: int = 8,
+        maximum_zoom_inputs: int = 4,
+    ) -> None:
+        if maximum_zoom_inputs < 1:
+            raise ValueError("maximum_zoom_inputs must be positive")
+        ready_decision = ensure_home_ready(ready)
+        if ready_decision.level is not HomeContextLevel.HOME_READY:
+            raise ValueError(f"Home driver preflight failed: {ready_decision.reason}")
+        self.atlas = atlas
+        self.atlas_path = atlas_path
+        self.ready = ready
+        self.building = atlas.lookup_building(building_id)
+        self.localizer = localizer or BlueStacksHomeLocalizer(atlas, atlas_path)
+        safe_region, calibration = bluestacks_direct_pan_contract()
+        self.safe_region = safe_region
+        self.navigator = DirectPanNavigator(
+            atlas,
+            building_id,
+            safe_region,
+            calibration,
+            maximum_pans=maximum_pans,
+        )
+        self.maximum_zoom_inputs = maximum_zoom_inputs
+        self.zoom_inputs = 0
+        self._seen_recovery_frames: set[str] = set()
+        self._planned_recovery_source: str | None = None
+
+    def observe(self, frame: np.ndarray) -> HomeDriverStep:
+        digest = frame_digest(frame)
+        localization = self.localizer.localize(frame)
+        localized = localize_home(self.ready, localization)
+        if localized.level in {
+            HomeContextLevel.HOME_LOCALIZED,
+            HomeContextLevel.HOME_CANONICAL,
+        }:
+            binding = bind_visible_building(frame, localization, self.building)
+            if binding is not None:
+                sx0, sy0, sx1, sy1 = self.safe_region.screen_box
+                bx0, by0, bx1, by1 = binding.target_roi
+                binding_safe = bool(
+                    binding.building_id == self.building.semantic_id
+                    and binding.frame_sha256 == localization.frame_sha256
+                    and binding.confidence >= 0.80
+                    and binding.semantic_evidence
+                    and not binding.overlay_intersects
+                    and not binding.ambiguous_overlap
+                    and sx0 <= bx0 < bx1 <= sx1
+                    and sy0 <= by0 < by1 <= sy1
+                )
+                if binding_safe:
+                    return HomeDriverStep(
+                        HomeDriverDisposition.COMPLETE,
+                        "current_frame_semantic_building_bound",
+                        digest,
+                        localization,
+                        binding,
+                    )
+            plan = self.navigator.plan(localization, binding)
+            disposition = {
+                PlanDisposition.COMPLETE: HomeDriverDisposition.COMPLETE,
+                PlanDisposition.BIND: HomeDriverDisposition.BIND,
+                PlanDisposition.PAN: HomeDriverDisposition.PAN,
+                PlanDisposition.ALREADY_SAFE: HomeDriverDisposition.BIND,
+                PlanDisposition.REJECTED: HomeDriverDisposition.BLOCKED,
+            }[plan.disposition]
+            return HomeDriverStep(
+                disposition,
+                plan.reason,
+                digest,
+                localization,
+                binding,
+                plan,
+            )
+
+        zoom_identity = localization.zoom_identity
+        zoom_confidence = localization.confidence
+        if zoom_identity not in {ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE}:
+            zoom = classify_zoom(frame, self.localizer.canonical_reference)
+            zoom_identity = zoom.identity
+            zoom_confidence = zoom.confidence
+        if (
+            zoom_identity in {ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE}
+            and zoom_confidence >= 0.85
+        ):
+            if digest in self._seen_recovery_frames:
+                return HomeDriverStep(
+                    HomeDriverDisposition.BLOCKED,
+                    "repeated_zoom_recovery_frame",
+                    digest,
+                    localization,
+                )
+            if self.zoom_inputs >= self.maximum_zoom_inputs:
+                return HomeDriverStep(
+                    HomeDriverDisposition.BLOCKED,
+                    "maximum_zoom_recovery_inputs",
+                    digest,
+                    localization,
+                )
+            self._seen_recovery_frames.add(digest)
+            self._planned_recovery_source = digest
+            return HomeDriverStep(
+                HomeDriverDisposition.RECOVER_ZOOM,
+                "unsupported_zoom_requires_bounded_canonical_recovery",
+                digest,
+                localization,
+                recovery_input_ordinal=self.zoom_inputs + 1,
+            )
+        return HomeDriverStep(
+            HomeDriverDisposition.BLOCKED,
+            f"home_localization_ambiguous:{zoom_identity.value}",
+            digest,
+            localization,
+        )
+
+    def record_zoom_input_dispatched(self, source_frame_sha256: str) -> None:
+        if source_frame_sha256 != self._planned_recovery_source:
+            raise ValueError("zoom input does not match the planned current frame")
+        self.zoom_inputs += 1
+        self._planned_recovery_source = None
+
+    def record_pan_progress(
+        self,
+        before: LocalizationResult,
+        after: LocalizationResult,
+    ):
+        return self.navigator.record_progress(before, after)
 
 
 class AtlasBuilder:

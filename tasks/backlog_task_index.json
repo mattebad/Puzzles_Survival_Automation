@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "backlog_path": "BACKLOG.md",
-  "backlog_sha256": "10b29775024e4e08af8e68215a6c262d49c6a979d22ee1293af5e9f3e904317e",
-  "generated_from_head": "61e7981f59fafa171d88f5a54fb04eead377e2a0",
+  "backlog_sha256": "8a3d1c9a8cb8018c229a89cb90c208967cfeb76cbae7e21a470102f64523898f",
+  "generated_from_head": "6f95d0a075d743cf4ae7cbc87bb2c8ae152e0c9e",
   "task_count": 15,
   "tasks": [
     {
@@ -33,8 +33,8 @@
       "task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE",
       "exact_markdown_heading": "### DQ-FLOW-CAMPAIGN-AUTO-BATTLE",
       "normalized_status": "Completed (2026-07-16; dormant configurable route contract amended from supervised",
-      "section_start": 427750,
-      "section_end": 434899,
+      "section_start": 434417,
+      "section_end": 441566,
       "section_digest": "28ecea27467e6013a63b1b20cb7a5cdd93d06f3d02959c1edcaf0a06348e595a",
       "direct_dependency_ids": [
         "DQ-FLOW-CAMPAIGN-AP",
@@ -48,8 +48,8 @@
       "task_id": "DQ-FLOW-GATHERING",
       "exact_markdown_heading": "### DQ-FLOW-GATHERING",
       "normalized_status": "Passed (2026-07-14; parameterized Wood/Steel/Gas offline contract and 6 focused tests).",
-      "section_start": 446744,
-      "section_end": 447846,
+      "section_start": 453411,
+      "section_end": 454513,
       "section_digest": "a5d7682abaacd7dacabefc72ca17ab1d65dd9a66871f7a816bcf0204402dd009",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -60,8 +60,8 @@
       "task_id": "DQ-FLOW-NANOWEAPON",
       "exact_markdown_heading": "### DQ-FLOW-NANOWEAPON",
       "normalized_status": "Passed (2026-07-14; Daily row adapter plus 5 focused tests).",
-      "section_start": 422228,
-      "section_end": 423287,
+      "section_start": 428895,
+      "section_end": 429954,
       "section_digest": "9791785b6d2fa48c7d917bf7351119bf068aab7ab09f8e123261b1c9d7f143a6",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -72,8 +72,8 @@
       "task_id": "DQ-FLOW-RECRUITMENT",
       "exact_markdown_heading": "### DQ-FLOW-RECRUITMENT",
       "normalized_status": "Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).",
-      "section_start": 421141,
-      "section_end": 422228,
+      "section_start": 427808,
+      "section_end": 428895,
       "section_digest": "48a1cb7c67f7908a1aeb392b8bb0f2751a8f8c2d0f1e605aea78c76daf9484c2",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -84,8 +84,8 @@
       "task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
       "exact_markdown_heading": "### DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
       "normalized_status": "Passed (2026-07-16; dormant implementation and supervised local validation)",
-      "section_start": 455913,
-      "section_end": 462135,
+      "section_start": 462580,
+      "section_end": 468802,
       "section_digest": "cfd793e17eef42f2a14d5634d46a9a92289de838f639a66985c6e09b1ebe5d5d",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -96,8 +96,8 @@
       "task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
       "exact_markdown_heading": "### DQ-FLOW-WORLD-STAMINA-ENGINE",
       "normalized_status": "Passed (2026-07-14; offline shared primitive and 5 focused tests).",
-      "section_start": 443592,
-      "section_end": 444677,
+      "section_start": 450259,
+      "section_end": 451344,
       "section_digest": "bf0cabeb799d37a9aff0878b6a419797852b0867a79d96d4fac3aeabf5805ca4",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -108,8 +108,8 @@
       "task_id": "DQ-FLOW-ZOMBIE-LAIR",
       "exact_markdown_heading": "### DQ-FLOW-ZOMBIE-LAIR",
       "normalized_status": "Passed (2026-07-14; Daily Lair adapter plus 5 focused tests).",
-      "section_start": 444677,
-      "section_end": 445750,
+      "section_start": 451344,
+      "section_end": 452417,
       "section_digest": "95652b3e2ef12cd8fd0b6202787f3ca867d141ebb188705796756c1f35b71dc4",
       "direct_dependency_ids": [],
       "queue_flow_ids": [

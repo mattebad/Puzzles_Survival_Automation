@@ -18,7 +18,9 @@ import numpy as np
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.home_atlas_bluestacks import (
+    BlueStacksLocalizeFirstHomeDriver,
     CONFIRMED_NOT_DISPATCHED_STATUS,
+    HomeDriverDisposition,
     NAVIGATE_BUILDING_TARGET_IDENTITY,
     attach_navigate_terminal_reports,
     build_navigate_pan_observation,
@@ -47,6 +49,7 @@ from tasks.home_atlas import (
     ZoomIdentity,
 )
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, frame_digest
+from tasks.home_context import HomeReadyObservation
 from tasks.navigation_observability import report_navigation_session
 from tasks.navigation_session import (
     AuthorizationScope,
@@ -56,6 +59,7 @@ from tasks.navigation_session import (
 )
 from tasks.navigation_session import TrustedTransportNonDispatchAuthority
 from tasks.perception_bundle import PerceptionBundleError
+from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 
 
 PROFILE = PlatformProfile(BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, (800, 1280), "com.global.ztmslg")
@@ -251,7 +255,170 @@ def _policy_for(task_id: str) -> CentralPolicy:
     return CentralPolicy(supervised_tasks=frozenset({"MVP-QUEST-TO-CLAIM", task_id}))
 
 
+def _ready() -> HomeReadyObservation:
+    return HomeReadyObservation(
+        True,
+        True,
+        VerifiedRuntimeIdentity(
+            "test-runtime",
+            "acct-1",
+            "server-1",
+            "reset-1",
+            RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
+            ("test-identity",),
+        ),
+        False,
+        False,
+    )
+
+
 class HomeAtlasVerifiedRouteTests(unittest.TestCase):
+    def test_localize_first_driver_binds_visible_noncanonical_home_without_pan(self) -> None:
+        target = _building()
+        world = _atlas(target)
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        digest = frame_digest(frame)
+        localization = replace(
+            _localization(digest, x=120.0, y=80.0),
+            frame_sha256=digest,
+        )
+        binding = BuildingBinding(
+            target.semantic_id,
+            (320, 420, 420, 520),
+            digest,
+            0.95,
+            ("current-frame OCR: Bank",),
+        )
+        localizer = SimpleNamespace(
+            localize=lambda _frame: localization,
+            canonical_reference=frame,
+        )
+        with patch(
+            "scripts.home_atlas_bluestacks.bind_visible_building",
+            return_value=binding,
+        ):
+            driver = BlueStacksLocalizeFirstHomeDriver(
+                world,
+                Path("atlas.json"),
+                _ready(),
+                target.semantic_id,
+                localizer=localizer,
+            )
+            step = driver.observe(frame)
+        self.assertEqual(step.disposition, HomeDriverDisposition.COMPLETE)
+        self.assertIs(step.binding, binding)
+        self.assertEqual(driver.navigator.pan_count, 0)
+
+    def test_localize_first_driver_plans_bounded_pan_for_offscreen_building(self) -> None:
+        target = _far_building()
+        world = _atlas(target)
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        digest = frame_digest(frame)
+        localization = replace(_localization(digest), frame_sha256=digest)
+        localizer = SimpleNamespace(
+            localize=lambda _frame: localization,
+            canonical_reference=frame,
+        )
+        with patch(
+            "scripts.home_atlas_bluestacks.bind_visible_building",
+            return_value=None,
+        ):
+            driver = BlueStacksLocalizeFirstHomeDriver(
+                world,
+                Path("atlas.json"),
+                _ready(),
+                target.semantic_id,
+                localizer=localizer,
+                maximum_pans=4,
+            )
+            step = driver.observe(frame)
+        self.assertEqual(step.disposition, HomeDriverDisposition.PAN)
+        self.assertIsNotNone(step.plan)
+        self.assertIsNotNone(step.plan.drag_start)
+        self.assertIsNotNone(step.plan.drag_end)
+
+    def test_localize_first_driver_routes_intermediate_zoom_to_bounded_recovery(self) -> None:
+        target = _building()
+        world = _atlas(target)
+        first = np.zeros((1280, 800, 3), np.uint8)
+        second = first.copy()
+        second[0, 0] = (1, 1, 1)
+        intermediate = replace(
+            _localization(),
+            recognized=False,
+            zoom_identity=ZoomIdentity.INTERMEDIATE,
+            screen_to_atlas=None,
+            confidence=0.92,
+            frame_sha256=frame_digest(first),
+        )
+        localizer = SimpleNamespace(
+            localize=lambda frame: replace(
+                intermediate,
+                frame_sha256=frame_digest(frame),
+            ),
+            canonical_reference=first,
+        )
+        driver = BlueStacksLocalizeFirstHomeDriver(
+            world,
+            Path("atlas.json"),
+            _ready(),
+            target.semantic_id,
+            localizer=localizer,
+            maximum_zoom_inputs=1,
+        )
+        planned = driver.observe(first)
+        self.assertEqual(planned.disposition, HomeDriverDisposition.RECOVER_ZOOM)
+        self.assertEqual(planned.recovery_input_ordinal, 1)
+        driver.record_zoom_input_dispatched(planned.source_frame_sha256)
+        exhausted = driver.observe(second)
+        self.assertEqual(exhausted.disposition, HomeDriverDisposition.BLOCKED)
+        self.assertEqual(exhausted.reason, "maximum_zoom_recovery_inputs")
+
+    def test_localize_first_driver_blocks_repeated_or_unknown_recovery_frames(self) -> None:
+        target = _building()
+        world = _atlas(target)
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        intermediate = replace(
+            _localization(),
+            recognized=False,
+            zoom_identity=ZoomIdentity.INTERMEDIATE,
+            screen_to_atlas=None,
+            confidence=0.92,
+            frame_sha256=frame_digest(frame),
+        )
+        localizer = SimpleNamespace(
+            localize=lambda _frame: intermediate,
+            canonical_reference=frame,
+        )
+        driver = BlueStacksLocalizeFirstHomeDriver(
+            world,
+            Path("atlas.json"),
+            _ready(),
+            target.semantic_id,
+            localizer=localizer,
+        )
+        self.assertEqual(driver.observe(frame).disposition, HomeDriverDisposition.RECOVER_ZOOM)
+        repeated = driver.observe(frame)
+        self.assertEqual(repeated.disposition, HomeDriverDisposition.BLOCKED)
+        self.assertEqual(repeated.reason, "repeated_zoom_recovery_frame")
+        unknown_localizer = SimpleNamespace(
+            localize=lambda _frame: replace(
+                intermediate,
+                zoom_identity=ZoomIdentity.UNKNOWN,
+                confidence=0.0,
+            ),
+            canonical_reference=frame,
+        )
+        unknown = BlueStacksLocalizeFirstHomeDriver(
+            world,
+            Path("atlas.json"),
+            _ready(),
+            target.semantic_id,
+            localizer=unknown_localizer,
+        ).observe(frame)
+        self.assertEqual(unknown.disposition, HomeDriverDisposition.BLOCKED)
+        self.assertIn("home_localization_ambiguous", unknown.reason)
+
     def test_complete_offline_home_atlas_navigation(self) -> None:
         target = _building()
         world = _atlas(target)

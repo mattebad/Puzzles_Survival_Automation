@@ -27,7 +27,8 @@ from .runtime_identity import VerifiedRuntimeIdentity
 # Bump intentionally when shared Home navigation policy changes; dependent flow contracts
 # that pin HOME_NAVIGATION_PRIMITIVES_DIGEST must move to regression_required.
 HOME_NAVIGATION_PRIMITIVES_DIGEST = sha256(
-    b"home_context:v2:verified_identity|home_ready|home_localized|home_canonical|"
+    b"home_context:v3:verified_identity|fully_out_localization_only|"
+    b"home_ready|home_localized|home_canonical|"
     b"ensure_home_ready|localize_home|ensure_canonical_home|navigate_home_building|"
     b"canonical_is_recovery_only"
 ).hexdigest()
@@ -93,8 +94,7 @@ def is_home_localized(localization: LocalizationResult, *, confidence_floor: flo
         and localization.ambiguity_state is AmbiguityState.NONE
         and not localization.stale
         and not localization.overlay
-        and localization.zoom_identity
-        in {ZoomIdentity.FULLY_ZOOMED_OUT, ZoomIdentity.INTERMEDIATE}
+        and localization.zoom_identity is ZoomIdentity.FULLY_ZOOMED_OUT
     )
 
 
@@ -193,7 +193,6 @@ def navigate_home_building(
     *,
     navigator: ClosedLoopBuildingNavigator | None = None,
     confidence_floor: float = LOCALIZATION_CONFIDENCE_FLOOR,
-    allow_intermediate_zoom: bool = True,
 ) -> HomeContextDecision:
     """Navigate from the current localized viewport; canonical only on localization failure.
 
@@ -215,42 +214,15 @@ def navigate_home_building(
             requires_canonical_recovery=True,
         )
 
-    if (
-        not allow_intermediate_zoom
-        and localization.zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT
-    ):
+    controller = navigator or ClosedLoopBuildingNavigator(atlas, building_id)
+    if localization.zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT:
         return HomeContextDecision(
-            HomeContextLevel.HOME_LOCALIZED,
-            "intermediate_zoom_not_allowed_for_building_nav",
+            HomeContextLevel.HOME_READY,
+            "unsupported_zoom_requires_canonical_recovery",
             HomePrimitiveAction.RECOVER_CANONICAL,
             requires_canonical_recovery=True,
         )
-
-    controller = navigator or ClosedLoopBuildingNavigator(atlas, building_id)
-    # Existing navigator historically required fully_zoomed_out. For localized intermediate
-    # zoom with sufficient confidence, temporarily present a fully_zoomed_out identity only
-    # when the localization is already recognized — never fabricate transforms.
-    nav_localization = localization
-    if (
-        localization.zoom_identity is ZoomIdentity.INTERMEDIATE
-        and allow_intermediate_zoom
-        and localization.recognized
-    ):
-        from dataclasses import replace
-
-        nav_localization = replace(localization, zoom_identity=ZoomIdentity.FULLY_ZOOMED_OUT)
-
-    if localization.zoom_identity is ZoomIdentity.FULLY_ZOOMED_OUT or (
-        localization.zoom_identity is ZoomIdentity.INTERMEDIATE and allow_intermediate_zoom
-    ):
-        command = controller.next_command(nav_localization, binding)
-    else:
-        return HomeContextDecision(
-            HomeContextLevel.HOME_LOCALIZED,
-            "unsupported_zoom_for_building_navigation",
-            HomePrimitiveAction.STOP,
-            requires_canonical_recovery=True,
-        )
+    command = controller.next_command(localization, binding)
 
     if command.action is NavigationAction.BIND_TARGET:
         return HomeContextDecision(
