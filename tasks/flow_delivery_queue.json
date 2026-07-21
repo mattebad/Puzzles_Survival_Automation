@@ -304,7 +304,7 @@
       "title": "Migrate Nova Praise entry and return to the canonical Home Atlas",
       "kind": "navigation_migration",
       "priority": 20,
-      "status": "ready",
+      "status": "blocked",
       "backlog_task_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -326,8 +326,27 @@
           "scenario_id": "nova_navigation_round_trip_no_praise",
           "mode": "navigation_only",
           "maximum_execution_attempts": 1,
-          "execution_attempt_count": 0,
-          "attempts": [],
+          "execution_attempt_count": 1,
+          "attempts": [
+            {
+              "scenario_id": "nova_navigation_round_trip_no_praise",
+              "phase": "execution",
+              "outcome": "blocked",
+              "candidate_commit": "dc8210c1038c5233c893e2d42ee691a96b23ac48",
+              "input_count": 2,
+              "input_class": "navigation_only",
+              "consumes_execution_budget": true,
+              "reason": "research_lab_radial_not_bound",
+              "failure_class": "screen_recognition",
+              "material_condition_digest": null,
+              "evidence_refs": [
+                ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z"
+              ],
+              "correction_ref": null,
+              "terminal_ownership_state": "released",
+              "unresolved_action": false
+            }
+          ],
           "pre_input_results": [
             {
               "scenario_id": "nova_navigation_round_trip_no_praise",
@@ -351,7 +370,7 @@
           "forbidden_input_classes": [
             "consequential"
           ],
-          "status": "ready"
+          "status": "exhausted"
         }
       ],
       "focused_tests": [
@@ -363,9 +382,9 @@
         "navigation_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "",
-      "next_concrete_action": "Replace dedicated Home entry and generic Back recovery with verified Home Atlas bindings.",
-      "last_completed_stage": null,
+      "blocked_reason": "GF-MVP-009 exhausted the one named navigation scenario after two navigation inputs: known Nova start returned safely Home, Research Lab was opened, and the fresh radial lacked sufficient geometry to bind Nova. Praise inputs were zero and unresolved action state is clear.",
+      "next_concrete_action": "User review plus a new evidence-backed radial correction and explicit new scenario budget; do not rerun candidate dc8210c.",
+      "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION",
       "acceptance_criteria": [

@@ -131,10 +131,11 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
 
     def test_queue_selects_first_current_ready_flow(self) -> None:
         selected = control.FlowDeliveryController().select_next(self.queue)
-        self.assertEqual(
-            selected["flow_id"],
-            "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+        expected = min(
+            (flow for flow in self.queue["flows"] if flow["status"] == "ready"),
+            key=lambda flow: (flow["priority"], flow["flow_id"]),
         )
+        self.assertEqual(selected["flow_id"], expected["flow_id"])
 
     def test_next_after_campaign_follows_corrected_order(self) -> None:
         queue = deepcopy(self.queue)

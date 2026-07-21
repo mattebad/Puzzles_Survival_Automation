@@ -37,15 +37,24 @@ def _scenario() -> dict:
     return deepcopy(flow["named_scenarios"][0])
 
 
+def _unused_scenario() -> dict:
+    scenario = _scenario()
+    scenario["execution_attempt_count"] = 0
+    scenario["attempts"] = []
+    scenario["status"] = "ready"
+    return scenario
+
+
 class ScenarioAttemptPolicyTests(unittest.TestCase):
-    def test_checked_in_queue_has_one_ready_no_praise_scenario(self) -> None:
+    def test_checked_in_queue_has_one_exhausted_no_praise_scenario(self) -> None:
         queue = _queue()
         control.validate_queue(queue)
         scenario = _scenario()
         validate_named_scenario_state(scenario)
         self.assertEqual(scenario["scenario_id"], NOVA_CANARY_SCENARIO_ID)
         self.assertEqual(scenario["maximum_execution_attempts"], 1)
-        self.assertEqual(scenario["execution_attempt_count"], 0)
+        self.assertEqual(scenario["execution_attempt_count"], 1)
+        self.assertEqual(scenario["status"], "exhausted")
         self.assertEqual(scenario["forbidden_input_classes"], ["consequential"])
         self.assertEqual(len(scenario["pre_input_results"]), 1)
         self.assertFalse(
@@ -55,12 +64,16 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
     def test_replay_and_pre_input_failure_do_not_consume_budget(self) -> None:
         scenario = _scenario()
         initial_count = len(scenario["pre_input_results"])
+        initial_execution_count = scenario["execution_attempt_count"]
         replay = replay_validated_record(
             candidate_commit="a" * 40,
             evidence_refs=("before.png", "after.png"),
         )
         after_replay = apply_scenario_record(scenario, replay)
-        self.assertEqual(after_replay["execution_attempt_count"], 0)
+        self.assertEqual(
+            after_replay["execution_attempt_count"],
+            initial_execution_count,
+        )
         self.assertEqual(len(after_replay["pre_input_results"]), initial_count + 1)
         self.assertEqual(len(scenario["pre_input_results"]), initial_count)
         failure = ScenarioAttemptRecord(
@@ -75,9 +88,12 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
             failure_class=ScenarioFailureClass.ENVIRONMENT_PREFLIGHT,
         )
         after_failure = apply_scenario_record(after_replay, failure)
-        self.assertEqual(after_failure["execution_attempt_count"], 0)
+        self.assertEqual(
+            after_failure["execution_attempt_count"],
+            initial_execution_count,
+        )
         self.assertEqual(len(after_failure["pre_input_results"]), initial_count + 2)
-        self.assertEqual(after_failure["status"], "ready")
+        self.assertEqual(after_failure["status"], "exhausted")
 
     def test_first_navigation_input_consumes_and_exhausts_named_budget(self) -> None:
         execution = ScenarioAttemptRecord(
@@ -93,7 +109,7 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
             evidence_refs=("source.png", "post.png"),
             terminal_ownership_state="released",
         )
-        updated = apply_scenario_record(_scenario(), execution)
+        updated = apply_scenario_record(_unused_scenario(), execution)
         self.assertEqual(updated["execution_attempt_count"], 1)
         self.assertEqual(updated["status"], "exhausted")
         with self.assertRaisesRegex(ScenarioAttemptError, "budget exhausted"):

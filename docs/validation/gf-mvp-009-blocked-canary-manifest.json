@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "manifest_id": "gf-mvp-009-blocked-canary-20260721T230841195923Z",
+  "active_task_id": "GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY",
+  "next_task_id": "GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY",
+  "relevant_transaction_action_ids": [],
+  "canonical_evidence_session": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z",
+  "read_first": [
+    ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/result.json",
+    ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/ledger.jsonl"
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "result",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/result.json",
+      "expected_sha256": "37cbf377fcf6fa3e4cb3b0333755e704b7162c5a85fe8527cdb49c29c0685300",
+      "actual_sha256": "37cbf377fcf6fa3e4cb3b0333755e704b7162c5a85fe8527cdb49c29c0685300",
+      "reason": "Terminal blocked result with two navigation inputs and zero Praise."
+    },
+    {
+      "artifact_id": "events",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/events.jsonl",
+      "expected_sha256": "e279c9c134d76dbed9d99e08be49bd76bee9fbdfec7bb4f87b5a37045d1cdd33",
+      "actual_sha256": "e279c9c134d76dbed9d99e08be49bd76bee9fbdfec7bb4f87b5a37045d1cdd33",
+      "reason": "Runtime capture and navigation dispatch events."
+    },
+    {
+      "artifact_id": "ledger",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/ledger.jsonl",
+      "expected_sha256": "cca718c52bdf52ef7fd831cd9d8b9eb0829462ae6f3feac932c1d7f8eb3a7b53",
+      "actual_sha256": "cca718c52bdf52ef7fd831cd9d8b9eb0829462ae6f3feac932c1d7f8eb3a7b53",
+      "reason": "Ordered known-start return and Research Lab navigation records."
+    },
+    {
+      "artifact_id": "capability_audit",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/capability-audit.jsonl",
+      "expected_sha256": "411e0c0ed914132f721c705b579c0bad366089a81e57b0d87361cce5fc42306c",
+      "actual_sha256": "411e0c0ed914132f721c705b579c0bad366089a81e57b0d87361cce5fc42306c",
+      "reason": "Current-frame runtime authorization and transport observations."
+    },
+    {
+      "artifact_id": "journal",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/journal.jsonl",
+      "expected_sha256": "12b5fc2c9765db5052635430a64504768a1b89f518be4faeeef27115407904ec",
+      "actual_sha256": "12b5fc2c9765db5052635430a64504768a1b89f518be4faeeef27115407904ec",
+      "reason": "Scenario terminal state; no consequential transaction IDs."
+    },
+    {
+      "artifact_id": "source_nova",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/frames/0001-canary-source.png",
+      "expected_sha256": "ab09c05d9b5fb2c58356af1fdd87d0b600a8e4a841349e433af8b90f4b6e520a",
+      "actual_sha256": "ab09c05d9b5fb2c58356af1fdd87d0b600a8e4a841349e433af8b90f4b6e520a",
+      "reason": "Recognized initial Nova screen; no input yet."
+    },
+    {
+      "artifact_id": "start_return_immediate_before",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/frames/0002-canary-start-return-01-immediate-before.png",
+      "expected_sha256": "fcbb6fa07d92c8dc688c8b33b6dd753f54c27720ca38e68cd60d00ddba176d64",
+      "actual_sha256": "fcbb6fa07d92c8dc688c8b33b6dd753f54c27720ca38e68cd60d00ddba176d64",
+      "reason": "Fresh recognized Nova frame before safe Back."
+    },
+    {
+      "artifact_id": "start_return_immediate_post",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/frames/0003-canary-start-return-01-immediate-post.png",
+      "expected_sha256": "067608cc67ea6a31dcdebce928a027d8a09d033a771d56a35ac71d61c4366f80",
+      "actual_sha256": "067608cc67ea6a31dcdebce928a027d8a09d033a771d56a35ac71d61c4366f80",
+      "reason": "Immediate successor after known safe return input."
+    },
+    {
+      "artifact_id": "start_return_settled_home",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/frames/0004-canary-start-return-01-settled.png",
+      "expected_sha256": "5b474d50578dd2081d221c1a9674962021e89f4e9786fa0787e53c51ae48c6fe",
+      "actual_sha256": "5b474d50578dd2081d221c1a9674962021e89f4e9786fa0787e53c51ae48c6fe",
+      "reason": "Fully-out localized Home after safe start normalization."
+    },
+    {
+      "artifact_id": "research_lab_immediate_before",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/frames/0005-canary-home-01-immediate-before.png",
+      "expected_sha256": "2a873684f46eb714e1f4e54c45775533ec2b5f9bb58574121ef0cc66f25f3f39",
+      "actual_sha256": "2a873684f46eb714e1f4e54c45775533ec2b5f9bb58574121ef0cc66f25f3f39",
+      "reason": "Fresh fully-out localized Home with current Research Lab binding."
+    },
+    {
+      "artifact_id": "research_lab_immediate_post",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/frames/0006-canary-open-lab-immediate-post.png",
+      "expected_sha256": "a2b29408c3b9232504feb6af08eeb3db447bcd510611379e356a3956a0e08325",
+      "actual_sha256": "a2b29408c3b9232504feb6af08eeb3db447bcd510611379e356a3956a0e08325",
+      "reason": "Immediate successor after Research Lab navigation tap."
+    },
+    {
+      "artifact_id": "research_lab_settled_unbound_radial",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z/frames/0007-canary-open-lab-settled.png",
+      "expected_sha256": "48a116d3f31d9497545fa2054d9360320a38b5efd662e7f7e5bf50cd2dd7fb80",
+      "actual_sha256": "48a116d3f31d9497545fa2054d9360320a38b5efd662e7f7e5bf50cd2dd7fb80",
+      "reason": "Research Lab radial successor with insufficient current Nova geometry; terminal blocker."
+    }
+  ],
+  "unresolved_evidence": [],
+  "integrity": {
+    "all_present_verified_entries_hashed": true,
+    "transport_inputs": 2,
+    "consequential_inputs": 0,
+    "praise_taps": 0,
+    "scenario_budget_consumed": true
+  },
+  "must_not_be_compacted": true,
+  "allowed_historical_references": [
+    "tests/fixtures/nova_praise_preflight/manifest.json",
+    "tests/fixtures/nova_praise_replay/manifest.json"
+  ],
+  "do_not_recursively_inspect_parent_evidence_tree": true
+}

@@ -83,7 +83,11 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         queue["flows"][1]["product_policy_status"] = "prohibited"
         queue["flows"][1]["blocked_reason"] = "test policy"
         selected = control.FlowDeliveryController().select_next(queue)
-        self.assertEqual(selected["flow_id"], "NOVA-PRAISE-HOME-ATLAS-MIGRATION")
+        expected = min(
+            (flow for flow in queue["flows"] if flow["status"] == "ready"),
+            key=lambda flow: (flow["priority"], flow["flow_id"]),
+        )
+        self.assertEqual(selected["flow_id"], expected["flow_id"])
 
     def test_composition_bliss_and_gameplay_scheduler_are_excluded(self) -> None:
         identities = {item["flow_id"] for item in self.queue["flows"]}
@@ -119,9 +123,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             for status in control.QUEUE_STATUSES
         }
         self.assertIn(counts["active"], (0, 1))
-        # Campaign, Ultimate Challenge, and two Daily claim flows are blocked.
-        self.assertEqual(counts["ready"] + counts["active"], 7)
-        self.assertEqual(counts["blocked"], 4)
+        # Campaign, Ultimate Challenge, Nova, and two Daily claim flows are blocked.
+        self.assertEqual(counts["ready"] + counts["active"], 6)
+        self.assertEqual(counts["blocked"], 5)
         self.assertEqual(counts["needs_product_decision"], 4)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:

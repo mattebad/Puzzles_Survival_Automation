@@ -40,11 +40,10 @@ class GovernanceValidationTests(unittest.TestCase):
             current_fields,
             state["current_task_id"],
         )
-        self.assertIn("Status: Ready", successor)
-        self.assertEqual(
-            state["next_task_activation_status"],
-            "ready",
-        )
+        if state["next_task_activation_status"] == "ready":
+            self.assertIn("Status: Ready", successor)
+        elif state["next_task_activation_status"] == "dependency_blocked":
+            self.assertIn("Status: Blocked", successor)
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
         self.assertEqual(state["exact_next_permitted_action"], state["exact_next_permitted_action"].strip())
         self.assertNotIn("actions_already_performed", state)
@@ -95,12 +94,15 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
         next_block = validate_governance.task_block(backlog, state["next_task_id"])
-        self.assertIn("Status: Ready", next_block)
+        if state["next_task_activation_status"] == "ready":
+            self.assertIn("Status: Ready", next_block)
+        elif state["next_task_activation_status"] == "dependency_blocked":
+            self.assertIn("Status: Blocked", next_block)
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
         validate_governance.validate_successor(backlog, state)
         validate_governance.validate_repository(ROOT)
 
-    def test_active_offline_collector_contract_is_complete(self):
+    def test_active_task_evidence_contract_is_complete(self):
         state = validate_governance.parse_handoff()
         backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
         active_block = validate_governance.task_block(backlog, state["current_task_id"])
@@ -108,16 +110,20 @@ class GovernanceValidationTests(unittest.TestCase):
             active_block,
             state["current_task_id"],
         )
-        self.assertTrue(fields["Evidence requirement"].startswith("NOT_APPLICABLE"))
-        self.assertIsNone(state["evidence"]["active_evidence_manifest"])
-        self.assertIsNone(
-            validate_governance.validate_task_evidence(
-                state,
-                fields,
-                state["current_task_id"],
-                ROOT,
-            )
+        requirement = fields["Evidence requirement"].split(None, 1)[0].rstrip(":,.;")
+        self.assertEqual(state["evidence"]["evidence_requirement"], requirement)
+        validated = validate_governance.validate_task_evidence(
+            state,
+            fields,
+            state["current_task_id"],
+            ROOT,
         )
+        if requirement == "NOT_APPLICABLE":
+            self.assertIsNone(validated)
+            self.assertIsNone(state["evidence"]["active_evidence_manifest"])
+        else:
+            self.assertIsNotNone(validated)
+            self.assertIsInstance(state["evidence"]["active_evidence_manifest"], str)
 
     def test_existing_gov_and_mvp_contracts_remain_structurally_valid(self):
         backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
