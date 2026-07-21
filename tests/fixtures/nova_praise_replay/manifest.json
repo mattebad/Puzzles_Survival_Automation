@@ -1,0 +1,96 @@
+{
+  "schema_name": "nova_praise_replay_capsule",
+  "schema_version": 1,
+  "flow_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+  "dispatch_policy": "replay_never_dispatches_adb",
+  "cases": [
+    {
+      "fixture_id": "canonical_home",
+      "status": "available",
+      "path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "recognized_state": "home_localized_or_canonical",
+      "permitted_action": "navigate_or_bind_research_lab",
+      "expected_outcome": "blocked"
+    },
+    {
+      "fixture_id": "localized_noncanonical_home",
+      "status": "required_evidence",
+      "path": null,
+      "recognized_state": "home_localized",
+      "permitted_action": "navigate_without_forced_canonical",
+      "expected_outcome": "blocked"
+    },
+    {
+      "fixture_id": "zoomed_in_home",
+      "status": "required_evidence",
+      "path": null,
+      "recognized_state": "home_ready_recovery",
+      "permitted_action": "ensure_canonical_home",
+      "expected_outcome": "blocked"
+    },
+    {
+      "fixture_id": "research_lab_visible",
+      "status": "required_evidence",
+      "path": null,
+      "recognized_state": "research_lab_visible",
+      "permitted_action": "tap_building",
+      "expected_outcome": "blocked"
+    },
+    {
+      "fixture_id": "research_lab_offscreen",
+      "status": "required_evidence",
+      "path": null,
+      "recognized_state": "home_localized_offscreen_target",
+      "permitted_action": "pan",
+      "expected_outcome": "blocked"
+    },
+    {
+      "fixture_id": "research_lab_radial_menu",
+      "status": "required_evidence",
+      "path": null,
+      "recognized_state": "research_lab_radial",
+      "permitted_action": "tap_nova",
+      "expected_outcome": "blocked"
+    },
+    {
+      "fixture_id": "nova_lab",
+      "status": "required_evidence",
+      "path": null,
+      "recognized_state": "nova_lab",
+      "permitted_action": "open_praise",
+      "expected_outcome": "blocked"
+    },
+    {
+      "fixture_id": "praise_attempts_available",
+      "status": "required_evidence",
+      "path": null,
+      "recognized_state": "praise_attempts_available",
+      "permitted_action": "dispatch_free_praise",
+      "expected_outcome": "action_performed"
+    },
+    {
+      "fixture_id": "praise_on_cooldown",
+      "status": "required_evidence",
+      "path": null,
+      "recognized_state": "praise_cooldown",
+      "permitted_action": "none",
+      "expected_outcome": "deferred"
+    },
+    {
+      "fixture_id": "zero_attempts_remaining",
+      "status": "required_evidence",
+      "path": null,
+      "recognized_state": "praise_zero_attempts",
+      "permitted_action": "none",
+      "expected_outcome": "complete_for_reset"
+    },
+    {
+      "fixture_id": "unknown_or_negative_control",
+      "status": "synthetic_policy_ok",
+      "path": null,
+      "recognized_state": "manual_only",
+      "permitted_action": "none",
+      "expected_outcome": "manual_required"
+    }
+  ]
+}

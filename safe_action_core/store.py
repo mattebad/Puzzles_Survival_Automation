@@ -11,8 +11,19 @@ from typing import Any, Dict, Iterator, List, Mapping, Optional
 
 from .models import ActionIntent, ActionStatus, PolicyResult, snapshot
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 TASK_STATE_STATUSES = frozenset({"pending", "done", "blocked", "unresolved"})
+SCHEDULER_INVOCATION_STATUSES = frozenset(
+    {
+        "pending",
+        "deferred",
+        "complete_for_reset",
+        "already_complete",
+        "blocked",
+        "manual_required",
+        "unresolved",
+    }
+)
 ALLOWED_TRANSITIONS = {
     ActionStatus.PREPARED.value: {
         ActionStatus.INPUT_SENT.value,
@@ -99,7 +110,7 @@ class SafetyStore:
                         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
                         version INTEGER NOT NULL
                     );
-                    INSERT OR REPLACE INTO schema_version(singleton, version) VALUES (1, 2);
+                    INSERT OR REPLACE INTO schema_version(singleton, version) VALUES (1, 3);
                     CREATE TABLE controller_lease (
                         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
                         owner_id TEXT NOT NULL,
@@ -117,6 +128,22 @@ class SafetyStore:
                         revision INTEGER NOT NULL CHECK(revision >= 0),
                         last_reason TEXT NOT NULL,
                         updated_at REAL NOT NULL
+                    );
+                    CREATE TABLE scheduler_invocation_state (
+                        account_id TEXT NOT NULL,
+                        server_id TEXT NOT NULL,
+                        reset_id TEXT NOT NULL,
+                        task_id TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK(status IN ('pending','deferred','complete_for_reset','already_complete','blocked','manual_required','unresolved')),
+                        next_eligible_at REAL,
+                        revision INTEGER NOT NULL CHECK(revision >= 0),
+                        last_reason_code TEXT NOT NULL,
+                        observed_progress_json TEXT NOT NULL,
+                        action_count_total INTEGER NOT NULL CHECK(action_count_total >= 0),
+                        unresolved_action INTEGER NOT NULL CHECK (unresolved_action IN (0, 1)),
+                        evidence_refs_json TEXT NOT NULL,
+                        updated_at REAL NOT NULL,
+                        PRIMARY KEY (account_id, server_id, reset_id, task_id)
                     );
                     CREATE TABLE actions (
                         action_id TEXT PRIMARY KEY,
@@ -163,6 +190,7 @@ class SafetyStore:
                     COMMIT;
                     """
                 )
+        version = self.schema_version
         if version == 1:
             self.connection.executescript(
                 """BEGIN IMMEDIATE;
@@ -177,6 +205,30 @@ class SafetyStore:
                     updated_at REAL NOT NULL
                 );
                 UPDATE schema_version SET version=2 WHERE singleton=1;
+                COMMIT;
+                """
+            )
+        version = self.schema_version
+        if version == 2:
+            self.connection.executescript(
+                """BEGIN IMMEDIATE;
+                CREATE TABLE IF NOT EXISTS scheduler_invocation_state (
+                    account_id TEXT NOT NULL,
+                    server_id TEXT NOT NULL,
+                    reset_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK(status IN ('pending','deferred','complete_for_reset','already_complete','blocked','manual_required','unresolved')),
+                    next_eligible_at REAL,
+                    revision INTEGER NOT NULL CHECK(revision >= 0),
+                    last_reason_code TEXT NOT NULL,
+                    observed_progress_json TEXT NOT NULL,
+                    action_count_total INTEGER NOT NULL CHECK(action_count_total >= 0),
+                    unresolved_action INTEGER NOT NULL CHECK (unresolved_action IN (0, 1)),
+                    evidence_refs_json TEXT NOT NULL,
+                    updated_at REAL NOT NULL,
+                    PRIMARY KEY (account_id, server_id, reset_id, task_id)
+                );
+                UPDATE schema_version SET version=3 WHERE singleton=1;
                 COMMIT;
                 """
             )
@@ -347,6 +399,114 @@ class SafetyStore:
                 "status": status, "next_due_monotonic": next_due, "revision": revision,
                 "last_reason": last_reason,
             }, None, None, None)
+
+    def get_scheduler_invocation_state(
+        self,
+        account_id: str,
+        server_id: str,
+        reset_id: str,
+        task_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        row = self.connection.execute(
+            """SELECT * FROM scheduler_invocation_state
+               WHERE account_id=? AND server_id=? AND reset_id=? AND task_id=?""",
+            (account_id, server_id, reset_id, task_id),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_scheduler_invocation_states(self) -> List[Dict[str, Any]]:
+        rows = self.connection.execute(
+            """SELECT * FROM scheduler_invocation_state
+               ORDER BY account_id, server_id, reset_id, task_id"""
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def upsert_scheduler_invocation_state(self, state: Mapping[str, Any], updated_at: float) -> None:
+        try:
+            account_id = str(state["account_id"])
+            server_id = str(state["server_id"])
+            reset_id = str(state["reset_id"])
+            task_id = str(state["task_id"])
+            status = str(state["status"])
+            next_eligible = state.get("next_eligible_at")
+            revision = int(state["revision"])
+            last_reason_code = str(state.get("last_reason_code", ""))
+            observed_progress_json = str(state.get("observed_progress_json", "{}"))
+            action_count_total = int(state.get("action_count_total", 0))
+            unresolved_action = 1 if state.get("unresolved_action") else 0
+            evidence_refs_json = str(state.get("evidence_refs_json", "[]"))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise StoreError("invalid scheduler invocation state") from exc
+        if not all(value.strip() for value in (account_id, server_id, reset_id, task_id)):
+            raise StoreError("scheduler invocation state requires account/server/reset/task identity")
+        if status not in SCHEDULER_INVOCATION_STATUSES or revision < 0 or action_count_total < 0:
+            raise StoreError("invalid scheduler invocation status, revision, or action count")
+        if not math.isfinite(float(updated_at)):
+            raise StoreError("invalid scheduler invocation update time")
+        if next_eligible is not None and not math.isfinite(float(next_eligible)):
+            raise StoreError("next_eligible_at must be finite or None")
+        with self.transaction() as db:
+            current = db.execute(
+                """SELECT revision FROM scheduler_invocation_state
+                   WHERE account_id=? AND server_id=? AND reset_id=? AND task_id=?""",
+                (account_id, server_id, reset_id, task_id),
+            ).fetchone()
+            if current is not None and revision < int(current["revision"]):
+                raise StoreError("scheduler invocation revision cannot move backward")
+            db.execute(
+                """INSERT INTO scheduler_invocation_state(
+                    account_id, server_id, reset_id, task_id, status, next_eligible_at, revision,
+                    last_reason_code, observed_progress_json, action_count_total, unresolved_action,
+                    evidence_refs_json, updated_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(account_id, server_id, reset_id, task_id) DO UPDATE SET
+                    status=excluded.status,
+                    next_eligible_at=excluded.next_eligible_at,
+                    revision=excluded.revision,
+                    last_reason_code=excluded.last_reason_code,
+                    observed_progress_json=excluded.observed_progress_json,
+                    action_count_total=excluded.action_count_total,
+                    unresolved_action=excluded.unresolved_action,
+                    evidence_refs_json=excluded.evidence_refs_json,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    account_id,
+                    server_id,
+                    reset_id,
+                    task_id,
+                    status,
+                    next_eligible,
+                    revision,
+                    last_reason_code,
+                    observed_progress_json,
+                    action_count_total,
+                    unresolved_action,
+                    evidence_refs_json,
+                    updated_at,
+                ),
+            )
+            self._insert_audit(
+                db,
+                task_id,
+                "scheduler_invocation_state_updated",
+                updated_at,
+                {
+                    "account_id": account_id,
+                    "server_id": server_id,
+                    "reset_id": reset_id,
+                    "task_id": task_id,
+                    "status": status,
+                    "next_eligible_at": next_eligible,
+                    "revision": revision,
+                    "last_reason_code": last_reason_code,
+                    "action_count_total": action_count_total,
+                    "unresolved_action": bool(unresolved_action),
+                },
+                None,
+                None,
+                None,
+            )
 
     def list_nonterminal_actions(self) -> List[Dict[str, Any]]:
         rows = self.connection.execute(

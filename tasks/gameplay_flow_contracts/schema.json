@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pns-gameplay-flow-contract-v1",
+  "title": "GameplayFlowContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "flow_id",
+    "product_purpose",
+    "trigger_cadence_type",
+    "reset_scope",
+    "required_starting_context",
+    "shared_primitive_dependencies",
+    "recognized_states",
+    "state_transitions",
+    "permitted_inputs",
+    "local_postconditions",
+    "consequential_action_class",
+    "cost_quantity_requirements",
+    "completion_identity",
+    "terminal_outcomes",
+    "cooldown_deferred_behavior",
+    "bounded_recovery_behavior",
+    "evidence_requirements",
+    "replay_fixture_requirements",
+    "live_validation_scenarios",
+    "unsupported_or_manual_only_states",
+    "implementation_status",
+    "proof_state"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "flow_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "product_purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trigger_cadence_type": {
+      "type": "string",
+      "enum": [
+        "reset_pulse",
+        "cooldown_pulse",
+        "daily_once",
+        "eligibility_pulse",
+        "navigation_foundation",
+        "evidence_gated"
+      ]
+    },
+    "reset_scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "required_starting_context": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "home_ready",
+          "home_localized",
+          "home_canonical",
+          "world_map",
+          "quest_screen",
+          "unknown_requires_evidence"
+        ]
+      },
+      "minItems": 1
+    },
+    "shared_primitive_dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "primitive_id",
+          "version_digest_field"
+        ],
+        "properties": {
+          "primitive_id": {
+            "type": "string"
+          },
+          "version_digest_field": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "recognized_states": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "state_transitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to",
+          "via"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "via": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "permitted_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "local_postconditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "consequential_action_class": {
+      "type": "string"
+    },
+    "cost_quantity_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "free_only",
+        "maximum_cost",
+        "quantity"
+      ],
+      "properties": {
+        "free_only": {
+          "type": "boolean"
+        },
+        "maximum_cost": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "quantity": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "resource_or_currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "completion_identity": {
+      "type": "string"
+    },
+    "terminal_outcomes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "action_performed",
+          "deferred",
+          "complete_for_reset",
+          "already_complete",
+          "blocked",
+          "manual_required"
+        ]
+      },
+      "minItems": 1
+    },
+    "cooldown_deferred_behavior": {
+      "type": "string"
+    },
+    "bounded_recovery_behavior": {
+      "type": "string"
+    },
+    "evidence_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "replay_fixture_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "fixture_id",
+          "status"
+        ],
+        "properties": {
+          "fixture_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "required_evidence",
+              "synthetic_policy_ok"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "live_validation_scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "mode"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "navigation_only",
+              "consequential_supervised",
+              "observe_only",
+              "blocked_until_policy"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unsupported_or_manual_only_states": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "implementation_status": {
+      "type": "string",
+      "enum": [
+        "contract_only",
+        "shared_foundation",
+        "reference_implemented",
+        "live_validated",
+        "scheduler_eligible"
+      ]
+    },
+    "proof_state": {
+      "type": "string",
+      "enum": [
+        "current",
+        "regression_required",
+        "evidence_required",
+        "not_implemented"
+      ]
+    }
+  }
+}

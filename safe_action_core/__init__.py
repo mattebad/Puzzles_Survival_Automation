@@ -48,6 +48,7 @@ from .promotional import (
 )
 from .store import CURRENT_SCHEMA_VERSION, SafetyStore
 from .task_state import SQLiteTaskStateRepository
+from .scheduler_invocation_state import SQLiteSchedulerInvocationRepository
 from .popup import (
     ALLIANCE_FORT_WAVE_ALERT,
     UPDATE_RESTART_ALERT,
@@ -107,6 +108,7 @@ __all__ = [
     "SafeActionExecutor",
     "SafetyStore",
     "SQLiteTaskStateRepository",
+    "SQLiteSchedulerInvocationRepository",
     "TransportResult",
     "UPDATE_RESTART_ALERT",
     "alliance_fort_dismissal_allowed",

@@ -2,12 +2,29 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "5c8e99fba26a3c9a016d9188fa524d82a0f0c016",
+  "head": "0708b8f9e5761804acc45d15f261f3dbf499b4e6",
   "ahead_behind": {
-    "ahead": 27,
+    "ahead": 28,
     "behind": 0
   },
-  "attributable_dirty_paths": [],
+  "attributable_dirty_paths": [
+    "CURRENT_HANDOFF.md",
+    "docs/flow_delivery_coverage.md",
+    "scripts/bluestacks_ultimate_challenge.py",
+    "scripts/flow_delivery_ultimate_challenge_bluestacks.py",
+    "scripts/home_atlas_bluestacks.py",
+    "scripts/pnsctl.py",
+    "tasks/backlog_task_index.json",
+    "tasks/flow_delivery_bluestacks_registry.json",
+    "tasks/flow_delivery_coverage.json",
+    "tasks/flow_delivery_queue.json",
+    "tasks/ultimate_challenge_daily.py",
+    "tests/test_flow_delivery_ide_native_hardening.py",
+    "tests/test_flow_delivery_orchestrator.py",
+    "tests/test_flow_delivery_token_context_hygiene.py",
+    "tests/test_home_atlas_verified_route.py",
+    "tests/test_ultimate_challenge_daily.py"
+  ],
   "protected_user_owned_paths": [
     ".cursorindexingignore (pre-existing user-owned modification outside allowlisted hunks)",
     ".specstory/**",
@@ -17,22 +34,22 @@
     ".local-reference/**",
     ".local-captures/**"
   ],
-  "current_task_id": "FLOW-DELIVERY-PRETOOLUSE-TASK-ENFORCEMENT",
-  "current_task_state": "blocked",
-  "next_task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+  "current_task_id": "GAMEPLAY-FLOW-CONTRACTS-AND-SCHEDULER-FOUNDATION",
+  "current_task_state": "completed",
+  "next_task_id": "NOVA-PRAISE-LIVE-EVIDENCE-ACQUISITION",
   "next_task_activation_status": "ready",
-  "active_task_or_flow": null,
+  "active_task_or_flow": "none",
   "active_delivery_stage": null,
   "queue_counts": {
-    "ready": 8,
+    "ready": 7,
     "active": 0,
-    "blocked": 3,
+    "blocked": 4,
     "completed": 0,
     "needs_product_decision": 4
   },
-  "first_ready_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
-  "next_ready_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
-  "development_lease_state": "absent",
+  "first_ready_flow": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+  "next_ready_flow": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+  "development_lease_state": "none",
   "runtime_ownership_state": "none",
   "writable_agent_state": "absent",
   "unresolved_action_state": "clear",
@@ -43,25 +60,25 @@
     "completed_gameplay_flows_this_parent": 0,
     "rollover_required": false,
     "rollover_stop_reason": null,
-    "note": "Parent 35004996-9b5b-4a20-8218-2dd0d6bed11b; Campaign blocked after 3 live attempts; 0/2 gameplay completions."
+    "note": "Architecture task offline; flow-delivery queue not activated."
   },
-  "latest_focused_validation_result": "Campaign focused 63 + architecture 58 OK before live",
-  "latest_full_suite_result": "1016 OK before live",
+  "latest_focused_validation_result": "41 OK (home_context, flow_contracts, nova_pulse, scheduler_invocation, nova_praise, scheduler, sqlite, task_state)",
+  "latest_full_suite_result": "1056 ran; 11 FAIL baseline from pre-existing dirty Campaign/Ultimate queue state; 0 new failures in architecture components",
   "current_live_attempt_state": "none",
-  "current_evidence_or_session_reference": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION/",
-  "last_safe_completed_step": "Campaign blocked after maximum_live_attempts; development lease released; runtime ownership released.",
-  "exact_next_permitted_action": "Commit Campaign WIP + blocked queue, then activate ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION under the same parent (0/2 completions). Campaign retry later needs zoomed-out Home or raised live budget.",
-  "current_blocker": "Campaign live entry failed while Home camera was zoomed_in (LOCALIZATION_NOT_RECOGNIZED); 3/3 attempts exhausted.",
-  "prohibited_repeated_action": "Identical Campaign live retries without zoom-out/canonical Home prep; AP consumption; CLI subagent fallback; push.",
+  "current_evidence_or_session_reference": null,
+  "last_safe_completed_step": "Gameplay flow contracts + Home context primitives + scheduler invocation state + Nova Praise pulse/replay foundation committed offline.",
+  "exact_next_permitted_action": "Acquire retained Nova Praise replay fixtures (localized noncanonical Home, zoomed-in Home, Research Lab visible/offscreen, radial, Nova Lab, Praise available/cooldown/zero) under supervised capture; do not claim Nova live-complete; do not activate production scheduler.",
+  "current_blocker": "Nova Praise PNG fixtures mostly required_evidence; supervised live Praise postcondition not acquired in this task.",
+  "prohibited_repeated_action": "Live BlueStacks/ADB gameplay input; production scheduler activation; flow-delivery queue activation for this architecture work; push; fabricating missing fixtures.",
   "recent_relevant_commits": [
+    "0708b8f feat(campaign): Home Atlas destinations + block live on zoomed_in",
     "5c8e99f fix(automation): add preToolUse Task routing gate",
     "57d25ba fix(automation): isolate review snapshot secret scanning",
     "8c8e74e feat(automation): limit completed flows per parent conversation",
-    "0609eb8 chore(automation): reduce flow delivery context",
-    "20811eb fix(automation): keep flow delivery in Cursor IDE"
+    "0609eb8 chore(automation): reduce flow delivery context"
   ],
   "process_deviations": [
-    "Campaign delivery blocked on live zoom/localization; offline implementation and pnsctl registry wiring retained as WIP pending commit."
+    "Pre-existing uncommitted Ultimate Challenge / Campaign queue dirty tree left untouched; full-suite baseline failures attributed to that dirty queue state."
   ],
   "registration_and_scheduler": {
     "registered_operator_tasks": "NOT_REGISTERED_UNCHANGED",
@@ -78,8 +95,8 @@
     "historical_unresolved_classification": "No active unresolved consequential action; historical unresolved snapshots remain retained evidence only."
   },
   "evidence": {
-    "evidence_requirement": "RETAINED_LOCAL_CAPTURES",
-    "evidence_requirement_reason": "Failed Campaign live sessions retained under .local-captures/flow-delivery/; do not recursively inspect evidence/**.",
+    "evidence_requirement": "REQUIRED_FOR_NOVA_REPLAY_FIXTURES",
+    "evidence_requirement_reason": "Most Nova Praise replay fixtures remain required_evidence; only canonical Home tile is available in-repo.",
     "active_evidence_manifest": null,
     "do_not_recursively_inspect_parent_evidence_tree": true
   }
@@ -91,11 +108,11 @@
 Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and retained evidence.
 
 ## Repository
-- Branch: `main` @ `5c8e99f`
-- Campaign flow: **blocked** (3/3 live attempts; Home camera was zoomed_in)
-- Next ready: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`
-- Lease: absent; runtime ownership: none
+- Branch: `main` @ pending architecture commit
+- Architecture task: **completed** offline (flow contracts, Home context, scheduler invocation state, Nova pulse/replay)
+- Flow-delivery queue: **not activated**
+- Runtime ownership: none
 - Push: prohibited
 
 ## Exact next action
-Commit Campaign WIP + blocked queue, then continue the delivery loop with Ultimate Challenge.
+Acquire supervised Nova Praise replay fixtures listed as `required_evidence`; do not dispatch live Praise except under separate supervised authorization; do not mark Nova live-complete.

@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+  "product_purpose": "Migrate Campaign AP entry through Home Atlas and verified story destinations.",
+  "trigger_cadence_type": "eligibility_pulse",
+  "reset_scope": "daily_reset",
+  "required_starting_context": [
+    "home_localized"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "contract_declared",
+    "evidence_required"
+  ],
+  "state_transitions": [
+    {
+      "from": "contract_declared",
+      "to": "evidence_required",
+      "via": "missing_gameplay_evidence",
+      "notes": "Campaign AP battle remains policy-gated; navigation migration only."
+    }
+  ],
+  "permitted_inputs": [
+    "none_until_implemented"
+  ],
+  "local_postconditions": [
+    "evidence_required"
+  ],
+  "consequential_action_class": "none_declared",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": null,
+    "quantity": null,
+    "resource_or_currency": null,
+    "notes": "Campaign AP battle remains policy-gated; navigation migration only."
+  },
+  "completion_identity": "campaign-ap-home-atlas-and-destination-navigation:complete",
+  "terminal_outcomes": [
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "evidence_required",
+  "bounded_recovery_behavior": "evidence_required",
+  "evidence_requirements": [
+    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
+    "Campaign AP battle remains policy-gated; navigation migration only."
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "flow_entry",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Not fabricated in this task."
+    }
+  ],
+  "live_validation_scenarios": [
+    {
+      "id": "campaign-ap-home-atlas-and-destination-navigation-pending",
+      "mode": "blocked_until_policy",
+      "notes": "Campaign AP battle remains policy-gated; navigation migration only."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "ambiguous_account_or_server_identity",
+    "blocking_unknown_modal"
+  ],
+  "implementation_status": "contract_only",
+  "proof_state": "evidence_required"
+}

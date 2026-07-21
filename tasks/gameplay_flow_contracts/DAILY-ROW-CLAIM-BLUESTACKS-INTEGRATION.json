@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+  "product_purpose": "Daily Quest row claim BlueStacks integration.",
+  "trigger_cadence_type": "daily_once",
+  "reset_scope": "daily_reset",
+  "required_starting_context": [
+    "quest_screen"
+  ],
+  "shared_primitive_dependencies": [],
+  "recognized_states": [
+    "contract_declared",
+    "evidence_required"
+  ],
+  "state_transitions": [
+    {
+      "from": "contract_declared",
+      "to": "evidence_required",
+      "via": "missing_gameplay_evidence",
+      "notes": "Claim-only; no gameplay spend."
+    }
+  ],
+  "permitted_inputs": [
+    "none_until_implemented"
+  ],
+  "local_postconditions": [
+    "evidence_required"
+  ],
+  "consequential_action_class": "none_declared",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": null,
+    "quantity": null,
+    "resource_or_currency": null,
+    "notes": "Claim-only; no gameplay spend."
+  },
+  "completion_identity": "daily-row-claim-bluestacks-integration:complete",
+  "terminal_outcomes": [
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "evidence_required",
+  "bounded_recovery_behavior": "evidence_required",
+  "evidence_requirements": [
+    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
+    "Claim-only; no gameplay spend."
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "flow_entry",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Not fabricated in this task."
+    }
+  ],
+  "live_validation_scenarios": [
+    {
+      "id": "daily-row-claim-bluestacks-integration-pending",
+      "mode": "blocked_until_policy",
+      "notes": "Claim-only; no gameplay spend."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "ambiguous_account_or_server_identity",
+    "blocking_unknown_modal"
+  ],
+  "implementation_status": "contract_only",
+  "proof_state": "evidence_required"
+}

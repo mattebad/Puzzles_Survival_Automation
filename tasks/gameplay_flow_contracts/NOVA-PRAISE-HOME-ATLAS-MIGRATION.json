@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "flow_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+  "product_purpose": "Pulseable free Nova Praise from localized Home via Research Lab.",
+  "trigger_cadence_type": "cooldown_pulse",
+  "reset_scope": "daily_reset",
+  "required_starting_context": [
+    "home_localized"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_ready",
+    "home_localized",
+    "research_lab_visible",
+    "research_lab_radial",
+    "nova_lab",
+    "praise_attempts_available",
+    "praise_cooldown",
+    "praise_zero_attempts",
+    "manual_only",
+    "unknown_fail_closed"
+  ],
+  "state_transitions": [
+    {
+      "from": "home_ready",
+      "to": "home_localized",
+      "via": "localize_home"
+    },
+    {
+      "from": "home_localized",
+      "to": "research_lab_visible",
+      "via": "navigate_home_building(home.building.research_lab)"
+    },
+    {
+      "from": "research_lab_visible",
+      "to": "research_lab_radial",
+      "via": "tap_research_lab"
+    },
+    {
+      "from": "research_lab_radial",
+      "to": "nova_lab",
+      "via": "tap_nova"
+    },
+    {
+      "from": "nova_lab",
+      "to": "praise_attempts_available",
+      "via": "open_praise_read_attempts"
+    },
+    {
+      "from": "praise_attempts_available",
+      "to": "praise_cooldown",
+      "via": "dispatch_one_free_praise"
+    },
+    {
+      "from": "praise_attempts_available",
+      "to": "praise_zero_attempts",
+      "via": "observe_X_equals_0"
+    },
+    {
+      "from": "praise_cooldown",
+      "to": "deferred",
+      "via": "yield_with_next_eligible_at"
+    },
+    {
+      "from": "home_localized",
+      "to": "home_canonical",
+      "via": "ensure_canonical_home",
+      "notes": "recovery only when localization/navigation cannot proceed safely"
+    }
+  ],
+  "permitted_inputs": [
+    "navigation_only_home_pan",
+    "tap_research_lab",
+    "tap_nova_radial",
+    "open_praise",
+    "exactly_one_free_praise_when_authorized"
+  ],
+  "local_postconditions": [
+    "attempts_remaining_decremented_by_one_or_equivalent",
+    "cooldown_visible_or_complete_for_reset",
+    "no_paid_currency_consumed"
+  ],
+  "consequential_action_class": "account_changing_zero_cost_praise",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 1,
+    "resource_or_currency": null,
+    "notes": "Exactly one free Praise per pulse when eligible."
+  },
+  "completion_identity": "nova:praise:complete_for_reset",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "If attempts remain but free Praise is cooling down, return deferred with next_eligible_at and do not wait inside the flow.",
+  "bounded_recovery_behavior": "Failed localization routes through ensure_canonical_home once; repeated identical recovery without new hypothesis is prohibited.",
+  "evidence_requirements": [
+    "supervised live Praise postcondition remains required before live-complete claim",
+    "zero-attempt Praise fixture not retained from 2026-07-16 session",
+    "zoomed-in Home and Research Lab offscreen fixtures remain required_evidence unless retained assets are later bound"
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "canonical_home",
+      "status": "available",
+      "path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "notes": "Canonical atlas tile."
+    },
+    {
+      "fixture_id": "localized_noncanonical_home",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Panned localized Home frame distinct from canonical pose."
+    },
+    {
+      "fixture_id": "zoomed_in_home",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Zoomed-in Home negative for direct localization."
+    },
+    {
+      "fixture_id": "research_lab_visible",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Research Lab visible in current viewport."
+    },
+    {
+      "fixture_id": "research_lab_offscreen",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Localized Home with Research Lab offscreen."
+    },
+    {
+      "fixture_id": "research_lab_radial_menu",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Research Lab radial with Nova control."
+    },
+    {
+      "fixture_id": "nova_lab",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Nova Lab screen."
+    },
+    {
+      "fixture_id": "praise_attempts_available",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Praise with Interaction attempts left > 0 and free ready."
+    },
+    {
+      "fixture_id": "praise_on_cooldown",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Praise disabled with visible cooldown."
+    },
+    {
+      "fixture_id": "zero_attempts_remaining",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Interaction attempts left: 0."
+    },
+    {
+      "fixture_id": "unknown_or_negative_control",
+      "status": "synthetic_policy_ok",
+      "path": null,
+      "notes": "Synthetic unrecognized observation is policy-valid for fail-closed replay."
+    }
+  ],
+  "live_validation_scenarios": [
+    {
+      "id": "nova-praise-nav-home-roundtrip",
+      "mode": "navigation_only",
+      "notes": "Existing queue scenario."
+    },
+    {
+      "id": "nova-praise-one-free-pulse",
+      "mode": "consequential_supervised",
+      "notes": "Requires supervised live evidence; not claimed complete here."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "ambiguous_account_or_server_identity",
+    "blocking_unknown_modal"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "current"
+}
