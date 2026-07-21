@@ -5210,11 +5210,98 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### GF-MVP-003-SUPERVISED-IDENTITY-AND-PREFLIGHT
 - Task ID: `GF-MVP-003-SUPERVISED-IDENTITY-AND-PREFLIGHT`.
 - Title: Add minimum supervised identity assurance and BlueStacks preflight.
+- Status: Completed (2026-07-21; expected configuration, supervised-navigation binding, and
+  production-observed identity are distinct; HOME_READY consumes verified assurance; no runtime
+  connection or input occurred).
+- Milestone: Gameplay Flow Factory Milestone A.
+- Dependencies: completed `GF-MVP-002-MINIMUM-CONTRACT-V2` at `61e7981`; clean worktree; inactive
+  queue/runtime; no unresolved consequential action.
+- Blocked by: None for offline identity/preflight policy.
+- Objective: add the minimum verified identity and package/profile/manual-state preflight needed for
+  supervised navigation without claiming production account/server/reset assurance.
+- Established facts: configured values are not observations; production account/server/reset
+  recognition is not yet implemented; current Home readiness used a Boolean identity shortcut;
+  BlueStacks package/profile transport wiring remains owned by later `pnsctl` work.
+- Direct implementation files: `tasks/runtime_identity.py`, `tasks/home_context.py`,
+  `tasks/nova_praise_replay.py`, `tests/test_runtime_identity.py`, `tests/test_home_context.py`,
+  `tests/test_nova_praise_pulse.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, and
+  `tasks/backlog_task_index.json`.
+- Shared dependencies: scheduler identity semantics, existing BlueStacks profile/package constants,
+  Nova replay fixtures, Home context policy, and SafeAction production boundaries.
+- Transitive regression set: runtime identity, Home context, Nova replay/pulse, gameplay contracts,
+  governance/context, and full suite.
+- Allowed changes: only the direct implementation files and reviewed hunks above; per-commit allowed
+  paths are exactly those files; no `pnsctl` wiring or runtime connection.
+- Prohibited changes: account-screen automation, login/tutorial/CAPTCHA handling, configured-value
+  promotion to production assurance, BlueStacks/ADB/Bliss input, queue activation, scheduler or
+  SafetyStore schema change, Home localization/navigation behavior change, production registration,
+  plan-file edits, push, or history rewrite.
+- Authorized runtime action: None; pure identity and preflight policy only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden.
+- Consequential action: Forbidden.
+- Registration changes: None; preserve disabled state.
+- Scheduler changes: None; preserve disabled/ineligible state.
+- Actions that must not be repeated: any prior identity/account interaction, Nova Praise, Campaign
+  or Ultimate attempts, Personal Might/Claim, or any BlueStacks/ADB/Bliss input.
+- Required source: accepted plan, existing HomeReadyObservation use sites, BlueStacks package/profile
+  constants, current scheduler identity, and retained fixture identity.
+- Exact target semantics: `configuration_only` never authorizes; `supervised_navigation_binding`
+  permits only named supervised navigation; `production_observed` requires matching machine-observed
+  account/server/reset evidence before consequential policy can proceed.
+- Required local association: one expected runtime scope, exact account/server, optional supervised
+  reset, evidence references, current package/profile/native dimensions, and current manual/modal
+  state.
+- Negative controls: configuration alone, missing observation, account/server/reset mismatch,
+  operator binding absent, production machine observation absent, wrong package/profile/dimensions,
+  stale frame, missing evidence, manual-only state, and unknown modal.
+- Coordinate space: only native dimensions 800×1280 are evaluated; no coordinates or frame pixels
+  authorize input in this task.
+- Accepted signals: pure verification returns a typed identity; supervised preflight authorizes
+  navigation but not production; production assurance requires machine-observed reset identity;
+  HOME_READY rejects missing/unverified identity.
+- Rejected weak signals: environment variables, profile names, string presence, configuration files,
+  package assumptions, or replay fixtures represented as production observations.
+- Ambiguous-result behavior: return blocked/manual_required without transport or state mutation.
+- Zero-cost requirement: no gameplay action or resource consumption.
+- Quantity limits: one expected identity, one observed evidence set, zero inputs, one focused commit.
+- Resource consumption policy: no gameplay resource consumption.
+- Premium or strategic restrictions: all consequential, premium, account-switch, and strategic
+  behavior remains prohibited.
+- Active evidence manifest: None.
+- Required artifacts: pure identity/preflight module, Home readiness integration, fixture-only
+  replay identity, focused tests, regenerated backlog index, and passing full suite.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs.
+- Additional task-specific artifacts: None.
+- Focused tests: `tests.test_runtime_identity`, `tests.test_home_context`,
+  `tests.test_nova_praise_pulse`, and `tests.test_gameplay_flow_contracts`.
+- Integration tests: supervised versus production assurance, Home readiness, and retained Nova
+  replay identity without operational mutation.
+- Transitive regression tests: governance/context and full repository suite.
+- Full-suite requirement: authoritative `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: Python compile, focused tests, governance, `git diff --check`, full suite, and clean
+  attributable Git status.
+- Known baseline failures: None; prior task passed 1,060 tests with one expected skip.
+- Evidence requirement: NOT_APPLICABLE — offline identity/preflight policy creates no gameplay evidence.
+- Valid blocked outcomes: inability to distinguish supervised and production assurance without
+  weakening HOME_READY, or a touched-component/full-suite regression.
+- Blocked-result commit policy: retain exact blocker only, preserve prior contracts and disabled
+  runtime state, do not claim completion, and no push.
+- Commit policy: one reviewed conventional commit; stage only allowed paths; no push unless
+  explicitly authorized.
+- Expected focused commits: `feat(flow-factory): add supervised identity preflight`.
+- Completion criteria: configuration/observation are separate; supervised navigation lacks
+  production authority; production requires observed account/server/reset; HOME_READY consumes
+  verified identity; focused/full tests pass; runtime/queue/scheduler remain inactive; one commit.
+
+### GF-MVP-004-LOCALIZE-FIRST-HOME-DRIVER
+- Task ID: `GF-MVP-004-LOCALIZE-FIRST-HOME-DRIVER`.
+- Title: Converge the localize-first Home runtime driver.
 - Status: Ready; declared Milestone A successor, not yet active.
-- Scope: separate expected configuration from supervised-navigation and production-observed identity,
-  then bind `HOME_READY` to verified assurance without runtime input.
-- Authority: accepted Gameplay Flow Factory plan; this pointer does not authorize implementation,
-  live input, queue activation, production registration, or scheduling.
+- Scope: reuse the production Home Atlas, NavigationSession, DirectPanNavigator, semantic binding,
+  capability transport, and fresh-frame verification; intermediate/zoomed states recover canonically.
+- Authority: accepted Gameplay Flow Factory plan; this pointer authorizes no runtime input or queue
+  activation.
 
 
 

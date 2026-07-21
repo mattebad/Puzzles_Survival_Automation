@@ -26,6 +26,7 @@ from .home_context import HomeReadyObservation, navigate_home_building
 from .nova_praise import NOVA_PRAISE_TARGET, NovaPraiseObservation
 from .nova_praise_pulse import NOVA_TASK_ID, NovaPulseController, NovaPulseView
 from .nova_praise_vision import NOVA_PRAISE_ROI
+from .runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 from .scheduler_task_result import SchedulerIdentity, SchedulerTaskOutcome
 
 FLOW_ID = "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
@@ -100,7 +101,14 @@ def _ready(*, manual: bool = False) -> HomeReadyObservation:
     return HomeReadyObservation(
         game_foregrounded=True,
         expected_native_profile=True,
-        account_server_identity_available=True,
+        identity=VerifiedRuntimeIdentity(
+            "offline-replay",
+            "acct-1",
+            "server-1",
+            "reset-2026-07-21",
+            RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
+            ("nova-replay-fixture",),
+        ),
         manual_only_state=manual,
         blocking_unknown_modal=False,
     )

@@ -21,12 +21,13 @@ from .home_atlas import (
     NavigationCommand,
     ZoomIdentity,
 )
+from .runtime_identity import VerifiedRuntimeIdentity
 
 
 # Bump intentionally when shared Home navigation policy changes; dependent flow contracts
 # that pin HOME_NAVIGATION_PRIMITIVES_DIGEST must move to regression_required.
 HOME_NAVIGATION_PRIMITIVES_DIGEST = sha256(
-    b"home_context:v1:home_ready|home_localized|home_canonical|"
+    b"home_context:v2:verified_identity|home_ready|home_localized|home_canonical|"
     b"ensure_home_ready|localize_home|ensure_canonical_home|navigate_home_building|"
     b"canonical_is_recovery_only"
 ).hexdigest()
@@ -56,7 +57,7 @@ class HomeReadyObservation:
 
     game_foregrounded: bool
     expected_native_profile: bool
-    account_server_identity_available: bool
+    identity: VerifiedRuntimeIdentity | None
     manual_only_state: bool
     blocking_unknown_modal: bool
 
@@ -79,7 +80,7 @@ def ensure_home_ready(observation: HomeReadyObservation) -> HomeContextDecision:
         return HomeContextDecision(None, "game_not_foregrounded", HomePrimitiveAction.STOP)
     if not observation.expected_native_profile:
         return HomeContextDecision(None, "unexpected_native_profile", HomePrimitiveAction.STOP)
-    if not observation.account_server_identity_available:
+    if observation.identity is None or not observation.identity.permits_supervised_navigation:
         return HomeContextDecision(None, "account_server_identity_unavailable", HomePrimitiveAction.STOP)
     return HomeContextDecision(HomeContextLevel.HOME_READY, "home_ready")
 

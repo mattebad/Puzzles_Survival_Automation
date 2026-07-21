@@ -28,13 +28,25 @@ from tasks.home_context import (
     localize_home,
     navigate_home_building,
 )
+from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
+
+
+def _identity() -> VerifiedRuntimeIdentity:
+    return VerifiedRuntimeIdentity(
+        "test-runtime",
+        "acct-1",
+        "server-1",
+        "reset-1",
+        RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
+        ("test-identity",),
+    )
 
 
 def _ready(**changes) -> HomeReadyObservation:
     base = dict(
         game_foregrounded=True,
         expected_native_profile=True,
-        account_server_identity_available=True,
+        identity=_identity(),
         manual_only_state=False,
         blocking_unknown_modal=False,
     )
@@ -164,6 +176,11 @@ class HomeContextTests(unittest.TestCase):
         self.assertEqual(decision.action, HomePrimitiveAction.RECOVER_CANONICAL)
         classified = classify_home_context(_ready(), _loc(recognized=False, zoom=ZoomIdentity.ZOOMED_IN))
         self.assertTrue(classified.requires_canonical_recovery)
+
+    def test_configuration_without_verified_identity_cannot_be_home_ready(self):
+        decision = ensure_home_ready(_ready(identity=None))
+        self.assertIsNone(decision.level)
+        self.assertEqual(decision.reason, "account_server_identity_unavailable")
 
     def test_primitives_digest_is_stable_hex(self):
         self.assertEqual(len(HOME_NAVIGATION_PRIMITIVES_DIGEST), 64)

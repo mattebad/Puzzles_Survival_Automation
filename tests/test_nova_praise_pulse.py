@@ -19,6 +19,7 @@ from tasks.nova_praise import NOVA_PRAISE_TARGET, NovaPraiseObservation, nova_po
 from tasks.nova_praise_pulse import NOVA_TASK_ID, NovaPulseController, NovaPulseView
 from tasks.nova_praise_replay import assert_contract_fixtures_aligned, load_replay_manifest, run_replay_case
 from tasks.nova_praise_vision import NOVA_PRAISE_ROI
+from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 from tasks.scheduler_task_result import SchedulerIdentity, SchedulerTaskOutcome
 
 
@@ -64,7 +65,20 @@ def _atlas() -> HomeAtlas:
 
 
 def _ready() -> HomeReadyObservation:
-    return HomeReadyObservation(True, True, True, False, False)
+    return HomeReadyObservation(
+        True,
+        True,
+        VerifiedRuntimeIdentity(
+            "test-runtime",
+            "acct-1",
+            "server-1",
+            "reset-1",
+            RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
+            ("test-identity",),
+        ),
+        False,
+        False,
+    )
 
 
 def _loc() -> LocalizationResult:
