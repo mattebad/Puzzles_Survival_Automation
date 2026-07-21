@@ -23,3 +23,25 @@ evidence/**/*transcript*.md
 # evidence/current-evidence-manifest.json, evidence summaries, result JSON,
 # reconciliation reports, hash manifests, and canonical status Markdown.
 .local-captures/**
+# Don't index SpecStory auto-save files, but allow explicit context inclusion via @ references
+.specstory/**
+# Local orchestration, caches, archives, and IDE/local noise for broad indexing.
+.local-reference/**
+.local-orchestrator/**
+.vscode/**
+.pytest_cache/**
+**/__pycache__/**
+artifacts/evidence-audit*.json
+artifacts/evidence-audit*.md
+autonomous_iteration_prompt.md
+/Puzzle_Survival_Runtime_POC*.zip
+/*.7z
+# Broad raw evidence exclusions beyond image/db/raw trees above.
+evidence/**/*.jsonl
+evidence/**/*.mp4
+evidence/**/*.mov
+evidence/**/*.avi
+evidence/**/*.log
+evidence/**/*.sqlite3-wal
+evidence/**/*.sqlite3-shm
+evidence/**/sessions/*/

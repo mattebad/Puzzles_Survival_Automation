@@ -36,99 +36,92 @@ MANIFEST_STATUSES = {
     "NOT_APPLICABLE",
 }
 
+HANDOFF_SCHEMA_VERSION = 2
+HANDOFF_STRUCTURED_MAX_BYTES = 15000
+HANDOFF_TOTAL_MAX_BYTES = 20000
+HANDOFF_MAX_RECENT_COMMITS = 5
+HANDOFF_MAX_PROCESS_DEVIATIONS = 3
+
 HANDOFF_REQUIRED_KEYS = {
     "schema_version",
-    "repository",
+    "branch",
+    "head",
+    "ahead_behind",
+    "attributable_dirty_paths",
+    "protected_user_owned_paths",
     "current_task_id",
     "current_task_state",
     "next_task_id",
     "next_task_activation_status",
-    "phase",
-    "objective",
+    "active_task_or_flow",
+    "active_delivery_stage",
+    "queue_counts",
+    "first_ready_flow",
+    "next_ready_flow",
+    "development_lease_state",
+    "runtime_ownership_state",
+    "writable_agent_state",
+    "unresolved_action_state",
+    "latest_focused_validation_result",
+    "latest_full_suite_result",
+    "current_live_attempt_state",
+    "current_evidence_or_session_reference",
     "last_safe_completed_step",
-    "next_permitted_action",
+    "exact_next_permitted_action",
+    "current_blocker",
+    "prohibited_repeated_action",
+    "recent_relevant_commits",
+    "process_deviations",
+    "registration_and_scheduler",
+    "journals_and_lease",
+    "evidence",
+}
+
+HANDOFF_FORBIDDEN_KEYS = {
     "actions_already_performed",
     "actions_not_to_repeat",
-    "runtime",
-    "journals_and_lease",
+    "collector",
     "game_day",
-    "registration_and_scheduler",
+    "runtime",
     "tests",
-    "evidence",
     "next_action",
+    "phase",
+    "objective",
+    "next_permitted_action",
+    "repository",
 }
 
 HANDOFF_NESTED_KEYS = {
-    "repository": {
-        "branch",
-        "head",
-        "origin_relationship",
-        "staged_paths",
-        "relevant_unstaged_paths",
-        "protected_untracked_paths_or_categories",
-        "most_recent_task_scoped_commits",
+    "ahead_behind": {
+        "ahead",
+        "behind",
     },
-    "runtime": {
-        "vm_state",
-        "worker_state",
-        "active_operator_collector_automation_test_emulator_processes",
-        "adb_exposure_and_connection_state",
-        "expected_fixed_profile",
-        "observed_current_profile",
-        "foreground_package_activity",
-        "manual_only_screen_state",
-    },
-    "journals_and_lease": {
-        "authoritative_operational_journal_path",
-        "lease_owner",
-        "lease_status",
-        "lease_expiry",
-        "active_prepared_input_sent_unresolved_action_ids",
-        "latest_confirmed_consequential_action",
-        "relevant_navigation_only_records",
-        "historical_source_journal_references",
-        "historical_unresolved_classification",
-    },
-    "game_day": {
-        "game_day_id",
-        "reset_status_or_next_reset",
-        "derivation",
-        "active_task_cycle_binding",
+    "queue_counts": {
+        "ready",
+        "active",
+        "blocked",
+        "completed",
+        "needs_product_decision",
     },
     "registration_and_scheduler": {
         "registered_operator_tasks",
         "scheduler_enabled_disabled",
         "scheduler_eligible_flows",
-        "live_task_state_row_count",
-        "pending_promotion_gates",
+        "composition_blocked",
+        "m6_unactivated",
+        "bliss_unchanged",
     },
-    "tests": {
-        "pinned_environment",
-        "last_full_suite_count",
-        "known_accepted_baseline_failures",
-        "new_regressions",
-        "last_relevant_focused_tests",
+    "journals_and_lease": {
+        "development_lease_path",
+        "development_lease_status",
+        "active_prepared_input_sent_unresolved_action_ids",
+        "historical_unresolved_classification",
     },
     "evidence": {
         "evidence_requirement",
         "evidence_requirement_reason",
         "active_evidence_manifest",
-        "raw_source",
-        "immediate_before",
-        "immediate_post",
-        "semantic_result",
-        "operational_journal",
-        "historical_source_journal",
-        "unresolved_evidence",
-        "must_retain_artifacts",
         "do_not_recursively_inspect_parent_evidence_tree",
-    },
-    "next_action": {
-        "permitted_actions",
-        "prohibited_actions",
-        "exact_stop_condition",
-        "expected_next_atomic_task",
-        "expected_next_activation_status",
     },
 }
 
@@ -199,6 +192,26 @@ REQUIRED_INDEXING_PATTERNS = {
     "evidence/**/*.zip",
     "evidence/**/*.zip.*",
     "evidence/**/*transcript*.md",
+    ".local-captures/**",
+    ".specstory/**",
+    "." + "local-reference/**",
+    ".local-orchestrator/**",
+    ".vscode/**",
+    ".pytest_cache/**",
+    "**/__pycache__/**",
+    "artifacts/evidence-audit*.json",
+    "artifacts/evidence-audit*.md",
+    "autonomous_iteration_prompt.md",
+    "/Puzzle_Survival_Runtime_POC*.zip",
+    "/*.7z",
+    "evidence/**/*.jsonl",
+    "evidence/**/*.mp4",
+    "evidence/**/*.mov",
+    "evidence/**/*.avi",
+    "evidence/**/*.log",
+    "evidence/**/*.sqlite3-wal",
+    "evidence/**/*.sqlite3-shm",
+    "evidence/**/sessions/*/",
 }
 
 
@@ -217,16 +230,35 @@ def parse_handoff(path: Path = HANDOFF_PATH) -> Dict[str, Any]:
     if text.count(begin) != 1 or text.count(end) != 1:
         raise GovernanceValidationError("handoff must contain one structured state block")
     raw = text.split(begin, 1)[1].split(end, 1)[0].strip()
+    raw_bytes = raw.encode("utf-8")
+    total_bytes = text.encode("utf-8")
+    if len(raw_bytes) > HANDOFF_STRUCTURED_MAX_BYTES:
+        raise GovernanceValidationError(
+            f"handoff structured state exceeds {HANDOFF_STRUCTURED_MAX_BYTES} UTF-8 bytes"
+        )
+    if len(total_bytes) > HANDOFF_TOTAL_MAX_BYTES:
+        raise GovernanceValidationError(
+            f"handoff total size exceeds {HANDOFF_TOTAL_MAX_BYTES} UTF-8 bytes"
+        )
     try:
         state = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise GovernanceValidationError(f"handoff state is not valid JSON: {exc}") from exc
     if not isinstance(state, dict):
         raise GovernanceValidationError("handoff state must be a JSON object")
+    if state.get("schema_version") != HANDOFF_SCHEMA_VERSION:
+        raise GovernanceValidationError(
+            f"handoff schema_version must be {HANDOFF_SCHEMA_VERSION}"
+        )
     missing = HANDOFF_REQUIRED_KEYS - set(state)
     if missing:
         raise GovernanceValidationError(
             "handoff missing structured keys: " + ", ".join(sorted(missing))
+        )
+    forbidden = HANDOFF_FORBIDDEN_KEYS & set(state)
+    if forbidden:
+        raise GovernanceValidationError(
+            "handoff contains forbidden historical keys: " + ", ".join(sorted(forbidden))
         )
     for name, required in HANDOFF_NESTED_KEYS.items():
         value = state.get(name)
@@ -250,6 +282,28 @@ def parse_handoff(path: Path = HANDOFF_PATH) -> Dict[str, Any]:
     if state["next_task_id"] is None and state["next_task_activation_status"] != "not_applicable":
         raise GovernanceValidationError(
             "null next_task_id requires not_applicable activation status"
+        )
+    if not isinstance(state["exact_next_permitted_action"], str) or not state[
+        "exact_next_permitted_action"
+    ].strip():
+        raise GovernanceValidationError("exact_next_permitted_action must be non-empty")
+    if not isinstance(state["unresolved_action_state"], str) or not state[
+        "unresolved_action_state"
+    ].strip():
+        raise GovernanceValidationError("unresolved_action_state must be non-empty")
+    if not isinstance(state["protected_user_owned_paths"], list):
+        raise GovernanceValidationError("protected_user_owned_paths must be a list")
+    commits = state["recent_relevant_commits"]
+    if not isinstance(commits, list) or len(commits) > HANDOFF_MAX_RECENT_COMMITS:
+        raise GovernanceValidationError(
+            f"recent_relevant_commits must be a list of at most {HANDOFF_MAX_RECENT_COMMITS}"
+        )
+    if len(commits) != len(set(commits)):
+        raise GovernanceValidationError("recent_relevant_commits must not contain duplicates")
+    deviations = state["process_deviations"]
+    if not isinstance(deviations, list) or len(deviations) > HANDOFF_MAX_PROCESS_DEVIATIONS:
+        raise GovernanceValidationError(
+            f"process_deviations must be a list of at most {HANDOFF_MAX_PROCESS_DEVIATIONS}"
         )
     if state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"] is not True:
         raise GovernanceValidationError("handoff must prohibit recursive evidence inspection")

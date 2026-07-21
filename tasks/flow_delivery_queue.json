@@ -82,7 +82,78 @@
       "next_concrete_action": "Replace legacy HOME_PAN_GESTURES with the canonical Home Atlas and add remembered-state feedback control for the three approved Story destinations.",
       "last_completed_stage": null,
       "last_commit": null,
-      "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+      "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+      "acceptance_criteria": [
+        "canonical Home Atlas Campaign entry replaces HOME_PAN_GESTURES or fail-closes it",
+        "Story destinations exactly 1-20-9, 1-15-9, and 2-2-9 are verified before AP execution",
+        "destination selection is separate from AP-consuming execution",
+        "remembered-state feedback-controlled Campaign navigation is used",
+        "Story difficulty 1 and 2 support exists only as required by the three destinations",
+        "navigation-only live validation initially with three destination-navigation scenarios",
+        "existing downstream AP and battle behavior preserved unless a reproduced defect requires change"
+      ],
+      "scope_prohibitions": [
+        "1-2-9 is not an alias",
+        "ultimate-challenge is not a Campaign destination",
+        "no AP consumption merely to validate destination navigation",
+        "every other unregistered Story tuple fails closed",
+        "no production registration change",
+        "no gameplay scheduler mutation",
+        "no composition activation",
+        "no M6 activation",
+        "Bliss remains unchanged",
+        "no arbitrary BlueStacks input outside authorized live validation"
+      ],
+      "reference_docs": [
+        "docs/campaign-auto-battle.md",
+        "docs/flow_delivery_coverage.md",
+        "docs/prompts/daily-quest/dq-flow-campaign-ap.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "scripts/bluestacks_campaign_ap.py",
+        "tasks/campaign_auto_battle.py",
+        "tasks/campaign_auto_battle_runtime.py",
+        "tasks/campaign_auto_battle_vision.py",
+        "scripts/home_atlas_bluestacks.py",
+        "tests/test_campaign_auto_battle.py",
+        "tests/test_campaign_auto_battle_runtime.py",
+        "tests/test_campaign_story_destinations.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "campaign-nav-1-20-9",
+          "destination": "1-20-9",
+          "mode": "navigation_only"
+        },
+        {
+          "id": "campaign-nav-1-15-9",
+          "destination": "1-15-9",
+          "mode": "navigation_only"
+        },
+        {
+          "id": "campaign-nav-2-2-9",
+          "destination": "2-2-9",
+          "mode": "navigation_only"
+        }
+      ],
+      "required_terminal_states": [
+        "destination_verified",
+        "navigation_only_complete",
+        "blocked_fail_closed"
+      ],
+      "completion_tests": [
+        "tests/test_campaign_auto_battle.py",
+        "tests/test_campaign_auto_battle_runtime.py",
+        "tests/test_campaign_story_destinations.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "navigation_only",
+        "ap_execution": "requires_separate_explicit_policy",
+        "ultimate_challenge": "not_a_campaign_destination"
+      }
     },
     {
       "flow_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
@@ -116,7 +187,59 @@
       "next_concrete_action": "Implement Home Atlas Campaign entry and verified Ultimate Challenge navigation without embedding it in Campaign AP destination parsing.",
       "last_completed_stage": null,
       "last_commit": null,
-      "artifact_root": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+      "artifact_root": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+      "acceptance_criteria": [
+        "separate flow identity from Campaign AP farming",
+        "canonical Home Atlas navigation to Campaign then verified Ultimate Challenge entry",
+        "already_completed is a valid terminal state",
+        "one-success-per-reset idempotency with persistent reset-window state contract",
+        "fail closed on ambiguous reset identity or completion state",
+        "navigation-only validation initially"
+      ],
+      "scope_prohibitions": [
+        "Campaign completion must not complete Ultimate Challenge",
+        "Ultimate Challenge completion must not complete or reconfigure Campaign AP",
+        "no Campaign AP coupling",
+        "unidentified or unapproved challenge execution remains unauthorized",
+        "no production registration or scheduling",
+        "no production registration change",
+        "no gameplay scheduler mutation",
+        "no composition activation",
+        "no M6 activation",
+        "Bliss remains unchanged",
+        "no arbitrary BlueStacks input outside authorized live validation"
+      ],
+      "reference_docs": [
+        "docs/flow_delivery_coverage.md",
+        "docs/prompts/daily-quest/dq-flow-challenges.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "scripts/home_atlas_bluestacks.py",
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "ultimate-challenge-nav-entry",
+          "mode": "navigation_only",
+          "path": "home_atlas_to_campaign_to_ultimate_challenge"
+        }
+      ],
+      "required_terminal_states": [
+        "already_completed",
+        "navigation_only_complete",
+        "blocked_fail_closed"
+      ],
+      "completion_tests": [
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "navigation_only",
+        "daily_execution": "requires_separate_explicit_policy",
+        "campaign_ap_coupling": "prohibited"
+      }
     },
     {
       "flow_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
@@ -124,7 +247,7 @@
       "kind": "navigation_migration",
       "priority": 20,
       "status": "ready",
-      "backlog_task_id": "DQ-FLOW-NOVA-PRAISE-BLUESTACKS",
+      "backlog_task_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
         "scripts/nova_praise_bluestacks.py",
@@ -153,7 +276,52 @@
       "next_concrete_action": "Replace dedicated Home entry and generic Back recovery with verified Home Atlas bindings.",
       "last_completed_stage": null,
       "last_commit": null,
-      "artifact_root": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION"
+      "artifact_root": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+      "acceptance_criteria": [
+        "replace dedicated Home entry and generic Back recovery with verified Home Atlas bindings",
+        "one bounded navigation-only Home-to-Nova-to-Home route",
+        "existing zero-cost cooldown-bound Praise behavior preserved"
+      ],
+      "scope_prohibitions": [
+        "Praise dispatch is outside migration validation",
+        "no production registration change",
+        "no gameplay scheduler mutation",
+        "no composition activation",
+        "no M6 activation",
+        "Bliss remains unchanged",
+        "no arbitrary BlueStacks input outside authorized live validation"
+      ],
+      "reference_docs": [
+        "docs/nova-praise-bluestacks.md",
+        "docs/prompts/daily-quest/dq-flow-personal-might-praise.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "scripts/nova_praise_bluestacks.py",
+        "tasks/nova_praise_runtime.py",
+        "tasks/nova_praise_vision.py",
+        "scripts/home_atlas_bluestacks.py",
+        "tests/test_nova_praise.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "nova-praise-nav-home-roundtrip",
+          "mode": "navigation_only"
+        }
+      ],
+      "required_terminal_states": [
+        "navigation_only_complete",
+        "blocked_fail_closed"
+      ],
+      "completion_tests": [
+        "tests/test_nova_praise.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "navigation_only",
+        "praise_dispatch": "outside_migration_validation"
+      }
     },
     {
       "flow_id": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
@@ -161,7 +329,7 @@
       "kind": "navigation_migration",
       "priority": 30,
       "status": "ready",
-      "backlog_task_id": "DQ-FLOW-NOAHS-TAVERN-BLUESTACKS",
+      "backlog_task_id": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
         "scripts/noahs_tavern_recruit_bluestacks.py",
@@ -190,7 +358,52 @@
       "next_concrete_action": "Adopt canonical Home Atlas entry and safe-exit contracts without changing recruitment behavior.",
       "last_completed_stage": null,
       "last_commit": null,
-      "artifact_root": ".local-captures/flow-delivery/NOAHS-TAVERN-HOME-ATLAS-MIGRATION"
+      "artifact_root": ".local-captures/flow-delivery/NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+      "acceptance_criteria": [
+        "adopt canonical Home Atlas entry and safe-exit contracts",
+        "one bounded navigation-only Home-to-Tavern-to-Home route"
+      ],
+      "scope_prohibitions": [
+        "recruitment dispatch is prohibited during migration validation",
+        "unknown free state or consequence fails closed",
+        "no production registration change",
+        "no gameplay scheduler mutation",
+        "no composition activation",
+        "no M6 activation",
+        "Bliss remains unchanged",
+        "no arbitrary BlueStacks input outside authorized live validation"
+      ],
+      "reference_docs": [
+        "docs/noahs-tavern-recruit-bluestacks.md",
+        "docs/prompts/daily-quest/dq-flow-recruitment.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "scripts/noahs_tavern_recruit_bluestacks.py",
+        "tasks/noahs_tavern_recruit_runtime.py",
+        "tasks/noahs_tavern_recruit_vision.py",
+        "scripts/home_atlas_bluestacks.py",
+        "tests/test_noahs_tavern_recruit.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "noahs-tavern-nav-home-roundtrip",
+          "mode": "navigation_only"
+        }
+      ],
+      "required_terminal_states": [
+        "navigation_only_complete",
+        "blocked_fail_closed"
+      ],
+      "completion_tests": [
+        "tests/test_noahs_tavern_recruit.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "navigation_only",
+        "recruitment": "prohibited"
+      }
     },
     {
       "flow_id": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
@@ -227,7 +440,52 @@
       "next_concrete_action": "Replace direct building binding and repeated Back recovery with canonical Home Atlas navigation and safe exit.",
       "last_completed_stage": null,
       "last_commit": null,
-      "artifact_root": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+      "artifact_root": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+      "acceptance_criteria": [
+        "replace direct building binding and repeated Back recovery with canonical Home Atlas navigation and safe exit",
+        "one bounded navigation-only Home-to-Ruins-to-Home route"
+      ],
+      "scope_prohibitions": [
+        "challenge, chest, exchange, and purchase actions are prohibited",
+        "challenge entry/combat remains policy-disabled",
+        "no production registration change",
+        "no gameplay scheduler mutation",
+        "no composition activation",
+        "no M6 activation",
+        "Bliss remains unchanged",
+        "no arbitrary BlueStacks input outside authorized live validation"
+      ],
+      "reference_docs": [
+        "docs/ruins-challenge.md",
+        "docs/prompts/daily-quest/dq-flow-ruins-challenge-bluestacks.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "scripts/ruins_challenge_bluestacks.py",
+        "tasks/ruins_challenge_runtime.py",
+        "tasks/ruins_challenge_vision.py",
+        "scripts/home_atlas_bluestacks.py",
+        "tests/test_ruins_challenge.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "ruins-challenge-nav-home-roundtrip",
+          "mode": "navigation_only"
+        }
+      ],
+      "required_terminal_states": [
+        "navigation_only_complete",
+        "blocked_fail_closed"
+      ],
+      "completion_tests": [
+        "tests/test_ruins_challenge.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "navigation_only",
+        "challenge_combat": "prohibited"
+      }
     },
     {
       "flow_id": "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
@@ -235,7 +493,7 @@
       "kind": "navigation_convergence",
       "priority": 50,
       "status": "ready",
-      "backlog_task_id": "DQ-FLOW-TROOP-TRAINING-BLUESTACKS",
+      "backlog_task_id": "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
       "dependencies": [],
       "implementation_entrypoints": [
         "scripts/troop_training_bluestacks.py",
@@ -266,7 +524,55 @@
       "next_concrete_action": "Route all four entry-only facility paths through shared verified navigation while preserving the Train prohibition.",
       "last_completed_stage": null,
       "last_commit": null,
-      "artifact_root": ".local-captures/flow-delivery/TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE"
+      "artifact_root": ".local-captures/flow-delivery/TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
+      "acceptance_criteria": [
+        "route all four entry-only facility paths through shared verified navigation",
+        "navigation-only entry and safe return for the four training facilities",
+        "Train prohibition preserved"
+      ],
+      "scope_prohibitions": [
+        "never tap Train",
+        "training tier, quantity, resource-box, and resource-spend policy remains unresolved",
+        "no production registration change",
+        "no gameplay scheduler mutation",
+        "no composition activation",
+        "no M6 activation",
+        "Bliss remains unchanged",
+        "no arbitrary BlueStacks input outside authorized live validation"
+      ],
+      "reference_docs": [
+        "docs/troop-training-bluestacks.md",
+        "docs/prompts/daily-quest/dq-flow-training.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "scripts/troop_training_bluestacks.py",
+        "tasks/troop_training.py",
+        "tasks/troop_training_vision.py",
+        "scripts/home_atlas_bluestacks.py",
+        "tests/test_troop_training_entry.py",
+        "tests/test_troop_training.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "troop-training-nav-four-facilities",
+          "mode": "navigation_only"
+        }
+      ],
+      "required_terminal_states": [
+        "navigation_only_complete",
+        "blocked_fail_closed"
+      ],
+      "completion_tests": [
+        "tests/test_troop_training_entry.py",
+        "tests/test_troop_training.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "navigation_only",
+        "train_action": "prohibited"
+      }
     },
     {
       "flow_id": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
@@ -301,7 +607,56 @@
       "next_concrete_action": "Trace callers, migrate any remaining supported entrypoint, and remove only the redundant adapter.",
       "last_completed_stage": null,
       "last_commit": null,
-      "artifact_root": ".local-captures/flow-delivery/SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT"
+      "artifact_root": ".local-captures/flow-delivery/SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
+      "acceptance_criteria": [
+        "trace callers and migrate any remaining supported entrypoint",
+        "remove only the redundant legacy adapter beside the canonical route",
+        "use retained canonical-route evidence and offline call-graph validation"
+      ],
+      "scope_prohibitions": [
+        "no new live input",
+        "adapter retirement authorizes no claim",
+        "free-only behavior remains separate and must never spend currency",
+        "no production registration change",
+        "no gameplay scheduler mutation",
+        "no composition activation",
+        "no M6 activation",
+        "Bliss remains unchanged",
+        "no arbitrary BlueStacks input outside authorized live validation"
+      ],
+      "reference_docs": [
+        "docs/navigation_verified_flow_readiness.md",
+        "docs/prompts/daily-quest/dq-flow-supply-depot.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "scripts/supply_depot_bluestacks.py",
+        "scripts/home_atlas_bluestacks.py",
+        "tasks/supply_depot.py",
+        "tasks/supply_depot_vision.py",
+        "tests/test_supply_depot_verified_route.py",
+        "tests/test_supply_depot_vision.py",
+        "tests/test_daily_supply_depot.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "supply-depot-adapter-retirement-offline",
+          "mode": "offline_only"
+        }
+      ],
+      "required_terminal_states": [
+        "adapter_retired",
+        "blocked_fail_closed"
+      ],
+      "completion_tests": [
+        "tests/test_supply_depot_verified_route.py",
+        "tests/test_supply_depot_vision.py",
+        "tests/test_daily_supply_depot.py"
+      ],
+      "consequential_stage_policy": {
+        "live_input": "prohibited",
+        "claim_action": "not_authorized_by_retirement"
+      }
     },
     {
       "flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
@@ -377,7 +732,7 @@
       "kind": "consequential_integration",
       "priority": 90,
       "status": "ready",
-      "backlog_task_id": "DQ-FLOW-ENHANCEMENT",
+      "backlog_task_id": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
         "tasks/enhancement.py",
@@ -407,7 +762,71 @@
       "next_concrete_action": "Add a category-parameterized BlueStacks route with exact one-star quantity-one binding and fail-closed postconditions.",
       "last_completed_stage": null,
       "last_commit": null,
-      "artifact_root": ".local-captures/flow-delivery/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+      "artifact_root": ".local-captures/flow-delivery/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+      "acceptance_criteria": [
+        "category-parameterized BlueStacks route for Gear, Chip, and Module",
+        "exact one-star quantity-one binding with fail-closed postconditions",
+        "at most one supervised exact one-star material action per selected variant"
+      ],
+      "scope_prohibitions": [
+        "no Auto Select",
+        "no higher-star material",
+        "no premium currency",
+        "no unidentified item",
+        "no production registration change",
+        "no gameplay scheduler mutation",
+        "no composition activation",
+        "no M6 activation",
+        "Bliss remains unchanged",
+        "no arbitrary BlueStacks input outside authorized live validation"
+      ],
+      "reference_docs": [
+        "docs/prompts/daily-quest/dq-flow-enhance-gear.md",
+        "docs/prompts/daily-quest/dq-flow-enhance-chip.md",
+        "docs/prompts/daily-quest/dq-flow-enhance-module.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "tasks/enhancement.py",
+        "tasks/daily_enhancement.py",
+        "scripts/bluestacks_native_runtime.py",
+        "tests/test_enhancement.py",
+        "tests/test_daily_enhancement.py",
+        "tests/test_daily_enhancement_chip.py",
+        "tests/test_daily_enhancement_module.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "enhancement-gear-one-star",
+          "category": "gear",
+          "mode": "supervised_consequential"
+        },
+        {
+          "id": "enhancement-chip-one-star",
+          "category": "chip",
+          "mode": "supervised_consequential"
+        },
+        {
+          "id": "enhancement-module-one-star",
+          "category": "module",
+          "mode": "supervised_consequential"
+        }
+      ],
+      "required_terminal_states": [
+        "supervised_one_star_complete",
+        "blocked_fail_closed"
+      ],
+      "completion_tests": [
+        "tests/test_enhancement.py",
+        "tests/test_daily_enhancement.py",
+        "tests/test_daily_enhancement_chip.py",
+        "tests/test_daily_enhancement_module.py"
+      ],
+      "consequential_stage_policy": {
+        "material_policy": "exactly_one_one_star_material",
+        "auto_select": "prohibited",
+        "premium_currency": "prohibited"
+      }
     },
     {
       "flow_id": "NANOWEAPON-BLUESTACKS-INTEGRATION",
@@ -510,7 +929,52 @@
       "next_concrete_action": "Implement current-frame verified Home-to-World, bounded search entry, and safe Home recovery without march authority.",
       "last_completed_stage": null,
       "last_commit": null,
-      "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION"
+      "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
+      "acceptance_criteria": [
+        "current-frame verified Home-to-World navigation",
+        "bounded search entry",
+        "safe Home recovery without march authority"
+      ],
+      "scope_prohibitions": [
+        "no march, attack, stamina, or AP dispatch",
+        "unknown map, target, occupancy, march, or consequence fails closed",
+        "no production registration change",
+        "no gameplay scheduler mutation",
+        "no composition activation",
+        "no M6 activation",
+        "Bliss remains unchanged",
+        "no arbitrary BlueStacks input outside authorized live validation"
+      ],
+      "reference_docs": [
+        "docs/prompts/daily-quest/dq-flow-world-stamina-engine.md",
+        "docs/navigation_verified_flow_readiness.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "tasks/world_stamina.py",
+        "scripts/bluestacks_native_runtime.py",
+        "scripts/home_atlas_bluestacks.py",
+        "tests/test_world_stamina.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "world-map-nav-home-search-home",
+          "mode": "navigation_only"
+        }
+      ],
+      "required_terminal_states": [
+        "navigation_only_complete",
+        "blocked_fail_closed"
+      ],
+      "completion_tests": [
+        "tests/test_world_stamina.py",
+        "tests/test_home_atlas_verified_route.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "navigation_only",
+        "march_authority": "prohibited"
+      }
     },
     {
       "flow_id": "GATHERING-BLUESTACKS-INTEGRATION",

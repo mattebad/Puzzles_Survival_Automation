@@ -60,6 +60,8 @@ It only disables the additional hook cross-check.
 ## Distinct authorities
 
 - `tasks/flow_delivery_queue.json`: development-work selection only.
+- `tasks/backlog_task_index.json` and `scripts/flow_delivery_context.py`: compact backlog indexing
+  and bounded stage context packets only; packets never grant runtime or product authorization.
 - `tasks/scheduler.py` and persisted task state: dormant gameplay execution scheduling; never use
   them to select development work.
 - `.local-orchestrator/flow-delivery-lease.json`: one development orchestrator and its current
@@ -68,9 +70,26 @@ It only disables the additional hook cross-check.
   them through the development controller.
 - Git status: working-tree ownership. Preserve unrelated and protected files.
 
+## Context packets before delegation
+
+Before every native subagent invocation:
+
+1. Build or reuse the active stage packet:
+   `python scripts/flow_delivery_context.py build --flow-id <flow> --stage <stage> --reuse-if-current`
+2. Validate the packet:
+   `python scripts/flow_delivery_context.py validate --packet <packet-path>`
+3. Pass only packet path, active flow ID, active stage, and exact requested deliverable.
+   Do not paste the entire packet into the Task prompt when the subagent can read the packet path.
+
+## Bounded validation
+
+Use checked-in profiles only via `scripts/run_flow_delivery_validation.py`
+(`focused`, `architecture`, `full`, `governance`). Complete logs remain under
+`.local-orchestrator/logs/`; console output stays compact.
+
 ## Start or resume
 
-1. Read `AGENTS.md`, `CURRENT_HANDOFF.md`, the active queue entry and direct dependencies only.
+1. Read `AGENTS.md`, compact `CURRENT_HANDOFF.md`, and the active stage context packet.
 2. Verify branch/HEAD/divergence, attributable tree ownership, current full-suite baseline,
    registration/scheduler posture, no runtime owner, no nonterminal consequential action, and
    `CONFIRMED_NOT_DISPATCHED`.
@@ -84,29 +103,33 @@ It only disables the additional hook cross-check.
 
 Advance the closed stages with `record-stage`:
 
-1. Enter `reconnaissance`, use the native `Subagent`/`Task` tool with custom subagent type exactly
-   `pns-flow-recon`, wait for its terminal result, and record its native invocation receipt before
-   advancing. Do not perform reconnaissance in the parent. Parent-review the returned
-   implementation packet; do not create a separate readiness-review task.
-2. In `implementation`, use the same native tool with custom subagent type exactly
-   `pns-flow-implementer`. Invoke exactly one foreground writer and wait for its terminal result.
-   Record its receipt before advancing. It may touch only the parent-approved allowlist. No
-   worktree, live input, queue edit, or commit.
-3. In `implementation_review`, parent-review first, then use the native tool with custom subagent
-   type exactly `pns-flow-reviewer`; record its receipt before advancing. Pass `--parent-reviewed`
-   only after parent acceptance.
+1. Enter `reconnaissance`, build/validate the stage packet, use the native `Subagent`/`Task` tool
+   with custom subagent type exactly `pns-flow-recon`, wait for its terminal result, and record its
+   native invocation receipt before advancing. Do not perform reconnaissance in the parent.
+   Parent-review the returned implementation packet; do not create a separate readiness-review task.
+2. In `implementation`, build/validate the stage packet, then use the same native tool with custom
+   subagent type exactly `pns-flow-implementer`. Invoke exactly one foreground writer and wait for
+   its terminal result. Record its receipt before advancing. It may touch only the parent-approved
+   allowlist. No worktree, live input, queue edit, or commit.
+3. In `implementation_review`, parent-review first, build/validate the stage packet, then use the
+   native tool with custom subagent type exactly `pns-flow-reviewer`; record its receipt before
+   advancing. Pass `--parent-reviewed` only after parent acceptance.
 4. In `correction`, give reproduced defects only to the same single-writer lane, record the
    implementer receipt, then repeat review. Do not perform speculative cleanup.
-5. `focused_validation`: the parent runs focused tests and required architecture regressions.
-6. `full_validation`: the parent runs the authoritative full suite and repository validators.
+5. `focused_validation`: the parent runs
+   `python scripts/run_flow_delivery_validation.py focused --flow-id <flow>` and
+   `architecture --flow-id <flow>`.
+6. `full_validation`: the parent runs
+   `python scripts/run_flow_delivery_validation.py full --flow-id <flow>` plus repository validators.
 7. If live validation is required, claim runtime ownership in the development lease, recheck the
    authoritative journal/global unresolved gate, and run `live_preflight`. Enter `live_execution`
    only with every controller gate satisfied.
 8. The parent alone invokes supported `scripts/pnsctl.py bluestacks ...` commands. Run one
    production flow at a time, obey `maximum_live_attempts`, and never bypass the operator interface.
-9. Release runtime ownership after a terminal state. Use the native `Subagent`/`Task` tool with
-   custom subagent type exactly `pns-evidence-reviewer` for the one generated session, wait for its
-   terminal result, record its native invocation receipt, then parent-accept or block the evidence.
+9. Release runtime ownership after a terminal state. Build/validate the evidence-review packet, use
+   the native `Subagent`/`Task` tool with custom subagent type exactly `pns-evidence-reviewer` for
+   the one generated session, wait for its terminal result, record its native invocation receipt,
+   then parent-accept or block the evidence.
 10. Reach `commit`, stage only attributable implementation, tests, evidence metadata, and the
     queue's `commit` stage, then create the conventional focused flow commit. Run `complete` with
     that commit SHA and create a narrow queue-transition commit containing only the terminal queue

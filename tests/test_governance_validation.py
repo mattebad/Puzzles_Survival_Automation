@@ -24,7 +24,7 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         self.assertEqual(
             state["current_task_id"],
-            "CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION",
+            "FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE",
         )
         self.assertEqual(state["current_task_state"], "completed")
         self.assertEqual(
@@ -36,6 +36,8 @@ class GovernanceValidationTests(unittest.TestCase):
             "ready",
         )
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
+        self.assertEqual(state["exact_next_permitted_action"], state["exact_next_permitted_action"].strip())
+        self.assertNotIn("actions_already_performed", state)
 
     def test_manifest_uses_fixed_artifact_state_schema(self):
         manifest = validate_governance.validate_manifest()

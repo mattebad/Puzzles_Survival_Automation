@@ -19,11 +19,24 @@ id_ed25519*
 # Local tooling and OS files
 .local-captures/
 .local-orchestrator/
+.local-reference/
+.specstory/
+.vscode/
 .venv/
 __pycache__/
+*.py[cod]
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
 .DS_Store
 Thumbs.db
+
+# Local review archives
+/Puzzle_Survival_Runtime_POC*.zip
+/*.7z
 
 # Future raw captures are local by default; canonical evidence, fixtures, templates, and manifests
 # remain explicitly trackable under evidence/.

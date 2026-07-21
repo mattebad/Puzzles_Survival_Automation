@@ -56,7 +56,18 @@ RUNTIME_OWNERSHIP_STATES = {"none", "released", "held", "unknown"}
 UNRESOLVED_ACTION_STATES = {"clear", "unresolved", "unknown"}
 ATTEMPT_OUTCOMES = {"completed", "blocked", "failed", "unresolved"}
 TERMINAL_ATTEMPT_OUTCOMES = {"completed", "blocked", "failed"}
-VALIDATION_PROFILES = {"focused_tests", "architecture_tests", "full_suite"}
+VALIDATION_PROFILES = {"focused_tests", "architecture_tests", "full_suite", "governance"}
+READY_FLOW_PACKET_FIELDS = {
+    "acceptance_criteria",
+    "scope_prohibitions",
+    "reference_docs",
+    "direct_dependencies",
+    "implementation_allowlist_seed",
+    "live_validation_scenarios",
+    "required_terminal_states",
+    "completion_tests",
+    "consequential_stage_policy",
+}
 EXPECTED_SUBAGENT_MODEL = "cursor-grok-4.5-high"
 SUBAGENT_TERMINAL_OUTCOMES = {"completed", "blocked", "failed"}
 STAGE_AGENTS = {
@@ -372,6 +383,48 @@ def validate_queue(payload: Mapping[str, Any]) -> None:
             raise FlowDeliveryError(f"{identity} has unknown last_completed_stage")
         if flow["last_commit"] is not None:
             _require_nonempty_string(flow["last_commit"], f"{identity}.last_commit")
+        if flow["status"] == "ready":
+            missing_packet = READY_FLOW_PACKET_FIELDS - set(flow)
+            if missing_packet:
+                raise FlowDeliveryError(
+                    f"{identity} ready flow missing packet metadata: {sorted(missing_packet)}"
+                )
+            for field in READY_FLOW_PACKET_FIELDS:
+                value = flow[field]
+                if field == "consequential_stage_policy":
+                    if not isinstance(value, dict) or not value:
+                        raise FlowDeliveryError(
+                            f"{identity}.{field} must be a non-empty object"
+                        )
+                    for key, item in value.items():
+                        if not isinstance(key, str) or not key.strip():
+                            raise FlowDeliveryError(
+                                f"{identity}.{field} keys must be non-empty strings"
+                            )
+                        if not isinstance(item, str) or not item.strip():
+                            raise FlowDeliveryError(
+                                f"{identity}.{field}.{key} must be a non-empty string"
+                            )
+                elif field == "direct_dependencies":
+                    _validate_string_list(value, f"{identity}.{field}")
+                else:
+                    if not isinstance(value, list) or not value:
+                        raise FlowDeliveryError(
+                            f"{identity}.{field} must be a non-empty list"
+                        )
+                    if any(not isinstance(item, (str, dict)) for item in value):
+                        raise FlowDeliveryError(
+                            f"{identity}.{field} entries must be strings or objects"
+                        )
+                    for item in value:
+                        if isinstance(item, str) and not item.strip():
+                            raise FlowDeliveryError(
+                                f"{identity}.{field} must not contain empty strings"
+                            )
+                        if isinstance(item, dict) and not item:
+                            raise FlowDeliveryError(
+                                f"{identity}.{field} must not contain empty objects"
+                            )
     if len(active) > 1:
         raise FlowDeliveryError("exactly one or zero active development flows is allowed")
     active_flow_id = payload.get("active_flow_id")

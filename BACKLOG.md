@@ -3656,6 +3656,43 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` blocked until that review records PASS; leave
   `M6-DQ-TRANSITION-CORPUS` unactivated.
 
+### NOVA-PRAISE-HOME-ATLAS-MIGRATION
+- Task ID: NOVA-PRAISE-HOME-ATLAS-MIGRATION.
+- Title: Migrate Nova Praise entry and return to the canonical Home Atlas.
+- Status: Ready; development-queue flow; not activated.
+- Scope: replace dedicated Home entry and generic Back recovery with verified Home Atlas bindings;
+  navigation-only Home-to-Nova-to-Home validation; Praise dispatch remains outside migration
+  validation.
+- Authority: full normalized task state is in 	asks/flow_delivery_queue.json; this dormant pointer
+  does not activate implementation, runtime input, registration, or scheduling.
+
+### NOAHS-TAVERN-HOME-ATLAS-MIGRATION
+- Task ID: NOAHS-TAVERN-HOME-ATLAS-MIGRATION.
+- Title: Migrate Noah's Tavern entry and return to the canonical Home Atlas.
+- Status: Ready; development-queue flow; not activated.
+- Scope: adopt canonical Home Atlas entry and safe-exit contracts; navigation-only
+  Home-to-Tavern-to-Home validation; recruitment dispatch remains prohibited.
+- Authority: full normalized task state is in 	asks/flow_delivery_queue.json; this dormant pointer
+  does not activate implementation, runtime input, registration, or scheduling.
+
+### TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE
+- Task ID: TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE.
+- Title: Converge Troop Training entry and return on verified navigation.
+- Status: Ready; development-queue flow; not activated.
+- Scope: route all four entry-only facility paths through shared verified navigation; never tap
+  Train during navigation validation.
+- Authority: full normalized task state is in 	asks/flow_delivery_queue.json; this dormant pointer
+  does not activate implementation, runtime input, registration, or scheduling.
+
+### ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION
+- Task ID: ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION.
+- Title: Integrate Gear, Chip, and Module enhancement with BlueStacks.
+- Status: Ready; development-queue flow; not activated.
+- Scope: category-parameterized BlueStacks route with exact one-star quantity-one binding; no Auto
+  Select, higher-star material, premium currency, or unidentified item.
+- Authority: full normalized task state is in 	asks/flow_delivery_queue.json; this dormant pointer
+  does not activate implementation, runtime input, registration, or scheduling.
+
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS`.
 - Title: Final evidence-based composition-readiness review after Home Atlas and Supply Depot seam closures.
@@ -4467,6 +4504,112 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   remain unchanged; one local focused commit; no push.
 - Next: Campaign remains first ready but is not activated by this closure.
 
+### FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE
+- Task ID: `FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE`.
+- Title: Reduce flow-delivery parent and subagent context token consumption.
+- Status: Completed (2026-07-20; offline token/context hygiene validated and committed locally; no push).
+- Milestone: Development tooling / orchestration hygiene; not gameplay implementation.
+- Dependencies: completed `CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION` at `72b07a7`;
+  inactive development queue; released development/runtime ownership; no nonterminal consequential
+  action.
+- Blocked by: None for offline hygiene. Live BlueStacks input and subagents are prohibited.
+- Objective: compact volatile handoff state, normalize ready-flow packet metadata, add deterministic
+  backlog indexing, bounded stage context packets with caching, bounded validation logging, Git and
+  Cursor ignore hygiene, sanitized review-snapshot tooling, concise subagent contracts, and a
+  compact checked-in loop entry command before continuous gameplay-flow delivery begins.
+- Established facts: authoritative full suite baseline is at least 966 passed / 1 skipped; Campaign
+  destinations are exactly `1-20-9`, `1-15-9`, `2-2-9`; `1-2-9` is not an alias; Ultimate Challenge
+  is a separate ready queue entry at priority 15; production registration and gameplay scheduling
+  remain disabled; composition remains blocked; M6 remains unactivated; Bliss remains unchanged.
+- Direct implementation files: `CURRENT_HANDOFF.md`, `BACKLOG.md`, `tasks/flow_delivery_queue.json`,
+  `tasks/backlog_task_index.json`, `tasks/flow_delivery_validation_profiles.json`,
+  `scripts/validate_governance.py`, `scripts/flow_delivery_control.py`,
+  `scripts/flow_delivery_context.py`, `scripts/run_flow_delivery_validation.py`,
+  `scripts/export-review-snapshot.ps1`, `.gitignore`, `.cursorignore`, `.cursorindexingignore`,
+  `.cursor/skills/pns-flow-delivery/SKILL.md`, `.cursor/commands/pns-flow-delivery-loop.md`,
+  `.cursor/agents/pns-flow-recon.md`, `.cursor/agents/pns-flow-implementer.md`,
+  `.cursor/agents/pns-flow-reviewer.md`, `.cursor/agents/pns-evidence-reviewer.md`,
+  `tests/test_flow_delivery_token_context_hygiene.py`, `tests/test_flow_delivery_orchestrator.py`,
+  `tests/test_flow_delivery_ide_native_hardening.py`, `tests/test_governance_validation.py`,
+  `tests/fixtures/review_snapshot_secret_names.py`.
+- Shared dependencies: existing flow-delivery controller/schemas, product-policy and coverage
+  registries, Campaign destination contracts, governance handoff parser; no gameplay scheduler
+  integration.
+- Transitive regression set: flow-delivery orchestrator, IDE-native hardening/receipts, Campaign
+  destination parser, governance/handoff, and the full repository suite.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above;
+  `.cursorindexingignore` may receive reviewed additive ignore hunks only while preserving every
+  pre-existing user-owned line and comment; do not absorb unrelated pre-existing modifications into
+  the task commit except allowlisted hunks.
+- Prohibited changes: Campaign implementation, Ultimate Challenge implementation, gameplay
+  production-code refactor, legacy route retirement, live evidence acquisition, runtime scheduling,
+  production registration, composition, M6, Bliss migration, BlueStacks/ADB input, subagents,
+  recursive inspection of `.git/`, `.local-captures/`, or `evidence/`, evidence compaction,
+  amend/reset/clean/restore, modifying existing user archives, or push.
+- Authorized runtime action: None; offline token/context hygiene only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden.
+- Consequential action: None.
+- Registration changes: None; production remains not registered.
+- Scheduler changes: None; gameplay scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any BlueStacks, Bliss, Unraid, or ADB input; any subagent
+  invocation; inventing ready-flow requirements; recursively scanning protected bulk directories.
+- Required source: repository queue/policy/coverage, HEAD `72b07a7`, and this task contract.
+- Exact target semantics: compact handoff under byte budgets; every ready flow has required packet
+  metadata fields; backlog index covers every queued task without full prose duplication; stage
+  packets under 30,000 UTF-8 bytes with cache reuse; validation runner uses checked-in profiles only;
+  ignore and snapshot tooling exclude bulk/secret paths while preserving evidence retention policy.
+- Required local association: Campaign remains first ready; Ultimate Challenge remains second ready
+  unless existing authority proves a blocker; no active development flow/lease/runtime owner/writable
+  agent after completion.
+- Negative controls: inventing Campaign or Ultimate Challenge requirements; activating Campaign or
+  Ultimate Challenge; pasting full packets into Task prompts when path references suffice; arbitrary
+  shell execution via validation runner; broadly Git-ignoring canonical `evidence/`; adding `.git/`
+  to `.gitignore`.
+- Coordinate space: none; no coordinate operation.
+- Accepted signals: focused hygiene tests pass; orchestrator/IDE-native/governance/Campaign tests
+  pass; full suite at least prior baseline; handoff budgets enforced; packet cache hits are
+  byte-identical; snapshot dry-run excludes `.git/`, `.local-captures/`, and `evidence/` by policy.
+- Rejected weak signals: conversation transcripts as authority; ZIP incompleteness implying local
+  directories are missing; transport success; invented product decisions.
+- Ambiguous-result behavior: fail closed; mark only the affected ready flow blocked or
+  needs_product_decision with one exact reason when metadata cannot be sourced from repository
+  authority.
+- Zero-cost requirement: no gameplay resources consumed.
+- Quantity limits: exactly one active hygiene task; zero live inputs; zero subagents.
+- Resource consumption policy: no AP, stamina, premium, or challenge expenditure.
+- Premium or strategic restrictions: unchanged; no new gameplay authorization.
+- Active evidence manifest: None.
+- Required artifacts: compact handoff, backlog index, context tooling, validation runner, ignore
+  hygiene, snapshot exporter, updated skill/command/agents, and focused tests.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: `.local-orchestrator/` outputs remain local-ignored.
+- Focused tests: `tests.test_flow_delivery_token_context_hygiene`,
+  `tests.test_flow_delivery_orchestrator`, `tests.test_flow_delivery_ide_native_hardening`,
+  `tests.test_campaign_story_destinations`, `tests.test_governance_validation`.
+- Integration tests: controller validate/status; packet build/reuse/validate; validation runner dry
+  profiles; snapshot exporter dry-run; no BlueStacks connection.
+- Transitive regression tests: flow-delivery, IDE-native, Campaign parser, governance, and full
+  repository suite.
+- Full-suite requirement: authoritative local `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: Python compilation, governance validation, structured handoff parsing, touched-file
+  secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE — offline token/context hygiene creates no runtime evidence
+  manifest.
+- Valid blocked outcomes: inability to keep Campaign first ready, inability to source ready-flow
+  metadata without invention, or any registration/scheduler/runtime mutation pressure.
+- Blocked-result commit policy: record the exact blocker, preserve authority, release any accidental
+  lease, and do not claim completion or push.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `chore(automation): reduce flow delivery context`.
+- Completion criteria: compact handoff and tooling land; ready-flow metadata complete; Campaign first
+  ready and Ultimate Challenge second ready unless blocked by existing authority; no active
+  flow/lease/runtime owner/writable agent; registration/scheduler unchanged; focused and full suite
+  pass; one local commit; no push.
+- Next: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` remains first ready and is not activated
+  by this hygiene task.
+
 ### CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION
 - Task ID: `CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION`.
 - Title: Separate Campaign AP farming from Ultimate Challenge in delivery contracts.
@@ -4588,6 +4731,10 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   are unauthorized.
 - Authority: full normalized task state is in `tasks/flow_delivery_queue.json` and
   `tasks/flow_delivery_product_policy.json`; this dormant pointer does not activate implementation.
+
+
+
+
 
 ### RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION
 - Task ID: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION`.

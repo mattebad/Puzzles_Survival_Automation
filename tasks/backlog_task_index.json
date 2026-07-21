@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "backlog_path": "BACKLOG.md",
+  "backlog_sha256": "0d9adbdb1a7d80f582c1fe64fbcbad219d41d90996668159ed83981029d7477e",
+  "generated_from_head": "72b07a7214c66ed3620dbf68a2dee8409e90ef47",
+  "task_count": 15,
+  "tasks": [
+    {
+      "task_id": "DQ-CLAIM-DAILY",
+      "exact_markdown_heading": "### DQ-CLAIM-DAILY",
+      "normalized_status": "UNKNOWN",
+      "section_start": 118999,
+      "section_end": 120163,
+      "section_digest": "161eb6e9af6d7e2e36c5eb1bb4c5ab502f90f1136aedfe58189d846082a76836",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
+      ]
+    },
+    {
+      "task_id": "DQ-CLAIM-MILESTONE",
+      "exact_markdown_heading": "### DQ-CLAIM-MILESTONE",
+      "normalized_status": "UNKNOWN",
+      "section_start": 120163,
+      "section_end": 121117,
+      "section_digest": "dc3379a2a843ad80b905df6162584fae42476798dec4a4d056a8e1d7fd638ce2",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION"
+      ]
+    },
+    {
+      "task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE",
+      "exact_markdown_heading": "### DQ-FLOW-CAMPAIGN-AUTO-BATTLE",
+      "normalized_status": "Completed (2026-07-16; dormant configurable route contract amended from supervised",
+      "section_start": 383953,
+      "section_end": 391102,
+      "section_digest": "28ecea27467e6013a63b1b20cb7a5cdd93d06f3d02959c1edcaf0a06348e595a",
+      "direct_dependency_ids": [
+        "DQ-FLOW-CAMPAIGN-AP",
+        "TOOLS-BLUESTACKS-FLOW-CAPTURE"
+      ],
+      "queue_flow_ids": [
+        "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+      ]
+    },
+    {
+      "task_id": "DQ-FLOW-GATHERING",
+      "exact_markdown_heading": "### DQ-FLOW-GATHERING",
+      "normalized_status": "Passed (2026-07-14; parameterized Wood/Steel/Gas offline contract and 6 focused tests).",
+      "section_start": 402947,
+      "section_end": 404049,
+      "section_digest": "a5d7682abaacd7dacabefc72ca17ab1d65dd9a66871f7a816bcf0204402dd009",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "GATHERING-BLUESTACKS-INTEGRATION"
+      ]
+    },
+    {
+      "task_id": "DQ-FLOW-NANOWEAPON",
+      "exact_markdown_heading": "### DQ-FLOW-NANOWEAPON",
+      "normalized_status": "Passed (2026-07-14; Daily row adapter plus 5 focused tests).",
+      "section_start": 378431,
+      "section_end": 379490,
+      "section_digest": "9791785b6d2fa48c7d917bf7351119bf068aab7ab09f8e123261b1c9d7f143a6",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "NANOWEAPON-BLUESTACKS-INTEGRATION"
+      ]
+    },
+    {
+      "task_id": "DQ-FLOW-RECRUITMENT",
+      "exact_markdown_heading": "### DQ-FLOW-RECRUITMENT",
+      "normalized_status": "Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).",
+      "section_start": 377344,
+      "section_end": 378431,
+      "section_digest": "48a1cb7c67f7908a1aeb392b8bb0f2751a8f8c2d0f1e605aea78c76daf9484c2",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "RECRUITMENT-BLUESTACKS-INTEGRATION"
+      ]
+    },
+    {
+      "task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
+      "exact_markdown_heading": "### DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
+      "normalized_status": "Passed (2026-07-16; dormant implementation and supervised local validation)",
+      "section_start": 412116,
+      "section_end": 418338,
+      "section_digest": "cfd793e17eef42f2a14d5634d46a9a92289de838f639a66985c6e09b1ebe5d5d",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+      ]
+    },
+    {
+      "task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
+      "exact_markdown_heading": "### DQ-FLOW-WORLD-STAMINA-ENGINE",
+      "normalized_status": "Passed (2026-07-14; offline shared primitive and 5 focused tests).",
+      "section_start": 399795,
+      "section_end": 400880,
+      "section_digest": "bf0cabeb799d37a9aff0878b6a419797852b0867a79d96d4fac3aeabf5805ca4",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "WORLD-MAP-NAVIGATION-FOUNDATION"
+      ]
+    },
+    {
+      "task_id": "DQ-FLOW-ZOMBIE-LAIR",
+      "exact_markdown_heading": "### DQ-FLOW-ZOMBIE-LAIR",
+      "normalized_status": "Passed (2026-07-14; Daily Lair adapter plus 5 focused tests).",
+      "section_start": 400880,
+      "section_end": 401953,
+      "section_digest": "95652b3e2ef12cd8fd0b6202787f3ca867d141ebb188705796756c1f35b71dc4",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION"
+      ]
+    },
+    {
+      "task_id": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+      "exact_markdown_heading": "### ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+      "normalized_status": "Ready; development-queue flow; not activated.",
+      "section_start": 285040,
+      "section_end": 285618,
+      "section_digest": "1a988a906766b37b172c8b2232f9be2a76209af69c7e0bdb3606e5406e203d8d",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+      ]
+    },
+    {
+      "task_id": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+      "exact_markdown_heading": "### NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+      "normalized_status": "Ready; development-queue flow; not activated.",
+      "section_start": 283928,
+      "section_end": 284486,
+      "section_digest": "1887de6c081bef45000527f3352e4adb509590c64a3c8d672e2c510c20329953",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "NOAHS-TAVERN-HOME-ATLAS-MIGRATION"
+      ]
+    },
+    {
+      "task_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+      "exact_markdown_heading": "### NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+      "normalized_status": "Ready; development-queue flow; not activated.",
+      "section_start": 283329,
+      "section_end": 283928,
+      "section_digest": "c181a4e3613f974eedc912902e33b39e1e86c428f97deeb6f7c080403f5ca9e4",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
+      ]
+    },
+    {
+      "task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
+      "exact_markdown_heading": "### SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
+      "normalized_status": "Completed (2026-07-19; offline review + bounded live BlueStacks reversible",
+      "section_start": 260341,
+      "section_end": 270811,
+      "section_digest": "eb8e77670a54e9407f55040e821b30668f569add23cd6db42cc2421740cbdd2a",
+      "direct_dependency_ids": [
+        "HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION"
+      ],
+      "queue_flow_ids": [
+        "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT"
+      ]
+    },
+    {
+      "task_id": "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
+      "exact_markdown_heading": "### TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
+      "normalized_status": "Ready; development-queue flow; not activated.",
+      "section_start": 284486,
+      "section_end": 285040,
+      "section_digest": "42e5adcc3bd21df29ded476611c5ac202a6de07705637f9125ebdd8f52784c5a",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE"
+      ]
+    },
+    {
+      "task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+      "exact_markdown_heading": "### ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+      "normalized_status": "Ready; second development-queue flow after Campaign; not activated; not implemented.",
+      "section_start": 367281,
+      "section_end": 368661,
+      "section_digest": "d40e5684e22b27c716aad4e5f655641fb078f38ccec62cb40362e486634d943e",
+      "direct_dependency_ids": [],
+      "queue_flow_ids": [
+        "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+      ]
+    }
+  ]
+}

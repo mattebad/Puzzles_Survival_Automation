@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "registry_kind": "flow_delivery_validation_profiles",
+  "purpose": "Checked-in unittest module lists for flow-delivery validation. No arbitrary shell.",
+  "global_profiles": {
+    "architecture_tests": [
+      "tests.test_flow_delivery_orchestrator",
+      "tests.test_flow_delivery_ide_native_hardening",
+      "tests.test_home_atlas_verified_route"
+    ],
+    "full_suite": [
+      "discover"
+    ],
+    "governance": [
+      "tests.test_governance_validation"
+    ]
+  },
+  "flow_profiles": {
+    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
+      "focused_tests": [
+        "tests.test_campaign_auto_battle",
+        "tests.test_campaign_auto_battle_runtime",
+        "tests.test_campaign_story_destinations",
+        "tests.test_home_atlas_verified_route"
+      ],
+      "architecture_tests": [
+        "tests.test_flow_delivery_orchestrator",
+        "tests.test_campaign_story_destinations",
+        "tests.test_home_atlas_verified_route"
+      ]
+    }
+  },
+  "notes": [
+    "full_suite uses python -m unittest discover via the runner's dedicated branch",
+    "focused_tests may fall back to the active queue entry focused_tests paths"
+  ]
+}
