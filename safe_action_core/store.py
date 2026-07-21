@@ -356,6 +356,20 @@ class SafetyStore:
             raise StoreError("unknown action")
         return dict(row)
 
+    def get_action_by_key(self, action_key: str) -> Optional[Dict[str, Any]]:
+        row = self.connection.execute(
+            "SELECT * FROM actions WHERE action_key=?",
+            (action_key,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_actions_for_task(self, task_id: str) -> List[Dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT * FROM actions WHERE task_id=? ORDER BY prepared_at",
+            (task_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_task_state(self, task_id: str) -> Optional[Dict[str, Any]]:
         row = self.connection.execute("SELECT * FROM task_state WHERE task_id=?", (task_id,)).fetchone()
         return dict(row) if row is not None else None

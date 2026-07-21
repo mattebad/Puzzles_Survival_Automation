@@ -5382,11 +5382,109 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### GF-MVP-005-PRODUCTION-PATH-REPLAY
 - Task ID: `GF-MVP-005-PRODUCTION-PATH-REPLAY`.
 - Title: Add zero-transport Nova production-path replay parity.
+- Status: Completed (2026-07-21; centralized Nova action/journal/reconciliation boundary admitted;
+  retained `6 -> 5` and cooldown execute production recognition/policy/planner/postcondition/result
+  logic through a zero-transport runtime with no operational mutation).
+- Milestone: Gameplay Flow Factory Milestone A.
+- Dependencies: completed `GF-MVP-004-LOCALIZE-FIRST-HOME-DRIVER` at `70df6e3`; retained branch
+  commits `9d350a`, `d9c4e336`, and `8271de62`; retained Nova before/after/cooldown evidence.
+- Blocked by: None after production-path replay and centralized crash-window tests pass.
+- Objective: selectively admit the Nova consequential-action/replay foundation while leaving all
+  Home/Research Lab/radial/Nova navigation to GF-MVP-008.
+- Established facts: the retained branch contains a centralized action boundary; current main had
+  no authoritative Nova journal integration; retained native frames prove `6 -> 5` plus cooldown;
+  replay must stop at injected transport and mutate no operational state.
+- Direct implementation files: `safe_action_core/executor.py`, `safe_action_core/store.py`,
+  `scripts/bluestacks_native_runtime.py`, `scripts/nova_praise_centralized.py`,
+  `tasks/gameplay_flow_replay.py`, `tasks/nova_praise_pulse.py`,
+  `tests/fixtures/nova_praise_replay/manifest.json`,
+  `tests/test_nova_praise_centralized_boundary.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, and
+  `tasks/backlog_task_index.json`.
+- Shared dependencies: SafeActionExecutor, CentralPolicy, SafetyStore scheduler repository,
+  NovaPraiseRuntimeController, production Nova recognizer/postcondition, retained evidence, and
+  NativeRuntimePort.
+- Transitive regression set: safe-action core/store, scheduler invocation, Nova runtime/pulse/replay,
+  BlueStacks native runtime, gameplay contracts, governance/context, and full suite.
+- Allowed changes: only direct files and owned action/replay symbols; per-commit allowed paths are
+  exactly those files; retained branch history remains intact.
+- Prohibited changes: Home-to-Research-Lab navigation, radial traversal/provenance, Nova Lab entry,
+  safe Home return, navigation-only canary mode, `pnsctl`, queue/registry/policy changes,
+  operational replay persistence, runtime input, production registration, plan edits, push, merge/
+  cherry-pick/rebase/squash/amend of the retained branch.
+- Authorized runtime action: None; live boundary is tested only with injected fake runtime and
+  retained zero-transport replay.
+- Maximum transport inputs: Zero for retained replay; fake live-boundary tests may record one
+  in-memory injected call and never access ADB.
+- Navigation-only recovery: Forbidden; navigation belongs to GF-MVP-008.
+- Consequential action: No real action authorized; production boundary semantics are exercised only
+  against fakes and immutable retained frames.
+- Registration changes: None.
+- Scheduler changes: no schema/eligibility change; live fake tests verify persistence semantics while
+  replay verifies zero scheduler mutation.
+- Actions that must not be repeated: retained Nova `6 -> 5`, cooldown, zero attempts, any Praise,
+  Campaign/Ultimate input, or any BlueStacks/ADB/Bliss action.
+- Required source: retained native before/after/cooldown frames and hashes, Nova action/postcondition
+  code, SafeAction journal, branch-owned centralized boundary/crash tests, and v2 contract.
+- Exact target semantics: one current native Nova frame with attempts 6, exact Praise target,
+  zero-cost policy, one intended tap at the real runtime port, retained successor attempts 5 plus
+  cooldown, and scheduler-aware result evaluation.
+- Required local association: account/server/reset/task/runtime scope/action key, source hash/time,
+  exact target ROI, intended input, successor hash/time, postcondition, and evidence refs.
+- Negative controls: stale/moved attempts, paid/confirmation text, duplicate action identity,
+  unresolved global block, ambiguous postcondition, crash after possible dispatch, tampered hash,
+  non-native frame, and replay runtime that can dispatch.
+- Coordinate space: raw native 800×1280 retained frames and existing Nova Praise ROI only.
+- Accepted signals: same production validator/recognizer/planner/policy/postcondition/result functions
+  run; one intended input is recorded; replay transport calls remain zero; action journal and
+  scheduler remain empty; live fake boundary records prepared/input_sent/confirmed.
+- Rejected weak signals: manually constructed positive replay states, replay-only success, synthetic
+  positive frames, transport success, or a disposable record presented as operational proof.
+- Ambiguous-result behavior: live boundary records unresolved and blocks retry; replay returns blocked
+  without operational mutation.
+- Zero-cost requirement: maximum cost zero and quantity one; no gameplay action occurs in this task.
+- Quantity limits: one action identity per account/server/reset/runtime/attempt count; one intended
+  replay input; zero replay transport; zero operational mutations.
+- Resource consumption policy: no currency/resource consumption.
+- Premium or strategic restrictions: paid/confirmation surfaces and premium markers fail closed.
+- Active evidence manifest: None; retained source evidence remains immutable at existing paths.
+- Required artifacts: centralized boundary, shared native PNG validator, zero-transport replay port,
+  production-path manifest fields, crash/restart tests, regenerated index, and green full suite.
+- Immediate-before/immediate-post/result/journal: retained before/after frames are replayed; live
+  journal lifecycle is fake-tested; no new runtime evidence or operational journal is created.
+- Additional task-specific artifacts: production-path replay manifest metadata with zero transport
+  and zero operational-state mutation.
+- Focused tests: `tests.test_nova_praise_centralized_boundary`,
+  `tests.test_nova_praise_pulse`, `tests.test_nova_praise`,
+  `tests.test_safe_action_core`, `tests.test_scheduler_invocation_state`, and
+  `tests.test_gameplay_flow_contracts`.
+- Integration tests: actual retained-frame recognition/policy/planner/postcondition/result replay;
+  fake exactly-once live journal; crash/restart/duplicate/unresolved handling.
+- Transitive regression tests: BlueStacks runtime, Home/Nova, governance/context, and full suite.
+- Full-suite requirement: authoritative `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: native hash/profile checks, Python compile, focused tests, governance,
+  `git diff --check`, full suite, and clean attributable Git status.
+- Known baseline failures: None; prior task passed 1,077 tests with one expected skip.
+- Evidence requirement: NOT_APPLICABLE — this task reuses immutable retained evidence and creates no
+  new gameplay evidence.
+- Valid blocked outcomes: retained evidence missing/hash mismatch, production path cannot recognize
+  the source/successor, replay mutates operational state, or an exactly-once regression.
+- Blocked-result commit policy: preserve branch/history/evidence and exact blocker; do not weaken
+  recognition or fabricate fixtures; no push.
+- Commit policy: one reviewed conventional commit; stage only allowed paths; no push unless
+  explicitly authorized.
+- Expected focused commits: `feat(flow-factory): add Nova production replay`.
+- Completion criteria: owned branch behavior is selectively admitted; action/journal/reconciliation
+  and replay parity pass; retained `6 -> 5`/cooldown use production code; zero transport/operational
+  mutation proven; navigation untouched; full suite green; one focused commit.
+
+### GF-MVP-006-EXECUTABLE-AND-EVIDENCE-INTEGRITY
+- Task ID: `GF-MVP-006-EXECUTABLE-AND-EVIDENCE-INTEGRITY`.
+- Title: Validate executable and evidence-integrity boundaries.
 - Status: Ready; declared Milestone A successor, not yet active.
-- Scope: selectively admit the centralized Nova consequential boundary and replay interfaces needed
-  to replay retained `6 -> 5` and cooldown evidence with no transport or operational mutation.
-- Authority: accepted Gameplay Flow Factory plan and Nova branch-admission map; Home/radial/Nova
-  navigation remains owned by GF-MVP-008.
+- Scope: wire and validate the supported `pnsctl` Nova command, truthful blocked reporting, and the
+  Campaign/Ultimate latent placeholder-evidence correction assigned by GF-MVP-001.
+- Authority: accepted plan, GF-MVP-001 failure ledger, and committed GF-MVP-005 action/replay
+  interfaces; no runtime input is authorized.
 
 
 

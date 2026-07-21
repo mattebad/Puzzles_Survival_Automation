@@ -38,6 +38,26 @@ class CapturedNativeFrame:
     path: Path
 
 
+def captured_native_frame_from_png(
+    payload: bytes,
+    *,
+    captured_monotonic: float,
+    path: Path,
+) -> CapturedNativeFrame:
+    """Apply the production native PNG validation used by live capture and replay."""
+
+    frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if frame is None or frame.shape[:2] != (1280, 800):
+        raise RuntimeError("BlueStacks capture is not a native 800x1280 frame")
+    return CapturedNativeFrame(
+        frame,
+        payload,
+        hashlib.sha256(payload).hexdigest(),
+        captured_monotonic,
+        path,
+    )
+
+
 @dataclass(frozen=True)
 class IntegratedRouteResult:
     status: str
@@ -196,15 +216,15 @@ class LocalBlueStacksRuntime:
     def capture(self, label: str) -> CapturedNativeFrame:
         payload = self.runner.capture_png()
         captured = time.monotonic()
-        frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
-        if frame is None or frame.shape[:2] != (1280, 800):
-            raise RuntimeError("BlueStacks capture is not a native 800x1280 frame")
         self.ordinal += 1
         path = self.frames / f"{self.ordinal:04d}-{label}.png"
         path.write_bytes(payload)
-        digest = hashlib.sha256(payload).hexdigest()
-        result = CapturedNativeFrame(frame, payload, digest, captured, path)
-        self._event("capture", {"label": label, "path": str(path), "sha256": digest})
+        result = captured_native_frame_from_png(
+            payload,
+            captured_monotonic=captured,
+            path=path,
+        )
+        self._event("capture", {"label": label, "path": str(path), "sha256": result.sha256})
         return result
 
     def _authorize_dispatch(

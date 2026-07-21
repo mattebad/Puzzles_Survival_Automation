@@ -140,7 +140,7 @@ class NovaPulseController:
 
         # If Praise observation is already available, prefer pulse decision without re-entering.
         if view.praise is not None:
-            return self._praise_decision(view.praise)
+            return self.praise_result(view.praise)
 
         # Navigate Research Lab from current localized viewport.
         nav = navigate_home_building(
@@ -209,7 +209,9 @@ class NovaPulseController:
             dispatched_actions=tuple(self.dispatched_actions),
         )
 
-    def _praise_decision(self, observation: NovaPraiseObservation) -> SchedulerAwareTaskResult:
+    def praise_result(self, observation: NovaPraiseObservation) -> SchedulerAwareTaskResult:
+        """Map one recognized Praise state to a scheduler result without transport ownership."""
+
         self._emit("read_interaction_attempts")
         remaining = nova_remaining(observation)
         if remaining is None:

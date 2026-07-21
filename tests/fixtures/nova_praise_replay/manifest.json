@@ -4,6 +4,13 @@
   "flow_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
   "dispatch_policy": "replay_never_dispatches_adb",
   "offline_proof_state": "current",
+  "production_path_replay_state": "current",
+  "production_path_replay_cases": [
+    "praise_attempts_available_to_praise_on_cooldown",
+    "praise_on_cooldown_no_dispatch"
+  ],
+  "production_path_transport_calls": 0,
+  "production_path_operational_state_mutated": false,
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "current",
   "production_eligible": false,

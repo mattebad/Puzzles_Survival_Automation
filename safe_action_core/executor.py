@@ -453,6 +453,7 @@ class SafeActionExecutor:
                 "DISMISS_ALLIANCE_FORT_WAVE",
                 "RESEARCH_BIOENHANCER_FREE",
                 "CLAIM_DAILY_QUEST",
+                "PRAISE_NOVA",
             }
             and immediate.target_roi is not None
         ):
