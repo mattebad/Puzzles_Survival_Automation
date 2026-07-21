@@ -2,9 +2,9 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "0708b8f9e5761804acc45d15f261f3dbf499b4e6",
+  "head": "e0ac27325a214ff26bfada1343ba36df5b120679",
   "ahead_behind": {
-    "ahead": 28,
+    "ahead": 30,
     "behind": 0
   },
   "attributable_dirty_paths": [
@@ -108,7 +108,7 @@
 Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and retained evidence.
 
 ## Repository
-- Branch: `main` @ pending architecture commit
+- Branch: `main` @ `e0ac273`
 - Architecture task: **completed** offline (flow contracts, Home context, scheduler invocation state, Nova pulse/replay)
 - Flow-delivery queue: **not activated**
 - Runtime ownership: none
