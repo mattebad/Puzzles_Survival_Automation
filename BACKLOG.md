@@ -5480,11 +5480,100 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### GF-MVP-006-EXECUTABLE-AND-EVIDENCE-INTEGRITY
 - Task ID: `GF-MVP-006-EXECUTABLE-AND-EVIDENCE-INTEGRITY`.
 - Title: Validate executable and evidence-integrity boundaries.
+- Status: Completed (2026-07-21; supported Nova replay/live command registered; retained replay
+  command executes with zero transport; live route fails pre-input until GF-MVP-008; Campaign and
+  Ultimate wrappers now reject missing/zero-byte evidence without fabricating substitutes).
+- Milestone: Gameplay Flow Factory Milestone A.
+- Dependencies: completed `GF-MVP-005-PRODUCTION-PATH-REPLAY` at `b142e21`; GF-MVP-001 ledger assigns
+  latent Campaign/Ultimate placeholder-evidence correction only to this task.
+- Blocked by: None after command and strict evidence tests pass.
+- Objective: validate the actual `pnsctl` Nova boundary and enforce substantive Campaign/Ultimate
+  operator evidence without runtime input.
+- Established facts: `pnsctl` lacked a Nova pulse command on main; retained replay interfaces are
+  committed; Campaign/Ultimate wrappers synthesized empty events/ledger/audit/journal and fallback
+  screenshots; this defect did not cause GF-MVP-001 failures and is owned only here.
+- Direct implementation files: `scripts/pnsctl.py`, `scripts/flow_delivery_evidence.py`,
+  `scripts/flow_delivery_campaign_bluestacks.py`,
+  `scripts/flow_delivery_ultimate_challenge_bluestacks.py`,
+  `tests/test_flow_delivery_evidence_integrity.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`, and
+  `tasks/backlog_task_index.json`.
+- Shared dependencies: committed Nova action/replay boundary, runtime identity assurance, retained
+  Nova evidence, checked-in flow registry, Campaign/Ultimate operator result formats, and pnsctl
+  fixed-command policy.
+- Transitive regression set: catalog/pnsctl, flow-delivery wrappers/controller/registry, Campaign/
+  Ultimate tests, Nova production replay, governance/context, and full suite.
+- Allowed changes: only direct files and owned command/evidence hunks; per-commit allowed paths are
+  exactly those files; no reimplementation of GF-MVP-005.
+- Prohibited changes: runtime connection/input, Nova navigation implementation, Home/radial/Nova
+  route changes, queue activation, arbitrary command/tap/swipe exposure, fabricated/zero-byte
+  evidence, production registration/scheduling, plan edits, or history rewrite.
+- Authorized runtime action: None; `python scripts/pnsctl.py nova-praise-pulse` runs retained replay
+  only and dispatches zero transport.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden; GF-MVP-008 owns the route and GF-MVP-009 owns live input.
+- Consequential action: Forbidden.
+- Registration changes: None; command reports `NOT_REGISTERED`.
+- Scheduler changes: None; command verifies scheduler remains disabled and unmutated.
+- Actions that must not be repeated: retained Praise, Campaign/Ultimate live attempts, fallback
+  screencapture, any ADB/BlueStacks/Bliss input, or evidence fabrication.
+- Required source: committed production replay interface, GF-MVP-001 latent-defect ledger, wrapper
+  source, flow registry, retained frames/hashes, and exact fixed command semantics.
+- Exact target semantics: `nova-praise-pulse` defaults to retained zero-transport replay; live mode
+  accepts only `nova_navigation_round_trip_no_praise`, explicit opt-in, and supervised identity;
+  missing route fails before connection.
+- Required local association: fixed command, exact scenario, identity evidence, source/successor
+  hashes, intended input, zero transport, operator session result, required nonempty logs/journal,
+  and nonempty frame set.
+- Negative controls: unknown command/scenario, missing identity, unsupported characters, absent
+  runner, missing/zero-byte/malformed result/evidence, missing frames, wrong flow/session, and
+  wrapper fallback capture.
+- Coordinate space: no live coordinate operation; retained replay records the existing Nova ROI.
+- Accepted signals: CLI replay returns replay_confirmed, zero transport, one intended input, no
+  operational mutation, disabled registration/scheduler; complete operator evidence parses;
+  missing/zero-byte evidence fails explicitly.
+- Rejected weak signals: file existence alone, empty artifacts, terminal fallback screenshot,
+  transport success, configured identity without evidence, or arbitrary command arguments.
+- Ambiguous-result behavior: fail pre-input with structured error; do not create substitute evidence.
+- Zero-cost requirement: no gameplay action/resource.
+- Quantity limits: one fixed Nova scenario; zero replay/live transport; one result plus four required
+  nonempty evidence logs and at least one nonempty frame per operator session.
+- Resource consumption policy: none.
+- Premium or strategic restrictions: all consequential/premium behavior prohibited.
+- Active evidence manifest: None.
+- Required artifacts: supported command, strict evidence helper, corrected wrappers, focused tests,
+  regenerated index, CLI replay receipt, and green full suite.
+- Immediate-before/immediate-post/result/journal: retained replay uses existing immutable frames;
+  wrappers require substantive operator result/events/ledger/audit/journal/frames and create none.
+- Additional task-specific artifacts: None.
+- Focused tests: `tests.test_flow_delivery_evidence_integrity`,
+  `tests.test_catalog_and_pnsctl`, `tests.test_flow_delivery_orchestrator`, and
+  `tests.test_flow_delivery_token_context_hygiene`.
+- Integration tests: actual offline pnsctl Nova replay; missing-identity live preflight; route-absent
+  pre-input failure; strict Campaign/Ultimate evidence session validation.
+- Transitive regression tests: Nova central boundary, Campaign/Ultimate, governance/context, and full suite.
+- Full-suite requirement: authoritative `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: CLI replay, Python compile, focused tests, governance, `git diff --check`, full suite,
+  and clean attributable Git status.
+- Known baseline failures: None; prior task passed 1,085 tests with one expected skip.
+- Evidence requirement: NOT_APPLICABLE — offline command/evidence-boundary work creates no gameplay evidence.
+- Valid blocked outcomes: command cannot resolve committed replay, wrapper evidence contract is
+  incompatible with real operator output, or any touched/full-suite regression.
+- Blocked-result commit policy: retain exact mismatch without substitute artifacts, preserve prior
+  proof, keep runtime inactive, and no push.
+- Commit policy: one reviewed conventional commit; stage only allowed paths; no push unless
+  explicitly authorized.
+- Expected focused commits: `fix(flow-factory): enforce executable evidence integrity`.
+- Completion criteria: supported command parses and runs retained replay; live route absence fails
+  before connection; Campaign/Ultimate never synthesize evidence; missing/zero-byte artifacts fail;
+  focused/full tests pass; zero input; one focused commit.
+
+### GF-MVP-007-NAMED-SCENARIO-FAILURE-ACCOUNTING
+- Task ID: `GF-MVP-007-NAMED-SCENARIO-FAILURE-ACCOUNTING`.
+- Title: Add named-scenario and pre-input-versus-execution accounting.
 - Status: Ready; declared Milestone A successor, not yet active.
-- Scope: wire and validate the supported `pnsctl` Nova command, truthful blocked reporting, and the
-  Campaign/Ultimate latent placeholder-evidence correction assigned by GF-MVP-001.
-- Authority: accepted plan, GF-MVP-001 failure ledger, and committed GF-MVP-005 action/replay
-  interfaces; no runtime input is authorized.
+- Scope: add only the Nova no-Praise canary scenario attempt record and budget semantics required
+  before route migration/live admission.
+- Authority: accepted plan; no generalized proof engine, queue activation, or runtime input.
 
 
 

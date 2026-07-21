@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -799,6 +800,187 @@ def bluestacks_recover_home() -> str:
     return _BLUESTACKS_RECOVERY_HANDLERS[contract["recovery_handler"]](queue, lease)
 
 
+def nova_praise_pulse_replay(args: argparse.Namespace) -> str:
+    """Run the retained production-path Nova action/cooldown replay with zero transport."""
+
+    from safe_action_core import SafetyStore
+    from scripts.nova_praise_centralized import NovaPraiseActionBoundary
+    from tasks.gameplay_flow_replay import ReplayNativeRuntime, load_retained_native_frame
+    from tasks.home_atlas import load_home_atlas
+    from tasks.nova_praise_pulse import NOVA_TASK_ID, NovaPulseController
+    from tasks.scheduler_task_result import SchedulerIdentity
+
+    manifest_path = REPO_ROOT / "tests" / "fixtures" / "nova_praise_replay" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    cases = {item["fixture_id"]: item for item in manifest["cases"]}
+    before_case = cases["praise_attempts_available"]
+    after_case = cases["praise_on_cooldown"]
+    before = load_retained_native_frame(
+        REPO_ROOT / before_case["path"],
+        captured_monotonic=100.0,
+        expected_sha256=before_case["sha256"],
+    )
+    after = load_retained_native_frame(
+        REPO_ROOT / after_case["path"],
+        captured_monotonic=101.0,
+        expected_sha256=after_case["sha256"],
+    )
+    identity = SchedulerIdentity(
+        args.account_id or "offline-replay-account",
+        args.server_id or "offline-replay-server",
+        args.reset_id or "offline-replay-reset",
+        NOVA_TASK_ID,
+    )
+    atlas = load_home_atlas(
+        REPO_ROOT
+        / "tasks"
+        / "assets"
+        / "home_atlas"
+        / "bluestacks"
+        / "800x1280"
+        / "atlas.json"
+    )
+    with tempfile.TemporaryDirectory(prefix="pns-nova-replay-") as directory:
+        root = Path(directory)
+        runtime = ReplayNativeRuntime(root / "runtime")
+        store = SafetyStore(root / "replay.sqlite3")
+        try:
+            store.acquire_lease("replay-owner", 100.0, 600.0)
+            pulse = NovaPulseController(identity, atlas, now=100.0, replay_mode=True)
+            boundary = NovaPraiseActionBoundary(
+                runtime,
+                store,
+                pulse,
+                runtime_scope=args.runtime_scope or "offline-replay",
+                owner_id="replay-owner",
+                invocation_id=args.invocation_id or "offline-replay",
+                execute=False,
+                monotonic_clock=lambda: 101.25,
+                wall_clock=lambda: 100.5,
+                post_delays=(0.0,),
+            )
+            action = boundary.replay_praise(before, after)
+            cooldown = boundary.replay_no_dispatch(
+                action.after_recognition.observation,
+                evidence_ref=str(after.path),
+            )
+            actions = store.list_actions_for_task(NOVA_TASK_ID)
+            scheduler = store.get_scheduler_invocation_state(
+                identity.account_id,
+                identity.server_id,
+                identity.reset_id,
+                identity.task_id,
+            )
+        finally:
+            store.close()
+    if actions or scheduler is not None:
+        raise OperatorError("Nova replay mutated operational action or scheduler state")
+    return json.dumps(
+        {
+            "status": "replay_confirmed",
+            "command": "nova-praise-pulse",
+            "scenario": "retained_nova_six_to_five",
+            "transport_calls": 0,
+            "intended_inputs": action.to_mapping()["intended_inputs"],
+            "action_result": action.to_mapping(),
+            "cooldown_result": cooldown.to_mapping(),
+            "operational_state_mutated": False,
+            "production_registration": "NOT_REGISTERED",
+            "scheduler_enabled": False,
+        },
+        sort_keys=True,
+    )
+
+
+def _nova_supervised_identity(args: argparse.Namespace):
+    from tasks.runtime_identity import (
+        RuntimeIdentityAssurance,
+        RuntimeIdentityConfiguration,
+        RuntimeIdentityObservation,
+        verify_runtime_identity,
+    )
+
+    values = {
+        "runtime_scope": args.runtime_scope,
+        "account_id": args.account_id,
+        "server_id": args.server_id,
+        "reset_id": args.reset_id,
+    }
+    missing = [
+        name
+        for name, value in values.items()
+        if not isinstance(value, str) or not value.strip() or value != value.strip()
+    ]
+    if args.identity_evidence is None:
+        missing.append("identity_evidence")
+    if missing:
+        return None, sorted(set(missing))
+    for name, value in values.items():
+        if not NAME_RE.fullmatch(value):
+            raise OperatorError(f"Nova {name} contains unsupported characters")
+    try:
+        evidence = json.loads(args.identity_evidence.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("Nova supervised identity evidence is unreadable") from exc
+    if not isinstance(evidence, dict):
+        raise OperatorError("Nova supervised identity evidence must be an object")
+    configuration = RuntimeIdentityConfiguration(
+        args.runtime_scope,
+        args.account_id,
+        args.server_id,
+        args.reset_id,
+    )
+    observation = RuntimeIdentityObservation(
+        str(evidence.get("account_id") or ""),
+        str(evidence.get("server_id") or ""),
+        evidence.get("reset_id"),
+        tuple(evidence.get("evidence_refs") or ()),
+        operator_bound=evidence.get("assurance") == "supervised_navigation_binding",
+        machine_observed=False,
+    )
+    verified = verify_runtime_identity(
+        configuration,
+        observation,
+        required_assurance=RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
+    )
+    if verified.identity is None:
+        raise OperatorError("Nova supervised identity rejected: " + verified.reason)
+    return verified.identity, []
+
+
+def nova_praise_pulse_live(args: argparse.Namespace) -> str:
+    """Admit only the checked-in no-Praise navigation scenario; route lands in GF-MVP-008."""
+
+    if not args.yes:
+        raise OperatorError("live Nova navigation requires --yes")
+    if not args.supervised_live_opt_in:
+        raise OperatorError("live Nova navigation requires --supervised-live-opt-in")
+    if args.scenario != "nova_navigation_round_trip_no_praise":
+        raise OperatorError("unsupported Nova live scenario")
+    identity, missing = _nova_supervised_identity(args)
+    if missing:
+        return json.dumps(
+            {
+                "status": "manual_required",
+                "reason": "identity_unverified",
+                "missing_configuration_fields": missing,
+                "runtime_connected": False,
+                "transport_calls": 0,
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+            },
+            sort_keys=True,
+        )
+    try:
+        from scripts import nova_praise_bluestacks as route_module
+    except ImportError as exc:
+        raise OperatorError("Nova navigation route module is unavailable") from exc
+    runner = getattr(route_module, "run_nova_navigation_canary", None)
+    if not callable(runner):
+        raise OperatorError("NOVA_NAVIGATION_ROUTE_NOT_INTEGRATED")
+    return runner(args, identity)
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     root.add_argument("--run-id", default="help-all-20260713")
@@ -828,6 +1010,28 @@ def parser() -> argparse.ArgumentParser:
     rec.add_argument("--evidence", nargs="+", required=True)
     rec.add_argument("--outcome", choices=("proven_no_effect", "positive_postcondition"), default="proven_no_effect")
     rec.add_argument("--reason", default="positive_postcondition")
+    nova_pulse = sub.add_parser("nova-praise-pulse")
+    nova_pulse.add_argument("--live", action="store_true")
+    nova_pulse.add_argument("--preflight-only", action="store_true")
+    nova_pulse.add_argument(
+        "--scenario",
+        choices=("nova_navigation_round_trip_no_praise",),
+        default="nova_navigation_round_trip_no_praise",
+    )
+    nova_pulse.add_argument("--yes", action="store_true")
+    nova_pulse.add_argument("--supervised-live-opt-in", action="store_true")
+    nova_pulse.add_argument("--runtime-scope")
+    nova_pulse.add_argument("--account-id")
+    nova_pulse.add_argument("--server-id")
+    nova_pulse.add_argument("--reset-id")
+    nova_pulse.add_argument("--identity-evidence", type=Path)
+    nova_pulse.add_argument("--owner")
+    nova_pulse.add_argument("--invocation-id")
+    nova_pulse.add_argument(
+        "--output-directory",
+        type=Path,
+        default=BLUESTACKS_ARTIFACT_ROOT / "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+    )
     bluestacks = sub.add_parser("bluestacks")
     bluestacks_sub = bluestacks.add_subparsers(dest="bluestacks_command", required=True)
     bluestacks_sub.add_parser("preflight")
@@ -842,6 +1046,28 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "nova-praise-pulse":
+        try:
+            output = (
+                nova_praise_pulse_live(args)
+                if args.live
+                else nova_praise_pulse_replay(args)
+            )
+            print(output)
+            return 0
+        except (OperatorError, OSError, RuntimeError, ValueError) as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "command": "nova-praise-pulse",
+                        "error": str(exc),
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 2
     if args.command == "reconcile":
         print(reconcile(args))
         return 0

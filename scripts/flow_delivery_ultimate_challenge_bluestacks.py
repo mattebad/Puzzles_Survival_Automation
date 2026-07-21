@@ -10,6 +10,11 @@ import subprocess
 import sys
 from typing import Any, Mapping
 
+from scripts.flow_delivery_evidence import (
+    FlowEvidenceIntegrityError,
+    require_operator_evidence,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
 UC_RUNNER_ID = "ultimate_challenge_navigation_only_runner"
@@ -59,34 +64,18 @@ def run_ultimate_challenge_navigation_only(
     (session / "operator-stderr.log").write_text(completed.stderr or "", encoding="utf-8")
     child_sessions = sorted(path for path in session.iterdir() if path.is_dir())
     uc_session = child_sessions[-1] if child_sessions else session
-    result_path = uc_session / "result.json"
-    uc_result: dict[str, Any] = {}
-    if result_path.is_file():
-        uc_result = json.loads(result_path.read_text(encoding="utf-8"))
+    try:
+        uc_result, frame_names = require_operator_evidence(uc_session)
+    except FlowEvidenceIntegrityError as exc:
+        raise pnsctl.OperatorError(
+            f"Ultimate Challenge executable/evidence-integrity failure: {exc}"
+        ) from exc
     terminal = uc_result.get("terminal")
     ok = completed.returncode == 0 and terminal in {
         "navigation_only_complete",
         "already_completed",
     }
-    frames_dir = uc_session / "frames"
-    frame_names = []
-    if frames_dir.is_dir():
-        frame_names = [
-            str(path.relative_to(uc_session)).replace("\\", "/")
-            for path in sorted(frames_dir.glob("*.png"))
-        ]
     events_rel = "events.jsonl"
-    if not (uc_session / events_rel).is_file():
-        (uc_session / events_rel).write_text("", encoding="utf-8")
-    for name in ("ledger.jsonl", "capability-audit.jsonl", "journal.jsonl"):
-        path = uc_session / name
-        if not path.is_file():
-            path.write_text("", encoding="utf-8")
-    if not frame_names:
-        png = pnsctl._run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
-        frames_dir.mkdir(parents=True, exist_ok=True)
-        (frames_dir / "operator-terminal.png").write_bytes(png)
-        frame_names = ["frames/operator-terminal.png"]
     delivery = {
         "schema_version": 1,
         "flow_id": FLOW_ID,
