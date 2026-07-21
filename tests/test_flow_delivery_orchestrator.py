@@ -296,13 +296,17 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
 
     def test_hook_is_scoped_and_uses_installed_schema_fields(self) -> None:
         hooks = json.loads((ROOT / ".cursor" / "hooks.json").read_text(encoding="utf-8"))
+        pre = hooks["hooks"]["preToolUse"][0]
+        self.assertTrue(pre["failClosed"])
+        self.assertEqual(pre.get("matcher"), "Task")
         start = hooks["hooks"]["subagentStart"][0]
-        self.assertTrue(start["failClosed"])
+        self.assertFalse(start["failClosed"])
         guard = (
             ROOT / ".cursor" / "hooks" / "pns_flow_subagent_guard.py"
         ).read_text(encoding="utf-8")
-        self.assertIn('payload.get("subagent_type")', guard)
-        self.assertIn('payload.get("subagent_model")', guard)
+        self.assertIn("authorize_task_call", guard)
+        self.assertIn("preToolUse", guard)
+        self.assertIn("audit_only", guard)
         self.assertIn("delivery_lease_active()", guard)
         self.assertIn("Path(__file__).resolve().parents[2]", guard)
         self.assertNotIn("ROOT = Path.cwd()", guard)
@@ -313,7 +317,8 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("subagent routing state lock is unavailable", guard)
         self.assertIn("a writable PnS flow implementer marker remains unresolved", guard)
-        self.assertIn("PnS delivery subagent did not resolve to Grok 4.5 High", guard)
+        self.assertIn("unapproved model is denied", guard)
+        self.assertIn("audit_only", guard)
         for field in (
             "lease_owner",
             "lease_session",
@@ -341,7 +346,7 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
             self.assertNotIn(b"\r\n", path.read_bytes())
         handoff = (ROOT / "CURRENT_HANDOFF.md").read_text(encoding="utf-8")
         self.assertNotIn(b"\r\n", (ROOT / "CURRENT_HANDOFF.md").read_bytes())
-        self.assertIn("FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION", handoff)
+        self.assertIn("FLOW-DELIVERY-PRETOOLUSE-TASK-ENFORCEMENT", handoff)
         self.assertIn("CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION", handoff)
         self.assertNotIn("actions_already_performed", handoff)
         # Historical Ruins/troop handoff ledgers live in Git history, not the compact volatile handoff.

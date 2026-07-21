@@ -68,8 +68,10 @@ class NativeDelegationContractTests(unittest.TestCase):
             "Do not perform delegated reconnaissance",
             "Do not substitute a built-in subagent",
             "record-subagent-invocation",
-            "A missing optional hook event does not authorize another execution surface.",
-            "It only disables the additional hook cross-check.",
+            "A missing optional subagentStart audit event does not authorize another execution surface.",
+            "It only disables the additional resolved-identity cross-check.",
+            "`preToolUse(Task)` is the fail-closed authorization gate",
+            "`subagentStart` is audit-only",
         ):
             self.assertIn(required, skill)
         self.assertNotRegex(skill, r"/pns-[a-z-]+")
@@ -91,9 +93,12 @@ class NativeDelegationContractTests(unittest.TestCase):
         self.assertIn("IDE_NATIVE_SUBAGENT_TOOL_UNAVAILABLE", command)
         self.assertIn("record-subagent-invocation", command)
         self.assertIn(
-            "A missing optional hook event does not authorize another execution surface.",
+            "A missing optional subagentStart audit event does not authorize another execution surface.",
             command,
         )
+        self.assertIn("`preToolUse(Task)` is the fail-closed authorization gate", command)
+        self.assertIn("subagentStart` is", command)
+        self.assertIn("audit-only", command)
 
 
 class PassiveRoutingValidatorTests(unittest.TestCase):
@@ -254,6 +259,7 @@ class HookHardeningTests(unittest.TestCase):
             "LEASE": local / "flow-delivery-lease.json",
             "WRITABLE_MARKER": local / "writable-subagent.json",
             "ROUTING_EVENTS": local / "model-routing-events.jsonl",
+            "AUTHORIZATION_EVENTS": local / "task-authorization-events.jsonl",
             "STATE_LOCK": local / "subagent-guard.lock",
         }
 
@@ -294,13 +300,14 @@ class HookHardeningTests(unittest.TestCase):
             }
             with patch.multiple(HOOK, **paths):
                 with HOOK.state_lock():
-                    result = HOOK._handle_start(payload)
+                    result = HOOK._handle_subagent_start_audit(payload)
                 event = json.loads(paths["ROUTING_EVENTS"].read_text(encoding="utf-8"))
                 lease = json.loads(paths["LEASE"].read_text(encoding="utf-8"))
                 with HOOK.state_lock():
                     with self.assertRaisesRegex(HOOK.GuardError, "another parent"):
-                        HOOK._handle_start({**payload, "conversation_id": "other"})
+                        HOOK._bind_parent(lease, "other")
         self.assertEqual(result["permission"], "allow")
+        self.assertTrue(event["audit_only"])
         self.assertEqual(lease["bound_parent_conversation_id"], "parent-current")
         self.assertEqual(event["lease_owner"], "owner")
         self.assertEqual(event["lease_session"], "session")
@@ -318,10 +325,11 @@ class HookHardeningTests(unittest.TestCase):
             }
             with patch.multiple(HOOK, **paths):
                 with HOOK.state_lock():
-                    result = HOOK._handle_start(payload)
+                    result = HOOK._handle_subagent_start_audit(payload)
                 event = json.loads(paths["ROUTING_EVENTS"].read_text(encoding="utf-8"))
                 lease = json.loads(paths["LEASE"].read_text(encoding="utf-8"))
         self.assertEqual(result["permission"], "allow")
+        self.assertTrue(event["audit_only"])
         self.assertIsNone(event["subagent_model"])
         self.assertIsNone(event["parent_conversation_id"])
         self.assertIsNone(lease["bound_parent_conversation_id"])
@@ -336,15 +344,32 @@ class HookHardeningTests(unittest.TestCase):
                 "subagent_type": "pns-flow-implementer",
                 "subagent_model": "cursor-grok-4.5-high",
             }
+            # Seed a matching preToolUse authorization so the audit path can acquire the marker.
+            auth = {
+                "authorization_verdict": "allow",
+                "requested_agent": "pns-flow-implementer",
+                "requested_model": "cursor-grok-4.5-high",
+                "lease_session": "session",
+                "active_flow": "FLOW",
+                "active_stage": "implementation",
+                "parent_conversation_id": "parent",
+                "event_digest": "seed",
+            }
+            paths["AUTHORIZATION_EVENTS"] = paths["LOCAL_ROOT"] / "task-authorization-events.jsonl"
+            paths["AUTHORIZATION_EVENTS"].write_text(json.dumps(auth) + "\n", encoding="utf-8")
             with patch.multiple(HOOK, **paths):
                 with HOOK.state_lock():
-                    HOOK._handle_start(payload)
+                    HOOK._handle_subagent_start_audit(payload)
                 marker = json.loads(paths["WRITABLE_MARKER"].read_text(encoding="utf-8"))
                 marker["created_at"] = "2000-01-01T00:00:00Z"
                 paths["WRITABLE_MARKER"].write_text(json.dumps(marker) + "\n", encoding="utf-8")
                 with HOOK.state_lock():
                     with self.assertRaisesRegex(HOOK.GuardError, "marker remains"):
-                        HOOK._handle_start({**payload, "subagent_id": "writer-2"})
+                        HOOK._acquire_writable_marker(
+                            json.loads(paths["LEASE"].read_text(encoding="utf-8")),
+                            {**payload, "subagent_id": "writer-2"},
+                            "parent",
+                        )
                 with self.assertRaisesRegex(HOOK.GuardError, "not terminal"):
                     HOOK.reconcile_writable_marker(
                         owner="owner",
@@ -804,6 +829,177 @@ class BlueStacksRegistryHardeningTests(unittest.TestCase):
         self.assertEqual(registry["registry_kind"], "flow_delivery_bluestacks")
         self.assertEqual(registry["flows"], {})
 
+
+class PreToolUseTaskAuthorizationTests(unittest.TestCase):
+    FIXTURE = json.loads(
+        (
+            ROOT / "tests" / "fixtures" / "pretooluse_task_routing_contract.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    def local_paths(self, root: Path) -> dict[str, Path]:
+        local = root / ".local-orchestrator"
+        local.mkdir()
+        return {
+            "LOCAL_ROOT": local,
+            "LEASE": local / "flow-delivery-lease.json",
+            "WRITABLE_MARKER": local / "writable-subagent.json",
+            "ROUTING_EVENTS": local / "model-routing-events.jsonl",
+            "AUTHORIZATION_EVENTS": local / "task-authorization-events.jsonl",
+            "STATE_LOCK": local / "subagent-guard.lock",
+            "AUDIT_ONLY_FLAG": local / "hook-canary" / "AUDIT_ONLY",
+            "CAPTURED_PAYLOAD_PATH": local / "hook-canary" / "latest-pretooluse-task-payload.json",
+            "HOOK_CANARY_DIR": local / "hook-canary",
+        }
+
+    def write_lease(self, path: Path) -> None:
+        path.write_text(
+            json.dumps(
+                {
+                    "workflow": "pns-flow-delivery",
+                    "owner": "owner",
+                    "process_or_session_identity": "session",
+                    "bound_parent_conversation_id": "parent-fixture-1",
+                    "acquisition_timestamp": iso(datetime.now(timezone.utc) - timedelta(seconds=1)),
+                    "active_flow": "FLOW",
+                    "active_stage": "reconnaissance",
+                    "runtime_ownership_state": "none",
+                    "unresolved_action_state": "clear",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def test_non_task_tool_is_unaffected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self.local_paths(Path(directory))
+            self.write_lease(paths["LEASE"])
+            with patch.multiple(HOOK, **paths):
+                result = HOOK._handle_pretooluse(self.FIXTURE["non_task_example"])
+        self.assertEqual(result["permission"], "allow")
+
+    def test_decision_matrix_from_fixture(self) -> None:
+        cases = (
+            ("allow_example", "allow"),
+            ("sol_model", "deny"),
+            ("explore_builtin", "deny"),
+            ("general_purpose", "deny"),
+            ("missing_model", "deny"),
+            ("missing_agent", "deny"),
+            ("conflicting_model", "deny"),
+        )
+        for key, expected in cases:
+            with self.subTest(key=key):
+                with tempfile.TemporaryDirectory() as directory:
+                    paths = self.local_paths(Path(directory))
+                    self.write_lease(paths["LEASE"])
+                    payload = (
+                        self.FIXTURE[key]
+                        if key == "allow_example"
+                        else self.FIXTURE["deny_examples"][key]
+                    )
+                    with patch.multiple(HOOK, **paths):
+                        lease = json.loads(paths["LEASE"].read_text(encoding="utf-8"))
+                        result = HOOK.authorize_task_call(payload, lease=lease)
+                self.assertEqual(result["permission"], expected)
+                if expected == "deny":
+                    self.assertEqual(
+                        result["authorization"]["authorization_verdict"],
+                        "deny",
+                    )
+
+    def test_unknown_agent_and_malformed_json_and_missing_policy_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self.local_paths(Path(directory))
+            self.write_lease(paths["LEASE"])
+            unknown = deepcopy(self.FIXTURE["allow_example"])
+            unknown["tool_input"]["subagent_type"] = "pns-unknown-agent"
+            with patch.multiple(HOOK, **paths):
+                lease = json.loads(paths["LEASE"].read_text(encoding="utf-8"))
+                denied = HOOK.authorize_task_call(unknown, lease=lease)
+                self.assertEqual(denied["permission"], "deny")
+                with patch.object(
+                    HOOK.routing_policy,
+                    "load_subagent_routing_policy",
+                    side_effect=HOOK.routing_policy.RoutingPolicyError("missing"),
+                ):
+                    with self.assertRaises(HOOK.GuardError):
+                        HOOK._load_policy()
+
+    def test_duplicate_authorization_event_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self.local_paths(Path(directory))
+            self.write_lease(paths["LEASE"])
+            payload = self.FIXTURE["allow_example"]
+            with patch.multiple(HOOK, **paths):
+                lease = json.loads(paths["LEASE"].read_text(encoding="utf-8"))
+                first = HOOK.authorize_task_call(payload, lease=lease)
+                second = HOOK.authorize_task_call(payload, lease=lease)
+            lines = [
+                line
+                for line in paths["AUTHORIZATION_EVENTS"].read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+        self.assertEqual(first["permission"], "allow")
+        self.assertEqual(second["permission"], "allow")
+        self.assertTrue(second["authorization"].get("duplicate_replay"))
+        self.assertEqual(len(lines), 1)
+
+    def test_subagent_start_is_audit_only_and_mismatch_marks_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self.local_paths(Path(directory))
+            self.write_lease(paths["LEASE"])
+            allow = self.FIXTURE["allow_example"]
+            with patch.multiple(HOOK, **paths):
+                lease = json.loads(paths["LEASE"].read_text(encoding="utf-8"))
+                HOOK.authorize_task_call(allow, lease=lease)
+                matched = HOOK._handle_subagent_start_audit(
+                    self.FIXTURE["subagent_start_audit_example"]
+                )
+                mismatched = HOOK._handle_subagent_start_audit(
+                    {
+                        **self.FIXTURE["subagent_start_audit_example"],
+                        "subagent_model": "cursor-gpt-5.6-sol-high",
+                        "subagent_id": "native-mismatch",
+                    }
+                )
+                events = [
+                    json.loads(line)
+                    for line in paths["ROUTING_EVENTS"].read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+        self.assertEqual(matched["permission"], "allow")
+        self.assertEqual(mismatched["permission"], "allow")
+        self.assertTrue(events[0]["audit_only"])
+        self.assertTrue(events[0]["requested_versus_resolved_match"])
+        self.assertFalse(events[1]["requested_versus_resolved_match"])
+
+    def test_no_cursor_cli_fallback_tokens_remain(self) -> None:
+        for path in (
+            ROOT / "scripts" / "flow_delivery_control.py",
+            ROOT / "scripts" / "flow_delivery_routing_policy.py",
+            ROOT / ".cursor" / "hooks" / "pns_flow_subagent_guard.py",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for token in ("stream-json", "--trust", "Cursor Agent routing probe"):
+                self.assertNotIn(token, text, path)
+            self.assertNotIn("_agent_command", text, path)
+            self.assertNotIn("cursor-agent.ps1", text, path)
+
+    def test_orchestrator_docs_require_explicit_agent_and_model(self) -> None:
+        command = (
+            ROOT / ".cursor" / "commands" / "pns-flow-delivery-loop.md"
+        ).read_text(encoding="utf-8")
+        skill = (
+            ROOT / ".cursor" / "skills" / "pns-flow-delivery" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("cursor-grok-4.5-high", command)
+        self.assertIn("cursor-grok-4.5-high", skill)
+        self.assertIn("pns-flow-recon", skill)
+        self.assertIn("checked-in stage-to-agent mapping", command)
+        self.assertIn('or "choose the best agent"', skill)
+        self.assertIn("Never use generic language", skill)
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,9 +2,9 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "pending containing commit: fix(automation): isolate review snapshot secret scanning",
+  "head": "pending containing commit: fix(automation): add preToolUse Task routing gate",
   "ahead_behind": {
-    "ahead": 26,
+    "ahead": 27,
     "behind": 0
   },
   "attributable_dirty_paths": [],
@@ -15,10 +15,19 @@
     "Puzzle_Survival_Runtime_POC.zip",
     "evidence/**",
     ".local-reference/**",
-    ".local-captures/**"
+    ".local-captures/**",
+    "scripts/bluestacks_campaign_ap.py (Campaign WIP preserved)",
+    "scripts/home_atlas_bluestacks.py (Campaign WIP preserved)",
+    "tasks/campaign_auto_battle.py (Campaign WIP preserved)",
+    "tasks/campaign_auto_battle_runtime.py (Campaign WIP preserved)",
+    "tasks/campaign_auto_battle_vision.py (Campaign WIP preserved)",
+    "tests/test_campaign_auto_battle.py (Campaign WIP preserved)",
+    "tests/test_campaign_auto_battle_runtime.py (Campaign WIP preserved)",
+    "tests/test_campaign_story_destinations.py (Campaign WIP preserved)",
+    "tests/test_home_atlas_verified_route.py (Campaign WIP preserved)"
   ],
-  "current_task_id": "FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION",
-  "current_task_state": "completed",
+  "current_task_id": "FLOW-DELIVERY-PRETOOLUSE-TASK-ENFORCEMENT",
+  "current_task_state": "blocked",
   "next_task_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
   "next_task_activation_status": "ready",
   "active_task_or_flow": null,
@@ -45,25 +54,24 @@
     "rollover_stop_reason": null,
     "note": "Maintenance task completions do not increment gameplay-flow counts; new parent identities start at zero."
   },
-  "latest_focused_validation_result": "review-snapshot secret-scan isolation focused hygiene + governance gates passed",
-  "latest_full_suite_result": "993 passed; 1 skipped; 0 failures (994 tests)",
+  "latest_focused_validation_result": "ide-native + orchestrator focused suites OK (58 tests)",
+  "latest_full_suite_result": "not re-run after blocker; prior baseline 993 passed / 1 skipped",
   "current_live_attempt_state": "none",
   "current_evidence_or_session_reference": null,
-  "last_safe_completed_step": "FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION offline exporter/test isolation completed; Campaign remains first ready; Ultimate Challenge remains second ready; no lease, runtime owner, writable agent, unresolved consequential action, registration/scheduler change, gameplay-flow count increment, subagents, runtime input, or push.",
-  "exact_next_permitted_action": "Stop after the containing local commit. Campaign remains first ready and may only be activated as a separate subsequent task; Ultimate Challenge remains a distinct later flow. Intended loop entry: /loop Load and follow `.cursor/commands/pns-flow-delivery-loop.md` exactly. No runtime input or push is authorized here.",
-  "current_blocker": null,
-  "prohibited_repeated_action": "Any BlueStacks/Bliss/Unraid/ADB input; any subagent invocation during this completed maintenance task; activating Campaign or Ultimate Challenge inside this completed task; enabling registration or gameplay scheduling; weakening secret detection via broad exclusions; counting this maintenance task as a completed gameplay flow.",
+  "last_safe_completed_step": "Offline preToolUse Task routing gate, shared policy, audit-only subagentStart, and focused tests landed; live enforcement blocked because Cursor 3.12.17 skips preToolUse for Task.",
+  "exact_next_permitted_action": "Stop blocked. Do not claim enforcement success. Resume only when installed Cursor emits preToolUse for Task with deny honored before child creation, or a product decision accepts an alternate enforceable boundary that is not subagentStart deny and not CLI. Campaign remains first ready and is not activated here.",
+  "current_blocker": "Cursor 3.12.17 does not invoke project preToolUse for Task; Task goes to subagentStart only, and subagentStart deny is not a reliable child-creation boundary.",
+  "prohibited_repeated_action": "Claiming preToolUse Task enforcement success on this Cursor build; relying on subagentStart deny; Cursor CLI fallback; activating Campaign inside this blocked maintenance task; BlueStacks/ADB/gameplay input; push.",
   "recent_relevant_commits": [
-    "fix(automation): isolate review snapshot secret scanning (containing commit)",
+    "fix(automation): add preToolUse Task routing gate (containing commit)",
+    "57d25ba fix(automation): isolate review snapshot secret scanning",
     "8c8e74e feat(automation): limit completed flows per parent conversation",
     "0609eb8 chore(automation): reduce flow delivery context",
-    "72b07a7 fix(automation): separate campaign and ultimate challenge flows",
     "20811eb fix(automation): keep flow delivery in Cursor IDE"
   ],
   "process_deviations": [
-    "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle beyond the original three-cycle model; reviewed implementation remains preserved.",
-    "VISION-NATIVE-FRAME-MUTATION-CORPUS was implemented directly by the parent rather than a fresh implementation subagent; parent review and offline validation completed.",
-    "Partial HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION WIP existed before formal activation and must be preserved rather than discarded."
+    "Task blocked on installed Cursor preToolUse omission for Task; offline gate retained.",
+    "Campaign WIP files preserved unstaged after orphaned Sol-High lease reconciliation."
   ],
   "registration_and_scheduler": {
     "registered_operator_tasks": "NOT_REGISTERED_UNCHANGED",
@@ -81,7 +89,7 @@
   },
   "evidence": {
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Offline review-snapshot secret-scan isolation creates no runtime evidence manifest and must not recursively inspect evidence/**.",
+    "evidence_requirement_reason": "Blocked offline routing-enforcement work creates no runtime evidence manifest and must not recursively inspect evidence/**.",
     "active_evidence_manifest": null,
     "do_not_recursively_inspect_parent_evidence_tree": true
   }
@@ -94,24 +102,10 @@ Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and reta
 
 ## Repository
 - Branch: `main`
-- HEAD: pending containing commit `fix(automation): isolate review snapshot secret scanning`
-- Ahead/behind `origin/main`: 26 / 0 after that commit
-- Attributable dirty paths: none after commit
-- Protected user-owned paths: `.cursorindexingignore` residual user-owned lines, `.specstory/**`, `.vscode/**`, project ZIP archives, `evidence/**`, `.local-reference/**`, `.local-captures/**`
+- Task: `FLOW-DELIVERY-PRETOOLUSE-TASK-ENFORCEMENT` — **blocked**
+- Blocker: Cursor 3.12.17 skips `preToolUse` for Task; only `subagentStart` runs, and deny there is not reliable
+- Campaign remains first ready; Campaign code WIP preserved unstaged
 - Push: prohibited
 
-## Current task
-- Completed: `FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION`
-- First ready flow: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` (not activated)
-- Next ready flow: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`
-- Active delivery stage / lease / runtime owner / writable agent: none / absent / none / absent
-- Unresolved consequential action: clear
-- Parent-conversation gameplay count: maintenance task; not counted
-
-## Safety
-- Production registration: not registered
-- Gameplay scheduler: disabled/ineligible
-- Composition: blocked and excluded from delivery selection
-- M6: unactivated
-- Bliss: unchanged
-- Exact next action: stop after the local commit; Campaign activation is a separate future task; loop entry is `/loop Load and follow .cursor/commands/pns-flow-delivery-loop.md exactly.`
+## Exact next action
+Stop blocked. Do not claim enforcement success. Resume when Cursor emits enforceable Task `preToolUse` (deny before child creation) or a product decision chooses another enforceable non-CLI boundary.

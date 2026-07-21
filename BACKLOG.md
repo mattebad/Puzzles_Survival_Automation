@@ -4504,6 +4504,103 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   remain unchanged; one local focused commit; no push.
 - Next: Campaign remains first ready but is not activated by this closure.
 
+### FLOW-DELIVERY-PRETOOLUSE-TASK-ENFORCEMENT
+- Task ID: `FLOW-DELIVERY-PRETOOLUSE-TASK-ENFORCEMENT`.
+- Title: Move IDE-native subagent routing enforcement to preToolUse(Task).
+- Status: Blocked (2026-07-20; offline preToolUse Task gate and audit-only subagentStart landed;
+  installed Cursor 3.12.17 does not invoke `preToolUse` for the Task tool, so live enforcement before
+  child creation cannot be proven; no push).
+- Milestone: Development tooling / orchestration safety; not gameplay implementation.
+- Dependencies: completed `FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION` at `57d25ba`;
+  inactive development queue; released development/runtime ownership; no nonterminal consequential
+  action; Campaign WIP preserved but not activated.
+- Blocked by: Installed Cursor `3.12.17` requests `preToolUse` for Shell/Read/etc. and executes the
+  project hook, but Task invocations skip `preToolUse` entirely and proceed to `subagentStart` only.
+  Measured canaries: approved Grok `pns-flow-recon` children still ran after `subagentStart` deny/
+  empty-stdin failures; removing the Task matcher still produced no Task `preToolUse` execution.
+  Therefore Cursor does not currently provide a pre-creation Task authorization surface this project
+  can enforce. Offline gate/tests remain retained for when Cursor emits Task `preToolUse`.
+- Objective: make `preToolUse(Task)` the fail-closed authorization gate before child creation;
+  retain `subagentStart` as audit-only resolved-identity telemetry; require named `pns-*` agents and
+  exact model `cursor-grok-4.5-high`; deny Sol/built-in/unknown/missing/ambiguous Task routing;
+  keep IDE-native foreground execution with deterministic authorization events and receipts; forbid
+  Cursor CLI fallback.
+- Established facts: `subagentStart` permission deny is not a reliable child-creation boundary on
+  the installed Cursor surface; GPT-5.6 Sol High children were observed despite intended Grok
+  routing; authoritative HEAD is `57d25ba`; Campaign remains first ready after orphaned Sol-High
+  delivery lease reconciliation; registration/scheduling remain disabled.
+- Direct implementation files: `.cursor/hooks.json`, `.cursor/hooks/pns_flow_subagent_guard.py`,
+  `tasks/flow_delivery_subagent_routing_policy.json`, `scripts/flow_delivery_routing_policy.py`,
+  `scripts/flow_delivery_control.py`, `.cursor/commands/pns-flow-delivery-loop.md`,
+  `.cursor/skills/pns-flow-delivery/SKILL.md`, `.cursor/rules/pns-flow-delivery-subagents.mdc`,
+  `tests/test_flow_delivery_ide_native_hardening.py`, `tests/test_flow_delivery_orchestrator.py`,
+  `tests/test_governance_validation.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`,
+  `tasks/backlog_task_index.json`.
+- Shared dependencies: existing IDE-native receipt/controller stack and named custom agents; no
+  gameplay scheduler integration.
+- Transitive regression set: IDE-native hardening, orchestrator, governance/handoff, and full suite.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above; local
+  ignored `.local-orchestrator/hook-canary/**` and authorization/routing event logs may exist but
+  must not be staged.
+- Prohibited changes: Campaign/Ultimate Challenge implementation, BlueStacks/ADB input, Cursor CLI
+  fallback, treating `subagentStart` deny as enforcement, registration/scheduling/composition/M6/
+  Bliss, silent Sol/built-in fallback, push, amend/reset/clean/restore of unrelated files.
+- Authorized runtime action: None for gameplay. Exactly two bounded IDE-native Task canaries after
+  offline tests pass (one allowed named Grok; one denied Sol/built-in).
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden.
+- Consequential action: None.
+- Registration changes: None; production remains not registered.
+- Scheduler changes: None; gameplay scheduler remains disabled/ineligible.
+- Actions that must not be repeated: relying on `subagentStart` deny as the authorization boundary;
+  Cursor CLI fallback; silent conversion of denied Sol requests into Grok; activating Campaign or
+  Ultimate Challenge inside this task; BlueStacks/ADB/gameplay input; push.
+- Required source: repository HEAD `57d25ba`, installed Cursor hook schema, and this task contract.
+- Exact target semantics: Task authorization before child creation; approved named Grok allowed;
+  unapproved Sol/built-in proven not to execute; audit-only `subagentStart`; deterministic receipts
+  and denial events; orchestrator commands explicitly select approved agent/model.
+- Required local association: Campaign remains first ready; Ultimate Challenge remains second ready;
+  no active development flow/lease/runtime owner/writable agent after completion.
+- Negative controls: inventing missing model; auto-rewriting Sol to Grok; CLI fallback; weakening
+  fail-closed behavior; second conflicting routing-policy authority.
+- Coordinate space: none; no coordinate operation.
+- Accepted signals: focused routing/receipt/hook tests pass; allowed and denied IDE canaries prove
+  enforcement; full suite green with only the legitimate expected skip.
+- Rejected weak signals: UI "Couldn't start" alone; denied child that still returns a terminal
+  result; claiming success while Sol/built-in children execute.
+- Ambiguous-result behavior: fail closed; mark blocked; do not weaken policy to force a canary pass.
+- Zero-cost requirement: no gameplay resources consumed.
+- Quantity limits: exactly one maintenance task; zero live gameplay inputs; at most two bounded
+  IDE-native canaries after offline tests; zero gameplay-flow progress increments.
+- Resource consumption policy: no AP, stamina, premium, or challenge expenditure.
+- Premium or strategic restrictions: unchanged; no new gameplay authorization.
+- Active evidence manifest: None.
+- Required artifacts: preToolUse gate, audit-only subagentStart, shared routing policy, focused
+  tests, compact handoff/backlog updates, local ignored canary payload capture.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: `.local-orchestrator/hook-canary/**` remains local-ignored.
+- Focused tests: `tests.test_flow_delivery_ide_native_hardening`,
+  `tests.test_flow_delivery_orchestrator`, `tests.test_governance_validation`.
+- Integration tests: controller validate/status; no BlueStacks connection.
+- Transitive regression tests: flow-delivery, IDE-native, governance, and full repository suite.
+- Full-suite requirement: authoritative local `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: Python compilation, governance validation, structured handoff parsing, touched-file
+  secret scan, `git diff --check`, and compact focused validation.
+- Known baseline failures: None expected; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE — offline maintenance creates no runtime evidence manifest.
+- Valid blocked outcomes: installed preToolUse payload lacks required fields; Cursor ignores
+  preToolUse denial; denied canary still executes; requested/resolved model cannot be correlated;
+  enforcement would require CLI fallback.
+- Blocked-result commit policy: record the exact blocker, preserve authority, and do not claim
+  completion or push.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `fix(automation): enforce subagent routing before start`.
+- Completion criteria: preToolUse gate authoritative; allowed/denied canaries proven; audit-only
+  subagentStart; receipts reconcile; no CLI fallback; focused and full tests pass; Campaign first
+  ready; no active lease/runtime owner/writable agent; one local commit; no push.
+- Next: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` remains first ready and is not activated
+  by this maintenance task.
+
 ### FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION
 - Task ID: `FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION`.
 - Title: Isolate review-snapshot secret scanning from detection-rule self-hits and test output.

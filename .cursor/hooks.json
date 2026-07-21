@@ -1,11 +1,19 @@
 {
   "version": 1,
   "hooks": {
+    "preToolUse": [
+      {
+        "command": "python .cursor/hooks/pns_flow_subagent_guard.py",
+        "matcher": "Task",
+        "timeout": 10,
+        "failClosed": true
+      }
+    ],
     "subagentStart": [
       {
         "command": "python .cursor/hooks/pns_flow_subagent_guard.py",
         "timeout": 10,
-        "failClosed": true
+        "failClosed": false
       }
     ],
     "subagentStop": [

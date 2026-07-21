@@ -16,7 +16,8 @@ Load and follow `.cursor/skills/pns-flow-delivery/SKILL.md` as the canonical det
    - pass only packet path, active flow ID, active stage, and exact requested deliverable
 5. Keep every custom subagent foreground and serial. Set the exact custom agent, request
    `cursor-grok-4.5-high` explicitly, wait for its terminal result, and immediately run
-   `record-subagent-invocation` before advancing.
+   `record-subagent-invocation` before advancing. Never say "use an exploration/general-purpose
+   agent" or "choose the best agent"; use only the checked-in stage-to-agent mapping.
 6. Use bounded validation profiles only:
    - `python scripts/run_flow_delivery_validation.py focused --flow-id <flow>`
    - `python scripts/run_flow_delivery_validation.py architecture --flow-id <flow>`
@@ -40,11 +41,15 @@ Continue the authoritative queue until a checked-in hard stop condition occurs.
 IDE-native custom subagents only; no CLI fallback.
 ```
 
-The project `subagentStart` hook is an optional additional cross-check when this installed Cursor
-execution surface emits it.
+`preToolUse(Task)` is the fail-closed authorization gate before child creation. `subagentStart` is
+audit-only for resolved-identity correlation and is not a reliable deny boundary. When preToolUse
+denies a Task: do not fall back to built-in agents, Sol, or Cursor CLI; stop blocked unless one
+explicit corrected project-owned mapping exists.
 
-A missing optional hook event does not authorize another execution surface.
-It only disables the additional hook cross-check.
+```text
+A missing optional subagentStart audit event does not authorize another execution surface.
+It only disables the additional resolved-identity cross-check.
+```
 
 Stop with `IDE_NATIVE_SUBAGENT_TOOL_UNAVAILABLE` rather than substituting the parent or another
 delegation surface.

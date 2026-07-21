@@ -25,19 +25,26 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts import flow_delivery_parent_progress as parent_progress
+from scripts import flow_delivery_routing_policy as routing_policy
 
 
 DEFAULT_QUEUE_PATH = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 DEFAULT_POLICY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.json"
+DEFAULT_ROUTING_POLICY_PATH = routing_policy.DEFAULT_ROUTING_POLICY_PATH
 DEFAULT_LOOP_POLICY_PATH = parent_progress.DEFAULT_LOOP_POLICY_PATH
 DEFAULT_PROGRESS_PATH = parent_progress.DEFAULT_PROGRESS_PATH
 DEFAULT_LEASE_PATH = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
 DEFAULT_WRITABLE_MARKER_PATH = REPO_ROOT / ".local-orchestrator" / "writable-subagent.json"
 DEFAULT_ROUTING_EVENTS_PATH = REPO_ROOT / ".local-orchestrator" / "model-routing-events.jsonl"
+DEFAULT_AUTHORIZATION_EVENTS_PATH = (
+    REPO_ROOT / ".local-orchestrator" / "task-authorization-events.jsonl"
+)
 CANARY_FLOW_ID = "IDE-NATIVE-SUBAGENT-CANARY"
 PARENT_CONVERSATION_ROLLOVER_REQUIRED = parent_progress.PARENT_CONVERSATION_ROLLOVER_REQUIRED
 RESUME_INVOCATION = parent_progress.RESUME_INVOCATION
 COUNTED_GAMEPLAY_QUEUE_KIND = "development_flow_delivery"
+SUBAGENT_ROUTING_POLICY = routing_policy.load_subagent_routing_policy()
+SUBAGENT_ROUTING_POLICY_DIGEST = routing_policy.routing_policy_digest(SUBAGENT_ROUTING_POLICY)
 ACTIVE_DELIVERY_STAGES = {
     "selected",
     "reconnaissance",
@@ -92,16 +99,10 @@ READY_FLOW_PACKET_FIELDS = {
     "completion_tests",
     "consequential_stage_policy",
 }
-EXPECTED_SUBAGENT_MODEL = "cursor-grok-4.5-high"
+EXPECTED_SUBAGENT_MODEL = SUBAGENT_ROUTING_POLICY["approved_model"]
 SUBAGENT_TERMINAL_OUTCOMES = {"completed", "blocked", "failed"}
-STAGE_AGENTS = {
-    "reconnaissance": "pns-flow-recon",
-    "implementation": "pns-flow-implementer",
-    "correction": "pns-flow-implementer",
-    "implementation_review": "pns-flow-reviewer",
-    "evidence_review": "pns-evidence-reviewer",
-}
-ALLOWED_SUBAGENTS = set(STAGE_AGENTS.values())
+STAGE_AGENTS = dict(SUBAGENT_ROUTING_POLICY["stage_agents"])
+ALLOWED_SUBAGENTS = set(SUBAGENT_ROUTING_POLICY["allowed_agents"])
 REQUIRED_RECEIPTS_BY_STAGE = {
     "focused_validation": {"focused_tests", "architecture_tests"},
     "full_validation": {"full_suite"},
@@ -547,6 +548,7 @@ class FlowDeliveryController:
         lease_path: Path = DEFAULT_LEASE_PATH,
         writable_marker_path: Path = DEFAULT_WRITABLE_MARKER_PATH,
         routing_events_path: Path = DEFAULT_ROUTING_EVENTS_PATH,
+        authorization_events_path: Path = DEFAULT_AUTHORIZATION_EVENTS_PATH,
         loop_policy_path: Path = DEFAULT_LOOP_POLICY_PATH,
         progress_path: Path = DEFAULT_PROGRESS_PATH,
     ) -> None:
@@ -555,6 +557,7 @@ class FlowDeliveryController:
         self.lease_path = lease_path
         self.writable_marker_path = writable_marker_path
         self.routing_events_path = routing_events_path
+        self.authorization_events_path = authorization_events_path
         self.loop_policy_path = loop_policy_path
         self.progress_path = progress_path
 
@@ -1409,11 +1412,92 @@ class FlowDeliveryController:
         observed_model = event.get("subagent_model") or event.get("model")
         if observed_model is not None and observed_model != expected["requested_model"]:
             raise FlowDeliveryError("optional hook event model mismatch")
+        requested_versus_resolved = True
+        if event.get("requested_versus_resolved_match") is False:
+            raise FlowDeliveryError(
+                "audit subagentStart resolved identity does not match preToolUse authorization"
+            )
+        if event.get("audit_only") is True:
+            source = "audit_only_subagent_start_hook"
+        else:
+            source = "optional_subagent_start_hook"
         return {
             "required": False,
             "status": "matched",
-            "source": "optional_subagent_start_hook",
+            "source": source,
             "event_digest": _canonical_digest(event),
+            "requested_versus_resolved_match": requested_versus_resolved,
+        }
+
+    def _authorization_cross_check(
+        self,
+        *,
+        lease: Mapping[str, Any],
+        expected: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        try:
+            lines = self.authorization_events_path.read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            return {
+                "required": False,
+                "status": "not_emitted",
+                "source": "preToolUse_task_authorization",
+                "policy_digest": SUBAGENT_ROUTING_POLICY_DIGEST,
+            }
+        except (OSError, UnicodeError) as exc:
+            raise FlowDeliveryError("preToolUse authorization evidence is unreadable") from exc
+        acquired_at = _parse_timestamp(
+            lease["acquisition_timestamp"],
+            "lease.acquisition_timestamp",
+        )
+        current: list[tuple[datetime, dict[str, Any]]] = []
+        for ordinal, line in enumerate(lines, start=1):
+            if not line.strip():
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise FlowDeliveryError(
+                    f"preToolUse authorization evidence is malformed at line {ordinal}"
+                ) from exc
+            if not isinstance(event, dict):
+                raise FlowDeliveryError("preToolUse authorization evidence entry is invalid")
+            if event.get("authorization_verdict") != "allow":
+                continue
+            timestamp = event.get("timestamp")
+            if not isinstance(timestamp, str) or not timestamp.strip():
+                continue
+            event_at = _parse_timestamp(timestamp, "authorization.timestamp")
+            if event_at < acquired_at or event_at > datetime.now(timezone.utc):
+                continue
+            if (
+                event.get("lease_session") == lease["process_or_session_identity"]
+                and event.get("active_flow") == expected["active_flow"]
+                and event.get("active_stage") == expected["active_stage"]
+                and event.get("requested_agent") == expected["custom_agent"]
+                and event.get("requested_model") == expected["requested_model"]
+            ):
+                current.append((event_at, event))
+        if not current:
+            return {
+                "required": False,
+                "status": "not_emitted",
+                "source": "preToolUse_task_authorization",
+                "policy_digest": SUBAGENT_ROUTING_POLICY_DIGEST,
+            }
+        _, event = max(current, key=lambda item: item[0])
+        digest = event.get("policy_digest")
+        if digest is not None and digest != SUBAGENT_ROUTING_POLICY_DIGEST:
+            raise FlowDeliveryError("preToolUse authorization policy digest mismatch")
+        return {
+            "required": False,
+            "status": "matched",
+            "source": "preToolUse_task_authorization",
+            "policy_digest": digest or SUBAGENT_ROUTING_POLICY_DIGEST,
+            "event_digest": event.get("event_digest") or _canonical_digest(event),
+            "authorization_verdict": "allow",
+            "authorization_reason": event.get("authorization_reason"),
+            "tool_use_id": event.get("tool_use_id"),
         }
 
     def record_subagent_invocation(
@@ -1505,6 +1589,18 @@ class FlowDeliveryController:
             subagent_id=subagent_id,
             expected=unsigned,
         )
+        unsigned["authorization"] = self._authorization_cross_check(
+            lease=lease,
+            expected=unsigned,
+        )
+        unsigned["policy_digest"] = SUBAGENT_ROUTING_POLICY_DIGEST
+        unsigned["requested_versus_resolved_match"] = unsigned["hook_cross_check"].get(
+            "requested_versus_resolved_match",
+            True,
+        )
+        if unsigned["hook_cross_check"].get("status") == "matched":
+            if unsigned["requested_versus_resolved_match"] is not True:
+                raise FlowDeliveryError("requested-versus-resolved identity mismatch")
         receipt = {**unsigned, "receipt_digest": _canonical_digest(unsigned)}
         lease["bound_parent_conversation_id"] = parent_conversation_id
         lease["subagent_invocation_receipts"].append(receipt)

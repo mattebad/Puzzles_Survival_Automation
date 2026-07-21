@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "fixture_kind": "pretooluse_task_routing_contract",
+  "source": "normalized_from_cursor_docs_and_measured_subagentStart_fields",
+  "cursor_version_observed": "3.12.17",
+  "measurement_note": "On Cursor 3.12.17, Task invocations were observed to skip preToolUse and only emit subagentStart. This fixture encodes the minimal Task preToolUse contract required for enforcement when/if Cursor emits it.",
+  "common_fields": [
+    "hook_event_name",
+    "conversation_id",
+    "generation_id",
+    "tool_name",
+    "tool_input",
+    "tool_use_id",
+    "cwd",
+    "model",
+    "cursor_version",
+    "workspace_roots"
+  ],
+  "task_tool_input_fields": [
+    "subagent_type",
+    "model",
+    "prompt",
+    "description",
+    "is_background",
+    "run_in_background"
+  ],
+  "allow_example": {
+    "hook_event_name": "preToolUse",
+    "tool_name": "Task",
+    "tool_use_id": "toolu-fixture-allow-1",
+    "conversation_id": "parent-fixture-1",
+    "tool_input": {
+      "subagent_type": "pns-flow-recon",
+      "model": "cursor-grok-4.5-high",
+      "description": "fixture allow",
+      "prompt": "read-only fixture",
+      "is_background": false
+    }
+  },
+  "deny_examples": {
+    "sol_model": {
+      "hook_event_name": "preToolUse",
+      "tool_name": "Task",
+      "tool_use_id": "toolu-fixture-deny-sol",
+      "conversation_id": "parent-fixture-1",
+      "tool_input": {
+        "subagent_type": "pns-flow-recon",
+        "model": "cursor-gpt-5.6-sol-high",
+        "is_background": false
+      }
+    },
+    "explore_builtin": {
+      "hook_event_name": "preToolUse",
+      "tool_name": "Task",
+      "tool_use_id": "toolu-fixture-deny-explore",
+      "conversation_id": "parent-fixture-1",
+      "tool_input": {
+        "subagent_type": "explore",
+        "model": "cursor-grok-4.5-high",
+        "is_background": false
+      }
+    },
+    "general_purpose": {
+      "hook_event_name": "preToolUse",
+      "tool_name": "Task",
+      "tool_use_id": "toolu-fixture-deny-gp",
+      "conversation_id": "parent-fixture-1",
+      "tool_input": {
+        "subagent_type": "generalPurpose",
+        "model": "cursor-grok-4.5-high",
+        "is_background": false
+      }
+    },
+    "missing_model": {
+      "hook_event_name": "preToolUse",
+      "tool_name": "Task",
+      "tool_use_id": "toolu-fixture-deny-nomodel",
+      "conversation_id": "parent-fixture-1",
+      "tool_input": {
+        "subagent_type": "pns-flow-recon",
+        "is_background": false
+      }
+    },
+    "missing_agent": {
+      "hook_event_name": "preToolUse",
+      "tool_name": "Task",
+      "tool_use_id": "toolu-fixture-deny-noagent",
+      "conversation_id": "parent-fixture-1",
+      "tool_input": {
+        "model": "cursor-grok-4.5-high",
+        "is_background": false
+      }
+    },
+    "conflicting_model": {
+      "hook_event_name": "preToolUse",
+      "tool_name": "Task",
+      "tool_use_id": "toolu-fixture-deny-conflict",
+      "conversation_id": "parent-fixture-1",
+      "tool_input": {
+        "subagent_type": "pns-flow-recon",
+        "model": "cursor-grok-4.5-high",
+        "model_id": "cursor-gpt-5.6-sol-high",
+        "is_background": false
+      }
+    }
+  },
+  "non_task_example": {
+    "hook_event_name": "preToolUse",
+    "tool_name": "Shell",
+    "tool_use_id": "toolu-fixture-shell",
+    "conversation_id": "parent-fixture-1",
+    "tool_input": {
+      "command": "python -V"
+    }
+  },
+  "subagent_start_audit_example": {
+    "hook_event_name": "subagentStart",
+    "conversation_id": "parent-fixture-1",
+    "parent_conversation_id": "parent-fixture-1",
+    "subagent_id": "native-fixture-1",
+    "subagent_type": "pns-flow-recon",
+    "subagent_model": "cursor-grok-4.5-high",
+    "tool_call_id": "toolu-fixture-allow-1",
+    "task": "fixture audit",
+    "is_parallel_worker": false
+  }
+}

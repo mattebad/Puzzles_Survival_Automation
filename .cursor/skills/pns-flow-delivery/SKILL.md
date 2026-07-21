@@ -24,7 +24,11 @@ review, or evidence review directly in the parent. If the native tool is absent,
 fails to return a terminal result, stop with `IDE_NATIVE_SUBAGENT_TOOL_UNAVAILABLE`.
 
 Set the custom agent explicitly, request `cursor-grok-4.5-high` explicitly, and keep
-`is_background: false`. After every terminal native Task result, immediately record exactly what
+`is_background: false`. Never use generic language such as "use an exploration agent",
+"launch an appropriate subagent", "use a general-purpose agent", or "choose the best agent".
+The routing decision must be the exact checked-in stage-to-agent mapping plus the approved model.
+
+After every terminal native Task result, immediately record exactly what
 this parent observed with `record-subagent-invocation`, before advancing the delivery stage:
 
 ```text
@@ -47,14 +51,18 @@ The controller never launches an agent. It atomically binds the receipt to the a
 parent, flow, returned ID, requested model, foreground status, timestamp, and HEAD. A completed
 receipt is mandatory before leaving any delegated stage.
 
-The installed Cursor execution surface may not emit a project `subagentStart` event. The hook is
-an optional additional defense: when a current hook event exists, the controller cross-checks every
-reliable field it contains; when none exists, the native Task receipt is sufficient and the
-optional mode is reported as `not_emitted`.
+`preToolUse(Task)` is the fail-closed authorization gate that must allow a Task call before a child
+is created. When it denies a request: do not fall back to a built-in agent, Sol, or Cursor CLI;
+record the denial; issue one corrected approved request only when an explicit project-owned mapping
+exists; otherwise stop blocked.
+
+`subagentStart` is audit-only. It records the resolved child and correlates requested-versus-resolved
+identity with the earlier preToolUse authorization event. It is not a reliable mechanism to prevent
+child creation.
 
 ```text
-A missing optional hook event does not authorize another execution surface.
-It only disables the additional hook cross-check.
+A missing optional subagentStart audit event does not authorize another execution surface.
+It only disables the additional resolved-identity cross-check.
 ```
 
 ## Distinct authorities
