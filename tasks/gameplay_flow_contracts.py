@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 from typing import Any, Mapping
 
 CONTRACTS_DIR = Path(__file__).with_name("gameplay_flow_contracts")
@@ -79,6 +80,7 @@ _FIXTURE_STATUS = frozenset({"available", "required_evidence", "synthetic_policy
 _LIVE_MODE = frozenset(
     {"navigation_only", "consequential_supervised", "observe_only", "blocked_until_policy"}
 )
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class FlowContractError(ValueError):
@@ -135,14 +137,30 @@ def validate_flow_contract(payload: Mapping[str, Any]) -> dict[str, Any]:
     for fixture in payload["replay_fixture_requirements"]:
         if not isinstance(fixture, Mapping) or "fixture_id" not in fixture or fixture.get("status") not in _FIXTURE_STATUS:
             raise FlowContractError("invalid replay_fixture_requirements entry")
-        if fixture["status"] == "available" and not fixture.get("path"):
-            raise FlowContractError("available fixture requires path")
+        if fixture["status"] == "available":
+            if not fixture.get("path"):
+                raise FlowContractError("available fixture requires path")
+            if not _SHA256.fullmatch(str(fixture.get("sha256", ""))):
+                raise FlowContractError("available fixture requires sha256")
+        for evidence_ref in fixture.get("evidence_refs", ()):
+            if (
+                not isinstance(evidence_ref, Mapping)
+                or not evidence_ref.get("path")
+                or not evidence_ref.get("kind")
+                or not _SHA256.fullmatch(str(evidence_ref.get("sha256", "")))
+            ):
+                raise FlowContractError("invalid replay fixture evidence_ref")
     for scenario in payload["live_validation_scenarios"]:
         if not isinstance(scenario, Mapping) or scenario.get("mode") not in _LIVE_MODE:
             raise FlowContractError("invalid live_validation_scenarios entry")
     # Reject accidental claims of live/scheduler completion for stubs.
     if payload["implementation_status"] in {"live_validated", "scheduler_eligible"} and payload["proof_state"] != "current":
         raise FlowContractError("live/scheduler status requires current proof_state")
+    for key in ("offline_proof_state", "replay_fixture_proof_state", "supervised_live_proof_state"):
+        if key in payload and payload[key] not in _PROOF:
+            raise FlowContractError(f"invalid {key}")
+    if "production_eligible" in payload and not isinstance(payload["production_eligible"], bool):
+        raise FlowContractError("production_eligible must be boolean")
     return dict(payload)
 
 

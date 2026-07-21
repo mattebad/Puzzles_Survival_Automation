@@ -169,6 +169,15 @@ class NovaPraiseReplayCapsuleTests(unittest.TestCase):
     def test_manifest_aligned_with_contract_and_cases_run(self):
         assert_contract_fixtures_aligned()
         manifest = load_replay_manifest()
+        self.assertEqual(manifest["supervised_live_proof_state"], "current")
+        self.assertEqual(manifest["replay_fixture_proof_state"], "evidence_required")
+        self.assertFalse(manifest["production_eligible"])
+        missing = [case["fixture_id"] for case in manifest["cases"] if case["status"] == "required_evidence"]
+        self.assertEqual(missing, ["zero_attempts_remaining"])
+        available = [case for case in manifest["cases"] if case["status"] == "available"]
+        self.assertTrue(available)
+        for case in available:
+            self.assertRegex(case["sha256"], r"^[0-9a-f]{64}$")
         expected = {
             "canonical_home": "blocked",
             "localized_noncanonical_home": "blocked",

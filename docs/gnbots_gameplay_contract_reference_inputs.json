@@ -1,0 +1,259 @@
+{
+  "schema_version": 1,
+  "source_root": ".local-reference/gnbots-licensed-decoded-20260715",
+  "authority": "static_research_only",
+  "runtime_compatibility": "unvalidated_for_current_800x1280_runtime",
+  "production_access": false,
+  "rules": [
+    "GnBots assets and scripts are non-authorizing reference inputs.",
+    "A template does not prove current-renderer compatibility until independently validated.",
+    "Do not execute vendor scripts or read this tree from production modules.",
+    "Derived templates require retained source path, crop ROI, and digest provenance."
+  ],
+  "module_resources": {
+    "puzzlebot.base.base": {
+      "script_sha256": "6d24309550b1d9bc4eefbd644204a176869497d906a968a57262b0495312b782",
+      "image_bundle_sha256": "3491ef305eb4d6b591bd842cef9b4a1d90c9c0d30f89206635fce132614f1441"
+    },
+    "puzzlebot.base.build": {
+      "script_sha256": "7bd5a92e748e8c5038ad7063fb7140d757ae42e6e51d8bc4f37591ed4b993041",
+      "image_bundle_sha256": "feddb0cfbf505affd897220370ce8fd1e6913096a6958434a30d86e026a01026"
+    },
+    "puzzlebot.base.campaign": {
+      "script_sha256": "11bedd58db31b05c969a445b10a9a796dc4ad53b807756b4ba2f1b3b70eef1e5",
+      "image_bundle_sha256": "2c4d6ec9a5ab71e18a8b8d8612e3c407b82d013d4f5410c3a3e3ec8b76593817"
+    },
+    "puzzlebot.base.dailies": {
+      "script_sha256": "0c7f7672339b46d1286bf76775626f737ed3ce31f28ca627cd447916a3a5a38c",
+      "image_bundle_sha256": "4a2ff2622688b229ae3fc9b2ebda4fb8b032ea7a085c4c77c52097ae571e13ae"
+    },
+    "puzzlebot.base.gathervip": {
+      "script_sha256": "2e3c3c3a7d70988e62d4b5df860968034b4d5cdae6e5debe491b924c0429daef",
+      "image_bundle_sha256": null
+    },
+    "puzzlebot.base.productions": {
+      "script_sha256": "4fb033b1722a72b9c13d85f59ea635d325009692c8a2d3091b6dc1d7a6c3bbaf",
+      "image_bundle_sha256": null
+    },
+    "puzzlebot.base.recruitment": {
+      "script_sha256": "951b6318c5ad804c7bae3a25f1cc771c5b4f7d7be2adc3a6aa350011b59a4c23",
+      "image_bundle_sha256": "982b38dc85f6dcfbe902448e86e2ca2ce92c1199356d22769393cafc0f572bd5"
+    },
+    "puzzlebot.base.research": {
+      "script_sha256": "7a177d03190462509048dd569f5b5bea69f7e7007da5154c91de919d7442720a",
+      "image_bundle_sha256": "af695e3bff87de498d5708574ae2c30e1d006bec67494498071e71ad1fef3f5b"
+    },
+    "puzzlebot.base.tilebase": {
+      "script_sha256": "3550e434a41fe401b24010547827f618cf71a5f980ed7f7aa51b05e3a15e8fb1",
+      "image_bundle_sha256": "97275ad6405027e2c259fddd83a99a80ea9e955b04c8018ec99286d191fc9a83"
+    },
+    "puzzlebot.base.townbase": {
+      "script_sha256": "edbbf7df2a6f4cda766ee563c11781e48816b02d854795230258a5df526f231f",
+      "image_bundle_sha256": "11fc33162baa6b4448e45c178c31f08d2ef0b72db9c9cdb4658194f69f2fa192"
+    },
+    "puzzlebot.base.worldbase": {
+      "script_sha256": "b3ec759afd403c43beb43cd1a1ae82a3da2eec1f885f89b3b040c8462693fe86",
+      "image_bundle_sha256": "1e3c1de8b74946aafd8c89631fbe63442b43faa472932365e6966abe7c4b0eac"
+    }
+  },
+  "contract_reference_inputs": {
+    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
+      "modules": [
+        "puzzlebot.base.campaign",
+        "puzzlebot.base.base"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.campaign/ChallengeBtn.png",
+          "sha256": "ebfbc63b039fcf44b2e11a9474dbca41acd3e10165a12f6ad093ac5503ef6069"
+        },
+        {
+          "path": "images/puzzlebot.base.campaign/IndicatorLevelMenu.png",
+          "sha256": "f81595feb64829ed3525db06e8db1ce0d78967c134b1f26029dd373e18e285ac"
+        }
+      ]
+    },
+    "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION": {
+      "modules": [
+        "puzzlebot.base.dailies"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.dailies/DailyClaimBtn.png",
+          "sha256": "db778bf9a44ce4ead3e6819cf95e51b20d33b3b16dc6df4b73d404b1f77471e3"
+        },
+        {
+          "path": "images/puzzlebot.base.dailies/IndicatorBlueBar.png",
+          "sha256": "a5452c5ebddb50e3f8087c09c1ad2cdf00b80157930894c322fa84594411b1da"
+        }
+      ]
+    },
+    "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION": {
+      "modules": [
+        "puzzlebot.base.dailies"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.dailies/MainQuestClaimBtn.png",
+          "sha256": "e49850c91c3ce65d4e6a9a558628d0a4f2086f334f3a87892fb9f456c0751c17"
+        },
+        {
+          "path": "images/puzzlebot.base.dailies/ChapterClaimBtn.png",
+          "sha256": "142274cbd016c71e2b6d9f885f86243b13ce6db26cc1bcb7e7185e492d51d49c"
+        }
+      ]
+    },
+    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": {
+      "modules": [
+        "puzzlebot.base.build",
+        "puzzlebot.base.townbase"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.townbase/UpgradeBtn.png",
+          "sha256": "891fd1d38c7a5068d1e3900beeb1711e7635efd2c4eb27c68f582d3794ac2b34"
+        },
+        {
+          "path": "images/puzzlebot.base.build/IndicatorBuildMenu.png",
+          "sha256": "3653de12eec075fa1b6f60268853542fd2176ea767fcfe9e8d7f8f39cded5e76"
+        }
+      ]
+    },
+    "GATHERING-BLUESTACKS-INTEGRATION": {
+      "modules": [
+        "puzzlebot.base.gathervip",
+        "puzzlebot.base.tilebase",
+        "puzzlebot.base.worldbase"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.tilebase/GatherDialog.png",
+          "sha256": "baa0bfae96c8b765a5c1464f3196feb8040723c33c3185783e3e4f210576e4e4"
+        },
+        {
+          "path": "images/puzzlebot.base.tilebase/MarchBtn.png",
+          "sha256": "1be27972c9fab91447a98bed0099f0030e798b8db2ecd7fdb5fecfe58a836491"
+        }
+      ]
+    },
+    "NANOWEAPON-BLUESTACKS-INTEGRATION": {
+      "modules": [],
+      "templates": [],
+      "notes": "No direct licensed GnBots module or template was identified."
+    },
+    "NOAHS-TAVERN-HOME-ATLAS-MIGRATION": {
+      "modules": [
+        "puzzlebot.base.recruitment",
+        "puzzlebot.base.dailies"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.dailies/RecruitFreeBtn.png",
+          "sha256": "1fff2a63bcab20de1675cca14b6d06d6d96383e41ef3cb75fbac8f5efadd8070"
+        }
+      ],
+      "notes": "Reference only; project-native Noah's Tavern evidence remains authoritative."
+    },
+    "NOVA-PRAISE-HOME-ATLAS-MIGRATION": {
+      "modules": [
+        "puzzlebot.base.townbase",
+        "puzzlebot.base.research"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.townbase/IndicatorResearchMenu.png",
+          "sha256": "c0ce01f3b529216bf8a92a69164697c0bf20836fe872373c840969893e31a453"
+        },
+        {
+          "path": "images/puzzlebot.base.townbase/ResearchBtn.png",
+          "sha256": "1a85b1f9360e7bdafd02e993ad2d0b5f0498bb74d453fd63a2ae9dcfeae03173"
+        }
+      ],
+      "excluded_direct_proof": [
+        {
+          "path": "images/puzzlebot.base.dailies/PraiseBtn.png",
+          "sha256": "f1e0414fd3dadba2e7063e36d00c4d6c82ea149e75e3e0ae1b056afc1e0343bd",
+          "reason": "Personal Might/leaderboard Praise, not Research Lab to Nova Lab Praise"
+        }
+      ],
+      "notes": "Project-native July 16 Nova evidence is authoritative."
+    },
+    "RECRUITMENT-BLUESTACKS-INTEGRATION": {
+      "modules": [
+        "puzzlebot.base.recruitment",
+        "puzzlebot.base.dailies"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.recruitment/IndicatorRecruitMenu.png",
+          "sha256": "91cdadd3b60b8ade4a6c6a9c265421c8d908614e21995d91df91f555e9735613"
+        },
+        {
+          "path": "images/puzzlebot.base.recruitment/RecruitDialog.png",
+          "sha256": "b7f480c2632f59958a07368da7c69c8828706f18a41280fdc367f79c79e80479"
+        }
+      ]
+    },
+    "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION": {
+      "modules": [],
+      "templates": [],
+      "notes": "No direct licensed GnBots Ruins module or template was identified."
+    },
+    "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT": {
+      "modules": [
+        "puzzlebot.base.dailies"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.dailies/IndicatorDepotFree.png",
+          "sha256": "ba273a3e54e002ecf12e7247f7e57a2427c115e5a864d520b3a7bac0a164f387"
+        }
+      ]
+    },
+    "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE": {
+      "modules": [
+        "puzzlebot.base.productions"
+      ],
+      "templates": [],
+      "notes": "Script logic is a static research input; no authorized image bundle was retained for productions."
+    },
+    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
+      "modules": [],
+      "templates": [],
+      "notes": "No direct licensed GnBots Ultimate Challenge module or template was identified."
+    },
+    "WORLD-MAP-NAVIGATION-FOUNDATION": {
+      "modules": [
+        "puzzlebot.base.base",
+        "puzzlebot.base.worldbase",
+        "puzzlebot.base.tilebase"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.base/WorldButton1.png",
+          "sha256": "5256ca5dcef64d58971b36018182b64470f8db3618654e01ade6cfdb491ea2cd"
+        },
+        {
+          "path": "images/puzzlebot.base.worldbase/IndicatorCoordMenu.png",
+          "sha256": "65a67070bae72b5fe1bd056647193cf67a7f5371dbc46557c2b3fad68ce9f559"
+        }
+      ]
+    },
+    "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION": {
+      "modules": [
+        "puzzlebot.base.gathervip",
+        "puzzlebot.base.tilebase"
+      ],
+      "templates": [
+        {
+          "path": "images/puzzlebot.base.tilebase/TileLair.png",
+          "sha256": "81c120a802d3b42970448663b7a18e94642326948f2bb0fedd42a89f20fb1ee6"
+        },
+        {
+          "path": "images/puzzlebot.base.tilebase/RallyDialog.png",
+          "sha256": "ad600db0b62e3e2ca23d460d51fe302900a11b5a6dea8b907668dadc0cea2d11"
+        }
+      ]
+    }
+  }
+}

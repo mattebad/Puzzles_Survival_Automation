@@ -3,75 +3,105 @@
   "schema_version": 1,
   "flow_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
   "dispatch_policy": "replay_never_dispatches_adb",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "current",
+  "production_eligible": false,
   "cases": [
     {
       "fixture_id": "canonical_home",
       "status": "available",
       "path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
       "recognized_state": "home_localized_or_canonical",
       "permitted_action": "navigate_or_bind_research_lab",
       "expected_outcome": "blocked"
     },
     {
       "fixture_id": "localized_noncanonical_home",
-      "status": "required_evidence",
-      "path": null,
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-dry/nova-praise-20260716T191706436109Z/frames/0001-dry-run-source.png",
+      "sha256": "2d1d183bd919f41250c75059534c933ca36cc89789eb4768b29b81406e052b4d",
       "recognized_state": "home_localized",
       "permitted_action": "navigate_without_forced_canonical",
       "expected_outcome": "blocked"
     },
     {
       "fixture_id": "zoomed_in_home",
-      "status": "required_evidence",
-      "path": null,
+      "status": "available",
+      "path": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION/nav-1-20-9-20260721T043634911470Z/1-20-9-20260721T043635359798Z/frames/frame-0001.png",
+      "sha256": "9c22d35937197ba2615681d585732949de13d65a17d7b8fb16ce2d8fd19b8912",
       "recognized_state": "home_ready_recovery",
       "permitted_action": "ensure_canonical_home",
       "expected_outcome": "blocked"
     },
     {
       "fixture_id": "research_lab_visible",
-      "status": "required_evidence",
-      "path": null,
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-dry/nova-praise-20260716T191706436109Z/frames/0001-dry-run-source.png",
+      "sha256": "2d1d183bd919f41250c75059534c933ca36cc89789eb4768b29b81406e052b4d",
       "recognized_state": "research_lab_visible",
       "permitted_action": "tap_building",
       "expected_outcome": "blocked"
     },
     {
       "fixture_id": "research_lab_offscreen",
-      "status": "required_evidence",
-      "path": null,
+      "status": "available",
+      "path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-005.png",
+      "sha256": "8d91bd556a74b3b6297a8c99ebff215a6c04ffa85a705ae5a020ad90bf629e28",
       "recognized_state": "home_localized_offscreen_target",
       "permitted_action": "pan",
       "expected_outcome": "blocked"
     },
     {
       "fixture_id": "research_lab_radial_menu",
-      "status": "required_evidence",
-      "path": null,
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193425268615Z/frames/0001-step-001-source.png",
+      "sha256": "6a946d2f0d3a8ac278fe98efec5f69c623ea9d4838ad184430132f2f1a17ddda",
       "recognized_state": "research_lab_radial",
       "permitted_action": "tap_nova",
       "expected_outcome": "blocked"
     },
     {
       "fixture_id": "nova_lab",
-      "status": "required_evidence",
-      "path": null,
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0001-step-001-source.png",
+      "sha256": "f5297765bbf31ab1d3c884dae70cc1579eddef05a5318d09184a06366152c7b7",
       "recognized_state": "nova_lab",
       "permitted_action": "open_praise",
       "expected_outcome": "blocked"
     },
     {
       "fixture_id": "praise_attempts_available",
-      "status": "required_evidence",
-      "path": null,
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0001-step-001-source.png",
+      "sha256": "f5297765bbf31ab1d3c884dae70cc1579eddef05a5318d09184a06366152c7b7",
       "recognized_state": "praise_attempts_available",
       "permitted_action": "dispatch_free_praise",
       "expected_outcome": "action_performed"
     },
     {
       "fixture_id": "praise_on_cooldown",
-      "status": "required_evidence",
-      "path": null,
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0008-praise-postcondition-unresolved.png",
+      "sha256": "a42da3ad96547b03ccb6210596e9091905ee43542be8bc6c98c2ee2e85851aff",
+      "evidence_refs": [
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/events.jsonl",
+          "sha256": "275c1aab3db6c8c571a4f18818e82014b7bf8fa7cbb312f464cc01378a515f44",
+          "kind": "dispatch_and_initial_reconciliation_journal"
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z/frames/0001-resume-current-source.png",
+          "sha256": "c942df249838216eb0cd7489fed1d5f4735cc5d33bdb6cf510561f864413213b",
+          "kind": "confirmed_reconciliation_source"
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z/events.jsonl",
+          "sha256": "09021f7076d8fa57e10a6345677859507d8c8eeb3909573ef8896006b6450f5c",
+          "kind": "terminal_reconciliation_journal"
+        }
+      ],
       "recognized_state": "praise_cooldown",
       "permitted_action": "none",
       "expected_outcome": "deferred"
@@ -80,6 +110,7 @@
       "fixture_id": "zero_attempts_remaining",
       "status": "required_evidence",
       "path": null,
+      "sha256": null,
       "recognized_state": "praise_zero_attempts",
       "permitted_action": "none",
       "expected_outcome": "complete_for_reset"
@@ -88,9 +119,92 @@
       "fixture_id": "unknown_or_negative_control",
       "status": "synthetic_policy_ok",
       "path": null,
+      "sha256": null,
       "recognized_state": "manual_only",
       "permitted_action": "none",
       "expected_outcome": "manual_required"
+    }
+  ],
+  "retained_session_inventory": [
+    {
+      "session_root": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z",
+      "event_log": {
+        "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/events.jsonl",
+        "sha256": "275c1aab3db6c8c571a4f18818e82014b7bf8fa7cbb312f464cc01378a515f44",
+        "records": {
+          "capture": 8,
+          "dispatch": 1,
+          "reconcile_unresolved": 1
+        }
+      },
+      "frames": [
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0001-step-001-source.png",
+          "sha256": "f5297765bbf31ab1d3c884dae70cc1579eddef05a5318d09184a06366152c7b7",
+          "observation": "Nova Lab; Praise enabled; Interaction attempts left: 6"
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0002-praise-immediate-post.png",
+          "sha256": "f2db75702bf493d1d9a7ccdc2ea2afd1e8293d38f10ebe2b40501651fdf07e26",
+          "observation": "immediate successor; attempts text 5; transition not yet fully recognizable"
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0003-praise-immediate-post.png",
+          "sha256": "2d53739b6f8646c5ad9ece0baa1db596bc6815ad31e30ddba4b4e58ae2495f75",
+          "observation": "Nova Lab; attempts 5; CD: 00:04:53"
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0004-praise-immediate-post.png",
+          "sha256": "d561be5fd0d1ee16645ae229a46ffd3d16227b3790ce04cd824c2bed3b478b5d",
+          "observation": "Nova Lab; attempts 5; CD: 00:04:50"
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0005-praise-immediate-post.png",
+          "sha256": "25bb186f4fd7e8d5454cf21c614dfa2d7899ffd11ce7a1e573b500e9efa20147",
+          "observation": "Nova Lab; attempts 5; CD: 00:04:47"
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0006-praise-immediate-post.png",
+          "sha256": "0e8bb43fd3534cf1b7dc98f5916558a3ace7377c4598a4b8e19aecb641b75214",
+          "observation": "Nova Lab; attempts 5; CD: 00:04:44"
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0007-praise-immediate-post.png",
+          "sha256": "c0f24d88c1cc51cc17bb58b9983e79b026d3d26dc17e869d60169daf376d5044",
+          "observation": "Nova Lab; attempts 5; CD: 00:04:40"
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0008-praise-postcondition-unresolved.png",
+          "sha256": "a42da3ad96547b03ccb6210596e9091905ee43542be8bc6c98c2ee2e85851aff",
+          "observation": "Nova Lab; attempts 5; CD: 00:04:38; initially retained unresolved"
+        }
+      ],
+      "standalone_action_journal_artifacts": []
+    },
+    {
+      "session_root": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z",
+      "event_log": {
+        "path": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z/events.jsonl",
+        "sha256": "09021f7076d8fa57e10a6345677859507d8c8eeb3909573ef8896006b6450f5c",
+        "records": {
+          "capture": 2,
+          "dispatch_navigation_only": 1,
+          "reconcile_confirmed": 1
+        }
+      },
+      "frames": [
+        {
+          "path": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z/frames/0001-resume-current-source.png",
+          "sha256": "c942df249838216eb0cd7489fed1d5f4735cc5d33bdb6cf510561f864413213b",
+          "observation": "Nova Lab; attempts 5; CD: 00:01:37; source of terminal confirmation"
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z/frames/0002-return-home-post-1.png",
+          "sha256": "8b3708b893552a64d6de50986273c293dd0b6258ae300222617bb336ad173b77",
+          "observation": "localized fully-zoomed-out Home after navigation-only return"
+        }
+      ],
+      "standalone_action_journal_artifacts": []
     }
   ]
 }

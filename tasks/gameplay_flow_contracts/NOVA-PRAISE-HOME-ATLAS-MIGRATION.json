@@ -106,64 +106,92 @@
   "cooldown_deferred_behavior": "If attempts remain but free Praise is cooling down, return deferred with next_eligible_at and do not wait inside the flow.",
   "bounded_recovery_behavior": "Failed localization routes through ensure_canonical_home once; repeated identical recovery without new hypothesis is prohibited.",
   "evidence_requirements": [
-    "supervised live Praise postcondition remains required before live-complete claim",
     "zero-attempt Praise fixture not retained from 2026-07-16 session",
-    "zoomed-in Home and Research Lab offscreen fixtures remain required_evidence unless retained assets are later bound"
+    "production registration and scheduler promotion remain separately gated and unauthorized"
   ],
   "replay_fixture_requirements": [
     {
       "fixture_id": "canonical_home",
       "status": "available",
       "path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
-      "notes": "Canonical atlas tile."
+      "sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "notes": "Tracked canonical fully-zoomed-out native Home atlas frame."
     },
     {
       "fixture_id": "localized_noncanonical_home",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Panned localized Home frame distinct from canonical pose."
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-dry/nova-praise-20260716T191706436109Z/frames/0001-dry-run-source.png",
+      "sha256": "2d1d183bd919f41250c75059534c933ca36cc89789eb4768b29b81406e052b4d",
+      "notes": "Native Home frame localized at a noncanonical camera origin; Research Lab is also visible."
     },
     {
       "fixture_id": "zoomed_in_home",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Zoomed-in Home negative for direct localization."
+      "status": "available",
+      "path": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION/nav-1-20-9-20260721T043634911470Z/1-20-9-20260721T043635359798Z/frames/frame-0001.png",
+      "sha256": "9c22d35937197ba2615681d585732949de13d65a17d7b8fb16ce2d8fd19b8912",
+      "notes": "Retained native Home negative classified zoomed_in by the project Home localizer; no Nova action is associated with it."
     },
     {
       "fixture_id": "research_lab_visible",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Research Lab visible in current viewport."
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-dry/nova-praise-20260716T191706436109Z/frames/0001-dry-run-source.png",
+      "sha256": "2d1d183bd919f41250c75059534c933ca36cc89789eb4768b29b81406e052b4d",
+      "notes": "Native Home frame with OCR-visible Research Lab and project recognizer binding."
     },
     {
       "fixture_id": "research_lab_offscreen",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Localized Home with Research Lab offscreen."
+      "status": "available",
+      "path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-005.png",
+      "sha256": "8d91bd556a74b3b6297a8c99ebff215a6c04ffa85a705ae5a020ad90bf629e28",
+      "notes": "Tracked localized Home viewport y=1483.9..2764.1; Research Lab atlas polygon y=390..650 is offscreen."
     },
     {
       "fixture_id": "research_lab_radial_menu",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Research Lab radial with Nova control."
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193425268615Z/frames/0001-step-001-source.png",
+      "sha256": "6a946d2f0d3a8ac278fe98efec5f69c623ea9d4838ad184430132f2f1a17ddda",
+      "notes": "Native Research Lab radial menu with distinct Nova and Bioenhancer controls."
     },
     {
       "fixture_id": "nova_lab",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Nova Lab screen."
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0001-step-001-source.png",
+      "sha256": "f5297765bbf31ab1d3c884dae70cc1579eddef05a5318d09184a06366152c7b7",
+      "notes": "Native Nova Lab source frame immediately before the reconciled Praise."
     },
     {
       "fixture_id": "praise_attempts_available",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Praise with Interaction attempts left > 0 and free ready."
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0001-step-001-source.png",
+      "sha256": "f5297765bbf31ab1d3c884dae70cc1579eddef05a5318d09184a06366152c7b7",
+      "notes": "Praise enabled with Interaction attempts left: 6."
     },
     {
       "fixture_id": "praise_on_cooldown",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Praise disabled with visible cooldown."
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0008-praise-postcondition-unresolved.png",
+      "sha256": "a42da3ad96547b03ccb6210596e9091905ee43542be8bc6c98c2ee2e85851aff",
+      "evidence_refs": [
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/events.jsonl",
+          "sha256": "275c1aab3db6c8c571a4f18818e82014b7bf8fa7cbb312f464cc01378a515f44",
+          "kind": "dispatch_and_initial_reconciliation_journal",
+          "notes": "Contains the single consequential dispatch and retained initial unresolved classification."
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z/frames/0001-resume-current-source.png",
+          "sha256": "c942df249838216eb0cd7489fed1d5f4735cc5d33bdb6cf510561f864413213b",
+          "kind": "confirmed_reconciliation_source",
+          "notes": "Fresh Nova frame with attempts 5 and active cooldown."
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z/events.jsonl",
+          "sha256": "09021f7076d8fa57e10a6345677859507d8c8eeb3909573ef8896006b6450f5c",
+          "kind": "terminal_reconciliation_journal",
+          "notes": "Confirms the original action key from exact decrement and cooldown evidence."
+        }
+      ],
+      "notes": "Exact successor shows Interaction attempts left: 5 and CD: 00:04:38; the same action key is terminally confirmed in the reconciliation session."
     },
     {
       "fixture_id": "zero_attempts_remaining",
@@ -187,7 +215,7 @@
     {
       "id": "nova-praise-one-free-pulse",
       "mode": "consequential_supervised",
-      "notes": "Requires supervised live evidence; not claimed complete here."
+      "notes": "Acquired 2026-07-16: one Praise, attempts 6 to 5, visible CD: 00:04:38, terminally reconciled, returned Home."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -200,5 +228,9 @@
     "blocking_unknown_modal"
   ],
   "implementation_status": "reference_implemented",
-  "proof_state": "current"
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "current",
+  "production_eligible": false
 }

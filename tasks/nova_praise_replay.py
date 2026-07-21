@@ -339,7 +339,23 @@ def run_replay_case(fixture_id: str, *, manifest: Optional[Mapping[str, Any]] = 
 def assert_contract_fixtures_aligned() -> None:
     contract = load_flow_contract(FLOW_ID)
     manifest = load_replay_manifest()
-    contract_ids = {item["fixture_id"] for item in contract["replay_fixture_requirements"]}
-    manifest_ids = {item["fixture_id"] for item in manifest["cases"]}
+    contract_cases = {item["fixture_id"]: item for item in contract["replay_fixture_requirements"]}
+    manifest_cases = {item["fixture_id"]: item for item in manifest["cases"]}
+    contract_ids = set(contract_cases)
+    manifest_ids = set(manifest_cases)
     if contract_ids != manifest_ids:
         raise AssertionError(f"fixture set mismatch: {sorted(contract_ids ^ manifest_ids)}")
+    for fixture_id in sorted(contract_ids):
+        contract_case = contract_cases[fixture_id]
+        manifest_case = manifest_cases[fixture_id]
+        for key in ("status", "path", "sha256"):
+            if contract_case.get(key) != manifest_case.get(key):
+                raise AssertionError(f"{fixture_id} {key} mismatch")
+    for key in (
+        "offline_proof_state",
+        "replay_fixture_proof_state",
+        "supervised_live_proof_state",
+        "production_eligible",
+    ):
+        if contract.get(key) != manifest.get(key):
+            raise AssertionError(f"{key} mismatch")

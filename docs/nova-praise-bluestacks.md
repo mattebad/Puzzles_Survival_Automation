@@ -52,3 +52,24 @@ The 2026-07-16 integrated execution proved Home → Research Lab radial menu →
 The exact successor was `Interaction attempts left: 6` to `5` with `CD: 00:04:38`. The retained
 reconciliation command can complete only that original unresolved action key from its source and
 current cooldown evidence; it cannot dispatch another Praise.
+
+## Retained proof and replay coverage
+
+The authoritative consequential and reconciliation sessions are:
+
+- `.local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z`;
+- `.local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z`.
+
+Their two event logs, ten native 800×1280 frames, single Praise dispatch, initial unresolved
+classification, terminal confirmation, navigation-only return, paths, and SHA-256 digests are
+inventoried in `tests/fixtures/nova_praise_replay/manifest.json`. The replay capsule binds retained
+evidence for canonical Home, localized noncanonical Home, zoomed-in Home, Research Lab visible and
+offscreen, the Research Lab radial menu, Nova Lab, Praise available, and Praise cooldown. Only the
+zero-attempt state remains `required_evidence`. No new live capture is required to establish the
+already-acquired route or exact Praise postcondition.
+
+GnBots `puzzlebot.base.dailies` and its `PraiseBtn.png` are direct static references for Personal
+Might/leaderboard Praise. They do not prove the Research Lab → Nova Lab route. Generic GnBots
+Research/Home controls can be research inputs only; project-native July 16 evidence remains
+authoritative for Nova Lab Praise, and no GnBots asset is presumed compatible with the current
+800×1280 runtime without independent validation.

@@ -40,23 +40,34 @@ class GameplayFlowContractTests(unittest.TestCase):
                 self.assertNotEqual(contract["implementation_status"], "live_validated")
                 self.assertNotEqual(contract["implementation_status"], "scheduler_eligible")
 
-    def test_nova_contract_is_reference_implemented_not_live_complete(self):
+    def test_nova_contract_separates_live_proof_from_production_eligibility(self):
         nova = load_flow_contract("NOVA-PRAISE-HOME-ATLAS-MIGRATION")
         self.assertEqual(nova["implementation_status"], "reference_implemented")
         self.assertNotEqual(nova["implementation_status"], "live_validated")
-        self.assertIn("supervised live Praise postcondition", " ".join(nova["evidence_requirements"]))
+        self.assertEqual(nova["supervised_live_proof_state"], "current")
+        self.assertEqual(nova["offline_proof_state"], "current")
+        self.assertEqual(nova["replay_fixture_proof_state"], "evidence_required")
+        self.assertFalse(nova["production_eligible"])
+        fixtures = {item["fixture_id"]: item for item in nova["replay_fixture_requirements"]}
+        self.assertEqual(
+            [fixture_id for fixture_id, item in fixtures.items() if item["status"] == "required_evidence"],
+            ["zero_attempts_remaining"],
+        )
+        for item in fixtures.values():
+            if item["status"] == "available":
+                self.assertRegex(item["sha256"], r"^[0-9a-f]{64}$")
         deps = nova["shared_primitive_dependencies"]
         self.assertTrue(any(dep["version_digest_field"] == "HOME_NAVIGATION_PRIMITIVES_DIGEST" for dep in deps))
         self.assertEqual(len(HOME_NAVIGATION_PRIMITIVES_DIGEST), 64)
 
     def test_shared_home_dependency_change_marks_nova_regression_required(self):
         contracts = load_all_flow_contracts()
-        self.assertEqual(contracts["NOVA-PRAISE-HOME-ATLAS-MIGRATION"]["proof_state"], "current")
+        self.assertEqual(contracts["NOVA-PRAISE-HOME-ATLAS-MIGRATION"]["proof_state"], "evidence_required")
         updated = mark_regression_required_for_dependency(
             contracts,
             primitive_id="home_navigation_primitives",
         )
-        self.assertEqual(updated["NOVA-PRAISE-HOME-ATLAS-MIGRATION"]["proof_state"], "regression_required")
+        self.assertEqual(updated["NOVA-PRAISE-HOME-ATLAS-MIGRATION"]["proof_state"], "evidence_required")
         # Non-dependent quest-screen contracts remain evidence_required / unchanged currentness.
         self.assertEqual(updated["DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"]["proof_state"], "evidence_required")
 

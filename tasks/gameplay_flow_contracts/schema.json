@@ -233,6 +233,42 @@
               "null"
             ]
           },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "sha256",
+                "kind"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "notes": {
             "type": "string"
           }
@@ -291,6 +327,36 @@
         "evidence_required",
         "not_implemented"
       ]
+    },
+    "offline_proof_state": {
+      "type": "string",
+      "enum": [
+        "current",
+        "regression_required",
+        "evidence_required",
+        "not_implemented"
+      ]
+    },
+    "replay_fixture_proof_state": {
+      "type": "string",
+      "enum": [
+        "current",
+        "regression_required",
+        "evidence_required",
+        "not_implemented"
+      ]
+    },
+    "supervised_live_proof_state": {
+      "type": "string",
+      "enum": [
+        "current",
+        "regression_required",
+        "evidence_required",
+        "not_implemented"
+      ]
+    },
+    "production_eligible": {
+      "type": "boolean"
     }
   }
 }
