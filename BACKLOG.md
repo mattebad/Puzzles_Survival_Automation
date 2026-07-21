@@ -5126,11 +5126,95 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### GF-MVP-002-MINIMUM-CONTRACT-V2
 - Task ID: `GF-MVP-002-MINIMUM-CONTRACT-V2`.
 - Title: Add the minimum executable contract v2 surface.
+- Status: Completed (2026-07-21; executable v2 transitions, scenarios, evidence gates, and policy
+  references added only for Nova and the Personal Might/Praise pilot; schema-v1 compatibility
+  preserved; no runtime or registration change).
+- Milestone: Gameplay Flow Factory Milestone A.
+- Dependencies: completed `GF-MVP-001-AUTHORITY-BASELINE` at `d1d9ae4`; clean baseline; inactive
+  queue/runtime; accepted minimum contract scope.
+- Blocked by: None for offline contract work.
+- Objective: define executable contract v2 only for Nova Praise, its
+  `nova_navigation_round_trip_no_praise` canary, and the Personal Might/Praise Bliss pilot.
+- Established facts: all queue flows already have schema-v1 contracts; Nova has retained `6 -> 5`
+  and cooldown proof but missing zero-attempt evidence; Personal Might/Praise is live-validated
+  historical work but not production-eligible; production registration remains disabled.
+- Direct implementation files: `tasks/gameplay_flow_contracts.py`,
+  `tasks/gameplay_flow_contracts/schema.json`,
+  `tasks/gameplay_flow_contracts/NOVA-PRAISE-HOME-ATLAS-MIGRATION.json`,
+  `tasks/gameplay_flow_contracts/PERSONAL-MIGHT-PRAISE-BLISS-PILOT.json`,
+  `tests/test_gameplay_flow_contracts.py`, `tests/test_flow_delivery_token_context_hygiene.py`,
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tasks/backlog_task_index.json`.
+- Shared dependencies: existing Nova pulse/replay contracts, PersonalMightPraiseHandler,
+  flow-delivery product-policy references, Home primitive identity, and schema-v1 queue contracts.
+- Transitive regression set: all contract loading, Nova pulse, Personal Might handler, governance,
+  context/index, and full-suite tests.
+- Allowed changes: only the direct implementation files above; per-commit allowed paths are exactly
+  those files; schema-v1 contracts other than Nova remain content-unchanged.
+- Prohibited changes: bulk contract migration, queue/policy mutation, runtime input, lease
+  acquisition, production registration/scheduling, replay implementation, Home driver changes,
+  evidence fabrication, plan-file edits, push, or history rewrite.
+- Authorized runtime action: None; offline schema/contract validation only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden.
+- Consequential action: Forbidden.
+- Registration changes: None; both v2 contracts explicitly remain disabled.
+- Scheduler changes: None; gameplay scheduler remains disabled/ineligible.
+- Actions that must not be repeated: Nova Praise `6 -> 5`, Personal Might Praise/Claim, Campaign or
+  Ultimate input, evidence acquisition, or any BlueStacks/ADB/Bliss action.
+- Required source: schema-v1 contracts/validator, accepted plan, Nova retained fixture manifest,
+  PersonalMightPraiseHandler and tests, product-policy registry, and existing proof state.
+- Exact target semantics: v2 state transitions name source/target/planner/permitted input/
+  postconditions/outcomes; scenarios name exact allowed/forbidden inputs and required transitions;
+  evidence-required gates permit no input.
+- Required local association: Nova is the reference flow; `nova_navigation_round_trip_no_praise` is
+  the selected canary; `PERSONAL-MIGHT-PRAISE-BLISS-PILOT` is the future pilot; no other flow migrates.
+- Negative controls: unknown states/transitions/inputs/gates, duplicate IDs, positive synthetic
+  evidence, canary Praise, production eligibility, and modifying legacy contracts.
+- Coordinate space: contract-only; runtime coordinates and frames are not dispatched or acquired.
+- Accepted signals: both v2 contracts validate; canary explicitly forbids Praise/open-Praise; pilot
+  scenario permits no input while evidence gates are open; schema-v1 Campaign remains readable.
+- Rejected weak signals: JSON shape alone without cross-reference validation, configured identity,
+  retained evidence prose without a fixture, or registration claims.
+- Ambiguous-result behavior: reject the contract with FlowContractError; do not infer behavior.
+- Zero-cost requirement: no gameplay resource or action occurs.
+- Quantity limits: exactly two v2 flow contracts and one Nova canary scenario in this task.
+- Resource consumption policy: no resource consumption; contracts preserve zero-cost limits.
+- Premium or strategic restrictions: premium spending and unidentified consequences remain
+  prohibited; Personal Might Claim remains separate from Praise.
+- Active evidence manifest: None.
+- Required artifacts: validator/schema changes, two v2 contracts, focused tests, regenerated backlog
+  index, and passing full validation.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs.
+- Additional task-specific artifacts: None beyond the tracked contracts/tests.
+- Focused tests: `tests.test_gameplay_flow_contracts`, `tests.test_nova_praise_pulse`, and
+  `tests.test_personal_might_praise`.
+- Integration tests: load all queue schema-v1 contracts plus the one off-queue pilot; validate v2
+  transitions/scenarios/evidence gates and schema-v1 compatibility.
+- Transitive regression tests: governance, context packets, scheduler isolation, and full suite.
+- Full-suite requirement: authoritative `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: JSON parse, Python compile, focused tests, governance, `git diff --check`, full suite,
+  and clean attributable Git status.
+- Known baseline failures: None; `GF-MVP-001` restored a green 1,056-test baseline.
+- Evidence requirement: NOT_APPLICABLE — offline contract/schema work creates no gameplay evidence.
+- Valid blocked outcomes: inability to express no-input evidence gates without duplicating semantics,
+  v1 compatibility regression, or any pressure to infer unknown gameplay behavior.
+- Blocked-result commit policy: record the exact contract blocker, preserve v1/current evidence,
+  keep queue/runtime inactive, do not claim completion, and no push.
+- Commit policy: one reviewed conventional commit; stage only allowed paths; no push unless
+  explicitly authorized.
+- Expected focused commits: `feat(flow-factory): add minimum contract v2`.
+- Completion criteria: minimum v2 validator/schema and exactly the selected contracts land; no-Praise
+  canary and disabled pilot gates are explicit; v1 contracts remain readable; focused/full tests
+  pass; queue/runtime/registration remain inactive; one focused commit; no push.
+
+### GF-MVP-003-SUPERVISED-IDENTITY-AND-PREFLIGHT
+- Task ID: `GF-MVP-003-SUPERVISED-IDENTITY-AND-PREFLIGHT`.
+- Title: Add minimum supervised identity assurance and BlueStacks preflight.
 - Status: Ready; declared Milestone A successor, not yet active.
-- Scope: extend only the existing gameplay-flow contract loader for Nova Praise, the
-  `nova_navigation_round_trip_no_praise` scenario, and the Personal Might/Praise Bliss pilot.
-- Authority: the accepted Gameplay Flow Factory plan; this pointer does not activate implementation,
-  runtime input, queue delivery, production registration, or scheduling.
+- Scope: separate expected configuration from supervised-navigation and production-observed identity,
+  then bind `HOME_READY` to verified assurance without runtime input.
+- Authority: accepted Gameplay Flow Factory plan; this pointer does not authorize implementation,
+  live input, queue activation, production registration, or scheduling.
 
 
 

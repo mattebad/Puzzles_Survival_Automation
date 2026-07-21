@@ -10,7 +10,7 @@ from typing import Any, Mapping
 CONTRACTS_DIR = Path(__file__).with_name("gameplay_flow_contracts")
 SCHEMA_PATH = CONTRACTS_DIR / "schema.json"
 
-_REQUIRED = (
+_COMMON_REQUIRED = (
     "schema_version",
     "flow_id",
     "product_purpose",
@@ -19,9 +19,7 @@ _REQUIRED = (
     "required_starting_context",
     "shared_primitive_dependencies",
     "recognized_states",
-    "state_transitions",
     "permitted_inputs",
-    "local_postconditions",
     "consequential_action_class",
     "cost_quantity_requirements",
     "completion_identity",
@@ -30,10 +28,21 @@ _REQUIRED = (
     "bounded_recovery_behavior",
     "evidence_requirements",
     "replay_fixture_requirements",
-    "live_validation_scenarios",
     "unsupported_or_manual_only_states",
     "implementation_status",
     "proof_state",
+)
+_V1_REQUIRED = _COMMON_REQUIRED + (
+    "state_transitions",
+    "local_postconditions",
+    "live_validation_scenarios",
+)
+_V2_REQUIRED = _COMMON_REQUIRED + (
+    "transition_contracts",
+    "scenarios",
+    "evidence_gates",
+    "product_policy_refs",
+    "registration_state",
 )
 
 _TERMINAL = frozenset(
@@ -80,6 +89,8 @@ _FIXTURE_STATUS = frozenset({"available", "required_evidence", "synthetic_policy
 _LIVE_MODE = frozenset(
     {"navigation_only", "consequential_supervised", "observe_only", "blocked_until_policy"}
 )
+_EVIDENCE_GATE_STATUS = frozenset({"satisfied", "evidence_required"})
+_REGISTRATION_STATE = frozenset({"disabled", "eligible", "registered"})
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -94,11 +105,13 @@ def load_schema(path: Path = SCHEMA_PATH) -> dict[str, Any]:
 def validate_flow_contract(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Validate one contract without inventing missing gameplay behavior."""
 
-    missing = [key for key in _REQUIRED if key not in payload]
+    schema_version = payload.get("schema_version")
+    if schema_version not in {1, 2}:
+        raise FlowContractError("unsupported schema_version")
+    required = _V1_REQUIRED if schema_version == 1 else _V2_REQUIRED
+    missing = [key for key in required if key not in payload]
     if missing:
         raise FlowContractError(f"missing required fields: {', '.join(missing)}")
-    if payload.get("schema_version") != 1:
-        raise FlowContractError("unsupported schema_version")
     flow_id = payload["flow_id"]
     if not isinstance(flow_id, str) or not flow_id.strip():
         raise FlowContractError("flow_id required")
@@ -110,11 +123,14 @@ def validate_flow_contract(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise FlowContractError("invalid required_starting_context entry")
     if not isinstance(payload["recognized_states"], list) or not payload["recognized_states"]:
         raise FlowContractError("recognized_states required")
-    if not isinstance(payload["state_transitions"], list):
-        raise FlowContractError("state_transitions must be a list")
-    for transition in payload["state_transitions"]:
-        if not isinstance(transition, Mapping) or not {"from", "to", "via"} <= set(transition):
-            raise FlowContractError("state transition requires from/to/via")
+    if not isinstance(payload["permitted_inputs"], list):
+        raise FlowContractError("permitted_inputs must be a list")
+    if schema_version == 1:
+        if not isinstance(payload["state_transitions"], list):
+            raise FlowContractError("state_transitions must be a list")
+        for transition in payload["state_transitions"]:
+            if not isinstance(transition, Mapping) or not {"from", "to", "via"} <= set(transition):
+                raise FlowContractError("state transition requires from/to/via")
     cost = payload["cost_quantity_requirements"]
     if not isinstance(cost, Mapping) or not {"free_only", "maximum_cost", "quantity"} <= set(cost):
         raise FlowContractError("cost_quantity_requirements incomplete")
@@ -150,9 +166,12 @@ def validate_flow_contract(payload: Mapping[str, Any]) -> dict[str, Any]:
                 or not _SHA256.fullmatch(str(evidence_ref.get("sha256", "")))
             ):
                 raise FlowContractError("invalid replay fixture evidence_ref")
-    for scenario in payload["live_validation_scenarios"]:
-        if not isinstance(scenario, Mapping) or scenario.get("mode") not in _LIVE_MODE:
-            raise FlowContractError("invalid live_validation_scenarios entry")
+    if schema_version == 1:
+        for scenario in payload["live_validation_scenarios"]:
+            if not isinstance(scenario, Mapping) or scenario.get("mode") not in _LIVE_MODE:
+                raise FlowContractError("invalid live_validation_scenarios entry")
+    else:
+        _validate_v2_contract(payload)
     # Reject accidental claims of live/scheduler completion for stubs.
     if payload["implementation_status"] in {"live_validated", "scheduler_eligible"} and payload["proof_state"] != "current":
         raise FlowContractError("live/scheduler status requires current proof_state")
@@ -162,6 +181,134 @@ def validate_flow_contract(payload: Mapping[str, Any]) -> dict[str, Any]:
     if "production_eligible" in payload and not isinstance(payload["production_eligible"], bool):
         raise FlowContractError("production_eligible must be boolean")
     return dict(payload)
+
+
+def _unique_ids(items: list[Mapping[str, Any]], field: str, kind: str) -> set[str]:
+    values: list[str] = []
+    for item in items:
+        value = item.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise FlowContractError(f"{kind} requires {field}")
+        values.append(value)
+    if len(values) != len(set(values)):
+        raise FlowContractError(f"duplicate {kind} {field}")
+    return set(values)
+
+
+def _validate_v2_contract(payload: Mapping[str, Any]) -> None:
+    """Validate executable v2 transitions, scenarios, and fail-closed evidence gates."""
+
+    states = set(payload["recognized_states"])
+    inputs = set(payload["permitted_inputs"])
+    transitions = payload["transition_contracts"]
+    scenarios = payload["scenarios"]
+    gates = payload["evidence_gates"]
+    policies = payload["product_policy_refs"]
+    if not isinstance(transitions, list) or not transitions:
+        raise FlowContractError("transition_contracts required")
+    if not isinstance(scenarios, list) or not scenarios:
+        raise FlowContractError("scenarios required")
+    if not isinstance(gates, list):
+        raise FlowContractError("evidence_gates must be a list")
+    if not isinstance(policies, list) or not policies:
+        raise FlowContractError("product_policy_refs required")
+    if payload["registration_state"] not in _REGISTRATION_STATE:
+        raise FlowContractError("invalid registration_state")
+    if payload["registration_state"] != "disabled" and not payload.get("production_eligible"):
+        raise FlowContractError("non-disabled registration requires production eligibility")
+
+    transition_ids = _unique_ids(transitions, "transition_id", "transition")
+    scenario_ids = _unique_ids(scenarios, "scenario_id", "scenario")
+    gate_ids = _unique_ids(gates, "gate_id", "evidence gate")
+
+    for policy in policies:
+        if (
+            not isinstance(policy, Mapping)
+            or not isinstance(policy.get("policy_id"), str)
+            or not policy["policy_id"].strip()
+            or not isinstance(policy.get("source"), str)
+            or not policy["source"].strip()
+        ):
+            raise FlowContractError("invalid product_policy_refs entry")
+
+    for gate in gates:
+        if gate.get("status") not in _EVIDENCE_GATE_STATUS:
+            raise FlowContractError("invalid evidence gate status")
+        if not isinstance(gate.get("blocks"), list) or not gate["blocks"]:
+            raise FlowContractError("evidence gate requires blocked transition or scenario")
+        if not isinstance(gate.get("required_evidence"), list) or not gate["required_evidence"]:
+            raise FlowContractError("evidence gate requires required_evidence")
+        if not isinstance(gate.get("permitted_inputs"), list):
+            raise FlowContractError("evidence gate permitted_inputs must be a list")
+        if gate["status"] == "evidence_required" and gate["permitted_inputs"]:
+            raise FlowContractError("evidence_required gate must permit no input")
+
+    for transition in transitions:
+        required = {
+            "transition_id",
+            "from",
+            "to",
+            "planner",
+            "permitted_input",
+            "postconditions",
+            "terminal_outcomes",
+        }
+        if not isinstance(transition, Mapping) or not required <= set(transition):
+            raise FlowContractError("transition contract is incomplete")
+        if transition["from"] not in states or transition["to"] not in states:
+            raise FlowContractError("transition references unknown state")
+        if not isinstance(transition["planner"], str) or not transition["planner"].strip():
+            raise FlowContractError("transition planner required")
+        permitted_input = transition["permitted_input"]
+        if permitted_input is not None and permitted_input not in inputs:
+            raise FlowContractError("transition references unregistered input")
+        if not isinstance(transition["postconditions"], list) or not transition["postconditions"]:
+            raise FlowContractError("transition postconditions required")
+        outcomes = transition["terminal_outcomes"]
+        if not isinstance(outcomes, list) or any(item not in _TERMINAL for item in outcomes):
+            raise FlowContractError("transition has invalid terminal outcome")
+        gate_id = transition.get("evidence_gate_id")
+        if gate_id is not None and gate_id not in gate_ids:
+            raise FlowContractError("transition references unknown evidence gate")
+
+    for scenario in scenarios:
+        required = {
+            "scenario_id",
+            "mode",
+            "start_state",
+            "terminal_state",
+            "permitted_inputs",
+            "forbidden_inputs",
+            "required_transitions",
+            "evidence_gate_ids",
+        }
+        if not isinstance(scenario, Mapping) or not required <= set(scenario):
+            raise FlowContractError("scenario is incomplete")
+        if scenario["mode"] not in _LIVE_MODE:
+            raise FlowContractError("invalid scenario mode")
+        if scenario["start_state"] not in states or scenario["terminal_state"] not in states:
+            raise FlowContractError("scenario references unknown state")
+        allowed = scenario["permitted_inputs"]
+        forbidden = scenario["forbidden_inputs"]
+        if not isinstance(allowed, list) or not isinstance(forbidden, list):
+            raise FlowContractError("scenario input sets must be lists")
+        if not set(allowed) <= inputs or not set(forbidden) <= inputs:
+            raise FlowContractError("scenario references unregistered input")
+        if set(allowed) & set(forbidden):
+            raise FlowContractError("scenario input cannot be both permitted and forbidden")
+        if not isinstance(scenario["required_transitions"], list) or not set(
+            scenario["required_transitions"]
+        ) <= transition_ids:
+            raise FlowContractError("scenario references unknown transition")
+        if not isinstance(scenario["evidence_gate_ids"], list) or not set(
+            scenario["evidence_gate_ids"]
+        ) <= gate_ids:
+            raise FlowContractError("scenario references unknown evidence gate")
+
+    valid_block_targets = transition_ids | scenario_ids
+    for gate in gates:
+        if not set(gate["blocks"]) <= valid_block_targets:
+            raise FlowContractError("evidence gate blocks unknown transition or scenario")
 
 
 def load_flow_contract(flow_id: str, *, directory: Path = CONTRACTS_DIR) -> dict[str, Any]:

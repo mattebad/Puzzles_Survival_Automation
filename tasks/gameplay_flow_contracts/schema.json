@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "pns-gameplay-flow-contract-v1",
+  "$id": "pns-gameplay-flow-contract-v1-v2",
   "title": "GameplayFlowContract",
   "type": "object",
   "additionalProperties": false,
@@ -13,9 +13,7 @@
     "required_starting_context",
     "shared_primitive_dependencies",
     "recognized_states",
-    "state_transitions",
     "permitted_inputs",
-    "local_postconditions",
     "consequential_action_class",
     "cost_quantity_requirements",
     "completion_identity",
@@ -24,14 +22,16 @@
     "bounded_recovery_behavior",
     "evidence_requirements",
     "replay_fixture_requirements",
-    "live_validation_scenarios",
     "unsupported_or_manual_only_states",
     "implementation_status",
     "proof_state"
   ],
   "properties": {
     "schema_version": {
-      "const": 1
+      "enum": [
+        1,
+        2
+      ]
     },
     "flow_id": {
       "type": "string",
@@ -126,6 +126,74 @@
         }
       }
     },
+    "transition_contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition_id",
+          "from",
+          "to",
+          "planner",
+          "permitted_input",
+          "postconditions",
+          "terminal_outcomes"
+        ],
+        "properties": {
+          "transition_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from": {
+            "type": "string",
+            "minLength": 1
+          },
+          "to": {
+            "type": "string",
+            "minLength": 1
+          },
+          "planner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "permitted_input": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "postconditions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "terminal_outcomes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "action_performed",
+                "deferred",
+                "complete_for_reset",
+                "already_complete",
+                "blocked",
+                "manual_required"
+              ]
+            }
+          },
+          "evidence_gate_id": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "permitted_inputs": {
       "type": "array",
       "items": {
@@ -204,6 +272,75 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "evidence_gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gate_id",
+          "status",
+          "blocks",
+          "required_evidence",
+          "permitted_inputs"
+        ],
+        "properties": {
+          "gate_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "satisfied",
+              "evidence_required"
+            ]
+          },
+          "blocks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "required_evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "permitted_inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "product_policy_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policy_id",
+          "source"
+        ],
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     },
     "replay_fixture_requirements": {
@@ -303,6 +440,72 @@
         }
       }
     },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scenario_id",
+          "mode",
+          "start_state",
+          "terminal_state",
+          "permitted_inputs",
+          "forbidden_inputs",
+          "required_transitions",
+          "evidence_gate_ids"
+        ],
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "navigation_only",
+              "consequential_supervised",
+              "observe_only",
+              "blocked_until_policy"
+            ]
+          },
+          "start_state": {
+            "type": "string"
+          },
+          "terminal_state": {
+            "type": "string"
+          },
+          "permitted_inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "forbidden_inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required_transitions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_gate_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "unsupported_or_manual_only_states": {
       "type": "array",
       "items": {
@@ -357,6 +560,50 @@
     },
     "production_eligible": {
       "type": "boolean"
+    },
+    "registration_state": {
+      "type": "string",
+      "enum": [
+        "disabled",
+        "eligible",
+        "registered"
+      ]
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": 1
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "state_transitions",
+          "local_postconditions",
+          "live_validation_scenarios"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": 2
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "transition_contracts",
+          "evidence_gates",
+          "product_policy_refs",
+          "scenarios",
+          "registration_state"
+        ]
+      }
+    }
+  ]
 }

@@ -2,7 +2,7 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "7f4012a62317a09b6be89a86ad145f24c8cc4db4",
+  "head": "d1d9ae4a1b5ed4431e5c31ac6c5236c0655d6031",
   "ahead_behind": {
     "ahead": 0,
     "behind": 0
@@ -17,9 +17,9 @@
     ".local-reference/**",
     ".local-captures/**"
   ],
-  "current_task_id": "GF-MVP-001-AUTHORITY-BASELINE",
+  "current_task_id": "GF-MVP-002-MINIMUM-CONTRACT-V2",
   "current_task_state": "completed",
-  "next_task_id": "GF-MVP-002-MINIMUM-CONTRACT-V2",
+  "next_task_id": "GF-MVP-003-SUPERVISED-IDENTITY-AND-PREFLIGHT",
   "next_task_activation_status": "ready",
   "active_task_or_flow": "none",
   "active_delivery_stage": null,
@@ -43,22 +43,22 @@
     "completed_gameplay_flows_this_parent": 0,
     "rollover_required": false,
     "rollover_stop_reason": null,
-    "note": "GF-MVP-001 offline baseline only; flow-delivery queue not activated."
+    "note": "GF-MVP-002 minimum contract v2 only; flow-delivery queue not activated."
   },
-  "latest_focused_validation_result": "74 tests passed (governance, queue/orchestrator, Campaign/Ultimate separation, rollover, indexing/context hygiene)",
-  "latest_full_suite_result": "1056 tests passed; 1 expected skip; 0 failures/errors",
+  "latest_focused_validation_result": "56 tests passed (contract v2, Nova pulse, Personal Might Praise, governance, context hygiene)",
+  "latest_full_suite_result": "1060 tests passed; 1 expected skip; 0 failures/errors",
   "current_live_attempt_state": "none",
   "current_evidence_or_session_reference": null,
-  "last_safe_completed_step": "GF-MVP-001 classified every observed baseline failure/error and reconciled repository authority without runtime input.",
-  "exact_next_permitted_action": "Activate GF-MVP-002-MINIMUM-CONTRACT-V2 offline only; do not acquire runtime ownership or activate the flow queue.",
+  "last_safe_completed_step": "GF-MVP-002 added executable v2 contracts only for Nova/canary and Personal Might/Praise while preserving schema-v1 compatibility.",
+  "exact_next_permitted_action": "Activate GF-MVP-003-SUPERVISED-IDENTITY-AND-PREFLIGHT offline only; do not acquire runtime ownership or activate the flow queue.",
   "current_blocker": null,
   "prohibited_repeated_action": "BlueStacks/ADB/Bliss input before GF-MVP-009; Campaign or Ultimate retries; Nova Praise; queue or production scheduler activation; evidence fabrication or deletion; push.",
   "recent_relevant_commits": [
+    "d1d9ae4 fix(flow-factory): restore truthful baseline",
     "7f4012a chore: baseline Ultimate Challenge and flow-delivery dirty tree",
     "7b653df docs(handoff): record gameplay foundation commit heads",
     "e0ac273 fix(gameplay): reconcile Nova proof evidence",
-    "b41bcd0 feat(gameplay): add flow contracts and Nova pulse foundation",
-    "0708b8f feat(campaign): Home Atlas destinations + block live on zoomed_in"
+    "b41bcd0 feat(gameplay): add flow contracts and Nova pulse foundation"
   ],
   "process_deviations": [
     "Campaign/Ultimate placeholder-evidence behavior is a confirmed latent production defect assigned only to GF-MVP-006."
@@ -79,7 +79,7 @@
   },
   "evidence": {
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "GF-MVP-001 is offline repository baseline work and creates no gameplay evidence.",
+    "evidence_requirement_reason": "GF-MVP-002 is offline contract/schema work and creates no gameplay evidence.",
     "active_evidence_manifest": null,
     "do_not_recursively_inspect_parent_evidence_tree": true
   }
@@ -91,12 +91,12 @@
 Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and retained evidence.
 
 ## Repository
-- Branch: `main` @ `7f4012a`
-- `GF-MVP-001-AUTHORITY-BASELINE`: **completed** offline pending its focused commit
+- Branch: `main` @ `d1d9ae4`
+- `GF-MVP-002-MINIMUM-CONTRACT-V2`: **completed** offline pending its focused commit
 - Flow-delivery queue: **not activated**
 - Runtime ownership: none
 - Push: prohibited
 
 ## Exact next action
-Activate `GF-MVP-002-MINIMUM-CONTRACT-V2` offline only after the baseline commit. Do not acquire
+Activate `GF-MVP-003-SUPERVISED-IDENTITY-AND-PREFLIGHT` offline only after the contract-v2 commit. Do not acquire
 runtime ownership, activate the queue, or issue gameplay input.

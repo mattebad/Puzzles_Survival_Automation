@@ -428,7 +428,7 @@ class InvariantTests(unittest.TestCase):
         self.assertIn(state["development_lease_state"], {"absent", "held"})
         self.assertEqual(state["runtime_ownership_state"], "none")
         self.assertEqual(state["writable_agent_state"], "absent")
-        self.assertEqual(state["next_task_id"], "GF-MVP-002-MINIMUM-CONTRACT-V2")
+        self.assertNotEqual(state["current_task_id"], state["next_task_id"])
         if queue["active_flow_id"] is None:
             selected = control.FlowDeliveryController().select_next(queue)
             self.assertEqual(state["first_ready_flow"], selected["flow_id"])
