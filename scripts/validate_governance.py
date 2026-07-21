@@ -580,6 +580,49 @@ def validate_indexing_rules(path: Path = INDEXING_IGNORE_PATH) -> None:
             )
 
 
+def validate_flow_delivery_loop_policy(root: Path = ROOT) -> Dict[str, Any]:
+    path = root / "tasks" / "flow_delivery_loop_policy.json"
+    try:
+        payload = json.loads(_read(path))
+    except json.JSONDecodeError as exc:
+        raise GovernanceValidationError(f"loop policy is not valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise GovernanceValidationError("loop policy must be a JSON object")
+    required = {
+        "schema_version",
+        "registry_kind",
+        "max_completed_flows_per_parent_conversation",
+    }
+    if set(payload) != required:
+        raise GovernanceValidationError("loop policy schema mismatch")
+    if payload.get("schema_version") != 1:
+        raise GovernanceValidationError("unsupported loop-policy schema")
+    if payload.get("registry_kind") != "flow_delivery_loop_policy":
+        raise GovernanceValidationError("wrong loop-policy registry kind")
+    maximum = payload.get("max_completed_flows_per_parent_conversation")
+    if type(maximum) is not int or maximum < 0:
+        raise GovernanceValidationError(
+            "max_completed_flows_per_parent_conversation must be a nonnegative integer"
+        )
+    gitignore = _read(root / ".gitignore")
+    if ".local-orchestrator/" not in gitignore:
+        raise GovernanceValidationError(
+            "parent conversation progress path is not covered by .gitignore"
+        )
+    command = _read(root / ".cursor" / "commands" / "pns-flow-delivery-loop.md")
+    skill = _read(root / ".cursor" / "skills" / "pns-flow-delivery" / "SKILL.md")
+    for label, text in (("command", command), ("skill", skill)):
+        if "flow_delivery_loop_policy.json" not in text:
+            raise GovernanceValidationError(f"{label} must reference the loop policy")
+        if "PARENT_CONVERSATION_ROLLOVER_REQUIRED" not in text:
+            raise GovernanceValidationError(f"{label} must name the rollover stop reason")
+        if f"max_completed_flows_per_parent_conversation\": {maximum}" in text:
+            raise GovernanceValidationError(
+                f"{label} hardcodes a competing numeric maximum"
+            )
+    return payload
+
+
 def validate_repository(root: Path = ROOT) -> Tuple[List[str], List[str]]:
     state = parse_handoff(root / "CURRENT_HANDOFF.md")
     backlog = _read(root / "BACKLOG.md")
@@ -589,6 +632,7 @@ def validate_repository(root: Path = ROOT) -> Tuple[List[str], List[str]]:
     validate_task_evidence(state, fields, state["current_task_id"], root)
     validate_successor(backlog, state)
     validate_indexing_rules(root / ".cursorindexingignore")
+    validate_flow_delivery_loop_policy(root)
     warnings: List[str] = []
     for match in re.finditer(
         r"^### ([A-Z0-9-]+)(?:\s+—.*)?$", backlog, flags=re.MULTILINE

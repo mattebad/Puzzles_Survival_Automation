@@ -2,9 +2,9 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "the commit containing this handoff: chore(automation): reduce flow delivery context",
+  "head": "pending containing commit: feat(automation): limit completed flows per parent conversation",
   "ahead_behind": {
-    "ahead": 24,
+    "ahead": 25,
     "behind": 0
   },
   "attributable_dirty_paths": [],
@@ -17,7 +17,7 @@
     ".local-reference/**",
     ".local-captures/**"
   ],
-  "current_task_id": "FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE",
+  "current_task_id": "FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER",
   "current_task_state": "completed",
   "next_task_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
   "next_task_activation_status": "ready",
@@ -36,20 +36,29 @@
   "runtime_ownership_state": "none",
   "writable_agent_state": "absent",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "token/context hygiene focused + orchestrator/IDE/governance/Campaign gates passed",
-  "latest_full_suite_result": "980 passed; 1 skipped",
+  "parent_conversation_loop": {
+    "policy_path": "tasks/flow_delivery_loop_policy.json",
+    "progress_path": ".local-orchestrator/parent-conversation-progress.json",
+    "configured_maximum_source": "controller loop policy",
+    "completed_gameplay_flows_this_parent": 0,
+    "rollover_required": false,
+    "rollover_stop_reason": null,
+    "note": "Maintenance task completions do not increment gameplay-flow counts; new parent identities start at zero."
+  },
+  "latest_focused_validation_result": "parent-conversation rollover focused + orchestrator/IDE/token-hygiene/governance gates passed",
+  "latest_full_suite_result": "987 passed; 1 skipped; 2 pre-existing review-snapshot exporter self-scan failures",
   "current_live_attempt_state": "none",
   "current_evidence_or_session_reference": null,
-  "last_safe_completed_step": "FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE offline hygiene completed; Campaign remains first ready; Ultimate Challenge remains second ready; no lease, runtime owner, writable agent, unresolved consequential action, registration/scheduler change, subagents, runtime input, or push.",
+  "last_safe_completed_step": "FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER offline orchestration hygiene completed; Campaign remains first ready; Ultimate Challenge remains second ready; no lease, runtime owner, writable agent, unresolved consequential action, registration/scheduler change, subagents, runtime input, or push.",
   "exact_next_permitted_action": "Stop after the containing local commit. Campaign remains first ready and may only be activated as a separate subsequent task; Ultimate Challenge remains a distinct later flow. Intended loop entry: /loop Load and follow `.cursor/commands/pns-flow-delivery-loop.md` exactly. No runtime input or push is authorized here.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Any BlueStacks/Bliss/Unraid/ADB input; any subagent invocation during this completed hygiene task; activating Campaign or Ultimate Challenge inside this completed task; enabling registration or gameplay scheduling; inventing ready-flow requirements; recursive inspection of .git/, .local-captures/, or evidence/.",
+  "prohibited_repeated_action": "Any BlueStacks/Bliss/Unraid/ADB input; any subagent invocation during this completed hygiene task; activating Campaign or Ultimate Challenge inside this completed task; enabling registration or gameplay scheduling; inventing a second authoritative completed-flow maximum outside tasks/flow_delivery_loop_policy.json.",
   "recent_relevant_commits": [
-    "chore(automation): reduce flow delivery context (containing commit)",
+    "feat(automation): limit completed flows per parent conversation (containing commit)",
+    "0609eb8 chore(automation): reduce flow delivery context",
     "72b07a7 fix(automation): separate campaign and ultimate challenge flows",
     "20811eb fix(automation): keep flow delivery in Cursor IDE",
-    "ba2a4d6 feat(automation): add serial flow delivery orchestrator",
-    "3255eed fix(navigation): close supply depot radial target binding seam"
+    "ba2a4d6 feat(automation): add serial flow delivery orchestrator"
   ],
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle beyond the original three-cycle model; reviewed implementation remains preserved.",
@@ -72,7 +81,7 @@
   },
   "evidence": {
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Offline token/context hygiene creates no runtime evidence manifest and must not recursively inspect evidence/**.",
+    "evidence_requirement_reason": "Offline parent-conversation rollover hygiene creates no runtime evidence manifest and must not recursively inspect evidence/**.",
     "active_evidence_manifest": null,
     "do_not_recursively_inspect_parent_evidence_tree": true
   }
@@ -85,18 +94,19 @@ Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and reta
 
 ## Repository
 - Branch: `main`
-- HEAD: pending containing commit `chore(automation): reduce flow delivery context`
-- Ahead/behind `origin/main`: 24 / 0 after that commit
+- HEAD: pending containing commit `feat(automation): limit completed flows per parent conversation`
+- Ahead/behind `origin/main`: 25 / 0 after that commit
 - Attributable dirty paths: none after commit
 - Protected user-owned paths: `.cursorindexingignore` residual user-owned lines, `.specstory/**`, `.vscode/**`, project ZIP archives, `evidence/**`, `.local-reference/**`, `.local-captures/**`
 - Push: prohibited
 
 ## Current task
-- Completed: `FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE`
+- Completed: `FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER`
 - First ready flow: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` (not activated)
 - Next ready flow: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`
 - Active delivery stage / lease / runtime owner / writable agent: none / absent / none / absent
 - Unresolved consequential action: clear
+- Parent-conversation gameplay count: maintenance task; not counted
 
 ## Safety
 - Production registration: not registered

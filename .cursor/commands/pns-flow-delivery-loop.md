@@ -24,6 +24,22 @@ Load and follow `.cursor/skills/pns-flow-delivery/SKILL.md` as the canonical det
    - `python scripts/run_flow_delivery_validation.py governance --flow-id <flow>`
 7. Continue the authoritative queue until a checked-in hard stop condition occurs.
 
+## Parent-conversation rollover hard stop
+
+The controller loop policy in `tasks/flow_delivery_loop_policy.json` is the sole authoritative
+maximum for completed gameplay-delivery flows in one parent conversation. Count only verified
+completed gameplay-delivery queue flows. Do not begin another flow after that maximum is reached.
+Enforce rollover only at a safe terminal boundary. Emit exactly
+`PARENT_CONVERSATION_ROLLOVER_REQUIRED` and the compact resume command below. A new parent identity
+starts at completed-flow count zero. A valid current full-suite receipt may be reused at rollover
+when the controller accepts it.
+
+```text
+/loop Load and follow `.cursor/commands/pns-flow-delivery-loop.md` exactly.
+Continue the authoritative queue until a checked-in hard stop condition occurs.
+IDE-native custom subagents only; no CLI fallback.
+```
+
 The project `subagentStart` hook is an optional additional cross-check when this installed Cursor
 execution surface emits it.
 

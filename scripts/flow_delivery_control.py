@@ -16,17 +16,41 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import tempfile
 from typing import Any, Mapping, Sequence
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts import flow_delivery_parent_progress as parent_progress
+
+
 DEFAULT_QUEUE_PATH = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 DEFAULT_POLICY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.json"
+DEFAULT_LOOP_POLICY_PATH = parent_progress.DEFAULT_LOOP_POLICY_PATH
+DEFAULT_PROGRESS_PATH = parent_progress.DEFAULT_PROGRESS_PATH
 DEFAULT_LEASE_PATH = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
 DEFAULT_WRITABLE_MARKER_PATH = REPO_ROOT / ".local-orchestrator" / "writable-subagent.json"
 DEFAULT_ROUTING_EVENTS_PATH = REPO_ROOT / ".local-orchestrator" / "model-routing-events.jsonl"
 CANARY_FLOW_ID = "IDE-NATIVE-SUBAGENT-CANARY"
+PARENT_CONVERSATION_ROLLOVER_REQUIRED = parent_progress.PARENT_CONVERSATION_ROLLOVER_REQUIRED
+RESUME_INVOCATION = parent_progress.RESUME_INVOCATION
+COUNTED_GAMEPLAY_QUEUE_KIND = "development_flow_delivery"
+ACTIVE_DELIVERY_STAGES = {
+    "selected",
+    "reconnaissance",
+    "implementation",
+    "implementation_review",
+    "correction",
+    "focused_validation",
+    "full_validation",
+    "live_preflight",
+    "live_execution",
+    "evidence_review",
+    "commit",
+}
 
 QUEUE_STATUSES = {"ready", "active", "blocked", "completed", "needs_product_decision"}
 STAGES = (
@@ -523,19 +547,50 @@ class FlowDeliveryController:
         lease_path: Path = DEFAULT_LEASE_PATH,
         writable_marker_path: Path = DEFAULT_WRITABLE_MARKER_PATH,
         routing_events_path: Path = DEFAULT_ROUTING_EVENTS_PATH,
+        loop_policy_path: Path = DEFAULT_LOOP_POLICY_PATH,
+        progress_path: Path = DEFAULT_PROGRESS_PATH,
     ) -> None:
         self.queue_path = queue_path
         self.policy_path = policy_path
         self.lease_path = lease_path
         self.writable_marker_path = writable_marker_path
         self.routing_events_path = routing_events_path
+        self.loop_policy_path = loop_policy_path
+        self.progress_path = progress_path
 
     def load(self) -> tuple[dict[str, Any], dict[str, Any]]:
         queue = _read_json(self.queue_path)
         policy = _read_json(self.policy_path)
         validate_queue(queue)
         validate_policy(policy)
+        self.load_loop_policy()
         return queue, policy
+
+    def load_loop_policy(self) -> dict[str, Any]:
+        try:
+            return parent_progress.load_loop_policy(self.loop_policy_path)
+        except parent_progress.ParentProgressError as exc:
+            raise FlowDeliveryError(str(exc)) from exc
+
+    def load_parent_progress(self) -> dict[str, Any]:
+        try:
+            return parent_progress.load_progress(self.progress_path)
+        except parent_progress.ParentProgressError as exc:
+            raise FlowDeliveryError(str(exc)) from exc
+
+    def parent_progress_entry(self, parent_conversation_id: str) -> dict[str, Any]:
+        policy = self.load_loop_policy()
+        digest = parent_progress.loop_policy_digest(policy)
+        document = self.load_parent_progress()
+        try:
+            return parent_progress.get_parent_entry(
+                document,
+                parent_conversation_id,
+                configured_maximum=policy["max_completed_flows_per_parent_conversation"],
+                policy_digest=digest,
+            )
+        except parent_progress.ParentProgressError as exc:
+            raise FlowDeliveryError(str(exc)) from exc
 
     def lease(self) -> dict[str, Any] | None:
         if not self.lease_path.exists():
@@ -680,7 +735,374 @@ class FlowDeliveryController:
             or self.writable_marker_path.exists()
         )
 
-    def select_next(self, queue: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+    def _resolve_parent_conversation_id(
+        self,
+        parent_conversation_id: str | None,
+        lease: Mapping[str, Any] | None,
+    ) -> str | None:
+        if parent_conversation_id is not None:
+            return _require_nonempty_string(
+                parent_conversation_id,
+                "parent_conversation_id",
+            )
+        if lease is None:
+            return None
+        bound = lease.get("bound_parent_conversation_id")
+        if bound is None:
+            return None
+        return _require_nonempty_string(bound, "lease.bound_parent_conversation_id")
+
+    def _mirror_progress_on_lease(
+        self,
+        lease: dict[str, Any] | None,
+        entry: Mapping[str, Any],
+    ) -> None:
+        if lease is None or not self.lease_path.exists():
+            return
+        lease["parent_conversation_completed_gameplay_flow_count"] = entry[
+            "completed_gameplay_flow_count"
+        ]
+        lease["parent_conversation_rollover_required"] = entry["rollover_required"]
+        lease["heartbeat_timestamp"] = utc_now()
+        _atomic_write_json(self.lease_path, lease)
+
+    def assert_parent_conversation_may_select(
+        self,
+        parent_conversation_id: str,
+    ) -> dict[str, Any]:
+        entry = self.parent_progress_entry(parent_conversation_id)
+        if parent_progress.rollover_reached(entry):
+            raise FlowDeliveryError(PARENT_CONVERSATION_ROLLOVER_REQUIRED)
+        return entry
+
+    def _is_counted_gameplay_flow(
+        self,
+        queue: Mapping[str, Any],
+        flow: Mapping[str, Any],
+    ) -> bool:
+        """Queue membership under development_flow_delivery is the gameplay discriminator."""
+        if queue.get("queue_kind") != COUNTED_GAMEPLAY_QUEUE_KIND:
+            return False
+        if flow.get("flow_id") == CANARY_FLOW_ID:
+            return False
+        return True
+
+    def _find_matching_full_suite_receipt(
+        self,
+        *,
+        receipts: Sequence[Mapping[str, Any]],
+        flow_id: str,
+        repository_head: str,
+        working_tree_fingerprint: str,
+    ) -> dict[str, Any] | None:
+        matching = [
+            deepcopy(receipt)
+            for receipt in receipts
+            if receipt.get("validation_profile") == "full_suite"
+            and receipt.get("delivery_stage") == "full_validation"
+            and receipt.get("active_flow") == flow_id
+            and receipt.get("repository_head") == repository_head
+            and receipt.get("working_tree_fingerprint") == working_tree_fingerprint
+            and receipt.get("exit_code") == 0
+        ]
+        if not matching:
+            return None
+        return max(matching, key=lambda item: item.get("timestamp", ""))
+
+    def evaluate_full_suite_receipt_for_rollover(
+        self,
+        *,
+        flow_id: str,
+        repository_head: str,
+        working_tree_fingerprint: str,
+        receipts: Sequence[Mapping[str, Any]] | None = None,
+        transition_changed_validated_authority: bool = False,
+    ) -> dict[str, Any]:
+        _require_nonempty_string(flow_id, "flow_id")
+        _require_nonempty_string(repository_head, "repository_head")
+        _require_nonempty_string(working_tree_fingerprint, "working_tree_fingerprint")
+        if transition_changed_validated_authority:
+            return {
+                "reuse": False,
+                "reason": "queue_transition_changed_validated_authority",
+                "receipt": None,
+            }
+        source = list(receipts) if receipts is not None else []
+        if receipts is None:
+            lease = self.lease()
+            if lease is not None:
+                source = list(lease.get("validation_receipts") or [])
+        receipt = self._find_matching_full_suite_receipt(
+            receipts=source,
+            flow_id=flow_id,
+            repository_head=repository_head,
+            working_tree_fingerprint=working_tree_fingerprint,
+        )
+        if receipt is None:
+            return {
+                "reuse": False,
+                "reason": "full_suite_receipt_absent_or_stale",
+                "receipt": None,
+            }
+        return {
+            "reuse": True,
+            "reason": "current_accepted_full_suite_receipt",
+            "receipt": receipt,
+            "receipt_digest": receipt.get("receipt_digest"),
+        }
+
+    def assert_safe_rollover_boundary(
+        self,
+        *,
+        parent_conversation_id: str,
+        require_lease_absent: bool = True,
+    ) -> dict[str, Any]:
+        queue, _ = self.load()
+        unsafe: list[str] = []
+        if queue.get("active_flow_id"):
+            unsafe.append("active_flow")
+        lease = self.lease()
+        if lease is not None:
+            if lease.get("active_flow"):
+                unsafe.append("active_flow")
+            stage = lease.get("active_stage")
+            if stage in ACTIVE_DELIVERY_STAGES:
+                unsafe.append("active_delivery_stage")
+            if lease.get("runtime_ownership_state") not in {"none", "released"}:
+                unsafe.append("runtime_ownership")
+            if lease.get("unresolved_action_state") != "clear":
+                unsafe.append("unresolved_action")
+            for receipt in lease.get("subagent_invocation_receipts") or []:
+                if receipt.get("terminal_outcome") not in SUBAGENT_TERMINAL_OUTCOMES:
+                    unsafe.append("active_native_subagent_invocation")
+                    break
+            for flow in queue["flows"]:
+                for attempt in flow.get("live_attempts") or []:
+                    if attempt.get("finished_at") is None:
+                        unsafe.append("live_attempt_in_progress")
+                        break
+            if require_lease_absent:
+                unsafe.append("development_lease_present")
+        if self.writable_marker_path.exists():
+            unsafe.append("writable_agent_marker")
+        snapshot, _ = self._working_tree_state()
+        # Only fail closed on attributable dirty paths that are not protected locals.
+        attributable = {
+            path
+            for path in snapshot
+            if not path.startswith(
+                (
+                    ".local-orchestrator/",
+                    ".local-captures/",
+                    "." + "local-reference/",
+                    ".specstory/",
+                    ".vscode/",
+                    "evidence/",
+                )
+            )
+        }
+        if attributable:
+            unsafe.append("attributable_uncommitted_changes")
+        entry = self.parent_progress_entry(parent_conversation_id)
+        if not parent_progress.rollover_reached(entry):
+            unsafe.append("configured_maximum_not_reached")
+        latest = entry.get("latest_counted_commit")
+        if not latest or not self._commit_reachable(latest):
+            unsafe.append("counted_commit_unreachable")
+        if unsafe:
+            raise FlowDeliveryError(
+                "unsafe rollover boundary: " + ", ".join(sorted(set(unsafe)))
+            )
+        return entry
+
+    def emit_rollover_required(
+        self,
+        *,
+        parent_conversation_id: str,
+        require_lease_absent: bool = True,
+    ) -> dict[str, Any]:
+        entry = self.assert_safe_rollover_boundary(
+            parent_conversation_id=parent_conversation_id,
+            require_lease_absent=require_lease_absent,
+        )
+        queue, _ = self.load()
+        counts = {status: 0 for status in sorted(QUEUE_STATUSES)}
+        for flow in queue["flows"]:
+            counts[flow["status"]] += 1
+        lease = self.lease()
+        ahead_behind = self._git(
+            ["rev-list", "--left-right", "--count", "origin/main...HEAD"],
+            check=False,
+        )
+        ahead = behind = 0
+        if ahead_behind.returncode == 0 and ahead_behind.stdout.strip():
+            left, right = ahead_behind.stdout.strip().split()
+            behind, ahead = int(left), int(right)
+        report = {
+            "stop_reason": PARENT_CONVERSATION_ROLLOVER_REQUIRED,
+            "parent_conversation_id": parent_conversation_id,
+            "completed_count": entry["completed_gameplay_flow_count"],
+            "configured_maximum": entry["configured_maximum"],
+            "counted_flow_ids": list(entry["counted_flow_ids"]),
+            "latest_counted_commit": entry["latest_counted_commit"],
+            "branch": self._git(["rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip(),
+            "head": self._repo_head(),
+            "ahead_behind": {"ahead": ahead, "behind": behind},
+            "queue_counts": counts,
+            "lease_state": "present" if lease else "absent",
+            "runtime_ownership_state": (
+                lease["runtime_ownership_state"] if lease else "none"
+            ),
+            "writable_agent_state": (
+                "present" if self.writable_marker_path.exists() else "absent"
+            ),
+            "unresolved_action_state": (
+                lease["unresolved_action_state"] if lease else "clear"
+            ),
+            "attributable_working_tree_state": "clean",
+            "resume_invocation": RESUME_INVOCATION,
+        }
+        return report
+
+    def record_counted_gameplay_completion(
+        self,
+        *,
+        parent_conversation_id: str,
+        flow_id: str,
+        counted_commit: str,
+        full_suite_receipts: Sequence[Mapping[str, Any]] | None = None,
+        transition_changed_validated_authority: bool = False,
+        allow_duplicate: bool = False,
+    ) -> dict[str, Any]:
+        _require_nonempty_string(parent_conversation_id, "parent_conversation_id")
+        _require_nonempty_string(flow_id, "flow_id")
+        queue, _ = self.load()
+        if queue.get("queue_kind") != COUNTED_GAMEPLAY_QUEUE_KIND:
+            raise FlowDeliveryError("maintenance-task completion is not gameplay completion")
+        flows = self._flows(queue)
+        flow = flows.get(flow_id)
+        if flow is None:
+            raise FlowDeliveryError(
+                "maintenance-task completion is not gameplay completion"
+            )
+        if not self._is_counted_gameplay_flow(queue, flow):
+            raise FlowDeliveryError(
+                "maintenance-task completion is not gameplay completion"
+            )
+        if flow["status"] == "blocked":
+            raise FlowDeliveryError("blocked flow does not increment parent conversation count")
+        if flow["status"] == "needs_product_decision":
+            raise FlowDeliveryError(
+                "needs_product_decision flow does not increment parent conversation count"
+            )
+        if flow["status"] != "completed" or flow.get("last_completed_stage") != "completed":
+            raise FlowDeliveryError("flow is not terminally completed")
+        if queue.get("active_flow_id"):
+            raise FlowDeliveryError("active flow still present")
+        lease = self.lease()
+        if lease is not None:
+            bound = lease.get("bound_parent_conversation_id")
+            if bound is not None and bound != parent_conversation_id:
+                raise FlowDeliveryError("wrong parent identity")
+            if lease.get("active_flow"):
+                raise FlowDeliveryError("active flow still present")
+            if lease.get("runtime_ownership_state") not in {"none", "released"}:
+                raise FlowDeliveryError("runtime ownership still held")
+            if lease.get("unresolved_action_state") != "clear":
+                raise FlowDeliveryError("unresolved action remains")
+            if lease.get("active_stage") in ACTIVE_DELIVERY_STAGES:
+                raise FlowDeliveryError("active delivery stage remains")
+        if self.writable_marker_path.exists():
+            raise FlowDeliveryError("writable marker still present")
+        resolved = self._resolve_commit(counted_commit)
+        if self._repo_head() != resolved:
+            raise FlowDeliveryError("counted commit must be current HEAD")
+        if not self._commit_reachable(resolved):
+            raise FlowDeliveryError("counted commit is unreachable")
+        if flow.get("last_commit"):
+            production = self._resolve_commit(flow["last_commit"])
+            if not self._commit_reachable(production):
+                raise FlowDeliveryError("reviewed flow commit is unreachable")
+        snapshot, fingerprint = self._working_tree_state()
+        attributable = {
+            path
+            for path in snapshot
+            if not path.startswith(
+                (
+                    ".local-orchestrator/",
+                    ".local-captures/",
+                    "." + "local-reference/",
+                    ".specstory/",
+                    ".vscode/",
+                    "evidence/",
+                )
+            )
+        }
+        if attributable:
+            raise FlowDeliveryError("unsafe worktree")
+        policy = self.load_loop_policy()
+        digest = parent_progress.loop_policy_digest(policy)
+        document = self.load_parent_progress()
+        try:
+            entry = parent_progress.get_parent_entry(
+                document,
+                parent_conversation_id,
+                configured_maximum=policy["max_completed_flows_per_parent_conversation"],
+                policy_digest=digest,
+            )
+        except parent_progress.ParentProgressError as exc:
+            raise FlowDeliveryError(str(exc)) from exc
+        if parent_progress.completion_already_counted(entry, flow_id, resolved):
+            if allow_duplicate:
+                return {
+                    "recorded": False,
+                    "duplicate": True,
+                    "entry": entry,
+                    "full_suite": None,
+                }
+            raise FlowDeliveryError("duplicate counted gameplay completion")
+        receipt_status = self.evaluate_full_suite_receipt_for_rollover(
+            flow_id=flow_id,
+            repository_head=resolved,
+            working_tree_fingerprint=fingerprint,
+            receipts=full_suite_receipts,
+            transition_changed_validated_authority=transition_changed_validated_authority,
+        )
+        receipt_digest = receipt_status.get("receipt_digest")
+        try:
+            parent_progress.append_counted_completion(
+                entry,
+                flow_id=flow_id,
+                commit=resolved,
+                full_suite_receipt_digest=receipt_digest,
+            )
+        except parent_progress.ParentProgressError as exc:
+            raise FlowDeliveryError(str(exc)) from exc
+        document["parents"][parent_conversation_id] = entry
+        try:
+            parent_progress.save_progress(self.progress_path, document)
+        except parent_progress.ParentProgressError as exc:
+            raise FlowDeliveryError(str(exc)) from exc
+        if lease is not None:
+            self._mirror_progress_on_lease(lease, entry)
+        result: dict[str, Any] = {
+            "recorded": True,
+            "duplicate": False,
+            "entry": deepcopy(entry),
+            "full_suite": receipt_status,
+            "rollover_required": entry["rollover_required"],
+        }
+        if entry["rollover_required"]:
+            result["stop_reason"] = PARENT_CONVERSATION_ROLLOVER_REQUIRED
+            result["resume_invocation"] = RESUME_INVOCATION
+        return result
+
+    def select_next(
+        self,
+        queue: Mapping[str, Any] | None = None,
+        *,
+        parent_conversation_id: str | None = None,
+    ) -> dict[str, Any] | None:
         if queue is None:
             queue, _ = self.load()
         by_id = self._flows(queue)
@@ -690,6 +1112,12 @@ class FlowDeliveryController:
         lease = self.lease()
         if self._selection_blocked(queue, lease):
             return None
+        resolved_parent = self._resolve_parent_conversation_id(
+            parent_conversation_id,
+            lease,
+        )
+        if resolved_parent is not None:
+            self.assert_parent_conversation_may_select(resolved_parent)
         ready = [
             flow
             for flow in by_id.values()
@@ -707,6 +1135,7 @@ class FlowDeliveryController:
         runtime_ownership_state: str,
         unresolved_action_state: str = "unknown",
         ide_native_canary: bool = False,
+        parent_conversation_id: str | None = None,
     ) -> dict[str, Any]:
         _require_nonempty_string(owner, "owner")
         _require_nonempty_string(session_identity, "session_identity")
@@ -724,6 +1153,13 @@ class FlowDeliveryController:
                 raise FlowDeliveryError("IDE-native canary requires an inactive queue")
             if runtime_ownership_state not in {"none", "released"} or unresolved_action_state != "clear":
                 raise FlowDeliveryError("IDE-native canary requires released runtime and clear actions")
+        bound_parent = None
+        if parent_conversation_id is not None:
+            bound_parent = _require_nonempty_string(
+                parent_conversation_id,
+                "parent_conversation_id",
+            )
+            self.assert_parent_conversation_may_select(bound_parent)
         now = utc_now()
         head = self._repo_head()
         snapshot, fingerprint = self._working_tree_state()
@@ -737,6 +1173,12 @@ class FlowDeliveryController:
                 else None
             )
         )
+        progress_count = 0
+        rollover_required = False
+        if bound_parent is not None:
+            entry = self.parent_progress_entry(bound_parent)
+            progress_count = entry["completed_gameplay_flow_count"]
+            rollover_required = entry["rollover_required"]
         payload = {
             "schema_version": 2,
             "workflow": "pns-flow-delivery",
@@ -745,7 +1187,7 @@ class FlowDeliveryController:
             "host": socket.gethostname(),
             "process_or_session_identity": session_identity,
             "process_id": os.getpid(),
-            "bound_parent_conversation_id": None,
+            "bound_parent_conversation_id": bound_parent,
             "acquisition_timestamp": now,
             "heartbeat_timestamp": now,
             "acquired_repository_head": head,
@@ -767,10 +1209,68 @@ class FlowDeliveryController:
             "subagent_invocation_receipts": [],
             "reviewed_flow_commit": None,
             "gates": {"implementation_parent_reviewed": False},
+            "parent_conversation_completed_gameplay_flow_count": progress_count,
+            "parent_conversation_rollover_required": rollover_required,
         }
         validate_lease(payload)
         _atomic_write_json(self.lease_path, payload)
         return payload
+
+    def activate(
+        self,
+        *,
+        owner: str,
+        flow_id: str | None = None,
+        parent_conversation_id: str | None = None,
+    ) -> dict[str, Any]:
+        lease = self._require_lease(owner)
+        if lease["lease_mode"] != "delivery":
+            raise FlowDeliveryError("IDE-native canary lease cannot activate a flow")
+        self._assert_repository_state(lease)
+        queue, _ = self.load()
+        self._assert_global_safety_clear(queue, lease)
+        selected = self.select_next(
+            queue,
+            parent_conversation_id=parent_conversation_id
+            or lease.get("bound_parent_conversation_id"),
+        )
+        if selected is None:
+            # Distinguish rollover from ordinary empty selection when possible.
+            resolved_parent = self._resolve_parent_conversation_id(
+                parent_conversation_id,
+                lease,
+            )
+            if resolved_parent is not None:
+                entry = self.parent_progress_entry(resolved_parent)
+                if parent_progress.rollover_reached(entry):
+                    raise FlowDeliveryError(PARENT_CONVERSATION_ROLLOVER_REQUIRED)
+            raise FlowDeliveryError("no ready development flow")
+        if flow_id is not None and selected["flow_id"] != flow_id:
+            raise FlowDeliveryError("requested flow is not the deterministic next flow")
+        flow = self._flows(queue)[selected["flow_id"]]
+        if flow["status"] == "ready":
+            flow["status"] = "active"
+            flow["last_completed_stage"] = "selected"
+            queue["active_flow_id"] = flow["flow_id"]
+            validate_queue(queue)
+            _atomic_write_json(self.queue_path, queue)
+        lease["active_flow"] = flow["flow_id"]
+        lease["active_stage"] = flow["last_completed_stage"]
+        now = utc_now()
+        lease["active_stage_entered_at"] = now
+        lease["heartbeat_timestamp"] = now
+        if parent_conversation_id is not None:
+            bound = _require_nonempty_string(
+                parent_conversation_id,
+                "parent_conversation_id",
+            )
+            existing = lease.get("bound_parent_conversation_id")
+            if existing is not None and existing != bound:
+                raise FlowDeliveryError("wrong parent identity")
+            lease["bound_parent_conversation_id"] = bound
+        self._refresh_expected_worktree(lease)
+        _atomic_write_json(self.lease_path, lease)
+        return deepcopy(flow)
 
     def heartbeat(
         self,
@@ -794,36 +1294,15 @@ class FlowDeliveryController:
             lease["unresolved_action_state"] = unresolved_action_state
         lease["observed_repository_head"] = self._repo_head()
         lease["heartbeat_timestamp"] = utc_now()
+        bound = lease.get("bound_parent_conversation_id")
+        if bound:
+            entry = self.parent_progress_entry(bound)
+            lease["parent_conversation_completed_gameplay_flow_count"] = entry[
+                "completed_gameplay_flow_count"
+            ]
+            lease["parent_conversation_rollover_required"] = entry["rollover_required"]
         _atomic_write_json(self.lease_path, lease)
         return lease
-
-    def activate(self, *, owner: str, flow_id: str | None = None) -> dict[str, Any]:
-        lease = self._require_lease(owner)
-        if lease["lease_mode"] != "delivery":
-            raise FlowDeliveryError("IDE-native canary lease cannot activate a flow")
-        self._assert_repository_state(lease)
-        queue, _ = self.load()
-        self._assert_global_safety_clear(queue, lease)
-        selected = self.select_next(queue)
-        if selected is None:
-            raise FlowDeliveryError("no ready development flow")
-        if flow_id is not None and selected["flow_id"] != flow_id:
-            raise FlowDeliveryError("requested flow is not the deterministic next flow")
-        flow = self._flows(queue)[selected["flow_id"]]
-        if flow["status"] == "ready":
-            flow["status"] = "active"
-            flow["last_completed_stage"] = "selected"
-            queue["active_flow_id"] = flow["flow_id"]
-            validate_queue(queue)
-            _atomic_write_json(self.queue_path, queue)
-        lease["active_flow"] = flow["flow_id"]
-        lease["active_stage"] = flow["last_completed_stage"]
-        now = utc_now()
-        lease["active_stage_entered_at"] = now
-        lease["heartbeat_timestamp"] = now
-        self._refresh_expected_worktree(lease)
-        _atomic_write_json(self.lease_path, lease)
-        return deepcopy(flow)
 
     def review_worktree(self, *, owner: str, paths: Sequence[str]) -> dict[str, Any]:
         lease = self._require_lease(owner)
@@ -1433,23 +1912,39 @@ class FlowDeliveryController:
         self.lease_path.unlink()
         return {"reconciled": True, "prior_owner": lease["owner"]}
 
-    def status(self) -> dict[str, Any]:
+    def status(self, *, parent_conversation_id: str | None = None) -> dict[str, Any]:
         queue, _ = self.load()
         counts = {status: 0 for status in sorted(QUEUE_STATUSES)}
         for flow in queue["flows"]:
             counts[flow["status"]] += 1
-        selected = self.select_next(queue)
         lease = self.lease()
+        resolved_parent = self._resolve_parent_conversation_id(parent_conversation_id, lease)
+        selected = None
+        rollover = None
+        try:
+            selected = self.select_next(queue, parent_conversation_id=resolved_parent)
+        except FlowDeliveryError as exc:
+            if str(exc) == PARENT_CONVERSATION_ROLLOVER_REQUIRED:
+                rollover = PARENT_CONVERSATION_ROLLOVER_REQUIRED
+            else:
+                raise
         try:
             queue_name = str(self.queue_path.relative_to(REPO_ROOT))
         except ValueError:
             queue_name = str(self.queue_path)
+        parent_entry = None
+        if resolved_parent is not None:
+            parent_entry = self.parent_progress_entry(resolved_parent)
         return {
             "schema_version": 2,
             "queue": queue_name,
             "counts": counts,
             "active_flow": queue.get("active_flow_id"),
             "selected_flow": selected["flow_id"] if selected else None,
+            "parent_conversation_id": resolved_parent,
+            "parent_conversation_progress": parent_entry,
+            "rollover_stop_reason": rollover,
+            "resume_invocation": RESUME_INVOCATION if rollover else None,
             "lease": (
                 {
                     "owner": lease["owner"],
@@ -1459,6 +1954,15 @@ class FlowDeliveryController:
                     "runtime_ownership_state": lease["runtime_ownership_state"],
                     "unresolved_action_state": lease["unresolved_action_state"],
                     "safety_blocked_flow": lease["safety_blocked_flow"],
+                    "bound_parent_conversation_id": lease.get(
+                        "bound_parent_conversation_id"
+                    ),
+                    "parent_conversation_completed_gameplay_flow_count": lease.get(
+                        "parent_conversation_completed_gameplay_flow_count"
+                    ),
+                    "parent_conversation_rollover_required": lease.get(
+                        "parent_conversation_rollover_required"
+                    ),
                 }
                 if lease
                 else None
@@ -1470,26 +1974,47 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     root.add_argument("--queue", type=Path, default=DEFAULT_QUEUE_PATH)
     root.add_argument("--policy", type=Path, default=DEFAULT_POLICY_PATH)
+    root.add_argument("--loop-policy", type=Path, default=DEFAULT_LOOP_POLICY_PATH)
+    root.add_argument("--progress", type=Path, default=DEFAULT_PROGRESS_PATH)
     root.add_argument("--lease", type=Path, default=DEFAULT_LEASE_PATH)
     root.add_argument("--writable-marker", type=Path, default=DEFAULT_WRITABLE_MARKER_PATH)
     root.add_argument("--routing-events", type=Path, default=DEFAULT_ROUTING_EVENTS_PATH)
     sub = root.add_subparsers(dest="command", required=True)
-    for command in ("status", "validate", "select-next"):
-        sub.add_parser(command)
+    status = sub.add_parser("status")
+    status.add_argument("--parent-conversation-id")
+    sub.add_parser("validate")
+    select_next = sub.add_parser("select-next")
+    select_next.add_argument("--parent-conversation-id")
     acquire = sub.add_parser("acquire")
     acquire.add_argument("--owner", required=True)
     acquire.add_argument("--session-id", required=True)
-    acquire.add_argument("--runtime-ownership-state", choices=sorted(RUNTIME_OWNERSHIP_STATES), default="none")
-    acquire.add_argument("--unresolved-action-state", choices=sorted(UNRESOLVED_ACTION_STATES), default="unknown")
+    acquire.add_argument(
+        "--runtime-ownership-state",
+        choices=sorted(RUNTIME_OWNERSHIP_STATES),
+        default="none",
+    )
+    acquire.add_argument(
+        "--unresolved-action-state",
+        choices=sorted(UNRESOLVED_ACTION_STATES),
+        default="unknown",
+    )
     acquire.add_argument("--ide-native-canary", action="store_true")
+    acquire.add_argument("--parent-conversation-id")
     heartbeat = sub.add_parser("heartbeat")
     heartbeat.add_argument("--owner", required=True)
     heartbeat.add_argument("--session-id")
-    heartbeat.add_argument("--runtime-ownership-state", choices=sorted(RUNTIME_OWNERSHIP_STATES))
-    heartbeat.add_argument("--unresolved-action-state", choices=sorted(UNRESOLVED_ACTION_STATES))
+    heartbeat.add_argument(
+        "--runtime-ownership-state",
+        choices=sorted(RUNTIME_OWNERSHIP_STATES),
+    )
+    heartbeat.add_argument(
+        "--unresolved-action-state",
+        choices=sorted(UNRESOLVED_ACTION_STATES),
+    )
     activate = sub.add_parser("activate")
     activate.add_argument("--owner", required=True)
     activate.add_argument("--flow-id")
+    activate.add_argument("--parent-conversation-id")
     worktree = sub.add_parser("review-worktree")
     worktree.add_argument("--owner", required=True)
     worktree.add_argument("--path", action="append", required=True)
@@ -1527,6 +2052,14 @@ def parser() -> argparse.ArgumentParser:
     complete = sub.add_parser("complete")
     complete.add_argument("--owner", required=True)
     complete.add_argument("--commit", required=True)
+    counted = sub.add_parser("record-counted-completion")
+    counted.add_argument("--parent-conversation-id", required=True)
+    counted.add_argument("--flow-id", required=True)
+    counted.add_argument("--commit", required=True)
+    counted.add_argument("--transition-changed-validated-authority", action="store_true")
+    rollover = sub.add_parser("emit-rollover")
+    rollover.add_argument("--parent-conversation-id", required=True)
+    rollover.add_argument("--allow-lease-present", action="store_true")
     block = sub.add_parser("block")
     block.add_argument("--owner", required=True)
     block.add_argument("--reason", required=True)
@@ -1534,9 +2067,21 @@ def parser() -> argparse.ArgumentParser:
     release.add_argument("--owner", required=True)
     reconcile = sub.add_parser("reconcile")
     reconcile.add_argument("--terminal-evidence", action="store_true")
-    reconcile.add_argument("--runtime-state", required=True, choices=sorted(RUNTIME_OWNERSHIP_STATES))
-    reconcile.add_argument("--journal-state", required=True, choices=("resolved", "unresolved", "unknown"))
-    reconcile.add_argument("--consequential-state", required=True, choices=("terminal", "nonterminal", "unknown"))
+    reconcile.add_argument(
+        "--runtime-state",
+        required=True,
+        choices=sorted(RUNTIME_OWNERSHIP_STATES),
+    )
+    reconcile.add_argument(
+        "--journal-state",
+        required=True,
+        choices=("resolved", "unresolved", "unknown"),
+    )
+    reconcile.add_argument(
+        "--consequential-state",
+        required=True,
+        choices=("terminal", "nonterminal", "unknown"),
+    )
     return root
 
 
@@ -1548,16 +2093,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.lease,
         args.writable_marker,
         args.routing_events,
+        args.loop_policy,
+        args.progress,
     )
     try:
         if args.command == "status":
-            result = controller.status()
+            result = controller.status(parent_conversation_id=args.parent_conversation_id)
         elif args.command == "validate":
             controller.load()
             controller.lease()
+            controller.load_parent_progress()
             result = {"valid": True}
         elif args.command == "select-next":
-            result = {"flow": controller.select_next()}
+            result = {
+                "flow": controller.select_next(
+                    parent_conversation_id=args.parent_conversation_id
+                )
+            }
         elif args.command == "acquire":
             result = controller.acquire(
                 owner=args.owner,
@@ -1565,6 +2117,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 runtime_ownership_state=args.runtime_ownership_state,
                 unresolved_action_state=args.unresolved_action_state,
                 ide_native_canary=args.ide_native_canary,
+                parent_conversation_id=args.parent_conversation_id,
             )
         elif args.command == "heartbeat":
             result = controller.heartbeat(
@@ -1574,7 +2127,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 unresolved_action_state=args.unresolved_action_state,
             )
         elif args.command == "activate":
-            result = controller.activate(owner=args.owner, flow_id=args.flow_id)
+            result = controller.activate(
+                owner=args.owner,
+                flow_id=args.flow_id,
+                parent_conversation_id=args.parent_conversation_id,
+            )
         elif args.command == "review-worktree":
             result = controller.review_worktree(owner=args.owner, paths=args.path)
         elif args.command == "record-subagent-invocation":
@@ -1593,7 +2150,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 repository_head=args.repository_head,
             )
         elif args.command == "record-validation":
-            result = controller.record_validation_receipt(owner=args.owner, receipt_path=args.receipt)
+            result = controller.record_validation_receipt(
+                owner=args.owner,
+                receipt_path=args.receipt,
+            )
         elif args.command == "record-stage":
             result = controller.record_stage(
                 owner=args.owner,
@@ -1613,6 +2173,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = controller.record_commit(owner=args.owner, commit=args.commit)
         elif args.command == "complete":
             result = controller.complete(owner=args.owner, commit=args.commit)
+        elif args.command == "record-counted-completion":
+            result = controller.record_counted_gameplay_completion(
+                parent_conversation_id=args.parent_conversation_id,
+                flow_id=args.flow_id,
+                counted_commit=args.commit,
+                transition_changed_validated_authority=(
+                    args.transition_changed_validated_authority
+                ),
+            )
+        elif args.command == "emit-rollover":
+            result = controller.emit_rollover_required(
+                parent_conversation_id=args.parent_conversation_id,
+                require_lease_absent=not args.allow_lease_present,
+            )
         elif args.command == "block":
             result = controller.block(owner=args.owner, reason=args.reason)
         elif args.command == "release":

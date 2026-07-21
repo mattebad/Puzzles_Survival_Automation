@@ -60,12 +60,18 @@ It only disables the additional hook cross-check.
 ## Distinct authorities
 
 - `tasks/flow_delivery_queue.json`: development-work selection only.
+- `tasks/flow_delivery_loop_policy.json`: sole authoritative maximum for completed gameplay-delivery
+  flows counted per parent conversation; command/skill refer to it semantically and must not
+  hardcode a competing numeric maximum.
 - `tasks/backlog_task_index.json` and `scripts/flow_delivery_context.py`: compact backlog indexing
   and bounded stage context packets only; packets never grant runtime or product authorization.
 - `tasks/scheduler.py` and persisted task state: dormant gameplay execution scheduling; never use
   them to select development work.
 - `.local-orchestrator/flow-delivery-lease.json`: one development orchestrator and its current
-  runtime-ownership state.
+  runtime-ownership state. Lease mirrors may report the current parent counter but are not the
+  progress authority.
+- `.local-orchestrator/parent-conversation-progress.json`: local ignored completed-gameplay-flow
+  progress scoped to `bound_parent_conversation_id`; grants no gameplay authorization.
 - SafetyStore/journal leases: runtime action authority and unresolved-action gate; never mutate
   them through the development controller.
 - Git status: working-tree ownership. Preserve unrelated and protected files.
@@ -140,9 +146,24 @@ Advance the closed stages with `record-stage`:
 
 Only after the prior flow has terminal runtime state, reconciled evidence, required tests passing,
 a focused commit, clean attributable ownership, and atomic queue completion may the parent select
-the next ready flow. Release the development lease when stopping; otherwise heartbeat and continue
-immediately. Never advance composition, Bliss migration, M6, production registration, or gameplay
-scheduler eligibility through this loop.
+the next ready flow. After the queue-transition commit, record the counted gameplay completion with
+`record-counted-completion` using the current parent conversation identity. Count only completed
+gameplay-delivery queue flows. When the controller policy maximum is reached, stop only at a safe
+terminal boundary, emit `PARENT_CONVERSATION_ROLLOVER_REQUIRED`, release the development lease, and
+print the compact resume command. Do not begin another flow after the maximum is reached. A new
+parent identity starts at zero. Reuse a valid current full-suite receipt at rollover when the
+controller accepts it; do not rerun the same full suite merely because rollover occurs. Release the
+development lease when stopping; otherwise heartbeat and continue immediately. Never advance
+composition, Bliss migration, M6, production registration, or gameplay scheduler eligibility
+through this loop.
+
+Checked-in hard stop conditions include:
+
+- `IDE_NATIVE_SUBAGENT_TOOL_UNAVAILABLE`
+- `PARENT_CONVERSATION_ROLLOVER_REQUIRED`
+
+At a valid rollover boundary, emit that stop reason and print the exact compact resume invocation
+from the checked-in flow-delivery loop command. Do not invent a different resume text.
 
 Only these project subagents are permitted:
 

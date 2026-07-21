@@ -20,11 +20,17 @@ class GovernanceValidationTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertTrue(any("untouched legacy" in warning for warning in warnings))
 
+    def test_flow_delivery_loop_policy_is_validated(self):
+        payload = validate_governance.validate_flow_delivery_loop_policy(ROOT)
+        self.assertEqual(payload["registry_kind"], "flow_delivery_loop_policy")
+        self.assertEqual(payload["max_completed_flows_per_parent_conversation"], 2)
+        self.assertIn(".local-orchestrator/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+
     def test_handoff_has_distinct_current_and_next_task_fields(self):
         state = validate_governance.parse_handoff()
         self.assertEqual(
             state["current_task_id"],
-            "FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE",
+            "FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER",
         )
         self.assertEqual(state["current_task_state"], "completed")
         self.assertEqual(

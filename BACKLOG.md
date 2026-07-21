@@ -4504,6 +4504,102 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   remain unchanged; one local focused commit; no push.
 - Next: Campaign remains first ready but is not activated by this closure.
 
+### FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER
+- Task ID: `FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER`.
+- Title: Bound parent conversation growth to a configured number of completed gameplay flows.
+- Status: Completed (2026-07-20; offline parent-conversation rollover hygiene validated and
+  committed locally; no push).
+- Milestone: Development tooling / orchestration hygiene; not gameplay implementation.
+- Dependencies: completed `FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE` at `0609eb8`; inactive
+  development queue; released development/runtime ownership; no nonterminal consequential action.
+- Blocked by: None for offline rollover hygiene. Live BlueStacks input and subagents are prohibited.
+- Objective: enforce a machine-readable parent-conversation completed-gameplay-flow maximum, persist
+  local ignored progress keyed by parent conversation identity, stop only at a safe committed queue
+  boundary with `PARENT_CONVERSATION_ROLLOVER_REQUIRED`, and emit the compact resume command for a
+  fresh parent Agent conversation.
+- Established facts: authoritative full suite baseline is 980 passed / 1 skipped; Campaign remains
+  first ready; Ultimate Challenge remains second ready; production registration and gameplay
+  scheduling remain disabled; composition remains blocked; M6 remains unactivated; Bliss remains
+  unchanged; token/context hygiene architecture is established and must not be redesigned.
+- Direct implementation files: `tasks/flow_delivery_loop_policy.json`,
+  `scripts/flow_delivery_control.py`, `scripts/flow_delivery_parent_progress.py`,
+  `.cursor/commands/pns-flow-delivery-loop.md`, `.cursor/skills/pns-flow-delivery/SKILL.md`,
+  `tests/test_flow_delivery_parent_conversation_rollover.py`, `scripts/validate_governance.py`,
+  `tests/test_governance_validation.py`, `BACKLOG.md`, `CURRENT_HANDOFF.md`,
+  `tasks/backlog_task_index.json`.
+- Shared dependencies: existing flow-delivery controller, IDE-native parent-conversation binding,
+  product-policy and validation-profile registries, compact handoff schema; no gameplay scheduler
+  integration.
+- Transitive regression set: flow-delivery orchestrator, IDE-native hardening/receipts,
+  token/context hygiene, governance/handoff, and the full repository suite.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above; local
+  ignored `.local-orchestrator/parent-conversation-progress.json` may exist but must not be staged.
+- Prohibited changes: Campaign implementation, Ultimate Challenge implementation, BlueStacks/ADB
+  input, subagents, production registration, gameplay scheduling, composition, M6, Bliss migration,
+  test-suite consolidation/deletion, redesign of token/context hygiene architecture, push,
+  amend/reset/clean/restore of unrelated files.
+- Authorized runtime action: None; offline orchestration hygiene only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden.
+- Consequential action: None.
+- Registration changes: None; production remains not registered.
+- Scheduler changes: None; gameplay scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any BlueStacks, Bliss, Unraid, or ADB input; any subagent
+  invocation; activating Campaign or Ultimate Challenge inside this task; enabling registration or
+  gameplay scheduling.
+- Required source: repository queue/policy/controller, HEAD `0609eb8`, and this task contract.
+- Exact target semantics: loop policy default maximum 2; progress scoped to
+  `bound_parent_conversation_id`; count only verified completed gameplay-delivery queue flows;
+  rollover only at a safe terminal boundary; exact stop reason and compact resume command; new
+  parent identity starts at zero; current accepted final full-suite receipt reusable at rollover.
+- Required local association: Campaign remains first ready; Ultimate Challenge remains second ready;
+  no active development flow/lease/runtime owner/writable agent after completion.
+- Negative controls: inventing a model-derived parent identity; hardcoding a second authoritative
+  maximum outside the policy file; counting maintenance/governance completions as gameplay;
+  rolling over mid-delivery; marking the next ready flow blocked because of rollover.
+- Coordinate space: none; no coordinate operation.
+- Accepted signals: focused rollover tests pass; controller/IDE-native/token-hygiene/governance
+  tests pass; full suite at least prior baseline plus new tests; Campaign first ready and Ultimate
+  Challenge second ready unchanged.
+- Rejected weak signals: conversation transcripts as authority; lease-only progress storage;
+  duplicate full-suite rerun when a current accepted receipt already matches.
+- Ambiguous-result behavior: fail closed; preserve state; require reconciliation; do not claim
+  successful rollover.
+- Zero-cost requirement: no gameplay resources consumed.
+- Quantity limits: exactly one active hygiene task; zero live inputs; zero subagents.
+- Resource consumption policy: no AP, stamina, premium, or challenge expenditure.
+- Premium or strategic restrictions: unchanged; no new gameplay authorization.
+- Active evidence manifest: None.
+- Required artifacts: loop policy, controller/progress helpers, command/skill hard-stop text,
+  focused tests, compact handoff/backlog updates.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: `.local-orchestrator/parent-conversation-progress.json`
+  remains local-ignored.
+- Focused tests: `tests.test_flow_delivery_parent_conversation_rollover`,
+  `tests.test_flow_delivery_orchestrator`, `tests.test_flow_delivery_ide_native_hardening`,
+  `tests.test_flow_delivery_token_context_hygiene`, `tests.test_governance_validation`.
+- Integration tests: controller validate/status/select-next/activate/record-counted-completion;
+  no BlueStacks connection.
+- Transitive regression tests: flow-delivery, IDE-native, token hygiene, governance, and full
+  repository suite.
+- Full-suite requirement: authoritative local `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: Python compilation, governance validation, structured handoff parsing, touched-file
+  secret scan, and `git diff --check`.
+- Known baseline failures: None; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE — offline orchestration hygiene creates no runtime evidence
+  manifest.
+- Valid blocked outcomes: inability to keep Campaign first ready, inability to keep policy as the
+  single numeric authority, or any registration/scheduler/runtime mutation pressure.
+- Blocked-result commit policy: record the exact blocker, preserve authority, release any accidental
+  lease, and do not claim completion or push.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `feat(automation): limit completed flows per parent conversation`.
+- Completion criteria: loop policy and progress enforcement land; Campaign first ready and Ultimate
+  Challenge second ready; no active flow/lease/runtime owner/writable agent; registration/scheduler
+  unchanged; focused and full suite pass; one local commit; no push.
+- Next: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` remains first ready and is not activated
+  by this hygiene task.
+
 ### FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE
 - Task ID: `FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE`.
 - Title: Reduce flow-delivery parent and subagent context token consumption.

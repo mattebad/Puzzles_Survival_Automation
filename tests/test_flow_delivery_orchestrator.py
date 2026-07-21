@@ -341,7 +341,7 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
             self.assertNotIn(b"\r\n", path.read_bytes())
         handoff = (ROOT / "CURRENT_HANDOFF.md").read_text(encoding="utf-8")
         self.assertNotIn(b"\r\n", (ROOT / "CURRENT_HANDOFF.md").read_bytes())
-        self.assertIn("FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE", handoff)
+        self.assertIn("FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER", handoff)
         self.assertIn("CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION", handoff)
         self.assertNotIn("actions_already_performed", handoff)
         # Historical Ruins/troop handoff ledgers live in Git history, not the compact volatile handoff.
