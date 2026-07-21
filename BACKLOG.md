@@ -4504,6 +4504,99 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   remain unchanged; one local focused commit; no push.
 - Next: Campaign remains first ready but is not activated by this closure.
 
+### FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION
+- Task ID: `FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION`.
+- Title: Isolate review-snapshot secret scanning from detection-rule self-hits and test output.
+- Status: Completed (2026-07-20; offline exporter/test-isolation repair validated and committed
+  locally; no push).
+- Milestone: Development tooling / maintenance hygiene; not gameplay implementation.
+- Dependencies: completed `FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER` at `8c8e74e`; inactive
+  development queue; released development/runtime ownership; no nonterminal consequential action.
+- Blocked by: None for offline exporter repair. Live BlueStacks input and subagents are prohibited.
+- Objective: restore a fully green deterministic suite by preventing the review-snapshot exporter from
+  classifying its own secret-detection implementation as secret material, isolating ephemeral test
+  export output, excluding export destinations from recursive source selection, and preserving
+  fail-closed rejection of genuine supported private-key headers and denied credential markers.
+- Established facts: failures reproduced as
+  `test_secret_name_fixture_rejected_from_export_without_printing_values` and
+  `test_snapshot_export_denies_bulk_and_secrets`; root cause was contiguous PEM header literals in
+  `scripts/export-review-snapshot.ps1` self-matching during tracked-source scans, with a latent
+  second failure from the tracked bare-name fixture entering every export; both predated the
+  rollover commit (`0609eb8` introduced the exporter unchanged through `8c8e74e`); Campaign remains
+  first ready; Ultimate Challenge remains second ready; registration/scheduling remain disabled.
+- Direct implementation files: `scripts/export-review-snapshot.ps1`,
+  `tests/test_flow_delivery_token_context_hygiene.py`,
+  `tests/fixtures/review_snapshot_secret_names.py`, `.gitignore`, `BACKLOG.md`, `CURRENT_HANDOFF.md`,
+  `tests/test_governance_validation.py`, `tests/test_flow_delivery_orchestrator.py`,
+  `tasks/backlog_task_index.json`.
+- Shared dependencies: existing token/context hygiene and review-snapshot tooling; no gameplay
+  scheduler integration.
+- Transitive regression set: token/context hygiene, governance/handoff, and the full repository suite.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above.
+- Prohibited changes: Campaign/Ultimate Challenge implementation, BlueStacks/ADB input, subagents,
+  registration/scheduling/composition/M6/Bliss, rollover counter semantics, test-suite consolidation,
+  weakening secret detection via broad exclusions/allowlists, push, amend/reset/clean/restore of
+  unrelated files.
+- Authorized runtime action: None; offline maintenance only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden.
+- Consequential action: None.
+- Registration changes: None; production remains not registered.
+- Scheduler changes: None; gameplay scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any BlueStacks/Bliss/Unraid/ADB input; any subagent invocation;
+  activating Campaign or Ultimate Challenge inside this task; enabling registration or gameplay
+  scheduling; counting this maintenance task as a completed gameplay flow.
+- Required source: repository HEAD `8c8e74e`, exporter/tests, and this task contract.
+- Exact target semantics: split construction for detection markers; output-directory exclusion from
+  source candidates; staging cleanup on failure; ephemeral per-test export directories; fail-closed
+  genuine private-key rejection retained; maintenance completion does not increment parent
+  completed-gameplay-flow progress.
+- Required local association: Campaign remains first ready; Ultimate Challenge remains second ready;
+  no active development flow/lease/runtime owner/writable agent after completion.
+- Negative controls: ignoring `BEGIN PRIVATE KEY` globally; removing private-key detection; broadly
+  excluding scripts/tests from scanning; suppressing failures; dirty-tree scan skips; secret
+  allowlists that could permit real credentials.
+- Coordinate space: none; no coordinate operation.
+- Accepted signals: previously failing exporter tests pass; focused secret positive/negative tests
+  pass; full hygiene module and full suite green with only the legitimate expected skip.
+- Rejected weak signals: claiming pre-existing solely because rollover did not edit the exporter
+  without Git/test evidence; green suite via deleted tests.
+- Ambiguous-result behavior: fail closed; do not claim fix without reproduction; `NEEDS_PRODUCT_DECISION`
+  if a correct fix would weaken genuine secret detection.
+- Zero-cost requirement: no gameplay resources consumed.
+- Quantity limits: exactly one maintenance task; zero live inputs; zero subagents; zero gameplay-flow
+  progress increments.
+- Resource consumption policy: no AP, stamina, premium, or challenge expenditure.
+- Premium or strategic restrictions: unchanged; no new gameplay authorization.
+- Active evidence manifest: None.
+- Required artifacts: exporter repair, focused isolation/regression tests, fixture stub hygiene,
+  gitignore ephemeral fixture rule, compact handoff/backlog updates.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE.
+- Additional task-specific artifacts: none staged beyond allowlisted paths; ephemeral
+  `tests/fixtures/_tmp_*` remain local-ignored.
+- Focused tests: `tests.test_flow_delivery_token_context_hygiene` (including genuine-secret,
+  self-reference, and output-isolation cases).
+- Integration tests: none; offline exporter DryRun only.
+- Transitive regression tests: token hygiene, governance, and full repository suite.
+- Full-suite requirement: authoritative local `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: PowerShell exporter parse validation, Python compilation for touched tests, governance
+  validation when ignore/policy files change, structured handoff parsing, touched-file secret scan,
+  and `git diff --check`.
+- Known baseline failures: None after this repair; one expected full-suite skip may remain.
+- Evidence requirement: NOT_APPLICABLE — offline maintenance creates no runtime evidence manifest.
+- Valid blocked outcomes: inability to keep Campaign first ready, or any pressure to weaken genuine
+  secret detection, registration, scheduling, or runtime ownership.
+- Blocked-result commit policy: record the exact blocker, preserve authority, and do not claim
+  completion or push.
+- Commit policy: one reviewed conventional local commit; no push.
+- Expected focused commits: `fix(automation): isolate review snapshot secret scanning`.
+- Completion criteria: exporter self-scan and fixture isolation repaired; focused and full suite
+  pass with zero failures; Campaign first ready and Ultimate Challenge second ready; no active
+  flow/lease/runtime owner/writable agent; registration/scheduler unchanged; parent gameplay-flow
+  progress unchanged; one local commit; no push.
+- Next: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` remains first ready and is not activated
+  by this maintenance task.
+
 ### FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER
 - Task ID: `FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER`.
 - Title: Bound parent conversation growth to a configured number of completed gameplay flows.

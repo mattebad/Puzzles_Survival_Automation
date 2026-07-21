@@ -30,7 +30,7 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         self.assertEqual(
             state["current_task_id"],
-            "FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER",
+            "FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION",
         )
         self.assertEqual(state["current_task_state"], "completed")
         self.assertEqual(

@@ -29,6 +29,29 @@ INDEXING_IGNORE_PATH = ROOT / ".cursorindexingignore"
 READY_PACKET_FIELDS = sorted(control.READY_FLOW_PACKET_FIELDS)
 CAMPAIGN_ID = "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
 ULTIMATE_ID = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+EXPORTER_SCRIPT = ROOT / "scripts" / "export-review-snapshot.ps1"
+
+
+def _run_review_snapshot_export(
+    *,
+    output_directory: str | Path,
+    include_uncommitted: list[str] | None = None,
+    dry_run: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    command = [
+        "powershell",
+        "-NoProfile",
+        "-File",
+        str(EXPORTER_SCRIPT),
+        "-OutputDirectory",
+        str(output_directory),
+    ]
+    if include_uncommitted:
+        command.append("-IncludeUncommitted")
+        command.extend(include_uncommitted)
+    if dry_run:
+        command.append("-DryRun")
+    return subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
 
 
 class CompactHandoffTests(unittest.TestCase):
@@ -177,32 +200,29 @@ class ContextPacketTests(unittest.TestCase):
         self.assertIn(campaign["cache_hit"], {True, False})
 
     def test_secret_name_fixture_rejected_from_export_without_printing_values(self) -> None:
-        fixture = ROOT / "tests" / "fixtures" / "review_snapshot_secret_names.py"
-        out = ROOT / ".local-orchestrator" / "review-exports-secret-test"
-        out.mkdir(parents=True, exist_ok=True)
-        completed = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-File",
-                str(ROOT / "scripts" / "export-review-snapshot.ps1"),
-                "-OutputDirectory",
-                str(out),
-                "-IncludeUncommitted",
-                "tests/fixtures/review_snapshot_secret_names.py",
-                "-DryRun",
-            ],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-        )
-        combined = completed.stdout + completed.stderr
-        self.assertNotEqual(completed.returncode, 0)
-        self.assertIn("Secret indicator detected", combined)
-        self.assertIn("review_snapshot_secret_names.py", combined)
-        # Ensure raw credential values were not emitted (fixture has names only).
-        self.assertNotRegex(combined, r"UNRAID_TEMP_USERNAME\s*[:=]\s*\S+")
-        self.assertNotRegex(combined, r"UNRAID_TEMP_PASSWORD\s*[:=]\s*\S+")
+        rel = Path("tests") / "fixtures" / f"_tmp_review_snapshot_secret_names_{os.getpid()}.py"
+        abs_path = ROOT / rel
+        # Bare denied names only (no values) in an ephemeral fixture path.
+        user = "UNRAID_TEMP_" + "USERNAME"
+        password = "UNRAID_TEMP_" + "PASSWORD"
+        with tempfile.TemporaryDirectory(prefix="pns-review-secret-fixture-") as directory:
+            try:
+                abs_path.write_text(f"{user}\n{password}\n", encoding="utf-8")
+                completed = _run_review_snapshot_export(
+                    output_directory=directory,
+                    include_uncommitted=[rel.as_posix()],
+                    dry_run=True,
+                )
+                combined = completed.stdout + completed.stderr
+                self.assertNotEqual(completed.returncode, 0)
+                self.assertIn("Secret indicator detected", combined)
+                self.assertIn(rel.name, combined)
+                # Ensure raw credential values were not emitted (fixture has names only).
+                self.assertNotRegex(combined, rf"{user}\s*[:=]\s*\S+")
+                self.assertNotRegex(combined, rf"{password}\s*[:=]\s*\S+")
+            finally:
+                if abs_path.exists():
+                    abs_path.unlink()
 
 
 class ValidationRunnerTests(unittest.TestCase):
@@ -243,6 +263,7 @@ class IgnoreAndSnapshotTests(unittest.TestCase):
             ".vscode/",
             "/Puzzle_Survival_Runtime_POC*.zip",
             "/*.7z",
+            "tests/fixtures/_tmp_*",
             "*.py[cod]",
             ".ruff_cache/",
             ".mypy_cache/",
@@ -268,35 +289,119 @@ class IgnoreAndSnapshotTests(unittest.TestCase):
 
     def test_snapshot_export_denies_bulk_and_secrets(self) -> None:
         fixture = ROOT / "tests" / "fixtures" / "review_snapshot_secret_names.py"
-        self.assertIn("UNRAID_TEMP_USERNAME", fixture.read_text(encoding="utf-8"))
-        out = ROOT / ".local-orchestrator" / "review-exports-test"
-        out.mkdir(parents=True, exist_ok=True)
-        completed = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-File",
-                str(ROOT / "scripts" / "export-review-snapshot.ps1"),
-                "-OutputDirectory",
-                str(out),
-                "-DryRun",
-            ],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(completed.returncode, 0, msg=completed.stderr)
-        payload = json.loads(completed.stdout)
-        self.assertTrue(payload["ok"])
-        joined = " ".join(payload["intentional_policy_exclusions"])
-        self.assertIn(".git/", joined)
-        self.assertIn(".local-captures/", joined)
-        self.assertIn("evidence/", joined)
-        # Existing user archives must remain untouched.
-        user_zip = ROOT / "Puzzle_Survival_Runtime_POC.zip"
-        if user_zip.exists():
-            before = user_zip.stat().st_mtime_ns
-            self.assertEqual(user_zip.stat().st_mtime_ns, before)
+        stub = fixture.read_text(encoding="utf-8")
+        self.assertIn("ephemeral-only", stub)
+        self.assertNotIn("UNRAID_TEMP_" + "USERNAME", stub)
+        self.assertNotIn("UNRAID_TEMP_" + "PASSWORD", stub)
+        with tempfile.TemporaryDirectory(prefix="pns-review-export-ok-") as directory:
+            completed = _run_review_snapshot_export(output_directory=directory, dry_run=True)
+            self.assertEqual(completed.returncode, 0, msg=completed.stderr)
+            payload = json.loads(completed.stdout)
+            self.assertTrue(payload["ok"])
+            joined = " ".join(payload["intentional_policy_exclusions"])
+            self.assertIn(".git/", joined)
+            self.assertIn(".local-captures/", joined)
+            self.assertIn("evidence/", joined)
+            # Existing user archives must remain untouched.
+            user_zip = ROOT / "Puzzle_Survival_Runtime_POC.zip"
+            if user_zip.exists():
+                before = user_zip.stat().st_mtime_ns
+                self.assertEqual(user_zip.stat().st_mtime_ns, before)
+
+    def test_exporter_source_self_reference_does_not_fail_secret_scan(self) -> None:
+        source = EXPORTER_SCRIPT.read_text(encoding="utf-8")
+        rsa = "BEGIN RSA " + "PRIVATE KEY"
+        openssh = "BEGIN OPENSSH " + "PRIVATE KEY"
+        ec = "BEGIN EC " + "PRIVATE KEY"
+        self.assertNotIn(rsa, source)
+        self.assertNotIn(openssh, source)
+        self.assertNotIn(ec, source)
+        self.assertIn("Get-PrivateKeyHeaderMarkers", source)
+        with tempfile.TemporaryDirectory(prefix="pns-review-self-ref-") as directory:
+            completed = _run_review_snapshot_export(output_directory=directory, dry_run=True)
+            combined = completed.stdout + completed.stderr
+            self.assertEqual(completed.returncode, 0, msg=combined)
+            self.assertNotIn("scripts/export-review-snapshot.ps1", combined)
+
+    def test_genuine_private_key_header_is_rejected_fail_closed(self) -> None:
+        # Synthetic header only; no reusable key material. Path must not be prefix-denied so
+        # content scanning runs.
+        marker = "BEGIN " + "RSA " + "PRIVATE KEY"
+        rel = Path("tests") / "fixtures" / f"_tmp_synthetic_pk_header_{os.getpid()}.txt"
+        abs_path = ROOT / rel
+        with tempfile.TemporaryDirectory(prefix="pns-review-genuine-secret-") as directory:
+            try:
+                abs_path.write_text(
+                    f"-----{marker}-----\nSYNTHETIC_TEST_MATERIAL_NOT_A_KEY\n",
+                    encoding="utf-8",
+                )
+                completed = _run_review_snapshot_export(
+                    output_directory=directory,
+                    include_uncommitted=[rel.as_posix()],
+                    dry_run=True,
+                )
+                combined = completed.stdout + completed.stderr
+                self.assertNotEqual(completed.returncode, 0)
+                self.assertIn("Secret indicator detected", combined)
+                self.assertIn(rel.name, combined)
+                self.assertNotIn("SYNTHETIC_TEST_MATERIAL_NOT_A_KEY", combined)
+            finally:
+                if abs_path.exists():
+                    abs_path.unlink()
+
+    def test_export_output_directory_is_not_rescanned_as_source(self) -> None:
+        marker = "BEGIN " + "EC " + "PRIVATE KEY"
+        token = f"{os.getpid()}-{os.urandom(4).hex()}"
+        out_rel = Path("tests") / "fixtures" / f"_tmp_review_export_out_{token}"
+        out = ROOT / out_rel
+        stale = out / "prior-export-secret.txt"
+        with tempfile.TemporaryDirectory(prefix="pns-review-unrelated-ignored-") as unrelated:
+            # Unrelated ignored local output must not change the result.
+            Path(unrelated, "noise.txt").write_text("unrelated", encoding="utf-8")
+            try:
+                out.mkdir(parents=True, exist_ok=True)
+                stale.write_text(f"-----{marker}-----\nstale-export-body\n", encoding="utf-8")
+                # Without output-directory exclusion this allowlisted nested secret would fail.
+                completed = _run_review_snapshot_export(
+                    output_directory=out,
+                    include_uncommitted=[(out_rel / "prior-export-secret.txt").as_posix()],
+                    dry_run=True,
+                )
+                self.assertEqual(completed.returncode, 0, msg=completed.stderr + completed.stdout)
+                payload = json.loads(completed.stdout)
+                self.assertTrue(payload["ok"])
+            finally:
+                if stale.exists():
+                    stale.unlink()
+                if out.exists():
+                    for child in out.iterdir():
+                        if child.is_file():
+                            child.unlink()
+                    try:
+                        out.rmdir()
+                    except OSError:
+                        pass
+
+    def test_review_export_temp_dirs_are_independent_across_runs(self) -> None:
+        first = tempfile.mkdtemp(prefix="pns-review-indep-a-")
+        second = tempfile.mkdtemp(prefix="pns-review-indep-b-")
+        try:
+            self.assertNotEqual(Path(first).resolve(), Path(second).resolve())
+            a = _run_review_snapshot_export(output_directory=first, dry_run=True)
+            b = _run_review_snapshot_export(output_directory=second, dry_run=True)
+            self.assertEqual(a.returncode, 0, msg=a.stderr)
+            self.assertEqual(b.returncode, 0, msg=b.stderr)
+            self.assertTrue(json.loads(a.stdout)["ok"])
+            self.assertTrue(json.loads(b.stdout)["ok"])
+        finally:
+            for path in (first, second):
+                for child in Path(path).glob("*"):
+                    if child.is_file():
+                        child.unlink()
+                try:
+                    Path(path).rmdir()
+                except OSError:
+                    pass
 
 
 class InvariantTests(unittest.TestCase):

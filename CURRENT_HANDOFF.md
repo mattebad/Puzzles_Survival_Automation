@@ -2,9 +2,9 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "pending containing commit: feat(automation): limit completed flows per parent conversation",
+  "head": "pending containing commit: fix(automation): isolate review snapshot secret scanning",
   "ahead_behind": {
-    "ahead": 25,
+    "ahead": 26,
     "behind": 0
   },
   "attributable_dirty_paths": [],
@@ -17,7 +17,7 @@
     ".local-reference/**",
     ".local-captures/**"
   ],
-  "current_task_id": "FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER",
+  "current_task_id": "FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION",
   "current_task_state": "completed",
   "next_task_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
   "next_task_activation_status": "ready",
@@ -45,20 +45,20 @@
     "rollover_stop_reason": null,
     "note": "Maintenance task completions do not increment gameplay-flow counts; new parent identities start at zero."
   },
-  "latest_focused_validation_result": "parent-conversation rollover focused + orchestrator/IDE/token-hygiene/governance gates passed",
-  "latest_full_suite_result": "987 passed; 1 skipped; 2 pre-existing review-snapshot exporter self-scan failures",
+  "latest_focused_validation_result": "review-snapshot secret-scan isolation focused hygiene + governance gates passed",
+  "latest_full_suite_result": "993 passed; 1 skipped; 0 failures (994 tests)",
   "current_live_attempt_state": "none",
   "current_evidence_or_session_reference": null,
-  "last_safe_completed_step": "FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER offline orchestration hygiene completed; Campaign remains first ready; Ultimate Challenge remains second ready; no lease, runtime owner, writable agent, unresolved consequential action, registration/scheduler change, subagents, runtime input, or push.",
+  "last_safe_completed_step": "FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION offline exporter/test isolation completed; Campaign remains first ready; Ultimate Challenge remains second ready; no lease, runtime owner, writable agent, unresolved consequential action, registration/scheduler change, gameplay-flow count increment, subagents, runtime input, or push.",
   "exact_next_permitted_action": "Stop after the containing local commit. Campaign remains first ready and may only be activated as a separate subsequent task; Ultimate Challenge remains a distinct later flow. Intended loop entry: /loop Load and follow `.cursor/commands/pns-flow-delivery-loop.md` exactly. No runtime input or push is authorized here.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Any BlueStacks/Bliss/Unraid/ADB input; any subagent invocation during this completed hygiene task; activating Campaign or Ultimate Challenge inside this completed task; enabling registration or gameplay scheduling; inventing a second authoritative completed-flow maximum outside tasks/flow_delivery_loop_policy.json.",
+  "prohibited_repeated_action": "Any BlueStacks/Bliss/Unraid/ADB input; any subagent invocation during this completed maintenance task; activating Campaign or Ultimate Challenge inside this completed task; enabling registration or gameplay scheduling; weakening secret detection via broad exclusions; counting this maintenance task as a completed gameplay flow.",
   "recent_relevant_commits": [
-    "feat(automation): limit completed flows per parent conversation (containing commit)",
+    "fix(automation): isolate review snapshot secret scanning (containing commit)",
+    "8c8e74e feat(automation): limit completed flows per parent conversation",
     "0609eb8 chore(automation): reduce flow delivery context",
     "72b07a7 fix(automation): separate campaign and ultimate challenge flows",
-    "20811eb fix(automation): keep flow delivery in Cursor IDE",
-    "ba2a4d6 feat(automation): add serial flow delivery orchestrator"
+    "20811eb fix(automation): keep flow delivery in Cursor IDE"
   ],
   "process_deviations": [
     "RUNTIME-INPUT-CAPABILITY-FIREWALL required a fourth correction cycle beyond the original three-cycle model; reviewed implementation remains preserved.",
@@ -81,7 +81,7 @@
   },
   "evidence": {
     "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Offline parent-conversation rollover hygiene creates no runtime evidence manifest and must not recursively inspect evidence/**.",
+    "evidence_requirement_reason": "Offline review-snapshot secret-scan isolation creates no runtime evidence manifest and must not recursively inspect evidence/**.",
     "active_evidence_manifest": null,
     "do_not_recursively_inspect_parent_evidence_tree": true
   }
@@ -94,14 +94,14 @@ Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and reta
 
 ## Repository
 - Branch: `main`
-- HEAD: pending containing commit `feat(automation): limit completed flows per parent conversation`
-- Ahead/behind `origin/main`: 25 / 0 after that commit
+- HEAD: pending containing commit `fix(automation): isolate review snapshot secret scanning`
+- Ahead/behind `origin/main`: 26 / 0 after that commit
 - Attributable dirty paths: none after commit
 - Protected user-owned paths: `.cursorindexingignore` residual user-owned lines, `.specstory/**`, `.vscode/**`, project ZIP archives, `evidence/**`, `.local-reference/**`, `.local-captures/**`
 - Push: prohibited
 
 ## Current task
-- Completed: `FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER`
+- Completed: `FLOW-DELIVERY-REVIEW-SNAPSHOT-SECRET-SCAN-ISOLATION`
 - First ready flow: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` (not activated)
 - Next ready flow: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`
 - Active delivery stage / lease / runtime owner / writable agent: none / absent / none / absent

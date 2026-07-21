@@ -38,6 +38,9 @@ Thumbs.db
 /Puzzle_Survival_Runtime_POC*.zip
 /*.7z
 
+# Ephemeral review-snapshot exporter test outputs under fixtures/
+tests/fixtures/_tmp_*
+
 # Future raw captures are local by default; canonical evidence, fixtures, templates, and manifests
 # remain explicitly trackable under evidence/.
 /evidence/sessions/*/raw/
