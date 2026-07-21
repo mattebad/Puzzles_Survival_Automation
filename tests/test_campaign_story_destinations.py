@@ -102,6 +102,9 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
             for item in queue["flows"]
             if item["flow_id"] == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
         )
+        ultimate["status"] = "ready"
+        ultimate["last_completed_stage"] = None
+        ultimate["blocked_reason"] = ""
         campaign["status"] = "completed"
         campaign["last_completed_stage"] = "completed"
         self.assertEqual(ultimate["status"], "ready")
@@ -112,6 +115,7 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         ultimate["last_completed_stage"] = "completed"
         campaign["status"] = "ready"
         campaign["last_completed_stage"] = None
+        campaign["blocked_reason"] = ""
         selected_campaign = control.FlowDeliveryController().select_next(queue)
         self.assertEqual(
             selected_campaign["flow_id"],
@@ -125,17 +129,20 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         self.assertNotIn("ultimate-challenge", campaign["supported_story_destinations"])
         self.assertIn("ultimate-challenge", campaign["rejected_destinations"])
 
-    def test_queue_still_selects_campaign_first(self) -> None:
+    def test_queue_selects_first_current_ready_flow(self) -> None:
         selected = control.FlowDeliveryController().select_next(self.queue)
         self.assertEqual(
             selected["flow_id"],
-            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+            "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
         )
 
     def test_next_after_campaign_follows_corrected_order(self) -> None:
         queue = deepcopy(self.queue)
         queue["flows"][0]["status"] = "blocked"
         queue["flows"][0]["blocked_reason"] = "test blocker"
+        queue["flows"][1]["status"] = "ready"
+        queue["flows"][1]["last_completed_stage"] = None
+        queue["flows"][1]["blocked_reason"] = ""
         selected = control.FlowDeliveryController().select_next(queue)
         self.assertEqual(selected["flow_id"], "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
 

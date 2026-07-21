@@ -20,6 +20,7 @@ id_ed25519*
 .local-captures/
 .local-orchestrator/
 .local-reference/
+.cursor/plans/
 .specstory/
 .vscode/
 .venv/

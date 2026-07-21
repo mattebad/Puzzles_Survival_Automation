@@ -2,31 +2,14 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "e0ac27325a214ff26bfada1343ba36df5b120679",
+  "head": "7f4012a62317a09b6be89a86ad145f24c8cc4db4",
   "ahead_behind": {
-    "ahead": 30,
+    "ahead": 0,
     "behind": 0
   },
-  "attributable_dirty_paths": [
-    "CURRENT_HANDOFF.md",
-    "docs/flow_delivery_coverage.md",
-    "scripts/bluestacks_ultimate_challenge.py",
-    "scripts/flow_delivery_ultimate_challenge_bluestacks.py",
-    "scripts/home_atlas_bluestacks.py",
-    "scripts/pnsctl.py",
-    "tasks/backlog_task_index.json",
-    "tasks/flow_delivery_bluestacks_registry.json",
-    "tasks/flow_delivery_coverage.json",
-    "tasks/flow_delivery_queue.json",
-    "tasks/ultimate_challenge_daily.py",
-    "tests/test_flow_delivery_ide_native_hardening.py",
-    "tests/test_flow_delivery_orchestrator.py",
-    "tests/test_flow_delivery_token_context_hygiene.py",
-    "tests/test_home_atlas_verified_route.py",
-    "tests/test_ultimate_challenge_daily.py"
-  ],
+  "attributable_dirty_paths": [],
   "protected_user_owned_paths": [
-    ".cursorindexingignore (pre-existing user-owned modification outside allowlisted hunks)",
+    ".cursor/plans/** (accepted Cursor plan; ignored and not edited during implementation)",
     ".specstory/**",
     ".vscode/**",
     "Puzzle_Survival_Runtime_POC.zip",
@@ -34,9 +17,9 @@
     ".local-reference/**",
     ".local-captures/**"
   ],
-  "current_task_id": "GAMEPLAY-FLOW-CONTRACTS-AND-SCHEDULER-FOUNDATION",
+  "current_task_id": "GF-MVP-001-AUTHORITY-BASELINE",
   "current_task_state": "completed",
-  "next_task_id": "NOVA-PRAISE-LIVE-EVIDENCE-ACQUISITION",
+  "next_task_id": "GF-MVP-002-MINIMUM-CONTRACT-V2",
   "next_task_activation_status": "ready",
   "active_task_or_flow": "none",
   "active_delivery_stage": null,
@@ -49,7 +32,7 @@
   },
   "first_ready_flow": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
   "next_ready_flow": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
-  "development_lease_state": "none",
+  "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "absent",
   "unresolved_action_state": "clear",
@@ -60,25 +43,25 @@
     "completed_gameplay_flows_this_parent": 0,
     "rollover_required": false,
     "rollover_stop_reason": null,
-    "note": "Architecture task offline; flow-delivery queue not activated."
+    "note": "GF-MVP-001 offline baseline only; flow-delivery queue not activated."
   },
-  "latest_focused_validation_result": "41 OK (home_context, flow_contracts, nova_pulse, scheduler_invocation, nova_praise, scheduler, sqlite, task_state)",
-  "latest_full_suite_result": "1056 ran; 11 FAIL baseline from pre-existing dirty Campaign/Ultimate queue state; 0 new failures in architecture components",
+  "latest_focused_validation_result": "74 tests passed (governance, queue/orchestrator, Campaign/Ultimate separation, rollover, indexing/context hygiene)",
+  "latest_full_suite_result": "1056 tests passed; 1 expected skip; 0 failures/errors",
   "current_live_attempt_state": "none",
   "current_evidence_or_session_reference": null,
-  "last_safe_completed_step": "Gameplay flow contracts + Home context primitives + scheduler invocation state + Nova Praise pulse/replay foundation committed offline.",
-  "exact_next_permitted_action": "Acquire retained Nova Praise replay fixtures (localized noncanonical Home, zoomed-in Home, Research Lab visible/offscreen, radial, Nova Lab, Praise available/cooldown/zero) under supervised capture; do not claim Nova live-complete; do not activate production scheduler.",
-  "current_blocker": "Nova Praise PNG fixtures mostly required_evidence; supervised live Praise postcondition not acquired in this task.",
-  "prohibited_repeated_action": "Live BlueStacks/ADB gameplay input; production scheduler activation; flow-delivery queue activation for this architecture work; push; fabricating missing fixtures.",
+  "last_safe_completed_step": "GF-MVP-001 classified every observed baseline failure/error and reconciled repository authority without runtime input.",
+  "exact_next_permitted_action": "Activate GF-MVP-002-MINIMUM-CONTRACT-V2 offline only; do not acquire runtime ownership or activate the flow queue.",
+  "current_blocker": null,
+  "prohibited_repeated_action": "BlueStacks/ADB/Bliss input before GF-MVP-009; Campaign or Ultimate retries; Nova Praise; queue or production scheduler activation; evidence fabrication or deletion; push.",
   "recent_relevant_commits": [
-    "0708b8f feat(campaign): Home Atlas destinations + block live on zoomed_in",
-    "5c8e99f fix(automation): add preToolUse Task routing gate",
-    "57d25ba fix(automation): isolate review snapshot secret scanning",
-    "8c8e74e feat(automation): limit completed flows per parent conversation",
-    "0609eb8 chore(automation): reduce flow delivery context"
+    "7f4012a chore: baseline Ultimate Challenge and flow-delivery dirty tree",
+    "7b653df docs(handoff): record gameplay foundation commit heads",
+    "e0ac273 fix(gameplay): reconcile Nova proof evidence",
+    "b41bcd0 feat(gameplay): add flow contracts and Nova pulse foundation",
+    "0708b8f feat(campaign): Home Atlas destinations + block live on zoomed_in"
   ],
   "process_deviations": [
-    "Pre-existing uncommitted Ultimate Challenge / Campaign queue dirty tree left untouched; full-suite baseline failures attributed to that dirty queue state."
+    "Campaign/Ultimate placeholder-evidence behavior is a confirmed latent production defect assigned only to GF-MVP-006."
   ],
   "registration_and_scheduler": {
     "registered_operator_tasks": "NOT_REGISTERED_UNCHANGED",
@@ -95,8 +78,8 @@
     "historical_unresolved_classification": "No active unresolved consequential action; historical unresolved snapshots remain retained evidence only."
   },
   "evidence": {
-    "evidence_requirement": "REQUIRED_FOR_NOVA_REPLAY_FIXTURES",
-    "evidence_requirement_reason": "Most Nova Praise replay fixtures remain required_evidence; only canonical Home tile is available in-repo.",
+    "evidence_requirement": "NOT_APPLICABLE",
+    "evidence_requirement_reason": "GF-MVP-001 is offline repository baseline work and creates no gameplay evidence.",
     "active_evidence_manifest": null,
     "do_not_recursively_inspect_parent_evidence_tree": true
   }
@@ -108,11 +91,12 @@
 Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and retained evidence.
 
 ## Repository
-- Branch: `main` @ `e0ac273`
-- Architecture task: **completed** offline (flow contracts, Home context, scheduler invocation state, Nova pulse/replay)
+- Branch: `main` @ `7f4012a`
+- `GF-MVP-001-AUTHORITY-BASELINE`: **completed** offline pending its focused commit
 - Flow-delivery queue: **not activated**
 - Runtime ownership: none
 - Push: prohibited
 
 ## Exact next action
-Acquire supervised Nova Praise replay fixtures listed as `required_evidence`; do not dispatch live Praise except under separate supervised authorization; do not mark Nova live-complete.
+Activate `GF-MVP-002-MINIMUM-CONTRACT-V2` offline only after the baseline commit. Do not acquire
+runtime ownership, activate the queue, or issue gameplay input.

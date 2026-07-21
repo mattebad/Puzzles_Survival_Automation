@@ -4986,7 +4986,9 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION
 - Task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.
 - Title: Migrate Campaign AP entry to Home Atlas and verified destination navigation.
-- Status: Ready; first ready development-queue flow, not activated.
+- Status: Blocked (2026-07-21; three retained navigation-only attempts exhausted the checked-in
+  live budget on shared Home zoom/localization preparation; implementation and evidence are
+  preserved, and no retry is authorized by this status).
 - Scope: replace legacy `HOME_PAN_GESTURES` with canonical Home Atlas entry; recognize Campaign
   Story mode; support difficulty 1 and 2; feedback-controlled Stage selection for Stages 20, 15,
   and 2; Chapter 9 selection; exact tuple verification for only `1-20-9`, `1-15-9`, and `2-2-9`;
@@ -5003,7 +5005,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION
 - Task ID: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`.
 - Title: Integrate Ultimate Challenge daily task as a distinct BlueStacks flow.
-- Status: Ready; second development-queue flow after Campaign; not activated; not implemented.
+- Status: Blocked (2026-07-21; offline implementation retained, but the parent stopped before a
+  terminal navigation-only live path and no live attempt is authorized by this status).
 - Scope: recognized Home → Home Atlas navigation to Campaign → verified Campaign screen → verified
   Ultimate Challenge entry → determine whether today’s action is still required → execute only an
   authorized daily action → verify completion or `already_completed` → record daily/reset state →
@@ -5018,6 +5021,116 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Authority: full normalized task state is in `tasks/flow_delivery_queue.json` and
   `tasks/flow_delivery_product_policy.json`; this dormant pointer does not activate implementation.
 
+### GF-MVP-001-AUTHORITY-BASELINE
+- Task ID: `GF-MVP-001-AUTHORITY-BASELINE`.
+- Title: Restore a truthful green Gameplay Flow Factory baseline.
+- Status: Completed (2026-07-21; every observed failure/error classified, authoritative pointers
+  reconciled, mutable queue tests isolated, check mode made read-only, and required validation
+  returned green without gameplay input).
+- Milestone: Gameplay Flow Factory Milestone A.
+- Dependencies: accepted Replay-Driven Gameplay Flow Factory plan; repository HEAD `7f4012a`;
+  inactive flow queue; absent development/runtime ownership; no unresolved consequential action.
+- Blocked by: None after the failure-by-failure diagnostic ledger identifies and corrects every
+  current baseline issue.
+- Objective: produce one clean, truthful, passing repository baseline before any gameplay-flow
+  factory behavior changes.
+- Established facts: Campaign and Ultimate Challenge are blocked in the development queue; Nova is
+  the first ready flow; configuration does not prove production identity; production registration
+  and scheduling remain disabled; Campaign/Ultimate placeholder evidence is a confirmed latent
+  defect owned by `GF-MVP-006-EXECUTABLE-AND-EVIDENCE-INTEGRITY` because it did not cause the
+  observed baseline failures.
+- Direct implementation files: `BACKLOG.md`, `CURRENT_HANDOFF.md`, `.gitignore`,
+  `.cursorindexingignore`, `docs/validation/gf-mvp-001-failure-ledger.json`,
+  `scripts/flow_delivery_context.py`, `tasks/backlog_task_index.json`,
+  `tests/test_campaign_story_destinations.py`, `tests/test_flow_delivery_orchestrator.py`,
+  `tests/test_flow_delivery_parent_conversation_rollover.py`,
+  `tests/test_flow_delivery_token_context_hygiene.py`, and
+  `tests/test_governance_validation.py`.
+- Shared dependencies: existing queue/policy schemas, governance validator, immutable retained
+  evidence, accepted Cursor plan, and existing production implementations; no runtime dependency.
+- Transitive regression set: governance, queue selection, Campaign/Ultimate separation, parent
+  rollover, context/index generation, token/indexing hygiene, and the full repository suite.
+- Allowed changes: only the direct implementation files and reviewed hunks above; expected commit
+  allowed paths are exactly those files; no Campaign/Ultimate wrapper edit because the defect is
+  latent and assigned to `GF-MVP-006`.
+- Prohibited changes: gameplay behavior, queue activation, live input, lease acquisition,
+  Campaign/Ultimate evidence-wrapper correction, Nova branch admission, evidence deletion,
+  production registration/scheduling, Bliss/Unraid changes, plan-file edits, reset/clean/restore,
+  amend/rebase/squash, or push.
+- Authorized runtime action: None; offline repository validation only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden.
+- Consequential action: Forbidden.
+- Registration changes: None; preserve `NOT_REGISTERED_UNCHANGED`.
+- Scheduler changes: None; preserve `DISABLED/INELIGIBLE`.
+- Actions that must not be repeated: Campaign live attempts, Ultimate Challenge input, Nova Praise,
+  prior Daily actions, any unresolved historical transport, evidence acquisition, or any
+  BlueStacks/ADB/Bliss input.
+- Required source: Git state, queue/policy/coverage, backlog/handoff, current tests, current
+  `.cursorindexingignore`, prior full-suite output, and exact production/test code referenced by
+  each ledger entry.
+- Exact target semantics: every current test failure/error receives one allowed classification,
+  root cause, correct code owner, exact correction, and supporting repository evidence.
+- Required local association: branch `main`; queue inactive; no flow/lease/runtime/writer; current
+  task `GF-MVP-001-AUTHORITY-BASELINE`; successor `GF-MVP-002-MINIMUM-CONTRACT-V2`.
+- Negative controls: changing queue facts to satisfy stale tests, making tests accept arbitrary
+  state, waiving unknown failures, mutating tracked indexes in check mode, fabricating evidence,
+  or correcting the same wrapper defect in two tasks.
+- Coordinate space: None; no frame or coordinate operation.
+- Accepted signals: complete diagnostic ledger, truthful backlog/handoff/queue alignment, immutable
+  production queue history, read-only test/check mode, focused tests green, full suite green, and a
+  clean attributable working tree.
+- Rejected weak signals: test-count reduction, skipped failures, stale comments, file existence,
+  transport claims, or a passing subset with an unexplained full-suite failure.
+- Ambiguous-result behavior: classify `unknown`, keep the task incomplete, and stop without
+  downstream implementation.
+- Zero-cost requirement: no game resource, AP, stamina, currency, material, or march use.
+- Quantity limits: one atomic baseline task, one failure-ledger entry per observed failure/error,
+  one focused commit, and zero runtime inputs.
+- Resource consumption policy: no gameplay resource consumption.
+- Premium or strategic restrictions: all premium, purchase, claim, Praise, battle, march,
+  enhancement, training, and unidentified consequential behavior remains prohibited.
+- Active evidence manifest: None.
+- Required artifacts: the failure ledger, corrected authority files, read-only index behavior,
+  focused/full validation receipts, regenerated backlog index, and clean Git status.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs.
+- Additional task-specific artifacts: `docs/validation/gf-mvp-001-failure-ledger.json`; the accepted
+  Cursor plan remains local and ignored, not deleted or edited.
+- Focused tests: `tests.test_governance_validation`,
+  `tests.test_flow_delivery_orchestrator`, `tests.test_campaign_story_destinations`,
+  `tests.test_flow_delivery_parent_conversation_rollover`, and
+  `tests.test_flow_delivery_token_context_hygiene`.
+- Integration tests: queue validation/selection against isolated fixtures; governance profile;
+  backlog index build/check without tracked mutation.
+- Transitive regression tests: all tests touching Campaign/Ultimate queue state, handoff,
+  registration/scheduler isolation, evidence indexing, and context packets.
+- Full-suite requirement: authoritative `python -m unittest discover -s tests -p "test_*.py"`.
+- Validators: structured handoff parse, governance validation, backlog-index determinism,
+  `git diff --check`, focused tests, full suite, and clean attributable Git status.
+- Known baseline failures: 14 failures and 6 errors from the observed 1,056-test run, all
+  individually classified and corrected by the task-local diagnostic ledger.
+- Evidence requirement: NOT_APPLICABLE — this offline baseline task creates no gameplay evidence.
+- Valid blocked outcomes: any unexplained failure, real gameplay/shared-runtime regression outside
+  the owned correction scope, repository interference, or inability to establish single ownership
+  for the Campaign/Ultimate evidence-integrity defect.
+- Blocked-result commit policy: retain the diagnostic ledger and exact blocker only when useful,
+  keep runtime/queue inactive, do not claim completion, and no push.
+- Commit policy: one reviewed conventional commit after focused/full validation; stage only allowed
+  paths; no push unless explicitly authorized.
+- Expected focused commits: `fix(flow-factory): restore truthful baseline`.
+- Completion criteria: all observed failures/errors are classified; production/test corrections
+  follow authority; Campaign/Ultimate statuses are truthful; the latent evidence-wrapper defect is
+  assigned only to `GF-MVP-006`; required tests pass; index checks are read-only; queue/runtime/
+  scheduler remain inactive; working tree is clean; one focused commit exists; no push.
+
+### GF-MVP-002-MINIMUM-CONTRACT-V2
+- Task ID: `GF-MVP-002-MINIMUM-CONTRACT-V2`.
+- Title: Add the minimum executable contract v2 surface.
+- Status: Ready; declared Milestone A successor, not yet active.
+- Scope: extend only the existing gameplay-flow contract loader for Nova Praise, the
+  `nova_navigation_round_trip_no_praise` scenario, and the Personal Might/Praise Bliss pilot.
+- Authority: the accepted Gameplay Flow Factory plan; this pointer does not activate implementation,
+  runtime input, queue delivery, production registration, or scheduling.
 
 
 

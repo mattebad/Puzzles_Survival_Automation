@@ -86,9 +86,15 @@ class ParentConversationRolloverControllerTests(unittest.TestCase):
         loop_policy = root / "loop_policy.json"
         payload = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
         for flow in payload["flows"]:
-            if flow["status"] == "active":
+            if flow["flow_id"] in {CAMPAIGN, ULTIMATE, NOVA}:
                 flow["status"] = "ready"
-                flow["last_completed_stage"] = "selected"
+                flow["last_completed_stage"] = None
+                flow["blocked_reason"] = ""
+                flow["live_attempt_count"] = 0
+                flow["live_attempts"] = []
+            elif flow["status"] == "active":
+                flow["status"] = "ready"
+                flow["last_completed_stage"] = None
                 flow["blocked_reason"] = ""
         payload["active_flow_id"] = None
         queue.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

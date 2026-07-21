@@ -1,0 +1,261 @@
+{
+  "schema_version": 1,
+  "task_id": "GF-MVP-001-AUTHORITY-BASELINE",
+  "observed_command": "python -m unittest discover -s tests -p \"test_*.py\"",
+  "observed_result": {
+    "tests_run": 1056,
+    "failures": 14,
+    "errors": 6,
+    "skipped": 1
+  },
+  "allowed_classifications": [
+    "stale expectation",
+    "test-isolation defect",
+    "mutable queue-fixture defect",
+    "generated-index/check-mode defect",
+    "stale handoff/backlog pointer",
+    "executable/evidence-integrity defect",
+    "real gameplay regression",
+    "real shared-runtime regression",
+    "unknown"
+  ],
+  "entries": [
+    {
+      "test_identifier": "test_flow_delivery_token_context_hygiene.ValidationRunnerTests.test_no_arbitrary_command_and_compact_success",
+      "classification": "stale handoff/backlog pointer",
+      "root_cause": "The governance validation profile consumed a handoff that named two backlog tasks which did not exist and therefore failed before producing a successful receipt.",
+      "incorrect_surface": "authoritative state",
+      "exact_correction": "Declare the active and successor GF-MVP tasks in BACKLOG.md, point CURRENT_HANDOFF.md at them, and retain the validation runner's fail-closed behavior.",
+      "evidence": [
+        "scripts/run_flow_delivery_validation.py raises when the governance profile fails",
+        "CURRENT_HANDOFF.md named GAMEPLAY-FLOW-CONTRACTS-AND-SCHEDULER-FOUNDATION and NOVA-PRAISE-LIVE-EVIDENCE-ACQUISITION",
+        "scripts/validate_governance.py task_block rejected both missing task IDs"
+      ]
+    },
+    {
+      "test_identifier": "test_governance_validation.GovernanceValidationTests.test_active_offline_collector_contract_is_complete",
+      "classification": "stale handoff/backlog pointer",
+      "root_cause": "The handoff current_task_id did not resolve to a BACKLOG.md section.",
+      "incorrect_surface": "authoritative state",
+      "exact_correction": "Add the complete GF-MVP-001 backlog contract and update the handoff current task.",
+      "evidence": [
+        "validate_governance.task_block raised missing backlog task",
+        "BACKLOG.md contained no GAMEPLAY-FLOW-CONTRACTS-AND-SCHEDULER-FOUNDATION section"
+      ]
+    },
+    {
+      "test_identifier": "test_governance_validation.GovernanceValidationTests.test_declared_successor_exists_without_becoming_active",
+      "classification": "stale handoff/backlog pointer",
+      "root_cause": "The declared successor NOVA-PRAISE-LIVE-EVIDENCE-ACQUISITION did not exist in BACKLOG.md.",
+      "incorrect_surface": "authoritative state and fixed test assumption",
+      "exact_correction": "Declare GF-MVP-002 as the ready successor and make the test validate the declared successor generically rather than a historical Campaign task.",
+      "evidence": [
+        "validate_governance.task_block raised missing backlog task",
+        "the accepted plan orders GF-MVP-002 after GF-MVP-001"
+      ]
+    },
+    {
+      "test_identifier": "test_governance_validation.GovernanceValidationTests.test_indexing_rules_exclude_raw_material_and_keep_lightweight_files",
+      "classification": "generated-index/check-mode defect",
+      "root_cause": "Required raw evidence and local-reference indexing exclusions had been removed from .cursorindexingignore.",
+      "incorrect_surface": "production configuration",
+      "exact_correction": "Restore every pattern required by validate_governance.REQUIRED_INDEXING_PATTERNS while keeping lightweight manifests indexable.",
+      "evidence": [
+        "validate_governance listed the exact missing patterns",
+        ".cursorindexingignore omitted evidence image/database/archive/raw/transfer patterns and .local-reference/**"
+      ]
+    },
+    {
+      "test_identifier": "test_governance_validation.GovernanceValidationTests.test_offline_evidence_requires_explicit_reason",
+      "classification": "stale handoff/backlog pointer",
+      "root_cause": "The evidence test could not reach evidence validation because the handoff current task was absent from BACKLOG.md.",
+      "incorrect_surface": "authoritative state",
+      "exact_correction": "Declare GF-MVP-001 with NOT_APPLICABLE evidence and an explicit reason, then point the handoff at it.",
+      "evidence": [
+        "failure occurred in task_block before validate_task_evidence",
+        "GF-MVP-001 performs offline repository work only"
+      ]
+    },
+    {
+      "test_identifier": "test_governance_validation.GovernanceValidationTests.test_repository_governance_contract_passes",
+      "classification": "stale handoff/backlog pointer",
+      "root_cause": "Repository governance validation failed on the nonexistent handoff current task.",
+      "incorrect_surface": "authoritative state",
+      "exact_correction": "Reconcile backlog and handoff task identity, status, evidence requirement, queue counts, and lease vocabulary.",
+      "evidence": [
+        "validate_repository failed in task_block",
+        "CURRENT_HANDOFF.md was pinned to e0ac273 while repository HEAD was 7f4012a"
+      ]
+    },
+    {
+      "test_identifier": "test_campaign_story_destinations.CampaignUltimateChallengeSeparationTests.test_completion_states_remain_independent",
+      "classification": "mutable queue-fixture defect",
+      "root_cause": "The test loaded the mutable production queue where Ultimate Challenge was blocked, then assumed it was ready for an independence scenario.",
+      "incorrect_surface": "test fixture",
+      "exact_correction": "Explicitly seed Ultimate Challenge ready in the copied scenario before testing independent completion.",
+      "evidence": [
+        "tasks/flow_delivery_queue.json records Ultimate Challenge blocked",
+        "the test's purpose is completion independence, not current readiness"
+      ]
+    },
+    {
+      "test_identifier": "test_campaign_story_destinations.CampaignUltimateChallengeSeparationTests.test_next_after_campaign_follows_corrected_order",
+      "classification": "mutable queue-fixture defect",
+      "root_cause": "The copied queue retained Ultimate Challenge's production blocked state while the test expected a hypothetical ready-order scenario.",
+      "incorrect_surface": "test fixture",
+      "exact_correction": "Seed Ultimate Challenge ready in the isolated copy before selecting the next hypothetical flow.",
+      "evidence": [
+        "controller correctly selected Nova as the first actual ready flow",
+        "queue order remains Campaign, Ultimate, Nova"
+      ]
+    },
+    {
+      "test_identifier": "test_campaign_story_destinations.CampaignUltimateChallengeSeparationTests.test_queue_still_selects_campaign_first",
+      "classification": "stale expectation",
+      "root_cause": "The test expected blocked Campaign to be selected from the current production queue.",
+      "incorrect_surface": "test expectation",
+      "exact_correction": "Assert selection of the first current ready flow, Nova, while preserving Campaign's blocked history.",
+      "evidence": [
+        "Campaign status is blocked with three exhausted live attempts",
+        "FlowDeliveryController correctly skips blocked flows"
+      ]
+    },
+    {
+      "test_identifier": "test_flow_delivery_orchestrator.FlowDeliveryCursorContractTests.test_lf_and_unrelated_historical_prose_are_preserved",
+      "classification": "stale expectation",
+      "root_cause": "The line-ending test hard-coded historical handoff task and Campaign strings instead of validating current structured identities.",
+      "incorrect_surface": "test expectation",
+      "exact_correction": "Keep the LF assertions and derive expected current/ready identities from the structured handoff.",
+      "evidence": [
+        "CURRENT_HANDOFF.md is volatile by repository policy",
+        "the test's primary purpose is LF and compact handoff integrity"
+      ]
+    },
+    {
+      "test_identifier": "test_flow_delivery_orchestrator.FlowDeliveryQueueTests.test_deterministic_selection_and_active_resume",
+      "classification": "stale expectation",
+      "root_cause": "The test hard-coded Campaign as the selected flow even when Campaign was blocked.",
+      "incorrect_surface": "test expectation",
+      "exact_correction": "Derive the expected flow from ready status, priority, and flow ID while retaining the active-resume assertion.",
+      "evidence": [
+        "queue selection_order is readiness, dependency, product_policy, priority, flow_id",
+        "Nova is the lowest-priority-number ready flow after blocked Campaign and Ultimate"
+      ]
+    },
+    {
+      "test_identifier": "test_flow_delivery_orchestrator.FlowDeliveryQueueTests.test_initial_order_and_normalized_counts",
+      "classification": "stale expectation",
+      "root_cause": "The test counted only three blocked flows and expected eight ready/active flows after Ultimate Challenge became blocked.",
+      "incorrect_surface": "test expectation",
+      "exact_correction": "Retain the 15-flow order and assert 7 ready, 4 blocked, and 4 product-decision flows.",
+      "evidence": [
+        "tasks/flow_delivery_queue.json has 15 entries",
+        "Campaign, Ultimate, Daily row, and Daily milestone are blocked"
+      ]
+    },
+    {
+      "test_identifier": "test_flow_delivery_orchestrator.FlowDeliveryQueueTests.test_ultimate_challenge_is_second_ready_flow",
+      "classification": "stale expectation",
+      "root_cause": "The metadata test still treated Ultimate Challenge as ready after its offline implementation was retained in blocked state.",
+      "incorrect_surface": "test expectation and backlog pointer",
+      "exact_correction": "Validate the retained runner/metadata while asserting blocked status, blocked stage, and a nonempty reason; align the backlog pointer.",
+      "evidence": [
+        "queue status and last_completed_stage are blocked",
+        "Ultimate implementation and registry files exist"
+      ]
+    },
+    {
+      "test_identifier": "test_flow_delivery_parent_conversation_rollover.ParentConversationRolloverControllerTests.test_new_parent_starts_at_zero_and_identities_are_isolated",
+      "classification": "mutable queue-fixture defect",
+      "root_cause": "The isolated controller copied production blocked states but the rollover scenario assumed Campaign, Ultimate, and Nova were a ready sequence.",
+      "incorrect_surface": "test fixture",
+      "exact_correction": "Normalize only Campaign, Ultimate, and Nova to ready with zero test attempts inside the temporary fixture.",
+      "evidence": [
+        "make_controller writes a temporary queue",
+        "the test exercises parent accounting, not current live readiness"
+      ]
+    },
+    {
+      "test_identifier": "test_flow_delivery_parent_conversation_rollover.ParentConversationRolloverControllerTests.test_non_counted_transitions_do_not_increment",
+      "classification": "mutable queue-fixture defect",
+      "root_cause": "Controller activation selected Nova from copied production state while the scenario expected Campaign.",
+      "incorrect_surface": "test fixture",
+      "exact_correction": "Use the same explicit ready-sequence fixture for rollover tests.",
+      "evidence": [
+        "production Campaign is blocked",
+        "temporary fixture is intended to test transition counting"
+      ]
+    },
+    {
+      "test_identifier": "test_flow_delivery_parent_conversation_rollover.ParentConversationRolloverControllerTests.test_rollover_enforcement_and_resume",
+      "classification": "mutable queue-fixture defect",
+      "root_cause": "The test expected Ultimate after Campaign completion without making Ultimate ready in its temporary queue.",
+      "incorrect_surface": "test fixture",
+      "exact_correction": "Normalize the three scenario flows in make_controller and preserve production queue state.",
+      "evidence": [
+        "production Ultimate status is blocked",
+        "rollover behavior requires a controlled hypothetical sequence"
+      ]
+    },
+    {
+      "test_identifier": "test_flow_delivery_token_context_hygiene.IgnoreAndSnapshotTests.test_gitignore_and_cursor_exclusions",
+      "classification": "generated-index/check-mode defect",
+      "root_cause": "The indexing configuration lacked required raw-evidence exclusions.",
+      "incorrect_surface": "production configuration",
+      "exact_correction": "Restore the required .cursorindexingignore patterns and retain the validator assertion.",
+      "evidence": [
+        "test expected evidence/**/*.png",
+        "validate_indexing_rules reported the complete missing set"
+      ]
+    },
+    {
+      "test_identifier": "test_flow_delivery_token_context_hygiene.InvariantTests.test_scheduler_registration_composition_remain_disabled",
+      "classification": "stale handoff/backlog pointer",
+      "root_cause": "The handoff used development_lease_state 'none' instead of the validated absent/held vocabulary and named historical next/ready flows.",
+      "incorrect_surface": "authoritative state and fixed test assumption",
+      "exact_correction": "Use lease state 'absent', declare GF-MVP-002 as successor, and derive first_ready_flow from the queue.",
+      "evidence": [
+        "journals_and_lease.development_lease_status already said absent",
+        "no flow-delivery lease file exists",
+        "Nova is the first current ready flow"
+      ]
+    },
+    {
+      "test_identifier": "test_flow_delivery_token_context_hygiene.ReadyFlowMetadataTests.test_campaign_and_ultimate_metadata",
+      "classification": "stale expectation",
+      "root_cause": "The test correctly validated metadata but incorrectly required Ultimate Challenge to be ready or active.",
+      "incorrect_surface": "test expectation",
+      "exact_correction": "Keep metadata checks and assert blocked status/stage/reason.",
+      "evidence": [
+        "queue retains complete Ultimate metadata while status is blocked",
+        "implementation existence does not authorize live readiness"
+      ]
+    },
+    {
+      "test_identifier": "test_governance_validation.GovernanceValidationTests.test_handoff_has_distinct_current_and_next_task_fields",
+      "classification": "stale handoff/backlog pointer",
+      "root_cause": "Both handoff and test asserted historical task IDs rather than the accepted GF-MVP sequence.",
+      "incorrect_surface": "authoritative state and test expectation",
+      "exact_correction": "Point the handoff at GF-MVP-001/GF-MVP-002 and validate current/successor existence and status generically.",
+      "evidence": [
+        "accepted plan orders GF-MVP-001 then GF-MVP-002",
+        "CURRENT_HANDOFF.md is volatile and must not be pinned by a historical test"
+      ]
+    }
+  ],
+  "latent_production_defects": [
+    {
+      "defect_id": "CAMPAIGN_ULTIMATE_PLACEHOLDER_EVIDENCE",
+      "classification": "executable/evidence-integrity defect",
+      "caused_observed_baseline_failure": false,
+      "owner": "GF-MVP-006-EXECUTABLE-AND-EVIDENCE-INTEGRITY",
+      "files": [
+        "scripts/flow_delivery_campaign_bluestacks.py",
+        "scripts/flow_delivery_ultimate_challenge_bluestacks.py"
+      ],
+      "observed_behavior": "The wrappers create empty events, ledger, capability-audit, or journal artifacts when the underlying operator omitted required evidence.",
+      "required_correction": "Missing required evidence must fail explicitly; zero-byte and fabricated substitutes are prohibited.",
+      "gf_mvp_001_action": "Record ownership only; do not edit either wrapper."
+    }
+  ]
+}

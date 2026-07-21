@@ -28,15 +28,19 @@ class GovernanceValidationTests(unittest.TestCase):
 
     def test_handoff_has_distinct_current_and_next_task_fields(self):
         state = validate_governance.parse_handoff()
-        self.assertEqual(
+        backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
+        current = validate_governance.task_block(backlog, state["current_task_id"])
+        successor = validate_governance.task_block(backlog, state["next_task_id"])
+        current_fields = validate_governance.validate_task_contract(
+            current,
             state["current_task_id"],
-            "FLOW-DELIVERY-PRETOOLUSE-TASK-ENFORCEMENT",
         )
-        self.assertEqual(state["current_task_state"], "blocked")
-        self.assertEqual(
-            state["next_task_id"],
-            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+        validate_governance.validate_active_task_state(
+            state,
+            current_fields,
+            state["current_task_id"],
         )
+        self.assertIn("Status: Ready", successor)
         self.assertEqual(
             state["next_task_activation_status"],
             "ready",
@@ -91,19 +95,7 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
         next_block = validate_governance.task_block(backlog, state["next_task_id"])
-        self.assertEqual(
-            state["next_task_id"],
-            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-        )
         self.assertIn("Status: Ready", next_block)
-        self.assertIn("HOME_PAN_GESTURES", next_block)
-        self.assertIn("`1-20-9`", next_block)
-        self.assertIn("`1-15-9`", next_block)
-        self.assertIn("`2-2-9`", next_block)
-        self.assertIn("Removed from the supported-destination contract", next_block)
-        self.assertIn("`1-2-9`", next_block)
-        self.assertIn("`ultimate-challenge`", next_block)
-        self.assertIn("reject Ultimate Challenge as a Campaign AP destination", next_block)
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
         validate_governance.validate_successor(backlog, state)
         validate_governance.validate_repository(ROOT)

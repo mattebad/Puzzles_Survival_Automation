@@ -222,6 +222,7 @@ def build_backlog_index(
     backlog_path: Path = BACKLOG_PATH,
     queue_path: Path = QUEUE_PATH,
     index_path: Path = INDEX_PATH,
+    persist: bool = False,
 ) -> dict[str, Any]:
     backlog_text = backlog_path.read_text(encoding="utf-8")
     if "\r\n" in backlog_text:
@@ -259,7 +260,8 @@ def build_backlog_index(
         "task_count": len(tasks),
         "tasks": tasks,
     }
-    _write_json(index_path, payload)
+    if persist:
+        _write_json(index_path, payload)
     return payload
 
 
@@ -751,7 +753,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "index":
-            payload = build_backlog_index()
+            payload = build_backlog_index(persist=True)
             print(
                 json.dumps(
                     {
@@ -766,7 +768,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "build":
             if not INDEX_PATH.is_file():
-                build_backlog_index()
+                build_backlog_index(persist=True)
             result = build_context_packet(
                 flow_id=args.flow_id,
                 stage=args.stage,

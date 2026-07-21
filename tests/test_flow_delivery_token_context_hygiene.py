@@ -95,7 +95,9 @@ class ReadyFlowMetadataTests(unittest.TestCase):
         self.assertNotIn("1-2-9", campaign["supported_story_destinations"])
         self.assertNotIn("ultimate-challenge", campaign["supported_story_destinations"])
         self.assertEqual(ultimate["flow_id"], ULTIMATE_ID)
-        self.assertIn(ultimate["status"], {"ready", "active"})
+        self.assertEqual(ultimate["status"], "blocked")
+        self.assertEqual(ultimate["last_completed_stage"], "blocked")
+        self.assertTrue(ultimate["blocked_reason"])
         self.assertEqual(ultimate["priority"], 15)
         self.assertIn("already_completed", ultimate["required_terminal_states"])
         self.assertIn("no Campaign AP coupling", " ".join(ultimate["scope_prohibitions"]))
@@ -112,9 +114,11 @@ class ReadyFlowMetadataTests(unittest.TestCase):
 
 class BacklogIndexTests(unittest.TestCase):
     def test_index_covers_queued_tasks_deterministically(self) -> None:
+        before = INDEX_PATH.read_bytes()
         first = context.build_backlog_index()
         second = context.build_backlog_index()
         self.assertEqual(first, second)
+        self.assertEqual(INDEX_PATH.read_bytes(), before)
         queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
         indexed = {item["task_id"] for item in first["tasks"]}
         for flow in queue["flows"]:
@@ -424,11 +428,12 @@ class InvariantTests(unittest.TestCase):
         self.assertIn(state["development_lease_state"], {"absent", "held"})
         self.assertEqual(state["runtime_ownership_state"], "none")
         self.assertEqual(state["writable_agent_state"], "absent")
-        self.assertIn(state["next_task_id"], {CAMPAIGN_ID, ULTIMATE_ID})
+        self.assertEqual(state["next_task_id"], "GF-MVP-002-MINIMUM-CONTRACT-V2")
         if queue["active_flow_id"] is None:
-            self.assertEqual(state["first_ready_flow"], CAMPAIGN_ID)
+            selected = control.FlowDeliveryController().select_next(queue)
+            self.assertEqual(state["first_ready_flow"], selected["flow_id"])
         else:
-            self.assertIn(queue["active_flow_id"], {CAMPAIGN_ID, ULTIMATE_ID})
+            self.assertEqual(state["first_ready_flow"], queue["active_flow_id"])
 
 
 if __name__ == "__main__":

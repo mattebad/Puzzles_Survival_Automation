@@ -54,14 +54,14 @@ class FlowDeliveryQueueTests(unittest.TestCase):
     def test_deterministic_selection_and_active_resume(self) -> None:
         controller = control.FlowDeliveryController()
         first = controller.select_next(self.queue)
-        # Active flow resumes when present (UC during this delivery); otherwise Campaign.
         if self.queue.get("active_flow_id"):
             self.assertEqual(first["flow_id"], self.queue["active_flow_id"])
         else:
-            self.assertEqual(
-                first["flow_id"],
-                "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+            expected = min(
+                (flow for flow in self.queue["flows"] if flow["status"] == "ready"),
+                key=lambda flow: (flow["priority"], flow["flow_id"]),
             )
+            self.assertEqual(first["flow_id"], expected["flow_id"])
         active = deepcopy(self.queue)
         for flow in active["flows"]:
             if flow["status"] == "active":
@@ -119,9 +119,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             for status in control.QUEUE_STATUSES
         }
         self.assertIn(counts["active"], (0, 1))
-        # Campaign + two Daily claim flows are blocked; remaining ready/active cohort is 8.
-        self.assertEqual(counts["ready"] + counts["active"], 8)
-        self.assertEqual(counts["blocked"], 3)
+        # Campaign, Ultimate Challenge, and two Daily claim flows are blocked.
+        self.assertEqual(counts["ready"] + counts["active"], 7)
+        self.assertEqual(counts["blocked"], 4)
         self.assertEqual(counts["needs_product_decision"], 4)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
@@ -145,13 +145,15 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("HOME_PAN_GESTURES", runtime_source)
 
-    def test_ultimate_challenge_is_second_ready_flow(self) -> None:
+    def test_ultimate_challenge_blocked_metadata_is_retained(self) -> None:
         ultimate = self.queue["flows"][1]
         self.assertEqual(
             ultimate["flow_id"],
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
         )
-        self.assertIn(ultimate["status"], {"ready", "active"})
+        self.assertEqual(ultimate["status"], "blocked")
+        self.assertEqual(ultimate["last_completed_stage"], "blocked")
+        self.assertTrue(ultimate["blocked_reason"])
         self.assertEqual(ultimate["priority"], 15)
         self.assertEqual(ultimate["product_policy_status"], "navigation_only_validation")
         policy_ids = {item["policy_id"] for item in self.policy["policies"]}
@@ -386,8 +388,13 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
             self.assertNotIn(b"\r\n", path.read_bytes())
         handoff = (ROOT / "CURRENT_HANDOFF.md").read_text(encoding="utf-8")
         self.assertNotIn(b"\r\n", (ROOT / "CURRENT_HANDOFF.md").read_bytes())
-        self.assertIn("FLOW-DELIVERY-PRETOOLUSE-TASK-ENFORCEMENT", handoff)
-        self.assertIn("CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION", handoff)
+        state = json.loads(
+            handoff.split("<!-- CURRENT_HANDOFF_STATE_BEGIN -->", 1)[1]
+            .split("<!-- CURRENT_HANDOFF_STATE_END -->", 1)[0]
+            .strip()
+        )
+        self.assertIn(state["current_task_id"], handoff)
+        self.assertIn(state["first_ready_flow"], handoff)
         self.assertNotIn("actions_already_performed", handoff)
         # Historical Ruins/troop handoff ledgers live in Git history, not the compact volatile handoff.
 
