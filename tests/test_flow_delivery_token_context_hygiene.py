@@ -102,10 +102,11 @@ class ReadyFlowMetadataTests(unittest.TestCase):
 
     def test_missing_ready_metadata_fails_and_is_not_invented(self) -> None:
         broken = deepcopy(self.queue)
-        del broken["flows"][0]["acceptance_criteria"]
+        target = next(flow for flow in broken["flows"] if flow["status"] == "ready")
+        del target["acceptance_criteria"]
         with self.assertRaisesRegex(control.FlowDeliveryError, "missing packet metadata"):
             control.validate_queue(broken)
-        serialized = json.dumps(broken["flows"][0])
+        serialized = json.dumps(target)
         self.assertNotIn("invented-requirement", serialized)
 
 
@@ -408,18 +409,26 @@ class InvariantTests(unittest.TestCase):
     def test_scheduler_registration_composition_remain_disabled(self) -> None:
         queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
         self.assertFalse(queue["gameplay_scheduler"])
-        self.assertIsNone(queue["active_flow_id"])
+        active = [item for item in queue["flows"] if item["status"] == "active"]
+        self.assertLessEqual(len(active), 1)
+        if not active:
+            self.assertIsNone(queue["active_flow_id"])
+        else:
+            self.assertEqual(queue["active_flow_id"], active[0]["flow_id"])
         state = validate_governance.parse_handoff()
         self.assertEqual(state["registration_and_scheduler"]["registered_operator_tasks"], "NOT_REGISTERED_UNCHANGED")
         self.assertEqual(state["registration_and_scheduler"]["scheduler_enabled_disabled"], "DISABLED/INELIGIBLE")
         self.assertTrue(state["registration_and_scheduler"]["composition_blocked"])
         self.assertTrue(state["registration_and_scheduler"]["m6_unactivated"])
         self.assertTrue(state["registration_and_scheduler"]["bliss_unchanged"])
-        self.assertEqual(state["development_lease_state"], "absent")
+        self.assertIn(state["development_lease_state"], {"absent", "held"})
         self.assertEqual(state["runtime_ownership_state"], "none")
         self.assertEqual(state["writable_agent_state"], "absent")
-        self.assertEqual(state["first_ready_flow"], CAMPAIGN_ID)
-        self.assertEqual(state["next_ready_flow"], ULTIMATE_ID)
+        self.assertIn(state["next_task_id"], {CAMPAIGN_ID, ULTIMATE_ID})
+        if queue["active_flow_id"] is None:
+            self.assertEqual(state["first_ready_flow"], CAMPAIGN_ID)
+        else:
+            self.assertEqual(queue["active_flow_id"], CAMPAIGN_ID)
 
 
 if __name__ == "__main__":

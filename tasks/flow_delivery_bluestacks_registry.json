@@ -2,5 +2,12 @@
   "schema_version": 1,
   "registry_kind": "flow_delivery_bluestacks",
   "purpose": "Map only implemented flow-delivery routes to fixed runner, evidence-validator, recovery-handler, and consequence contracts.",
-  "flows": {}
+  "flows": {
+    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
+      "runner": "campaign_navigation_only_runner",
+      "evidence_validator": "campaign_navigation_only_evidence",
+      "recovery_handler": "campaign_navigation_only_recovery",
+      "consequence_class": "navigation_only"
+    }
+  }
 }

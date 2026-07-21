@@ -62,6 +62,8 @@ class CampaignAction(str, Enum):
     LEAVE_CHAPTER_MAP = "LEAVE_CHAPTER_MAP"
     RETURN_HOME = "RETURN_HOME"
     RETURN_HOME_AFTER_DEFEAT = "RETURN_HOME_AFTER_DEFEAT"
+    DESTINATION_VERIFIED = "DESTINATION_VERIFIED"
+    NAVIGATION_ONLY_COMPLETE = "NAVIGATION_ONLY_COMPLETE"
     COMPLETE = "COMPLETE"
     BLOCKED = "BLOCKED"
 
@@ -162,6 +164,7 @@ class CampaignAutoBattleConfig:
     max_runs: int
     battle_poll_seconds: float = 1.0
     battle_timeout_seconds: float = 180.0
+    navigation_only: bool = False
 
     def __post_init__(self) -> None:
         if self.ap_cost <= 0:
@@ -176,6 +179,8 @@ class CampaignAutoBattleConfig:
             raise ValueError("battle_timeout_seconds must exceed battle_poll_seconds")
         if self.battle_timeout_seconds > 180:
             raise ValueError("battle_timeout_seconds cannot exceed the 180-second safety ceiling")
+        if self.navigation_only:
+            parse_supported_campaign_story_destination(self.target_stage.identity)
 
 
 @dataclass(frozen=True)
@@ -205,6 +210,7 @@ class CampaignRouteObservation:
     overlay_state: str = "none_observed"
     selected_tier: int | None = None
     chapter_number: int | None = None
+    visible_chapter_numbers: tuple[int, ...] = ()
     visible_stage_numbers: tuple[int, ...] = ()
     stage_dialog: CampaignStage | None = None
     chapter_navigation_available: bool = False
@@ -311,6 +317,9 @@ def _additional_run_affordable(
     config: CampaignAutoBattleConfig,
     progress: CampaignRouteProgress,
 ) -> bool:
+    if config.navigation_only:
+        # Navigation-only mode never consumes AP; destination verification is the goal.
+        return True
     return bool(
         progress.current_ap >= config.ap_cost
         and progress.ap_spent + config.ap_cost <= config.ap_budget
@@ -456,6 +465,19 @@ def campaign_next_decision(
             return _decision(CampaignAction.BLOCKED, "stage dialog identity mismatch", terminal=True)
         if observation.refill_visible:
             return _decision(CampaignAction.BLOCKED, "AP refill is forbidden", terminal=True)
+        if config.navigation_only:
+            if observation.ap_cost is None:
+                return _decision(
+                    CampaignAction.BLOCKED,
+                    "stage AP cost is not readable for destination verification",
+                    terminal=True,
+                )
+            return _decision(
+                CampaignAction.DESTINATION_VERIFIED,
+                "exact Story destination verified; navigation-only stops before Challenge/AP",
+                terminal=True,
+                target=f"campaign-stage-dialog-{config.target_stage.identity}",
+            )
         if observation.ap_current != progress.current_ap or observation.ap_cost != config.ap_cost:
             return _decision(CampaignAction.BLOCKED, "fresh AP or stage cost does not match the bounded plan", terminal=True)
         if not _additional_run_affordable(config, progress):
@@ -472,6 +494,13 @@ def campaign_next_decision(
             "exact stage, AP cost, and budget are recognized",
             successor=CampaignScreen.HERO_LINEUP,
             target=f"campaign-challenge-{config.target_stage.identity}",
+        )
+
+    if config.navigation_only:
+        return _decision(
+            CampaignAction.BLOCKED,
+            "navigation-only mode forbids Challenge, lineup, battle, and AP consumption",
+            terminal=True,
         )
 
     if observation.screen == CampaignScreen.HERO_LINEUP:

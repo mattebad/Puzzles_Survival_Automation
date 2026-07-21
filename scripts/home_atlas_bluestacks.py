@@ -2610,6 +2610,587 @@ def dispatch_verified_supply_depot_exit_tap(
     )
     return issued, execution, pre_observation, telemetry
 
+# Canonical Home Atlas semantic id for Campaign facility entry (Campaign AP / destination nav).
+CAMPAIGN_HOME_ATLAS_BUILDING_ID = "home.building.campaign"
+
+
+def campaign_home_atlas_building_id() -> str:
+    """Return the Home Atlas building id used for verified Campaign entry."""
+
+    return CAMPAIGN_HOME_ATLAS_BUILDING_ID
+
+
+def require_campaign_home_atlas_building(atlas_path: Path | None = None) -> str:
+    """Fail closed unless the Campaign building is present in the loaded atlas."""
+
+    path = atlas_path or (ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json")
+    atlas = load_home_atlas(path)
+    atlas.lookup_building(CAMPAIGN_HOME_ATLAS_BUILDING_ID)
+    return CAMPAIGN_HOME_ATLAS_BUILDING_ID
+
+
+CAMPAIGN_HOME_BUILDING_SEMANTIC_ACTION = "CAMPAIGN_HOME_ATLAS_BUILDING_OPEN"
+CAMPAIGN_HOME_BUILDING_POSTCONDITION = "CAMPAIGN_TIER_MAP_OR_EQUIVALENT"
+_VERIFIED_CAMPAIGN_HOME_BUILDING_TRANSPORT_SEAL = object()
+
+
+def reject_direct_campaign_home_building_transport(
+    *, authorized_token: object | None = None
+) -> None:
+    """Fail closed when Campaign Home Atlas tap transport bypasses SafeActionExecutor."""
+
+    if authorized_token is not _VERIFIED_CAMPAIGN_HOME_BUILDING_TRANSPORT_SEAL:
+        raise RuntimeError("DIRECT_TRANSPORT_BYPASS_REJECTED")
+
+
+def build_campaign_home_building_observation(
+    *,
+    identity: NativeFrameIdentity,
+    binding: BuildingBinding,
+    capture_completed_monotonic: float | None = None,
+) -> Observation:
+    """Navigation-only Observation for Campaign home.building.campaign open tap."""
+
+    mono = (
+        float(identity.capture_completed_monotonic)
+        if capture_completed_monotonic is None
+        else float(capture_completed_monotonic)
+    )
+    return Observation(
+        frame_sha256=str(identity.semantic_sha256),
+        capture_completed_monotonic=mono,
+        runtime_profile_id=BLUESTACKS_PROFILE_ID,
+        width=int(identity.width),
+        height=int(identity.height),
+        valid_png=True,
+        corrupt=False,
+        black=False,
+        source_state="HOME_BASE",
+        overlay_state="none_observed",
+        target_identity=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+        target_roi=tuple(binding.target_roi),
+        recognized=True,
+        consequence="navigate_zero_cost",
+        cost_type="none",
+        cost_amount=0,
+        quantity=1,
+        expected_postcondition=CAMPAIGN_HOME_BUILDING_POSTCONDITION,
+        evidence_refs=(f"campaign-home-building:{identity.label or identity.capture_ordinal}",),
+        package_foreground=True,
+        os_surface=False,
+        hard_stop_detected=False,
+    )
+
+
+def build_campaign_home_building_policy_request(
+    *,
+    observation: Observation,
+    action_id: str,
+    action_key: str,
+    task_id: str,
+    navigation_session_id: str,
+    lease_owner: str,
+    monotonic_now: float,
+    lease_valid: bool = True,
+    unresolved_action: bool = False,
+    duplicate_action_key: bool = False,
+    policy_phase: str = "proposal",
+) -> PolicyRequest:
+    return PolicyRequest(
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        task_mode="supervised_validation",
+        semantic_action=CAMPAIGN_HOME_BUILDING_SEMANTIC_ACTION,
+        expected_runtime_profile_id=BLUESTACKS_PROFILE_ID,
+        observation=observation,
+        monotonic_now=float(monotonic_now),
+        observation_max_age_seconds=30.0,
+        dispatch_max_age_seconds=15.0,
+        lease_owner=lease_owner,
+        lease_valid=lease_valid,
+        unresolved_action=unresolved_action,
+        duplicate_action_key=duplicate_action_key,
+        action_class=ActionClass.NAVIGATION_ONLY,
+        runtime_session_id=navigation_session_id,
+        policy_phase=policy_phase,
+    )
+
+
+def dispatch_verified_campaign_home_building_tap(
+    *,
+    runtime,
+    immediate_before: CapturedNativeFrame,
+    identity: NativeFrameIdentity,
+    binding: BuildingBinding,
+    action_id: str,
+    action_key: str,
+    task_id: str,
+    navigation_session_id: str,
+    lease_owner: str,
+    policy: CentralPolicy,
+    store: SafetyStore,
+    settle_seconds: float = 0.0,
+    dry_run: bool = False,
+    monotonic_clock: Callable[[], float] | None = None,
+    wall_clock: Callable[[], float] | None = None,
+    semantic_opened_check: Callable[[np.ndarray], bool] | None = None,
+) -> tuple[object, object | None, Observation, dict[str, object]]:
+    """Issue Campaign building open through SafeActionExecutor; semantic open is caller-bound."""
+
+    fresh_capture = runtime.capture("campaign-home-building-pre-dispatch")
+    fresh_ordinal = getattr(runtime, "ordinal", None)
+    if fresh_ordinal is None:
+        fresh_ordinal = int(identity.capture_ordinal) + 1
+    fresh_identity = identity_from_captured(
+        fresh_capture,
+        session_id=str(runtime.session),
+        ordinal=int(fresh_ordinal),
+        label="campaign-home-building-pre-dispatch",
+    )
+    fresh_validation = bluestacks_frame_validation(fresh_identity)
+    if fresh_validation.validity is not FrameValidityState.VALID_NATIVE:
+        raise PerceptionBundleError("PRE_DISPATCH_FRAME_INVALID")
+    atlas_path = getattr(runtime, "atlas_path", None)
+    # Rebind from the fresh pre-dispatch frame only; never reuse planning ROI blindly.
+    localizer_atlas = load_home_atlas(
+        Path(atlas_path)
+        if atlas_path is not None
+        else (ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json")
+    )
+    building = localizer_atlas.lookup_building(CAMPAIGN_HOME_ATLAS_BUILDING_ID)
+    localizer = BlueStacksHomeLocalizer(
+        localizer_atlas,
+        Path(atlas_path)
+        if atlas_path is not None
+        else (ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"),
+    )
+    fresh_localization = localizer.localize(fresh_capture.frame)
+    fresh_binding = (
+        bind_visible_building(fresh_capture.frame, fresh_localization, building)
+        if fresh_localization.recognized
+        else None
+    )
+    if (
+        fresh_binding is None
+        or fresh_binding.building_id != CAMPAIGN_HOME_ATLAS_BUILDING_ID
+        or fresh_binding.frame_sha256 != fresh_identity.semantic_sha256
+    ):
+        raise PerceptionBundleError("BUILDING_REBIND_FAILED")
+    pre_observation = build_campaign_home_building_observation(
+        identity=fresh_identity,
+        binding=fresh_binding,
+    )
+    proposal_observation = replace(
+        pre_observation,
+        capture_completed_monotonic=pre_observation.capture_completed_monotonic - 0.05,
+    )
+    mono_clock = monotonic_clock or time.monotonic
+    wall = wall_clock or time.time
+    issue_request = build_campaign_home_building_policy_request(
+        observation=pre_observation,
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        navigation_session_id=navigation_session_id,
+        lease_owner=lease_owner,
+        monotonic_now=float(mono_clock()),
+    )
+    issued = policy.issue_capability(issue_request)
+    telemetry: dict[str, object] = {
+        "requested": True,
+        "authorized": bool(issued.authorized and issued.capability is not None),
+        "dispatched": False,
+        "transport_observed": False,
+        "verified": False,
+        "completed": False,
+        "pre_dispatch_frame_sha256": fresh_identity.semantic_sha256,
+        "pre_dispatch_capture_ordinal": fresh_identity.capture_ordinal,
+        "settled_frame": None,
+    }
+    if not issued.authorized or issued.capability is None:
+        return issued, None, pre_observation, telemetry
+
+    def transport(_intent) -> TransportResult:
+        reject_direct_campaign_home_building_transport(
+            authorized_token=_VERIFIED_CAMPAIGN_HOME_BUILDING_TRANSPORT_SEAL
+        )
+        if dry_run:
+            raise RuntimeError("DRY_RUN_TRANSPORT_MUST_NOT_RUN")
+        runtime.tap(
+            fresh_capture,
+            target_identity=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            target_roi=tuple(fresh_binding.target_roi),
+            action_key=action_key,
+            consequential=False,
+        )
+        telemetry["dispatched"] = True
+        return TransportResult(True, "CAMPAIGN_HOME_BUILDING_DISPATCHED")
+
+    def recapture() -> Observation:
+        rebuilt = build_campaign_home_building_observation(
+            identity=fresh_identity,
+            binding=fresh_binding,
+        )
+        if rebuilt is pre_observation:
+            raise RuntimeError("RECAPTURE_MUST_REBUILD_DISTINCT_OBSERVATION")
+        return rebuilt
+
+    def post_observe():
+        immediate_post = runtime.capture("campaign-home-building-immediate-post")
+        if settle_seconds > 0:
+            time.sleep(settle_seconds)
+        settled = runtime.capture("campaign-home-building-settled")
+        telemetry["settled_frame"] = settled.frame
+        semantic_ok = False
+        if semantic_opened_check is not None:
+            semantic_ok = bool(semantic_opened_check(settled.frame))
+        telemetry["verified"] = semantic_ok
+        settled_ordinal = getattr(runtime, "ordinal", None)
+        if settled_ordinal is None:
+            settled_ordinal = fresh_identity.capture_ordinal + 2
+        settled_identity = identity_from_captured(
+            settled,
+            session_id=str(runtime.session),
+            ordinal=int(settled_ordinal),
+            label="campaign-home-building-settled",
+        )
+        telemetry["settled_identity"] = settled_identity
+        return (
+            replace(
+                pre_observation,
+                frame_sha256=settled_identity.semantic_sha256,
+                capture_completed_monotonic=settled_identity.capture_completed_monotonic,
+                source_state="HOME_BASE" if not semantic_ok else "CAMPAIGN",
+                target_identity=None,
+                target_roi=None,
+                recognized=semantic_ok,
+                expected_postcondition=CAMPAIGN_HOME_BUILDING_POSTCONDITION,
+                evidence_refs=("campaign-home-building-successor",),
+            ),
+        )
+
+    def reconcile(_intent, observation: Observation) -> bool:
+        # Fail closed unless caller-provided Campaign/TIER_MAP (or equivalent) binds.
+        return bool(telemetry.get("verified") is True and observation.recognized)
+
+    executor = SafeActionExecutor(
+        store,
+        policy,
+        lease_owner,
+        mono_clock,
+        transport,
+        recapture,
+        post_observe,
+        reconcile,
+        wall_clock=wall,
+        max_pre_dispatch_attempts=1,
+    )
+    execute_request = build_campaign_home_building_policy_request(
+        observation=proposal_observation,
+        action_id=action_id,
+        action_key=action_key,
+        task_id=task_id,
+        navigation_session_id=navigation_session_id,
+        lease_owner=lease_owner,
+        monotonic_now=float(mono_clock()),
+    )
+    result = executor.execute(execute_request, issued.capability, dry_run=dry_run)
+    telemetry["transport_observed"] = bool(result.transport_calls > 0)
+    telemetry["completed"] = bool(
+        result.status is ActionStatus.CONFIRMED and telemetry.get("verified") is True
+    )
+    return issued, result, pre_observation, telemetry
+
+
+def run_verified_campaign_home_atlas_entry(
+    runtime: LocalBlueStacksRuntime,
+    *,
+    atlas_path: Path | None = None,
+    maximum_pans: int = 4,
+    execute: bool = False,
+    settle_seconds: float = 1.0,
+    semantic_opened_check: Callable[[np.ndarray], bool] | None = None,
+) -> dict[str, object]:
+    """Pan/bind/open home.building.campaign via navigate-building verified path only.
+
+    Pans use ``dispatch_verified_navigate_pan`` / SafeActionExecutor. The open tap uses
+    ``dispatch_verified_campaign_home_building_tap``. Status ``opened`` requires the
+    caller-provided semantic Campaign/TIER_MAP check; transport alone never opens.
+    """
+
+    path = atlas_path or (ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json")
+    building_id = require_campaign_home_atlas_building(path)
+    atlas = load_home_atlas(path)
+    building = atlas.lookup_building(building_id)
+    localizer = BlueStacksHomeLocalizer(atlas, path)
+    safe_region, _original_calibration = bluestacks_direct_pan_contract()
+    records: list[dict[str, object]] = []
+    nav_session = create_session(
+        _navigate_authorization(building_id),
+        runtime_capture_session_id=str(runtime.session),
+        maximum_pans=maximum_pans,
+    )
+    session_calibration = create_bluestacks_session_calibration(nav_session.navigation_session_id)
+    controller = DirectPanNavigator(
+        atlas,
+        building_id,
+        safe_region,
+        session_calibration.effective_gesture_calibration(),
+        maximum_pans=maximum_pans,
+    )
+    lease_owner = nav_session.authorization.owner_operator
+    policy = CentralPolicy(
+        supervised_tasks=frozenset(
+            {
+                "MVP-QUEST-TO-CLAIM",
+                nav_session.authorization.task_id,
+            }
+        )
+    )
+    store: SafetyStore | None = None
+    last_residual: float | None = None
+
+    def _ensure_store() -> SafetyStore:
+        nonlocal store
+        if store is None:
+            store = SafetyStore(runtime.session / "campaign-home-entry-safety.sqlite3")
+            store.acquire_lease(lease_owner, time.time(), 3600.0)
+        return store
+
+    def _close_store() -> None:
+        nonlocal store
+        if store is not None:
+            store.close()
+            store = None
+
+    def _residual(
+        localization_residual_px: float | None,
+        remaining_displacement: tuple[float, float] | None = None,
+    ) -> float | None:
+        if localization_residual_px is not None:
+            return float(localization_residual_px)
+        if remaining_displacement is None:
+            return None
+        return float(math.hypot(remaining_displacement[0], remaining_displacement[1]))
+
+    try:
+        for ordinal in range(maximum_pans + 1):
+            immediate_before = runtime.capture(f"campaign-entry-{ordinal:02d}-immediate-before")
+            derived_localization = localizer.localize(immediate_before.frame)
+            derived_binding = (
+                bind_visible_building(immediate_before.frame, derived_localization, building)
+                if derived_localization.recognized
+                else None
+            )
+            capture_ordinal = getattr(runtime, "ordinal", None)
+            if capture_ordinal is None:
+                capture_ordinal = ordinal + 1
+            identity = identity_from_captured(
+                immediate_before,
+                session_id=str(runtime.session),
+                ordinal=int(capture_ordinal),
+                label=f"campaign-entry-{ordinal:02d}-immediate-before",
+            )
+            try:
+                perception = build_navigate_perception_bundle(
+                    identity, derived_localization, derived_binding
+                )
+                localization, binding = perception.checked_navigation_inputs()
+            except PerceptionBundleError as exc:
+                return {
+                    "status": "blocked_fail_closed",
+                    "reason": getattr(exc, "reason_code", None) or str(exc),
+                    "building_id": building_id,
+                    "records": records,
+                    "relocalization_residual_pixels": last_residual,
+                }
+            last_residual = _residual(localization.residual_px)
+            controller.calibration = session_calibration.effective_gesture_calibration()
+            plan = controller.plan(localization, binding)
+            record = {
+                "ordinal": ordinal,
+                "disposition": plan.disposition.value,
+                "reason": plan.reason,
+                "building_id": building_id,
+            }
+            records.append(record)
+            if plan.disposition is PlanDisposition.COMPLETE and binding is not None:
+                if not execute:
+                    return {
+                        "status": "dry-run",
+                        "reason": "home atlas Campaign binding ready; tap not dispatched",
+                        "building_id": building_id,
+                        "records": records,
+                        "relocalization_residual_pixels": last_residual,
+                    }
+                action_key = (
+                    f"{nav_session.navigation_session_id}:campaign-open:"
+                    f"{identity.semantic_sha256[:16]}"
+                )
+                action_id = f"{nav_session.navigation_session_id}:campaign-open"
+                issued, execution, _obs, tap_telemetry = dispatch_verified_campaign_home_building_tap(
+                    runtime=runtime,
+                    immediate_before=immediate_before,
+                    identity=identity,
+                    binding=binding,
+                    action_id=action_id,
+                    action_key=action_key,
+                    task_id=nav_session.authorization.task_id,
+                    navigation_session_id=nav_session.navigation_session_id,
+                    lease_owner=lease_owner,
+                    policy=policy,
+                    store=_ensure_store(),
+                    settle_seconds=settle_seconds,
+                    dry_run=False,
+                    semantic_opened_check=semantic_opened_check,
+                )
+                if execution is None:
+                    return {
+                        "status": "blocked_fail_closed",
+                        "reason": f"Campaign open capability denied: {issued.reason_code}",
+                        "building_id": building_id,
+                        "records": records,
+                        "relocalization_residual_pixels": last_residual,
+                        "tap_telemetry": tap_telemetry,
+                    }
+                if not bool(tap_telemetry.get("verified")) or not bool(
+                    tap_telemetry.get("completed")
+                ):
+                    return {
+                        "status": "blocked_fail_closed",
+                        "reason": (
+                            "Campaign Home Atlas tap transport did not yield "
+                            "semantic Campaign/TIER_MAP (or equivalent) bind"
+                        ),
+                        "building_id": building_id,
+                        "records": records,
+                        "relocalization_residual_pixels": last_residual,
+                        "executor_status": (
+                            execution.status.value if execution is not None else None
+                        ),
+                        "tap_telemetry": tap_telemetry,
+                    }
+                return {
+                    "status": "opened",
+                    "reason": "Home Atlas Campaign entry semantically confirmed",
+                    "building_id": building_id,
+                    "records": records,
+                    "relocalization_residual_pixels": last_residual,
+                    "tap_telemetry": tap_telemetry,
+                }
+            if plan.disposition is PlanDisposition.REJECTED:
+                return {
+                    "status": "blocked_fail_closed",
+                    "reason": plan.reason,
+                    "building_id": building_id,
+                    "records": records,
+                    "relocalization_residual_pixels": last_residual,
+                }
+            if plan.disposition is PlanDisposition.PAN:
+                if plan.drag_start is None or plan.drag_end is None:
+                    return {
+                        "status": "blocked_fail_closed",
+                        "reason": "Home Atlas pan lacked drag endpoints",
+                        "building_id": building_id,
+                        "records": records,
+                        "relocalization_residual_pixels": last_residual,
+                    }
+                if not execute:
+                    last_residual = _residual(
+                        localization.residual_px,
+                        plan.predicted_remaining_displacement,
+                    )
+                    return {
+                        "status": "dry-run",
+                        "reason": "home atlas pan calculated; not dispatched",
+                        "building_id": building_id,
+                        "records": records,
+                        "relocalization_residual_pixels": last_residual,
+                    }
+                next_pan = nav_session.pan_ordinal + 1
+                gesture_fingerprint = compute_pan_gesture_fingerprint(
+                    nav_session,
+                    pan_ordinal=next_pan,
+                    requested=plan.requested_camera_displacement,
+                    predicted=plan.predicted_camera_displacement,
+                    source_frame=identity,
+                    target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
+                )
+                action_key = make_pan_action_key(nav_session, gesture_fingerprint, next_pan)
+                action_id = f"{nav_session.navigation_session_id}:pan:{next_pan}"
+                record_pan_prepared(
+                    nav_session,
+                    action_key=action_key,
+                    source_frame=identity,
+                    target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
+                    requested=plan.requested_camera_displacement,
+                    predicted=plan.predicted_camera_displacement,
+                    gesture_fingerprint=gesture_fingerprint,
+                )
+                issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
+                    runtime=runtime,
+                    immediate_before=immediate_before,
+                    identity=identity,
+                    drag_start=plan.drag_start,
+                    drag_end=plan.drag_end,
+                    action_id=action_id,
+                    action_key=action_key,
+                    task_id=nav_session.authorization.task_id,
+                    navigation_session_id=nav_session.navigation_session_id,
+                    lease_owner=lease_owner,
+                    policy=policy,
+                    store=_ensure_store(),
+                    dry_run=False,
+                )
+                if execution is None or execution.transport_calls < 1:
+                    return {
+                        "status": "blocked_fail_closed",
+                        "reason": "verified Home Atlas pan capability denied or not dispatched",
+                        "building_id": building_id,
+                        "records": records,
+                        "relocalization_residual_pixels": last_residual,
+                        "pan_telemetry": pan_telemetry,
+                    }
+                record_pan_dispatched(nav_session, action_key)
+                if settle_seconds > 0:
+                    time.sleep(settle_seconds)
+                settled = runtime.capture(f"campaign-entry-{ordinal:02d}-settled")
+                settled_localization = localizer.localize(settled.frame)
+                progress = controller.record_progress(localization, settled_localization)
+                last_residual = _residual(
+                    settled_localization.residual_px,
+                    progress.remaining_displacement,
+                )
+                if not progress.accepted:
+                    return {
+                        "status": "blocked_fail_closed",
+                        "reason": f"Home Atlas pan produced no accepted progress: {progress.reason}",
+                        "building_id": building_id,
+                        "records": records,
+                        "relocalization_residual_pixels": last_residual,
+                    }
+                continue
+            if plan.disposition is PlanDisposition.BIND:
+                continue
+            return {
+                "status": "blocked_fail_closed",
+                "reason": f"unsupported Home Atlas disposition: {plan.disposition}",
+                "building_id": building_id,
+                "records": records,
+                "relocalization_residual_pixels": last_residual,
+            }
+        return {
+            "status": "blocked_fail_closed",
+            "reason": "Home Atlas Campaign entry exceeded maximum pans",
+            "building_id": building_id,
+            "records": records,
+            "relocalization_residual_pixels": last_residual,
+        }
+    finally:
+        _close_store()
+
+
 def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCalibration]:
     """Return only the empirically measured local BlueStacks geometry.
 

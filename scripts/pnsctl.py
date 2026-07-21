@@ -77,6 +77,24 @@ _BLUESTACKS_EVIDENCE_VALIDATORS: dict[str, Any] = {}
 _BLUESTACKS_RECOVERY_HANDLERS: dict[str, Any] = {}
 
 
+def _register_checked_in_bluestacks_handlers() -> None:
+    # Prefer same-directory import so `python scripts/pnsctl.py` and
+    # `python -m scripts.pnsctl` register into this module's handler maps.
+    try:
+        from scripts.flow_delivery_campaign_bluestacks import register as register_campaign
+    except ImportError:
+        from flow_delivery_campaign_bluestacks import register as register_campaign
+
+    register_campaign(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+
+
+_register_checked_in_bluestacks_handlers()
+
+
 class OperatorError(RuntimeError):
     pass
 

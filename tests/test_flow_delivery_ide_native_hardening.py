@@ -827,7 +827,15 @@ class BlueStacksRegistryHardeningTests(unittest.TestCase):
             )
         )
         self.assertEqual(registry["registry_kind"], "flow_delivery_bluestacks")
-        self.assertEqual(registry["flows"], {})
+        flows = registry["flows"]
+        self.assertIn("CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION", flows)
+        campaign = flows["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]
+        self.assertEqual(campaign["consequence_class"], "navigation_only")
+        self.assertEqual(campaign["runner"], "campaign_navigation_only_runner")
+        self.assertEqual(
+            set(flows) - {"CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"},
+            set(),
+        )
 
 
 class PreToolUseTaskAuthorizationTests(unittest.TestCase):

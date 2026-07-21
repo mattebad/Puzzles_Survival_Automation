@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 
 import cv2
+import numpy as np
 
 from tasks.campaign_auto_battle import (
     CampaignAction,
@@ -12,7 +13,17 @@ from tasks.campaign_auto_battle import (
     CampaignScreen,
     CampaignStage,
 )
-from tasks.campaign_auto_battle_runtime import CampaignRuntimeController
+from tasks.campaign_auto_battle_runtime import (
+    CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+    CHAPTER_PAN_TOWARD_HIGHER,
+    CHAPTER_PAN_TOWARD_LOWER,
+    HOME_PAN_GESTURES,
+    STAGE_PAN_TOWARD_HIGHER,
+    STAGE_PAN_TOWARD_LOWER,
+    CampaignRuntimeController,
+    home_pan_gestures_for_campaign_entry,
+    residual_pan_swipe,
+)
 from tasks.campaign_auto_battle_vision import CampaignFrameRecognition, read_campaign_frame
 from tasks.campaign_auto_battle_vision import BUY_NOW_FORBIDDEN_ROI, DEFEAT_CONTINUE_ROI
 
@@ -163,6 +174,7 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
                 screen=CampaignScreen.TIER_MAP,
                 selected_tier=1,
                 chapter_number=None,
+                visible_chapter_numbers=(3, 4, 5),
                 chapter_navigation_available=True,
             ),
             ("campaign-chapter-3", (100, 100, 200, 200)),
@@ -171,6 +183,7 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
         command = self.controller.next_command(tier)
         self.assertEqual(command.action, CampaignAction.NAVIGATE_CHAPTER)
         self.assertEqual(command.kind, "swipe")
+        self.assertEqual(command.swipe, CHAPTER_PAN_TOWARD_HIGHER)
         self.assertIsNone(command.target_identity)
 
     def test_return_home_requires_one_request_then_highlighted_exit(self):
@@ -260,6 +273,315 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
         dx0, dy0, dx1, dy1 = DEFEAT_CONTINUE_ROI
         bx0, by0, bx1, by1 = BUY_NOW_FORBIDDEN_ROI
         self.assertTrue(dx1 <= bx0 or bx1 <= dx0 or dy1 <= by0 or by1 <= dy0)
+
+    def test_unbound_campaign_entry_requests_home_atlas_not_home_pan(self):
+        self.assertTrue(HOME_PAN_GESTURES)
+        with self.assertRaises(RuntimeError):
+            home_pan_gestures_for_campaign_entry()
+        home = recognized(
+            CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),
+            frame_hash="home-unbound",
+        )
+        command = self.controller.next_command(home)
+        self.assertEqual(command.action, CampaignAction.OPEN_CAMPAIGN)
+        self.assertEqual(command.kind, "home_atlas_entry")
+        self.assertEqual(command.target_identity, CAMPAIGN_HOME_ATLAS_BUILDING_ID)
+        self.assertIsNone(command.swipe)
+        self.assertIn("HOME_PAN_GESTURES is fail-closed", command.reason)
+
+    def test_chapter_pan_uses_remembered_residual_and_fails_closed_on_no_progress(self):
+        self.controller.next_command(
+            recognized(
+                CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),
+                ("campaign-entry", (1, 1, 2, 2)),
+                frame_hash="home",
+            )
+        )
+        tier = recognized(
+            CampaignRouteObservation(
+                screen=CampaignScreen.TIER_MAP,
+                selected_tier=1,
+                chapter_number=None,
+                visible_chapter_numbers=(3, 4, 5),
+                chapter_navigation_available=True,
+            ),
+            ("campaign-chapter-3", (100, 100, 200, 200)),
+            frame_hash="tier-low",
+        )
+        first = self.controller.next_command(tier)
+        self.assertEqual(first.action, CampaignAction.NAVIGATE_CHAPTER)
+        self.assertEqual(first.kind, "swipe")
+        self.assertEqual(first.swipe, CHAPTER_PAN_TOWARD_HIGHER)
+        self.controller.accept_dispatched(first)
+
+        stalled = recognized(
+            CampaignRouteObservation(
+                screen=CampaignScreen.TIER_MAP,
+                selected_tier=1,
+                chapter_number=None,
+                visible_chapter_numbers=(3, 4, 5),
+                chapter_navigation_available=True,
+            ),
+            frame_hash="tier-stalled",
+        )
+        blocked = self.controller.next_command(stalled)
+        self.assertTrue(blocked.terminal)
+        self.assertIn("no progress", blocked.reason)
+
+        toward_lower = residual_pan_swipe(
+            2,
+            (15, 16, 17),
+            toward_higher=CHAPTER_PAN_TOWARD_HIGHER,
+            toward_lower=CHAPTER_PAN_TOWARD_LOWER,
+        )
+        self.assertEqual(toward_lower, CHAPTER_PAN_TOWARD_LOWER)
+
+    def test_chapter_pan_empty_visible_after_pan_is_not_progress(self):
+        self.controller.next_command(
+            recognized(
+                CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),
+                ("campaign-entry", (1, 1, 2, 2)),
+                frame_hash="home-empty-gate",
+            )
+        )
+        tier = recognized(
+            CampaignRouteObservation(
+                screen=CampaignScreen.TIER_MAP,
+                selected_tier=1,
+                chapter_number=None,
+                visible_chapter_numbers=(3, 4, 5),
+                chapter_navigation_available=True,
+            ),
+            frame_hash="tier-before-empty",
+        )
+        first = self.controller.next_command(tier)
+        self.assertEqual(first.action, CampaignAction.NAVIGATE_CHAPTER)
+        self.controller.accept_dispatched(first)
+
+        empty_after = recognized(
+            CampaignRouteObservation(
+                screen=CampaignScreen.TIER_MAP,
+                selected_tier=1,
+                chapter_number=None,
+                visible_chapter_numbers=(),
+                chapter_navigation_available=True,
+            ),
+            frame_hash="tier-empty-after",
+        )
+        blocked = self.controller.next_command(empty_after)
+        self.assertTrue(blocked.terminal)
+        self.assertIn("empty/OCR-failed", blocked.reason)
+
+    def test_chapter_pan_empty_visible_before_pan_fails_closed(self):
+        self.controller.next_command(
+            recognized(
+                CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),
+                ("campaign-entry", (1, 1, 2, 2)),
+                frame_hash="home-empty-before",
+            )
+        )
+        empty_before = recognized(
+            CampaignRouteObservation(
+                screen=CampaignScreen.TIER_MAP,
+                selected_tier=1,
+                chapter_number=None,
+                visible_chapter_numbers=(),
+                chapter_navigation_available=True,
+            ),
+            frame_hash="tier-empty-before",
+        )
+        blocked = self.controller.next_command(empty_before)
+        self.assertTrue(blocked.terminal)
+        self.assertEqual(blocked.action, CampaignAction.BLOCKED)
+        self.assertEqual(blocked.kind, "terminal")
+        self.assertIsNone(blocked.swipe)
+        self.assertIn("non-empty visible chapter set before pan", blocked.reason)
+        self.assertIsNone(self.controller._remembered_chapter_visible)
+
+    def test_stage_pan_empty_visible_before_pan_fails_closed(self):
+        self.controller.next_command(
+            recognized(
+                CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),
+                ("campaign-entry", (1, 1, 2, 2)),
+                frame_hash="home-stage-empty-before",
+            )
+        )
+        empty_before = recognized(
+            CampaignRouteObservation(
+                screen=CampaignScreen.CHAPTER_MAP,
+                selected_tier=1,
+                chapter_number=20,
+                visible_stage_numbers=(),
+                stage_navigation_available=True,
+            ),
+            frame_hash="chapter-empty-stages-before",
+        )
+        blocked = self.controller.next_command(empty_before)
+        self.assertTrue(blocked.terminal)
+        self.assertEqual(blocked.action, CampaignAction.BLOCKED)
+        self.assertIsNone(blocked.swipe)
+        self.assertIn("non-empty visible stage set before pan", blocked.reason)
+        self.assertIsNone(self.controller._remembered_stage_visible)
+
+    def test_residual_pan_swipe_rejects_empty_visible(self):
+        with self.assertRaises(ValueError) as raised:
+            residual_pan_swipe(
+                20,
+                (),
+                toward_higher=CHAPTER_PAN_TOWARD_HIGHER,
+                toward_lower=CHAPTER_PAN_TOWARD_LOWER,
+            )
+        self.assertIn("non-empty visible set", str(raised.exception))
+
+    def test_stage_pan_uses_remembered_residual_and_fails_closed_on_no_progress(self):
+        self.controller.next_command(
+            recognized(
+                CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),
+                ("campaign-entry", (1, 1, 2, 2)),
+                frame_hash="home-stage",
+            )
+        )
+        chapter = recognized(
+            CampaignRouteObservation(
+                screen=CampaignScreen.CHAPTER_MAP,
+                selected_tier=1,
+                chapter_number=20,
+                visible_stage_numbers=(3, 4, 5),
+                stage_navigation_available=True,
+            ),
+            ("campaign-stage-other", (100, 100, 200, 200)),
+            frame_hash="chapter-low-stages",
+        )
+        first = self.controller.next_command(chapter)
+        self.assertEqual(first.action, CampaignAction.NAVIGATE_STAGE)
+        self.assertEqual(first.kind, "swipe")
+        self.assertEqual(first.swipe, STAGE_PAN_TOWARD_HIGHER)
+        self.controller.accept_dispatched(first)
+
+        stalled = recognized(
+            CampaignRouteObservation(
+                screen=CampaignScreen.CHAPTER_MAP,
+                selected_tier=1,
+                chapter_number=20,
+                visible_stage_numbers=(3, 4, 5),
+                stage_navigation_available=True,
+            ),
+            frame_hash="chapter-stalled-stages",
+        )
+        blocked = self.controller.next_command(stalled)
+        self.assertTrue(blocked.terminal)
+        self.assertIn("no progress", blocked.reason)
+
+        toward_lower = residual_pan_swipe(
+            2,
+            (15, 16, 17),
+            toward_higher=STAGE_PAN_TOWARD_HIGHER,
+            toward_lower=STAGE_PAN_TOWARD_LOWER,
+        )
+        self.assertEqual(toward_lower, STAGE_PAN_TOWARD_LOWER)
+
+    def test_relocalization_residual_pixels_prefers_localization_then_displacement(self):
+        from scripts.bluestacks_campaign_ap import relocalization_residual_pixels
+
+        self.assertEqual(relocalization_residual_pixels(1.25, (30.0, 40.0)), 1.25)
+        self.assertEqual(relocalization_residual_pixels(None, (30.0, 40.0)), 50.0)
+        self.assertIsNone(relocalization_residual_pixels(None, None))
+
+    def test_home_atlas_entry_uses_verified_dispatch_not_raw_adb(self):
+        import inspect
+        from scripts import bluestacks_campaign_ap as campaign_ap
+        from scripts import home_atlas_bluestacks as home_atlas
+
+        entry_src = inspect.getsource(campaign_ap._dispatch_home_atlas_campaign_entry)
+        self.assertIn("run_verified_campaign_home_atlas_entry", entry_src)
+        self.assertNotIn("dispatch_swipe", entry_src)
+        self.assertNotIn("dispatch_tap", entry_src)
+
+        verified_src = inspect.getsource(home_atlas.run_verified_campaign_home_atlas_entry)
+        self.assertIn("dispatch_verified_navigate_pan", verified_src)
+        self.assertIn("dispatch_verified_campaign_home_building_tap", verified_src)
+        self.assertNotIn("runner.dispatch_swipe", verified_src)
+        self.assertNotIn("runner.dispatch_tap", verified_src)
+        tap_src = inspect.getsource(home_atlas.dispatch_verified_campaign_home_building_tap)
+        self.assertIn("SafeActionExecutor", tap_src)
+
+    def test_campaign_entry_semantic_open_rejects_home_and_unknown(self):
+        from unittest.mock import patch
+
+        from scripts.bluestacks_campaign_ap import (
+            _campaign_entry_semantically_opened,
+            _CAMPAIGN_ENTRY_OPEN_SCREENS,
+        )
+
+        self.assertIn(CampaignScreen.TIER_MAP, _CAMPAIGN_ENTRY_OPEN_SCREENS)
+        self.assertNotIn(CampaignScreen.HOME_BASE, _CAMPAIGN_ENTRY_OPEN_SCREENS)
+        blank = np.zeros((1280, 800, 3), dtype=np.uint8)
+        self.assertFalse(_campaign_entry_semantically_opened(blank))
+
+        home_false_positive = CampaignFrameRecognition(
+            CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, recognized=True),
+            "home-false-positive",
+            (),
+            {},
+        )
+        with patch(
+            "scripts.bluestacks_campaign_ap.recognize_campaign_frame",
+            return_value=home_false_positive,
+        ):
+            self.assertFalse(_campaign_entry_semantically_opened(blank))
+
+        unknown = CampaignFrameRecognition(
+            CampaignRouteObservation(screen=CampaignScreen.UNKNOWN, recognized=False),
+            "unknown",
+            (),
+            {},
+        )
+        with patch(
+            "scripts.bluestacks_campaign_ap.recognize_campaign_frame",
+            return_value=unknown,
+        ):
+            self.assertFalse(_campaign_entry_semantically_opened(blank))
+
+    def test_navigation_only_runtime_stops_before_challenge(self):
+        controller = CampaignRuntimeController(
+            CampaignAutoBattleConfig(
+                target_stage=self.stage,
+                ap_cost=16,
+                ap_budget=16,
+                max_runs=1,
+                battle_poll_seconds=0.1,
+                battle_timeout_seconds=180,
+                navigation_only=True,
+            ),
+            initial_ap=99,
+        )
+        dialog = recognized(
+            CampaignRouteObservation(
+                screen=CampaignScreen.STAGE_DIALOG,
+                stage_dialog=self.stage,
+                ap_current=99,
+                ap_cost=16,
+                challenge_ready=True,
+            ),
+            ("campaign-challenge-1-20-9", (87, 863, 364, 956)),
+            frame_hash="dialog-nav-only",
+        )
+        command = controller.next_command(dialog)
+        self.assertEqual(command.action, CampaignAction.DESTINATION_VERIFIED)
+        self.assertTrue(command.terminal)
+        self.assertNotEqual(command.action, CampaignAction.CHALLENGE_STAGE)
+
+        again = controller.next_command(
+            recognized(
+                CampaignRouteObservation(
+                    screen=CampaignScreen.STAGE_DIALOG,
+                    stage_dialog=self.stage,
+                    ap_cost=16,
+                ),
+                frame_hash="dialog-nav-only-2",
+            )
+        )
+        self.assertEqual(again.action, CampaignAction.NAVIGATION_ONLY_COMPLETE)
 
 
 class CampaignVisionReplayTests(unittest.TestCase):

@@ -548,9 +548,10 @@ class FlowDeliveryController:
         lease_path: Path = DEFAULT_LEASE_PATH,
         writable_marker_path: Path = DEFAULT_WRITABLE_MARKER_PATH,
         routing_events_path: Path = DEFAULT_ROUTING_EVENTS_PATH,
-        authorization_events_path: Path = DEFAULT_AUTHORIZATION_EVENTS_PATH,
         loop_policy_path: Path = DEFAULT_LOOP_POLICY_PATH,
         progress_path: Path = DEFAULT_PROGRESS_PATH,
+        *,
+        authorization_events_path: Path = DEFAULT_AUTHORIZATION_EVENTS_PATH,
     ) -> None:
         self.queue_path = queue_path
         self.policy_path = policy_path
@@ -2075,6 +2076,11 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--lease", type=Path, default=DEFAULT_LEASE_PATH)
     root.add_argument("--writable-marker", type=Path, default=DEFAULT_WRITABLE_MARKER_PATH)
     root.add_argument("--routing-events", type=Path, default=DEFAULT_ROUTING_EVENTS_PATH)
+    root.add_argument(
+        "--authorization-events",
+        type=Path,
+        default=DEFAULT_AUTHORIZATION_EVENTS_PATH,
+    )
     sub = root.add_subparsers(dest="command", required=True)
     status = sub.add_parser("status")
     status.add_argument("--parent-conversation-id")
@@ -2184,13 +2190,14 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parser().parse_args(argv)
     controller = FlowDeliveryController(
-        args.queue,
-        args.policy,
-        args.lease,
-        args.writable_marker,
-        args.routing_events,
-        args.loop_policy,
-        args.progress,
+        queue_path=args.queue,
+        policy_path=args.policy,
+        lease_path=args.lease,
+        writable_marker_path=args.writable_marker,
+        routing_events_path=args.routing_events,
+        authorization_events_path=args.authorization_events,
+        loop_policy_path=args.loop_policy,
+        progress_path=args.progress,
     )
     try:
         if args.command == "status":

@@ -39,7 +39,7 @@
       "title": "Migrate Campaign AP entry to Home Atlas and verified destination navigation",
       "kind": "navigation_migration",
       "priority": 10,
-      "status": "ready",
+      "status": "blocked",
       "backlog_task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -47,7 +47,12 @@
         "tasks/campaign_auto_battle.py",
         "tasks/campaign_auto_battle_runtime.py",
         "tasks/campaign_auto_battle_vision.py",
-        "scripts/home_atlas_bluestacks.py"
+        "scripts/home_atlas_bluestacks.py",
+        "scripts/flow_delivery_control.py",
+        "CURRENT_HANDOFF.md",
+        "scripts/flow_delivery_campaign_bluestacks.py",
+        "scripts/pnsctl.py",
+        "tasks/flow_delivery_bluestacks_registry.json"
       ],
       "navigation_model": "canonical_home_atlas_plus_feedback_controlled_campaign_destination",
       "requires_bluestacks_live": true,
@@ -64,13 +69,55 @@
         "ultimate-challenge"
       ],
       "maximum_live_attempts": 3,
-      "live_attempt_count": 0,
-      "live_attempts": [],
+      "live_attempt_count": 3,
+      "live_attempts": [
+        {
+          "ordinal": 1,
+          "active_flow": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+          "lease_owner": "gpt-5.6-sol-high-parent",
+          "lease_session": "pns-flow-delivery-35004996-9b5b-4a20-8218-2dd0d6bed11b",
+          "repository_head": "5c8e99fba26a3c9a016d9188fa524d82a0f0c016",
+          "started_at": "2026-07-21T04:35:26.777069Z",
+          "finished_at": "2026-07-21T04:38:14.601226Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION/nav-1-20-9-20260721T043634911470Z/1-20-9-20260721T043635359798Z",
+          "terminal_outcome": "failed",
+          "diagnosis": "Home Atlas LOCALIZATION_NOT_RECOGNIZED on first Campaign entry frame; not yet at recognized Home/Base for atlas binding."
+        },
+        {
+          "ordinal": 2,
+          "active_flow": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+          "lease_owner": "gpt-5.6-sol-high-parent",
+          "lease_session": "pns-flow-delivery-35004996-9b5b-4a20-8218-2dd0d6bed11b",
+          "repository_head": "5c8e99fba26a3c9a016d9188fa524d82a0f0c016",
+          "started_at": "2026-07-21T04:39:17.877548Z",
+          "finished_at": "2026-07-21T04:40:00.548631Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION/nav-1-20-9-20260721T043926249075Z",
+          "terminal_outcome": "failed",
+          "diagnosis": "return-canonical blocked: Home Atlas zoom_identity=zoomed_in so localize recognized=false; next attempt must zoom-out then return-canonical before Campaign entry."
+        },
+        {
+          "ordinal": 3,
+          "active_flow": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+          "lease_owner": "gpt-5.6-sol-high-parent",
+          "lease_session": "pns-flow-delivery-35004996-9b5b-4a20-8218-2dd0d6bed11b",
+          "repository_head": "5c8e99fba26a3c9a016d9188fa524d82a0f0c016",
+          "started_at": "2026-07-21T04:40:11.727420Z",
+          "finished_at": "2026-07-21T04:40:40.527731Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+          "terminal_outcome": "failed",
+          "diagnosis": "zoom-out used wrong atlas.png reference; viewport-001 tile path corrected but maximum_live_attempts=3 exhausted."
+        }
+      ],
       "focused_tests": [
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
         "tests/test_campaign_story_destinations.py",
-        "tests/test_home_atlas_verified_route.py"
+        "tests/test_home_atlas_verified_route.py",
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_flow_delivery_token_context_hygiene.py",
+        "tests/test_governance_validation.py",
+        "tests/test_flow_delivery_parent_conversation_rollover.py",
+        "tests/test_flow_delivery_ide_native_hardening.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -78,9 +125,9 @@
         "navigation_input_count",
         "relocalization_residual_pixels"
       ],
-      "blocked_reason": "",
+      "blocked_reason": "maximum_live_attempts exhausted: Home Atlas Campaign entry failed LOCALIZATION_NOT_RECOGNIZED because live Home camera was zoomed_in; return-canonical/zoom-out prep landed only on final attempt and could not be re-tried within the checked-in budget of 3. Campaign adapter+pnsctl registry wiring is retained in WIP for a later correction with expanded live budget or pre-zoomed Home.",
       "next_concrete_action": "Replace legacy HOME_PAN_GESTURES with the canonical Home Atlas and add remembered-state feedback control for the three approved Story destinations.",
-      "last_completed_stage": null,
+      "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
       "acceptance_criteria": [

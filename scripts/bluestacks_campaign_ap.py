@@ -4,6 +4,9 @@
 Dry-run is the default.  ``--execute`` is required for input, and every fresh frame plus command
 is retained under ``.local-captures``.  This adapter never connects ADB and rejects non-local
 BlueStacks serials.
+
+``--navigation-only`` verifies an exact supported Story destination and stops at
+``destination_verified`` / ``navigation_only_complete`` without Challenge or AP consumption.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import math
 from pathlib import Path
 import sys
 import time
@@ -25,13 +29,29 @@ if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bluestacks_flow_collector import ADBRunner, is_permitted_local_bluestacks_serial
+from bluestacks_native_runtime import LocalBlueStacksRuntime
+from home_atlas_bluestacks import (
+    CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+    campaign_home_atlas_building_id,
+    require_campaign_home_atlas_building,
+    run_verified_campaign_home_atlas_entry,
+)
 from tasks.campaign_auto_battle import (
+    CampaignAction,
     CampaignAutoBattleConfig,
     CampaignScreen,
     parse_supported_campaign_story_destination,
 )
-from tasks.campaign_auto_battle_runtime import CampaignRuntimeController
+from tasks.campaign_auto_battle_runtime import (
+    CAMPAIGN_HOME_ATLAS_BUILDING_ID as RUNTIME_CAMPAIGN_BUILDING_ID,
+    CampaignRuntimeController,
+)
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
+
+
+DEFAULT_HOME_ATLAS = (
+    REPO_ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+)
 
 
 def utc_stamp() -> str:
@@ -43,6 +63,19 @@ def append_event(path: Path, event: dict[str, object]) -> None:
         handle.write(json.dumps(event, sort_keys=True, default=str) + "\n")
 
 
+def relocalization_residual_pixels(
+    localization_residual_px: float | None,
+    remaining_displacement: tuple[float, float] | None = None,
+) -> float | None:
+    """Prefer Home Atlas localization residual; else pan remaining displacement magnitude."""
+
+    if localization_residual_px is not None:
+        return float(localization_residual_px)
+    if remaining_displacement is None:
+        return None
+    return float(math.hypot(remaining_displacement[0], remaining_displacement[1]))
+
+
 def capture(runner: ADBRunner, path: Path) -> np.ndarray:
     payload = runner.capture_png()
     frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
@@ -50,6 +83,64 @@ def capture(runner: ADBRunner, path: Path) -> np.ndarray:
         raise RuntimeError("BlueStacks screenshot is not a native 800x1280 PNG")
     path.write_bytes(payload)
     return frame
+
+
+_CAMPAIGN_ENTRY_OPEN_SCREENS = frozenset(
+    {
+        CampaignScreen.TIER_MAP,
+        CampaignScreen.CHAPTER_MAP,
+        CampaignScreen.STAGE_DIALOG,
+        CampaignScreen.HERO_LINEUP,
+    }
+)
+
+
+def _campaign_entry_semantically_opened(frame: np.ndarray) -> bool:
+    """True only when post-entry vision binds Campaign/TIER_MAP (or equivalent)."""
+
+    # Screen classification only; any supported destination supplies OCR targets.
+    stage = parse_supported_campaign_story_destination("1-20-9")
+    recognition = recognize_campaign_frame(frame, stage)
+    return (
+        recognition.observation.recognized
+        and recognition.observation.screen in _CAMPAIGN_ENTRY_OPEN_SCREENS
+    )
+
+
+def _dispatch_home_atlas_campaign_entry(
+    *,
+    runner: ADBRunner,
+    frames: Path,
+    events: Path,
+    execute: bool,
+    maximum_pans: int = 4,
+    post_input_delay: float = 1.0,
+    atlas_path: Path = DEFAULT_HOME_ATLAS,
+) -> dict[str, object]:
+    """Pan/bind/open Campaign via verified Home Atlas path; never raw ADB or HOME_PAN_GESTURES."""
+
+    building_id = require_campaign_home_atlas_building(atlas_path)
+    assert building_id == RUNTIME_CAMPAIGN_BUILDING_ID == campaign_home_atlas_building_id()
+    entry_session = frames.parent / f"home-atlas-entry-{utc_stamp()}"
+    runtime = LocalBlueStacksRuntime(runner, entry_session, execute=execute)
+    result = run_verified_campaign_home_atlas_entry(
+        runtime,
+        atlas_path=atlas_path,
+        maximum_pans=maximum_pans,
+        execute=execute,
+        settle_seconds=post_input_delay,
+        semantic_opened_check=_campaign_entry_semantically_opened,
+    )
+    append_event(
+        events,
+        {
+            "type": "home_atlas_entry_verified",
+            "building_id": building_id,
+            "entry_session": str(entry_session),
+            **{k: v for k, v in result.items() if k != "tap_telemetry"},
+        },
+    )
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -70,13 +161,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--post-input-delay", type=float, default=1)
     parser.add_argument("--recognition-timeout", type=float, default=25)
     parser.add_argument("--max-steps", type=int, default=240)
+    parser.add_argument(
+        "--navigation-only",
+        action="store_true",
+        help="verify destination only; stop before Challenge/AP",
+    )
+    parser.add_argument("--atlas", type=Path, default=DEFAULT_HOME_ATLAS)
     parser.add_argument("--execute", action="store_true", help="allow bounded tap/swipe dispatch")
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="skip interactive serial confirmation (required for operator-driven live delivery)",
+    )
     parser.add_argument("--output-directory", type=Path, default=Path(".local-captures/campaign-ap-live"))
     args = parser.parse_args(argv)
 
     if not is_permitted_local_bluestacks_serial(args.serial):
         parser.error("serial is not a permitted local BlueStacks endpoint")
     stage = parse_supported_campaign_story_destination(args.stage)
+    require_campaign_home_atlas_building(args.atlas)
     config = CampaignAutoBattleConfig(
         target_stage=stage,
         ap_cost=args.ap_cost,
@@ -84,15 +187,31 @@ def main(argv: list[str] | None = None) -> int:
         max_runs=args.max_runs,
         battle_poll_seconds=args.poll_seconds,
         battle_timeout_seconds=args.battle_timeout,
+        navigation_only=bool(args.navigation_only),
     )
     if not args.execute:
-        print(json.dumps({"status": "dry-run", "stage": stage.identity, "dispatch": False}, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "status": "dry-run",
+                    "stage": stage.identity,
+                    "dispatch": False,
+                    "navigation_only": config.navigation_only,
+                    "campaign_home_atlas_building_id": CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+                },
+                sort_keys=True,
+            )
+        )
         return 0
 
-    answer = input(f"Confirm exact BlueStacks serial '{args.serial}' for Campaign {stage.identity}? [y/N]: ")
-    if answer.strip().casefold() not in {"y", "yes"}:
-        print("Campaign AP run cancelled", file=sys.stderr)
-        return 2
+    mode = "navigation-only" if config.navigation_only else "AP"
+    if not args.yes:
+        answer = input(
+            f"Confirm exact BlueStacks serial '{args.serial}' for Campaign {mode} {stage.identity}? [y/N]: "
+        )
+        if answer.strip().casefold() not in {"y", "yes"}:
+            print("Campaign AP run cancelled", file=sys.stderr)
+            return 2
 
     runner = ADBRunner(args.adb, args.serial)
     devices = {device.serial: device.state for device in runner.list_devices()}
@@ -106,6 +225,9 @@ def main(argv: list[str] | None = None) -> int:
     controller = CampaignRuntimeController(config, initial_ap=args.initial_ap)
     battle_started: float | None = None
     ordinal = 0
+    started = time.monotonic()
+    navigation_inputs = 0
+    last_relocalization_residual_pixels: float | None = None
 
     for step in range(1, args.max_steps + 1):
         deadline = time.monotonic() + args.recognition_timeout
@@ -160,12 +282,46 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"{step:03d} {recognition.observation.screen.value} -> {command.action.value}: {command.reason}")
         if command.terminal:
-            result = {
-                "status": "completed" if command.action.value == "COMPLETE" else "blocked",
-                "reason": command.reason,
-                "session": str(session),
-                "progress": controller.progress,
-            }
+            if command.action in {
+                CampaignAction.DESTINATION_VERIFIED,
+                CampaignAction.NAVIGATION_ONLY_COMPLETE,
+            }:
+                status = (
+                    "destination_verified"
+                    if command.action == CampaignAction.DESTINATION_VERIFIED
+                    else "navigation_only_complete"
+                )
+                result = {
+                    "status": status,
+                    "terminal": "navigation_only_complete",
+                    "reason": command.reason,
+                    "session": str(session),
+                    "progress": controller.progress,
+                    "destination": stage.identity,
+                    "destination_verification_latency_seconds": time.monotonic() - started,
+                    "navigation_input_count": navigation_inputs,
+                    "relocalization_residual_pixels": last_relocalization_residual_pixels,
+                }
+                (session / "result.json").write_text(
+                    json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
+                    encoding="utf-8",
+                )
+                print(json.dumps(result, sort_keys=True, default=str))
+                return 0
+            if command.action == CampaignAction.COMPLETE:
+                result = {
+                    "status": "completed",
+                    "reason": command.reason,
+                    "session": str(session),
+                    "progress": controller.progress,
+                }
+            else:
+                result = {
+                    "status": "blocked_fail_closed",
+                    "reason": command.reason,
+                    "session": str(session),
+                    "progress": controller.progress,
+                }
             (session / "result.json").write_text(
                 json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
                 encoding="utf-8",
@@ -175,13 +331,45 @@ def main(argv: list[str] | None = None) -> int:
         if command.kind == "wait":
             time.sleep(command.wait_seconds or args.poll_seconds)
             continue
+        if command.kind == "home_atlas_entry":
+            entry = _dispatch_home_atlas_campaign_entry(
+                runner=runner,
+                frames=frames,
+                events=events,
+                execute=True,
+                post_input_delay=args.post_input_delay,
+                atlas_path=args.atlas,
+            )
+            append_event(events, {"type": "home_atlas_entry_result", **entry})
+            residual = entry.get("relocalization_residual_pixels")
+            if isinstance(residual, (int, float)):
+                last_relocalization_residual_pixels = float(residual)
+            if entry["status"] != "opened":
+                result = {
+                    "status": "blocked_fail_closed",
+                    "reason": entry.get("reason", "Home Atlas Campaign entry failed"),
+                    "session": str(session),
+                    "home_atlas_entry": entry,
+                    "relocalization_residual_pixels": last_relocalization_residual_pixels,
+                }
+                (session / "result.json").write_text(
+                    json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
+                    encoding="utf-8",
+                )
+                print(json.dumps(result, sort_keys=True, default=str))
+                return 3
+            navigation_inputs += 1 + len(entry.get("records", []))
+            controller.accept_dispatched(command)
+            continue
         if command.kind == "tap":
             assert command.tap_point is not None
             runner.dispatch_tap(command.tap_point)
+            navigation_inputs += 1
         elif command.kind == "swipe":
             assert command.swipe is not None
             x0, y0, x1, y1, duration = command.swipe
             runner.dispatch_swipe((x0, y0), (x1, y1), duration)
+            navigation_inputs += 1
         else:
             raise RuntimeError(f"unsupported Campaign command kind: {command.kind}")
         controller.accept_dispatched(command)

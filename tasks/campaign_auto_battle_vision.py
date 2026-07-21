@@ -459,6 +459,7 @@ def recognize_campaign_frame(
                 screen=CampaignScreen.TIER_MAP,
                 selected_tier=selected_tier,
                 chapter_number=target_stage.chapter if target_stage.chapter in map_numbers else None,
+                visible_chapter_numbers=tuple(sorted(map_numbers)),
                 chapter_navigation_available=True,
                 ap_current=tier_ap[0] if tier_ap else None,
             ),

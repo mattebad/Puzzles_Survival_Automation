@@ -304,6 +304,64 @@ class CampaignAutoBattleTests(unittest.TestCase):
             CampaignAction.RETURN_HOME,
         )
 
+    def test_navigation_only_stops_at_exact_destination_before_challenge(self):
+        config = CampaignAutoBattleConfig(
+            target_stage=self.stage,
+            ap_cost=16,
+            ap_budget=16,
+            max_runs=1,
+            battle_poll_seconds=1,
+            battle_timeout_seconds=180,
+            navigation_only=True,
+        )
+        progress = CampaignRouteProgress(initial_ap=50, current_ap=50)
+        verified = campaign_next_decision(
+            config,
+            progress,
+            CampaignRouteObservation(
+                screen=CampaignScreen.STAGE_DIALOG,
+                stage_dialog=self.stage,
+                ap_current=50,
+                ap_cost=16,
+                challenge_ready=True,
+            ),
+        )
+        self.assertEqual(verified.action, CampaignAction.DESTINATION_VERIFIED)
+        self.assertTrue(verified.terminal)
+
+        for destination in ("1-15-9", "2-2-9"):
+            stage = CampaignStage.parse(destination)
+            dest_config = CampaignAutoBattleConfig(
+                target_stage=stage,
+                ap_cost=16,
+                ap_budget=16,
+                max_runs=1,
+                battle_poll_seconds=1,
+                battle_timeout_seconds=180,
+                navigation_only=True,
+            )
+            decision = campaign_next_decision(
+                dest_config,
+                progress,
+                CampaignRouteObservation(
+                    screen=CampaignScreen.STAGE_DIALOG,
+                    stage_dialog=stage,
+                    ap_cost=16,
+                ),
+            )
+            self.assertEqual(decision.action, CampaignAction.DESTINATION_VERIFIED)
+
+        blocked = campaign_next_decision(
+            config,
+            progress,
+            CampaignRouteObservation(
+                screen=CampaignScreen.HERO_LINEUP,
+                lineup_challenge_ready=True,
+            ),
+        )
+        self.assertEqual(blocked.action, CampaignAction.BLOCKED)
+        self.assertIn("navigation-only", blocked.reason)
+
 
 if __name__ == "__main__":
     unittest.main()

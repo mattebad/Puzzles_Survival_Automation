@@ -165,6 +165,24 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         self.assertEqual(campaign["ultimate_challenge_coverage"], "not_applicable_to_this_flow")
         self.assertEqual(ultimate["campaign_ap_coverage"], "not_applicable_to_this_flow")
 
+    def test_campaign_home_atlas_entry_seam_is_canonical(self) -> None:
+        from scripts.home_atlas_bluestacks import (
+            CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            campaign_home_atlas_building_id,
+            dispatch_verified_navigate_pan,
+            require_campaign_home_atlas_building,
+            run_verified_campaign_home_atlas_entry,
+        )
+        from tasks.campaign_auto_battle_runtime import (
+            CAMPAIGN_HOME_ATLAS_BUILDING_ID as RUNTIME_ID,
+        )
+
+        self.assertEqual(campaign_home_atlas_building_id(), "home.building.campaign")
+        self.assertEqual(CAMPAIGN_HOME_ATLAS_BUILDING_ID, RUNTIME_ID)
+        self.assertEqual(require_campaign_home_atlas_building(), CAMPAIGN_HOME_ATLAS_BUILDING_ID)
+        self.assertTrue(callable(dispatch_verified_navigate_pan))
+        self.assertTrue(callable(run_verified_campaign_home_atlas_entry))
+
     def test_production_scheduler_and_registration_remain_unchanged(self) -> None:
         self.assertFalse(self.queue["gameplay_scheduler"])
         scheduler = SCHEDULER_PATH.read_text(encoding="utf-8")

@@ -11,7 +11,6 @@ from dataclasses import dataclass, replace
 from .campaign_auto_battle import (
     CampaignAction,
     CampaignAutoBattleConfig,
-    CampaignDecision,
     CampaignRouteProgress,
     CampaignScreen,
     campaign_next_decision,
@@ -21,26 +20,96 @@ from .campaign_auto_battle import (
 from .campaign_auto_battle_vision import Box, CampaignFrameRecognition
 
 
-CHAPTER_PAN_GESTURES = (
-    (620, 620, 180, 620, 550),
-    (400, 840, 400, 300, 550),
-    (180, 620, 620, 620, 550),
-    (400, 300, 400, 840, 550),
-    (600, 780, 220, 360, 600),
-    (220, 360, 600, 780, 600),
-)
+# Retained for orchestrator/governance symbol presence. Campaign entry must not cycle these;
+# unbound OPEN_CAMPAIGN fails closed toward Home Atlas home.building.campaign instead.
 HOME_PAN_GESTURES = (
     (427, 703, 107, 836, 600),
     (107, 836, 427, 703, 600),
     (560, 720, 220, 420, 600),
     (220, 420, 560, 720, 600),
 )
+
+# Feedback-controlled residual pans (not open-loop round-robin).
+# Drag left reveals content toward higher map numbers; drag right reveals lower.
+CHAPTER_PAN_TOWARD_HIGHER = (620, 620, 180, 620, 550)
+CHAPTER_PAN_TOWARD_LOWER = (180, 620, 620, 620, 550)
+STAGE_PAN_TOWARD_HIGHER = (620, 700, 220, 700, 500)
+STAGE_PAN_TOWARD_LOWER = (220, 700, 620, 700, 500)
+
+# Legacy gesture tables retained as non-authoritative references only.
+CHAPTER_PAN_GESTURES = (
+    CHAPTER_PAN_TOWARD_HIGHER,
+    (400, 840, 400, 300, 550),
+    CHAPTER_PAN_TOWARD_LOWER,
+    (400, 300, 400, 840, 550),
+    (600, 780, 220, 360, 600),
+    (220, 360, 600, 780, 600),
+)
 STAGE_PAN_GESTURES = (
-    (620, 700, 220, 700, 500),
+    STAGE_PAN_TOWARD_HIGHER,
     (400, 850, 400, 330, 500),
-    (220, 700, 620, 700, 500),
+    STAGE_PAN_TOWARD_LOWER,
     (400, 330, 400, 850, 500),
 )
+
+CAMPAIGN_HOME_ATLAS_BUILDING_ID = "home.building.campaign"
+
+
+def home_pan_gestures_for_campaign_entry() -> None:
+    """Fail-closed guard: open-loop HOME_PAN_GESTURES must not open Campaign."""
+
+    raise RuntimeError(
+        "HOME_PAN_GESTURES is fail-closed for Campaign entry; "
+        f"use Home Atlas {CAMPAIGN_HOME_ATLAS_BUILDING_ID}"
+    )
+
+
+def residual_pan_swipe(
+    target: int,
+    visible: tuple[int, ...],
+    *,
+    toward_higher: tuple[int, int, int, int, int],
+    toward_lower: tuple[int, int, int, int, int],
+) -> tuple[int, int, int, int, int]:
+    """Choose one pan from remembered visible numbers versus the target residual.
+
+    Empty visible sets are not a residual baseline; callers must fail closed before pan.
+    """
+
+    if not visible:
+        raise ValueError(
+            "residual pan requires a non-empty visible set; empty baseline is not a residual"
+        )
+    low = min(visible)
+    high = max(visible)
+    center = (low + high) / 2.0
+    if target > center:
+        return toward_higher
+    if target < center:
+        return toward_lower
+    if abs(target - high) <= abs(target - low):
+        return toward_higher
+    return toward_lower
+
+
+def visible_set_moved_toward_target(
+    target: int,
+    before: tuple[int, ...],
+    after: tuple[int, ...],
+) -> bool:
+    """True only when a non-empty after set is strictly closer to the target than before."""
+
+    if not after or not before:
+        return False
+    if after == before:
+        return False
+    before_dist = min(abs(value - target) for value in before)
+    after_dist = min(abs(value - target) for value in after)
+    if after_dist < before_dist:
+        return True
+    before_center = (min(before) + max(before)) / 2.0
+    after_center = (min(after) + max(after)) / 2.0
+    return abs(target - after_center) < abs(target - before_center)
 
 
 @dataclass(frozen=True)
@@ -70,13 +139,15 @@ class CampaignRuntimeController:
             if initial_ap is not None
             else None
         )
-        self._home_pan_index = 0
-        self._chapter_pan_index = 0
-        self._stage_pan_index = 0
         self._awaiting_victory_ap = False
         self._return_request_sent = False
         self._last_frame_hash: str | None = None
         self._last_dispatched_signature: tuple[object, ...] | None = None
+        self._remembered_chapter_visible: tuple[int, ...] | None = None
+        self._remembered_stage_visible: tuple[int, ...] | None = None
+        self._awaiting_chapter_progress = False
+        self._awaiting_stage_progress = False
+        self._destination_verified = False
 
     def _terminal(self, action: CampaignAction, reason: str) -> CampaignRuntimeCommand:
         return CampaignRuntimeCommand(action, "terminal", reason, terminal=True)
@@ -89,7 +160,7 @@ class CampaignRuntimeController:
             command.target_roi,
             command.swipe,
         )
-        if command.kind in {"tap", "swipe"} and signature == self._last_dispatched_signature:
+        if command.kind in {"tap", "swipe", "home_atlas_entry"} and signature == self._last_dispatched_signature:
             return self._terminal(CampaignAction.BLOCKED, "identical input retry is forbidden")
         return command
 
@@ -139,6 +210,35 @@ class CampaignRuntimeController:
                     return str(exc)
         return None
 
+    def _feedback_blocked_if_no_progress(
+        self,
+        *,
+        awaiting: bool,
+        remembered: tuple[int, ...] | None,
+        visible: tuple[int, ...],
+        target: int,
+        label: str,
+    ) -> CampaignRuntimeCommand | None:
+        if not awaiting:
+            return None
+        # Empty / OCR-failed visible sets are never progress.
+        if not visible:
+            return self._terminal(
+                CampaignAction.BLOCKED,
+                f"{label} pan produced empty/OCR-failed visible set; not progress toward target",
+            )
+        if remembered is None:
+            return self._terminal(
+                CampaignAction.BLOCKED,
+                f"{label} pan progress gate missing remembered visible set",
+            )
+        if not visible_set_moved_toward_target(target, remembered, visible):
+            return self._terminal(
+                CampaignAction.BLOCKED,
+                f"{label} pan produced no progress toward the configured target",
+            )
+        return None
+
     def next_command(self, recognition: CampaignFrameRecognition) -> CampaignRuntimeCommand:
         if self._last_frame_hash == recognition.frame_sha256 and recognition.observation.screen == CampaignScreen.UNKNOWN:
             return self._terminal(CampaignAction.BLOCKED, "unchanged unknown frame")
@@ -149,8 +249,39 @@ class CampaignRuntimeController:
             return self._terminal(CampaignAction.BLOCKED, error)
         assert self.progress is not None
 
-        decision = campaign_next_decision(self.config, self.progress, recognition.observation)
+        observation = recognition.observation
+        if self._destination_verified and self.config.navigation_only:
+            return self._terminal(
+                CampaignAction.NAVIGATION_ONLY_COMPLETE,
+                "destination already verified; navigation-only complete",
+            )
+
+        no_chapter_progress = self._feedback_blocked_if_no_progress(
+            awaiting=self._awaiting_chapter_progress,
+            remembered=self._remembered_chapter_visible,
+            visible=observation.visible_chapter_numbers,
+            target=self.config.target_stage.chapter,
+            label="chapter",
+        )
+        if no_chapter_progress is not None:
+            return no_chapter_progress
+        self._awaiting_chapter_progress = False
+
+        no_stage_progress = self._feedback_blocked_if_no_progress(
+            awaiting=self._awaiting_stage_progress,
+            remembered=self._remembered_stage_visible,
+            visible=observation.visible_stage_numbers,
+            target=self.config.target_stage.stage,
+            label="stage",
+        )
+        if no_stage_progress is not None:
+            return no_stage_progress
+        self._awaiting_stage_progress = False
+
+        decision = campaign_next_decision(self.config, self.progress, observation)
         if decision.terminal:
+            if decision.action == CampaignAction.DESTINATION_VERIFIED:
+                self._destination_verified = True
             return self._terminal(decision.action, decision.reason)
         if decision.action == CampaignAction.WAIT_FOR_BATTLE_RESULT:
             return CampaignRuntimeCommand(
@@ -162,17 +293,70 @@ class CampaignRuntimeController:
 
         target = recognition.target(decision.target_identity) if decision.target_identity else None
         if decision.action == CampaignAction.OPEN_CAMPAIGN and target is None:
-            swipe = HOME_PAN_GESTURES[self._home_pan_index % len(HOME_PAN_GESTURES)]
-            self._home_pan_index += 1
-            return self._checked(CampaignRuntimeCommand(decision.action, "swipe", "pan Home until Campaign is visible", swipe=swipe))
+            # Never cycle HOME_PAN_GESTURES; require Home Atlas Campaign entry seam.
+            return self._checked(
+                CampaignRuntimeCommand(
+                    decision.action,
+                    "home_atlas_entry",
+                    (
+                        "open Campaign via Home Atlas "
+                        f"{CAMPAIGN_HOME_ATLAS_BUILDING_ID}; HOME_PAN_GESTURES is fail-closed"
+                    ),
+                    target_identity=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+                )
+            )
         if decision.action == CampaignAction.NAVIGATE_CHAPTER and target is None:
-            swipe = CHAPTER_PAN_GESTURES[self._chapter_pan_index % len(CHAPTER_PAN_GESTURES)]
-            self._chapter_pan_index += 1
-            return self._checked(CampaignRuntimeCommand(decision.action, "swipe", decision.reason, swipe=swipe))
+            visible = observation.visible_chapter_numbers
+            if observation.chapter_number is not None and not visible:
+                visible = (observation.chapter_number,)
+            if not visible:
+                return self._terminal(
+                    CampaignAction.BLOCKED,
+                    "chapter residual pan requires non-empty visible chapter set before pan",
+                )
+            swipe = residual_pan_swipe(
+                self.config.target_stage.chapter,
+                visible,
+                toward_higher=CHAPTER_PAN_TOWARD_HIGHER,
+                toward_lower=CHAPTER_PAN_TOWARD_LOWER,
+            )
+            command = self._checked(
+                CampaignRuntimeCommand(
+                    decision.action,
+                    "swipe",
+                    decision.reason,
+                    swipe=swipe,
+                )
+            )
+            if not command.terminal:
+                # Never remember empty () as a residual baseline.
+                self._remembered_chapter_visible = visible
+            return command
         if decision.action == CampaignAction.NAVIGATE_STAGE and target is None:
-            swipe = STAGE_PAN_GESTURES[self._stage_pan_index % len(STAGE_PAN_GESTURES)]
-            self._stage_pan_index += 1
-            return self._checked(CampaignRuntimeCommand(decision.action, "swipe", decision.reason, swipe=swipe))
+            visible = observation.visible_stage_numbers
+            if not visible:
+                return self._terminal(
+                    CampaignAction.BLOCKED,
+                    "stage residual pan requires non-empty visible stage set before pan",
+                )
+            swipe = residual_pan_swipe(
+                self.config.target_stage.stage,
+                visible,
+                toward_higher=STAGE_PAN_TOWARD_HIGHER,
+                toward_lower=STAGE_PAN_TOWARD_LOWER,
+            )
+            command = self._checked(
+                CampaignRuntimeCommand(
+                    decision.action,
+                    "swipe",
+                    decision.reason,
+                    swipe=swipe,
+                )
+            )
+            if not command.terminal:
+                # Never remember empty () as a residual baseline.
+                self._remembered_stage_visible = visible
+            return command
         if decision.action == CampaignAction.RETURN_HOME and target is None:
             if self._return_request_sent:
                 return self._terminal(CampaignAction.BLOCKED, "Campaign exit did not appear after one base request")
@@ -200,7 +384,7 @@ class CampaignRuntimeController:
         ))
 
     def accept_dispatched(self, command: CampaignRuntimeCommand) -> None:
-        if command.kind not in {"tap", "swipe"}:
+        if command.kind not in {"tap", "swipe", "home_atlas_entry"}:
             raise ValueError("only dispatched input commands may be accepted")
         self._last_dispatched_signature = (
             command.action,
@@ -216,3 +400,7 @@ class CampaignRuntimeController:
         elif command.action == CampaignAction.RETURN_HOME_AFTER_DEFEAT:
             assert self.progress is not None
             self.progress = replace(self.progress, loss_seen=True)
+        elif command.kind == "swipe" and command.action == CampaignAction.NAVIGATE_CHAPTER:
+            self._awaiting_chapter_progress = True
+        elif command.kind == "swipe" and command.action == CampaignAction.NAVIGATE_STAGE:
+            self._awaiting_stage_progress = True

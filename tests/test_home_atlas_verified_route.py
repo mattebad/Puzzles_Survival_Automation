@@ -174,6 +174,7 @@ class _FakeRuntime:
     def __init__(self, session: Path):
         self.session = session
         self.swipes: list[dict[str, object]] = []
+        self.taps: list[dict[str, object]] = []
         self.ordinal = 0
         self._origin = (0.0, 0.0)
         self.progress_after_swipe = False
@@ -198,6 +199,25 @@ class _FakeRuntime:
 
     def captures_labeled(self, label: str) -> list[CapturedNativeFrame]:
         return [captured for name, captured in self.captured_frames if name == label]
+
+    def tap(
+        self,
+        captured: CapturedNativeFrame,
+        *,
+        target_identity: str,
+        target_roi: tuple[int, int, int, int],
+        action_key: str,
+        consequential: bool,
+    ) -> None:
+        self.taps.append(
+            {
+                "target_identity": target_identity,
+                "target_roi": target_roi,
+                "action_key": action_key,
+                "consequential": consequential,
+                "sha256": captured.sha256,
+            }
+        )
 
     def swipe(self, captured, *, start, end, action_key, target_identity):
         self.swipes.append(
@@ -1015,6 +1035,95 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
         )
         for name in modules:
             importlib.import_module(name)
+
+    def test_campaign_home_atlas_building_seam_exports(self) -> None:
+        from scripts.home_atlas_bluestacks import (
+            CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            campaign_home_atlas_building_id,
+            command_navigate_building,
+            dispatch_verified_campaign_home_building_tap,
+            dispatch_verified_navigate_pan,
+            reject_direct_campaign_home_building_transport,
+            require_campaign_home_atlas_building,
+            run_verified_campaign_home_atlas_entry,
+        )
+
+        self.assertEqual(campaign_home_atlas_building_id(), "home.building.campaign")
+        self.assertEqual(require_campaign_home_atlas_building(), CAMPAIGN_HOME_ATLAS_BUILDING_ID)
+        self.assertTrue(callable(command_navigate_building))
+        self.assertTrue(callable(dispatch_verified_navigate_pan))
+        self.assertTrue(callable(dispatch_verified_campaign_home_building_tap))
+        self.assertTrue(callable(run_verified_campaign_home_atlas_entry))
+        with self.assertRaises(RuntimeError) as raised:
+            reject_direct_campaign_home_building_transport()
+        self.assertEqual(str(raised.exception), "DIRECT_TRANSPORT_BYPASS_REJECTED")
+
+    def test_campaign_home_entry_rejects_false_opened_without_semantic_bind(self) -> None:
+        """Transport success without semantic Campaign open must not report status opened."""
+
+        from scripts.home_atlas_bluestacks import (
+            CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            run_verified_campaign_home_atlas_entry,
+        )
+
+        campaign = _building(
+            semantic_id=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            polygon=((300, 400), (440, 400), (440, 540), (300, 540)),
+        )
+        world = _atlas(campaign)
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            sample = runtime.capture("seed")
+            digest = frame_digest(sample.frame)
+            loc = replace(_localization(digest), frame_sha256=digest)
+            binding = BuildingBinding(
+                CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+                (320, 420, 420, 520),
+                digest,
+                0.95,
+                ("current-frame OCR: Campaign",),
+            )
+            fake_localizer = SimpleNamespace(
+                localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame))
+            )
+
+            def _bind(frame, localization_arg, building_arg):
+                return replace(binding, frame_sha256=localization_arg.frame_sha256)
+
+            with patch(
+                "scripts.home_atlas_bluestacks.require_campaign_home_atlas_building",
+                return_value=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            ), patch(
+                "scripts.home_atlas_bluestacks.load_home_atlas",
+                return_value=world,
+            ), patch(
+                "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer",
+                return_value=fake_localizer,
+            ), patch(
+                "scripts.home_atlas_bluestacks.bind_visible_building",
+                side_effect=_bind,
+            ), patch(
+                "scripts.home_atlas_bluestacks.time.monotonic",
+                side_effect=lambda: float(runtime.ordinal) + 0.2,
+            ):
+                result = run_verified_campaign_home_atlas_entry(
+                    runtime,
+                    atlas_path=Path(directory) / "atlas.json",
+                    maximum_pans=1,
+                    execute=True,
+                    settle_seconds=0,
+                    semantic_opened_check=lambda _frame: False,
+                )
+
+            self.assertNotEqual(result["status"], "opened")
+            self.assertEqual(result["status"], "blocked_fail_closed")
+            self.assertIn("semantic Campaign/TIER_MAP", result["reason"])
+            self.assertEqual(len(runtime.taps), 1)
+            self.assertEqual(runtime.taps[0]["target_identity"], CAMPAIGN_HOME_ATLAS_BUILDING_ID)
+            telemetry = result["tap_telemetry"]
+            self.assertTrue(telemetry.get("transport_observed") or telemetry.get("dispatched"))
+            self.assertIs(telemetry.get("verified"), False)
+            self.assertIs(telemetry.get("completed"), False)
 
 
 if __name__ == "__main__":

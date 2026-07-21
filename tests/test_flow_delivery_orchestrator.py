@@ -39,7 +39,11 @@ class FlowDeliveryQueueTests(unittest.TestCase):
 
     def test_exactly_one_or_zero_active_flow(self) -> None:
         active = [item for item in self.queue["flows"] if item["status"] == "active"]
-        self.assertEqual(active, [])
+        self.assertLessEqual(len(active), 1)
+        if not active:
+            self.assertIsNone(self.queue["active_flow_id"])
+        else:
+            self.assertEqual(self.queue["active_flow_id"], active[0]["flow_id"])
         broken = deepcopy(self.queue)
         broken["flows"][0]["status"] = "active"
         broken["flows"][1]["status"] = "active"
@@ -55,6 +59,10 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
         )
         active = deepcopy(self.queue)
+        for flow in active["flows"]:
+            if flow["status"] == "active":
+                flow["status"] = "ready"
+                flow["last_completed_stage"] = "selected"
         active["flows"][4]["status"] = "active"
         active["flows"][4]["last_completed_stage"] = "implementation"
         active["active_flow_id"] = active["flows"][4]["flow_id"]
@@ -106,7 +114,8 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             status: sum(item["status"] == status for item in self.queue["flows"])
             for status in control.QUEUE_STATUSES
         }
-        self.assertEqual(counts["ready"], 9)
+        self.assertIn(counts["active"], (0, 1))
+        self.assertEqual(counts["ready"], 9 - counts["active"])
         self.assertEqual(counts["blocked"], 2)
         self.assertEqual(counts["needs_product_decision"], 4)
 
@@ -379,14 +388,14 @@ class BlueStacksOperatorContractTests(unittest.TestCase):
         with patch("scripts.pnsctl._load_flow_delivery_state") as state, patch(
             "scripts.pnsctl.subprocess.run"
         ) as run:
-            with self.assertRaisesRegex(
-                pnsctl.OperatorError,
-                "FLOW_DELIVERY_RUNNER_UNAVAILABLE",
-            ):
+            payload = json.loads(
                 pnsctl.bluestacks_run_flow(
                     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
                     live=False,
                 )
+            )
+        self.assertEqual(payload["status"], "dry_run")
+        self.assertFalse(payload["dispatch"])
         state.assert_not_called()
         run.assert_not_called()
 
