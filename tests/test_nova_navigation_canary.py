@@ -101,7 +101,7 @@ def _radial_recognition(digest: str) -> NovaFrameRecognition:
     return NovaFrameRecognition(
         observation,
         digest,
-        ((NOVA_INTERACTION_TARGET, (137, 631, 181, 675)),),
+        ((NOVA_INTERACTION_TARGET, (226, 640, 270, 684)),),
         {
             "research_lab_radial": {
                 "recognized": True,
@@ -435,7 +435,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             home_context_visible=measured,
         )
         self.assertTrue(recognized.observation.recognized)
-        self.assertEqual(recognized.target(NOVA_INTERACTION_TARGET), (137, 631, 181, 675))
+        self.assertEqual(recognized.target(NOVA_INTERACTION_TARGET), (226, 640, 270, 684))
 
     def test_unbound_radial_start_blocks_without_generic_back(self) -> None:
         runtime = FakeRuntime()
@@ -482,7 +482,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         )
         self.assertTrue(recognized.observation.recognized)
         self.assertEqual(recognized.observation.screen_state, "RESEARCH_LAB_MENU")
-        self.assertEqual(recognized.target(NOVA_INTERACTION_TARGET), (137, 631, 181, 675))
+        self.assertEqual(recognized.target(NOVA_INTERACTION_TARGET), (226, 640, 270, 684))
         radial = recognized.diagnostics["research_lab_radial"]
         self.assertEqual(radial["bind_method"], "template_nova_plus_research_hough")
         self.assertTrue(radial["initial_unprovenanced_composite"])
@@ -500,7 +500,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         )
         self.assertEqual(fresh.observation.screen_state, "RESEARCH_LAB_MENU")
         self.assertTrue(fresh.observation.recognized)
-        self.assertEqual(fresh.target(NOVA_INTERACTION_TARGET), (137, 631, 181, 675))
+        self.assertEqual(fresh.target(NOVA_INTERACTION_TARGET), (226, 640, 270, 684))
 
     def test_blocked_canary_frame_hough_rejects_and_template_binds(self) -> None:
         fixture = _fixture("blocked-canary-radial-48a116d3")
@@ -518,7 +518,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertTrue(recognized.observation.recognized)
         self.assertEqual(recognized.observation.screen_state, "RESEARCH_LAB_MENU")
         target = recognized.target(NOVA_INTERACTION_TARGET)
-        self.assertEqual(target, (137, 631, 181, 675))
+        self.assertEqual(target, (226, 640, 270, 684))
         self.assertEqual(radial["bind_method"], "template_nova_plus_research_hough")
         self.assertGreaterEqual(radial["template_score"], NOVA_TEMPLATE_MIN_SCORE)
         self.assertGreaterEqual(radial["template_margin"], NOVA_TEMPLATE_MIN_MARGIN)
@@ -573,7 +573,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(len(runtime.intended_inputs), 1)
         intended = runtime.intended_inputs[0]
         self.assertEqual(intended.target_identity, NOVA_INTERACTION_TARGET)
-        self.assertEqual(intended.target_roi, (137, 631, 181, 675))
+        self.assertEqual(intended.target_roi, (226, 640, 270, 684))
         self.assertFalse(intended.consequential)
         self.assertNotEqual(intended.target_identity, "home.building.research_lab")
         self.assertNotEqual(intended.target_identity, NOVA_PRAISE_TARGET)
@@ -608,7 +608,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(len(runtime.intended_inputs), 1)
         intended = runtime.intended_inputs[0]
         self.assertEqual(intended.target_identity, NOVA_INTERACTION_TARGET)
-        self.assertEqual(intended.target_roi, (137, 631, 181, 675))
+        self.assertEqual(intended.target_roi, (226, 640, 270, 684))
         self.assertFalse(intended.consequential)
         self.assertNotEqual(intended.target_identity, NOVA_PRAISE_TARGET)
         self.assertEqual(
@@ -623,7 +623,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         assert template is not None
 
         template_only = np.zeros((1280, 800, 3), np.uint8)
-        template_only[631:675, 137:181] = template
+        template_only[640:684, 226:270] = template
         template_only_recognition = recognize_nova_frame(
             template_only,
             captured_monotonic=11.0,
@@ -793,7 +793,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertTrue(recognized.observation.recognized)
         target = recognized.target(NOVA_INTERACTION_TARGET)
         self.assertIsNotNone(target)
-        self.assertEqual(target, (137 + shift, 631 + shift, 181 + shift, 675 + shift))
+        self.assertEqual(target, (226 + shift, 640 + shift, 270 + shift, 684 + shift))
 
     def test_supported_visual_scale_variation_binds_scaled_match_roi(self) -> None:
         fixture = _fixture("blocked-canary-radial-48a116d3")
@@ -805,8 +805,8 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         width = int(round(template.shape[1] * scale))
         scaled = cv2.resize(template, (width, height), interpolation=cv2.INTER_CUBIC)
         varied = frame.copy()
-        varied[631:675, 137:181] = 0
-        center_x, center_y = 159, 653
+        varied[640:684, 226:270] = 0
+        center_x, center_y = 248, 662
         x0 = center_x - width // 2
         y0 = center_y - height // 2
         varied[y0 : y0 + height, x0 : x0 + width] = scaled
@@ -832,8 +832,8 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         provenance = _lab_provenance(fixture)
 
         weak = frame.copy()
-        weak[620:690, 120:200] = np.random.RandomState(0).randint(
-            0, 255, weak[620:690, 120:200].shape, dtype=np.uint8
+        weak[620:705, 205:290] = np.random.RandomState(0).randint(
+            0, 255, weak[620:705, 205:290].shape, dtype=np.uint8
         )
         weak_recognition = recognize_nova_frame(
             weak,
@@ -847,7 +847,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertLess(weak_template["score"], NOVA_TEMPLATE_MIN_SCORE)
 
         ambiguous = frame.copy()
-        ambiguous[597:641, 103:147] = template
+        ambiguous[640:684, 175:219] = template
         ambiguous_recognition = recognize_nova_frame(
             ambiguous,
             captured_monotonic=11.0,
@@ -936,7 +936,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         )
 
         clipped = frame.copy()
-        clipped[631:675, 137:181] = 0
+        clipped[640:684, 226:270] = 0
         edge_provenance = ResearchLabTapProvenance(
             provenance.action_key,
             provenance.target_identity,
@@ -965,7 +965,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             "home_context_visible": True,
             "geometry_anchors": ("details", "upgrade", "research", "nova"),
             "ocr_terms": ("research", "bioenhancer"),
-            "nova_target_roi": (137, 631, 181, 675),
+            "nova_target_roi": (226, 640, 270, 684),
         }
         for changes in (
             {"provenance_valid": False},
@@ -990,7 +990,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             home_context_visible=True,
             geometry_anchors=("details", "upgrade", "research", "nova"),
             ocr_terms=("research", "bioenhancer"),
-            nova_target_roi=(137, 631, 181, 675),
+            nova_target_roi=(226, 640, 270, 684),
             nova_template_accepted=False,
         )
         self.assertTrue(evidence.recognized)
@@ -1002,13 +1002,13 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(raw).hexdigest(), entry["file_sha256"])
         self.assertEqual(
             entry["source"]["file_sha256"],
-            "07f3d8267d7a19384e4064e6439f0f655536d5a86fe41dff9897fca766ee88bd",
+            "ea6fd89e9dae862adf965a44fffe15e83653ed84234754f18419d4ac712487cb",
         )
-        self.assertEqual(entry["source"]["crop_xyxy"], [137, 631, 181, 675])
+        self.assertEqual(entry["source"]["crop_xyxy"], [226, 640, 270, 684])
         self.assertEqual(entry["runtime_profile"], "native-800x1280")
         self.assertEqual(
             entry["file_sha256"],
-            "85367e0ef14e3305877b1734f0b78808abc3e0ed22baf85b1711c90c70181064",
+            "b020dd21c09831cf732dde04d7177527353179a1f8182dfb0677d1d84ef5eeee",
         )
 
 

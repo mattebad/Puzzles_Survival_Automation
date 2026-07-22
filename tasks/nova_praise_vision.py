@@ -36,6 +36,7 @@ NOVA_TEMPLATE_MIN_SCORE = 0.90
 NOVA_TEMPLATE_MIN_MARGIN = 0.08
 NOVA_TEMPLATE_SEARCH_PAD_PX = 56
 NOVA_TEMPLATE_EDGE_CLIP_PX = 2
+RESEARCH_LAB_UPGRADE_SCREEN = "RESEARCH_LAB_UPGRADE"
 
 RESEARCH_LAB_ROI: Box = (455, 410, 665, 650)
 LAB_MENU_ROI: Box = (330, 570, 760, 780)
@@ -246,7 +247,7 @@ _RADIAL_ANCHOR_OFFSETS: dict[str, tuple[int, int]] = {
     "upgrade": (-185, 130),
     "research": (-9, 52),
     "bioenhancer": (-62, 127),
-    "nova": (-121, 134),
+    "nova": (-32, 143),
 }
 _RESEARCH_TO_NOVA_OFFSET: tuple[int, int] = (
     _RADIAL_ANCHOR_OFFSETS["nova"][0] - _RADIAL_ANCHOR_OFFSETS["research"][0],
@@ -711,6 +712,34 @@ def recognize_nova_frame(
         "lab_gold_ratio": _gold_ratio(frame, RESEARCH_LAB_ROI),
         "praise_red_ratio": _red_ratio(frame, NOVA_PRAISE_ROI),
     }
+    is_research_lab_upgrade = bool(
+        ("nova" in nova_text or "ova mil" in nova_text)
+        and "mil. pt cost" in nova_text
+        and "ecn. pt cost" in nova_text
+        and "materials required" in nova_text
+        and "upgrade" in attempts_text
+    )
+    diagnostics["research_lab_upgrade_screen"] = is_research_lab_upgrade
+    if is_research_lab_upgrade:
+        return NovaFrameRecognition(
+            NovaPraiseObservation(
+                screen_state=RESEARCH_LAB_UPGRADE_SCREEN,
+                research_lab_identity=True,
+                nova_control_visible=False,
+                selected_nova=False,
+                praise_enabled=False,
+                praise_target_identity="",
+                praise_target_roi=NOVA_PRAISE_ROI,
+                attempts_remaining=None,
+                frame_sha256=digest,
+                captured_monotonic=captured_monotonic,
+                stale=stale,
+                recognized=True,
+            ),
+            digest,
+            (),
+            diagnostics,
+        )
     is_nova = "nova" in header and ("skill" in nova_text or "praise" in nova_text or "interaction" in attempts_text)
     if is_nova:
         remaining = _attempts(attempts_text)

@@ -24,6 +24,7 @@ from tasks.nova_praise_runtime import NovaPraiseRuntimeController
 from tasks.nova_praise import NOVA_SCREEN, nova_authorizeable
 from tasks.nova_praise_vision import (
     NovaFrameRecognition,
+    RESEARCH_LAB_UPGRADE_SCREEN,
     ResearchLabTapProvenance,
     recognize_nova_frame,
 )
@@ -307,6 +308,11 @@ class NovaNavigationCanaryRoute:
             return NOVA_SCREEN
         if (
             recognition.observation.recognized
+            and recognition.observation.screen_state == RESEARCH_LAB_UPGRADE_SCREEN
+        ):
+            return RESEARCH_LAB_UPGRADE_SCREEN
+        if (
+            recognition.observation.recognized
             and recognition.observation.screen_state == "RESEARCH_LAB_MENU"
         ):
             return "RESEARCH_LAB_MENU"
@@ -397,9 +403,11 @@ class NovaNavigationCanaryRoute:
                     tuple(self.records),
                     str(self.runtime.session),
                 ), None
-            if surface != NOVA_SCREEN and self._home_localized(current_capture):
+            if surface not in {NOVA_SCREEN, RESEARCH_LAB_UPGRADE_SCREEN} and self._home_localized(
+                current_capture
+            ):
                 return current_capture, None, None
-            if surface != NOVA_SCREEN:
+            if surface not in {NOVA_SCREEN, RESEARCH_LAB_UPGRADE_SCREEN}:
                 return None, NovaNavigationCanaryResult(
                     "blocked",
                     "initial_surface_not_home_or_known_nova_context",

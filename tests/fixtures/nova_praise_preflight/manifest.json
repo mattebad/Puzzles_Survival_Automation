@@ -32,8 +32,8 @@
         "method": "Hough circles relative to preceding verified Research Lab tap point",
         "full_frame_only": true,
         "nova_expected_center_offset": [
-          -121,
-          134
+          -32,
+          143
         ],
         "source_frame_digest": "07f3d8267d7a19384e4064e6439f0f655536d5a86fe41dff9897fca766ee88bd"
       }
@@ -221,16 +221,16 @@
       "derived_nova_template": {
         "asset_path": "tasks/assets/nova_praise/800x1280/nova-radial-portrait.png",
         "asset_manifest_path": "tasks/assets/nova_praise/800x1280/manifest.json",
-        "source_fixture_id": "research-lab-radial-07f3d826",
-        "source_path": "tests/fixtures/nova_praise_preflight/research-lab-radial-07f3d826.png",
-        "source_file_sha256": "07f3d8267d7a19384e4064e6439f0f655536d5a86fe41dff9897fca766ee88bd",
+        "source_fixture_id": "radial-expired-before-nova-ea6fd89e",
+        "source_path": "tests/fixtures/nova_praise_preflight/radial-expired-before-nova-ea6fd89e.png",
+        "source_file_sha256": "ea6fd89e9dae862adf965a44fffe15e83653ed84234754f18419d4ac712487cb",
         "crop_xyxy": [
-          137,
-          631,
-          181,
-          675
+          226,
+          640,
+          270,
+          684
         ],
-        "template_file_sha256": "85367e0ef14e3305877b1734f0b78808abc3e0ed22baf85b1711c90c70181064",
+        "template_file_sha256": "b020dd21c09831cf732dde04d7177527353179a1f8182dfb0677d1d84ef5eeee",
         "intended_visual_variant": "Research Lab radial Nova portrait/control",
         "runtime_profile": "native-800x1280"
       }
