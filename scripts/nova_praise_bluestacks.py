@@ -34,7 +34,7 @@ from scripts.home_atlas_bluestacks import (
     BlueStacksLocalizeFirstHomeDriver,
     HomeDriverDisposition,
 )
-from tasks.home_atlas import load_home_atlas
+from tasks.home_atlas import AmbiguityState, ZoomIdentity, load_home_atlas
 from tasks.home_context import HomeContextLevel, HomeReadyObservation, localize_home
 from tasks.nova_praise import NOVA_INTERACTION_TARGET
 from tasks.nova_praise_pulse import RESEARCH_LAB_BUILDING_ID
@@ -293,8 +293,27 @@ class NovaNavigationCanaryRoute:
             HomeContextLevel.HOME_CANONICAL,
         }
 
+    def _home_context_measured(self, captured) -> bool:
+        localization = self.home_driver.localizer.localize(captured.frame)
+        decision = localize_home(self.home_driver.ready, localization)
+        if decision.level in {
+            HomeContextLevel.HOME_LOCALIZED,
+            HomeContextLevel.HOME_CANONICAL,
+        }:
+            return True
+        return bool(
+            localization.zoom_identity
+            in {ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE}
+            and localization.confidence >= 0.90
+            and localization.residual_px is not None
+            and localization.residual_px <= 3.0
+            and localization.ambiguity_state is AmbiguityState.NONE
+            and not localization.stale
+            and not localization.overlay
+        )
+
     def _recognize_with_measured_home(self, captured, *, provenance=None):
-        home_visible = self._home_localized(captured)
+        home_visible = self._home_context_measured(captured)
         recognition = self._recognize(
             captured,
             provenance=provenance,
@@ -403,8 +422,9 @@ class NovaNavigationCanaryRoute:
                     tuple(self.records),
                     str(self.runtime.session),
                 ), None
-            if surface not in {NOVA_SCREEN, RESEARCH_LAB_UPGRADE_SCREEN} and self._home_localized(
-                current_capture
+            if (
+                surface not in {NOVA_SCREEN, RESEARCH_LAB_UPGRADE_SCREEN}
+                and self._home_context_measured(current_capture)
             ):
                 return current_capture, None, None
             if surface not in {NOVA_SCREEN, RESEARCH_LAB_UPGRADE_SCREEN}:
@@ -539,8 +559,9 @@ class NovaNavigationCanaryRoute:
         current_recognition = recognition
         for ordinal in range(1, self.maximum_return_inputs + 1):
             surface = self._navigation_surface(current_recognition)
-            if surface not in {NOVA_SCREEN, "RESEARCH_LAB_MENU"} and self._home_localized(
-                current_capture
+            if (
+                surface not in {NOVA_SCREEN, "RESEARCH_LAB_MENU"}
+                and self._home_context_measured(current_capture)
             ):
                 return NovaNavigationCanaryResult(
                     "completed",
@@ -588,8 +609,9 @@ class NovaNavigationCanaryRoute:
             self._record_input("safe_return_back", immediate_before, settled)
             settled_recognition = self._recognize(settled)
             settled_surface = self._navigation_surface(settled_recognition)
-            if settled_surface not in {NOVA_SCREEN, "RESEARCH_LAB_MENU"} and self._home_localized(
-                settled
+            if (
+                settled_surface not in {NOVA_SCREEN, "RESEARCH_LAB_MENU"}
+                and self._home_context_measured(settled)
             ):
                 return NovaNavigationCanaryResult(
                     "completed",
