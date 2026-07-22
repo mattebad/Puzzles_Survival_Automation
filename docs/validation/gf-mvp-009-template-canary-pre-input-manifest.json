@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "manifest_id": "gf-mvp-009-template-canary-pre-input-20260722T010018285176Z",
+  "active_task_id": "GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY",
+  "next_task_id": "GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY",
+  "relevant_transaction_action_ids": [],
+  "canonical_evidence_session": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z",
+  "read_first": [
+    ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z/result.json",
+    ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z/events.jsonl"
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "result",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z/result.json",
+      "expected_sha256": "c9f68a7514356a328eccca2137da91e28f6eb3849466c8f9d6923e7e95c0f02e",
+      "actual_sha256": "c9f68a7514356a328eccca2137da91e28f6eb3849466c8f9d6923e7e95c0f02e",
+      "reason": "Terminal pre-input block with zero navigation and Praise inputs."
+    },
+    {
+      "artifact_id": "events",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z/events.jsonl",
+      "expected_sha256": "5c6c926d5c4e17362149c6ef64155b4d69fea9457c7522a14043d15175442482",
+      "actual_sha256": "5c6c926d5c4e17362149c6ef64155b4d69fea9457c7522a14043d15175442482",
+      "reason": "Single current source capture and no transport event."
+    },
+    {
+      "artifact_id": "journal",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z/journal.jsonl",
+      "expected_sha256": "cf19d5cefdef4ef3272cdb9236126bcbca6fc9c6a384beb7eb426e7237a4743f",
+      "actual_sha256": "cf19d5cefdef4ef3272cdb9236126bcbca6fc9c6a384beb7eb426e7237a4743f",
+      "reason": "Scenario terminal state with zero inputs and no unresolved action."
+    },
+    {
+      "artifact_id": "ledger",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z/ledger.jsonl",
+      "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "Empty because no input was prepared or dispatched."
+    },
+    {
+      "artifact_id": "capability_audit",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z/capability-audit.jsonl",
+      "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "Empty because no capability was issued."
+    },
+    {
+      "artifact_id": "source_radial",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z/frames/0001-canary-source.png",
+      "expected_sha256": "d16354e70195e97671e21b57ee3bc972596ec373d259e957942878fe3a219b86",
+      "actual_sha256": "d16354e70195e97671e21b57ee3bc972596ec373d259e957942878fe3a219b86",
+      "reason": "Native 800x1280 current Research Lab radial source."
+    }
+  ],
+  "unresolved_evidence": [],
+  "integrity": {
+    "all_present_verified_entries_hashed": true,
+    "navigation_inputs": 0,
+    "transport_inputs": 0,
+    "consequential_inputs": 0,
+    "praise_taps": 0,
+    "unresolved_actions": 0,
+    "runtime_ownership_released": true,
+    "gf_mvp_010_eligible": false,
+    "additional_attempt_authorized": false
+  },
+  "must_not_be_compacted": true,
+  "allowed_historical_references": [
+    "docs/validation/gf-mvp-009-blocked-canary-manifest.json",
+    "tests/fixtures/nova_praise_preflight/manifest.json",
+    "tasks/assets/nova_praise/800x1280/manifest.json"
+  ],
+  "do_not_recursively_inspect_parent_evidence_tree": true
+}

@@ -48,26 +48,38 @@ def _unused_scenario() -> dict:
 
 
 class ScenarioAttemptPolicyTests(unittest.TestCase):
-    def test_checked_in_queue_has_ready_second_attempt_budget(self) -> None:
+    def test_checked_in_queue_retains_terminal_no_retry_authority(self) -> None:
         queue = _queue()
         control.validate_queue(queue)
         scenario = _scenario()
         validate_named_scenario_state(scenario)
         self.assertEqual(scenario["scenario_id"], NOVA_CANARY_SCENARIO_ID)
-        self.assertEqual(scenario["maximum_execution_attempts"], 2)
+        self.assertEqual(scenario["maximum_execution_attempts"], 1)
         self.assertEqual(scenario["execution_attempt_count"], 1)
-        self.assertEqual(scenario["status"], "ready")
+        self.assertEqual(scenario["status"], "exhausted")
         self.assertEqual(scenario["forbidden_input_classes"], ["consequential"])
         self.assertEqual(len(scenario["attempts"]), 1)
         self.assertEqual(scenario["attempts"][0]["candidate_commit"], "dc8210c1038c5233c893e2d42ee691a96b23ac48")
         self.assertIsNone(scenario["attempts"][0]["correction_ref"])
-        self.assertEqual(len(scenario["pre_input_results"]), 1)
+        self.assertEqual(len(scenario["pre_input_results"]), 2)
         self.assertFalse(
-            scenario["pre_input_results"][0]["consumes_execution_budget"]
+            scenario["pre_input_results"][-1]["consumes_execution_budget"]
+        )
+        self.assertEqual(
+            scenario["pre_input_results"][-1]["candidate_commit"],
+            "e345db945cf0b4537bc45d0e905dfb818519f7eb",
+        )
+        self.assertEqual(
+            scenario["pre_input_results"][-1]["reason"],
+            "initial_radial_missing_research_lab_provenance",
+        )
+        self.assertEqual(
+            scenario["pre_input_results"][-1]["correction_ref"],
+            NOVA_CANARY_TEMPLATE_CORRECTION_REF,
         )
         flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
         self.assertEqual(flow["status"], "blocked")
-        self.assertEqual(flow["maximum_live_attempts"], 2)
+        self.assertEqual(flow["maximum_live_attempts"], 1)
         self.assertEqual(flow["live_attempt_count"], 1)
         self.assertEqual(len(flow["live_attempts"]), 1)
         attempt = flow["live_attempts"][0]
@@ -82,7 +94,7 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
         self.assertEqual(attempt["terminal_outcome"], "blocked")
         self.assertIn("research_lab_radial_not_bound", attempt["diagnosis"])
         self.assertIn("zero Praise", attempt["diagnosis"])
-        self.assertIn(NOVA_CANARY_TEMPLATE_CORRECTION_REF, flow["next_concrete_action"])
+        self.assertIn("Do not retry e345db9", flow["next_concrete_action"])
         self.assertEqual(queue.get("active_flow_id"), None)
 
     def test_replay_and_pre_input_failure_do_not_consume_budget(self) -> None:
@@ -117,7 +129,7 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
             initial_execution_count,
         )
         self.assertEqual(len(after_failure["pre_input_results"]), initial_count + 2)
-        self.assertEqual(after_failure["status"], "ready")
+        self.assertEqual(after_failure["status"], "exhausted")
 
     def test_first_navigation_input_consumes_and_exhausts_named_budget(self) -> None:
         execution = ScenarioAttemptRecord(
@@ -141,6 +153,9 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
 
     def test_authorized_second_attempt_requires_correction_and_changed_candidate(self) -> None:
         scenario = _scenario()
+        scenario["maximum_execution_attempts"] = 2
+        scenario["status"] = "ready"
+        validate_named_scenario_state(scenario)
         retry = ScenarioAttemptRecord(
             NOVA_CANARY_SCENARIO_ID,
             ScenarioPhase.EXECUTION,

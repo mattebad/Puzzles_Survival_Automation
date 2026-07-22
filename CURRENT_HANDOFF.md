@@ -2,22 +2,16 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "11ee3b3f10cb5aa052a22ffdebf25636856cf7b8",
+  "head": "e345db945cf0b4537bc45d0e905dfb818519f7eb",
   "ahead_behind": {
-    "ahead": 0,
+    "ahead": 11,
     "behind": 0
   },
   "attributable_dirty_paths": [
-    "tasks/nova_praise_vision.py",
-    "scripts/nova_praise_bluestacks.py",
-    "tasks/assets/nova_praise/800x1280/**",
-    "tests/fixtures/nova_praise_preflight/manifest.json",
-    "tests/fixtures/nova_praise_preflight/blocked-canary-radial-48a116d3.png",
-    "tests/test_nova_navigation_canary.py",
-    "tasks/flow_scenario_attempts.py",
     "tests/test_flow_scenario_attempts.py",
     "tasks/flow_delivery_queue.json",
     "tasks/backlog_task_index.json",
+    "docs/validation/gf-mvp-009-template-canary-pre-input-manifest.json",
     "BACKLOG.md",
     "CURRENT_HANDOFF.md"
   ],
@@ -31,7 +25,7 @@
     ".local-captures/**"
   ],
   "current_task_id": "GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY",
-  "current_task_state": "in_progress",
+  "current_task_state": "blocked",
   "next_task_id": "GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY",
   "next_task_activation_status": "dependency_blocked",
   "active_task_or_flow": "none",
@@ -56,25 +50,26 @@
     "completed_gameplay_flows_this_parent": 0,
     "rollover_required": false,
     "rollover_stop_reason": null,
-    "note": "GF-MVP-009 offline correction pending parent validation/commit; flow and named ledgers synchronized at max2/count1; queue remains inactive."
+    "note": "GF-MVP-009 changed candidate stopped before input on stale radial provenance; no retry, GF-MVP-010, or Milestone B is authorized."
   },
   "latest_focused_validation_result": "160 focused Nova/command/replay/Home/governance tests passed; independent production-call-graph review approved",
   "latest_full_suite_result": "1121 tests passed; 1 expected skip; 0 failures/errors",
-  "current_live_attempt_state": "flow live max 2 count 1 with immutable blocked dc8210c attempt; named scenario max 2 count 1 ready; no fabricated future attempt; zero Praise; queue inactive",
-  "current_evidence_or_session_reference": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z",
-  "last_safe_completed_step": "Offline GF-MVP-009 correction: measured Home context on radial binds, template Nova bind, provenance-gated continuation, synchronized flow/scenario attempt ledgers.",
-  "exact_next_permitted_action": "Parent validates/commits the offline correction (correction_ref GF-MVP-009-nova-radial-template-bind), then may authorize exactly one live attempt on the changed candidate. Do not rerun dc8210c; do not start GF-MVP-010.",
-  "current_blocker": "correction passed parent offline validation and awaits focused commit before the one authorized second live attempt",
-  "prohibited_repeated_action": "Do not rerun candidate dc8210c; do not issue live/runtime input before parent validation/commit; do not tap Praise; do not start GF-MVP-010, Milestone B, queue activation, or production scheduling.",
+  "current_live_attempt_state": "e345db9 pre-input terminal block; zero navigation, transport, Praise, and consequential inputs; no further attempt authorized",
+  "current_evidence_or_session_reference": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z",
+  "last_safe_completed_step": "Captured and classified the current Research Lab radial, then stopped before input because fresh current-session Research Lab tap provenance was absent.",
+  "exact_next_permitted_action": "Architecture/evidence review only. Do not retry, synthesize provenance, start GF-MVP-010, or begin Milestone B.",
+  "current_blocker": "initial_radial_missing_research_lab_provenance on e345db9; changed-candidate authorization terminated",
+  "prohibited_repeated_action": "Do not rerun dc8210c or e345db9; do not Back, reopen Research Lab, tap Nova/Praise, issue any gameplay input, start GF-MVP-010, Milestone B, queue activation, or production scheduling.",
   "recent_relevant_commits": [
+    "e345db9 fix(flow-factory): bind Nova radial with retained template",
     "dc8210c fix(flow-factory): normalize known Nova canary start",
     "58f7343 feat(flow-factory): migrate Nova navigation canary",
     "188ebd0 feat(flow-factory): add Nova scenario accounting",
-    "6b89a20 fix(flow-factory): enforce executable evidence integrity",
-    "b142e21 feat(flow-factory): add Nova production replay"
+    "6b89a20 fix(flow-factory): enforce executable evidence integrity"
   ],
   "process_deviations": [
-    "GF-MVP-009 required a committed known-Nova start correction after a non-consuming pre-input block; the corrected execution then exhausted its one-attempt budget; user later authorized one additional changed-candidate attempt after offline template-radial correction."
+    "GF-MVP-009 required a committed known-Nova start correction after a non-consuming pre-input block; the corrected execution then exhausted its one-attempt budget.",
+    "User authorized one changed-candidate continuation after e345db9 offline proof; it stopped pre-input on stale radial provenance, so blocked-path policy revoked any further attempt."
   ],
   "registration_and_scheduler": {
     "registered_operator_tasks": "NOT_REGISTERED_UNCHANGED",
@@ -92,8 +87,8 @@
   },
   "evidence": {
     "evidence_requirement": "REQUIRED",
-    "evidence_requirement_reason": "GF-MVP-009 attempt 1 issued two navigation inputs and must retain the terminal blocked evidence sequence; correction adds committed fixture/template provenance without mutating retained session bytes.",
-    "active_evidence_manifest": "docs/validation/gf-mvp-009-blocked-canary-manifest.json",
+    "evidence_requirement_reason": "Retain both the prior two-input Hough blocker and the e345db9 source-only stale-provenance terminal block.",
+    "active_evidence_manifest": "docs/validation/gf-mvp-009-template-canary-pre-input-manifest.json",
     "do_not_recursively_inspect_parent_evidence_tree": true
   }
 }
@@ -104,13 +99,12 @@
 Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and retained evidence.
 
 ## Repository
-- Branch: `main` @ `11ee3b3` (pre-correction HEAD; validated correction uncommitted)
-- `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`: **correction validated; focused commit pending**; flow live max 2 / count 1; scenario max 2 / count 1 / ready
+- Branch: `main` @ `e345db9`
+- `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`: **blocked**; changed candidate stopped pre-input; no retry
 - Flow-delivery queue: **not activated** (`active_flow_id` null)
 - Runtime ownership: none
 - Push: prohibited
 
 ## Exact next action
-Parent validates/commits the offline template-radial correction (`GF-MVP-009-nova-radial-template-bind`),
-then may authorize exactly one live attempt on the changed candidate. Do not rerun `dc8210c`, start
-`GF-MVP-010`, or issue gameplay input before that validation/commit.
+Architecture/evidence review only. Do not rerun `dc8210c` or `e345db9`, synthesize radial provenance,
+start `GF-MVP-010`, begin Milestone B, or issue gameplay input.
