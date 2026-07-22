@@ -32,7 +32,7 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+  "active_flow_id": null,
   "flows": [
     {
       "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
@@ -499,7 +499,7 @@
       "title": "Validate one supervised zero-cost Nova Praise pulse",
       "kind": "supervised_consequential_validation",
       "priority": 21,
-      "status": "active",
+      "status": "completed",
       "backlog_task_id": "GF-NOVA-PRAISE-SUPERVISED-20260722",
       "dependencies": [
         "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
@@ -518,8 +518,21 @@
       "consequence_policy": "One free Praise only when the current native frame proves attempts X greater than zero, Praise enabled, no active cooldown, and no paid surface; require exact X to X-1 and cooldown consistent with 300 seconds after capture delay.",
       "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 1,
-      "live_attempt_count": 0,
-      "live_attempts": [],
+      "live_attempt_count": 1,
+      "live_attempts": [
+        {
+          "candidate_commit": "0ca611c5d42998b3d5c260c24c9604586d2aa831",
+          "session_directory": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z",
+          "outcome": "completed",
+          "navigation_input_count": 3,
+          "praise_transport_calls": 1,
+          "attempts_before": 7,
+          "attempts_after": 6,
+          "cooldown_seconds": 299,
+          "terminal_home_verified": true,
+          "reason": "confirmed_praise_and_verified_safe_return_home"
+        }
+      ],
       "focused_tests": [
         "tests/test_nova_praise.py",
         "tests/test_nova_praise_pulse.py",
@@ -539,9 +552,9 @@
         "terminal_home_verified"
       ],
       "blocked_reason": "",
-      "next_concrete_action": "Implement and commit the pnsctl full-route composition, validate offline, then run exactly one supervised BlueStacks invocation bound to game-day-2026-07-22.",
-      "last_completed_stage": "focused_validation",
-      "last_commit": null,
+      "next_concrete_action": "Completed: one supervised free Praise confirmed (attempts 7->6, cooldown, terminal Home) under 0ca611c. No further attempt is authorized for this flow.",
+      "last_completed_stage": "completed_supervised_praise",
+      "last_commit": "0ca611c5d42998b3d5c260c24c9604586d2aa831",
       "artifact_root": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
       "acceptance_criteria": [
         "supported pnsctl scenario composes canonical Home navigation with NovaPraiseActionBoundary",

@@ -5871,7 +5871,15 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### GF-NOVA-PRAISE-SUPERVISED-20260722
 - Task ID: `GF-NOVA-PRAISE-SUPERVISED-20260722`.
 - Title: Validate one supervised free Nova Praise after the 2026-07-22 reset.
-- Status: In progress.
+- Status: Completed 2026-07-22 under candidate `0ca611c`. One supervised BlueStacks invocation ran
+  Home → Research Lab → Nova → Praise → Home with three navigation inputs and exactly one
+  consequential Praise transport. Postcondition confirmed and journaled: `Interaction attempts
+  left: 7 → 6` (visually confirmed in `0008-praise-central-immediate-before.png` and
+  `0011-praise-central-post-3.png`), `CD: 00:04:49` cooldown, `scheduler_outcome=action_performed`
+  / `FREE_PRAISE_VERIFIED`, terminal Home verified, guard `completed`, controller lease released,
+  no unresolved action. The prior `CAPABILITY_STALE_OBSERVATION` blocker was removed by the
+  OCR-free immediate-before revalidation (`revalidate_nova_praise_frame_fast`). Session evidence:
+  `.local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z`.
 - Dependencies: completed `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`; existing centralized
   `NovaPraiseActionBoundary`; retained 2026-07-16 proof of attempts 6→5 and `CD: 00:04:38`.
 - Objective: expose `nova_praise_one_free_pulse` through pnsctl and run exactly one supervised

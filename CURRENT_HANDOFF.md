@@ -24,7 +24,7 @@
     ".local-captures/**"
   ],
   "current_task_id": "GF-NOVA-PRAISE-SUPERVISED-20260722",
-  "current_task_state": "in_progress",
+  "current_task_state": "completed",
   "next_task_id": "GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY",
   "next_task_activation_status": "ready_not_active",
   "active_task_or_flow": "none",
@@ -33,7 +33,7 @@
     "ready": 6,
     "active": 0,
     "blocked": 5,
-    "completed": 0,
+    "completed": 1,
     "needs_product_decision": 4
   },
   "first_ready_flow": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
@@ -53,18 +53,18 @@
   },
   "latest_focused_validation_result": "160 focused Nova/command/replay/Home/governance tests passed; independent production-call-graph review approved",
   "latest_full_suite_result": "1121 tests passed; 1 expected skip; 0 failures/errors",
-  "current_live_attempt_state": "No supervised Praise attempt started; maximum one invocation and one consequential Praise remain authorized after offline validation and a committed candidate.",
-  "current_evidence_or_session_reference": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T020656687010Z",
-  "last_safe_completed_step": "Accepted the canonical no-Praise Home-to-Nova-to-Home run with four navigation inputs, zero Praise, and verified terminal Home.",
-  "exact_next_permitted_action": "Implement the pnsctl full-route composition, validate attempts/cooldown and fail-closed controls offline, commit the candidate, then run exactly one supervised BlueStacks invocation.",
+  "current_live_attempt_state": "The one authorized supervised Praise attempt is CONSUMED and confirmed under candidate 0ca611c. No further live attempt is authorized for this flow. praise_transport_calls=1, attempts 7->6, cooldown_seconds=299, terminal Home verified, guard=completed, controller lease released, no unresolved action.",
+  "current_evidence_or_session_reference": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z",
+  "last_safe_completed_step": "Confirmed one supervised zero-cost Nova Praise end-to-end: Home -> Research Lab -> Nova -> Praise -> Home, exactly one Praise transport, attempts 7->6 (visually confirmed in frames 0008 and 0011), CD 00:04:49, scheduler action_performed/FREE_PRAISE_VERIFIED, terminal Home verified.",
+  "exact_next_permitted_action": "GF-NOVA-PRAISE-SUPERVISED-20260722 is complete. Do not start downstream work in this chat. A new atomic task (e.g. GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY) requires its own explicit activation and authorization.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not rerun the no-Praise canary, loop through restored attempts, dispatch a second Praise, retry an unresolved action, spend currency, register production, enable scheduling, or issue Bliss input.",
+  "prohibited_repeated_action": "Do not re-run the supervised Praise, dispatch a second Praise, loop through remaining attempts, rerun the no-Praise canary, retry any action, spend currency, register production, enable scheduling, or issue Bliss input without a newly authorized task.",
   "recent_relevant_commits": [
-    "e345db9 fix(flow-factory): bind Nova radial with retained template",
-    "dc8210c fix(flow-factory): normalize known Nova canary start",
-    "58f7343 feat(flow-factory): migrate Nova navigation canary",
-    "188ebd0 feat(flow-factory): add Nova scenario accounting",
-    "6b89a20 fix(flow-factory): enforce executable evidence integrity"
+    "0ca611c feat(flow-factory): compose supervised Nova Praise route with fast revalidation",
+    "a6c37b7 fix(flow-factory): use template-driven Nova radial",
+    "06df69d fix(flow-factory): reject Hough-only Nova radial",
+    "32df07f feat(flow-factory): add shared navigation boundary",
+    "1aa55c2 docs(flow-factory): authorize supervised Nova Praise"
   ],
   "process_deviations": [
     "GF-MVP-009 required a committed known-Nova start correction after a non-consuming pre-input block; the corrected execution then exhausted its one-attempt budget.",
@@ -98,12 +98,14 @@
 Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and retained evidence.
 
 ## Repository
-- Branch: `main` @ `9efb433`
+- Branch: `main`; supervised Praise ran on candidate `0ca611c`
 - `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`: **completed** by the accepted full-route session
-- Current task: `GF-NOVA-PRAISE-SUPERVISED-20260722` (**in progress**)
-- Runtime ownership: none; live attempt not started
+- Current task: `GF-NOVA-PRAISE-SUPERVISED-20260722` (**completed** 2026-07-22)
+- Runtime ownership: none; controller lease released; one authorized Praise consumed
 - Push: prohibited
 
 ## Exact next action
-Implement and validate the supported one-Praise pnsctl composition, commit it, then execute at most
-one supervised BlueStacks invocation bound to `game-day-2026-07-22`.
+`GF-NOVA-PRAISE-SUPERVISED-20260722` is complete: one supervised zero-cost Nova Praise confirmed
+end-to-end (attempts 7→6, `CD: 00:04:49`, terminal Home verified) with exactly one transport. Do not
+re-run or dispatch a second Praise. Any downstream task (e.g. `GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY`)
+requires its own explicit activation and authorization in a new atomic unit of work.
