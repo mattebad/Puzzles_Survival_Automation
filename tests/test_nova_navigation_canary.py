@@ -45,6 +45,7 @@ from tasks.nova_praise_vision import (
     ResearchLabTapProvenance,
     evaluate_research_lab_radial_evidence,
     recognize_nova_frame,
+    revalidate_nova_praise_frame_fast,
 )
 import tasks.nova_praise_vision as nova_praise_vision
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
@@ -75,6 +76,23 @@ EXPANDED_RADIAL_CANARY_FRAME = (
     / "frames"
     / "0008-canary-open-nova-immediate-before.png"
 )
+SUPERVISED_OCR_MISS_NOVA_FRAME = (
+    ROOT
+    / ".local-captures"
+    / "flow-delivery"
+    / "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
+    / "nova-praise-one-free-pulse-20260722T175237968971Z"
+    / "frames"
+    / "0008-canary-open-nova-immediate-before.png"
+)
+SUPERVISED_OCR_MISS_LAB_PROVENANCE = ResearchLabTapProvenance(
+    "nova-canary:open-research-lab:5a7a54555b91225a3ab6d6dd88dcb620907d65d6bcb029ac3bd0b2710d771154",
+    "home.building.research_lab",
+    "5a7a54555b91225a3ab6d6dd88dcb620907d65d6bcb029ac3bd0b2710d771154",
+    (355, 317, 523, 545),
+    10.0,
+)
+SUPERVISED_OCR_MISS_NOVA_ROI = (385, 552, 429, 596)
 
 
 def _identity() -> VerifiedRuntimeIdentity:
@@ -285,6 +303,16 @@ class RecognitionQueue:
         return self.items.pop(0)
 
 
+class RecordingRecognitionQueue(RecognitionQueue):
+    def __init__(self, *items: NovaFrameRecognition) -> None:
+        super().__init__(*items)
+        self.calls: list[dict[str, object]] = []
+
+    def __call__(self, *_args, **kwargs):
+        self.calls.append(kwargs)
+        return super().__call__(*_args, **kwargs)
+
+
 class NovaNavigationCanaryTests(unittest.TestCase):
     def test_controller_orders_navigation_and_never_plans_praise(self) -> None:
         runtime = FakeRuntime()
@@ -314,6 +342,135 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertNotIn(NOVA_PRAISE_TARGET, [data.get("target_identity") for _, data in runtime.inputs])
         for suffix in ("immediate-post", "settled"):
             self.assertTrue(any(suffix in label for label in runtime.labels))
+
+    def test_research_lab_provenance_stamps_after_dispatch_not_pre_tap_capture(
+        self,
+    ) -> None:
+        """Long pre-tap prep must not age the 30s successor window; post-dispatch age still applies."""
+        clock = {"t": 1_000_000.0}
+
+        def mono() -> float:
+            return clock["t"]
+
+        home_before_sha = hashlib.sha256(b"capture-2").hexdigest()
+        runtime = FakeRuntime()
+        recognizer = RecordingRecognitionQueue(
+            _home_recognition("0" * 64),
+            _radial_recognition("a" * 64),
+            _radial_recognition("b" * 64),
+            _nova_recognition("c" * 64),
+            _nova_recognition("d" * 64),
+            _home_recognition("e" * 64),
+        )
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=FakeHomeDriver(),
+            recognizer=recognizer,
+            settle_seconds=0,
+        )
+        real_prepare = route._prepare_home_navigation
+        real_settle = route._settle
+
+        def prepare_with_long_prep(captured, **kwargs):
+            # 18.6s of validated pre-dispatch preparation (session T194935572262Z shape).
+            clock["t"] += 18.6
+            return real_prepare(captured, **kwargs)
+
+        def settle_with_post_dispatch_latency(immediate_label: str, settled_label: str):
+            immediate_post = route._capture(immediate_label)
+            if settled_label == "canary-open-lab-settled":
+                clock["t"] += 21.2
+            settled = route._capture(settled_label)
+            return immediate_post, settled
+
+        route._prepare_home_navigation = prepare_with_long_prep  # type: ignore[method-assign]
+        route._settle = settle_with_post_dispatch_latency  # type: ignore[method-assign]
+        with patch("time.monotonic", mono):
+            with patch.object(route, "_home_localized", return_value=True):
+                pre_tap_capture = clock["t"]
+                result = route.run()
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(
+            [kind for kind, _ in runtime.inputs],
+            ["tap", "tap", "back"],
+        )
+        provenanced = [
+            call
+            for call in recognizer.calls
+            if call.get("research_lab_tap_provenance") is not None
+        ]
+        self.assertTrue(provenanced)
+        provenance = provenanced[0]["research_lab_tap_provenance"]
+        assert isinstance(provenance, ResearchLabTapProvenance)
+        self.assertEqual(provenance.source_frame_sha256, home_before_sha)
+        self.assertEqual(provenance.target_identity, "home.building.research_lab")
+        self.assertEqual(provenance.target_roi, (198, 407, 363, 632))
+        self.assertEqual(
+            provenance.action_key,
+            f"nova-canary:open-research-lab:{home_before_sha}",
+        )
+        # Dispatch stamp is post-transport monotonic, not the pre-tap capture time.
+        self.assertNotEqual(provenance.dispatched_monotonic, pre_tap_capture)
+        self.assertAlmostEqual(
+            provenance.dispatched_monotonic,
+            pre_tap_capture + 18.6,
+            places=5,
+        )
+        settle_monotonic = float(provenanced[0]["captured_monotonic"])
+        settle_age_from_dispatch = settle_monotonic - provenance.dispatched_monotonic
+        settle_age_from_pre_tap = settle_monotonic - pre_tap_capture
+        self.assertGreater(settle_age_from_pre_tap, 30.0)
+        self.assertLessEqual(settle_age_from_dispatch, 30.0)
+        self.assertAlmostEqual(settle_age_from_dispatch, 21.2, places=5)
+
+        fixture = _fixture("blocked-canary-radial-48a116d3")
+        frame = _load_fixture_frame(fixture)
+        still_fresh = recognize_nova_frame(
+            frame,
+            captured_monotonic=provenance.dispatched_monotonic + 21.2,
+            research_lab_tap_provenance=provenance,
+            home_context_visible=True,
+        )
+        self.assertTrue(still_fresh.observation.recognized)
+        stale_after_dispatch = recognize_nova_frame(
+            frame,
+            captured_monotonic=provenance.dispatched_monotonic + 30.1,
+            research_lab_tap_provenance=provenance,
+            home_context_visible=True,
+        )
+        self.assertFalse(stale_after_dispatch.observation.recognized)
+        radial = stale_after_dispatch.diagnostics["research_lab_radial"]
+        self.assertIn("fresh_post_tap_frame", radial["rejected_or_missing_observations"])
+        self.assertFalse(radial["recognized"])
+
+    def test_failed_research_lab_tap_never_creates_provenance(self) -> None:
+        runtime = FakeRuntime()
+
+        def _failing_tap(_source, **_kwargs) -> None:
+            raise RuntimeError("research_lab_transport_failed")
+
+        runtime.tap = _failing_tap  # type: ignore[method-assign]
+        recognizer = RecordingRecognitionQueue(_home_recognition("0" * 64))
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=FakeHomeDriver(),
+            recognizer=recognizer,
+            settle_seconds=0,
+        )
+        with patch.object(route, "_home_localized", return_value=True):
+            with self.assertRaisesRegex(RuntimeError, "research_lab_transport_failed"):
+                route.run()
+        self.assertEqual(runtime.inputs, [])
+        self.assertTrue(
+            all(
+                call.get("research_lab_tap_provenance") is None
+                for call in recognizer.calls
+            )
+        )
 
     def test_unbound_radial_blocks_before_nova_tap(self) -> None:
         runtime = FakeRuntime()
@@ -528,6 +685,18 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertTrue(radial["initial_unprovenanced_composite"])
         self.assertGreaterEqual(radial["template_score"], NOVA_TEMPLATE_MIN_SCORE)
         self.assertGreaterEqual(radial["template_margin"], NOVA_TEMPLATE_MIN_MARGIN)
+        # Strong initial template composite remains authoritative with empty OCR.
+        with patch.object(nova_praise_vision, "_radial_ocr_terms", return_value=()):
+            empty_ocr = recognize_nova_frame(
+                frame,
+                captured_monotonic=11.0,
+                home_context_visible=True,
+            )
+        self.assertTrue(empty_ocr.observation.recognized)
+        self.assertEqual(empty_ocr.target(NOVA_INTERACTION_TARGET), (226, 640, 270, 684))
+        empty_radial = empty_ocr.diagnostics["research_lab_radial"]
+        self.assertEqual(empty_radial["bind_method"], "template_nova_initial")
+        self.assertEqual(tuple(empty_radial.get("ocr_terms") or ()), ())
 
     def test_retained_radial_provenance_path_still_binds(self) -> None:
         fixture = _fixture("research-lab-radial-07f3d826")
@@ -672,13 +841,22 @@ class NovaNavigationCanaryTests(unittest.TestCase):
 
         template_only = np.zeros((1280, 800, 3), np.uint8)
         template_only[640:684, 226:270] = template
+        # Strong accepted template + forced home context + empty OCR is now
+        # authoritative for initial-unprovenanced (OCR no longer required).
         template_only_recognition = recognize_nova_frame(
             template_only,
             captured_monotonic=11.0,
             home_context_visible=True,
         )
-        self.assertFalse(template_only_recognition.observation.recognized)
-        self.assertIsNone(template_only_recognition.target(NOVA_INTERACTION_TARGET))
+        self.assertTrue(template_only_recognition.observation.recognized)
+        self.assertEqual(
+            template_only_recognition.target(NOVA_INTERACTION_TARGET),
+            (226, 640, 270, 684),
+        )
+        self.assertEqual(
+            template_only_recognition.diagnostics["research_lab_radial"]["bind_method"],
+            "template_nova_initial",
+        )
 
         ambiguous = frame.copy()
         second_match = (320, 720, 364, 764)
@@ -737,6 +915,95 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             home_context_visible=False,
         )
         self.assertFalse(wrong_context.observation.recognized)
+
+    def test_initial_radial_widened_search_binds_right_shifted_template(self) -> None:
+        template = cv2.imread(str(NOVA_RADIAL_TEMPLATE_PATH), cv2.IMREAD_COLOR)
+        assert template is not None
+        template_height, template_width = template.shape[:2]
+        y = 640
+        right_shifted_x = 449
+        old_sector_x = 226
+        self.assertLess(right_shifted_x, 450)
+        self.assertGreater(right_shifted_x + template_width, 450)
+
+        def synthetic_frame(*x_positions: int) -> np.ndarray:
+            frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+            for x in x_positions:
+                frame[y : y + template_height, x : x + template_width] = template
+            return frame
+
+        with patch.object(
+            nova_praise_vision,
+            "_radial_ocr_terms",
+            return_value=("research", "nova"),
+        ):
+            right_shifted = recognize_nova_frame(
+                synthetic_frame(right_shifted_x),
+                captured_monotonic=11.0,
+                research_lab_tap_provenance=None,
+                home_context_visible=True,
+                stale=False,
+            )
+            control = recognize_nova_frame(
+                synthetic_frame(old_sector_x),
+                captured_monotonic=11.0,
+                research_lab_tap_provenance=None,
+                home_context_visible=True,
+                stale=False,
+            )
+            black = recognize_nova_frame(
+                np.zeros((1280, 800, 3), dtype=np.uint8),
+                captured_monotonic=11.0,
+                research_lab_tap_provenance=None,
+                home_context_visible=True,
+                stale=False,
+            )
+            duplicate = recognize_nova_frame(
+                synthetic_frame(old_sector_x, right_shifted_x),
+                captured_monotonic=11.0,
+                research_lab_tap_provenance=None,
+                home_context_visible=True,
+                stale=False,
+            )
+
+        right_template = right_shifted.diagnostics["nova_radial_template"]
+        self.assertTrue(right_shifted.observation.recognized)
+        self.assertEqual(
+            right_shifted.diagnostics["research_lab_radial"]["bind_method"],
+            "template_nova_initial",
+        )
+        self.assertEqual(right_template["search_roi"], (0, 450, 560, 800))
+        self.assertTrue(right_template["accepted"])
+        self.assertGreaterEqual(right_template["score"], NOVA_TEMPLATE_MIN_SCORE)
+        right_target = right_shifted.target(NOVA_INTERACTION_TARGET)
+        self.assertIsNotNone(right_target)
+        assert right_target is not None
+        self.assertLessEqual(abs(right_target[0] - right_shifted_x), 1)
+        self.assertLessEqual(abs(right_target[1] - y), 1)
+        self.assertLessEqual(abs((right_target[2] - right_target[0]) - template_width), 1)
+        self.assertLessEqual(abs((right_target[3] - right_target[1]) - template_height), 1)
+
+        self.assertTrue(control.observation.recognized)
+        control_target = control.target(NOVA_INTERACTION_TARGET)
+        self.assertIsNotNone(control_target)
+        assert control_target is not None
+        self.assertLessEqual(abs(control_target[0] - old_sector_x), 1)
+        self.assertLessEqual(abs(control_target[1] - y), 1)
+
+        self.assertFalse(black.observation.recognized)
+        self.assertIsNone(black.target(NOVA_INTERACTION_TARGET))
+
+        duplicate_template = duplicate.diagnostics["nova_radial_template"]
+        self.assertFalse(duplicate.observation.recognized)
+        self.assertIsNone(duplicate.target(NOVA_INTERACTION_TARGET))
+        self.assertEqual(
+            duplicate_template["reject_reason"],
+            "ambiguous_or_duplicated_template_match",
+        )
+        self.assertGreaterEqual(
+            duplicate_template["spatially_distinct_strong_count"],
+            1,
+        )
 
     def test_route_never_plans_or_dispatches_praise(self) -> None:
         runtime = FakeRuntime()
@@ -1011,12 +1278,35 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             "nova_template_accepted": True,
         }
         self.assertTrue(evaluate_research_lab_radial_evidence(**valid).recognized)
+        empty_ocr = evaluate_research_lab_radial_evidence(**{**valid, "ocr_terms": ()})
+        self.assertTrue(empty_ocr.recognized)
+        self.assertEqual(empty_ocr.nova_target_roi, (226, 640, 270, 684))
+        self.assertNotIn(
+            "compatible_research_lab_ocr",
+            empty_ocr.rejected_or_missing_observations,
+        )
+        # Strong unambiguous initial template composite is authoritative; OCR is
+        # corroborating/diagnostic only and must not veto recognition.
+        initial_empty_ocr = evaluate_research_lab_radial_evidence(
+            **{
+                **valid,
+                "provenance_valid": False,
+                "fresh_successor": False,
+                "ocr_terms": (),
+                "initial_unprovenanced_composite": True,
+            }
+        )
+        self.assertTrue(initial_empty_ocr.recognized)
+        self.assertEqual(initial_empty_ocr.nova_target_roi, (226, 640, 270, 684))
+        self.assertIn(
+            "compatible_research_lab_ocr",
+            initial_empty_ocr.rejected_or_missing_observations,
+        )
         for changes in (
             {"provenance_valid": False},
             {"fresh_successor": False},
             {"home_context_visible": False},
             {"geometry_anchors": ()},
-            {"ocr_terms": ()},
             {"nova_target_roi": None},
             {"ambiguous_geometry": True},
             {"incompatible_state": True},
@@ -1026,6 +1316,60 @@ class NovaNavigationCanaryTests(unittest.TestCase):
                 evidence = evaluate_research_lab_radial_evidence(**{**valid, **changes})
                 self.assertFalse(evidence.recognized)
                 self.assertEqual(evidence.semantic_state, "UNKNOWN")
+        # Fail-closed negatives for the strong-initial / empty-OCR path.
+        initial_base = {
+            **valid,
+            "provenance_valid": False,
+            "fresh_successor": False,
+            "ocr_terms": (),
+            "initial_unprovenanced_composite": True,
+        }
+        for changes in (
+            {"home_context_visible": False},
+            {"geometry_anchors": ()},
+            {"nova_target_roi": None},
+            {"ambiguous_geometry": True},
+            {"incompatible_state": True},
+            {"nova_template_accepted": False},
+            {"initial_unprovenanced_composite": False},
+        ):
+            with self.subTest(initial_fail_closed=changes):
+                evidence = evaluate_research_lab_radial_evidence(
+                    **{**initial_base, **changes}
+                )
+                self.assertFalse(evidence.recognized)
+                self.assertEqual(evidence.semantic_state, "UNKNOWN")
+
+    def test_supervised_ocr_miss_accepted_template_binds_nova(self) -> None:
+        if not SUPERVISED_OCR_MISS_NOVA_FRAME.is_file():
+            self.skipTest(f"retained frame absent: {SUPERVISED_OCR_MISS_NOVA_FRAME}")
+        frame = cv2.imread(str(SUPERVISED_OCR_MISS_NOVA_FRAME), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        with patch.object(nova_praise_vision, "_radial_ocr_terms", return_value=()):
+            recognized = recognize_nova_frame(
+                frame,
+                captured_monotonic=23.7,
+                research_lab_tap_provenance=SUPERVISED_OCR_MISS_LAB_PROVENANCE,
+                home_context_visible=True,
+            )
+        self.assertTrue(recognized.observation.recognized)
+        self.assertEqual(recognized.observation.screen_state, "RESEARCH_LAB_MENU")
+        self.assertEqual(
+            recognized.target(NOVA_INTERACTION_TARGET),
+            SUPERVISED_OCR_MISS_NOVA_ROI,
+        )
+        radial = recognized.diagnostics["research_lab_radial"]
+        self.assertEqual(radial["bind_method"], "template_nova_from_research_tap")
+        self.assertEqual(tuple(radial.get("ocr_terms") or ()), ())
+        self.assertNotIn(
+            "compatible_research_lab_ocr",
+            radial["rejected_or_missing_observations"],
+        )
+        template = recognized.diagnostics["nova_radial_template"]
+        self.assertTrue(template["accepted"])
+        self.assertGreaterEqual(template["score"], NOVA_TEMPLATE_MIN_SCORE)
+        self.assertGreaterEqual(template["margin"], NOVA_TEMPLATE_MIN_MARGIN)
+        self.assertEqual(template["match_roi"], SUPERVISED_OCR_MISS_NOVA_ROI)
 
     def test_hough_full_without_template_never_recognizes_radial(self) -> None:
         evidence = evaluate_research_lab_radial_evidence(
@@ -1256,6 +1600,90 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             entry["file_sha256"],
             "b020dd21c09831cf732dde04d7177527353179a1f8182dfb0677d1d84ef5eeee",
         )
+
+
+class NovaPraiseFastRevalidationTests(unittest.TestCase):
+    def _enabled_prior(self, attempts: int = 6) -> NovaFrameRecognition:
+        observation = NovaPraiseObservation(
+            screen_state=NOVA_SCREEN,
+            research_lab_identity=True,
+            nova_control_visible=False,
+            selected_nova=True,
+            praise_enabled=True,
+            praise_target_identity=NOVA_PRAISE_TARGET,
+            praise_target_roi=NOVA_PRAISE_ROI,
+            attempts_remaining=attempts,
+            cooldown_active=False,
+            cooldown_seconds=None,
+            frame_sha256="a" * 64,
+            captured_monotonic=1.0,
+            overlay_state="none_observed",
+            recognized=True,
+        )
+        return NovaFrameRecognition(
+            observation,
+            observation.frame_sha256,
+            ((NOVA_PRAISE_TARGET, NOVA_PRAISE_ROI),),
+            {"header_text": "nova", "body_text": "praise"},
+        )
+
+    def _frame(self, *, praise_red: bool) -> np.ndarray:
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        if praise_red:
+            x0, y0, x1, y1 = NOVA_PRAISE_ROI
+            frame[y0:y1, x0:x1] = (0, 0, 255)
+        return frame
+
+    def test_fast_revalidation_enables_when_prior_valid_and_red_present(self) -> None:
+        prior = self._enabled_prior(attempts=6)
+
+        def boom(*_args, **_kwargs):
+            raise AssertionError("fast revalidation must not invoke OCR")
+
+        with patch.object(nova_praise_vision.pytesseract, "image_to_string", boom), patch.object(
+            nova_praise_vision.pytesseract, "image_to_data", boom
+        ), patch.object(nova_praise_vision, "_text", boom), patch.object(
+            nova_praise_vision, "_ocr_boxes", boom
+        ):
+            result = revalidate_nova_praise_frame_fast(
+                self._frame(praise_red=True),
+                prior=prior,
+                captured_monotonic=2.5,
+            )
+        self.assertTrue(result.observation.praise_enabled)
+        self.assertEqual(result.observation.attempts_remaining, 6)
+        self.assertEqual(result.observation.praise_target_identity, NOVA_PRAISE_TARGET)
+        self.assertEqual(result.observation.praise_target_roi, NOVA_PRAISE_ROI)
+        self.assertEqual(result.target(NOVA_PRAISE_TARGET), NOVA_PRAISE_ROI)
+        self.assertEqual(result.observation.captured_monotonic, 2.5)
+        self.assertTrue(result.diagnostics.get("fast_revalidation"))
+        self.assertGreaterEqual(float(result.diagnostics["praise_red_ratio"]), 0.08)
+        self.assertFalse(any(key.endswith("_text") for key in result.diagnostics))
+
+    def test_fast_revalidation_fail_closed_without_red_or_invalid_prior(self) -> None:
+        prior = self._enabled_prior()
+        missing = revalidate_nova_praise_frame_fast(
+            self._frame(praise_red=False),
+            prior=prior,
+            captured_monotonic=2.5,
+        )
+        self.assertFalse(missing.observation.praise_enabled)
+        self.assertEqual(missing.targets, ())
+        self.assertEqual(missing.observation.screen_state, "UNKNOWN")
+
+        disabled_prior = NovaFrameRecognition(
+            replace(prior.observation, praise_enabled=False, praise_target_identity=""),
+            prior.frame_sha256,
+            (),
+            {},
+        )
+        rejected = revalidate_nova_praise_frame_fast(
+            self._frame(praise_red=True),
+            prior=disabled_prior,
+            captured_monotonic=2.5,
+        )
+        self.assertFalse(rejected.observation.praise_enabled)
+        self.assertEqual(rejected.targets, ())
 
 
 if __name__ == "__main__":

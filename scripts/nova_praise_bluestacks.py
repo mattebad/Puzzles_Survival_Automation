@@ -1025,12 +1025,14 @@ class NovaNavigationCanaryRoute:
                     action_key=action_key,
                     consequential=False,
                 )
+                # Stamp dispatch time after successful transport so long pre-tap
+                # preparation cannot age the 30s successor freshness window.
                 provenance = ResearchLabTapProvenance(
                     action_key,
                     RESEARCH_LAB_BUILDING_ID,
                     immediate_before.sha256,
                     step.binding.target_roi,
-                    immediate_before.captured_monotonic,
+                    time.monotonic(),
                 )
                 _immediate_post, radial_capture = self._settle(
                     "canary-open-lab-immediate-post",

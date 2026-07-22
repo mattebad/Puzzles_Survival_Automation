@@ -100,7 +100,13 @@ def evaluate_research_lab_radial_evidence(
     nova_template_accepted: bool = False,
     initial_unprovenanced_composite: bool = False,
 ) -> ResearchLabRadialEvidence:
-    """Require template-bound composite evidence; Hough anchors are never sufficient."""
+    """Require template-bound composite evidence; Hough anchors are never sufficient.
+
+    Under fresh valid Research Lab tap provenance, OCR is corroborating only and
+    cannot veto an accepted Nova template match. A strong unambiguous initial
+    template composite (unprovenanced) is likewise authoritative; OCR remains
+    corroborating/diagnostic only and cannot veto that accepted match.
+    """
 
     anchors = set(geometry_anchors)
     terms = set(ocr_terms)
@@ -116,6 +122,7 @@ def evaluate_research_lab_radial_evidence(
         and template_composite
         and not provenance_valid
     )
+    compatible_ocr = bool("research" in terms and len(terms) >= 2)
     if provenance_valid:
         supporting.append("verified_immediately_preceding_research_lab_tap")
     elif initial_authority:
@@ -136,9 +143,10 @@ def evaluate_research_lab_radial_evidence(
         supporting.append("compatible_radial_control_arrangement_template")
     else:
         missing.append("compatible_radial_control_arrangement")
-    if "research" in terms and len(terms) >= 2:
+    if compatible_ocr:
         supporting.append("compatible_research_lab_ocr")
-    else:
+    elif not tap_authority:
+        # Informational only: OCR absence must not veto tap or strong initial authority.
         missing.append("compatible_research_lab_ocr")
     if nova_target_roi is not None and not ambiguous_geometry:
         supporting.append("current_frame_nova_target_bound")
@@ -167,8 +175,7 @@ def evaluate_research_lab_radial_evidence(
         authority_ok
         and home_context_visible
         and compatible_geometry
-        and "research" in terms
-        and len(terms) >= 2
+        and (compatible_ocr or tap_authority or initial_authority)
         and nova_target_roi is not None
         and not ambiguous_geometry
         and not incompatible_state
@@ -247,7 +254,7 @@ _RESEARCH_TO_NOVA_OFFSET: tuple[int, int] = (
 )
 _HOUGH_SEARCH_ROI: Box = (0, 450, 450, 800)
 # Bounded Home radial sector used for initial unprovenanced Nova template search.
-_INITIAL_NOVA_RADIAL_SEARCH_ROI: Box = _HOUGH_SEARCH_ROI
+_INITIAL_NOVA_RADIAL_SEARCH_ROI: Box = (0, 450, 560, 800)
 
 _NOVA_TEMPLATE_CACHE: tuple[np.ndarray, str] | None = None
 _AUTHORIZED_TEMPLATE_BIND_METHODS = frozenset(
@@ -870,5 +877,86 @@ def recognize_nova_frame(
         ),
         digest,
         (),
+        diagnostics,
+    )
+
+
+def revalidate_nova_praise_frame_fast(
+    frame: np.ndarray,
+    *,
+    prior: NovaFrameRecognition,
+    captured_monotonic: float | None,
+    stale: bool = False,
+) -> NovaFrameRecognition:
+    """Freshness-preserving Praise revalidation that skips OCR.
+
+    Trusts a prior full-OCR proposal recognition for semantic fields (attempts,
+    enabled state, fixed Praise ROI/identity, cooldown) and only cheaply confirms
+    the fixed-ROI Praise control is still present on this fresh frame via red-ratio.
+    OCR is intentionally skipped so consequential dispatch stays inside the
+    freshness window.
+    """
+
+    if frame is None or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
+        raise ValueError("Nova frame must be a native 800x1280 image")
+    digest = hashlib.sha256(frame.tobytes()).hexdigest()
+    prior_obs = prior.observation
+    red_ratio = _red_ratio(frame, NOVA_PRAISE_ROI)
+    diagnostics: dict[str, object] = {
+        "fast_revalidation": True,
+        "praise_red_ratio": red_ratio,
+    }
+    prior_ok = (
+        prior_obs.screen_state == NOVA_SCREEN
+        and prior_obs.praise_enabled is True
+        and prior_obs.praise_target_identity == NOVA_PRAISE_TARGET
+        and prior_obs.praise_target_roi == NOVA_PRAISE_ROI
+        and isinstance(prior_obs.attempts_remaining, int)
+        and prior_obs.attempts_remaining > 0
+        and not prior_obs.cooldown_active
+        and prior_obs.cooldown_seconds in (None, 0)
+    )
+    if not prior_ok or red_ratio < 0.08:
+        return NovaFrameRecognition(
+            NovaPraiseObservation(
+                screen_state="UNKNOWN",
+                research_lab_identity=False,
+                nova_control_visible=False,
+                selected_nova=False,
+                praise_enabled=False,
+                praise_target_identity="",
+                praise_target_roi=NOVA_PRAISE_ROI,
+                attempts_remaining=None,
+                frame_sha256=digest,
+                captured_monotonic=captured_monotonic,
+                stale=stale,
+                recognized=False,
+            ),
+            digest,
+            (),
+            diagnostics,
+        )
+    return NovaFrameRecognition(
+        NovaPraiseObservation(
+            screen_state=prior_obs.screen_state,
+            research_lab_identity=prior_obs.research_lab_identity,
+            nova_control_visible=prior_obs.nova_control_visible,
+            selected_nova=prior_obs.selected_nova,
+            praise_enabled=prior_obs.praise_enabled,
+            praise_target_identity=prior_obs.praise_target_identity,
+            praise_target_roi=prior_obs.praise_target_roi,
+            attempts_remaining=prior_obs.attempts_remaining,
+            cooldown_text=prior_obs.cooldown_text,
+            cooldown_active=prior_obs.cooldown_active,
+            cooldown_seconds=prior_obs.cooldown_seconds,
+            next_eligible_at=prior_obs.next_eligible_at,
+            overlay_state=prior_obs.overlay_state,
+            frame_sha256=digest,
+            captured_monotonic=captured_monotonic,
+            stale=stale,
+            recognized=True,
+        ),
+        digest,
+        ((NOVA_PRAISE_TARGET, NOVA_PRAISE_ROI),),
         diagnostics,
     )

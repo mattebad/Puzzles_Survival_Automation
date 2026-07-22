@@ -68,6 +68,12 @@ NOVA_SUPERVISED_INVOCATION_GUARD = (
     / ".local-orchestrator"
     / "nova-praise-one-free-pulse-game-day-2026-07-22.guard.json"
 )
+NOVA_SUPERVISED_GUARD_ARCHIVE_DIR = (
+    REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-archive"
+)
+NOVA_SUPERVISED_GUARD_RECEIPT_DIR = (
+    REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-receipts"
+)
 FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
 FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
@@ -790,6 +796,8 @@ def _session_evidence_file(session: Path, ref: Any, *, field: str = "evidence_re
 def _persist_nova_session_result(
     session_directory: str | Path,
     updates: Mapping[str, Any],
+    *,
+    candidate_commit: str | None = None,
 ) -> dict[str, Any]:
     """Merge authoritative accounting into the session result.json on disk."""
 
@@ -814,6 +822,12 @@ def _persist_nova_session_result(
     if not isinstance(payload, dict):
         raise OperatorError("session result.json must be an object")
     payload.update(dict(updates))
+    # Future-proof identity: every persisted supervised result binds session + commit.
+    payload["session_directory"] = str(resolved_session)
+    commit = candidate_commit if candidate_commit is not None else payload.get("candidate_commit")
+    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise OperatorError("persisted result requires exact 40-char candidate_commit")
+    payload["candidate_commit"] = commit
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return payload
 
@@ -910,9 +924,948 @@ def _finalize_nova_supervised_invocation_guard(
     payload["status"] = terminal_status
     payload["terminal_status"] = terminal_status
     payload["result_status"] = result_status
-    payload["session_directory"] = session_directory
+    if session_directory:
+        existing = payload.get("session_directory")
+        if (
+            isinstance(existing, str)
+            and existing.strip()
+            and not _paths_exactly_equal(Path(existing), Path(session_directory))
+        ):
+            raise OperatorError("guard session_directory changed at finalization")
+        payload["session_directory"] = str(Path(session_directory).resolve())
+    elif payload.get("session_directory") in (None, ""):
+        payload["session_directory"] = session_directory
     payload["finished_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _bind_nova_supervised_invocation_guard_session(session_directory: str) -> None:
+    """Atomically bind the active guard to a session as soon as it exists.
+
+    Preserves guard identity/status fields. Never deletes the guard or weakens O_EXCL.
+    """
+
+    path = NOVA_SUPERVISED_INVOCATION_GUARD
+    if os.path.islink(path) or not path.is_file():
+        raise OperatorError("supervised invocation guard is missing or unsafe")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("supervised invocation guard is unreadable") from exc
+    if not isinstance(payload, dict):
+        raise OperatorError("supervised invocation guard must be an object")
+    for key in ("schema_version", "flow_id", "scenario_id", "reset_id", "candidate_commit"):
+        if key not in payload:
+            raise OperatorError(f"guard missing identity field {key}")
+    if payload.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID:
+        raise OperatorError("guard flow_id mismatch during session bind")
+    if payload.get("scenario_id") != NOVA_SUPERVISED_PULSE_SCENARIO_ID:
+        raise OperatorError("guard scenario_id mismatch during session bind")
+    if payload.get("reset_id") != NOVA_SUPERVISED_PULSE_RESET_ID:
+        raise OperatorError("guard reset_id mismatch during session bind")
+    if not isinstance(payload.get("candidate_commit"), str) or not re.fullmatch(
+        r"[0-9a-f]{40}", payload["candidate_commit"]
+    ):
+        raise OperatorError("guard candidate_commit invalid during session bind")
+    bound = Path(session_directory).resolve()
+    allowed_root = NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT.resolve()
+    try:
+        bound.relative_to(allowed_root)
+    except ValueError as exc:
+        raise OperatorError("session directory must remain under supervised output root") from exc
+    if not bound.is_dir() or os.path.islink(bound):
+        raise OperatorError("session directory is unavailable or unsafe")
+    existing = payload.get("session_directory")
+    if isinstance(existing, str) and existing.strip():
+        if not _paths_exactly_equal(Path(existing), bound):
+            raise OperatorError("guard already bound to a different session_directory")
+        return
+    payload["session_directory"] = str(bound)
+    payload["session_bound_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    flags = os.O_CREAT | os.O_TRUNC | os.O_WRONLY
+    fd = os.open(str(tmp), flags)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(encoded)
+        os.replace(str(tmp), str(path))
+    except Exception:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _read_jsonl_objects(path: Path, field: str) -> list[dict[str, Any]]:
+    """Read JSONL objects; empty files are allowed (unlike the completed-session verifier)."""
+
+    if os.path.islink(path) or not path.is_file():
+        raise OperatorError(f"{field} must be a regular non-symlink file")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise OperatorError(f"{field} is unreadable") from exc
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise OperatorError(f"{field} contains invalid JSONL") from exc
+        if not isinstance(payload, dict):
+            raise OperatorError(f"{field} JSONL rows must be objects")
+        rows.append(payload)
+    return rows
+
+
+_NOVA_SESSION_NAME_RE = re.compile(r"^nova-praise-one-free-pulse-(\d{8}T\d{6})(\d*)Z$")
+
+
+def _parse_iso_z(value: object, label: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise OperatorError(f"{label} is required")
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError as exc:
+        raise OperatorError(f"{label} is not a valid timestamp") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _parse_supervised_session_stamp(session_name: str) -> datetime:
+    match = _NOVA_SESSION_NAME_RE.fullmatch(session_name)
+    if match is None:
+        raise OperatorError(
+            "session directory name must be nova-praise-one-free-pulse-<UTC-stamp>Z"
+        )
+    base = datetime.strptime(match.group(1), "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+    frac = match.group(2) or ""
+    if frac:
+        micro = int((frac + "000000")[:6])
+        base = base.replace(microsecond=micro)
+    return base
+
+
+def _paths_exactly_equal(left: Path, right: Path) -> bool:
+    return Path(os.path.abspath(os.path.normpath(str(left)))) == Path(
+        os.path.abspath(os.path.normpath(str(right)))
+    )
+
+
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _list_in_window_supervised_sessions(
+    *,
+    started: datetime,
+    finished: datetime,
+) -> list[Path]:
+    root = NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT
+    if not root.is_dir():
+        return []
+    matches: list[Path] = []
+    for child in root.iterdir():
+        if not child.is_dir() or os.path.islink(child):
+            continue
+        try:
+            stamp = _parse_supervised_session_stamp(child.name)
+        except OperatorError:
+            continue
+        if started <= stamp <= finished:
+            matches.append(child.resolve())
+    return sorted(matches, key=lambda item: item.name)
+
+
+def _verify_nova_supervised_proven_no_effect_session(
+    session_directory: Path,
+    *,
+    guard: Mapping[str, Any],
+    legacy_null_session_recovery: bool = False,
+    expected_candidate_commit: str | None = None,
+) -> dict[str, Any]:
+    """Fail-closed proof that a supervised session issued zero Praise/consequential transport."""
+
+    from tasks.nova_praise import NOVA_PRAISE_TARGET
+    from tasks.nova_praise_pulse import NOVA_TASK_ID
+
+    session = session_directory.resolve()
+    allowed_root = NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT.resolve()
+    try:
+        session.relative_to(allowed_root)
+    except ValueError as exc:
+        raise OperatorError(
+            "session directory must remain under the supervised pulse output root"
+        ) from exc
+    if os.path.islink(session_directory) or os.path.islink(session) or not session.is_dir():
+        raise OperatorError("session directory is unavailable or unsafe")
+    session_stamp = _parse_supervised_session_stamp(session.name)
+
+    result_path = session / "result.json"
+    if os.path.islink(result_path) or not result_path.is_file():
+        raise OperatorError("result.json must be a regular non-symlink file")
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("result.json is required") from exc
+    if not isinstance(result, dict):
+        raise OperatorError("result.json must be an object")
+    if result.get("schema_version") != 1:
+        raise OperatorError("unsupported result schema_version")
+    if result.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID:
+        raise OperatorError("result flow_id is not the supervised Praise flow")
+    if result.get("scenario_id") != NOVA_SUPERVISED_PULSE_SCENARIO_ID:
+        raise OperatorError("result scenario_id is not nova_praise_one_free_pulse")
+    if result.get("flow_id") != guard.get("flow_id"):
+        raise OperatorError("result flow_id does not match guard")
+    if result.get("scenario_id") != guard.get("scenario_id"):
+        raise OperatorError("result scenario_id does not match guard")
+    if result.get("status") not in {"failed", "blocked", "unresolved"}:
+        raise OperatorError("proven_no_effect requires a non-completed supervised status")
+
+    result_session = result.get("session_directory")
+    if not isinstance(result_session, str) or not result_session.strip():
+        raise OperatorError("result session_directory is required for guard binding")
+    if not _paths_exactly_equal(Path(result_session), session):
+        raise OperatorError("result session_directory does not bind the supplied session")
+
+    candidate = guard.get("candidate_commit")
+    if not isinstance(candidate, str) or not re.fullmatch(r"[0-9a-f]{40}", candidate):
+        raise OperatorError("guard candidate_commit must be a 40-char lowercase git SHA")
+    result_candidate = result.get("candidate_commit")
+    guard_session = guard.get("session_directory")
+    guard_session_missing = guard_session is None or (
+        isinstance(guard_session, str) and not guard_session.strip()
+    )
+    result_commit_missing = result_candidate is None or (
+        isinstance(result_candidate, str) and not result_candidate.strip()
+    )
+    if isinstance(result_candidate, str) and result_candidate.strip():
+        if not re.fullmatch(r"[0-9a-f]{40}", result_candidate):
+            raise OperatorError("result candidate_commit must be a 40-char lowercase git SHA")
+        if result_candidate != candidate:
+            raise OperatorError("result candidate_commit does not match the active guard")
+
+    legacy_recovery_used = False
+    current_head: str | None = None
+    in_window: list[Path] = []
+    if legacy_null_session_recovery:
+        if not guard_session_missing or not result_commit_missing:
+            raise OperatorError(
+                "legacy_null_session_recovery is only for null guard session and missing result commit"
+            )
+        if not isinstance(expected_candidate_commit, str) or not re.fullmatch(
+            r"[0-9a-f]{40}", expected_candidate_commit
+        ):
+            raise OperatorError(
+                "legacy recovery requires --expected-candidate-commit as a 40-char git SHA"
+            )
+        if expected_candidate_commit != candidate:
+            raise OperatorError("expected candidate commit does not match guard.candidate_commit")
+        current_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        if current_head != expected_candidate_commit:
+            raise OperatorError(
+                "current git HEAD must exactly equal the expected legacy candidate commit"
+            )
+        started = _parse_iso_z(guard.get("started_at"), "guard started_at")
+        finished = _parse_iso_z(guard.get("finished_at"), "guard finished_at")
+        if finished < started:
+            raise OperatorError("guard finished_at precedes started_at")
+        in_window = _list_in_window_supervised_sessions(started=started, finished=finished)
+        if len(in_window) == 0:
+            raise OperatorError("no supervised session stamp falls within the guard window")
+        if len(in_window) > 1:
+            raise OperatorError(
+                "multiple supervised sessions fall within the guard window; legacy recovery blocked"
+            )
+        if in_window[0] != session:
+            raise OperatorError(
+                "supplied session is not the unique in-window supervised session"
+            )
+        if session_stamp < started or session_stamp > finished:
+            raise OperatorError("session stamp is outside the guard started_at/finished_at window")
+        legacy_recovery_used = True
+    else:
+        if result_commit_missing:
+            raise OperatorError(
+                "result candidate_commit is required; use --legacy-null-session-recovery only for the audited legacy guard"
+            )
+        if result_candidate != candidate:
+            raise OperatorError("result candidate_commit does not match the active guard")
+        if guard_session_missing:
+            raise OperatorError(
+                "guard session_directory is required for normal reconciliation"
+            )
+        if not isinstance(guard_session, str):
+            raise OperatorError("guard session_directory must be a string")
+        if not _paths_exactly_equal(Path(guard_session), session):
+            raise OperatorError("guard session_directory does not bind the supplied session")
+
+    action_database = result.get("action_database")
+    if not isinstance(action_database, str) or not action_database.strip():
+        raise OperatorError("result action_database is required")
+    db_path = _require_exact_nonsymlink_path(
+        Path(action_database),
+        NOVA_SUPERVISED_ACTION_DATABASE,
+        "action_database",
+    )
+    if not db_path.is_file() or os.path.islink(db_path):
+        raise OperatorError("action_database must exist as a regular non-symlink SQLite file")
+
+    journal_rows = _read_jsonl_objects(session / "journal.jsonl", "journal.jsonl")
+    if not journal_rows:
+        raise OperatorError("journal.jsonl must be nonempty")
+    journal = journal_rows[-1]
+    # Production supervised journals do not emit flow_id; bind strongest fields present.
+    if "flow_id" in journal and journal.get("flow_id") not in (None, NOVA_SUPERVISED_PULSE_FLOW_ID):
+        raise OperatorError("journal flow_id mismatch")
+    if journal.get("scenario_id") != NOVA_SUPERVISED_PULSE_SCENARIO_ID:
+        raise OperatorError("journal scenario_id mismatch")
+    if journal.get("scenario_id") != result.get("scenario_id"):
+        raise OperatorError("journal scenario_id does not match result")
+    if journal.get("status") not in {"failed", "blocked", "unresolved"}:
+        raise OperatorError("journal status is not a proven_no_effect terminal")
+    if journal.get("status") != result.get("status"):
+        raise OperatorError("journal status does not match result status")
+    nav = result.get("navigation_input_count")
+    if type(nav) is not int or nav < 0:
+        raise OperatorError("navigation_input_count must be a non-negative int")
+    if journal.get("navigation_input_count") != nav:
+        raise OperatorError("journal navigation_input_count mismatch")
+    if "praise_transport_calls" in journal:
+        journal_praise = journal.get("praise_transport_calls")
+        if type(journal_praise) is not int or journal_praise < 0:
+            raise OperatorError("journal praise_transport_calls must be a non-negative int")
+        if "praise_transport_calls" in result and result.get("praise_transport_calls") != journal_praise:
+            raise OperatorError("journal praise_transport_calls does not match result")
+    if "reason" in journal and journal.get("reason") not in (None, "", result.get("reason")):
+        raise OperatorError("journal reason does not match result")
+    for key in ("action_id", "action_key"):
+        if key not in journal:
+            continue
+        journal_value = journal.get(key)
+        result_value = result.get(key)
+        if journal_value in (None, ""):
+            continue
+        if result_value not in (None, "") and journal_value != result_value:
+            raise OperatorError(f"journal {key} does not match result")
+    if guard.get("reset_id") != NOVA_SUPERVISED_PULSE_RESET_ID:
+        raise OperatorError("guard reset_id / game-day mismatch")
+
+    events = _read_jsonl_objects(session / "events.jsonl", "events.jsonl")
+    if not events:
+        raise OperatorError("events.jsonl must be nonempty")
+    capability_audit = _read_jsonl_objects(
+        session / "capability-audit.jsonl",
+        "capability-audit.jsonl",
+    )
+    if not capability_audit:
+        raise OperatorError("capability-audit.jsonl must be nonempty")
+
+    praise_transport_field_present = "praise_transport_calls" in result
+    praise = result.get("praise_transport_calls") if praise_transport_field_present else None
+    if praise_transport_field_present:
+        if type(praise) is not int or praise != 0:
+            raise OperatorError("proven_no_effect requires praise_transport_calls == 0")
+
+    consequential_dispatches = [
+        event
+        for event in events
+        if event.get("type") == "dispatch" and event.get("consequential") is True
+    ]
+    if consequential_dispatches:
+        raise OperatorError("events.jsonl records consequential transport; not proven_no_effect")
+    praise_dispatches = [
+        event
+        for event in events
+        if event.get("type") == "dispatch"
+        and (
+            str(event.get("action_key") or "").startswith("nova-praise:")
+            or event.get("target_identity") == NOVA_PRAISE_TARGET
+        )
+    ]
+    if praise_dispatches:
+        raise OperatorError("events.jsonl records Praise dispatch; not proven_no_effect")
+
+    praise_captures = [
+        event
+        for event in events
+        if event.get("type") == "capture"
+        and isinstance(event.get("label"), str)
+        and str(event["label"]).startswith("praise-central-")
+    ]
+    post_praise_frames = [
+        event
+        for event in praise_captures
+        if "post" in str(event.get("label"))
+    ]
+    if post_praise_frames:
+        raise OperatorError("events.jsonl has praise post-dispatch frames; not proven_no_effect")
+
+    scenario = result.get("scenario_record")
+    result_action_id = result.get("action_id")
+    result_action_key = result.get("action_key")
+    praise_reached_with_action = (
+        isinstance(result_action_id, str)
+        and bool(result_action_id.strip())
+        and isinstance(result_action_key, str)
+        and bool(result_action_key.strip())
+        and bool(praise_captures)
+    )
+    pre_praise_blocked = result.get("status") == "blocked" and not praise_captures
+    praise_cancelled_before_transport = False
+    bound_action_final_status: str | None = None
+    bound_action_final_reason: str | None = None
+    action_rows = 0
+    has_action_block = False
+
+    if pre_praise_blocked:
+        if not praise_transport_field_present or praise != 0:
+            raise OperatorError(
+                "pre-Praise blocked proven_no_effect requires praise_transport_calls == 0"
+            )
+        reason = result.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise OperatorError("pre-Praise blocked proven_no_effect requires result.reason")
+        if not isinstance(scenario, Mapping):
+            raise OperatorError("pre-Praise blocked proven_no_effect requires scenario_record")
+        if scenario.get("outcome") != "blocked":
+            raise OperatorError("pre-Praise blocked scenario_record.outcome must be blocked")
+        if scenario.get("reason") != reason:
+            raise OperatorError("pre-Praise blocked scenario reason mismatch")
+        if scenario.get("unresolved_action") is not False:
+            raise OperatorError(
+                "pre-Praise blocked requires scenario_record.unresolved_action == false"
+            )
+        if scenario.get("praise_transport_calls") not in (0, None):
+            if (
+                type(scenario.get("praise_transport_calls")) is not int
+                or int(scenario["praise_transport_calls"]) != 0
+            ):
+                raise OperatorError(
+                    "pre-Praise blocked scenario praise_transport_calls must be 0"
+                )
+        input_class = scenario.get("input_class")
+        if input_class not in {"navigation_only", "none"}:
+            raise OperatorError(
+                "pre-Praise blocked requires navigation_only or none input_class"
+            )
+        scenario_nav = scenario.get("navigation_input_count")
+        if scenario_nav is not None and scenario_nav != nav:
+            raise OperatorError("pre-Praise blocked scenario navigation_input_count mismatch")
+        if input_class == "none" and nav != 0:
+            raise OperatorError("pre-Praise blocked none input_class requires zero navigation")
+        if input_class == "navigation_only" and nav < 1:
+            raise OperatorError(
+                "pre-Praise blocked navigation_only requires navigation_input_count >= 1"
+            )
+        if "reason" in journal and journal.get("reason") not in (None, "", reason):
+            raise OperatorError("pre-Praise blocked journal reason mismatch")
+        if journal.get("status") != "blocked":
+            raise OperatorError("pre-Praise blocked journal status must be blocked")
+        # Navigation may be authorized; forbid only consequential / Praise transport in audit.
+        praise_transport_audit = [
+            row
+            for row in capability_audit
+            if row.get("consequential") is True and row.get("transport_observed") is True
+        ]
+        if praise_transport_audit:
+            raise OperatorError(
+                "capability-audit.jsonl records consequential transport; not proven_no_effect"
+            )
+        for row in capability_audit:
+            if "transport_calls" in row and row.get("transport_calls") not in (0, None):
+                if type(row.get("transport_calls")) is not int or int(row["transport_calls"]) != 0:
+                    raise OperatorError("capability-audit transport_calls must be zero")
+            action_id = row.get("action_id")
+            if isinstance(action_id, str) and action_id.startswith("nova-praise-"):
+                raise OperatorError("pre-Praise blocked capability-audit must not list Nova Praise")
+            if row.get("target_identity") == NOVA_PRAISE_TARGET:
+                raise OperatorError("pre-Praise blocked capability-audit must not target Praise")
+    elif praise_reached_with_action:
+        if not praise_transport_field_present or praise != 0:
+            raise OperatorError(
+                "Praise-reached cancelled proven_no_effect requires praise_transport_calls == 0"
+            )
+        reason = result.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise OperatorError("Praise-reached cancelled proven_no_effect requires result.reason")
+        if not isinstance(scenario, Mapping):
+            raise OperatorError("Praise-reached cancelled proven_no_effect requires scenario_record")
+        if scenario.get("reason") != reason:
+            raise OperatorError("Praise-reached cancelled scenario reason mismatch")
+        if scenario.get("unresolved_action") is not False:
+            raise OperatorError(
+                "Praise-reached cancelled requires scenario_record.unresolved_action == false"
+            )
+        if scenario.get("praise_transport_calls") not in (0, None):
+            if (
+                type(scenario.get("praise_transport_calls")) is not int
+                or int(scenario["praise_transport_calls"]) != 0
+            ):
+                raise OperatorError(
+                    "Praise-reached cancelled scenario praise_transport_calls must be 0"
+                )
+        if journal.get("action_id") not in (None, "", result_action_id):
+            raise OperatorError("journal action_id does not match result")
+        if journal.get("action_key") not in (None, "", result_action_key):
+            raise OperatorError("journal action_key does not match result")
+        if "reason" in journal and journal.get("reason") not in (None, "", reason):
+            raise OperatorError("Praise-reached cancelled journal reason mismatch")
+
+        last_praise_capture_ts = max(str(event.get("timestamp") or "") for event in praise_captures)
+        if not last_praise_capture_ts:
+            raise OperatorError("praise-central captures lack timestamps")
+        dispatch_after_praise = [
+            event
+            for event in events
+            if event.get("type") == "dispatch"
+            and str(event.get("timestamp") or "") > last_praise_capture_ts
+        ]
+        if dispatch_after_praise:
+            raise OperatorError("dispatch occurred after praise-central captures; not proven_no_effect")
+
+        # Navigation capability-audit.jsonl is not Praise transport proof; only reject
+        # explicit consequential Praise signals if present.
+        for row in capability_audit:
+            if row.get("consequential") is True and row.get("transport_observed") is True:
+                if (
+                    str(row.get("action_id") or "").startswith("nova-praise-")
+                    or row.get("target_identity") == NOVA_PRAISE_TARGET
+                ):
+                    raise OperatorError(
+                        "capability-audit.jsonl records Praise consequential transport"
+                    )
+
+        from safe_action_core import SafetyStore
+        from safe_action_core.store import StoreError
+
+        store = SafetyStore(db_path)
+        try:
+            try:
+                action_row = store.get_action(str(result_action_id))
+            except StoreError as exc:
+                raise OperatorError("bound Praise action_id is missing from SafetyStore") from exc
+            if action_row.get("action_key") != result_action_key:
+                raise OperatorError("SafetyStore action_key does not match result")
+            if action_row.get("action_id") != result_action_id:
+                raise OperatorError("SafetyStore action_id does not match result")
+            final_status = action_row.get("final_status")
+            if final_status in {"confirmed", "input_sent", "unresolved", "prepared"}:
+                raise OperatorError(
+                    f"Praise action final_status={final_status} is not cancelled-before-transport"
+                )
+            if final_status != "cancelled":
+                raise OperatorError("Praise-reached proven_no_effect requires cancelled action row")
+            final_reason = action_row.get("final_reason")
+            if not isinstance(final_reason, str) or not final_reason.strip():
+                raise OperatorError("cancelled Praise action lacks final_reason")
+            if final_reason != reason and not final_reason.endswith(":" + reason):
+                raise OperatorError("cancelled Praise final_reason does not match result.reason")
+            if action_row.get("input_attempt_at") not in (None, ""):
+                raise OperatorError("cancelled Praise action recorded input_attempt_at")
+            if action_row.get("transport_result_json") not in (None, "", "null"):
+                raise OperatorError("cancelled Praise action recorded transport_result_json")
+
+            audit_rows = store.audit_events(str(result_action_id))
+            if not audit_rows:
+                raise OperatorError("Praise action lacks SQLite audit_events chain")
+            saw_cancel_transition = False
+            for audit in audit_rows:
+                event_type = str(audit.get("event_type") or "")
+                lifecycle_to = audit.get("lifecycle_to")
+                if lifecycle_to in {"input_sent", "confirmed", "unresolved"}:
+                    raise OperatorError(
+                        "Praise audit chain records transport or unresolved lifecycle"
+                    )
+                if event_type in {
+                    "input_sent",
+                    "transport_success",
+                    "transport_dispatched",
+                    "dispatched",
+                }:
+                    raise OperatorError("Praise audit chain records dispatch/transport success")
+                payload_raw = audit.get("payload_json")
+                payload: Any
+                if isinstance(payload_raw, str) and payload_raw.strip():
+                    try:
+                        payload = json.loads(payload_raw)
+                    except json.JSONDecodeError as exc:
+                        raise OperatorError("Praise audit payload_json is invalid JSON") from exc
+                elif isinstance(payload_raw, Mapping):
+                    payload = payload_raw
+                else:
+                    payload = {}
+                if not isinstance(payload, Mapping):
+                    raise OperatorError("Praise audit payload must be an object")
+                if payload.get("transport_observed") is True or payload.get("transport_occurred") is True:
+                    raise OperatorError("Praise audit records transport observed")
+                if "transport_calls" in payload and payload.get("transport_calls") not in (0, None):
+                    if (
+                        type(payload.get("transport_calls")) is not int
+                        or int(payload["transport_calls"]) != 0
+                    ):
+                        raise OperatorError("Praise audit transport_calls must be zero")
+                if lifecycle_to == "cancelled" or (
+                    event_type == "action_transition" and lifecycle_to == "cancelled"
+                ):
+                    saw_cancel_transition = True
+                    cancel_reason = None
+                    if isinstance(payload.get("reason"), str):
+                        cancel_reason = payload["reason"]
+                    if cancel_reason and cancel_reason != reason and not cancel_reason.endswith(
+                        ":" + reason
+                    ):
+                        raise OperatorError("Praise cancel audit reason does not match result")
+            if not saw_cancel_transition:
+                raise OperatorError("Praise audit chain lacks cancelled transition")
+
+            if store.list_unresolved_actions():
+                raise OperatorError("SafetyStore has unresolved action rows")
+            if store.list_nonterminal_actions():
+                raise OperatorError("SafetyStore has nonterminal action rows")
+            if store.has_action_block():
+                raise OperatorError("SafetyStore has an action block; not proven_no_effect")
+            has_action_block = False
+            action_rows = len(store.list_actions_for_task(NOVA_TASK_ID))
+            if action_rows < 1:
+                raise OperatorError("SafetyStore missing bound Nova Praise action row")
+            praise_cancelled_before_transport = True
+            bound_action_final_status = "cancelled"
+            bound_action_final_reason = final_reason
+        finally:
+            store.close()
+    else:
+        if not praise_captures:
+            raise OperatorError("events.jsonl lacks praise-central captures required for audit proof")
+        last_praise_capture_ts = max(str(event.get("timestamp") or "") for event in praise_captures)
+        if not last_praise_capture_ts:
+            raise OperatorError("praise-central captures lack timestamps")
+        dispatch_after_praise = [
+            event
+            for event in events
+            if event.get("type") == "dispatch"
+            and str(event.get("timestamp") or "") > last_praise_capture_ts
+        ]
+        if dispatch_after_praise:
+            raise OperatorError("dispatch occurred after praise-central captures; not proven_no_effect")
+
+        praise_transport_audit = [
+            row
+            for row in capability_audit
+            if row.get("consequential") is True and row.get("transport_observed") is True
+        ]
+        if praise_transport_audit:
+            raise OperatorError(
+                "capability-audit.jsonl records consequential transport; not proven_no_effect"
+            )
+        for row in capability_audit:
+            if "transport_calls" in row and row.get("transport_calls") not in (0, None):
+                if type(row.get("transport_calls")) is not int or int(row["transport_calls"]) != 0:
+                    raise OperatorError("capability-audit transport_calls must be zero")
+            action_id = row.get("action_id")
+            if isinstance(action_id, str) and action_id.startswith("nova-praise-"):
+                if row.get("transport_observed") is True:
+                    raise OperatorError("capability-audit shows Nova Praise transport")
+                if row.get("transport_calls") not in (0, None):
+                    raise OperatorError("capability-audit Nova Praise transport_calls must be zero")
+        terminal_audit = capability_audit[-1]
+        if terminal_audit.get("transport_observed") is not False:
+            raise OperatorError("capability-audit terminal row must show transport_observed=false")
+        if terminal_audit.get("authorized") is not False:
+            raise OperatorError("capability-audit terminal row must be unauthorized")
+
+        if not praise_transport_field_present:
+            if not (
+                praise_captures
+                and not post_praise_frames
+                and not consequential_dispatches
+                and not praise_dispatches
+                and not dispatch_after_praise
+                and terminal_audit.get("transport_observed") is False
+            ):
+                raise OperatorError(
+                    "missing praise_transport_calls without a complete zero-transport audit chain"
+                )
+
+    if not praise_cancelled_before_transport:
+        try:
+            connection = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
+        except sqlite3.Error as exc:
+            raise OperatorError("action_database could not be opened read-only") from exc
+        try:
+            connection.row_factory = sqlite3.Row
+            no_effect_clause = (
+                "final_status='cancelled' "
+                "AND input_attempt_at IS NULL "
+                "AND transport_result_json IS NULL"
+            )
+            action_count = connection.execute(
+                f"SELECT COUNT(*) AS n FROM actions WHERE NOT ({no_effect_clause})"
+            ).fetchone()["n"]
+            nova_count = connection.execute(
+                f"SELECT COUNT(*) AS n FROM actions WHERE task_id=? AND NOT ({no_effect_clause})",
+                (NOVA_TASK_ID,),
+            ).fetchone()["n"]
+        finally:
+            connection.close()
+        if int(action_count) != 0 or int(nova_count) != 0:
+            raise OperatorError("SafetyStore has action rows; not proven_no_effect")
+        from safe_action_core import SafetyStore
+        from safe_action_core.store import is_no_effect_cancelled
+
+        store = SafetyStore(db_path)
+        try:
+            if store.has_action_block():
+                raise OperatorError("SafetyStore has an action block; not proven_no_effect")
+            remaining_nova_actions = [
+                row
+                for row in store.list_actions_for_task(NOVA_TASK_ID)
+                if not is_no_effect_cancelled(row)
+            ]
+            if remaining_nova_actions:
+                raise OperatorError("SafetyStore lists Nova actions; not proven_no_effect")
+            has_action_block = False
+            action_rows = 0
+        finally:
+            store.close()
+
+    evidence_hashes = {
+        "result.json": _file_sha256(result_path),
+        "events.jsonl": _file_sha256(session / "events.jsonl"),
+        "capability-audit.jsonl": _file_sha256(session / "capability-audit.jsonl"),
+        "journal.jsonl": _file_sha256(session / "journal.jsonl"),
+        "action_database": _file_sha256(db_path),
+    }
+
+    return {
+        "result": result,
+        "session_directory": str(session),
+        "navigation_input_count": nav,
+        "praise_transport_calls": 0 if not praise_transport_field_present else praise,
+        "praise_transport_calls_field_present": praise_transport_field_present,
+        "events_count": len(events),
+        "capability_audit_count": len(capability_audit),
+        "action_rows": action_rows,
+        "has_action_block": has_action_block,
+        "praise_cancelled_before_transport": praise_cancelled_before_transport,
+        "bound_action_id": result_action_id if praise_cancelled_before_transport else None,
+        "bound_action_final_status": bound_action_final_status,
+        "bound_action_final_reason": bound_action_final_reason,
+        "guard_session_directory": guard_session,
+        "candidate_commit": candidate,
+        "session_stamp": session_stamp.isoformat().replace("+00:00", "Z"),
+        "legacy_null_session_recovery": legacy_recovery_used,
+        "expected_candidate_commit": expected_candidate_commit if legacy_recovery_used else None,
+        "current_head": current_head if legacy_recovery_used else None,
+        "in_window_session_count": len(in_window) if legacy_recovery_used else None,
+        "evidence_hashes": evidence_hashes,
+    }
+
+
+def reconcile_nova_supervised_invocation_guard_proven_no_effect(
+    session_directory: Path,
+    *,
+    legacy_null_session_recovery: bool = False,
+    expected_candidate_commit: str | None = None,
+) -> str:
+    """Archive the active Nova supervised guard only after audited proven-no-effect proof."""
+
+    guard_path = NOVA_SUPERVISED_INVOCATION_GUARD
+    if os.path.islink(guard_path) or not guard_path.is_file():
+        raise OperatorError("supervised invocation guard is missing or unsafe")
+    try:
+        guard = json.loads(guard_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("supervised invocation guard is unreadable") from exc
+    if not isinstance(guard, dict):
+        raise OperatorError("supervised invocation guard must be an object")
+    if guard.get("schema_version") != 1:
+        raise OperatorError("unsupported supervised invocation guard schema")
+    if guard.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID:
+        raise OperatorError("guard flow_id mismatch")
+    if guard.get("scenario_id") != NOVA_SUPERVISED_PULSE_SCENARIO_ID:
+        raise OperatorError("guard scenario_id mismatch")
+    if guard.get("reset_id") != NOVA_SUPERVISED_PULSE_RESET_ID:
+        raise OperatorError("guard reset_id mismatch")
+    terminal = guard.get("terminal_status") or guard.get("status")
+    guard_result_status = guard.get("result_status")
+    # Historical blocked finals wrote terminal_status=failed while result_status=blocked.
+    historical_blocked_guard = (
+        terminal == "failed" and guard_result_status == "blocked"
+    )
+    blocked_guard = terminal == "blocked" or historical_blocked_guard
+    if terminal != "unresolved" and not blocked_guard:
+        raise OperatorError(
+            "only an unresolved or blocked supervised guard may be reconciled as proven_no_effect"
+        )
+    if not isinstance(guard.get("candidate_commit"), str) or not str(guard["candidate_commit"]).strip():
+        raise OperatorError("guard candidate_commit is required")
+
+    proof = _verify_nova_supervised_proven_no_effect_session(
+        session_directory,
+        guard=guard,
+        legacy_null_session_recovery=legacy_null_session_recovery,
+        expected_candidate_commit=expected_candidate_commit,
+    )
+    result = proof["result"]
+    if blocked_guard:
+        if result.get("status") != "blocked":
+            raise OperatorError("blocked-guard reconcile requires result.status == blocked")
+        if guard_result_status != "blocked":
+            raise OperatorError("blocked-guard reconcile requires guard.result_status == blocked")
+        reason = result.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise OperatorError("blocked-guard reconcile requires a nonempty result.reason")
+        scenario = result.get("scenario_record")
+        if not isinstance(scenario, Mapping):
+            raise OperatorError("blocked-guard reconcile requires result.scenario_record")
+        if scenario.get("outcome") != "blocked":
+            raise OperatorError("blocked-guard reconcile requires scenario_record.outcome == blocked")
+        if scenario.get("unresolved_action") is not False:
+            raise OperatorError(
+                "blocked-guard reconcile requires scenario_record.unresolved_action == false"
+            )
+        if scenario.get("reason") != reason:
+            raise OperatorError("blocked-guard reconcile requires matching blocked reason")
+        if scenario.get("praise_transport_calls") not in (0, None):
+            if (
+                type(scenario.get("praise_transport_calls")) is not int
+                or int(scenario["praise_transport_calls"]) != 0
+            ):
+                raise OperatorError(
+                    "blocked-guard reconcile requires scenario praise_transport_calls == 0"
+                )
+        if proof["praise_transport_calls"] != 0:
+            raise OperatorError("blocked-guard reconcile requires praise_transport_calls == 0")
+        if proof.get("praise_cancelled_before_transport"):
+            if proof["has_action_block"] is not False:
+                raise OperatorError("blocked-guard reconcile requires no SafetyStore action block")
+            if proof.get("bound_action_final_status") != "cancelled":
+                raise OperatorError(
+                    "blocked-guard cancelled Praise path requires preserved cancelled action row"
+                )
+        elif proof["action_rows"] != 0 or proof["has_action_block"] is not False:
+            raise OperatorError("blocked-guard reconcile requires an empty SafetyStore")
+        journal_rows = _read_jsonl_objects(
+            Path(proof["session_directory"]) / "journal.jsonl",
+            "journal.jsonl",
+        )
+        journal = journal_rows[-1]
+        if journal.get("status") != "blocked":
+            raise OperatorError("blocked-guard reconcile requires journal.status == blocked")
+        if "reason" in journal and journal.get("reason") not in (None, reason):
+            raise OperatorError("blocked-guard reconcile journal reason mismatch")
+        if "reason" in guard and guard.get("reason") not in (None, "", reason):
+            raise OperatorError("blocked-guard reconcile guard reason mismatch")
+    finished_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    stamp = finished_at.replace(":", "").replace("-", "").replace(".", "")
+    guard_bytes = guard_path.read_bytes()
+    guard_sha256 = hashlib.sha256(guard_bytes).hexdigest()
+    receipt = {
+        "schema_version": 1,
+        "operation": "nova_supervised_invocation_guard_reconcile_proven_no_effect",
+        "outcome": "proven_no_effect",
+        "finished_at": finished_at,
+        "guard_path": str(guard_path),
+        "guard_sha256": guard_sha256,
+        "guard": guard,
+        "session_directory": proof["session_directory"],
+        "legacy_null_session_recovery": bool(proof["legacy_null_session_recovery"]),
+        "blocked_guard_reconcile": bool(blocked_guard),
+        "historical_blocked_guard_terminal_failed": bool(historical_blocked_guard),
+        "proof": {
+            "navigation_input_count": proof["navigation_input_count"],
+            "praise_transport_calls": proof["praise_transport_calls"],
+            "praise_transport_calls_field_present": proof[
+                "praise_transport_calls_field_present"
+            ],
+            "events_count": proof["events_count"],
+            "capability_audit_count": proof["capability_audit_count"],
+            "action_rows": proof["action_rows"],
+            "has_action_block": False,
+            "praise_cancelled_before_transport": bool(
+                proof.get("praise_cancelled_before_transport")
+            ),
+            "bound_action_id": proof.get("bound_action_id"),
+            "bound_action_final_status": proof.get("bound_action_final_status"),
+            "bound_action_final_reason": proof.get("bound_action_final_reason"),
+            "result_status": proof["result"].get("status"),
+            "result_reason": proof["result"].get("reason"),
+            "guard_terminal_status": terminal,
+            "guard_result_status": guard_result_status,
+            "candidate_commit": proof["candidate_commit"],
+            "expected_candidate_commit": proof["expected_candidate_commit"],
+            "current_head": proof["current_head"],
+            "in_window_session_count": proof["in_window_session_count"],
+            "session_stamp": proof["session_stamp"],
+            "guard_session_directory": proof["guard_session_directory"],
+            "evidence_hashes": proof["evidence_hashes"],
+        },
+        "action_database": str(NOVA_SUPERVISED_ACTION_DATABASE),
+        "queue_mutated": False,
+        "lease_mutated": False,
+        "controller_lifecycle_mutated": False,
+    }
+    receipt_digest = hashlib.sha256(
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    receipt["receipt_digest"] = receipt_digest
+
+    NOVA_SUPERVISED_GUARD_RECEIPT_DIR.mkdir(parents=True, exist_ok=True)
+    NOVA_SUPERVISED_GUARD_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    receipt_path = (
+        NOVA_SUPERVISED_GUARD_RECEIPT_DIR
+        / f"proven-no-effect-{stamp}-{receipt_digest[:16]}.json"
+    )
+    archive_path = (
+        NOVA_SUPERVISED_GUARD_ARCHIVE_DIR
+        / f"nova-praise-one-free-pulse-game-day-2026-07-22.guard.{stamp}.{guard_sha256[:16]}.json"
+    )
+    if receipt_path.exists() or archive_path.exists():
+        raise OperatorError("reconciliation receipt or archive path already exists")
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    fd = os.open(str(receipt_path), flags)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    except Exception:
+        raise
+    # Move (never delete) the active guard so O_EXCL can create a replacement.
+    os.replace(str(guard_path), str(archive_path))
+    if guard_path.exists():
+        raise OperatorError("active supervised guard remained after archive move")
+    if not archive_path.is_file():
+        raise OperatorError("archived supervised guard is missing after move")
+    return json.dumps(
+        {
+            "status": "reconciled",
+            "outcome": "proven_no_effect",
+            "legacy_null_session_recovery": bool(proof["legacy_null_session_recovery"]),
+            "guard_archived_to": str(archive_path),
+            "receipt_path": str(receipt_path),
+            "receipt_digest": receipt_digest,
+            "session_directory": proof["session_directory"],
+            "praise_transport_calls": 0,
+            "action_rows": 0,
+            "candidate_commit": proof["candidate_commit"],
+        },
+        sort_keys=True,
+    )
 
 
 def _confine_nova_supervised_paths(args: argparse.Namespace) -> None:
@@ -1537,6 +2490,10 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                 status = str(route_result.get("status") or "blocked")
                 session = str(route_result.get("session_directory") or "")
                 result_status = status
+                route_result["candidate_commit"] = candidate_commit
+                if session:
+                    _bind_nova_supervised_invocation_guard_session(session)
+                    route_result["session_directory"] = str(Path(session).resolve())
                 completed_facts = _supervised_pulse_completed_facts_ok(route_result)
                 if status == "completed" and completed_facts:
                     record = SupervisedNovaPulseScenarioAttemptRecord(
@@ -1633,7 +2590,7 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                         evidence_refs=(session,),
                         terminal_ownership_state="released",
                     )
-                    guard_terminal = "failed"
+                    guard_terminal = "blocked"
                 route_result["scenario_record"] = record.to_mapping()
                 route_result["candidate_commit"] = candidate_commit
                 route_result["production_registration"] = "NOT_REGISTERED"
@@ -1644,11 +2601,13 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                         {
                             "scenario_record": route_result["scenario_record"],
                             "candidate_commit": candidate_commit,
+                            "session_directory": str(Path(session).resolve()),
                             "production_registration": "NOT_REGISTERED",
                             "scheduler_enabled": False,
                             "status": route_result.get("status"),
                             "reason": route_result.get("reason"),
                         },
+                        candidate_commit=candidate_commit,
                     )
                     route_result["action_database"] = persisted.get(
                         "action_database",
@@ -1874,6 +2833,20 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         default=NOVA_NAVIGATION_CANARY_OUTPUT_DEFAULT,
     )
+    nova_guard = sub.add_parser("nova-praise-supervised-guard")
+    nova_guard_sub = nova_guard.add_subparsers(dest="nova_guard_command", required=True)
+    nova_guard_reconcile = nova_guard_sub.add_parser("reconcile-proven-no-effect")
+    nova_guard_reconcile.add_argument("--session-directory", type=Path, required=True)
+    nova_guard_reconcile.add_argument(
+        "--legacy-null-session-recovery",
+        action="store_true",
+        help="explicit one-off recovery for the audited legacy null-session guard",
+    )
+    nova_guard_reconcile.add_argument(
+        "--expected-candidate-commit",
+        default=None,
+        help="required with --legacy-null-session-recovery; must match guard and HEAD",
+    )
     bluestacks = sub.add_parser("bluestacks")
     bluestacks_sub = bluestacks.add_subparsers(dest="bluestacks_command", required=True)
     bluestacks_sub.add_parser("preflight")
@@ -1903,6 +2876,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                     {
                         "status": "failed",
                         "command": "nova-praise-pulse",
+                        "error": str(exc),
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+    if args.command == "nova-praise-supervised-guard":
+        try:
+            if args.nova_guard_command == "reconcile-proven-no-effect":
+                output = reconcile_nova_supervised_invocation_guard_proven_no_effect(
+                    args.session_directory,
+                    legacy_null_session_recovery=bool(
+                        getattr(args, "legacy_null_session_recovery", False)
+                    ),
+                    expected_candidate_commit=getattr(
+                        args, "expected_candidate_commit", None
+                    ),
+                )
+            else:
+                raise OperatorError("unknown nova supervised guard command")
+            print(output)
+            return 0
+        except (OperatorError, OSError, RuntimeError, ValueError) as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "command": "nova-praise-supervised-guard",
                         "error": str(exc),
                     },
                     sort_keys=True,

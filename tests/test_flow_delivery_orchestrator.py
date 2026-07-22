@@ -67,9 +67,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             if flow["status"] == "active":
                 flow["status"] = "ready"
                 flow["last_completed_stage"] = "selected"
-        active["flows"][4]["status"] = "active"
-        active["flows"][4]["last_completed_stage"] = "implementation"
-        active["active_flow_id"] = active["flows"][4]["flow_id"]
+        active["flows"][5]["status"] = "active"
+        active["flows"][5]["last_completed_stage"] = "implementation"
+        active["active_flow_id"] = active["flows"][5]["flow_id"]
         self.assertEqual(
             controller.select_next(active)["flow_id"],
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
@@ -77,6 +77,10 @@ class FlowDeliveryQueueTests(unittest.TestCase):
 
     def test_blocked_and_policy_disabled_flows_are_skipped(self) -> None:
         queue = deepcopy(self.queue)
+        for flow in queue["flows"]:
+            if flow["status"] == "active":
+                flow["status"] = "ready"
+        queue["active_flow_id"] = None
         queue["flows"][0]["status"] = "blocked"
         queue["flows"][0]["blocked_reason"] = "test blocker"
         queue["flows"][1]["status"] = "blocked"
@@ -88,6 +92,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             key=lambda flow: (flow["priority"], flow["flow_id"]),
         )
         self.assertEqual(selected["flow_id"], expected["flow_id"])
+        self.assertEqual(expected["flow_id"], "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE")
 
     def test_composition_bliss_and_gameplay_scheduler_are_excluded(self) -> None:
         identities = {item["flow_id"] for item in self.queue["flows"]}
@@ -104,6 +109,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+            "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
             "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
             "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
@@ -123,9 +129,11 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             for status in control.QUEUE_STATUSES
         }
         self.assertIn(counts["active"], (0, 1))
-        # Campaign, Ultimate Challenge, Nova, and two Daily claim flows are blocked.
-        self.assertEqual(counts["ready"] + counts["active"], 6)
-        self.assertEqual(counts["blocked"], 5)
+        # Campaign, Ultimate Challenge, and two Daily claim flows are blocked.
+        # Nova home atlas is completed; supervised one-free pulse is active.
+        self.assertEqual(counts["ready"] + counts["active"], 7)
+        self.assertEqual(counts["blocked"], 4)
+        self.assertEqual(counts["completed"], 1)
         self.assertEqual(counts["needs_product_decision"], 4)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:

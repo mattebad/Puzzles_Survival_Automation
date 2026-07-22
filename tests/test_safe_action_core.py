@@ -24,6 +24,7 @@ from safe_action_core.store import (
     LeaseError,
     SafetyStore,
     SchemaVersionError,
+    is_no_effect_cancelled,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -163,6 +164,69 @@ class StoreCase(StoreFixture, unittest.TestCase):
         self.store.prepare_action(intent(), self.policy, 1000.0)
         with self.assertRaises(DuplicateActionError):
             self.store.prepare_action(intent("action-2"), self.policy, 1000.1)
+
+    def test_no_effect_cancelled_action_can_be_superseded_and_reprepared(self):
+        self.store.prepare_action(intent(), self.policy, 1000.0)
+        self.store.mark_cancelled("action-1", 1000.1, "pre_input_revalidation:STALE_FRAME")
+        self.assertTrue(is_no_effect_cancelled(self.store.get_action("action-1")))
+
+        self.store.supersede_no_effect_cancelled_action(
+            "action-1",
+            1000.2,
+            "superseded_no_effect_cancelled_retry",
+        )
+
+        self.assertIsNone(self.store.get_action_by_key("day-1:claim:row-1"))
+        superseded = [
+            event
+            for event in self.store.audit_events("action-1")
+            if event["event_type"] == "action_superseded"
+        ]
+        self.assertEqual(len(superseded), 1)
+        self.assertEqual(superseded[0]["lifecycle_from"], "cancelled")
+        self.assertIsNone(superseded[0]["lifecycle_to"])
+        self.assertEqual(
+            json.loads(superseded[0]["payload_json"])["reason"],
+            "superseded_no_effect_cancelled_retry",
+        )
+
+        self.store.prepare_action(intent("retry"), self.policy, 1000.3)
+        self.assertEqual(
+            self.store.get_action_by_key("day-1:claim:row-1")["action_id"],
+            "retry",
+        )
+
+    def test_no_effect_cancelled_predicate_is_exact(self):
+        self.store.prepare_action(intent("prepared", "key-prepared"), self.policy, 1000.0)
+        self.store.prepare_action(intent("cancelled", "key-cancelled"), self.policy, 1000.0)
+        self.store.mark_cancelled("cancelled", 1000.1, "pre_input_revalidation:STALE_FRAME")
+        self.store.prepare_action(intent("input-sent", "key-input-sent"), self.policy, 1000.0)
+        self.store.mark_input_sent("input-sent", 1000.1, TransportResult(True, "OK"))
+        self.store.prepare_action(intent("confirmed", "key-confirmed"), self.policy, 1000.0)
+        self.store.mark_input_sent("confirmed", 1000.1, TransportResult(True, "OK"))
+        self.store.mark_confirmed("confirmed", 1000.2, {"confirmed": True})
+        self.store.prepare_action(intent("unresolved", "key-unresolved"), self.policy, 1000.0)
+        self.store.mark_unresolved("unresolved", 1000.1, "ambiguous")
+
+        self.assertFalse(is_no_effect_cancelled(self.store.get_action("prepared")))
+        self.assertTrue(is_no_effect_cancelled(self.store.get_action("cancelled")))
+        self.assertFalse(is_no_effect_cancelled(self.store.get_action("input-sent")))
+        self.assertFalse(is_no_effect_cancelled(self.store.get_action("confirmed")))
+        self.assertFalse(is_no_effect_cancelled(self.store.get_action("unresolved")))
+
+    def test_supersede_refuses_transported_or_unresolved_actions(self):
+        self.store.prepare_action(intent("confirmed", "key-confirmed"), self.policy, 1000.0)
+        self.store.mark_input_sent("confirmed", 1000.1, TransportResult(True, "OK"))
+        self.store.mark_confirmed("confirmed", 1000.2, {"confirmed": True})
+        self.store.prepare_action(intent("input-sent", "key-input-sent"), self.policy, 1000.0)
+        self.store.mark_input_sent("input-sent", 1000.1, TransportResult(True, "OK"))
+        self.store.prepare_action(intent("unresolved", "key-unresolved"), self.policy, 1000.0)
+        self.store.mark_unresolved("unresolved", 1000.1, "ambiguous")
+
+        for action_id in ("confirmed", "input-sent", "unresolved"):
+            with self.subTest(action_id=action_id):
+                with self.assertRaises(InvalidTransitionError):
+                    self.store.supersede_no_effect_cancelled_action(action_id, 1000.3, "retry")
 
     def test_startup_reconcile_marks_prepared_unresolved(self):
         self.store.prepare_action(intent(), self.policy, 1000.0)

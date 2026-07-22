@@ -32,7 +32,7 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": null,
+  "active_flow_id": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
   "flows": [
     {
       "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
@@ -499,7 +499,7 @@
       "title": "Validate one supervised zero-cost Nova Praise pulse",
       "kind": "supervised_consequential_validation",
       "priority": 21,
-      "status": "ready",
+      "status": "active",
       "backlog_task_id": "GF-NOVA-PRAISE-SUPERVISED-20260722",
       "dependencies": [
         "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
@@ -526,7 +526,8 @@
         "tests/test_nova_praise_centralized_boundary.py",
         "tests/test_nova_navigation_canary.py",
         "tests/test_flow_scenario_attempts.py",
-        "tests/test_pnsctl_nova_praise.py"
+        "tests/test_pnsctl_nova_praise.py",
+        "tests/test_flow_delivery_orchestrator.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -539,7 +540,7 @@
       ],
       "blocked_reason": "",
       "next_concrete_action": "Implement and commit the pnsctl full-route composition, validate offline, then run exactly one supervised BlueStacks invocation bound to game-day-2026-07-22.",
-      "last_completed_stage": null,
+      "last_completed_stage": "focused_validation",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
       "acceptance_criteria": [
@@ -581,6 +582,7 @@
         "tests/test_nova_navigation_canary.py",
         "tests/test_flow_scenario_attempts.py",
         "tests/test_pnsctl_nova_praise.py",
+        "tests/test_flow_delivery_orchestrator.py",
         "tasks/flow_delivery_product_policy.json",
         "tasks/gameplay_flow_contracts/NOVA-PRAISE-HOME-ATLAS-MIGRATION.json",
         "tasks/backlog_task_index.json",
@@ -606,7 +608,8 @@
         "tests/test_nova_praise_centralized_boundary.py",
         "tests/test_nova_navigation_canary.py",
         "tests/test_flow_scenario_attempts.py",
-        "tests/test_pnsctl_nova_praise.py"
+        "tests/test_pnsctl_nova_praise.py",
+        "tests/test_flow_delivery_orchestrator.py"
       ],
       "consequential_stage_policy": {
         "initial_live_validation": "one_supervised_free_praise",

@@ -61,6 +61,14 @@ def _json(value: Any) -> str:
     return json.dumps(snapshot(value), sort_keys=True, separators=(",", ":"))
 
 
+def is_no_effect_cancelled(row: Mapping[str, Any]) -> bool:
+    return (
+        row["final_status"] == ActionStatus.CANCELLED.value
+        and row.get("input_attempt_at") is None
+        and row.get("transport_result_json") is None
+    )
+
+
 class SafetyStore:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
@@ -362,6 +370,27 @@ class SafetyStore:
             (action_key,),
         ).fetchone()
         return dict(row) if row is not None else None
+
+    def supersede_no_effect_cancelled_action(self, action_id: str, now: float, reason: str) -> None:
+        with self.transaction() as db:
+            row = db.execute("SELECT * FROM actions WHERE action_id=?", (action_id,)).fetchone()
+            if row is None:
+                raise StoreError("unknown action")
+            if not is_no_effect_cancelled(dict(row)):
+                raise InvalidTransitionError(
+                    "only a no-effect cancelled action may be superseded"
+                )
+            db.execute("DELETE FROM actions WHERE action_id=?", (action_id,))
+            self._insert_audit(
+                db,
+                row["task_id"],
+                "action_superseded",
+                now,
+                {"reason": reason},
+                action_id,
+                ActionStatus.CANCELLED.value,
+                None,
+            )
 
     def list_actions_for_task(self, task_id: str) -> List[Dict[str, Any]]:
         rows = self.connection.execute(

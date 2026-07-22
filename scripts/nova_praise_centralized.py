@@ -24,6 +24,7 @@ from safe_action_core import (
     SQLiteSchedulerInvocationRepository,
     TransportResult,
 )
+from safe_action_core.store import is_no_effect_cancelled
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, NativeRuntimePort
 from tasks.nova_praise import (
     NOVA_PRAISE_TARGET,
@@ -34,7 +35,11 @@ from tasks.nova_praise import (
 )
 from tasks.nova_praise_pulse import NOVA_TASK_ID, NovaPulseController
 from tasks.nova_praise_runtime import NovaAction, NovaPraiseRuntimeController
-from tasks.nova_praise_vision import NovaFrameRecognition, recognize_nova_frame
+from tasks.nova_praise_vision import (
+    NovaFrameRecognition,
+    recognize_nova_frame,
+    revalidate_nova_praise_frame_fast,
+)
 from tasks.scheduler_task_result import (
     SchedulerAwareTaskResult,
     SchedulerIdentity,
@@ -47,6 +52,14 @@ SEMANTIC_ACTION = "PRAISE_NOVA"
 EXPECTED_POSTCONDITION = "NOVA_PRAISE_ATTEMPT_DECREMENT_AND_COOLDOWN"
 _ATTEMPTS_STATE_RE = re.compile(r"^NOVA_PRAISE_ATTEMPTS_(\d+)$")
 _PAID_MARKERS = ("confirm", "purchase", "premium", "diamond", "cash", "cost", "buy")
+_NATIVE_WIDTH = 800
+_NATIVE_HEIGHT = 1280
+
+
+def _expected_foreground_package() -> str:
+    from scripts.bluestacks_flow_collector import EXPECTED_PACKAGE
+
+    return EXPECTED_PACKAGE
 
 
 @dataclass(frozen=True)
@@ -221,6 +234,28 @@ class NovaPraiseActionBoundary:
         x0, y0, x1, y1 = roi
         return hashlib.sha256(captured.frame[y0:y1, x0:x1].tobytes()).hexdigest()
 
+    def _measure_package_and_profile(
+        self,
+        captured: CapturedNativeFrame,
+    ) -> tuple[str, bool]:
+        """Measure/revalidate runtime profile and foreground package for the frame."""
+
+        height = int(captured.frame.shape[0])
+        width = int(captured.frame.shape[1])
+        if (width, height) != (_NATIVE_WIDTH, _NATIVE_HEIGHT):
+            raise ValueError(
+                f"Nova frame is not native {_NATIVE_WIDTH}x{_NATIVE_HEIGHT}: {width}x{height}"
+            )
+        profile_id = PROFILE_ID
+        measure = getattr(self.runtime, "measure_foreground_package", None)
+        if callable(measure):
+            package = str(measure())
+            return profile_id, package == _expected_foreground_package()
+        # Zero-transport offline replay may omit live package measurement.
+        if getattr(self.runtime, "dispatches_transport", True) is False:
+            return profile_id, True
+        raise ValueError("foreground package measurement unavailable")
+
     def _action_observation(
         self,
         captured: CapturedNativeFrame,
@@ -233,12 +268,13 @@ class NovaPraiseActionBoundary:
             recognition,
             expected_attempts=expected_attempts,
         )
+        profile_id, package_foreground = self._measure_package_and_profile(captured)
         return Observation(
             frame_sha256=captured.sha256,
             capture_completed_monotonic=captured.captured_monotonic,
-            runtime_profile_id=PROFILE_ID,
-            width=800,
-            height=1280,
+            runtime_profile_id=profile_id,
+            width=_NATIVE_WIDTH,
+            height=_NATIVE_HEIGHT,
             valid_png=True,
             corrupt=False,
             black=False,
@@ -259,7 +295,7 @@ class NovaPraiseActionBoundary:
             ocr_result_capture_completed_monotonic=captured.captured_monotonic,
             source_family="nova_praise",
             target_isolated=True,
-            package_foreground=True,
+            package_foreground=package_foreground,
         )
 
     @staticmethod
@@ -268,12 +304,19 @@ class NovaPraiseActionBoundary:
         recognition: NovaFrameRecognition,
     ) -> Observation:
         semantic = recognition.observation
+        height = int(captured.frame.shape[0])
+        width = int(captured.frame.shape[1])
+        profile_id = (
+            PROFILE_ID
+            if (width, height) == (_NATIVE_WIDTH, _NATIVE_HEIGHT)
+            else f"non-native-{width}x{height}"
+        )
         return Observation(
             frame_sha256=captured.sha256,
             capture_completed_monotonic=captured.captured_monotonic,
-            runtime_profile_id=PROFILE_ID,
-            width=800,
-            height=1280,
+            runtime_profile_id=profile_id,
+            width=width,
+            height=height,
             valid_png=True,
             corrupt=False,
             black=False,
@@ -548,6 +591,12 @@ class NovaPraiseActionBoundary:
         attempts = proposal_recognition.observation.attempts_remaining
         if attempts is None or attempts <= 0:
             raise ValueError("positive Nova attempts are required before centralized dispatch")
+        # Planning/recognition is an entry gate only. It must never mint capability.
+        self._authorize_recognition(
+            proposal_capture,
+            proposal_recognition,
+            expected_attempts=attempts,
+        )
         action = NovaActionIdentity(
             self.identity,
             self.runtime_scope,
@@ -556,34 +605,91 @@ class NovaPraiseActionBoundary:
         )
         existing = self.store.get_action_by_key(action.action_key)
         if existing is not None:
+            if is_no_effect_cancelled(existing):
+                # A zero-transport cancelled action had no game effect, so at most one
+                # real transport can still occur when this retry supersedes its row.
+                self.store.supersede_no_effect_cancelled_action(
+                    existing["action_id"],
+                    self.wall_clock(),
+                    "superseded_no_effect_cancelled_retry",
+                )
+                assert self.store.get_action_by_key(action.action_key) is None
+            else:
+                return NovaBoundaryResult(
+                    "blocked",
+                    f"existing_action_{existing['final_status']}",
+                    existing["action_id"],
+                    action.action_key,
+                    0,
+                    attempts,
+                    None,
+                    None,
+                    None,
+                    existing["final_status"],
+                    None,
+                    (),
+                )
+
+        # One late immediate-before capture is the sole authorizing current-frame binding.
+        # No second live capture may occur between issuance and the single Praise transport.
+        # Fast revalidation trusts the full-OCR proposal for semantics and only cheaply
+        # corroborates the fixed Praise ROI on this fresh frame (no OCR / freshness burn).
+        immediate_capture = self.runtime.capture("praise-central-immediate-before")
+        immediate_recognition = revalidate_nova_praise_frame_fast(
+            immediate_capture.frame,
+            prior=proposal_recognition,
+            captured_monotonic=immediate_capture.captured_monotonic,
+        )
+        try:
+            immediate_observation = self._action_observation(
+                immediate_capture,
+                immediate_recognition,
+                expected_attempts=attempts,
+            )
+        except ValueError as exc:
             return NovaBoundaryResult(
                 "blocked",
-                f"existing_action_{existing['final_status']}",
-                existing["action_id"],
+                f"immediate_before_rejected:{exc}",
+                action.action_id,
                 action.action_key,
                 0,
                 attempts,
                 None,
                 None,
                 None,
-                existing["final_status"],
                 None,
-                (),
+                None,
+                (str(immediate_capture.path),),
             )
-
-        prepare_capture = self.runtime.capture("praise-central-prepare")
-        prepare_recognition = self._recognize(prepare_capture)
-        prepare_observation = self._action_observation(
-            prepare_capture,
-            prepare_recognition,
-            expected_attempts=attempts,
-        )
-        immediate_capture = self.runtime.capture("praise-central-immediate-before")
-        immediate_recognition = self._recognize(immediate_capture)
-        immediate_observation = self._action_observation(
-            immediate_capture,
-            immediate_recognition,
-            expected_attempts=attempts,
+        if not immediate_observation.package_foreground:
+            return NovaBoundaryResult(
+                "blocked",
+                "PACKAGE_FOREGROUND_MISMATCH",
+                action.action_id,
+                action.action_key,
+                0,
+                attempts,
+                None,
+                None,
+                None,
+                None,
+                None,
+                (str(immediate_capture.path),),
+            )
+        # Runtime profile is established by measuring native 800x1280 geometry against
+        # the checked-in BlueStacks profile contract (no separate adapter profile API).
+        # Non-native frames already fail in _measure_package_and_profile.
+        # SafeActionExecutor requires immediate mono > proposal mono while capability
+        # consume requires the issued capture digest+mono. Mirror the home-atlas proposal
+        # predecessor of the SAME immediate capture identity (same digest/OCR/ROI).
+        proposal_observation = replace(
+            immediate_observation,
+            capture_completed_monotonic=(
+                immediate_observation.capture_completed_monotonic - 0.05
+            ),
+            ocr_result_capture_completed_monotonic=(
+                immediate_observation.capture_completed_monotonic - 0.05
+            ),
         )
 
         policy = CentralPolicy({NOVA_TASK_ID})
@@ -608,10 +714,11 @@ class NovaPraiseActionBoundary:
                 None,
                 None,
                 None,
-                (str(prepare_capture.path), str(immediate_capture.path)),
+                (str(immediate_capture.path),),
             )
 
         after_by_hash: dict[str, tuple[CapturedNativeFrame, NovaFrameRecognition]] = {}
+        consume_observations: list[Observation] = []
 
         def dispatch(_intent) -> TransportResult:
             self.transport_calls += 1
@@ -623,6 +730,35 @@ class NovaPraiseActionBoundary:
                 consequential=True,
             )
             return TransportResult(True, "BLUESTACKS_TAP_DISPATCHED")
+
+        def recapture() -> Observation:
+            """Rebuild from the issued immediate capture; never take a second live frame.
+
+            Re-run package/profile/target/cost/attempts checks and critical ROI digests on
+            that exact capture (no full-frame OCR). Decorative pixel animation across later
+            frames cannot force another capture; geometry/attempts/cost still fail closed.
+            """
+
+            try:
+                rebuilt = self._action_observation(
+                    immediate_capture,
+                    immediate_recognition,
+                    expected_attempts=attempts,
+                )
+            except ValueError as exc:
+                raise ValueError(f"immediate-before revalidation rejected: {exc}") from exc
+            if rebuilt is immediate_observation:
+                raise RuntimeError("immediate revalidation must return a distinct Observation")
+            if (
+                rebuilt.frame_sha256 != immediate_observation.frame_sha256
+                or rebuilt.capture_completed_monotonic
+                != immediate_observation.capture_completed_monotonic
+            ):
+                raise RuntimeError(
+                    "immediate revalidation must preserve issued capture digest and monotonic"
+                )
+            consume_observations.append(rebuilt)
+            return rebuilt
 
         def post_observe() -> Iterable[Observation]:
             results: list[Observation] = []
@@ -650,20 +786,39 @@ class NovaPraiseActionBoundary:
             self.owner_id,
             self.monotonic_clock,
             dispatch,
-            lambda: immediate_observation,
+            recapture,
             post_observe,
             reconcile,
             wall_clock=self.wall_clock,
             max_pre_dispatch_attempts=1,
         )
         execution = executor.execute(
-            self._request(action, prepare_observation),
+            self._request(action, proposal_observation),
             issued.capability,
             dry_run=not self.execute,
         )
-        journal = self.store.get_action(action.action_id)
-        evidence = [str(prepare_capture.path), str(immediate_capture.path)]
+        # Prefer key lookup: denial/cancel before prepare_action leaves no action row.
+        journal = self.store.get_action_by_key(action.action_key)
+        evidence = [str(immediate_capture.path)]
         evidence.extend(str(captured.path) for captured, _ in after_by_hash.values())
+        if execution.transport_calls and not consume_observations:
+            raise RuntimeError("capability consume Observation missing for transported Praise")
+
+        if journal is None:
+            return NovaBoundaryResult(
+                "blocked",
+                execution.reason,
+                action.action_id,
+                action.action_key,
+                execution.transport_calls,
+                attempts,
+                None,
+                None,
+                None,
+                None,
+                None,
+                tuple(evidence),
+            )
 
         if execution.status is ActionStatus.CONFIRMED:
             positive = next(

@@ -7,7 +7,6 @@
 *.pfx
 
 # Local-only bulk data (ordinary Agent context)
-.local-captures/**
 .local-reference/**
 .local-orchestrator/**
 .specstory/**
