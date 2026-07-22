@@ -338,7 +338,7 @@
         {
           "scenario_id": "nova_navigation_round_trip_no_praise",
           "mode": "navigation_only",
-          "maximum_execution_attempts": 1,
+          "maximum_execution_attempts": 2,
           "execution_attempt_count": 1,
           "attempts": [
             {
@@ -401,7 +401,7 @@
           "forbidden_input_classes": [
             "consequential"
           ],
-          "status": "exhausted"
+          "status": "ready"
         }
       ],
       "focused_tests": [
@@ -413,8 +413,8 @@
         "navigation_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "GF-MVP-009 changed candidate e345db9 stopped before input because the current Research Lab radial had no fresh current-session Research Lab tap provenance. The user-authorized continuation is terminal with no further attempt: navigation, Praise, consequential, and transport counts were all zero; prior dc8210c attempt/evidence remains unchanged.",
-      "next_concrete_action": "Evidence/architecture review only. Do not retry e345db9, synthesize or reuse stale radial provenance, start GF-MVP-010, or begin Milestone B.",
+      "blocked_reason": "GF-MVP-009 authorizes one remaining named-scenario execution attempt after the e345db9 pre_input block. Strong initial Research Lab radial may continue without current-session Research Lab tap provenance when the composite (bounded Nova template + independent Research evidence + measured Home context + fresh native frame) is unambiguous; prior dc8210c execution and both pre_input records remain unchanged.",
+      "next_concrete_action": "Commit the focused strong-initial-radial correction, then run exactly one authorized live canary attempt. Do not synthesize tap provenance, start GF-MVP-010, or begin Milestone B.",
       "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION",

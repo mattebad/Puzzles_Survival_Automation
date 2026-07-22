@@ -48,15 +48,15 @@ def _unused_scenario() -> dict:
 
 
 class ScenarioAttemptPolicyTests(unittest.TestCase):
-    def test_checked_in_queue_retains_terminal_no_retry_authority(self) -> None:
+    def test_checked_in_queue_retains_retry_authority_after_pre_input_block(self) -> None:
         queue = _queue()
         control.validate_queue(queue)
         scenario = _scenario()
         validate_named_scenario_state(scenario)
         self.assertEqual(scenario["scenario_id"], NOVA_CANARY_SCENARIO_ID)
-        self.assertEqual(scenario["maximum_execution_attempts"], 1)
+        self.assertEqual(scenario["maximum_execution_attempts"], 2)
         self.assertEqual(scenario["execution_attempt_count"], 1)
-        self.assertEqual(scenario["status"], "exhausted")
+        self.assertEqual(scenario["status"], "ready")
         self.assertEqual(scenario["forbidden_input_classes"], ["consequential"])
         self.assertEqual(len(scenario["attempts"]), 1)
         self.assertEqual(scenario["attempts"][0]["candidate_commit"], "dc8210c1038c5233c893e2d42ee691a96b23ac48")
@@ -94,7 +94,8 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
         self.assertEqual(attempt["terminal_outcome"], "blocked")
         self.assertIn("research_lab_radial_not_bound", attempt["diagnosis"])
         self.assertIn("zero Praise", attempt["diagnosis"])
-        self.assertIn("Do not retry e345db9", flow["next_concrete_action"])
+        self.assertIn("Strong initial Research Lab radial", flow["blocked_reason"])
+        self.assertIn("one authorized live canary attempt", flow["next_concrete_action"])
         self.assertEqual(queue.get("active_flow_id"), None)
 
     def test_replay_and_pre_input_failure_do_not_consume_budget(self) -> None:
@@ -129,7 +130,7 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
             initial_execution_count,
         )
         self.assertEqual(len(after_failure["pre_input_results"]), initial_count + 2)
-        self.assertEqual(after_failure["status"], "exhausted")
+        self.assertEqual(after_failure["status"], "ready")
 
     def test_first_navigation_input_consumes_and_exhausts_named_budget(self) -> None:
         execution = ScenarioAttemptRecord(

@@ -359,20 +359,33 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         )
         self.assertEqual(result.praise_taps, 0)
 
-    def test_bound_radial_start_without_provenance_blocks_before_input(self) -> None:
+    def test_bound_radial_start_without_provenance_continues_when_recognized(self) -> None:
         runtime = FakeRuntime()
+        recognizer = RecognitionQueue(
+            _radial_recognition("0" * 64),
+            _radial_recognition("1" * 64),
+            _nova_recognition("2" * 64),
+            _nova_recognition("3" * 64),
+            _home_recognition("4" * 64),
+        )
         route = NovaNavigationCanaryRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
             home_driver=FakeHomeDriver(),
-            recognizer=RecognitionQueue(_radial_recognition("0" * 64)),
+            recognizer=recognizer,
             settle_seconds=0,
         )
-        result = route.run()
-        self.assertEqual(result.status, "blocked")
-        self.assertEqual(result.reason, "initial_radial_missing_research_lab_provenance")
-        self.assertEqual(runtime.inputs, [])
+        with patch.object(route, "_home_localized", return_value=True):
+            result = route.run()
+        self.assertEqual(result.status, "completed")
+        self.assertEqual([kind for kind, _ in runtime.inputs], ["tap", "back"])
+        self.assertEqual(runtime.inputs[0][1]["target_identity"], NOVA_INTERACTION_TARGET)
+        self.assertEqual(result.praise_taps, 0)
+        self.assertNotIn(
+            NOVA_PRAISE_TARGET,
+            [data.get("target_identity") for _, data in runtime.inputs],
+        )
 
     def test_false_measured_home_context_blocks_before_nova_input(self) -> None:
         runtime = FakeRuntime()
@@ -459,15 +472,26 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             adapter.command(_nova_recognition("a" * 64))
         self.assertEqual(calls, [])
 
-    def test_retained_radial_requires_fresh_research_lab_provenance(self) -> None:
-        fixture = _fixture("research-lab-radial-07f3d826")
+    def test_retained_radial_strong_initial_composite_without_provenance(self) -> None:
+        fixture = _fixture("blocked-canary-radial-48a116d3")
         frame = _load_fixture_frame(fixture)
-        stale = recognize_nova_frame(
+        recognized = recognize_nova_frame(
             frame,
             captured_monotonic=11.0,
             home_context_visible=True,
         )
-        self.assertFalse(stale.observation.recognized)
+        self.assertTrue(recognized.observation.recognized)
+        self.assertEqual(recognized.observation.screen_state, "RESEARCH_LAB_MENU")
+        self.assertEqual(recognized.target(NOVA_INTERACTION_TARGET), (137, 631, 181, 675))
+        radial = recognized.diagnostics["research_lab_radial"]
+        self.assertEqual(radial["bind_method"], "template_nova_plus_research_hough")
+        self.assertTrue(radial["initial_unprovenanced_composite"])
+        self.assertGreaterEqual(radial["template_score"], NOVA_TEMPLATE_MIN_SCORE)
+        self.assertGreaterEqual(radial["template_margin"], NOVA_TEMPLATE_MIN_MARGIN)
+
+    def test_retained_radial_provenance_path_still_binds(self) -> None:
+        fixture = _fixture("research-lab-radial-07f3d826")
+        frame = _load_fixture_frame(fixture)
         fresh = recognize_nova_frame(
             frame,
             captured_monotonic=11.0,
@@ -554,6 +578,153 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertNotEqual(intended.target_identity, "home.building.research_lab")
         self.assertNotEqual(intended.target_identity, NOVA_PRAISE_TARGET)
         self.assertEqual(result.praise_taps, 0)
+
+    def test_route_replay_strong_initial_radial_without_tap_provenance(self) -> None:
+        fixture = _fixture("blocked-canary-radial-48a116d3")
+        path = FIXTURE_ROOT / fixture["path"]
+        captures = [
+            load_retained_native_frame(path, captured_monotonic=11.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=12.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=13.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=14.0, expected_sha256=fixture["file_sha256"]),
+        ]
+        runtime = ReplayNativeRuntime(
+            ROOT / "nova-canary-replay-initial-no-provenance",
+            captures=captures,
+        )
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=FakeHomeDriver(),
+            settle_seconds=0,
+        )
+        result = route.run()
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.reason, "nova_lab_successor_not_recognized")
+        self.assertEqual(result.navigation_input_count, 1)
+        self.assertEqual(result.praise_taps, 0)
+        self.assertEqual(runtime.transport_calls, 0)
+        self.assertEqual(len(runtime.intended_inputs), 1)
+        intended = runtime.intended_inputs[0]
+        self.assertEqual(intended.target_identity, NOVA_INTERACTION_TARGET)
+        self.assertEqual(intended.target_roi, (137, 631, 181, 675))
+        self.assertFalse(intended.consequential)
+        self.assertNotEqual(intended.target_identity, NOVA_PRAISE_TARGET)
+        self.assertEqual(
+            [record["action"] for record in result.records],
+            ["tap_nova_navigation"],
+        )
+
+    def test_initial_radial_template_only_ambiguous_stale_incompatible_block(self) -> None:
+        fixture = _fixture("blocked-canary-radial-48a116d3")
+        frame = _load_fixture_frame(fixture)
+        template = cv2.imread(str(NOVA_RADIAL_TEMPLATE_PATH), cv2.IMREAD_COLOR)
+        assert template is not None
+
+        template_only = np.zeros((1280, 800, 3), np.uint8)
+        template_only[631:675, 137:181] = template
+        template_only_recognition = recognize_nova_frame(
+            template_only,
+            captured_monotonic=11.0,
+            home_context_visible=True,
+        )
+        self.assertFalse(template_only_recognition.observation.recognized)
+        template_diag = template_only_recognition.diagnostics["nova_radial_template"]
+        self.assertFalse(template_diag["accepted"])
+        self.assertIn(
+            template_diag["reject_reason"],
+            {
+                "missing_research_circle_candidates",
+                "no_unambiguous_research_template_pairing",
+            },
+        )
+
+        ambiguous = frame.copy()
+        second_match = (320, 720, 364, 764)
+        ambiguous[
+            second_match[1] : second_match[3],
+            second_match[0] : second_match[2],
+        ] = template
+        first_research = (269, 571, 45)
+        rel = nova_praise_vision._RESEARCH_TO_NOVA_OFFSET
+        second_research = (
+            (second_match[0] + second_match[2]) // 2 - rel[0],
+            (second_match[1] + second_match[3]) // 2 - rel[1],
+            30,
+        )
+        ambiguous_template = nova_praise_vision._match_nova_radial_template(
+            ambiguous,
+            None,
+            research_circle_candidates=(first_research, second_research),
+        )
+        self.assertFalse(ambiguous_template["accepted"])
+        self.assertEqual(
+            ambiguous_template["reject_reason"],
+            "ambiguous_research_template_pairings",
+        )
+        with patch.object(
+            nova_praise_vision,
+            "_hough_radial_circle_candidates",
+            return_value=[first_research, second_research],
+        ):
+            ambiguous_recognition = recognize_nova_frame(
+                ambiguous,
+                captured_monotonic=11.0,
+                home_context_visible=True,
+            )
+        self.assertFalse(ambiguous_recognition.observation.recognized)
+        self.assertEqual(
+            ambiguous_recognition.diagnostics["nova_radial_template"]["reject_reason"],
+            "ambiguous_research_template_pairings",
+        )
+
+        stale_recognition = recognize_nova_frame(
+            frame,
+            captured_monotonic=11.0,
+            home_context_visible=True,
+            stale=True,
+        )
+        self.assertFalse(stale_recognition.observation.recognized)
+
+        incompatible_recognition = recognize_nova_frame(
+            frame,
+            captured_monotonic=11.0,
+            home_context_visible=True,
+            incompatible_state=True,
+        )
+        self.assertFalse(incompatible_recognition.observation.recognized)
+
+        wrong_context = recognize_nova_frame(
+            frame,
+            captured_monotonic=11.0,
+            home_context_visible=False,
+        )
+        self.assertFalse(wrong_context.observation.recognized)
+
+    def test_route_never_plans_or_dispatches_praise(self) -> None:
+        runtime = FakeRuntime()
+        recognizer = RecognitionQueue(
+            _radial_recognition("0" * 64),
+            _radial_recognition("1" * 64),
+            _nova_recognition("2" * 64),
+            _nova_recognition("3" * 64),
+            _home_recognition("4" * 64),
+        )
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=FakeHomeDriver(),
+            recognizer=recognizer,
+            settle_seconds=0,
+        )
+        with patch.object(route, "_home_localized", return_value=True):
+            result = route.run()
+        self.assertEqual(result.praise_taps, 0)
+        self.assertNotIn(NOVA_PRAISE_TARGET, [data.get("target_identity") for _, data in runtime.inputs])
+        self.assertTrue(all(not data.get("consequential", False) for _, data in runtime.inputs))
+        self.assertNotIn("praise", " ".join(record["action"] for record in result.records).lower())
 
     def test_template_manifest_hash_mismatch_rejects(self) -> None:
         import tempfile

@@ -352,16 +352,6 @@ class NovaNavigationCanaryRoute:
             surface = self._navigation_surface(current_recognition)
             bound_nova = current_recognition.target(NOVA_INTERACTION_TARGET)
             if self._research_radial_geometry_present(current_recognition):
-                if initial_provenance is None:
-                    return None, NovaNavigationCanaryResult(
-                        "blocked",
-                        "initial_radial_missing_research_lab_provenance",
-                        self.input_count,
-                        0,
-                        False,
-                        tuple(self.records),
-                        str(self.runtime.session),
-                    ), None
                 if not measured_home:
                     return None, NovaNavigationCanaryResult(
                         "blocked",
@@ -377,10 +367,30 @@ class NovaNavigationCanaryRoute:
                     and current_recognition.observation.screen_state == "RESEARCH_LAB_MENU"
                     and bound_nova is not None
                 ):
+                    # Strong initial composite may continue without tap provenance;
+                    # route-tapped Research Lab still requires fresh provenance later.
                     return current_capture, None, current_recognition
+                radial = current_recognition.diagnostics.get("research_lab_radial")
+                if isinstance(radial, dict) and radial.get("ambiguous_geometry"):
+                    reason = "initial_radial_ambiguous"
+                elif (
+                    isinstance(radial, dict)
+                    and radial.get("bind_method")
+                    == "template_rejected_missing_research_hough"
+                ):
+                    reason = "initial_radial_template_only"
+                elif current_recognition.observation.stale:
+                    reason = "initial_radial_stale"
+                elif initial_provenance is None and not (
+                    isinstance(radial, dict)
+                    and radial.get("initial_unprovenanced_composite")
+                ):
+                    reason = "initial_research_lab_radial_not_bound"
+                else:
+                    reason = "initial_research_lab_radial_not_bound"
                 return None, NovaNavigationCanaryResult(
                     "blocked",
-                    "initial_research_lab_radial_not_bound",
+                    reason,
                     self.input_count,
                     0,
                     False,
@@ -446,8 +456,9 @@ class NovaNavigationCanaryRoute:
         self,
         *,
         provenance: ResearchLabTapProvenance | None,
+        require_research_lab_tap_provenance: bool = True,
     ) -> NovaNavigationCanaryResult:
-        if provenance is None:
+        if require_research_lab_tap_provenance and provenance is None:
             return NovaNavigationCanaryResult(
                 "blocked",
                 "fresh_nova_missing_research_lab_provenance",
@@ -600,7 +611,10 @@ class NovaNavigationCanaryRoute:
             return blocked
         if bound_radial is not None:
             return self._tap_bound_nova(
-                provenance=self.initial_research_lab_tap_provenance
+                provenance=self.initial_research_lab_tap_provenance,
+                require_research_lab_tap_provenance=(
+                    self.initial_research_lab_tap_provenance is not None
+                ),
             )
         provenance: ResearchLabTapProvenance | None = None
         for ordinal in range(1, self.maximum_steps + 1):
