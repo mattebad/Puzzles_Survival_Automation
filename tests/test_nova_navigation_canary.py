@@ -6,6 +6,7 @@ from dataclasses import replace
 import hashlib
 import json
 from pathlib import Path
+import time
 import unittest
 from unittest.mock import patch
 
@@ -176,6 +177,15 @@ def _lab_provenance(fixture: dict, dispatched: float = 10.0) -> ResearchLabTapPr
     )
 
 
+def _enable_offline_runtime_probes(runtime) -> None:
+    """Attach live-probe methods for offline Fake/Replay runtimes used in tests."""
+
+    if not hasattr(runtime, "measure_device_state"):
+        runtime.measure_device_state = lambda: "device"  # type: ignore[attr-defined]
+    if not hasattr(runtime, "measure_foreground_package"):
+        runtime.measure_foreground_package = lambda: "com.global.ztmslg"  # type: ignore[attr-defined]
+
+
 class FakeRuntime:
     execute = True
     in_flight_action = None
@@ -185,18 +195,26 @@ class FakeRuntime:
         self.ordinal = 0
         self.inputs: list[tuple[str, dict[str, object]]] = []
         self.labels: list[str] = []
+        self._device_state = "device"
+        self._foreground_package = "com.global.ztmslg"
+
+    def measure_device_state(self) -> str:
+        return self._device_state
+
+    def measure_foreground_package(self) -> str:
+        return self._foreground_package
 
     def capture(self, label: str) -> CapturedNativeFrame:
         self.ordinal += 1
         self.labels.append(label)
         frame = np.zeros((1280, 800, 3), np.uint8)
-        frame[0, 0] = (self.ordinal, 1, 1)
+        frame[0, 0] = (self.ordinal % 256, 1, 1)
         payload = f"capture-{self.ordinal}".encode()
         return CapturedNativeFrame(
             frame,
             payload,
             hashlib.sha256(payload).hexdigest(),
-            float(self.ordinal),
+            time.monotonic(),
             Path(f"{label}.png"),
         )
 
@@ -406,7 +424,8 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             initial_research_lab_tap_provenance=provenance,
         )
         with patch.object(route, "_home_localized", return_value=False):
-            result = route.run()
+            with patch.object(route, "_home_context_measured", return_value=False):
+                result = route.run()
         self.assertEqual(result.status, "blocked")
         self.assertEqual(result.reason, "initial_radial_home_context_not_established")
         self.assertEqual(runtime.inputs, [])
@@ -500,7 +519,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         )
         self.assertEqual(fresh.observation.screen_state, "RESEARCH_LAB_MENU")
         self.assertTrue(fresh.observation.recognized)
-        self.assertEqual(fresh.target(NOVA_INTERACTION_TARGET), (226, 640, 270, 684))
+        self.assertEqual(fresh.target(NOVA_INTERACTION_TARGET), (232, 652, 276, 696))
 
     def test_blocked_canary_frame_hough_rejects_and_template_binds(self) -> None:
         fixture = _fixture("blocked-canary-radial-48a116d3")
@@ -513,8 +532,8 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             home_context_visible=True,
         )
         radial = recognized.diagnostics["research_lab_radial"]
-        self.assertEqual(tuple(radial["hough_only_anchors"]), ("research",))
-        self.assertIsNone(radial["hough_only_nova_roi"])
+        self.assertEqual(tuple(radial["hough_only_anchors"]), ("nova", "research"))
+        self.assertEqual(radial["hough_only_nova_roi"], (232, 652, 276, 696))
         self.assertTrue(recognized.observation.recognized)
         self.assertEqual(recognized.observation.screen_state, "RESEARCH_LAB_MENU")
         target = recognized.target(NOVA_INTERACTION_TARGET)
@@ -545,17 +564,19 @@ class NovaNavigationCanaryTests(unittest.TestCase):
     def test_route_replay_records_nova_tap_with_zero_transport(self) -> None:
         fixture = _fixture("blocked-canary-radial-48a116d3")
         path = FIXTURE_ROOT / fixture["path"]
-        provenance = _lab_provenance(fixture, dispatched=10.0)
+        base = time.monotonic()
+        provenance = _lab_provenance(fixture, dispatched=base - 4.0)
         captures = [
-            load_retained_native_frame(path, captured_monotonic=11.0, expected_sha256=fixture["file_sha256"]),
-            load_retained_native_frame(path, captured_monotonic=12.0, expected_sha256=fixture["file_sha256"]),
-            load_retained_native_frame(path, captured_monotonic=13.0, expected_sha256=fixture["file_sha256"]),
-            load_retained_native_frame(path, captured_monotonic=14.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=base - 3.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=base - 2.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=base - 1.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=base - 0.1, expected_sha256=fixture["file_sha256"]),
         ]
         runtime = ReplayNativeRuntime(
             ROOT / "nova-canary-replay-zero-transport",
             captures=captures,
         )
+        _enable_offline_runtime_probes(runtime)
         route = NovaNavigationCanaryRoute(
             runtime,
             _identity(),
@@ -582,16 +603,18 @@ class NovaNavigationCanaryTests(unittest.TestCase):
     def test_route_replay_strong_initial_radial_without_tap_provenance(self) -> None:
         fixture = _fixture("blocked-canary-radial-48a116d3")
         path = FIXTURE_ROOT / fixture["path"]
+        base = time.monotonic()
         captures = [
-            load_retained_native_frame(path, captured_monotonic=11.0, expected_sha256=fixture["file_sha256"]),
-            load_retained_native_frame(path, captured_monotonic=12.0, expected_sha256=fixture["file_sha256"]),
-            load_retained_native_frame(path, captured_monotonic=13.0, expected_sha256=fixture["file_sha256"]),
-            load_retained_native_frame(path, captured_monotonic=14.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=base - 3.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=base - 2.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=base - 1.0, expected_sha256=fixture["file_sha256"]),
+            load_retained_native_frame(path, captured_monotonic=base - 0.1, expected_sha256=fixture["file_sha256"]),
         ]
         runtime = ReplayNativeRuntime(
             ROOT / "nova-canary-replay-initial-no-provenance",
             captures=captures,
         )
+        _enable_offline_runtime_probes(runtime)
         route = NovaNavigationCanaryRoute(
             runtime,
             _identity(),
@@ -793,7 +816,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertTrue(recognized.observation.recognized)
         target = recognized.target(NOVA_INTERACTION_TARGET)
         self.assertIsNotNone(target)
-        self.assertEqual(target, (226 + shift, 640 + shift, 270 + shift, 684 + shift))
+        self.assertEqual(target, (232 + shift, 652 + shift, 276 + shift, 696 + shift))
 
     def test_supported_visual_scale_variation_binds_scaled_match_roi(self) -> None:
         fixture = _fixture("blocked-canary-radial-48a116d3")
@@ -847,7 +870,9 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertLess(weak_template["score"], NOVA_TEMPLATE_MIN_SCORE)
 
         ambiguous = frame.copy()
-        ambiguous[640:684, 175:219] = template
+        ambiguous[600:720, 160:300] = 40
+        ambiguous[640:684, 226:270] = template
+        ambiguous[606:650, 192:236] = template
         ambiguous_recognition = recognize_nova_frame(
             ambiguous,
             captured_monotonic=11.0,
@@ -941,10 +966,10 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             provenance.action_key,
             provenance.target_identity,
             provenance.source_frame_sha256,
-            (50, 407, 192, 632),
+            (2, 407, 146, 632),
             provenance.dispatched_monotonic,
         )
-        clipped[631:675, 0:44] = template
+        clipped[631:675, 2:46] = template
         clipped_recognition = recognize_nova_frame(
             clipped,
             captured_monotonic=11.0,

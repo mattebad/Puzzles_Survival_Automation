@@ -223,7 +223,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         boundary = self.boundary(
             recognition(praise_observation(6, 2.0, digest="b" * 64)),
             recognition(praise_observation(6, 3.0, digest="c" * 64)),
-            recognition(praise_observation(5, 4.0, enabled=False, cooldown=60, digest="d" * 64)),
+            recognition(praise_observation(5, 4.0, enabled=False, cooldown=278, digest="d" * 64)),
         )
         first = boundary.execute_praise(proposal_capture, proposal)
         second = boundary.execute_praise(proposal_capture, proposal)

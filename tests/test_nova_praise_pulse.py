@@ -141,12 +141,12 @@ class NovaPraisePulseTests(unittest.TestCase):
             attempts_remaining=6,
             praise_enabled=False,
             cooldown_active=True,
-            cooldown_seconds=30,
-            next_eligible_at=130.0,
+            cooldown_seconds=278,
+            next_eligible_at=378.0,
             frame_sha256="b" * 64,
-            captured_monotonic=101.0,
+            captured_monotonic=122.0,
         )
-        self.assertTrue(nova_postcondition_verified(before, after, now=101.0))
+        self.assertTrue(nova_postcondition_verified(before, after, now=122.0))
         result = controller.accept_praise_postcondition(before, after)
         self.assertEqual(result.outcome, SchedulerTaskOutcome.ACTION_PERFORMED)
         self.assertEqual(result.observed_progress["attempts_remaining"], 6)

@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -23,7 +24,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from shlex import quote
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -50,6 +51,23 @@ BLUESTACKS_SERIAL = "emulator-5554"
 BLUESTACKS_NATIVE_WIDTH = 800
 BLUESTACKS_NATIVE_HEIGHT = 1280
 BLUESTACKS_ARTIFACT_ROOT = REPO_ROOT / ".local-captures" / "flow-delivery"
+NOVA_NAVIGATION_CANARY_OUTPUT_DEFAULT = (
+    BLUESTACKS_ARTIFACT_ROOT / "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
+)
+NOVA_SUPERVISED_PULSE_FLOW_ID = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
+NOVA_SUPERVISED_PULSE_SCENARIO_ID = "nova_praise_one_free_pulse"
+NOVA_SUPERVISED_PULSE_RESET_ID = "game-day-2026-07-22"
+NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT = (
+    BLUESTACKS_ARTIFACT_ROOT / NOVA_SUPERVISED_PULSE_FLOW_ID
+)
+NOVA_SUPERVISED_ACTION_DATABASE = (
+    REPO_ROOT / ".local-orchestrator" / "bluestacks-actions.sqlite3"
+)
+NOVA_SUPERVISED_INVOCATION_GUARD = (
+    REPO_ROOT
+    / ".local-orchestrator"
+    / "nova-praise-one-free-pulse-game-day-2026-07-22.guard.json"
+)
 FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
 FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
@@ -59,6 +77,7 @@ BLUESTACKS_FLOW_IDS = (
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
     "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+    "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
     "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
     "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
     "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
@@ -685,26 +704,420 @@ def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
             },
             sort_keys=True,
         )
-    queue, lease = _load_flow_delivery_state()
-    if queue["active_flow_id"] != flow_id:
-        raise OperatorError("only the active development flow may run")
-    flow = next(item for item in queue["flows"] if item["flow_id"] == flow_id)
-    if flow.get("last_completed_stage") != "live_execution":
-        raise OperatorError("controller has not admitted the flow to live_execution")
-    return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](queue, lease)
+    from scripts.navigation_development_boundary import NavigationDevelopmentSession
+
+    owner = f"pnsctl-bluestacks-run-flow:{flow_id}"
+    invocation_id = f"{flow_id}:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
+        queue, lease = _load_flow_delivery_state()
+        if queue["active_flow_id"] != flow_id:
+            raise OperatorError("only the active development flow may run")
+        flow = next(item for item in queue["flows"] if item["flow_id"] == flow_id)
+        if flow.get("last_completed_stage") != "live_execution":
+            raise OperatorError("controller has not admitted the flow to live_execution")
+        return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](queue, lease)
 
 
 def _session_relative_path(session: Path, value: Any, field: str) -> Path:
     if not isinstance(value, str) or not value.strip():
         raise OperatorError(f"{field} must be a non-empty relative path")
-    candidate = (session / value).resolve()
+    candidate = Path(value)
+    if candidate.is_absolute():
+        raise OperatorError(f"{field} must be a session-relative path")
+    resolved = (session / candidate).resolve()
     try:
-        candidate.relative_to(session)
+        resolved.relative_to(session.resolve())
     except ValueError as exc:
         raise OperatorError(f"{field} escapes the session directory") from exc
-    if not candidate.is_file():
-        raise OperatorError(f"{field} does not exist")
-    return candidate
+    if os.path.islink(resolved) or not resolved.is_file():
+        raise OperatorError(f"{field} does not exist as a regular non-symlink file")
+    return resolved
+
+
+def _require_exact_nonsymlink_path(path: Path, expected: Path, label: str) -> Path:
+    """Require an exact non-symlink path identity; reject alternates and symlink equivalents."""
+
+    candidate = Path(path)
+    expected_path = Path(expected)
+    cand_abs = Path(os.path.abspath(os.path.normpath(str(candidate))))
+    exp_abs = Path(os.path.abspath(os.path.normpath(str(expected_path))))
+    if cand_abs != exp_abs:
+        raise OperatorError(f"{label} must be exactly {expected_path}")
+    for probe in (cand_abs, exp_abs, *cand_abs.parents, *exp_abs.parents):
+        if probe.exists() and os.path.islink(probe):
+            raise OperatorError(f"{label} must not be a symlink")
+    return expected_path
+
+
+def _read_nonempty_jsonl(path: Path, field: str) -> list[dict[str, Any]]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise OperatorError(f"{field} is unreadable") from exc
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise OperatorError(f"{field} contains invalid JSONL") from exc
+        if not isinstance(payload, dict):
+            raise OperatorError(f"{field} JSONL rows must be objects")
+        rows.append(payload)
+    if not rows:
+        raise OperatorError(f"{field} must be nonempty")
+    return rows
+
+
+def _session_evidence_file(session: Path, ref: Any, *, field: str = "evidence_refs") -> Path:
+    if not isinstance(ref, str) or not ref.strip():
+        raise OperatorError(f"{field} entries must be non-empty paths")
+    candidate = Path(ref)
+    if candidate.is_absolute():
+        resolved = candidate.resolve()
+    else:
+        resolved = (session / candidate).resolve()
+    try:
+        resolved.relative_to(session.resolve())
+    except ValueError as exc:
+        raise OperatorError(f"{field} escapes the session directory") from exc
+    if os.path.islink(resolved) or not resolved.is_file():
+        raise OperatorError(f"{field} must resolve to a regular non-symlink file under the session")
+    return resolved
+
+
+def _persist_nova_session_result(
+    session_directory: str | Path,
+    updates: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Merge authoritative accounting into the session result.json on disk."""
+
+    session = Path(session_directory)
+    allowed_root = (REPO_ROOT / ".local-captures").resolve()
+    try:
+        resolved_session = session.resolve()
+        resolved_session.relative_to(allowed_root)
+    except (OSError, ValueError) as exc:
+        raise OperatorError("session directory must resolve under .local-captures") from exc
+    if os.path.islink(session) or os.path.islink(resolved_session):
+        raise OperatorError("session directory must not be a symlink")
+    if not resolved_session.is_dir():
+        raise OperatorError("session directory is unavailable or unsafe")
+    path = resolved_session / "result.json"
+    if os.path.islink(path) or not path.is_file():
+        raise OperatorError("result.json must be a regular non-symlink file")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("session result.json is required before accounting persistence") from exc
+    if not isinstance(payload, dict):
+        raise OperatorError("session result.json must be an object")
+    payload.update(dict(updates))
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return payload
+
+
+def _supervised_pulse_completed_facts_ok(route_result: Mapping[str, Any]) -> bool:
+    from tasks.nova_praise import (
+        NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS,
+        NOVA_POLICY_COOLDOWN_SECONDS,
+    )
+
+    navigation = route_result.get("navigation_input_count")
+    praise = route_result.get("praise_transport_calls")
+    before = route_result.get("attempts_before")
+    after = route_result.get("attempts_after")
+    cooldown = route_result.get("cooldown_seconds")
+    evidence = route_result.get("evidence_refs")
+    session_directory = route_result.get("session_directory")
+    return bool(
+        route_result.get("status") == "completed"
+        and route_result.get("journal_status") == "confirmed"
+        and route_result.get("terminal_home_verified") is True
+        and type(before) is int
+        and before > 0
+        and type(after) is int
+        and after == before - 1
+        and type(cooldown) is int
+        and NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS <= cooldown <= NOVA_POLICY_COOLDOWN_SECONDS
+        and praise == 1
+        and type(navigation) is int
+        and navigation >= 1
+        and isinstance(route_result.get("action_id"), str)
+        and str(route_result.get("action_id") or "").strip()
+        and isinstance(route_result.get("action_key"), str)
+        and str(route_result.get("action_key") or "").strip()
+        and isinstance(evidence, list)
+        and bool(evidence)
+        and isinstance(session_directory, str)
+        and bool(str(session_directory).strip())
+        and route_result.get("production_registration") == "NOT_REGISTERED"
+        and route_result.get("scheduler_enabled") is False
+    )
+
+
+def _create_nova_supervised_invocation_guard(
+    *,
+    candidate_commit: str,
+    reset_id: str,
+) -> Path:
+    guard_path = NOVA_SUPERVISED_INVOCATION_GUARD
+    guard_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "flow_id": NOVA_SUPERVISED_PULSE_FLOW_ID,
+        "scenario_id": NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+        "reset_id": reset_id,
+        "candidate_commit": candidate_commit,
+        "status": "started",
+        "started_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "terminal_status": None,
+        "session_directory": None,
+        "result_status": None,
+    }
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    try:
+        fd = os.open(str(guard_path), flags)
+    except FileExistsError as exc:
+        raise OperatorError(
+            "supervised invocation guard already exists; repeat live input is blocked"
+        ) from exc
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    except Exception:
+        # Never delete the guard; a partial create still blocks rerun.
+        raise
+    return guard_path
+
+
+def _finalize_nova_supervised_invocation_guard(
+    *,
+    terminal_status: str,
+    result_status: str | None,
+    session_directory: str | None,
+) -> None:
+    path = NOVA_SUPERVISED_INVOCATION_GUARD
+    if not path.is_file():
+        raise OperatorError("supervised invocation guard is missing at finalization")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("supervised invocation guard is unreadable") from exc
+    if not isinstance(payload, dict):
+        raise OperatorError("supervised invocation guard must be an object")
+    payload["status"] = terminal_status
+    payload["terminal_status"] = terminal_status
+    payload["result_status"] = result_status
+    payload["session_directory"] = session_directory
+    payload["finished_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _confine_nova_supervised_paths(args: argparse.Namespace) -> None:
+    if Path(args.output_directory) == NOVA_NAVIGATION_CANARY_OUTPUT_DEFAULT:
+        args.output_directory = NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT
+    _require_exact_nonsymlink_path(
+        Path(args.output_directory),
+        NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT,
+        "supervised output directory",
+    )
+    args.output_directory = NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT
+    _require_exact_nonsymlink_path(
+        Path(args.action_database),
+        NOVA_SUPERVISED_ACTION_DATABASE,
+        "supervised action database",
+    )
+    args.action_database = NOVA_SUPERVISED_ACTION_DATABASE
+
+
+def _require_nova_supervised_reset(args: argparse.Namespace, identity) -> None:
+    if getattr(args, "reset_id", None) != NOVA_SUPERVISED_PULSE_RESET_ID:
+        raise OperatorError("supervised pulse requires reset_id=game-day-2026-07-22")
+    if getattr(identity, "reset_id", None) != NOVA_SUPERVISED_PULSE_RESET_ID:
+        raise OperatorError("supervised identity reset_id must be game-day-2026-07-22")
+
+
+def _verify_nova_supervised_one_free_pulse_session(
+    session_directory: Path,
+) -> dict[str, Any]:
+    """Narrow checked-in verifier for supervised one-free-pulse result.json sessions."""
+
+    from tasks.nova_praise import (
+        NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS,
+        NOVA_POLICY_COOLDOWN_SECONDS,
+    )
+    from tasks.nova_praise_pulse import NOVA_TASK_ID
+
+    session = session_directory.resolve()
+    allowed_root = (REPO_ROOT / ".local-captures").resolve()
+    try:
+        session.relative_to(allowed_root)
+    except ValueError as exc:
+        raise OperatorError("session directory must remain under .local-captures") from exc
+    if os.path.islink(session_directory) or os.path.islink(session) or not session.is_dir():
+        raise OperatorError("session directory is unavailable or unsafe")
+    result_path = session / "result.json"
+    if os.path.islink(result_path) or not result_path.is_file():
+        raise OperatorError("result.json must be a regular non-symlink file")
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("result.json is required") from exc
+    if not isinstance(result, dict):
+        raise OperatorError("result.json must be an object")
+    if result.get("schema_version") != 1:
+        raise OperatorError("unsupported result schema_version")
+    if result.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID:
+        raise OperatorError("result flow_id is not the supervised Praise flow")
+    if result.get("scenario_id") != NOVA_SUPERVISED_PULSE_SCENARIO_ID:
+        raise OperatorError("result scenario_id is not nova_praise_one_free_pulse")
+    if result.get("status") != "completed":
+        raise OperatorError("flow result is not terminally completed")
+    navigation = result.get("navigation_input_count")
+    praise = result.get("praise_transport_calls")
+    if type(navigation) is not int or navigation < 1:
+        raise OperatorError("completed supervised pulse requires navigation_input_count >= 1")
+    if praise != 1:
+        raise OperatorError("completed supervised pulse requires exactly one Praise")
+    before = result.get("attempts_before")
+    after = result.get("attempts_after")
+    if type(before) is not int or type(after) is not int or after != before - 1 or before <= 0:
+        raise OperatorError("attempts must prove exact X->X-1")
+    cooldown = result.get("cooldown_seconds")
+    if (
+        type(cooldown) is not int
+        or cooldown < NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS
+        or cooldown > NOVA_POLICY_COOLDOWN_SECONDS
+    ):
+        raise OperatorError("cooldown is missing or not policy-consistent")
+    if result.get("journal_status") != "confirmed":
+        raise OperatorError("journal_status must be confirmed")
+    if result.get("terminal_home_verified") is not True:
+        raise OperatorError("terminal Home was not verified")
+    if result.get("production_registration") != "NOT_REGISTERED":
+        raise OperatorError("production registration must remain NOT_REGISTERED")
+    if result.get("scheduler_enabled") is not False:
+        raise OperatorError("scheduler must remain disabled")
+    candidate = result.get("candidate_commit")
+    scenario_record = result.get("scenario_record")
+    if not isinstance(candidate, str) or not candidate.strip():
+        raise OperatorError("candidate_commit accounting is missing from result.json")
+    if not isinstance(scenario_record, dict):
+        raise OperatorError("scenario_record accounting is missing from result.json")
+    if scenario_record.get("scenario_id") != NOVA_SUPERVISED_PULSE_SCENARIO_ID:
+        raise OperatorError("scenario_record belongs to another scenario")
+    if scenario_record.get("candidate_commit") != candidate:
+        raise OperatorError("scenario_record candidate_commit mismatch")
+    if scenario_record.get("outcome") != "completed":
+        raise OperatorError("scenario_record must be COMPLETED")
+    if scenario_record.get("input_class") != "mixed_navigation_and_one_consequential":
+        raise OperatorError("scenario_record input_class mismatch")
+    if scenario_record.get("navigation_input_count") != navigation:
+        raise OperatorError("scenario_record navigation count mismatch")
+    if scenario_record.get("praise_transport_calls") != praise:
+        raise OperatorError("scenario_record praise count mismatch")
+    if scenario_record.get("unresolved_action") is not False:
+        raise OperatorError("scenario_record must not be unresolved")
+    if scenario_record.get("terminal_ownership_state") != "released":
+        raise OperatorError("scenario_record terminal ownership must be released")
+    action_id = result.get("action_id")
+    action_key = result.get("action_key")
+    if not isinstance(action_id, str) or not action_id.strip():
+        raise OperatorError("action_id is required")
+    if not isinstance(action_key, str) or not action_key.strip():
+        raise OperatorError("action_key is required")
+    action_database = result.get("action_database")
+    if not isinstance(action_database, str) or not action_database.strip():
+        raise OperatorError("action_database path is required")
+    db_path = _require_exact_nonsymlink_path(
+        Path(action_database),
+        NOVA_SUPERVISED_ACTION_DATABASE,
+        "action_database",
+    )
+    if not db_path.is_file() or os.path.islink(db_path):
+        raise OperatorError("action_database must exist as a regular non-symlink SQLite file")
+    evidence_refs = result.get("evidence_refs")
+    if not isinstance(evidence_refs, list) or not evidence_refs:
+        raise OperatorError("evidence_refs are required")
+    verified_evidence = [
+        str(_session_evidence_file(session, ref).relative_to(session))
+        for ref in evidence_refs
+    ]
+    required_files = {
+        "events_path": result.get("events_path") or "events.jsonl",
+        "ledger_path": result.get("ledger_path") or "ledger.jsonl",
+        "journal_path": result.get("journal_path") or "journal.jsonl",
+    }
+    verified_paths = {
+        field: str(_session_relative_path(session, value, field).relative_to(session))
+        for field, value in required_files.items()
+    }
+    events = _read_nonempty_jsonl(session / verified_paths["events_path"], "events.jsonl")
+    ledger = _read_nonempty_jsonl(session / verified_paths["ledger_path"], "ledger.jsonl")
+    journal_rows = _read_nonempty_jsonl(
+        session / verified_paths["journal_path"],
+        "journal.jsonl",
+    )
+    if not ledger:
+        raise OperatorError("ledger.jsonl must be nonempty")
+    consequential = [
+        event
+        for event in events
+        if event.get("type") == "dispatch" and event.get("consequential") is True
+    ]
+    if len(consequential) != 1:
+        raise OperatorError("events.jsonl must contain exactly one consequential dispatch")
+    if consequential[0].get("action_key") != action_key:
+        raise OperatorError("consequential dispatch action_key mismatch")
+    journal = journal_rows[-1]
+    if journal.get("action_id") != action_id or journal.get("action_key") != action_key:
+        raise OperatorError("journal.jsonl action identity mismatch")
+    if journal.get("journal_status") != "confirmed":
+        raise OperatorError("journal.jsonl status must be confirmed")
+    if journal.get("attempts_before") != before or journal.get("attempts_after") != after:
+        raise OperatorError("journal.jsonl attempt counts mismatch")
+    if journal.get("cooldown_seconds") != cooldown:
+        raise OperatorError("journal.jsonl cooldown mismatch")
+    if journal.get("terminal_home_verified") is not True:
+        raise OperatorError("journal.jsonl terminal Home mismatch")
+    try:
+        connection = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
+    except sqlite3.Error as exc:
+        raise OperatorError("action_database could not be opened read-only") from exc
+    try:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            "SELECT action_id, action_key, task_id, consequential, final_status, input_attempt_at "
+            "FROM actions WHERE action_id=?",
+            (action_id,),
+        ).fetchone()
+    finally:
+        connection.close()
+    if row is None:
+        raise OperatorError("action_database is missing the confirmed action_id row")
+    if row["action_key"] != action_key:
+        raise OperatorError("action_database action_key mismatch")
+    if row["task_id"] != NOVA_TASK_ID:
+        raise OperatorError("action_database task_id must be nova_praise")
+    if int(row["consequential"]) != 1:
+        raise OperatorError("action_database row must be consequential")
+    if row["final_status"] != "confirmed":
+        raise OperatorError("action_database final_status must be confirmed")
+    if row["input_attempt_at"] is None:
+        raise OperatorError("action_database input_attempt_at must be retained")
+    return {
+        "result": result,
+        "session_directory": str(session),
+        "artifacts": verified_paths,
+        "evidence_refs": verified_evidence,
+        "navigation_input_count": navigation,
+        "praise_transport_calls": praise,
+        "attempts_before": before,
+        "attempts_after": after,
+        "cooldown_seconds": cooldown,
+    }
 
 
 def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
@@ -771,6 +1184,27 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
     if lease.get("active_stage") != "evidence_review":
         raise OperatorError("verify-flow requires the active evidence_review stage")
     flow_id = queue["active_flow_id"]
+    if flow_id == NOVA_SUPERVISED_PULSE_FLOW_ID:
+        structure = _verify_nova_supervised_one_free_pulse_session(session_directory)
+        if structure["result"].get("flow_id") != flow_id:
+            raise OperatorError("flow evidence belongs to another active flow")
+        return json.dumps(
+            {
+                "status": "verified",
+                "flow_id": flow_id,
+                "scenario_id": NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                "session_directory": structure["session_directory"],
+                "navigation_input_count": structure["navigation_input_count"],
+                "praise_transport_calls": structure["praise_transport_calls"],
+                "attempts_before": structure["attempts_before"],
+                "attempts_after": structure["attempts_after"],
+                "cooldown_seconds": structure["cooldown_seconds"],
+                "artifacts": structure["artifacts"],
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+            },
+            sort_keys=True,
+        )
     contract = _load_bluestacks_flow_registry().get(flow_id)
     if (
         contract is None
@@ -962,20 +1396,25 @@ def _nova_supervised_identity(args: argparse.Namespace):
 
 
 def nova_praise_pulse_live(args: argparse.Namespace) -> str:
-    """Admit only the checked-in no-Praise navigation scenario; route lands in GF-MVP-008."""
+    """Admit checked-in no-Praise canary or supervised one-free-pulse scenarios."""
 
     if not args.yes:
         raise OperatorError("live Nova navigation requires --yes")
     if not args.supervised_live_opt_in:
         raise OperatorError("live Nova navigation requires --supervised-live-opt-in")
-    if args.scenario != "nova_navigation_round_trip_no_praise":
+    if args.scenario not in {
+        "nova_navigation_round_trip_no_praise",
+        "nova_praise_one_free_pulse",
+    }:
         raise OperatorError("unsupported Nova live scenario")
     from tasks.flow_scenario_attempts import (
         NOVA_CANARY_SCENARIO_ID,
+        NOVA_SUPERVISED_PULSE_SCENARIO_ID,
         ScenarioAttemptRecord,
         ScenarioFailureClass,
         ScenarioOutcome,
         ScenarioPhase,
+        SupervisedNovaPulseScenarioAttemptRecord,
     )
 
     candidate_commit = subprocess.run(
@@ -987,17 +1426,31 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
     ).stdout.strip()
     identity, missing = _nova_supervised_identity(args)
     if missing:
-        record = ScenarioAttemptRecord(
-            NOVA_CANARY_SCENARIO_ID,
-            ScenarioPhase.PRE_INPUT,
-            ScenarioOutcome.BLOCKED,
-            candidate_commit,
-            0,
-            "none",
-            False,
-            "identity_unverified",
-            failure_class=ScenarioFailureClass.SUPERVISED_IDENTITY,
-        )
+        if args.scenario == NOVA_SUPERVISED_PULSE_SCENARIO_ID:
+            record = SupervisedNovaPulseScenarioAttemptRecord(
+                NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                ScenarioPhase.PRE_INPUT,
+                ScenarioOutcome.BLOCKED,
+                candidate_commit,
+                0,
+                0,
+                "none",
+                False,
+                "identity_unverified",
+                failure_class=ScenarioFailureClass.SUPERVISED_IDENTITY,
+            )
+        else:
+            record = ScenarioAttemptRecord(
+                NOVA_CANARY_SCENARIO_ID,
+                ScenarioPhase.PRE_INPUT,
+                ScenarioOutcome.BLOCKED,
+                candidate_commit,
+                0,
+                "none",
+                False,
+                "identity_unverified",
+                failure_class=ScenarioFailureClass.SUPERVISED_IDENTITY,
+            )
         return json.dumps(
             {
                 "status": "manual_required",
@@ -1011,6 +1464,269 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
             },
             sort_keys=True,
         )
+    if args.scenario == NOVA_SUPERVISED_PULSE_SCENARIO_ID:
+        _require_nova_supervised_reset(args, identity)
+        _confine_nova_supervised_paths(args)
+        if args.preflight_only:
+            return json.dumps(
+                {
+                    "status": "preflight_passed",
+                    "scenario_id": NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                    "flow_id": NOVA_SUPERVISED_PULSE_FLOW_ID,
+                    "reset_id": NOVA_SUPERVISED_PULSE_RESET_ID,
+                    "candidate_commit": candidate_commit,
+                    "runtime_connected": False,
+                    "transport_calls": 0,
+                    "production_registration": "NOT_REGISTERED",
+                    "scheduler_enabled": False,
+                },
+                sort_keys=True,
+            )
+        from scripts.navigation_development_boundary import NavigationDevelopmentSession
+
+        _create_nova_supervised_invocation_guard(
+            candidate_commit=candidate_commit,
+            reset_id=NOVA_SUPERVISED_PULSE_RESET_ID,
+        )
+        session = ""
+        result_status: str | None = None
+        guard_terminal = "failed"
+        runner_returned = False
+        praise_calls = 0
+        pending_completed_guard = False
+        owner = f"pnsctl-nova-supervised:{candidate_commit[:12]}"
+        invocation_id = f"nova-supervised-{candidate_commit[:12]}-{int(time.time())}"
+        try:
+            with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
+                try:
+                    from scripts import nova_praise_bluestacks as route_module
+                except ImportError as exc:
+                    raise OperatorError("Nova praise route module is unavailable") from exc
+                runner = getattr(route_module, "run_nova_praise_one_free_pulse", None)
+                if not callable(runner):
+                    record = SupervisedNovaPulseScenarioAttemptRecord(
+                        NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                        ScenarioPhase.PRE_INPUT,
+                        ScenarioOutcome.BLOCKED,
+                        candidate_commit,
+                        0,
+                        0,
+                        "none",
+                        False,
+                        "NOVA_PRAISE_ONE_FREE_PULSE_ROUTE_NOT_INTEGRATED",
+                        failure_class=ScenarioFailureClass.EXECUTABLE_REGISTRATION,
+                    )
+                    route_result = {
+                        "status": "blocked",
+                        "reason": "NOVA_PRAISE_ONE_FREE_PULSE_ROUTE_NOT_INTEGRATED",
+                        "runtime_connected": False,
+                        "transport_calls": 0,
+                        "scenario_record": record.to_mapping(),
+                        "production_registration": "NOT_REGISTERED",
+                        "scheduler_enabled": False,
+                        "candidate_commit": candidate_commit,
+                    }
+                    result_status = "blocked"
+                    guard_terminal = "failed"
+                    return json.dumps(route_result, sort_keys=True)
+
+                route_result = json.loads(runner(args, identity))
+                runner_returned = True
+                navigation_count = int(route_result.get("navigation_input_count", 0))
+                praise_calls = int(route_result.get("praise_transport_calls", 0))
+                status = str(route_result.get("status") or "blocked")
+                session = str(route_result.get("session_directory") or "")
+                result_status = status
+                completed_facts = _supervised_pulse_completed_facts_ok(route_result)
+                if status == "completed" and completed_facts:
+                    record = SupervisedNovaPulseScenarioAttemptRecord(
+                        NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                        ScenarioPhase.EXECUTION,
+                        ScenarioOutcome.COMPLETED,
+                        candidate_commit,
+                        navigation_count,
+                        praise_calls,
+                        "mixed_navigation_and_one_consequential",
+                        True,
+                        "confirmed_praise_and_verified_safe_return_home",
+                        evidence_refs=(session,),
+                        terminal_ownership_state="released",
+                    )
+                    # Completed guard only after durable session persistence succeeds.
+                    pending_completed_guard = True
+                    guard_terminal = "failed"
+                elif status == "unresolved" or praise_calls >= 1:
+                    phase = (
+                        ScenarioPhase.EXECUTION
+                        if navigation_count >= 1 or praise_calls >= 1
+                        else ScenarioPhase.PRE_INPUT
+                    )
+                    input_class = (
+                        "mixed_navigation_and_one_consequential"
+                        if praise_calls == 1
+                        else "navigation_only"
+                        if navigation_count >= 1
+                        else "none"
+                    )
+                    reason = str(
+                        route_result.get("reason")
+                        or (
+                            "supervised_pulse_missing_terminal_facts"
+                            if status == "completed" and not completed_facts
+                            else "praise_unresolved"
+                        )
+                    )
+                    record = SupervisedNovaPulseScenarioAttemptRecord(
+                        NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                        phase,
+                        ScenarioOutcome.UNRESOLVED,
+                        candidate_commit,
+                        navigation_count,
+                        praise_calls,
+                        input_class,
+                        phase is ScenarioPhase.EXECUTION,
+                        reason,
+                        failure_class=ScenarioFailureClass.POSTCONDITION,
+                        evidence_refs=(session,),
+                        terminal_ownership_state="released",
+                        unresolved_action=True,
+                    )
+                    if status != "unresolved":
+                        route_result["status"] = "unresolved"
+                        route_result["reason"] = reason
+                        result_status = "unresolved"
+                    guard_terminal = "unresolved"
+                else:
+                    reason = str(route_result.get("reason") or "supervised_pulse_blocked")
+                    if status == "completed" and not completed_facts:
+                        reason = "supervised_pulse_missing_terminal_facts"
+                        route_result["status"] = "blocked"
+                        route_result["reason"] = reason
+                        result_status = "blocked"
+                    if navigation_count == 0 and praise_calls == 0:
+                        phase = ScenarioPhase.PRE_INPUT
+                        input_class = "none"
+                        consumes = False
+                        failure_class = ScenarioFailureClass.INITIAL_RECOGNITION
+                    else:
+                        phase = ScenarioPhase.EXECUTION
+                        input_class = "navigation_only"
+                        consumes = True
+                        failure_class = (
+                            ScenarioFailureClass.SCREEN_RECOGNITION
+                            if "radial" in reason or "nova" in reason
+                            else ScenarioFailureClass.SHARED_NAVIGATION
+                            if "home" in reason or "zoom" in reason or "pan" in reason
+                            else ScenarioFailureClass.TASK_NAVIGATION
+                        )
+                    record = SupervisedNovaPulseScenarioAttemptRecord(
+                        NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                        phase,
+                        ScenarioOutcome.BLOCKED,
+                        candidate_commit,
+                        navigation_count,
+                        praise_calls,
+                        input_class,
+                        consumes,
+                        reason,
+                        failure_class=failure_class,
+                        evidence_refs=(session,),
+                        terminal_ownership_state="released",
+                    )
+                    guard_terminal = "failed"
+                route_result["scenario_record"] = record.to_mapping()
+                route_result["candidate_commit"] = candidate_commit
+                route_result["production_registration"] = "NOT_REGISTERED"
+                route_result["scheduler_enabled"] = False
+                if session:
+                    persisted = _persist_nova_session_result(
+                        session,
+                        {
+                            "scenario_record": route_result["scenario_record"],
+                            "candidate_commit": candidate_commit,
+                            "production_registration": "NOT_REGISTERED",
+                            "scheduler_enabled": False,
+                            "status": route_result.get("status"),
+                            "reason": route_result.get("reason"),
+                        },
+                    )
+                    route_result["action_database"] = persisted.get(
+                        "action_database",
+                        route_result.get("action_database"),
+                    )
+                    route_result["action_id"] = persisted.get(
+                        "action_id",
+                        route_result.get("action_id"),
+                    )
+                    route_result["action_key"] = persisted.get(
+                        "action_key",
+                        route_result.get("action_key"),
+                    )
+                    if pending_completed_guard:
+                        guard_terminal = "completed"
+                elif pending_completed_guard:
+                    # Never finalize completed without a durable session result.
+                    reason = "supervised_pulse_missing_session_directory"
+                    demoted = SupervisedNovaPulseScenarioAttemptRecord(
+                        NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                        ScenarioPhase.EXECUTION,
+                        ScenarioOutcome.UNRESOLVED,
+                        candidate_commit,
+                        navigation_count,
+                        praise_calls,
+                        "mixed_navigation_and_one_consequential",
+                        True,
+                        reason,
+                        failure_class=ScenarioFailureClass.MISSING_EVIDENCE,
+                        evidence_refs=(),
+                        terminal_ownership_state="released",
+                        unresolved_action=True,
+                    )
+                    route_result["scenario_record"] = demoted.to_mapping()
+                    route_result["status"] = "unresolved"
+                    route_result["reason"] = reason
+                    result_status = "unresolved"
+                    guard_terminal = "unresolved"
+                return json.dumps(route_result, sort_keys=True)
+        except BaseException:
+            # Never finalize as completed when the CLI path fails after the runner.
+            if runner_returned:
+                facts_uncertain = pending_completed_guard or result_status == "completed"
+                if praise_calls >= 1 or facts_uncertain:
+                    guard_terminal = "unresolved"
+                else:
+                    guard_terminal = "failed"
+            else:
+                # Runner crash may have issued transport; block rerun as unresolved.
+                guard_terminal = "unresolved"
+                if result_status is None:
+                    result_status = "unresolved"
+            if guard_terminal == "completed":
+                guard_terminal = "unresolved"
+            raise
+        finally:
+            _finalize_nova_supervised_invocation_guard(
+                terminal_status=guard_terminal,
+                result_status=result_status,
+                session_directory=session or None,
+            )
+
+    from scripts.navigation_development_boundary import NavigationDevelopmentSession
+
+    if args.preflight_only:
+        return json.dumps(
+            {
+                "status": "preflight_passed",
+                "scenario_id": NOVA_CANARY_SCENARIO_ID,
+                "candidate_commit": candidate_commit,
+                "runtime_connected": False,
+                "transport_calls": 0,
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+            },
+            sort_keys=True,
+        )
+
     try:
         from scripts import nova_praise_bluestacks as route_module
     except ImportError as exc:
@@ -1040,7 +1756,10 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
             },
             sort_keys=True,
         )
-    route_result = json.loads(runner(args, identity))
+    canary_owner = f"pnsctl-nova-canary:{candidate_commit[:12]}"
+    canary_invocation = f"nova-canary-{candidate_commit[:12]}-{int(time.time())}"
+    with NavigationDevelopmentSession(owner=canary_owner, invocation_id=canary_invocation):
+        route_result = json.loads(runner(args, identity))
     input_count = int(route_result.get("navigation_input_count", 0))
     status = str(route_result.get("status") or "blocked")
     if status == "completed":
@@ -1125,7 +1844,10 @@ def parser() -> argparse.ArgumentParser:
     nova_pulse.add_argument("--preflight-only", action="store_true")
     nova_pulse.add_argument(
         "--scenario",
-        choices=("nova_navigation_round_trip_no_praise",),
+        choices=(
+            "nova_navigation_round_trip_no_praise",
+            "nova_praise_one_free_pulse",
+        ),
         default="nova_navigation_round_trip_no_praise",
     )
     nova_pulse.add_argument("--yes", action="store_true")
@@ -1141,9 +1863,16 @@ def parser() -> argparse.ArgumentParser:
     nova_pulse.add_argument("--serial", default=BLUESTACKS_SERIAL)
     nova_pulse.add_argument("--settle-seconds", type=float, default=1.0)
     nova_pulse.add_argument(
+        "--action-database",
+        type=Path,
+        default=NOVA_SUPERVISED_ACTION_DATABASE,
+        help="durable SafetyStore path for supervised Nova Praise journaling",
+    )
+    nova_pulse.add_argument("--lease-ttl", type=float, default=3600.0)
+    nova_pulse.add_argument(
         "--output-directory",
         type=Path,
-        default=BLUESTACKS_ARTIFACT_ROOT / "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+        default=NOVA_NAVIGATION_CANARY_OUTPUT_DEFAULT,
     )
     bluestacks = sub.add_parser("bluestacks")
     bluestacks_sub = bluestacks.add_subparsers(dest="bluestacks_command", required=True)

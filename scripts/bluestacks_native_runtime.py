@@ -27,6 +27,9 @@ from scripts.bluestacks_flow_collector import (
 
 
 NativeBox = tuple[int, int, int, int]
+NATIVE_WIDTH = 800
+NATIVE_HEIGHT = 1280
+NATIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 
 
 @dataclass(frozen=True)
@@ -47,7 +50,7 @@ def captured_native_frame_from_png(
     """Apply the production native PNG validation used by live capture and replay."""
 
     frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
-    if frame is None or frame.shape[:2] != (1280, 800):
+    if frame is None or frame.shape[:2] != (NATIVE_HEIGHT, NATIVE_WIDTH):
         raise RuntimeError("BlueStacks capture is not a native 800x1280 frame")
     return CapturedNativeFrame(
         frame,
@@ -158,7 +161,7 @@ def utc_stamp() -> str:
 
 def box_center(box: NativeBox) -> tuple[int, int]:
     x0, y0, x1, y1 = box
-    if not (0 <= x0 < x1 <= 800 and 0 <= y0 < y1 <= 1280):
+    if not (0 <= x0 < x1 <= NATIVE_WIDTH and 0 <= y0 < y1 <= NATIVE_HEIGHT):
         raise RuntimeError("target is outside native 800x1280 bounds")
     return ((x0 + x1) // 2, (y0 + y1) // 2)
 
@@ -212,6 +215,16 @@ class LocalBlueStacksRuntime:
         record = {"timestamp": datetime.now(timezone.utc).isoformat(), "type": kind, **payload}
         with self.events.open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps(record, sort_keys=True, default=str) + "\n")
+
+    def measure_device_state(self) -> str:
+        """Live ADB device state for navigation-development boundary checks."""
+
+        return self.runner.get_state()
+
+    def measure_foreground_package(self) -> str:
+        """Live foreground package from dumpsys for navigation-development boundary checks."""
+
+        return parse_foreground_package(self.runner.shell_text("dumpsys", "window", "windows"))
 
     def capture(self, label: str) -> CapturedNativeFrame:
         payload = self.runner.capture_png()

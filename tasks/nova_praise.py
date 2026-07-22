@@ -19,6 +19,11 @@ NOVA_LAB_MENU = "RESEARCH_LAB_MENU"
 NOVA_HOME = "HOME_BASE"
 NOVA_PRAISE_TARGET = "nova-praise"
 NOVA_INTERACTION_TARGET = "research-lab-nova"
+# Checked-in product-policy cooldown; retained 2026-07-16 proof observed CD 00:04:38 (278s).
+NOVA_POLICY_COOLDOWN_SECONDS = 300
+NOVA_COOLDOWN_CAPTURE_TOLERANCE_SECONDS = 25
+# Immediate post frames must not accept implausibly short OCR; retained 278s remains valid.
+NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS = 270
 NOVA_COOLDOWN_RE = re.compile(
     r"(?:next\s+(?:attempt|interaction)|cooldown|try\s+again|cd)\s*[^0-9]{0,24}"
     r"(\d{1,2})(?::(\d{2}))?(?::(\d{2}))?\s*"
@@ -125,13 +130,50 @@ def nova_transaction_spec(observation: NovaPraiseObservation) -> ActionTransacti
     )
 
 
+def nova_cooldown_consistent_with_policy(
+    before: NovaPraiseObservation,
+    after: NovaPraiseObservation,
+    *,
+    policy_cooldown_seconds: int = NOVA_POLICY_COOLDOWN_SECONDS,
+    capture_tolerance_seconds: int = NOVA_COOLDOWN_CAPTURE_TOLERANCE_SECONDS,
+) -> bool:
+    """Require visible cooldown consistent with the fixed policy after capture delay.
+
+    Preserves the retained 278-second proof (policy 300 minus ~22s capture delay) while
+    rejecting missing, over-policy (301+), and implausibly short timers.
+    """
+
+    if (
+        not after.cooldown_active
+        or after.cooldown_seconds is None
+        or after.cooldown_seconds <= 0
+        or after.cooldown_seconds > policy_cooldown_seconds
+        or after.cooldown_seconds < NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS
+    ):
+        return False
+    if before.captured_monotonic is None or after.captured_monotonic is None:
+        return False
+    elapsed = after.captured_monotonic - before.captured_monotonic
+    if elapsed < 0:
+        return False
+    expected = policy_cooldown_seconds - elapsed
+    lower = max(
+        NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS,
+        int(expected - capture_tolerance_seconds),
+    )
+    upper = min(policy_cooldown_seconds, int(expected + capture_tolerance_seconds))
+    if upper < lower:
+        return False
+    return lower <= after.cooldown_seconds <= upper
+
+
 def nova_postcondition_verified(
     before: NovaPraiseObservation,
     after: Optional[NovaPraiseObservation],
     *,
     now: Optional[float] = None,
 ) -> bool:
-    """Require exactly one decrement and a fresh cooldown/terminal successor."""
+    """Require exactly one decrement and a policy-consistent cooldown successor."""
 
     # Source freshness is enforced immediately before transport. Reapplying the three-second
     # dispatch window after OCR/result polling would reject valid delayed postconditions.
@@ -157,13 +199,11 @@ def nova_postcondition_verified(
     )
     if not fresh:
         return False
-    return bool(
-        not after.praise_enabled
-        and after.cooldown_active
-        and after.cooldown_seconds is not None
-        and after.cooldown_seconds > 0
-        and (after.next_eligible_at is None or now is None or after.next_eligible_at >= now)
-    )
+    if after.praise_enabled:
+        return False
+    if after.next_eligible_at is not None and now is not None and after.next_eligible_at < now:
+        return False
+    return nova_cooldown_consistent_with_policy(before, after)
 
 
 def next_eligible_timestamp(observation: NovaPraiseObservation, *, now: float) -> Optional[float]:

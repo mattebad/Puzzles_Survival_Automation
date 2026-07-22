@@ -5,10 +5,12 @@ import unittest
 
 from tasks.contracts import TaskOutcome
 from tasks.nova_praise import (
+    NOVA_POLICY_COOLDOWN_SECONDS,
     NOVA_PRAISE_TARGET,
     NovaPraiseObservation,
     next_eligible_timestamp,
     nova_authorizeable,
+    nova_cooldown_consistent_with_policy,
     nova_perform_one_pulse,
     nova_postcondition_verified,
     parse_cooldown_seconds,
@@ -34,21 +36,24 @@ class NovaPraiseContractTests(unittest.TestCase):
         )
         return replace(base, **changes)
 
+    def after_decrement(self, *, cooldown_seconds: int, captured_monotonic: float, digest: str = "b" * 64):
+        return self.obs(
+            attempts_remaining=6,
+            praise_enabled=False,
+            cooldown_active=True,
+            cooldown_seconds=cooldown_seconds,
+            next_eligible_at=captured_monotonic + cooldown_seconds,
+            frame_sha256=digest,
+            captured_monotonic=captured_monotonic,
+        )
+
     def test_attempt_counting(self):
         self.assertEqual(self.obs().attempts_remaining, 7)
         self.assertEqual(replace(self.obs(), attempts_remaining=0).attempts_remaining, 0)
 
     def test_one_attempt_decrement_and_cooldown_postcondition(self):
         before = self.obs()
-        after = self.obs(
-            attempts_remaining=6,
-            praise_enabled=False,
-            cooldown_active=True,
-            cooldown_seconds=30,
-            next_eligible_at=130.0,
-            frame_sha256="b" * 64,
-            captured_monotonic=101.0,
-        )
+        after = self.after_decrement(cooldown_seconds=299, captured_monotonic=101.0)
         self.assertTrue(nova_postcondition_verified(before, after, now=101.0))
         result = nova_perform_one_pulse(before, after, now=101.0)
         self.assertEqual(result.outcome, TaskOutcome.PROGRESS)
@@ -72,8 +77,8 @@ class NovaPraiseContractTests(unittest.TestCase):
             attempts_remaining=0,
             praise_enabled=False,
             cooldown_active=True,
-            cooldown_seconds=300,
-            next_eligible_at=401.0,
+            cooldown_seconds=299,
+            next_eligible_at=400.0,
             frame_sha256="b" * 64,
             captured_monotonic=101.0,
         )
@@ -88,6 +93,75 @@ class NovaPraiseContractTests(unittest.TestCase):
             {"stale": True},
         ):
             self.assertFalse(nova_authorizeable(self.obs(**changes), now=101.0))
+
+    def test_policy_cooldown_near_300_minus_elapsed(self):
+        before = self.obs(captured_monotonic=100.0)
+        after = self.after_decrement(cooldown_seconds=290, captured_monotonic=110.0)
+        self.assertTrue(nova_cooldown_consistent_with_policy(before, after))
+        self.assertTrue(nova_postcondition_verified(before, after, now=110.0))
+
+    def test_retained_278_second_cooldown_proof(self):
+        before = self.obs(captured_monotonic=100.0)
+        after = self.after_decrement(cooldown_seconds=278, captured_monotonic=122.0)
+        self.assertEqual(NOVA_POLICY_COOLDOWN_SECONDS, 300)
+        self.assertTrue(nova_cooldown_consistent_with_policy(before, after))
+        self.assertTrue(nova_postcondition_verified(before, after, now=122.0))
+
+    def test_immediate_post_rejects_below_270_while_accepting_policy_window(self):
+        before = self.obs(captured_monotonic=100.0)
+        self.assertFalse(
+            nova_cooldown_consistent_with_policy(
+                before,
+                self.after_decrement(cooldown_seconds=269, captured_monotonic=101.0),
+            )
+        )
+        self.assertTrue(
+            nova_cooldown_consistent_with_policy(
+                before,
+                self.after_decrement(cooldown_seconds=278, captured_monotonic=101.0),
+            )
+        )
+        self.assertTrue(
+            nova_cooldown_consistent_with_policy(
+                before,
+                self.after_decrement(cooldown_seconds=299, captured_monotonic=101.0),
+            )
+        )
+
+    def test_cooldown_rejects_over_policy_too_short_missing_and_no_decrement(self):
+        before = self.obs(captured_monotonic=100.0)
+        self.assertFalse(
+            nova_cooldown_consistent_with_policy(
+                before,
+                self.after_decrement(cooldown_seconds=301, captured_monotonic=101.0),
+            )
+        )
+        self.assertFalse(
+            nova_postcondition_verified(
+                before,
+                self.after_decrement(cooldown_seconds=301, captured_monotonic=101.0),
+                now=101.0,
+            )
+        )
+        self.assertFalse(
+            nova_postcondition_verified(
+                before,
+                self.after_decrement(cooldown_seconds=30, captured_monotonic=101.0),
+                now=101.0,
+            )
+        )
+        missing = self.obs(
+            attempts_remaining=6,
+            praise_enabled=False,
+            cooldown_active=False,
+            cooldown_seconds=None,
+            frame_sha256="b" * 64,
+            captured_monotonic=101.0,
+        )
+        self.assertFalse(nova_postcondition_verified(before, missing, now=101.0))
+        no_decrement = self.after_decrement(cooldown_seconds=299, captured_monotonic=101.0)
+        no_decrement = replace(no_decrement, attempts_remaining=7)
+        self.assertFalse(nova_postcondition_verified(before, no_decrement, now=101.0))
 
 
 class NovaRuntimeTests(unittest.TestCase):
@@ -108,15 +182,7 @@ class NovaRuntimeTests(unittest.TestCase):
         helper = NovaPraiseContractTests()
         before = helper.obs()
         self.assertEqual(controller.next_command(self.recognition(before, "a" * 64)).action, NovaAction.PRAISE)
-        after = helper.obs(
-            attempts_remaining=6,
-            praise_enabled=False,
-            cooldown_active=True,
-            cooldown_seconds=30,
-            next_eligible_at=130.0,
-            frame_sha256="b" * 64,
-            captured_monotonic=101.0,
-        )
+        after = helper.after_decrement(cooldown_seconds=299, captured_monotonic=101.0)
         self.assertTrue(controller.accept_postcondition(before, after))
         self.assertEqual(controller.next_command(self.recognition(after, "b" * 64)).action, NovaAction.WAIT_COOLDOWN)
 
