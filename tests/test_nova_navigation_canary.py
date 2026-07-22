@@ -54,6 +54,21 @@ ROOT = Path(__file__).resolve().parents[1]
 ATLAS_PATH = ROOT / "tasks/assets/home_atlas/bluestacks/800x1280/atlas.json"
 FIXTURE_ROOT = ROOT / "tests/fixtures/nova_praise_preflight"
 ASSET_MANIFEST = ROOT / "tasks/assets/nova_praise/800x1280/manifest.json"
+NOVA_FLOW_CAPTURES = (
+    ROOT / ".local-captures" / "flow-delivery" / "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
+)
+SELECTED_HOME_CANARY_FRAME = (
+    NOVA_FLOW_CAPTURES
+    / "nova-navigation-canary-20260722T152646968017Z"
+    / "frames"
+    / "0001-canary-source.png"
+)
+EXPANDED_RADIAL_CANARY_FRAME = (
+    NOVA_FLOW_CAPTURES
+    / "nova-navigation-canary-20260722T020656687010Z"
+    / "frames"
+    / "0008-canary-open-nova-immediate-before.png"
+)
 
 
 def _identity() -> VerifiedRuntimeIdentity:
@@ -1019,6 +1034,132 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             nova_template_accepted=False,
         )
         self.assertTrue(evidence.recognized)
+
+    def test_selected_home_hough_only_does_not_promote_radial(self) -> None:
+        if not SELECTED_HOME_CANARY_FRAME.is_file():
+            self.skipTest(f"retained frame absent: {SELECTED_HOME_CANARY_FRAME}")
+        raw = SELECTED_HOME_CANARY_FRAME.read_bytes()
+        frame = cv2.imread(str(SELECTED_HOME_CANARY_FRAME), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        captured = CapturedNativeFrame(
+            frame,
+            raw,
+            hashlib.sha256(raw).hexdigest(),
+            11.0,
+            SELECTED_HOME_CANARY_FRAME,
+        )
+        route = NovaNavigationCanaryRoute(
+            FakeRuntime(),
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            settle_seconds=0,
+        )
+        recognition, measured_home = route._recognize_with_measured_home(captured)
+        self.assertTrue(measured_home)
+        radial = recognition.diagnostics.get("research_lab_radial") or {}
+        self.assertFalse(radial.get("recognized"))
+        self.assertEqual(radial.get("bind_method"), "none")
+        self.assertEqual(tuple(radial.get("ocr_terms") or ()), ("research",))
+        self.assertIsNone(recognition.target(NOVA_INTERACTION_TARGET))
+        self.assertFalse(route._research_radial_geometry_present(recognition))
+        self.assertNotEqual(route._navigation_surface(recognition), "RESEARCH_LAB_MENU")
+        home_capture, blocked, initial_radial = route._normalize_known_start_to_home(
+            captured
+        )
+        self.assertIsNone(blocked)
+        self.assertIsNone(initial_radial)
+        self.assertIs(home_capture, captured)
+
+    def test_prior_expanded_radial_retained_frame_remains_bound(self) -> None:
+        if not EXPANDED_RADIAL_CANARY_FRAME.is_file():
+            self.skipTest(f"retained frame absent: {EXPANDED_RADIAL_CANARY_FRAME}")
+        frame = cv2.imread(str(EXPANDED_RADIAL_CANARY_FRAME), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        recognized = recognize_nova_frame(
+            frame,
+            captured_monotonic=11.0,
+            home_context_visible=True,
+        )
+        self.assertTrue(recognized.observation.recognized)
+        self.assertEqual(recognized.observation.screen_state, "RESEARCH_LAB_MENU")
+        self.assertEqual(recognized.target(NOVA_INTERACTION_TARGET), (381, 634, 425, 678))
+        radial = recognized.diagnostics["research_lab_radial"]
+        self.assertEqual(radial["bind_method"], "template_nova_plus_research_hough")
+        self.assertGreaterEqual(radial["template_score"], NOVA_TEMPLATE_MIN_SCORE)
+        self.assertGreaterEqual(radial["template_margin"], NOVA_TEMPLATE_MIN_MARGIN)
+        self.assertTrue(
+            NovaNavigationCanaryRoute._research_radial_geometry_present(recognized)
+        )
+        self.assertEqual(
+            NovaNavigationCanaryRoute._navigation_surface(recognized),
+            "RESEARCH_LAB_MENU",
+        )
+
+    def test_synthetic_unbound_radial_corroboration_remains_fail_closed(self) -> None:
+        base_obs = replace(
+            _radial_recognition("a" * 64).observation,
+            recognized=False,
+            screen_state="UNKNOWN",
+        )
+        ambiguous = NovaFrameRecognition(
+            base_obs,
+            "a" * 64,
+            (),
+            {
+                "research_lab_radial": {
+                    "recognized": False,
+                    "geometry_anchors": ("details", "nova", "research", "upgrade"),
+                    "hough_only_anchors": ("details", "nova", "research", "upgrade"),
+                    "bind_method": "ambiguous_research_template_pairings",
+                    "ambiguous_geometry": True,
+                    "ocr_terms": ("research", "nova"),
+                }
+            },
+        )
+        self.assertTrue(
+            NovaNavigationCanaryRoute._research_radial_geometry_present(ambiguous)
+        )
+        self.assertEqual(
+            NovaNavigationCanaryRoute._navigation_surface(ambiguous),
+            "RESEARCH_LAB_MENU",
+        )
+
+        multi_term = NovaFrameRecognition(
+            replace(base_obs, frame_sha256="b" * 64),
+            "b" * 64,
+            (),
+            {
+                "research_lab_radial": {
+                    "recognized": False,
+                    "geometry_anchors": ("details", "nova", "research", "upgrade"),
+                    "hough_only_anchors": ("details", "nova", "research", "upgrade"),
+                    "bind_method": "none",
+                    "ambiguous_geometry": False,
+                    "ocr_terms": ("research", "details", "nova"),
+                }
+            },
+        )
+        self.assertTrue(
+            NovaNavigationCanaryRoute._research_radial_geometry_present(multi_term)
+        )
+        self.assertEqual(
+            NovaNavigationCanaryRoute._navigation_surface(multi_term),
+            "RESEARCH_LAB_MENU",
+        )
+
+        runtime = FakeRuntime()
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=FakeHomeDriver(),
+            recognizer=RecognitionQueue(multi_term),
+            settle_seconds=0,
+        )
+        result = route.run()
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.reason, "initial_research_lab_radial_not_bound")
+        self.assertEqual(runtime.inputs, [])
 
     def test_project_owned_template_manifest_provenance(self) -> None:
         manifest = json.loads(ASSET_MANIFEST.read_text(encoding="utf-8"))

@@ -489,6 +489,37 @@ class NovaNavigationCanaryRoute:
         )
         return recognition, home_visible
 
+    _RADIAL_CONTROL_OCR_TERMS = frozenset({"nova", "details", "bioenhancer", "upgrade"})
+    _AMBIGUOUS_RADIAL_BIND_METHODS = frozenset(
+        {
+            "template_rejected_missing_research_hough",
+            "ambiguous_research_template_pairings",
+        }
+    )
+
+    @staticmethod
+    def _research_radial_corroborated(recognition: NovaFrameRecognition) -> bool:
+        """Require radial corroboration; Hough-only inferred anchors are not authority."""
+
+        radial = recognition.diagnostics.get("research_lab_radial")
+        if not isinstance(radial, dict):
+            return False
+        if radial.get("recognized"):
+            return True
+        if (
+            radial.get("bind_method") == "template_nova_plus_research_hough"
+            and recognition.target(NOVA_INTERACTION_TARGET) is not None
+        ):
+            return True
+        if radial.get("ambiguous_geometry"):
+            return True
+        if radial.get("bind_method") in NovaNavigationCanaryRoute._AMBIGUOUS_RADIAL_BIND_METHODS:
+            return True
+        terms = {str(term).casefold() for term in (radial.get("ocr_terms") or ())}
+        if "research" in terms and terms & NovaNavigationCanaryRoute._RADIAL_CONTROL_OCR_TERMS:
+            return True
+        return False
+
     @staticmethod
     def _navigation_surface(recognition: NovaFrameRecognition) -> str:
         if recognition.observation.recognized and recognition.observation.screen_state == NOVA_SCREEN:
@@ -503,36 +534,18 @@ class NovaNavigationCanaryRoute:
             and recognition.observation.screen_state == "RESEARCH_LAB_MENU"
         ):
             return "RESEARCH_LAB_MENU"
-        radial = recognition.diagnostics.get("research_lab_radial")
-        if isinstance(radial, dict):
-            if radial.get("recognized"):
-                return "RESEARCH_LAB_MENU"
-            anchors = set(radial.get("geometry_anchors") or ())
-            hough_only = set(radial.get("hough_only_anchors") or ())
-            if {"research", "nova"}.issubset(anchors) and len(anchors) >= 4:
-                return "RESEARCH_LAB_MENU"
-            if {"research", "nova"}.issubset(hough_only) and len(hough_only) >= 4:
-                return "RESEARCH_LAB_MENU"
-            if (
-                radial.get("bind_method") == "template_nova_plus_research_hough"
-                and recognition.target(NOVA_INTERACTION_TARGET) is not None
-            ):
-                return "RESEARCH_LAB_MENU"
+        if NovaNavigationCanaryRoute._research_radial_corroborated(recognition):
+            return "RESEARCH_LAB_MENU"
         return recognition.observation.screen_state
 
     @staticmethod
     def _research_radial_geometry_present(recognition: NovaFrameRecognition) -> bool:
-        if NovaNavigationCanaryRoute._navigation_surface(recognition) == "RESEARCH_LAB_MENU":
-            return True
-        hough = recognition.diagnostics.get("research_lab_radial_hough")
-        if isinstance(hough, dict) and "research" in set(hough.get("hough_anchors") or ()):
-            return True
-        radial = recognition.diagnostics.get("research_lab_radial")
-        if isinstance(radial, dict) and "research" in set(
-            radial.get("hough_only_anchors") or ()
+        if (
+            recognition.observation.recognized
+            and recognition.observation.screen_state == "RESEARCH_LAB_MENU"
         ):
             return True
-        return False
+        return NovaNavigationCanaryRoute._research_radial_corroborated(recognition)
 
     def _normalize_known_start_to_home(self, source):
         initial_provenance = self.initial_research_lab_tap_provenance
