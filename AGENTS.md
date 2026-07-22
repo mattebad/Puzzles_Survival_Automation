@@ -94,6 +94,73 @@
   classification, archive-before-removal, and verification through its dedicated workflow. See
   [`docs/evidence-retention-policy.md`](docs/evidence-retention-policy.md).
 
+## Planning, artifacts, and validation discipline
+
+- When a request names a plan, backlog, handoff, queue, or other persistent artifact, establish
+  whether the deliverable is a chat response or an update to that artifact. If requested output and
+  mutation constraints conflict, resolve the conflict before writing; the latest explicit
+  correction controls.
+- Treat tests, validators, generators, and check commands as potentially mutating. Before using one
+  in a read-only or plan-only task, establish that it cannot write repository state; snapshot
+  branch, HEAD, and working tree before it and recheck them afterward. Generated indexes, caches,
+  and rewritten metadata are mutations.
+- Diagnose baseline failures individually. Record the failing test, classification, root cause,
+  whether production or test code is wrong, correction, evidence, and owning task. Never waive a
+  group of failures as stale or rewrite tests merely to accept current state.
+- Prefer the smallest real vertical slice that proves product behavior. Do not place generalized
+  infrastructure, bulk migration, or scale-out before the representative replay and live canary
+  that justify it. Enforce checked-in review hard stops.
+- Extend accepted implementations and retained proof instead of rebuilding them. Missing knowledge
+  remains `evidence_required`; synthetic fixtures do not substitute for absent live evidence.
+- For shared files or retained branches, assign behavior and writable ownership to one atomic task
+  at symbol or region granularity. Commit and validate foundational interfaces first; integrate
+  serially and reject duplicate, reverted, or conflicting ports.
+- Once the next authorized action is clear and its safety gates pass, execute it. Do not interpose
+  redundant test reruns or speculative diagnostics, but never bypass a safety, evidence, lease, or
+  attempt gate because of conversational urgency.
+
+## Visual ground truth and live-validation discipline
+
+- Never trust a visual asset's filename, label, metadata, or passing tests as proof of identity.
+  Visually inspect every new or changed template before it can authorize live input.
+- Retain independent target ground truth: native source frame, source hash, crop coordinates,
+  template hash, runtime profile, and an annotated source showing the selected ROI and nearby
+  semantic label.
+- Tests must not derive expected identity, ROI, geometry, or provenance from the same constants,
+  metadata, or asset used by production recognition. Circular agreement is not validation.
+- OCR validates a target only when the text is spatially associated with that target. Text elsewhere
+  in the frame is context, not proof that the matched control has that identity.
+- Before the first live dispatch for a changed visual selector, inspect the fresh immediate-before
+  native frame with the bound ROI overlaid and positively confirm the intended control.
+- Bind from the current native frame. Retained coordinates describe retained evidence, not a live
+  target; use bounded visual matching plus independently measured current-frame geometry.
+- Keep Home semantics distinct. `HOME_READY`, positive Home registration, safe atlas localization,
+  and `HOME_CANONICAL` are different claims. A strong wrong-zoom registration may prove Home context
+  but must not authorize atlas coordinates, panning, or building binding until the supported zoom
+  and localization requirements are met.
+- After any dispatched input, assume runtime state changed. Recovery requires exact successor
+  recognition and immediate-before revalidation; never reuse the prior state's authority.
+- Prove supported intermediate-state continuation and the canonical end-to-end route. Success from
+  an already-open radial does not prove Home-to-target navigation.
+- Contradictory visual evidence invalidates passing tests. Surface any asset, label, ROI, geometry,
+  or semantic mismatch immediately and prohibit live input until corrected.
+
+## Replay, evidence, and attempt integrity
+
+- Positive replay must execute the same production recognizer, controller, policy, persistence, and
+  postcondition path as live operation. Zero transport replaces only the transport boundary.
+- Missing required evidence fails explicitly. Never create empty, zero-byte, fabricated, or
+  placeholder evidence to satisfy a validator or completion gate.
+- Separate pre-input blocks from input-bearing execution attempts. Configuration, registration,
+  identity, asset, command, and initial-recognition failures do not consume execution budget unless
+  policy explicitly says otherwise.
+- Persist every live invocation in authoritative scenario accounting, including zero-input blocks,
+  operator-authorized retries, candidate commit, material condition, exact input sequence, evidence,
+  terminal ownership, and unresolved-action state. Conversation authorization alone is not durable
+  attempt accounting.
+- Transport success is intermediate evidence only. Completion requires semantic successor proof and
+  the contract's terminal postcondition, including a canonical-start end-to-end run when required.
+
 ## Chat ownership and handoff
 
 - Hand off only after no action is between prepared and terminal state, evidence is flushed and
