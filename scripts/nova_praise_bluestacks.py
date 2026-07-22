@@ -489,34 +489,39 @@ class NovaNavigationCanaryRoute:
         )
         return recognition, home_visible
 
-    _RADIAL_CONTROL_OCR_TERMS = frozenset({"nova", "details", "bioenhancer", "upgrade"})
+    _AUTHORIZED_RADIAL_BIND_METHODS = frozenset(
+        {
+            "template_nova_from_research_tap",
+            "template_nova_initial",
+        }
+    )
     _AMBIGUOUS_RADIAL_BIND_METHODS = frozenset(
         {
-            "template_rejected_missing_research_hough",
-            "ambiguous_research_template_pairings",
+            "ambiguous_or_duplicated_template_match",
+            "ambiguous_template_pairings",
         }
     )
 
     @staticmethod
     def _research_radial_corroborated(recognition: NovaFrameRecognition) -> bool:
-        """Require radial corroboration; Hough-only inferred anchors are not authority."""
+        """Template-driven radial corroboration; Hough never authorizes surface/geometry."""
 
         radial = recognition.diagnostics.get("research_lab_radial")
         if not isinstance(radial, dict):
             return False
+        obs = recognition.observation
+        if obs.recognized and obs.screen_state == "HOME_BASE":
+            return False
         if radial.get("recognized"):
             return True
+        bind_method = radial.get("bind_method")
         if (
-            radial.get("bind_method") == "template_nova_plus_research_hough"
+            bind_method in NovaNavigationCanaryRoute._AUTHORIZED_RADIAL_BIND_METHODS
             and recognition.target(NOVA_INTERACTION_TARGET) is not None
         ):
             return True
-        if radial.get("ambiguous_geometry"):
-            return True
-        if radial.get("bind_method") in NovaNavigationCanaryRoute._AMBIGUOUS_RADIAL_BIND_METHODS:
-            return True
-        terms = {str(term).casefold() for term in (radial.get("ocr_terms") or ())}
-        if "research" in terms and terms & NovaNavigationCanaryRoute._RADIAL_CONTROL_OCR_TERMS:
+        # Explicit template ambiguity may fail-closed as radial-like; Hough ambiguity may not.
+        if bind_method in NovaNavigationCanaryRoute._AMBIGUOUS_RADIAL_BIND_METHODS:
             return True
         return False
 
@@ -531,6 +536,11 @@ class NovaNavigationCanaryRoute:
             return RESEARCH_LAB_UPGRADE_SCREEN
         if (
             recognition.observation.recognized
+            and recognition.observation.screen_state == "HOME_BASE"
+        ):
+            return "HOME_BASE"
+        if (
+            recognition.observation.recognized
             and recognition.observation.screen_state == "RESEARCH_LAB_MENU"
         ):
             return "RESEARCH_LAB_MENU"
@@ -540,6 +550,11 @@ class NovaNavigationCanaryRoute:
 
     @staticmethod
     def _research_radial_geometry_present(recognition: NovaFrameRecognition) -> bool:
+        if (
+            recognition.observation.recognized
+            and recognition.observation.screen_state == "HOME_BASE"
+        ):
+            return False
         if (
             recognition.observation.recognized
             and recognition.observation.screen_state == "RESEARCH_LAB_MENU"
@@ -577,14 +592,12 @@ class NovaNavigationCanaryRoute:
                     # route-tapped Research Lab still requires fresh provenance later.
                     return current_capture, None, current_recognition
                 radial = current_recognition.diagnostics.get("research_lab_radial")
-                if isinstance(radial, dict) and radial.get("ambiguous_geometry"):
-                    reason = "initial_radial_ambiguous"
-                elif (
+                if (
                     isinstance(radial, dict)
                     and radial.get("bind_method")
-                    == "template_rejected_missing_research_hough"
+                    in NovaNavigationCanaryRoute._AMBIGUOUS_RADIAL_BIND_METHODS
                 ):
-                    reason = "initial_radial_template_only"
+                    reason = "initial_radial_ambiguous"
                 elif current_recognition.observation.stale:
                     reason = "initial_radial_stale"
                 elif initial_provenance is None and not (

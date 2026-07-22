@@ -63,6 +63,12 @@ SELECTED_HOME_CANARY_FRAME = (
     / "frames"
     / "0001-canary-source.png"
 )
+POSITIVE_HOME_CANARY_FRAME = (
+    NOVA_FLOW_CAPTURES
+    / "nova-navigation-canary-20260722T160241223935Z"
+    / "frames"
+    / "0001-canary-source.png"
+)
 EXPANDED_RADIAL_CANARY_FRAME = (
     NOVA_FLOW_CAPTURES
     / "nova-navigation-canary-20260722T020656687010Z"
@@ -121,9 +127,9 @@ def _radial_recognition(digest: str) -> NovaFrameRecognition:
         {
             "research_lab_radial": {
                 "recognized": True,
-                "geometry_anchors": ("details", "nova", "research", "upgrade"),
+                "geometry_anchors": ("nova",),
                 "hough_only_anchors": ("details", "nova", "research", "upgrade"),
-                "bind_method": "hough_radial",
+                "bind_method": "template_nova_initial",
             }
         },
     )
@@ -518,7 +524,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(recognized.observation.screen_state, "RESEARCH_LAB_MENU")
         self.assertEqual(recognized.target(NOVA_INTERACTION_TARGET), (226, 640, 270, 684))
         radial = recognized.diagnostics["research_lab_radial"]
-        self.assertEqual(radial["bind_method"], "template_nova_plus_research_hough")
+        self.assertEqual(radial["bind_method"], "template_nova_initial")
         self.assertTrue(radial["initial_unprovenanced_composite"])
         self.assertGreaterEqual(radial["template_score"], NOVA_TEMPLATE_MIN_SCORE)
         self.assertGreaterEqual(radial["template_margin"], NOVA_TEMPLATE_MIN_MARGIN)
@@ -534,7 +540,11 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         )
         self.assertEqual(fresh.observation.screen_state, "RESEARCH_LAB_MENU")
         self.assertTrue(fresh.observation.recognized)
-        self.assertEqual(fresh.target(NOVA_INTERACTION_TARGET), (232, 652, 276, 696))
+        self.assertEqual(fresh.target(NOVA_INTERACTION_TARGET), (226, 640, 270, 684))
+        self.assertEqual(
+            fresh.diagnostics["research_lab_radial"]["bind_method"],
+            "template_nova_from_research_tap",
+        )
 
     def test_blocked_canary_frame_hough_rejects_and_template_binds(self) -> None:
         fixture = _fixture("blocked-canary-radial-48a116d3")
@@ -553,7 +563,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(recognized.observation.screen_state, "RESEARCH_LAB_MENU")
         target = recognized.target(NOVA_INTERACTION_TARGET)
         self.assertEqual(target, (226, 640, 270, 684))
-        self.assertEqual(radial["bind_method"], "template_nova_plus_research_hough")
+        self.assertEqual(radial["bind_method"], "template_nova_from_research_tap")
         self.assertGreaterEqual(radial["template_score"], NOVA_TEMPLATE_MIN_SCORE)
         self.assertGreaterEqual(radial["template_margin"], NOVA_TEMPLATE_MIN_MARGIN)
         self.assertEqual(radial["template_match_roi"], target)
@@ -668,15 +678,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             home_context_visible=True,
         )
         self.assertFalse(template_only_recognition.observation.recognized)
-        template_diag = template_only_recognition.diagnostics["nova_radial_template"]
-        self.assertFalse(template_diag["accepted"])
-        self.assertIn(
-            template_diag["reject_reason"],
-            {
-                "missing_research_circle_candidates",
-                "no_unambiguous_research_template_pairing",
-            },
-        )
+        self.assertIsNone(template_only_recognition.target(NOVA_INTERACTION_TARGET))
 
         ambiguous = frame.copy()
         second_match = (320, 720, 364, 764)
@@ -684,37 +686,33 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             second_match[1] : second_match[3],
             second_match[0] : second_match[2],
         ] = template
-        first_research = (269, 571, 45)
-        rel = nova_praise_vision._RESEARCH_TO_NOVA_OFFSET
-        second_research = (
-            (second_match[0] + second_match[2]) // 2 - rel[0],
-            (second_match[1] + second_match[3]) // 2 - rel[1],
-            30,
-        )
         ambiguous_template = nova_praise_vision._match_nova_radial_template(
             ambiguous,
             None,
-            research_circle_candidates=(first_research, second_research),
         )
         self.assertFalse(ambiguous_template["accepted"])
         self.assertEqual(
             ambiguous_template["reject_reason"],
-            "ambiguous_research_template_pairings",
+            "ambiguous_or_duplicated_template_match",
         )
-        with patch.object(
-            nova_praise_vision,
-            "_hough_radial_circle_candidates",
-            return_value=[first_research, second_research],
-        ):
-            ambiguous_recognition = recognize_nova_frame(
-                ambiguous,
-                captured_monotonic=11.0,
-                home_context_visible=True,
-            )
+        ambiguous_recognition = recognize_nova_frame(
+            ambiguous,
+            captured_monotonic=11.0,
+            home_context_visible=True,
+        )
         self.assertFalse(ambiguous_recognition.observation.recognized)
         self.assertEqual(
             ambiguous_recognition.diagnostics["nova_radial_template"]["reject_reason"],
-            "ambiguous_research_template_pairings",
+            "ambiguous_or_duplicated_template_match",
+        )
+        self.assertEqual(
+            ambiguous_recognition.diagnostics["research_lab_radial"]["bind_method"],
+            "ambiguous_or_duplicated_template_match",
+        )
+        self.assertTrue(
+            NovaNavigationCanaryRoute._research_radial_geometry_present(
+                ambiguous_recognition
+            )
         )
 
         stale_recognition = recognize_nova_frame(
@@ -831,7 +829,11 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertTrue(recognized.observation.recognized)
         target = recognized.target(NOVA_INTERACTION_TARGET)
         self.assertIsNotNone(target)
-        self.assertEqual(target, (232 + shift, 652 + shift, 276 + shift, 696 + shift))
+        self.assertEqual(target, (226 + shift, 640 + shift, 270 + shift, 684 + shift))
+        self.assertEqual(
+            recognized.diagnostics["research_lab_radial"]["bind_method"],
+            "template_nova_from_research_tap",
+        )
 
     def test_supported_visual_scale_variation_binds_scaled_match_roi(self) -> None:
         fixture = _fixture("blocked-canary-radial-48a116d3")
@@ -1003,10 +1005,12 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             "provenance_valid": True,
             "fresh_successor": True,
             "home_context_visible": True,
-            "geometry_anchors": ("details", "upgrade", "research", "nova"),
+            "geometry_anchors": ("nova",),
             "ocr_terms": ("research", "bioenhancer"),
             "nova_target_roi": (226, 640, 270, 684),
+            "nova_template_accepted": True,
         }
+        self.assertTrue(evaluate_research_lab_radial_evidence(**valid).recognized)
         for changes in (
             {"provenance_valid": False},
             {"fresh_successor": False},
@@ -1016,13 +1020,14 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             {"nova_target_roi": None},
             {"ambiguous_geometry": True},
             {"incompatible_state": True},
+            {"nova_template_accepted": False},
         ):
             with self.subTest(changes=changes):
                 evidence = evaluate_research_lab_radial_evidence(**{**valid, **changes})
                 self.assertFalse(evidence.recognized)
                 self.assertEqual(evidence.semantic_state, "UNKNOWN")
 
-    def test_hough_full_path_remains_valid_without_template_requirement(self) -> None:
+    def test_hough_full_without_template_never_recognizes_radial(self) -> None:
         evidence = evaluate_research_lab_radial_evidence(
             source_frame_sha256="a" * 64,
             provenance_valid=True,
@@ -1033,7 +1038,43 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             nova_target_roi=(226, 640, 270, 684),
             nova_template_accepted=False,
         )
-        self.assertTrue(evidence.recognized)
+        self.assertFalse(evidence.recognized)
+        self.assertIsNone(evidence.nova_target_roi)
+
+    def test_fresh_research_tap_template_binds_without_hough_research_anchor(self) -> None:
+        fixture = _fixture("blocked-canary-radial-48a116d3")
+        frame = _load_fixture_frame(fixture)
+        provenance = _lab_provenance(fixture)
+        with patch.object(
+            nova_praise_vision,
+            "_research_lab_radial_geometry",
+            return_value=(
+                ("details", "nova", "upgrade"),
+                None,
+                False,
+                {
+                    "method": "hough_circles",
+                    "hough_anchors": ("details", "nova", "upgrade"),
+                    "hough_nova_roi": None,
+                    "hough_ambiguous": False,
+                    "hough_candidate_count": 0,
+                    "hough_candidates": (),
+                    "search_roi": (0, 450, 450, 800),
+                },
+            ),
+        ):
+            recognized = recognize_nova_frame(
+                frame,
+                captured_monotonic=11.0,
+                research_lab_tap_provenance=provenance,
+                home_context_visible=True,
+            )
+        self.assertTrue(recognized.observation.recognized)
+        self.assertEqual(recognized.observation.screen_state, "RESEARCH_LAB_MENU")
+        self.assertEqual(recognized.target(NOVA_INTERACTION_TARGET), (226, 640, 270, 684))
+        radial = recognized.diagnostics["research_lab_radial"]
+        self.assertEqual(radial["bind_method"], "template_nova_from_research_tap")
+        self.assertNotIn("research", set(radial.get("hough_only_anchors") or ()))
 
     def test_selected_home_hough_only_does_not_promote_radial(self) -> None:
         if not SELECTED_HOME_CANARY_FRAME.is_file():
@@ -1070,6 +1111,43 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertIsNone(initial_radial)
         self.assertIs(home_capture, captured)
 
+    def test_positive_home_base_wins_over_hough_ambiguity(self) -> None:
+        if not POSITIVE_HOME_CANARY_FRAME.is_file():
+            self.skipTest(f"retained frame absent: {POSITIVE_HOME_CANARY_FRAME}")
+        raw = POSITIVE_HOME_CANARY_FRAME.read_bytes()
+        frame = cv2.imread(str(POSITIVE_HOME_CANARY_FRAME), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        captured = CapturedNativeFrame(
+            frame,
+            raw,
+            hashlib.sha256(raw).hexdigest(),
+            11.0,
+            POSITIVE_HOME_CANARY_FRAME,
+        )
+        route = NovaNavigationCanaryRoute(
+            FakeRuntime(),
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            settle_seconds=0,
+        )
+        recognition, measured_home = route._recognize_with_measured_home(captured)
+        self.assertTrue(measured_home)
+        self.assertTrue(recognition.observation.recognized)
+        self.assertEqual(recognition.observation.screen_state, "HOME_BASE")
+        radial = recognition.diagnostics.get("research_lab_radial") or {}
+        self.assertTrue(radial.get("hough_ambiguous") or radial.get("ambiguous_geometry"))
+        self.assertEqual(radial.get("bind_method"), "none")
+        self.assertEqual(tuple(radial.get("ocr_terms") or ()), ("research",))
+        self.assertIsNone(recognition.target(NOVA_INTERACTION_TARGET))
+        self.assertEqual(route._navigation_surface(recognition), "HOME_BASE")
+        self.assertFalse(route._research_radial_geometry_present(recognition))
+        home_capture, blocked, initial_radial = route._normalize_known_start_to_home(
+            captured
+        )
+        self.assertIsNone(blocked)
+        self.assertIsNone(initial_radial)
+        self.assertIs(home_capture, captured)
+
     def test_prior_expanded_radial_retained_frame_remains_bound(self) -> None:
         if not EXPANDED_RADIAL_CANARY_FRAME.is_file():
             self.skipTest(f"retained frame absent: {EXPANDED_RADIAL_CANARY_FRAME}")
@@ -1084,9 +1162,10 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(recognized.observation.screen_state, "RESEARCH_LAB_MENU")
         self.assertEqual(recognized.target(NOVA_INTERACTION_TARGET), (381, 634, 425, 678))
         radial = recognized.diagnostics["research_lab_radial"]
-        self.assertEqual(radial["bind_method"], "template_nova_plus_research_hough")
-        self.assertGreaterEqual(radial["template_score"], NOVA_TEMPLATE_MIN_SCORE)
+        self.assertEqual(radial["bind_method"], "template_nova_initial")
+        self.assertAlmostEqual(radial["template_score"], 0.976879, places=5)
         self.assertGreaterEqual(radial["template_margin"], NOVA_TEMPLATE_MIN_MARGIN)
+        self.assertEqual(radial["template_match_roi"], (381, 634, 425, 678))
         self.assertTrue(
             NovaNavigationCanaryRoute._research_radial_geometry_present(recognized)
         )
@@ -1095,7 +1174,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             "RESEARCH_LAB_MENU",
         )
 
-    def test_synthetic_unbound_radial_corroboration_remains_fail_closed(self) -> None:
+    def test_synthetic_template_ambiguity_remains_fail_closed(self) -> None:
         base_obs = replace(
             _radial_recognition("a" * 64).observation,
             recognized=False,
@@ -1108,11 +1187,11 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             {
                 "research_lab_radial": {
                     "recognized": False,
-                    "geometry_anchors": ("details", "nova", "research", "upgrade"),
+                    "geometry_anchors": (),
                     "hough_only_anchors": ("details", "nova", "research", "upgrade"),
-                    "bind_method": "ambiguous_research_template_pairings",
+                    "bind_method": "ambiguous_or_duplicated_template_match",
                     "ambiguous_geometry": True,
-                    "ocr_terms": ("research", "nova"),
+                    "ocr_terms": ("research",),
                 }
             },
         )
@@ -1124,7 +1203,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             "RESEARCH_LAB_MENU",
         )
 
-        multi_term = NovaFrameRecognition(
+        hough_only = NovaFrameRecognition(
             replace(base_obs, frame_sha256="b" * 64),
             "b" * 64,
             (),
@@ -1134,16 +1213,17 @@ class NovaNavigationCanaryTests(unittest.TestCase):
                     "geometry_anchors": ("details", "nova", "research", "upgrade"),
                     "hough_only_anchors": ("details", "nova", "research", "upgrade"),
                     "bind_method": "none",
-                    "ambiguous_geometry": False,
-                    "ocr_terms": ("research", "details", "nova"),
+                    "ambiguous_geometry": True,
+                    "hough_ambiguous": True,
+                    "ocr_terms": ("research", "nova", "details"),
                 }
             },
         )
-        self.assertTrue(
-            NovaNavigationCanaryRoute._research_radial_geometry_present(multi_term)
+        self.assertFalse(
+            NovaNavigationCanaryRoute._research_radial_geometry_present(hough_only)
         )
-        self.assertEqual(
-            NovaNavigationCanaryRoute._navigation_surface(multi_term),
+        self.assertNotEqual(
+            NovaNavigationCanaryRoute._navigation_surface(hough_only),
             "RESEARCH_LAB_MENU",
         )
 
@@ -1153,12 +1233,12 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             _identity(),
             atlas_path=ATLAS_PATH,
             home_driver=FakeHomeDriver(),
-            recognizer=RecognitionQueue(multi_term),
+            recognizer=RecognitionQueue(ambiguous),
             settle_seconds=0,
         )
         result = route.run()
         self.assertEqual(result.status, "blocked")
-        self.assertEqual(result.reason, "initial_research_lab_radial_not_bound")
+        self.assertEqual(result.reason, "initial_radial_ambiguous")
         self.assertEqual(runtime.inputs, [])
 
     def test_project_owned_template_manifest_provenance(self) -> None:
