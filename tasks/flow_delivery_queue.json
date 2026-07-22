@@ -318,14 +318,27 @@
       "live_validation_scope": "One bounded navigation-only Home-to-Nova-to-Home route; Praise dispatch is outside migration validation.",
       "consequence_policy": "Existing zero-cost cooldown-bound Praise behavior is preserved; migration validation performs navigation only.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 1,
-      "live_attempt_count": 0,
-      "live_attempts": [],
+      "maximum_live_attempts": 2,
+      "live_attempt_count": 1,
+      "live_attempts": [
+        {
+          "ordinal": 1,
+          "active_flow": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+          "lease_owner": "gf-mvp-009-parent",
+          "lease_session": "gf-mvp-009-attempt-1",
+          "repository_head": "dc8210c1038c5233c893e2d42ee691a96b23ac48",
+          "started_at": "2026-07-21T23:08:42.201963+00:00",
+          "finished_at": "2026-07-21T23:09:11.134650+00:00",
+          "session_directory": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "research_lab_radial_not_bound after two navigation inputs; zero Praise"
+        }
+      ],
       "named_scenarios": [
         {
           "scenario_id": "nova_navigation_round_trip_no_praise",
           "mode": "navigation_only",
-          "maximum_execution_attempts": 1,
+          "maximum_execution_attempts": 2,
           "execution_attempt_count": 1,
           "attempts": [
             {
@@ -370,7 +383,7 @@
           "forbidden_input_classes": [
             "consequential"
           ],
-          "status": "exhausted"
+          "status": "ready"
         }
       ],
       "focused_tests": [
@@ -382,8 +395,8 @@
         "navigation_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "GF-MVP-009 exhausted the one named navigation scenario after two navigation inputs: known Nova start returned safely Home, Research Lab was opened, and the fresh radial lacked sufficient geometry to bind Nova. Praise inputs were zero and unresolved action state is clear.",
-      "next_concrete_action": "User review plus a new evidence-backed radial correction and explicit new scenario budget; do not rerun candidate dc8210c.",
+      "blocked_reason": "GF-MVP-009 correction pending parent offline validation/commit: template Nova bind candidate authorized for exactly one additional changed-candidate attempt (scenario max 2, count 1, ready). Prior dc8210c attempt/evidence retained unchanged. Praise inputs remain zero; unresolved clear; registration unchanged; scheduler disabled; queue globally inactive.",
+      "next_concrete_action": "Parent validates/commits the offline template-radial correction (correction_ref GF-MVP-009-nova-radial-template-bind), then may authorize exactly one live attempt on the changed candidate. Do not rerun dc8210c; do not start GF-MVP-010.",
       "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION",

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import hashlib
+import json
+from pathlib import Path
 import re
 import unicodedata
 
@@ -25,6 +27,15 @@ from .nova_praise import (
 
 PROFILE_SIZE = (800, 1280)
 Box = tuple[int, int, int, int]
+_ASSETS_ROOT = Path(__file__).resolve().parent / "assets" / "nova_praise" / "800x1280"
+NOVA_RADIAL_TEMPLATE_PATH = _ASSETS_ROOT / "nova-radial-portrait.png"
+NOVA_RADIAL_TEMPLATE_MANIFEST_PATH = _ASSETS_ROOT / "manifest.json"
+NOVA_TEMPLATE_MATCH_METHOD = "cv2.TM_CCOEFF_NORMED"
+NOVA_TEMPLATE_SCALES = (0.92, 0.96, 1.0, 1.04, 1.08)
+NOVA_TEMPLATE_MIN_SCORE = 0.90
+NOVA_TEMPLATE_MIN_MARGIN = 0.08
+NOVA_TEMPLATE_SEARCH_PAD_PX = 56
+NOVA_TEMPLATE_EDGE_CLIP_PX = 2
 
 RESEARCH_LAB_ROI: Box = (455, 410, 665, 650)
 LAB_MENU_ROI: Box = (330, 570, 760, 780)
@@ -85,6 +96,7 @@ def evaluate_research_lab_radial_evidence(
     nova_target_roi: Box | None,
     ambiguous_geometry: bool = False,
     incompatible_state: bool = False,
+    nova_template_accepted: bool = False,
 ) -> ResearchLabRadialEvidence:
     """Require composite current-frame evidence; OCR alone is never sufficient."""
 
@@ -92,6 +104,14 @@ def evaluate_research_lab_radial_evidence(
     terms = set(ocr_terms)
     supporting: list[str] = []
     missing: list[str] = []
+    hough_full = {"research", "nova"}.issubset(anchors) and len(anchors) >= 4
+    template_composite = bool(
+        nova_template_accepted
+        and "research" in anchors
+        and "nova" in anchors
+        and nova_target_roi is not None
+    )
+    compatible_geometry = hough_full or template_composite
     if provenance_valid:
         supporting.append("verified_immediately_preceding_research_lab_tap")
     else:
@@ -104,8 +124,12 @@ def evaluate_research_lab_radial_evidence(
         supporting.append("localized_home_visible_beneath_radial")
     else:
         missing.append("localized_home_context")
-    if {"research", "nova"}.issubset(anchors) and len(anchors) >= 4:
-        supporting.append("compatible_radial_control_arrangement")
+    if compatible_geometry:
+        supporting.append(
+            "compatible_radial_control_arrangement_hough"
+            if hough_full
+            else "compatible_radial_control_arrangement_template"
+        )
     else:
         missing.append("compatible_radial_control_arrangement")
     if "research" in terms and len(terms) >= 2:
@@ -131,14 +155,14 @@ def evaluate_research_lab_radial_evidence(
         + (0.20 if home_context_visible else 0.0)
         + (0.05 * min(len(anchors), 5))
         + (0.10 * min(len(terms), 2))
-        + (0.10 if not incompatible_state else 0.0),
+        + (0.10 if not incompatible_state else 0.0)
+        + (0.05 if template_composite and not hough_full else 0.0),
     )
     recognized = bool(
         provenance_valid
         and fresh_successor
         and home_context_visible
-        and {"research", "nova"}.issubset(anchors)
-        and len(anchors) >= 4
+        and compatible_geometry
         and "research" in terms
         and len(terms) >= 2
         and nova_target_roi is not None
@@ -214,11 +238,66 @@ _RADIAL_ANCHOR_OFFSETS: dict[str, tuple[int, int]] = {
     "nova": (-121, 134),
 }
 
+_NOVA_TEMPLATE_CACHE: tuple[np.ndarray, str] | None = None
+
+
+def _load_nova_radial_template() -> tuple[np.ndarray | None, dict[str, object]]:
+    global _NOVA_TEMPLATE_CACHE
+    diagnostics: dict[str, object] = {
+        "template_path": str(NOVA_RADIAL_TEMPLATE_PATH),
+        "manifest_path": str(NOVA_RADIAL_TEMPLATE_MANIFEST_PATH),
+        "provenance_valid": False,
+    }
+    if not NOVA_RADIAL_TEMPLATE_PATH.is_file() or not NOVA_RADIAL_TEMPLATE_MANIFEST_PATH.is_file():
+        diagnostics["reject_reason"] = "missing_template_or_manifest"
+        return None, diagnostics
+    raw = NOVA_RADIAL_TEMPLATE_PATH.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        manifest = json.loads(
+            NOVA_RADIAL_TEMPLATE_MANIFEST_PATH.read_text(encoding="utf-8")
+        )
+        entry = next(
+            item
+            for item in manifest.get("templates", [])
+            if item.get("id") == "nova-radial-portrait"
+        )
+    except (OSError, StopIteration, TypeError, ValueError, KeyError):
+        diagnostics["reject_reason"] = "stale_or_invalid_template_provenance"
+        return None, diagnostics
+    if entry.get("file_sha256") != digest:
+        diagnostics["reject_reason"] = "stale_or_invalid_template_provenance"
+        return None, diagnostics
+    if entry.get("runtime_profile") != "native-800x1280":
+        diagnostics["reject_reason"] = "incompatible_runtime_profile"
+        return None, diagnostics
+    if _NOVA_TEMPLATE_CACHE is not None and _NOVA_TEMPLATE_CACHE[1] == digest:
+        template = _NOVA_TEMPLATE_CACHE[0]
+    else:
+        decoded = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if decoded is None or decoded.size == 0:
+            diagnostics["reject_reason"] = "template_decode_failed"
+            return None, diagnostics
+        _NOVA_TEMPLATE_CACHE = (decoded, digest)
+        template = decoded
+    diagnostics.update(
+        {
+            "provenance_valid": True,
+            "template_sha256": digest,
+            "source_path": entry.get("source", {}).get("path"),
+            "source_sha256": entry.get("source", {}).get("file_sha256"),
+            "source_crop_xyxy": entry.get("source", {}).get("crop_xyxy"),
+            "intended_visual_variant": entry.get("intended_visual_variant"),
+            "runtime_profile": entry.get("runtime_profile"),
+        }
+    )
+    return template, diagnostics
+
 
 def _research_lab_radial_geometry(
     frame: np.ndarray,
     provenance: ResearchLabTapProvenance | None,
-) -> tuple[tuple[str, ...], Box | None, bool]:
+) -> tuple[tuple[str, ...], Box | None, bool, dict[str, object]]:
     gray = cv2.medianBlur(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 5)
     circles = cv2.HoughCircles(
         gray,
@@ -238,6 +317,7 @@ def _research_lab_radial_geometry(
             if 0 < x < 450 and 450 < y < 800
         ]
     inferred_ambiguous = False
+    tap_x = tap_y = None
     if provenance is not None:
         x0, y0, x1, y1 = provenance.target_roi
         tap_x, tap_y = (x0 + x1) // 2, (y0 + y1) // 2
@@ -258,7 +338,15 @@ def _research_lab_radial_geometry(
                 origins.append((score, origin_x, origin_y))
         origins.sort(reverse=True)
         if not origins or origins[0][0] < 4:
-            return (), None, False
+            diagnostics = {
+                "method": "hough_circles",
+                "hough_anchors": (),
+                "hough_nova_roi": None,
+                "hough_ambiguous": False,
+                "hough_candidate_count": len(candidates),
+                "search_roi": (0, 450, 450, 800),
+            }
+            return (), None, False, diagnostics
         best_score, tap_x, tap_y = origins[0]
         inferred_ambiguous = any(
             score == best_score
@@ -281,16 +369,158 @@ def _research_lab_radial_geometry(
             matches[identity] = ranked[0][1]
             if len(ranked) > 1 and ranked[1][0] - ranked[0][0] < 6**2:
                 ambiguous = True
-    target = None
+    hough_target = None
     if provenance is not None and "nova" in matches and not ambiguous:
         x, y, _radius = matches["nova"]
-        target = (
+        hough_target = (
             max(0, x - 22),
             max(0, y - 22),
             min(800, x + 22),
             min(1280, y + 22),
         )
-    return tuple(sorted(matches)), target, ambiguous
+    anchors = tuple(sorted(matches))
+    diagnostics = {
+        "method": "hough_circles",
+        "hough_anchors": anchors,
+        "hough_nova_roi": hough_target,
+        "hough_ambiguous": ambiguous,
+        "hough_candidate_count": len(candidates),
+        "search_roi": (0, 450, 450, 800),
+        "tap_point": (tap_x, tap_y),
+    }
+    return anchors, hough_target, ambiguous, diagnostics
+
+
+def _match_nova_radial_template(
+    frame: np.ndarray,
+    provenance: ResearchLabTapProvenance | None,
+) -> dict[str, object]:
+    template, provenance_diag = _load_nova_radial_template()
+    diagnostics: dict[str, object] = {
+        "method": NOVA_TEMPLATE_MATCH_METHOD,
+        "accepted": False,
+        "score": None,
+        "margin": None,
+        "scale": None,
+        "search_roi": None,
+        "match_roi": None,
+        "reject_reason": None,
+        "template": provenance_diag,
+        "min_score": NOVA_TEMPLATE_MIN_SCORE,
+        "min_margin": NOVA_TEMPLATE_MIN_MARGIN,
+        "scales": list(NOVA_TEMPLATE_SCALES),
+    }
+    if template is None:
+        diagnostics["reject_reason"] = provenance_diag.get("reject_reason") or "missing_template"
+        return diagnostics
+    if provenance is None:
+        diagnostics["reject_reason"] = "missing_research_lab_tap_provenance"
+        return diagnostics
+    x0, y0, x1, y1 = provenance.target_roi
+    tap_x, tap_y = (x0 + x1) // 2, (y0 + y1) // 2
+    expected_dx, expected_dy = _RADIAL_ANCHOR_OFFSETS["nova"]
+    expected_x, expected_y = tap_x + expected_dx, tap_y + expected_dy
+    pad = NOVA_TEMPLATE_SEARCH_PAD_PX
+    search_roi = (
+        max(0, expected_x - pad),
+        max(0, expected_y - pad),
+        min(PROFILE_SIZE[0], expected_x + pad),
+        min(PROFILE_SIZE[1], expected_y + pad),
+    )
+    diagnostics["search_roi"] = search_roi
+    sx0, sy0, sx1, sy1 = search_roi
+    search = frame[sy0:sy1, sx0:sx1]
+    if search.size == 0:
+        diagnostics["reject_reason"] = "empty_nova_sector_search_roi"
+        return diagnostics
+    ranked: list[tuple[float, float, float, Box]] = []
+    for scale in NOVA_TEMPLATE_SCALES:
+        height = max(8, int(round(template.shape[0] * scale)))
+        width = max(8, int(round(template.shape[1] * scale)))
+        if search.shape[0] < height or search.shape[1] < width:
+            continue
+        scaled = cv2.resize(
+            template,
+            (width, height),
+            interpolation=cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC,
+        )
+        response = cv2.matchTemplate(search, scaled, cv2.TM_CCOEFF_NORMED)
+        _min_val, max_val, _min_loc, max_loc = cv2.minMaxLoc(response)
+        suppressed = response.copy()
+        mx, my = max_loc
+        suppressed[
+            max(0, my - height // 2) : my + height // 2 + 1,
+            max(0, mx - width // 2) : mx + width // 2 + 1,
+        ] = -1.0
+        _min_val2, second_val, _min_loc2, _max_loc2 = cv2.minMaxLoc(suppressed)
+        match_roi = (
+            sx0 + mx,
+            sy0 + my,
+            sx0 + mx + width,
+            sy0 + my + height,
+        )
+        ranked.append((float(max_val), float(max_val - second_val), float(scale), match_roi))
+    if not ranked:
+        diagnostics["reject_reason"] = "no_template_response_in_nova_sector"
+        return diagnostics
+    ranked.sort(reverse=True, key=lambda item: (item[0], item[1]))
+    best_score, best_margin, best_scale, best_roi = ranked[0]
+    diagnostics.update(
+        {
+            "score": best_score,
+            "margin": best_margin,
+            "scale": best_scale,
+            "match_roi": best_roi,
+        }
+    )
+    bx0, by0, bx1, by1 = best_roi
+    if (
+        bx0 <= NOVA_TEMPLATE_EDGE_CLIP_PX
+        or by0 <= NOVA_TEMPLATE_EDGE_CLIP_PX
+        or bx1 >= PROFILE_SIZE[0] - NOVA_TEMPLATE_EDGE_CLIP_PX
+        or by1 >= PROFILE_SIZE[1] - NOVA_TEMPLATE_EDGE_CLIP_PX
+    ):
+        diagnostics["reject_reason"] = "clipped_or_partial_template_match"
+        return diagnostics
+    if best_score < NOVA_TEMPLATE_MIN_SCORE:
+        diagnostics["reject_reason"] = "weak_template_match"
+        return diagnostics
+    overlapping_peers = [
+        item for item in ranked[1:] if _boxes_overlap(best_roi, item[3])
+    ]
+    spatially_distinct = [
+        item for item in ranked[1:] if not _boxes_overlap(best_roi, item[3])
+    ]
+    # Adjacent-scale overlaps of the same portrait are expected and ignored as
+    # duplicates. Margin is best-vs-competing after non-overlap suppression, also
+    # considering any spatially separate peak across scales.
+    competing_margin = best_margin
+    if spatially_distinct:
+        competing_margin = min(
+            competing_margin,
+            best_score - spatially_distinct[0][0],
+        )
+    strong_distinct = [
+        item for item in spatially_distinct if item[0] >= NOVA_TEMPLATE_MIN_SCORE
+    ]
+    diagnostics["margin"] = competing_margin
+    diagnostics["overlapping_peer_count"] = len(overlapping_peers)
+    diagnostics["spatially_distinct_strong_count"] = len(strong_distinct)
+    if competing_margin < NOVA_TEMPLATE_MIN_MARGIN or strong_distinct:
+        diagnostics["reject_reason"] = "ambiguous_or_duplicated_template_match"
+        return diagnostics
+    diagnostics["accepted"] = True
+    diagnostics["reject_reason"] = None
+    return diagnostics
+
+
+def _boxes_overlap(left: Box, right: Box) -> bool:
+    return not (
+        left[2] <= right[0]
+        or right[2] <= left[0]
+        or left[3] <= right[1]
+        or right[3] <= left[1]
+    )
 
 
 def _radial_ocr_terms(text: str) -> tuple[str, ...]:
@@ -362,10 +592,49 @@ def recognize_nova_frame(
             targets,
             diagnostics,
         )
-    radial_geometry = _research_lab_radial_geometry(
+    hough_anchors, hough_target, hough_ambiguous, hough_diag = _research_lab_radial_geometry(
         frame,
         research_lab_tap_provenance,
     )
+    template_diag = _match_nova_radial_template(frame, research_lab_tap_provenance)
+    diagnostics["research_lab_radial_hough"] = hough_diag
+    diagnostics["nova_radial_template"] = template_diag
+    template_accepted = bool(template_diag.get("accepted"))
+    template_roi = template_diag.get("match_roi") if template_accepted else None
+    if (
+        isinstance(template_roi, tuple)
+        and len(template_roi) == 4
+        and all(isinstance(value, int) for value in template_roi)
+    ):
+        pass
+    else:
+        template_roi = None
+    hough_full = {"research", "nova"}.issubset(hough_anchors) and len(hough_anchors) >= 4
+    geometry_anchors = hough_anchors
+    nova_target_roi = None
+    ambiguous_geometry = hough_ambiguous
+    bind_method = "none"
+    if (
+        hough_full
+        and hough_target is not None
+        and not hough_ambiguous
+        and research_lab_tap_provenance is not None
+    ):
+        nova_target_roi = hough_target
+        bind_method = "hough_radial"
+    elif (
+        template_accepted
+        and template_roi is not None
+        and "research" in hough_anchors
+        and not hough_ambiguous
+        and research_lab_tap_provenance is not None
+    ):
+        nova_target_roi = template_roi
+        geometry_anchors = tuple(sorted(set(hough_anchors) | {"nova"}))
+        bind_method = "template_nova_plus_research_hough"
+    elif template_accepted and template_roi is not None and "research" not in hough_anchors:
+        ambiguous_geometry = True
+        bind_method = "template_rejected_missing_research_hough"
     radial = evaluate_research_lab_radial_evidence(
         source_frame_sha256=digest,
         provenance_valid=bool(
@@ -383,13 +652,25 @@ def recognize_nova_frame(
             and captured_monotonic - research_lab_tap_provenance.dispatched_monotonic <= 30.0
         ),
         home_context_visible=home_context_visible,
-        geometry_anchors=radial_geometry[0],
+        geometry_anchors=geometry_anchors,
         ocr_terms=_radial_ocr_terms(f"{menu_text} {nova_text}"),
-        nova_target_roi=radial_geometry[1],
-        ambiguous_geometry=radial_geometry[2],
+        nova_target_roi=nova_target_roi,
+        ambiguous_geometry=ambiguous_geometry,
         incompatible_state=incompatible_state or is_nova,
+        nova_template_accepted=template_accepted and bind_method == "template_nova_plus_research_hough",
     )
-    diagnostics["research_lab_radial"] = asdict(radial)
+    radial_diag = asdict(radial)
+    radial_diag["bind_method"] = bind_method
+    radial_diag["hough_only_anchors"] = hough_diag.get("hough_anchors")
+    radial_diag["hough_only_nova_roi"] = hough_diag.get("hough_nova_roi")
+    radial_diag["hough_search_roi"] = hough_diag.get("search_roi")
+    radial_diag["template_score"] = template_diag.get("score")
+    radial_diag["template_margin"] = template_diag.get("margin")
+    radial_diag["template_scale"] = template_diag.get("scale")
+    radial_diag["template_search_roi"] = template_diag.get("search_roi")
+    radial_diag["template_match_roi"] = template_diag.get("match_roi")
+    radial_diag["template_method"] = template_diag.get("method")
+    diagnostics["research_lab_radial"] = radial_diag
     if radial.recognized and radial.nova_target_roi is not None:
         return NovaFrameRecognition(
             NovaPraiseObservation(

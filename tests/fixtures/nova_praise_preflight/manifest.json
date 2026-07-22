@@ -183,6 +183,57 @@
         "nova_target_bound": false,
         "recovery": "bounded recapture without input"
       }
+    },
+    {
+      "id": "blocked-canary-radial-48a116d3",
+      "path": "blocked-canary-radial-48a116d3.png",
+      "file_sha256": "48a116d3f31d9497545fa2054d9360320a38b5efd662e7f7e5bf50cd2dd7fb80",
+      "native_dimensions": [
+        800,
+        1280
+      ],
+      "source_session": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z",
+      "source_capture": "frames/0007-canary-open-lab-settled.png",
+      "byte_identical_retained_terminal_frame": true,
+      "preceding_action": {
+        "action_key": "nova-canary:open-research-lab:2a873684f46eb714e1f4e54c45775533ec2b5f9bb58574121ef0cc66f25f3f39",
+        "consequential": false,
+        "source_sha256": "2a873684f46eb714e1f4e54c45775533ec2b5f9bb58574121ef0cc66f25f3f39",
+        "target_identity": "home.building.research_lab",
+        "target_roi": [
+          198,
+          407,
+          363,
+          632
+        ],
+        "tap_point": [
+          280,
+          519
+        ]
+      },
+      "semantic_provenance": {
+        "state": "GF-MVP-009 terminal Research Lab radial; Hough-only Nova unbound; template correction target",
+        "hough_only_expected_anchors": [
+          "research"
+        ],
+        "nova_target_bound_hough_only": false
+      },
+      "derived_nova_template": {
+        "asset_path": "tasks/assets/nova_praise/800x1280/nova-radial-portrait.png",
+        "asset_manifest_path": "tasks/assets/nova_praise/800x1280/manifest.json",
+        "source_fixture_id": "research-lab-radial-07f3d826",
+        "source_path": "tests/fixtures/nova_praise_preflight/research-lab-radial-07f3d826.png",
+        "source_file_sha256": "07f3d8267d7a19384e4064e6439f0f655536d5a86fe41dff9897fca766ee88bd",
+        "crop_xyxy": [
+          137,
+          631,
+          181,
+          675
+        ],
+        "template_file_sha256": "85367e0ef14e3305877b1734f0b78808abc3e0ed22baf85b1711c90c70181064",
+        "intended_visual_variant": "Research Lab radial Nova portrait/control",
+        "runtime_profile": "native-800x1280"
+      }
     }
   ]
 }

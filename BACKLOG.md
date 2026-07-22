@@ -5758,64 +5758,80 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY
 - Task ID: `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`.
 - Title: Run the supervised Nova navigation-only live canary.
-- Status: Blocked (2026-07-21; first candidate stopped pre-input from recognized Nova; corrected
-  candidate safely returned Home, then consumed the one execution attempt with two navigation
-  inputs and blocked because the Research Lab radial lacked sufficient current Nova geometry;
-  Praise inputs zero, unresolved state clear, no retry authorized).
+- Status: In progress (2026-07-21; correction pending parent offline validation/commit; prior `dc8210c`
+  attempt retained blocked after Hough-only unbound Nova; user-authorized changed offline candidate
+  adds project-owned Nova radial template bind + known-bound-radial continuation; named scenario
+  budget now maximum 2 / count 1 / ready for exactly one future live attempt after parent
+  validation/commit; correction_ref `GF-MVP-009-nova-radial-template-bind`).
 - Milestone: Gameplay Flow Factory Milestone A.
 - Dependencies: completed `GF-MVP-008-NOVA-NAVIGATION-ROUTE-MIGRATION` at `58f7343`; corrected
   known-Nova start candidate `dc8210c`; clean runtime singleton; current production replay.
-- Blocked by: named scenario execution budget exhausted after `research_lab_radial_not_bound`; a new
-  attempt requires explicit user review, a changed evidence-backed hypothesis/candidate, and a new
-  budget authorization.
+- Blocked by: parent must validate/commit the offline template-radial correction before the one
+  authorized changed-candidate live attempt; do not rerun `dc8210c`.
 - Objective: run exactly one supervised `nova_navigation_round_trip_no_praise` scenario through
   pnsctl without Praise or any consequential action.
 - Established facts: pre-input candidate `58f7343` recognized the current screen as Nova and sent
   zero inputs; corrected `dc8210c` performed one safe Nova→Home Back and one current-frame Research
-  Lab tap; post-Lab evidence retained research OCR but only one compatible radial anchor and no
-  bound Nova target.
-- Direct implementation files: `scripts/nova_praise_bluestacks.py`,
-  `tasks/flow_delivery_queue.json`, `tests/test_nova_navigation_canary.py`,
-  `tests/test_flow_scenario_attempts.py`, `docs/validation/gf-mvp-009-blocked-canary-manifest.json`,
-  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tasks/backlog_task_index.json`.
+  Lab tap; post-Lab evidence retained research OCR but only one compatible Hough radial anchor and no
+  Hough-bound Nova target; offline correction binds Nova via bounded multi-scale template match plus
+  independent Research Hough + OCR/provenance/freshness composite.
+- Direct implementation files: `scripts/nova_praise_bluestacks.py`, `tasks/nova_praise_vision.py`,
+  `tasks/assets/nova_praise/800x1280/**`, `tasks/flow_delivery_queue.json`,
+  `tasks/flow_scenario_attempts.py`, `tasks/backlog_task_index.json`,
+  `tests/test_nova_navigation_canary.py`,
+  `tests/test_flow_scenario_attempts.py`, `tests/fixtures/nova_praise_preflight/**`,
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`.
 - Shared dependencies: pnsctl fixed command, supervised identity, LocalBlueStacksRuntime,
   localize-first Home driver, provenance recognizer, named scenario policy, and retained evidence.
 - Transitive regression set: Nova navigation/vision, pnsctl/scenario, Home route, governance/context,
   and full suite.
-- Allowed changes: the committed known-start correction and terminal blocked authority/evidence
-  records only; blocked-result allowed paths are exactly the direct files above.
-- Prohibited changes: another live attempt, additional Back/tap/zoom/pan, Praise, Claim, any
-  consequential action, budget increase, queue activation, evidence deletion/fabrication,
-  production registration/scheduling, GF-MVP-010 implementation, plan edits, or push.
-- Authorized runtime action: exhausted. The completed authorization covered only the terminal
-  two-input navigation attempt.
-- Maximum transport inputs: Two were observed in the terminal attempt; zero further inputs.
-- Navigation-only recovery: one known Nova→Home safe Back completed; the radial blocker is retained
-  and no post-block recovery input is authorized.
+- Allowed changes: only the offline template-radial correction, synchronized attempt authority,
+  task-local tests/assets, and exact governance records listed below.
+- Per-commit allowed paths: `scripts/nova_praise_bluestacks.py`,
+  `tasks/nova_praise_vision.py`, `tasks/assets/nova_praise/800x1280/**`,
+  `tasks/flow_delivery_queue.json`, `tasks/flow_scenario_attempts.py`,
+  `tasks/backlog_task_index.json`,
+  `tests/test_nova_navigation_canary.py`, `tests/test_flow_scenario_attempts.py`,
+  `tests/fixtures/nova_praise_preflight/**`, `BACKLOG.md`, and `CURRENT_HANDOFF.md`;
+  prior attempt evidence remains immutable.
+- Prohibited changes: fabricating the future live attempt record, additional Back/tap/zoom/pan before
+  parent validation/commit, Praise, Claim, any consequential action, queue activation, evidence
+  deletion, production registration/scheduling, GF-MVP-010 implementation, plan edits, or push.
+- Authorized runtime action: exhausted for `dc8210c`; exactly one additional changed-candidate live
+  attempt is user-authorized only after parent validation/commit.
+- Maximum transport inputs: Two were observed in the terminal `dc8210c` attempt; zero further inputs
+  until the authorized second attempt.
+- Navigation-only recovery: one known Nova→Home safe Back completed on attempt 1; bound radial start
+  now continues without Back/Home/Lab reopen; unbound/unknown blocks without generic Back.
 - Consequential action: None; `praise_taps` is zero and relevant transaction action IDs are empty.
 - Registration changes: None; `NOT_REGISTERED`.
 - Scheduler changes: None; disabled and unmutated.
 - Actions that must not be repeated: candidate `dc8210c` scenario, Nova→Home Back, Research Lab tap,
-  any radial/Nova tap, Praise, or any other runtime input without new authorization.
+  any radial/Nova tap, Praise, or any other runtime input without new parent-validated authorization.
 - Required source: two pnsctl results, terminal session
   `.local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z`,
   source/immediate/post frames, ledger/audit/journal, and offline radial diagnosis.
-- Exact target semantics: terminal blocker `research_lab_radial_not_bound`; settled radial retained
-  research/bioenhancer OCR, provenance, fresh successor, and Home context but only `research`
-  geometry anchor and no current-frame Nova target.
+- Exact target semantics: terminal blocker was `research_lab_radial_not_bound` under Hough-only
+  policy; corrected detector accepts template Nova + Research Hough composite while preserving
+  explicit Hough-only diagnostics on retained frame `48a116d3…`.
 - Required local association: candidate `dc8210c`, scenario ID, two navigation inputs, zero Praise,
   exact session, frame hashes, Research Lab binding, radial diagnostic, released ownership, and
   clear unresolved state.
-- Negative controls: treating pre-input block as execution, retrying the exhausted scenario,
-  OCR-only radial authorization, projected/stale Nova target, or interpreting transport as success.
+- Negative controls: treating pre-input block as execution, retrying `dc8210c`, OCR-only radial
+  authorization, projected/stale Nova target, permissive secondary Hough, or interpreting transport
+  as success.
 - Coordinate space: native 800×1280 only; exact retained Research Lab binding and frames are hashed.
 - Accepted signals: safe pre-input stop, changed correction candidate, one terminal attempt, two
-  navigation inputs, zero consequential inputs, retained hashes, explicit screen-recognition failure.
+  navigation inputs, zero consequential inputs, retained hashes, explicit screen-recognition failure,
+  offline template bind on retained terminal frame.
 - Rejected weak signals: Research OCR alone, Home beneath radial, action transport, or an unbound
-  radial topology.
-- Ambiguous-result behavior: terminal blocked; no automatic retry and no GF-MVP-010 conversion.
+  Hough-only radial topology.
+- Ambiguous-result behavior: terminal blocked for attempt 1; one authorized second attempt only after
+  parent validation/commit; GF-MVP-010 remains blocked.
 - Zero-cost requirement: no game resource/currency; zero Praise.
-- Quantity limits: one scenario execution attempt, consumed; zero remaining.
+- Quantity limits: named scenario maximum 2 / count 1 / ready; flow-level maximum_live_attempts 2 /
+  live_attempt_count 1 with immutable terminal dc8210c attempt retained; zero fabricated future
+  attempt.
 - Resource consumption policy: none.
 - Premium or strategic restrictions: all consequential and premium behavior remains prohibited.
 - Active evidence manifest: `docs/validation/gf-mvp-009-blocked-canary-manifest.json`.
@@ -5824,25 +5840,28 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Immediate-before/immediate-post/result/journal: all present and hash-bound in the active manifest;
   no consequential journal action exists.
 - Additional task-specific artifacts: first non-consuming pre-input session and terminal blocked
-  execution session; only the terminal session is canonical for this blocker.
-- Focused tests: 59 corrected-candidate tests plus the retained route/vision/scenario suites.
+  execution session; only the terminal session is canonical for the Hough-only blocker; committed
+  fixture copy `blocked-canary-radial-48a116d3.png` and template asset provenance are additive.
+- Focused tests: Nova navigation/vision/template bind, scenario accounting, no-Praise contract, and
+  retained 6→5 centralized boundary as relevant.
 - Integration tests: pnsctl production replay, live no-Praise command, offline post-session Home/Lab/
   radial classification, and scenario budget validation.
-- Transitive regression tests: last candidate full suite passed 1,105 tests with one expected skip.
-- Full-suite requirement: satisfied for candidate `dc8210c`; no post-block code change.
+- Transitive regression tests: last candidate full suite passed 1,105 tests with one expected skip;
+  parent owns full suite for this correction.
+- Full-suite requirement: parent-owned after offline focused validation.
 - Validators: pnsctl result, evidence hashes, structured manifest, queue validation, governance,
   and clean attributable Git status.
-- Known baseline failures: None; the live scenario itself is terminally blocked.
+- Known baseline failures: None; attempt 1 remains the retained valid Hough-only blocked outcome.
 - Evidence requirement: REQUIRED.
-- Valid blocked outcomes: the observed screen-recognition blocker is the terminal valid outcome.
-- Blocked-result commit policy: preserve and hash the session, mark task/scenario blocked/exhausted,
-  prohibit repeat, keep unresolved clear and registration disabled, and stop before GF-MVP-010.
-- Commit policy: preserve the committed correction candidate and one terminal blocked-result commit;
-  stage only authority/manifest/index changes; no push.
-- Expected focused commits: `fix(flow-factory): normalize known Nova canary start` and terminal
-  `docs(flow-factory): record blocked Nova canary`.
-- Completion criteria: Not met; canary did not reach Nova Lab or verified terminal Home after the
-  Research Lab tap. Task remains blocked and Milestone A cannot advance.
+- Valid blocked outcomes: the observed screen-recognition blocker remains the terminal valid outcome
+  for attempt 1; correction does not rewrite that evidence.
+- Blocked-result commit policy: preserve attempt 1 evidence; parent validates/commits correction;
+  prohibit `dc8210c` repeat; keep unresolved clear and registration disabled; stop before GF-MVP-010
+  until a completed canary exists.
+- Commit policy: parent-owned; stage only allowlisted correction/authority files; no push.
+- Expected focused commits: parent decides conventional commit for the template-radial correction.
+- Completion criteria: Not met; canary has not yet completed Nova Lab round-trip on a parent-validated
+  changed candidate. Milestone A cannot advance until that live attempt succeeds.
 
 ### GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY
 - Task ID: `GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY`.

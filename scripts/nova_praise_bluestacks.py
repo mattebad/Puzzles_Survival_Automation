@@ -232,6 +232,7 @@ class NovaNavigationCanaryRoute:
         settle_seconds: float = 1.0,
         maximum_steps: int = 12,
         maximum_return_inputs: int = 3,
+        initial_research_lab_tap_provenance: ResearchLabTapProvenance | None = None,
     ) -> None:
         self.runtime = runtime
         self.identity = identity
@@ -249,6 +250,7 @@ class NovaNavigationCanaryRoute:
         self.settle_seconds = settle_seconds
         self.maximum_steps = maximum_steps
         self.maximum_return_inputs = maximum_return_inputs
+        self.initial_research_lab_tap_provenance = initial_research_lab_tap_provenance
         self.records: list[dict[str, object]] = []
         self.input_count = 0
 
@@ -290,27 +292,104 @@ class NovaNavigationCanaryRoute:
             HomeContextLevel.HOME_CANONICAL,
         }
 
+    def _recognize_with_measured_home(self, captured, *, provenance=None):
+        home_visible = self._home_localized(captured)
+        recognition = self._recognize(
+            captured,
+            provenance=provenance,
+            home_visible=home_visible,
+        )
+        return recognition, home_visible
+
     @staticmethod
     def _navigation_surface(recognition: NovaFrameRecognition) -> str:
         if recognition.observation.recognized and recognition.observation.screen_state == NOVA_SCREEN:
             return NOVA_SCREEN
+        if (
+            recognition.observation.recognized
+            and recognition.observation.screen_state == "RESEARCH_LAB_MENU"
+        ):
+            return "RESEARCH_LAB_MENU"
         radial = recognition.diagnostics.get("research_lab_radial")
         if isinstance(radial, dict):
+            if radial.get("recognized"):
+                return "RESEARCH_LAB_MENU"
             anchors = set(radial.get("geometry_anchors") or ())
+            hough_only = set(radial.get("hough_only_anchors") or ())
             if {"research", "nova"}.issubset(anchors) and len(anchors) >= 4:
+                return "RESEARCH_LAB_MENU"
+            if {"research", "nova"}.issubset(hough_only) and len(hough_only) >= 4:
+                return "RESEARCH_LAB_MENU"
+            if (
+                radial.get("bind_method") == "template_nova_plus_research_hough"
+                and recognition.target(NOVA_INTERACTION_TARGET) is not None
+            ):
                 return "RESEARCH_LAB_MENU"
         return recognition.observation.screen_state
 
+    @staticmethod
+    def _research_radial_geometry_present(recognition: NovaFrameRecognition) -> bool:
+        if NovaNavigationCanaryRoute._navigation_surface(recognition) == "RESEARCH_LAB_MENU":
+            return True
+        hough = recognition.diagnostics.get("research_lab_radial_hough")
+        if isinstance(hough, dict) and "research" in set(hough.get("hough_anchors") or ()):
+            return True
+        radial = recognition.diagnostics.get("research_lab_radial")
+        if isinstance(radial, dict) and "research" in set(
+            radial.get("hough_only_anchors") or ()
+        ):
+            return True
+        return False
+
     def _normalize_known_start_to_home(self, source):
+        initial_provenance = self.initial_research_lab_tap_provenance
         current_capture = source
-        current_recognition = self._recognize(source)
+        current_recognition, measured_home = self._recognize_with_measured_home(
+            source,
+            provenance=initial_provenance,
+        )
         for ordinal in range(0, self.maximum_return_inputs + 1):
             surface = self._navigation_surface(current_recognition)
-            if surface not in {NOVA_SCREEN, "RESEARCH_LAB_MENU"} and self._home_localized(
-                current_capture
-            ):
-                return current_capture, None
-            if surface not in {NOVA_SCREEN, "RESEARCH_LAB_MENU"}:
+            bound_nova = current_recognition.target(NOVA_INTERACTION_TARGET)
+            if self._research_radial_geometry_present(current_recognition):
+                if initial_provenance is None:
+                    return None, NovaNavigationCanaryResult(
+                        "blocked",
+                        "initial_radial_missing_research_lab_provenance",
+                        self.input_count,
+                        0,
+                        False,
+                        tuple(self.records),
+                        str(self.runtime.session),
+                    ), None
+                if not measured_home:
+                    return None, NovaNavigationCanaryResult(
+                        "blocked",
+                        "initial_radial_home_context_not_established",
+                        self.input_count,
+                        0,
+                        False,
+                        tuple(self.records),
+                        str(self.runtime.session),
+                    ), None
+                if (
+                    current_recognition.observation.recognized
+                    and current_recognition.observation.screen_state == "RESEARCH_LAB_MENU"
+                    and bound_nova is not None
+                ):
+                    return current_capture, None, current_recognition
+                return None, NovaNavigationCanaryResult(
+                    "blocked",
+                    "initial_research_lab_radial_not_bound",
+                    self.input_count,
+                    0,
+                    False,
+                    tuple(self.records),
+                    str(self.runtime.session),
+                ), None
+            if surface != NOVA_SCREEN and self._home_localized(current_capture):
+                return current_capture, None, None
+            if surface != NOVA_SCREEN:
                 return None, NovaNavigationCanaryResult(
                     "blocked",
                     "initial_surface_not_home_or_known_nova_context",
@@ -319,7 +398,7 @@ class NovaNavigationCanaryRoute:
                     False,
                     tuple(self.records),
                     str(self.runtime.session),
-                )
+                ), None
             if ordinal >= self.maximum_return_inputs:
                 break
             immediate_before = self._capture(
@@ -335,7 +414,7 @@ class NovaNavigationCanaryRoute:
                     False,
                     tuple(self.records),
                     str(self.runtime.session),
-                )
+                ), None
             self.runtime.back(
                 immediate_before,
                 action_key=(
@@ -349,7 +428,10 @@ class NovaNavigationCanaryRoute:
             )
             self._record_input("known_start_safe_return", immediate_before, settled)
             current_capture = settled
-            current_recognition = self._recognize(settled)
+            current_recognition, measured_home = self._recognize_with_measured_home(
+                settled,
+                provenance=None,
+            )
         return None, NovaNavigationCanaryResult(
             "blocked",
             "maximum_initial_safe_return_inputs",
@@ -358,7 +440,80 @@ class NovaNavigationCanaryRoute:
             False,
             tuple(self.records),
             str(self.runtime.session),
+        ), None
+
+    def _tap_bound_nova(
+        self,
+        *,
+        provenance: ResearchLabTapProvenance | None,
+    ) -> NovaNavigationCanaryResult:
+        if provenance is None:
+            return NovaNavigationCanaryResult(
+                "blocked",
+                "fresh_nova_missing_research_lab_provenance",
+                self.input_count,
+                0,
+                False,
+                tuple(self.records),
+                str(self.runtime.session),
+            )
+        nova_before = self._capture("canary-open-nova-immediate-before")
+        radial_rebound, measured_home = self._recognize_with_measured_home(
+            nova_before,
+            provenance=provenance,
         )
+        if not measured_home:
+            return NovaNavigationCanaryResult(
+                "blocked",
+                "fresh_nova_home_context_not_established",
+                self.input_count,
+                0,
+                False,
+                tuple(self.records),
+                str(self.runtime.session),
+            )
+        target = radial_rebound.target(NOVA_INTERACTION_TARGET)
+        if (
+            not radial_rebound.observation.recognized
+            or radial_rebound.observation.screen_state != "RESEARCH_LAB_MENU"
+            or target is None
+        ):
+            return NovaNavigationCanaryResult(
+                "blocked",
+                "fresh_nova_target_not_bound",
+                self.input_count,
+                0,
+                False,
+                tuple(self.records),
+                str(self.runtime.session),
+            )
+        self.runtime.tap(
+            nova_before,
+            target_identity=NOVA_INTERACTION_TARGET,
+            target_roi=target,
+            action_key=f"nova-canary:open-nova:{nova_before.sha256}",
+            consequential=False,
+        )
+        _immediate_post, nova_capture = self._settle(
+            "canary-open-nova-immediate-post",
+            "canary-open-nova-settled",
+        )
+        self._record_input("tap_nova_navigation", nova_before, nova_capture)
+        nova = self._recognize(nova_capture)
+        if (
+            not nova.observation.recognized
+            or nova.observation.screen_state != NOVA_SCREEN
+        ):
+            return NovaNavigationCanaryResult(
+                "blocked",
+                "nova_lab_successor_not_recognized",
+                self.input_count,
+                0,
+                False,
+                tuple(self.records),
+                str(self.runtime.session),
+            )
+        return self._return_home(nova_capture, nova)
 
     def _return_home(self, captured, recognition) -> NovaNavigationCanaryResult:
         current_capture = captured
@@ -440,9 +595,13 @@ class NovaNavigationCanaryRoute:
 
     def run(self) -> NovaNavigationCanaryResult:
         source = self._capture("canary-source")
-        _normalized, blocked = self._normalize_known_start_to_home(source)
+        _normalized, blocked, bound_radial = self._normalize_known_start_to_home(source)
         if blocked is not None:
             return blocked
+        if bound_radial is not None:
+            return self._tap_bound_nova(
+                provenance=self.initial_research_lab_tap_provenance
+            )
         provenance: ResearchLabTapProvenance | None = None
         for ordinal in range(1, self.maximum_steps + 1):
             immediate_before = self._capture(
@@ -551,70 +710,31 @@ class NovaNavigationCanaryRoute:
                     immediate_before,
                     radial_capture,
                 )
-                radial = self._recognize(
+                radial, measured_home = self._recognize_with_measured_home(
                     radial_capture,
                     provenance=provenance,
-                    home_visible=True,
                 )
                 target = radial.target(NOVA_INTERACTION_TARGET)
                 if (
-                    not radial.observation.recognized
+                    not measured_home
+                    or not radial.observation.recognized
                     or radial.observation.screen_state != "RESEARCH_LAB_MENU"
                     or target is None
                 ):
                     return NovaNavigationCanaryResult(
                         "blocked",
-                        "research_lab_radial_not_bound",
+                        (
+                            "research_lab_radial_home_context_not_established"
+                            if not measured_home
+                            else "research_lab_radial_not_bound"
+                        ),
                         self.input_count,
                         0,
                         False,
                         tuple(self.records),
                         str(self.runtime.session),
                     )
-                nova_before = self._capture("canary-open-nova-immediate-before")
-                radial_rebound = self._recognize(
-                    nova_before,
-                    provenance=provenance,
-                    home_visible=True,
-                )
-                target = radial_rebound.target(NOVA_INTERACTION_TARGET)
-                if target is None:
-                    return NovaNavigationCanaryResult(
-                        "blocked",
-                        "fresh_nova_target_not_bound",
-                        self.input_count,
-                        0,
-                        False,
-                        tuple(self.records),
-                        str(self.runtime.session),
-                    )
-                self.runtime.tap(
-                    nova_before,
-                    target_identity=NOVA_INTERACTION_TARGET,
-                    target_roi=target,
-                    action_key=f"nova-canary:open-nova:{nova_before.sha256}",
-                    consequential=False,
-                )
-                _immediate_post, nova_capture = self._settle(
-                    "canary-open-nova-immediate-post",
-                    "canary-open-nova-settled",
-                )
-                self._record_input("tap_nova_navigation", nova_before, nova_capture)
-                nova = self._recognize(nova_capture)
-                if (
-                    not nova.observation.recognized
-                    or nova.observation.screen_state != NOVA_SCREEN
-                ):
-                    return NovaNavigationCanaryResult(
-                        "blocked",
-                        "nova_lab_successor_not_recognized",
-                        self.input_count,
-                        0,
-                        False,
-                        tuple(self.records),
-                        str(self.runtime.session),
-                    )
-                return self._return_home(nova_capture, nova)
+                return self._tap_bound_nova(provenance=provenance)
             return NovaNavigationCanaryResult(
                 "blocked",
                 step.reason,

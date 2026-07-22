@@ -9,6 +9,8 @@ from typing import Any, Mapping
 
 
 NOVA_CANARY_SCENARIO_ID = "nova_navigation_round_trip_no_praise"
+NOVA_CANARY_AUTHORIZED_MAXIMUM_ATTEMPTS = frozenset({1, 2})
+NOVA_CANARY_TEMPLATE_CORRECTION_REF = "GF-MVP-009-nova-radial-template-bind"
 
 
 class ScenarioPhase(str, Enum):
@@ -128,8 +130,8 @@ def validate_named_scenario_state(scenario: Mapping[str, Any]) -> None:
         raise ScenarioAttemptError("MVP canary must be navigation_only")
     maximum = scenario["maximum_execution_attempts"]
     count = scenario["execution_attempt_count"]
-    if type(maximum) is not int or maximum != 1:
-        raise ScenarioAttemptError("MVP canary requires one execution attempt")
+    if type(maximum) is not int or maximum not in NOVA_CANARY_AUTHORIZED_MAXIMUM_ATTEMPTS:
+        raise ScenarioAttemptError("MVP canary maximum attempts must be 1 or authorized 2")
     if type(count) is not int or count < 0 or count > maximum:
         raise ScenarioAttemptError("invalid execution attempt count")
     if not isinstance(scenario["attempts"], list) or count != len(scenario["attempts"]):
