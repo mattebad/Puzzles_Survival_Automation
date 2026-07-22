@@ -165,6 +165,7 @@
       "postconditions": [
         "attempts_remaining_decremented_by_one",
         "cooldown_visible",
+        "cooldown_consistent_with_fixed_300_second_policy_after_capture_delay",
         "no_paid_currency_consumed"
       ],
       "terminal_outcomes": [
@@ -246,6 +247,10 @@
   "product_policy_refs": [
     {
       "policy_id": "nova-navigation-only",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "nova-supervised-one-free-praise",
       "source": "tasks/flow_delivery_product_policy.json"
     },
     {
@@ -412,19 +417,29 @@
     {
       "scenario_id": "nova_praise_one_free_pulse",
       "mode": "consequential_supervised",
-      "start_state": "nova_lab",
-      "terminal_state": "praise_cooldown",
+      "start_state": "home_ready",
+      "terminal_state": "home_returned",
       "permitted_inputs": [
+        "bounded_zoom_out",
+        "navigation_only_home_pan",
+        "tap_research_lab",
+        "tap_nova_radial",
         "open_praise",
-        "exactly_one_free_praise_when_authorized"
+        "exactly_one_free_praise_when_authorized",
+        "safe_return_home"
       ],
       "forbidden_inputs": [],
       "required_transitions": [
+        "localize_home",
+        "bind_visible_research_lab",
+        "open_research_lab_radial",
+        "open_nova_lab",
         "open_praise_attempts",
-        "dispatch_one_free_praise"
+        "dispatch_one_free_praise",
+        "return_home_without_praise"
       ],
       "evidence_gate_ids": [],
-      "notes": "Acquired 2026-07-16: one Praise, attempts 6 to 5, visible CD: 00:04:38, terminally reconciled, returned Home."
+      "notes": "Acquired 2026-07-16: one Praise, attempts 6 to 5, visible CD: 00:04:38, terminally reconciled, returned Home. Revalidated only through one supervised full-route invocation per explicit authorization."
     },
     {
       "scenario_id": "nova_praise_production_pulse",

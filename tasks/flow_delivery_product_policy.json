@@ -217,6 +217,13 @@
       "source": "explicit_user_direction"
     },
     {
+      "policy_id": "nova-supervised-one-free-praise",
+      "scope": "nova.praise",
+      "status": "supervised_consequential_validation",
+      "decision": "One supervised zero-cost Praise may be dispatched after current-frame Nova recognition proves free attempts are available for the current reset. Record the exact attempts decrement and a cooldown consistent with the fixed 300-second policy; do not loop, spend currency, register production, or enable scheduling.",
+      "source": "explicit_user_direction_2026-07-22"
+    },
+    {
       "policy_id": "noahs-tavern-navigation-only",
       "scope": "noahs_tavern.navigation",
       "status": "navigation_only_validation",

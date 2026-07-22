@@ -5758,14 +5758,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY
 - Task ID: `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`.
 - Title: Run the supervised Nova navigation-only live canary.
-- Status: Blocked (2026-07-21; correction commit `e345db9` passed offline proof, but its one
-  user-authorized continuation stopped before input because the current Research Lab radial lacked
-  fresh current-session Research Lab tap provenance; no retry remains authorized).
+- Status: Completed (2026-07-22; candidate `c3a4b3a` completed canonical Home → Research Lab →
+  Nova → Home with four navigation inputs, verified terminal Home, and zero Praise).
 - Milestone: Gameplay Flow Factory Milestone A.
 - Dependencies: completed `GF-MVP-008-NOVA-NAVIGATION-ROUTE-MIGRATION` at `58f7343`; corrected
   known-Nova start candidate `dc8210c`; clean runtime singleton; current production replay.
-- Blocked by: terminal `initial_radial_missing_research_lab_provenance` on changed candidate
-  `e345db9`; zero inputs and no further attempt authorized.
+- Blocked by: None. Earlier `initial_radial_missing_research_lab_provenance` and wrong-template
+  sessions remain historical evidence and do not describe the accepted terminal run.
 - Objective: run exactly one supervised `nova_navigation_round_trip_no_praise` scenario through
   pnsctl without Praise or any consequential action.
 - Established facts: pre-input candidate `58f7343` recognized the current screen as Nova and sent
@@ -5774,6 +5773,10 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   Hough-bound Nova target; `e345db9` binds the retained frame via bounded multi-scale template match
   plus independent Research Hough + OCR/provenance/freshness composite. The actual continuation
   began on that radial after its prior provenance had expired, so it correctly blocked before input.
+  Follow-up corrections `510e73a` and `c3a4b3a` bound the actual Nova portrait and accepted measured
+  Home zoom context. Session `nova-navigation-canary-20260722T020656687010Z` then completed the
+  canonical route with `navigation_input_count=4`, `praise_taps=0`, and
+  `terminal_home_verified=true`.
 - Direct implementation files: `scripts/nova_praise_bluestacks.py`, `tasks/nova_praise_vision.py`,
   `tasks/assets/nova_praise/800x1280/**`, `tasks/flow_delivery_queue.json`,
   `tasks/flow_scenario_attempts.py`, `tasks/backlog_task_index.json`,
@@ -5796,23 +5799,25 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   `docs/validation/gf-mvp-009-template-canary-pre-input-manifest.json`, `BACKLOG.md`, and
   `CURRENT_HANDOFF.md`;
   prior attempt evidence remains immutable.
-- Prohibited changes: any further attempt or Back/tap/zoom/pan, Praise, Claim, any consequential
-  action, queue activation, evidence
-  deletion, production registration/scheduling, GF-MVP-010 implementation, plan edits, or push.
-- Authorized runtime action: exhausted; the changed-candidate authorization terminated at the
-  pre-input provenance blocker.
-- Maximum transport inputs: Zero further inputs. The new invocation dispatched none.
+- Prohibited changes: no further no-Praise canary retry, evidence deletion, production registration
+  or scheduling, plan edits, or push. Any consequential validation requires a separate promoted
+  task and explicit product policy.
+- Authorized runtime action: completed; no further GF-MVP-009 runtime input is authorized.
+- Maximum transport inputs: Terminal accepted execution used four navigation inputs and zero
+  consequential inputs.
 - Navigation-only recovery: one known Nova→Home safe Back completed on attempt 1; bound radial start
   now continues without Back/Home/Lab reopen; unbound/unknown blocks without generic Back.
 - Consequential action: None; `praise_taps` is zero and relevant transaction action IDs are empty.
 - Registration changes: None; `NOT_REGISTERED`.
 - Scheduler changes: None; disabled and unmutated.
-- Actions that must not be repeated: candidates `dc8210c` and `e345db9`, Nova→Home Back, Research
-  Lab tap, any radial/Nova tap, Praise, or any other runtime input.
+- Actions that must not be repeated: any GF-MVP-009 canary execution; the accepted terminal route is
+  not retry authority for Praise or another navigation run.
 - Required source: prior terminal session
   `.local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z`,
   new pre-input session
   `.local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T010018285176Z`,
+  accepted terminal session
+  `.local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T020656687010Z`,
   their manifests, frames, ledger/audit/journal, and offline radial diagnosis.
 - Exact target semantics: corrected detector accepts template Nova + Research Hough only with fresh
   verified tap provenance; the live source retained radial geometry but lacked that authority.
@@ -5826,11 +5831,12 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   explicit stale-provenance rejection, and offline template bind on the prior retained frame.
 - Rejected weak signals: Research OCR alone, Home beneath radial, action transport, or an unbound
   Hough-only radial topology.
-- Ambiguous-result behavior: terminal blocked with no retry; GF-MVP-010 remains blocked.
+- Ambiguous-result behavior: historical blocks remain retained; the accepted terminal result closes
+  this task without authorizing a retry.
 - Zero-cost requirement: no game resource/currency; zero Praise.
-- Quantity limits: named scenario maximum 1 / count 1 / exhausted; flow-level maximum_live_attempts
-  1 / live_attempt_count 1. The changed-candidate pre-input result is retained separately and does
-  not consume or reopen execution budget.
+- Quantity limits: named scenario maximum 2 / count 2 / exhausted; flow-level
+  maximum_live_attempts 2 / live_attempt_count 2. Pre-input results remain separate and do not
+  consume or reopen execution budget.
 - Resource consumption policy: none.
 - Premium or strategic restrictions: all consequential and premium behavior remains prohibited.
 - Active evidence manifest:
@@ -5852,22 +5858,59 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   and clean attributable Git status.
 - Known baseline failures: None.
 - Evidence requirement: REQUIRED.
-- Valid blocked outcomes: `initial_radial_missing_research_lab_provenance` is the accepted terminal
-  pre-input blocker for `e345db9`; prior evidence remains unchanged.
-- Blocked-result commit policy: preserve both sessions, prohibit all retries, keep unresolved clear
-  and registration disabled, and stop before GF-MVP-010.
+- Valid blocked outcomes: historical blocks remain valid evidence but are superseded as task state
+  by the accepted completed route.
+- Terminal-result commit policy: preserve all sessions, prohibit canary retries, keep unresolved
+  clear and registration disabled.
 - Commit policy: parent-owned; stage only allowlisted correction/authority files; no push.
 - Expected focused commits: `e345db9` correction plus one terminal authority/evidence record.
-- Completion criteria: Not met; canary did not complete the Nova Lab round trip. Milestone A remains
-  blocked and Milestone B must not start.
+- Completion criteria: Met; canonical Home → Research Lab → Nova → Home completed with four
+  navigation inputs, zero Praise, verified terminal Home, retained evidence, and disabled
+  registration/scheduler.
+
+### GF-NOVA-PRAISE-SUPERVISED-20260722
+- Task ID: `GF-NOVA-PRAISE-SUPERVISED-20260722`.
+- Title: Validate one supervised free Nova Praise after the 2026-07-22 reset.
+- Status: In progress.
+- Dependencies: completed `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`; existing centralized
+  `NovaPraiseActionBoundary`; retained 2026-07-16 proof of attempts 6→5 and `CD: 00:04:38`.
+- Objective: expose `nova_praise_one_free_pulse` through pnsctl and run exactly one supervised
+  BlueStacks Home → Research Lab → Nova → Praise → Home invocation.
+- Runtime identity: bind account/server aliases and `reset_id=game-day-2026-07-22` to the user's
+  positive statement that the 00:00 UTC reset occurred plus the post-reset Nova frame showing
+  restored attempts.
+- Allowed implementation paths: `scripts/pnsctl.py`, `scripts/nova_praise_bluestacks.py`,
+  `scripts/nova_praise_centralized.py`, `tasks/nova_praise.py`, `tasks/nova_praise_pulse.py`,
+  `tasks/flow_scenario_attempts.py`, task-local tests, `tasks/flow_delivery_product_policy.json`,
+  `tasks/gameplay_flow_contracts/NOVA-PRAISE-HOME-ATLAS-MIGRATION.json`,
+  `tasks/flow_delivery_queue.json`, `tasks/backlog_task_index.json`, `BACKLOG.md`, and
+  `CURRENT_HANDOFF.md`.
+- Authorized live action: exactly one supervised zero-cost Praise only after current-frame OCR
+  proves `Interaction attempts left: X` with X>0, no active cooldown, Praise enabled, paid markers
+  absent, current reset identity verified, global unresolved gate clear, and immediate-before
+  target revalidation.
+- Postcondition: exact X→X-1, visible cooldown consistent with the fixed 300-second policy after
+  capture delay, terminal journal confirmation, then recognized safe return Home.
+- Maximum live attempts: one invocation; maximum consequential inputs: one Praise. Navigation is
+  bounded by the existing atlas route. An unresolved result prohibits retry and requires
+  reconciliation only.
+- Prohibited: loop through remaining attempts, second/identical Praise retry, paid or premium
+  actions, unknown popups, production registration, scheduler enablement, Bliss input, evidence
+  deletion, or push.
+- Required verification: focused Nova recognition/pulse/boundary/navigation/pnsctl/scenario tests,
+  product-policy and queue validation, committed candidate, fresh BlueStacks preflight, retained
+  source/immediate-before/transport/postcondition/Home evidence, and independent evidence review.
+- Registration/scheduler: `NOT_REGISTERED`; disabled and ineligible.
+- Completion criteria: one confirmed journaled Praise with attempts/cooldown proof and terminal
+  Home, or one terminal fail-closed/unresolved result with no unauthorized retry.
 
 ### GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY
 - Task ID: `GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY`.
 - Title: Convert accepted live evidence to replay and enforce the MVP review hard stop.
-- Status: Blocked by `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`.
-- Scope: no implementation until GF-MVP-009 has an accepted completed canary.
-- Authority: accepted plan; blocked evidence must not be converted into successful proof and the MVP
-  review hard stop is not yet eligible to be set.
+- Status: Ready but not active; the explicitly authorized supervised Praise validation is the
+  current atomic task.
+- Scope: convert only the accepted completed GF-MVP-009 live evidence in a later atomic task.
+- Authority: accepted plan; historical blocked evidence must not be converted into successful proof.
 
 
 

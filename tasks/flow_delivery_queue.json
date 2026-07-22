@@ -304,7 +304,7 @@
       "title": "Migrate Nova Praise entry and return to the canonical Home Atlas",
       "kind": "navigation_migration",
       "priority": 20,
-      "status": "blocked",
+      "status": "completed",
       "backlog_task_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -318,8 +318,8 @@
       "live_validation_scope": "One bounded navigation-only Home-to-Nova-to-Home route; Praise dispatch is outside migration validation.",
       "consequence_policy": "Existing zero-cost cooldown-bound Praise behavior is preserved; migration validation performs navigation only.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 1,
-      "live_attempt_count": 1,
+      "maximum_live_attempts": 2,
+      "live_attempt_count": 2,
       "live_attempts": [
         {
           "ordinal": 1,
@@ -332,6 +332,18 @@
           "session_directory": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z",
           "terminal_outcome": "blocked",
           "diagnosis": "research_lab_radial_not_bound after two navigation inputs; zero Praise"
+        },
+        {
+          "ordinal": 2,
+          "active_flow": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+          "lease_owner": "nova-navigation-canary-parent",
+          "lease_session": "nova-navigation-canary-20260722T020656687010Z",
+          "repository_head": "c3a4b3affeb97fa88420602bdd6b24f335e9612d",
+          "started_at": "2026-07-22T02:06:58.058802+00:00",
+          "finished_at": "2026-07-22T02:08:27+00:00",
+          "session_directory": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T020656687010Z",
+          "terminal_outcome": "completed",
+          "diagnosis": "Canonical Home to Research Lab to Nova to Home completed with four navigation inputs, verified terminal Home, and zero Praise."
         }
       ],
       "named_scenarios": [
@@ -339,7 +351,7 @@
           "scenario_id": "nova_navigation_round_trip_no_praise",
           "mode": "navigation_only",
           "maximum_execution_attempts": 2,
-          "execution_attempt_count": 1,
+          "execution_attempt_count": 2,
           "attempts": [
             {
               "scenario_id": "nova_navigation_round_trip_no_praise",
@@ -356,6 +368,24 @@
                 ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260721T230841195923Z"
               ],
               "correction_ref": null,
+              "terminal_ownership_state": "released",
+              "unresolved_action": false
+            },
+            {
+              "scenario_id": "nova_navigation_round_trip_no_praise",
+              "phase": "execution",
+              "outcome": "completed",
+              "candidate_commit": "c3a4b3affeb97fa88420602bdd6b24f335e9612d",
+              "input_count": 4,
+              "input_class": "navigation_only",
+              "consumes_execution_budget": true,
+              "reason": "verified_safe_return_home",
+              "failure_class": null,
+              "material_condition_digest": "canonical-home-full-route-20260722",
+              "evidence_refs": [
+                ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION/nova-navigation-canary-20260722T020656687010Z"
+              ],
+              "correction_ref": "GF-MVP-009-measured-home-context",
               "terminal_ownership_state": "released",
               "unresolved_action": false
             }
@@ -401,7 +431,7 @@
           "forbidden_input_classes": [
             "consequential"
           ],
-          "status": "ready"
+          "status": "exhausted"
         }
       ],
       "focused_tests": [
@@ -413,10 +443,10 @@
         "navigation_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "GF-MVP-009 authorizes one remaining named-scenario execution attempt after the e345db9 pre_input block. Strong initial Research Lab radial may continue without current-session Research Lab tap provenance when the composite (bounded Nova template + independent Research evidence + measured Home context + fresh native frame) is unambiguous; prior dc8210c execution and both pre_input records remain unchanged.",
-      "next_concrete_action": "Commit the focused strong-initial-radial correction, then run exactly one authorized live canary attempt. Do not synthesize tap provenance, start GF-MVP-010, or begin Milestone B.",
-      "last_completed_stage": "blocked",
-      "last_commit": null,
+      "blocked_reason": "",
+      "next_concrete_action": "Navigation migration is complete; preserve its no-Praise scenario and evidence while supervised Praise validation proceeds as a separate flow.",
+      "last_completed_stage": "completed",
+      "last_commit": "c3a4b3affeb97fa88420602bdd6b24f335e9612d",
       "artifact_root": ".local-captures/flow-delivery/NOVA-PRAISE-HOME-ATLAS-MIGRATION",
       "acceptance_criteria": [
         "replace dedicated Home entry and generic Back recovery with verified Home Atlas bindings",
@@ -462,6 +492,126 @@
       "consequential_stage_policy": {
         "initial_live_validation": "navigation_only",
         "praise_dispatch": "outside_migration_validation"
+      }
+    },
+    {
+      "flow_id": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+      "title": "Validate one supervised zero-cost Nova Praise pulse",
+      "kind": "supervised_consequential_validation",
+      "priority": 21,
+      "status": "ready",
+      "backlog_task_id": "GF-NOVA-PRAISE-SUPERVISED-20260722",
+      "dependencies": [
+        "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
+      ],
+      "implementation_entrypoints": [
+        "scripts/pnsctl.py",
+        "scripts/nova_praise_bluestacks.py",
+        "scripts/nova_praise_centralized.py",
+        "tasks/nova_praise.py",
+        "tasks/nova_praise_pulse.py",
+        "tasks/flow_scenario_attempts.py"
+      ],
+      "navigation_model": "canonical_home_atlas_to_nova_then_centralized_praise_boundary_and_safe_home_return",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "Exactly one supervised BlueStacks Home-to-Nova-to-Home invocation with at most one zero-cost Praise after current-reset attempt OCR and fixed-cooldown validation.",
+      "consequence_policy": "One free Praise only when the current native frame proves attempts X greater than zero, Praise enabled, no active cooldown, and no paid surface; require exact X to X-1 and cooldown consistent with 300 seconds after capture delay.",
+      "product_policy_status": "supervised_consequential_validation",
+      "maximum_live_attempts": 1,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_nova_praise.py",
+        "tests/test_nova_praise_pulse.py",
+        "tests/test_nova_praise_centralized_boundary.py",
+        "tests/test_nova_navigation_canary.py",
+        "tests/test_flow_scenario_attempts.py",
+        "tests/test_pnsctl_nova_praise.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "navigation_input_count",
+        "praise_transport_calls",
+        "attempts_before",
+        "attempts_after",
+        "cooldown_seconds",
+        "terminal_home_verified"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "Implement and commit the pnsctl full-route composition, validate offline, then run exactly one supervised BlueStacks invocation bound to game-day-2026-07-22.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+      "acceptance_criteria": [
+        "supported pnsctl scenario composes canonical Home navigation with NovaPraiseActionBoundary",
+        "exactly one zero-cost Praise may dispatch",
+        "current-reset attempts are recorded as X then X-1",
+        "visible cooldown is consistent with the fixed 300-second policy after capture delay",
+        "terminal Home is recognized after Praise",
+        "production registration and scheduler remain disabled"
+      ],
+      "scope_prohibitions": [
+        "no loop through remaining attempts",
+        "no second Praise or identical retry",
+        "no paid currency or premium action",
+        "no production registration change",
+        "no gameplay scheduler mutation",
+        "no composition activation",
+        "no M6 activation",
+        "Bliss remains unchanged",
+        "no arbitrary BlueStacks input outside the one authorized invocation"
+      ],
+      "reference_docs": [
+        "docs/nova-praise-bluestacks.md",
+        "tasks/gameplay_flow_contracts/NOVA-PRAISE-HOME-ATLAS-MIGRATION.json"
+      ],
+      "direct_dependencies": [
+        "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
+      ],
+      "implementation_allowlist_seed": [
+        "scripts/pnsctl.py",
+        "scripts/nova_praise_bluestacks.py",
+        "scripts/nova_praise_centralized.py",
+        "tasks/nova_praise.py",
+        "tasks/nova_praise_pulse.py",
+        "tasks/flow_scenario_attempts.py",
+        "tests/test_nova_praise.py",
+        "tests/test_nova_praise_pulse.py",
+        "tests/test_nova_praise_centralized_boundary.py",
+        "tests/test_nova_navigation_canary.py",
+        "tests/test_flow_scenario_attempts.py",
+        "tests/test_pnsctl_nova_praise.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/NOVA-PRAISE-HOME-ATLAS-MIGRATION.json",
+        "tasks/backlog_task_index.json",
+        "BACKLOG.md",
+        "CURRENT_HANDOFF.md"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "nova_praise_one_free_pulse",
+          "mode": "consequential_supervised"
+        }
+      ],
+      "required_terminal_states": [
+        "confirmed_and_home_returned",
+        "deferred_without_input",
+        "complete_for_reset_without_input",
+        "blocked_fail_closed",
+        "unresolved_no_retry"
+      ],
+      "completion_tests": [
+        "tests/test_nova_praise.py",
+        "tests/test_nova_praise_pulse.py",
+        "tests/test_nova_praise_centralized_boundary.py",
+        "tests/test_nova_navigation_canary.py",
+        "tests/test_flow_scenario_attempts.py",
+        "tests/test_pnsctl_nova_praise.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "one_supervised_free_praise",
+        "repeat_praise": "prohibited_without_new_authorization_and_cooldown_eligibility",
+        "production": "not_registered_scheduler_disabled"
       }
     },
     {
