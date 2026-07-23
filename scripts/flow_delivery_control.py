@@ -39,6 +39,7 @@ DEFAULT_QUEUE_PATH = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 DEFAULT_POLICY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.json"
 DEFAULT_COVERAGE_PATH = REPO_ROOT / "tasks" / "flow_delivery_coverage.json"
 DEFAULT_REGISTRY_PATH = REPO_ROOT / "tasks" / "flow_delivery_bluestacks_registry.json"
+DEFAULT_CONTRACTS_DIR = REPO_ROOT / "tasks" / "gameplay_flow_contracts"
 DEFAULT_ROUTING_POLICY_PATH = routing_policy.DEFAULT_ROUTING_POLICY_PATH
 DEFAULT_LOOP_POLICY_PATH = parent_progress.DEFAULT_LOOP_POLICY_PATH
 DEFAULT_PROGRESS_PATH = parent_progress.DEFAULT_PROGRESS_PATH
@@ -806,6 +807,67 @@ def load_and_validate_authority_consistency(
         _read_json(coverage_path),
         _read_json(registry_path),
     )
+
+
+def _policy_ids(policy: Mapping[str, Any]) -> set[str]:
+    return {
+        policy_id
+        for p in policy.get("policies", [])
+        if (policy_id := p.get("policy_id"))
+    }
+
+
+POLICY_REGISTRY_SOURCE_NAME = "flow_delivery_product_policy.json"
+
+
+def validate_contract_policy_refs(
+    policy_ids: set[str],
+    contracts: Mapping[str, Mapping[str, Any]],
+) -> None:
+    """O4: every contract product_policy_ref whose source is the product-policy
+    registry must resolve to an existing policy_id. Refs sourced from code modules
+    are out of scope and skipped."""
+
+    for identity, contract in sorted(contracts.items()):
+        for ref in contract.get("product_policy_refs", []):
+            policy_id = ref.get("policy_id")
+            source = ref.get("source")
+            if not policy_id or not source:
+                raise FlowDeliveryError(
+                    f"contract policy refs (O4): contract {identity!r} has a "
+                    f"product_policy_ref missing non-empty policy_id and/or source "
+                    f"(policy_id={policy_id!r}, source={source!r})"
+                )
+            source_str = str(source)
+            if Path(source_str).name != POLICY_REGISTRY_SOURCE_NAME:
+                continue
+            if policy_id not in policy_ids:
+                raise FlowDeliveryError(
+                    f"contract policy refs (O4): contract {identity!r} references "
+                    f"unknown policy_id={policy_id!r} from source={source_str!r}"
+                )
+
+
+def load_and_validate_contract_policy_refs(
+    policy_path: Path = DEFAULT_POLICY_PATH,
+    contracts_dir: Path = DEFAULT_CONTRACTS_DIR,
+) -> None:
+    policy = _read_json(policy_path)
+    contracts: dict[str, Mapping[str, Any]] = {}
+    contract_paths: dict[str, Path] = {}
+    for path in sorted(contracts_dir.glob("*.json")):
+        if path.name == "schema.json":
+            continue
+        contract = _read_json(path)
+        flow_id = contract.get("flow_id", path.stem)
+        if flow_id in contracts:
+            raise FlowDeliveryError(
+                f"contract policy refs (O4): duplicate flow_id={flow_id!r} in "
+                f"{contract_paths[flow_id]} and {path}"
+            )
+        contracts[flow_id] = contract
+        contract_paths[flow_id] = path
+    validate_contract_policy_refs(_policy_ids(policy), contracts)
 
 
 def apply_named_scenario_result(
@@ -2441,6 +2503,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--policy", type=Path, default=DEFAULT_POLICY_PATH)
     root.add_argument("--coverage", type=Path, default=DEFAULT_COVERAGE_PATH)
     root.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY_PATH)
+    root.add_argument("--contracts-dir", type=Path, default=DEFAULT_CONTRACTS_DIR)
     root.add_argument("--loop-policy", type=Path, default=DEFAULT_LOOP_POLICY_PATH)
     root.add_argument("--progress", type=Path, default=DEFAULT_PROGRESS_PATH)
     root.add_argument("--lease", type=Path, default=DEFAULT_LEASE_PATH)
@@ -2581,6 +2644,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 policy_path=args.policy,
                 coverage_path=args.coverage,
                 registry_path=args.registry,
+            )
+            load_and_validate_contract_policy_refs(
+                policy_path=args.policy,
+                contracts_dir=args.contracts_dir,
             )
             result = {"valid": True}
         elif args.command == "select-next":

@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -195,16 +196,20 @@ class AuthorityConsistencyTests(unittest.TestCase):
         ):
             # Other validate gates may fail before/after; authority call must still occur
             # once when reached. Patch controller gates so we prove the wiring itself.
-            with patch.object(control.FlowDeliveryController, "load", return_value=None):
-                with patch.object(
-                    control.FlowDeliveryController, "lease", return_value=None
-                ):
+            # Also stub O4 contract-ref loader so this slice-1 test stays isolated.
+            with patch.object(
+                control, "load_and_validate_contract_policy_refs", Mock()
+            ):
+                with patch.object(control.FlowDeliveryController, "load", return_value=None):
                     with patch.object(
-                        control.FlowDeliveryController,
-                        "load_parent_progress",
-                        return_value=None,
+                        control.FlowDeliveryController, "lease", return_value=None
                     ):
-                        code = control.main(["validate"])
+                        with patch.object(
+                            control.FlowDeliveryController,
+                            "load_parent_progress",
+                            return_value=None,
+                        ):
+                            code = control.main(["validate"])
         self.assertEqual(code, 0)
         mock_check.assert_called_once_with(
             queue_path=control.DEFAULT_QUEUE_PATH,
@@ -232,6 +237,160 @@ class AuthorityConsistencyTests(unittest.TestCase):
         # Existing main() handler maps FlowDeliveryError -> exit 2 (nonzero).
         self.assertNotEqual(code, 0)
         self.assertEqual(code, 2)
+
+    def test_real_repo_contract_policy_refs_resolve(self) -> None:
+        control.load_and_validate_contract_policy_refs()
+
+    def test_contract_policy_ref_unknown_policy_id_raises(self) -> None:
+        policy = _read(POLICY)
+        real_policy_ids = {
+            entry["policy_id"] for entry in policy["policies"] if "policy_id" in entry
+        }
+        contracts = {
+            "BOGUS-CONTRACT": {
+                "flow_id": "BOGUS-CONTRACT",
+                "product_policy_refs": [
+                    {
+                        "policy_id": "does-not-exist",
+                        "source": "tasks/flow_delivery_product_policy.json",
+                    }
+                ],
+            }
+        }
+        with self.assertRaises(control.FlowDeliveryError):
+            control.validate_contract_policy_refs(real_policy_ids, contracts)
+
+    def test_contract_policy_ref_nonpolicy_source_ignored(self) -> None:
+        policy = _read(POLICY)
+        real_policy_ids = {
+            entry["policy_id"] for entry in policy["policies"] if "policy_id" in entry
+        }
+        contracts = {
+            "CODE-POLICY-REF": {
+                "flow_id": "CODE-POLICY-REF",
+                "product_policy_refs": [
+                    {
+                        "policy_id": "does-not-exist",
+                        "source": "safe_action_core.CentralPolicy",
+                    }
+                ],
+            }
+        }
+        control.validate_contract_policy_refs(real_policy_ids, contracts)
+
+    def test_contract_without_policy_refs_is_skipped(self) -> None:
+        policy = _read(POLICY)
+        real_policy_ids = {
+            entry["policy_id"] for entry in policy["policies"] if "policy_id" in entry
+        }
+        contracts = {
+            "V1-NO-REFS": {
+                "flow_id": "V1-NO-REFS",
+            }
+        }
+        control.validate_contract_policy_refs(real_policy_ids, contracts)
+
+    def test_contract_ref_missing_source_raises(self) -> None:
+        policy = _read(POLICY)
+        real_policy_ids = {
+            entry["policy_id"] for entry in policy["policies"] if "policy_id" in entry
+        }
+        contracts = {
+            "MISSING-SOURCE": {
+                "flow_id": "MISSING-SOURCE",
+                "product_policy_refs": [
+                    {"policy_id": "nova-navigation-only"},
+                ],
+            }
+        }
+        with self.assertRaises(control.FlowDeliveryError):
+            control.validate_contract_policy_refs(real_policy_ids, contracts)
+
+    def test_contract_ref_missing_policy_id_raises(self) -> None:
+        policy = _read(POLICY)
+        real_policy_ids = {
+            entry["policy_id"] for entry in policy["policies"] if "policy_id" in entry
+        }
+        contracts = {
+            "MISSING-POLICY-ID": {
+                "flow_id": "MISSING-POLICY-ID",
+                "product_policy_refs": [
+                    {"source": "tasks/flow_delivery_product_policy.json"},
+                ],
+            }
+        }
+        with self.assertRaises(control.FlowDeliveryError):
+            control.validate_contract_policy_refs(real_policy_ids, contracts)
+
+    def test_contract_empty_policy_refs_list_ok(self) -> None:
+        policy = _read(POLICY)
+        real_policy_ids = {
+            entry["policy_id"] for entry in policy["policies"] if "policy_id" in entry
+        }
+        contracts = {
+            "EMPTY-REFS": {
+                "flow_id": "EMPTY-REFS",
+                "product_policy_refs": [],
+            }
+        }
+        control.validate_contract_policy_refs(real_policy_ids, contracts)
+
+    def test_duplicate_contract_flow_id_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            contracts_dir = Path(tmp)
+            shared_flow_id = "DUP-FLOW-ID"
+            for name in ("a.json", "b.json"):
+                (contracts_dir / name).write_text(
+                    json.dumps({"flow_id": shared_flow_id}),
+                    encoding="utf-8",
+                )
+            with self.assertRaises(control.FlowDeliveryError):
+                control.load_and_validate_contract_policy_refs(
+                    policy_path=POLICY,
+                    contracts_dir=contracts_dir,
+                )
+
+    def test_spoof_policy_source_name_not_treated_as_registry(self) -> None:
+        policy = _read(POLICY)
+        real_policy_ids = {
+            entry["policy_id"] for entry in policy["policies"] if "policy_id" in entry
+        }
+        contracts = {
+            "SPOOF-SOURCE": {
+                "flow_id": "SPOOF-SOURCE",
+                "product_policy_refs": [
+                    {
+                        "policy_id": "does-not-exist",
+                        "source": "evil_flow_delivery_product_policy.json",
+                    }
+                ],
+            }
+        }
+        control.validate_contract_policy_refs(real_policy_ids, contracts)
+
+    def test_validate_cli_invokes_contract_ref_check(self) -> None:
+        mock_check = Mock()
+        with patch.object(
+            control, "load_and_validate_contract_policy_refs", mock_check
+        ):
+            with patch.object(
+                control, "load_and_validate_authority_consistency", return_value=None
+            ):
+                with patch.object(control.FlowDeliveryController, "load", return_value=None):
+                    with patch.object(
+                        control.FlowDeliveryController, "lease", return_value=None
+                    ):
+                        with patch.object(
+                            control.FlowDeliveryController,
+                            "load_parent_progress",
+                            return_value=None,
+                        ):
+                            code = control.main(["validate"])
+        self.assertEqual(code, 0)
+        mock_check.assert_called_once_with(
+            policy_path=control.DEFAULT_POLICY_PATH,
+            contracts_dir=control.DEFAULT_CONTRACTS_DIR,
+        )
 
 
 if __name__ == "__main__":
