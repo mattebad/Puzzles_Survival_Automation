@@ -86,7 +86,16 @@ It only disables the additional resolved-identity cross-check.
 
 ## Context packets before delegation
 
-Before every native subagent invocation:
+Use `required_overhead_for(consequence_class, stage)` from
+`scripts/flow_delivery_control.py` to decide whether a stage context packet is
+required. Navigation-only discovery stages defer context packets, dependency
+section digests, strict evidence manifests, and replay-capsule promotion to
+stabilization or consequential promotion. Automatic runner evidence
+(source/immediate-post frames, intended target/input, events, terminal result,
+unresolved proof) remains mandatory on the navigation-development boundary and
+is never deferred by this rule.
+
+When overhead includes `context_packet`, before every native subagent invocation:
 
 1. Build or reuse the active stage packet:
    `python scripts/flow_delivery_context.py build --flow-id <flow> --stage <stage> --reuse-if-current`
@@ -94,6 +103,9 @@ Before every native subagent invocation:
    `python scripts/flow_delivery_context.py validate --packet <packet-path>`
 3. Pass only packet path, active flow ID, active stage, and exact requested deliverable.
    Do not paste the entire packet into the Task prompt when the subagent can read the packet path.
+
+When overhead omits `context_packet`, pass only active flow ID, active stage, and
+exact requested deliverable. Do not invent a substitute packet.
 
 ## Bounded validation
 
@@ -103,7 +115,8 @@ Use checked-in profiles only via `scripts/run_flow_delivery_validation.py`
 
 ## Start or resume
 
-1. Read `AGENTS.md`, compact `CURRENT_HANDOFF.md`, and the active stage context packet.
+1. Read `AGENTS.md`, compact `CURRENT_HANDOFF.md`, and the active stage context packet when
+   `required_overhead_for` includes `context_packet` for that stage.
 2. Verify branch/HEAD/divergence, attributable tree ownership, current full-suite baseline,
    registration/scheduler posture, no runtime owner, no nonterminal consequential action, and
    `CONFIRMED_NOT_DISPATCHED`.
@@ -115,35 +128,44 @@ Use checked-in profiles only via `scripts/run_flow_delivery_validation.py`
 
 ## Deliver one flow
 
-Advance the closed stages with `record-stage`:
+Advance the closed stages with `record-stage`. Build/validate a stage context packet only when
+`required_overhead_for` includes `context_packet` for the active consequence class and stage
+(navigation-only discovery defers packets; consequential subagent stages still require them):
 
-1. Enter `reconnaissance`, build/validate the stage packet, use the native `Subagent`/`Task` tool
-   with custom subagent type exactly `pns-flow-recon`, wait for its terminal result, and record its
-   native invocation receipt before advancing. Do not perform reconnaissance in the parent.
-   Parent-review the returned implementation packet; do not create a separate readiness-review task.
-2. In `implementation`, build/validate the stage packet, then use the same native tool with custom
+1. Enter `reconnaissance`, apply the context-packet rule above, use the native `Subagent`/`Task`
+   tool with custom subagent type exactly `pns-flow-recon`, wait for its terminal result, and
+   record its native invocation receipt before advancing. Do not perform reconnaissance in the
+   parent. Parent-review the returned implementation packet; do not create a separate
+   readiness-review task.
+2. In `implementation`, apply the context-packet rule, then use the same native tool with custom
    subagent type exactly `pns-flow-implementer`. Invoke exactly one foreground writer and wait for
    its terminal result. Record its receipt before advancing. It may touch only the parent-approved
    allowlist. No worktree, live input, queue edit, or commit.
-3. In `implementation_review`, parent-review first, build/validate the stage packet, then use the
+3. In `implementation_review`, parent-review first, apply the context-packet rule, then use the
    native tool with custom subagent type exactly `pns-flow-reviewer`; record its receipt before
    advancing. Pass `--parent-reviewed` only after parent acceptance.
 4. In `correction`, give reproduced defects only to the same single-writer lane, record the
    implementer receipt, then repeat review. Do not perform speculative cleanup.
 5. `focused_validation`: the parent runs
-   `python scripts/run_flow_delivery_validation.py focused --flow-id <flow>` and
-   `architecture --flow-id <flow>`.
-6. `full_validation`: the parent runs
-   `python scripts/run_flow_delivery_validation.py full --flow-id <flow>` plus repository validators.
+   `python scripts/run_flow_delivery_validation.py focused --flow-id <flow>` and, for
+   consequential flows, `architecture --flow-id <flow>`. Navigation-only flows use the
+   proportionate focused profile only.
+6. `full_validation`: the parent runs the proportionate profile via
+   `python scripts/run_flow_delivery_validation.py` — `shared-navigation --flow-id <flow>` for
+   navigation-only flows, or `full --flow-id <flow>` (which produces the required `full_suite`
+   receipt) for consequential flows — plus repository validators as required by
+   `required_receipts_for`. The `promotion` profile is reserved for promotion and does not satisfy
+   the consequential full_validation receipt.
 7. If live validation is required, claim runtime ownership in the development lease, recheck the
    authoritative journal/global unresolved gate, and run `live_preflight`. Enter `live_execution`
    only with every controller gate satisfied.
 8. The parent alone invokes supported `scripts/pnsctl.py bluestacks ...` commands. Run one
    production flow at a time, obey `maximum_live_attempts`, and never bypass the operator interface.
-9. Release runtime ownership after a terminal state. Build/validate the evidence-review packet, use
-   the native `Subagent`/`Task` tool with custom subagent type exactly `pns-evidence-reviewer` for
-   the one generated session, wait for its terminal result, record its native invocation receipt,
-   then parent-accept or block the evidence.
+9. Release runtime ownership after a terminal state. Apply the context-packet rule for
+   `evidence_review`, use the native `Subagent`/`Task` tool with custom subagent type exactly
+   `pns-evidence-reviewer` for the one generated session, wait for its terminal result, record
+   its native invocation receipt, then parent-accept or block the evidence. Keep automatic
+   runner evidence; do not require replay-capsule promotion for navigation-only discovery.
 10. Reach `commit`, stage only attributable implementation, tests, evidence metadata, and the
     queue's `commit` stage, then create the conventional focused flow commit. Run `complete` with
     that commit SHA and create a narrow queue-transition commit containing only the terminal queue

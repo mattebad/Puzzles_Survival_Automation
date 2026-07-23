@@ -798,6 +798,71 @@ class ControllerHardeningTests(unittest.TestCase):
             result = controller.record_stage(owner="parent", stage="full_validation")
         self.assertEqual(result["last_completed_stage"], "full_validation")
 
+    def test_navigation_only_overhead_empty_before_live(self) -> None:
+        for stage in control.STAGES:
+            self.assertEqual(
+                control.required_overhead_for("navigation_only", stage),
+                set(),
+                msg=stage,
+            )
+
+    def test_consequential_overhead_keeps_context_before_subagent_stages(self) -> None:
+        expected = {"context_packet", "dependency_section_digests"}
+        for stage in (
+            "reconnaissance",
+            "implementation",
+            "implementation_review",
+            "correction",
+            "evidence_review",
+        ):
+            self.assertEqual(
+                control.required_overhead_for("consequential", stage),
+                expected,
+                msg=stage,
+            )
+        self.assertEqual(
+            control.required_overhead_for("consequential", "focused_validation"),
+            set(),
+        )
+        self.assertEqual(
+            control.required_overhead_for("consequential", "full_validation"),
+            set(),
+        )
+        self.assertEqual(
+            control.required_overhead_for("consequential", "live_preflight"),
+            set(),
+        )
+        self.assertEqual(
+            control.required_overhead_for("consequential", "live_execution"),
+            set(),
+        )
+        self.assertEqual(
+            control.required_overhead_for("consequential", "commit"),
+            set(),
+        )
+
+    def test_overhead_maps_use_known_kinds(self) -> None:
+        for stage, kinds in control.NAVIGATION_ONLY_OVERHEAD_BY_STAGE.items():
+            self.assertTrue(
+                set(kinds).issubset(control.OVERHEAD_KINDS),
+                msg=stage,
+            )
+        for stage, kinds in control.CONSEQUENTIAL_OVERHEAD_BY_STAGE.items():
+            self.assertTrue(
+                set(kinds).issubset(control.OVERHEAD_KINDS),
+                msg=stage,
+            )
+
+    def test_required_overhead_unknown_stage_defaults_empty(self) -> None:
+        self.assertEqual(control.required_overhead_for("navigation_only", "not-a-stage"), set())
+        self.assertEqual(control.required_overhead_for("consequential", "not-a-stage"), set())
+
+    def test_controller_does_not_import_context_builder(self) -> None:
+        source = Path(control.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("build_context_packet", source)
+        self.assertNotIn("validate_context_packet", source)
+        self.assertNotIn("flow_delivery_context", source)
+
     def test_arbitrary_commit_fails_and_bound_reachable_commit_completes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             controller = self.make_controller(Path(directory))

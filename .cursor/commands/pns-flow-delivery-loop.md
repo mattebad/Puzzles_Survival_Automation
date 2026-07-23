@@ -11,9 +11,17 @@ Load and follow `.cursor/skills/pns-flow-delivery/SKILL.md` as the canonical det
 2. Run `python scripts/flow_delivery_control.py validate`.
 3. Continue an existing active flow or select exactly one ready flow.
 4. Before every native subagent invocation:
-   - `python scripts/flow_delivery_context.py build --flow-id <flow> --stage <stage> --reuse-if-current`
-   - `python scripts/flow_delivery_context.py validate --packet <packet-path>`
-   - pass only packet path, active flow ID, active stage, and exact requested deliverable
+   - Consult `required_overhead_for(consequence_class, stage)` in
+     `scripts/flow_delivery_control.py`. Navigation-only discovery stages return
+     no `context_packet` / dependency digests / strict manifests / replay-capsule
+     promotion — defer those to stabilization or consequential promotion.
+   - When overhead includes `context_packet`:
+     - `python scripts/flow_delivery_context.py build --flow-id <flow> --stage <stage> --reuse-if-current`
+     - `python scripts/flow_delivery_context.py validate --packet <packet-path>`
+     - pass only packet path, active flow ID, active stage, and exact requested deliverable
+   - When overhead omits `context_packet` (navigation-only discovery), pass only
+     active flow ID, active stage, and exact requested deliverable. Keep automatic
+     runner evidence mandatory; do not skip the navigation-development boundary.
 5. Keep every custom subagent foreground and serial. Set the exact custom agent, request
    `cursor-grok-4.5-high` explicitly, wait for its terminal result, and immediately run
    `record-subagent-invocation` before advancing. Never say "use an exploration/general-purpose
@@ -23,6 +31,7 @@ Load and follow `.cursor/skills/pns-flow-delivery/SKILL.md` as the canonical det
    - `python scripts/run_flow_delivery_validation.py architecture --flow-id <flow>`
    - `python scripts/run_flow_delivery_validation.py full --flow-id <flow>`
    - `python scripts/run_flow_delivery_validation.py governance --flow-id <flow>`
+   - `python scripts/run_flow_delivery_validation.py shared-navigation --flow-id <flow>` (navigation-only full_validation)
 7. Continue the authoritative queue until a checked-in hard stop condition occurs.
 
 ## Parent-conversation rollover hard stop

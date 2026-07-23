@@ -130,6 +130,28 @@ NAVIGATION_ONLY_RECEIPTS_BY_STAGE = {
     "focused_validation": {"focused_tests"},
     "full_validation": {"shared_navigation"},
 }
+# Process/governance overhead deferred for navigation-only discovery. Automatic
+# runner evidence (frames, events, terminal result, unresolved proof) stays
+# mandatory on the navigation-development boundary and is not represented here.
+# Strict manifests, replay capsules, and dependency digests remain promotion /
+# stabilization concerns — intentionally absent from navigation-only stages.
+OVERHEAD_KINDS = {
+    "context_packet",
+    "dependency_section_digests",
+    "strict_evidence_manifest",
+    "replay_capsule_promotion",
+}
+# Empty mapping: every navigation-only stage defers the kinds above.
+NAVIGATION_ONLY_OVERHEAD_BY_STAGE: dict[str, set[str]] = {}
+# Consequential / promotion controller paths still build stage context packets
+# (and their dependency digests) before native subagent stages.
+CONSEQUENTIAL_OVERHEAD_BY_STAGE = {
+    "reconnaissance": {"context_packet", "dependency_section_digests"},
+    "implementation": {"context_packet", "dependency_section_digests"},
+    "implementation_review": {"context_packet", "dependency_section_digests"},
+    "correction": {"context_packet", "dependency_section_digests"},
+    "evidence_review": {"context_packet", "dependency_section_digests"},
+}
 
 
 def _flow_consequence_class(flow: Mapping[str, Any]) -> str:
@@ -142,6 +164,20 @@ def required_receipts_for(consequence_class: str, stage: str) -> set[str]:
     if consequence_class == "navigation_only":
         return NAVIGATION_ONLY_RECEIPTS_BY_STAGE.get(stage, set())
     return REQUIRED_RECEIPTS_BY_STAGE.get(stage, set())
+
+
+def required_overhead_for(consequence_class: str, stage: str) -> set[str]:
+    """Return deferred-or-required governance overhead kinds for a stage.
+
+    Navigation-only discovery returns the empty set so context packets, strict
+    manifests, dependency digests, and replay-capsule promotion are not required
+    until stabilization/promotion. Consequential stages keep context packets
+    before native subagent work. This helper does not authorize live input and
+    does not replace automatic runner evidence requirements.
+    """
+    if consequence_class == "navigation_only":
+        return set(NAVIGATION_ONLY_OVERHEAD_BY_STAGE.get(stage, set()))
+    return set(CONSEQUENTIAL_OVERHEAD_BY_STAGE.get(stage, set()))
 
 
 REQUIRED_FLOW_FIELDS = {
