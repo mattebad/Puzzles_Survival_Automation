@@ -23,7 +23,7 @@ COVERAGE_PATH = REPO_ROOT / "tasks" / "flow_delivery_coverage.json"
 INDEX_PATH = REPO_ROOT / "tasks" / "backlog_task_index.json"
 HANDOFF_PATH = REPO_ROOT / "CURRENT_HANDOFF.md"
 CONTEXT_ROOT = REPO_ROOT / ".local-orchestrator" / "context"
-BLUESTACKS_REGISTRY_PATH = REPO_ROOT / "tasks" / "bluestacks_flow_registry.json"
+BLUESTACKS_REGISTRY_PATH = REPO_ROOT / "tasks" / "flow_delivery_bluestacks_registry.json"
 
 PACKET_SCHEMA_VERSION = 1
 INDEX_SCHEMA_VERSION = 1
@@ -525,10 +525,11 @@ def build_context_packet(
     bluestacks_entry = None
     if BLUESTACKS_REGISTRY_PATH.is_file():
         registry = _read_json(BLUESTACKS_REGISTRY_PATH)
-        for item in registry.get("flows", []) if isinstance(registry, dict) else []:
-            if item.get("flow_id") == flow_id:
-                bluestacks_entry = item
-                break
+        # The canonical registry keys flows by flow_id (schema flow_delivery_bluestacks).
+        flows = registry.get("flows", {}) if isinstance(registry, dict) else {}
+        contract = flows.get(flow_id) if isinstance(flows, dict) else None
+        if isinstance(contract, dict):
+            bluestacks_entry = {"flow_id": flow_id, **contract}
 
     referenced_files: list[dict[str, Any]] = []
     for path in list(flow.get("implementation_entrypoints", [])) + list(
