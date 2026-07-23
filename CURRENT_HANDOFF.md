@@ -2,18 +2,12 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "9efb433f58874b60e9be84d158b05ef0b6fb2ea9",
+  "head": "8def80debc7e6b706a8ccd81cfd6c2fd5e44fac5",
   "ahead_behind": {
-    "ahead": 11,
+    "ahead": 32,
     "behind": 0
   },
-  "attributable_dirty_paths": [
-    "tasks/flow_delivery_product_policy.json",
-    "tasks/gameplay_flow_contracts/NOVA-PRAISE-HOME-ATLAS-MIGRATION.json",
-    "tasks/flow_delivery_queue.json",
-    "BACKLOG.md",
-    "CURRENT_HANDOFF.md"
-  ],
+  "attributable_dirty_paths": [],
   "protected_user_owned_paths": [
     ".cursor/plans/** (accepted Cursor plan; ignored and not edited during implementation)",
     ".specstory/**",
@@ -49,22 +43,22 @@
     "completed_gameplay_flows_this_parent": 0,
     "rollover_required": false,
     "rollover_stop_reason": null,
-    "note": "GF-MVP-009 completed in the accepted 20260722T020656687010Z session. Current work is one separately authorized supervised free Praise pulse after the 2026-07-22 reset."
+    "note": "Lean Flow Phases 1–4 closed offline through 8def80d. The head / ahead_behind fields record the clean Lean Flow implementation boundary at 8def80d before this documentation-only handoff commit; the handoff commit is expected to advance Git by one while leaving the tree clean. attributable_dirty_paths [] is the expected post-handoff-commit state, not the transient pre-commit state. GF-NOVA-PRAISE-SUPERVISED-20260722 remains the retained completed Praise authority; do not auto-start queue or live work."
   },
-  "latest_focused_validation_result": "160 focused Nova/command/replay/Home/governance tests passed; independent production-call-graph review approved",
+  "latest_focused_validation_result": "Passed focused suites: authority consistency, Campaign destinations, flow-delivery orchestrator, token/context hygiene, IDE-native hardening, gameplay contracts, and flow_delivery_control.py validate valid.",
   "latest_full_suite_result": "1121 tests passed; 1 expected skip; 0 failures/errors",
   "current_live_attempt_state": "The one authorized supervised Praise attempt is CONSUMED and confirmed under candidate 0ca611c. No further live attempt is authorized for this flow. praise_transport_calls=1, attempts 7->6, cooldown_seconds=299, terminal Home verified, guard=completed, controller lease released, no unresolved action.",
   "current_evidence_or_session_reference": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z",
-  "last_safe_completed_step": "Confirmed one supervised zero-cost Nova Praise end-to-end: Home -> Research Lab -> Nova -> Praise -> Home, exactly one Praise transport, attempts 7->6 (visually confirmed in frames 0008 and 0011), CD 00:04:49, scheduler action_performed/FREE_PRAISE_VERIFIED, terminal Home verified.",
-  "exact_next_permitted_action": "GF-NOVA-PRAISE-SUPERVISED-20260722 is complete. Do not start downstream work in this chat. A new atomic task (e.g. GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY) requires its own explicit activation and authorization.",
+  "last_safe_completed_step": "Confirmed one supervised zero-cost Nova Praise end-to-end: Home -> Research Lab -> Nova -> Praise -> Home, exactly one Praise transport, attempts 7->6 (visually confirmed in frames 0008 and 0011), CD 00:04:49, scheduler action_performed/FREE_PRAISE_VERIFIED, terminal Home verified. Lean Flow Phases 1–4 completed offline through 8def80d.",
+  "exact_next_permitted_action": "Lean Flow plan is closed. Do not auto-start queue or live work. GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY remains ready but not active and requires explicit activation. GF-NOVA-PRAISE-SUPERVISED-20260722 stays completed historical authority.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not re-run the supervised Praise, dispatch a second Praise, loop through remaining attempts, rerun the no-Praise canary, retry any action, spend currency, register production, enable scheduling, or issue Bliss input without a newly authorized task.",
+  "prohibited_repeated_action": "Do not re-run the supervised Praise, dispatch a second Praise, loop through remaining attempts, rerun the no-Praise canary, retry any action, spend currency, register production, enable scheduling, issue Bliss input, activate the flow-delivery queue, or start live runtime from this Lean Flow closure without a newly authorized task.",
   "recent_relevant_commits": [
-    "0ca611c feat(flow-factory): compose supervised Nova Praise route with fast revalidation",
-    "a6c37b7 fix(flow-factory): use template-driven Nova radial",
-    "06df69d fix(flow-factory): reject Hough-only Nova radial",
-    "32df07f feat(flow-factory): add shared navigation boundary",
-    "1aa55c2 docs(flow-factory): authorize supervised Nova Praise"
+    "8def80d refactor(flow-delivery): centralize campaign destinations",
+    "3322fb6 feat(flow-delivery): validate contract product-policy references",
+    "85ff16a feat(flow-delivery): add authority-consistency validator",
+    "e5d7cbe feat(flow-delivery): defer nav-only context and manifest overhead",
+    "c49b98b feat(bluestacks): add Noah's Tavern navigation-development adapter"
   ],
   "process_deviations": [
     "GF-MVP-009 required a committed known-Nova start correction after a non-consuming pre-input block; the corrected execution then exhausted its one-attempt budget.",
@@ -99,6 +93,7 @@ Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and reta
 
 ## Repository
 - Branch: `main`; supervised Praise ran on candidate `0ca611c`
+- Lean Flow Phases 1–4 closed offline at `8def80d` (no live queue migration; registration/scheduler unchanged)
 - `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`: **completed** by the accepted full-route session
 - Current task: `GF-NOVA-PRAISE-SUPERVISED-20260722` (**completed** 2026-07-22)
 - Runtime ownership: none; controller lease released; one authorized Praise consumed
@@ -107,5 +102,6 @@ Volatile operational boundary only. History lives in Git, `BACKLOG.md`, and reta
 ## Exact next action
 `GF-NOVA-PRAISE-SUPERVISED-20260722` is complete: one supervised zero-cost Nova Praise confirmed
 end-to-end (attempts 7→6, `CD: 00:04:49`, terminal Home verified) with exactly one transport. Do not
-re-run or dispatch a second Praise. Any downstream task (e.g. `GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY`)
-requires its own explicit activation and authorization in a new atomic unit of work.
+re-run or dispatch a second Praise. Lean Flow is closed offline; do not auto-start queue or live
+work. Any downstream task (e.g. `GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY`) requires its own explicit
+activation and authorization in a new atomic unit of work.
