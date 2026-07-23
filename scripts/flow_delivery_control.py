@@ -94,7 +94,16 @@ RUNTIME_OWNERSHIP_STATES = {"none", "released", "held", "unknown"}
 UNRESOLVED_ACTION_STATES = {"clear", "unresolved", "unknown"}
 ATTEMPT_OUTCOMES = {"completed", "blocked", "failed", "unresolved"}
 TERMINAL_ATTEMPT_OUTCOMES = {"completed", "blocked", "failed"}
-VALIDATION_PROFILES = {"focused_tests", "architecture_tests", "full_suite", "governance"}
+VALIDATION_PROFILES = {
+    "focused_tests",
+    "architecture_tests",
+    "full_suite",
+    "governance",
+    "shared_navigation",
+    "promotion",
+    "detector",
+    "consequential",
+}
 READY_FLOW_PACKET_FIELDS = {
     "acceptance_criteria",
     "scope_prohibitions",
@@ -114,6 +123,27 @@ REQUIRED_RECEIPTS_BY_STAGE = {
     "focused_validation": {"focused_tests", "architecture_tests"},
     "full_validation": {"full_suite"},
 }
+# Navigation-only flows never issue consequential input, so they validate through a
+# proportionate navigation profile instead of the full discovery suite. Consequential
+# and promotion flows continue to require the full suite unchanged.
+NAVIGATION_ONLY_RECEIPTS_BY_STAGE = {
+    "focused_validation": {"focused_tests"},
+    "full_validation": {"shared_navigation"},
+}
+
+
+def _flow_consequence_class(flow: Mapping[str, Any]) -> str:
+    if flow.get("product_policy_status") == "navigation_only_validation":
+        return "navigation_only"
+    return "consequential"
+
+
+def required_receipts_for(consequence_class: str, stage: str) -> set[str]:
+    if consequence_class == "navigation_only":
+        return NAVIGATION_ONLY_RECEIPTS_BY_STAGE.get(stage, set())
+    return REQUIRED_RECEIPTS_BY_STAGE.get(stage, set())
+
+
 REQUIRED_FLOW_FIELDS = {
     "flow_id",
     "title",
@@ -1762,8 +1792,10 @@ class FlowDeliveryController:
         return deepcopy(receipt)
 
     @staticmethod
-    def _require_receipts(lease: Mapping[str, Any], stage: str) -> None:
-        required = REQUIRED_RECEIPTS_BY_STAGE.get(stage, set())
+    def _require_receipts(
+        lease: Mapping[str, Any], stage: str, consequence_class: str = "consequential"
+    ) -> None:
+        required = required_receipts_for(consequence_class, stage)
         present = {
             receipt["validation_profile"]
             for receipt in lease["validation_receipts"]
@@ -1803,7 +1835,7 @@ class FlowDeliveryController:
             lease["gates"]["implementation_parent_reviewed"] = True
         if stage == "implementation_review" and not lease["gates"]["implementation_parent_reviewed"]:
             raise FlowDeliveryError("implementation review requires parent acceptance")
-        self._require_receipts(lease, stage)
+        self._require_receipts(lease, stage, _flow_consequence_class(flow))
         if stage in {"live_preflight", "live_execution"}:
             if not flow["requires_bluestacks_live"] or flow["maximum_live_attempts"] <= 0:
                 raise FlowDeliveryError("flow has no live validation authority")

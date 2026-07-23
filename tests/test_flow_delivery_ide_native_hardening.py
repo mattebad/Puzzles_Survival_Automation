@@ -735,6 +735,69 @@ class ControllerHardeningTests(unittest.TestCase):
             queue = json.loads(controller.queue_path.read_text(encoding="utf-8"))
         self.assertEqual(queue["flows"][0]["last_completed_stage"], "focused_validation")
 
+    def _prepare_full_validation(
+        self,
+        controller: control.FlowDeliveryController,
+        *,
+        policy_status: str,
+    ) -> str:
+        flow_id = self.set_active(controller, stage="focused_validation", runtime="none")
+        queue = json.loads(controller.queue_path.read_text(encoding="utf-8"))
+        queue["flows"][0]["product_policy_status"] = policy_status
+        controller.queue_path.write_text(json.dumps(queue) + "\n", encoding="utf-8")
+        return flow_id
+
+    def _record_receipt(
+        self,
+        controller: control.FlowDeliveryController,
+        root: Path,
+        *,
+        profile: str,
+        flow_id: str,
+    ) -> None:
+        receipt = self.make_receipt(
+            controller,
+            profile=profile,
+            stage="full_validation",
+            flow_id=flow_id,
+        )
+        path = root / f"{profile}.json"
+        path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
+        controller.record_validation_receipt(owner="parent", receipt_path=path)
+
+    def test_navigation_only_flow_validates_through_shared_navigation_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            controller = self.make_controller(root)
+            flow_id = self._prepare_full_validation(
+                controller, policy_status="navigation_only_validation"
+            )
+            self._record_receipt(
+                controller, root, profile="shared_navigation", flow_id=flow_id
+            )
+            result = controller.record_stage(owner="parent", stage="full_validation")
+        self.assertEqual(result["last_completed_stage"], "full_validation")
+
+    def test_consequential_flow_still_requires_full_suite(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            controller = self.make_controller(root)
+            flow_id = self._prepare_full_validation(
+                controller, policy_status="supervised_consequential_validation"
+            )
+            self._record_receipt(
+                controller, root, profile="shared_navigation", flow_id=flow_id
+            )
+            with self.assertRaisesRegex(
+                control.FlowDeliveryError, "lacks bound validation receipts"
+            ):
+                controller.record_stage(owner="parent", stage="full_validation")
+            self._record_receipt(
+                controller, root, profile="full_suite", flow_id=flow_id
+            )
+            result = controller.record_stage(owner="parent", stage="full_validation")
+        self.assertEqual(result["last_completed_stage"], "full_validation")
+
     def test_arbitrary_commit_fails_and_bound_reachable_commit_completes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             controller = self.make_controller(Path(directory))
