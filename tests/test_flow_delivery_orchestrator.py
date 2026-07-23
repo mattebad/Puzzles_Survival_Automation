@@ -67,9 +67,14 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             if flow["status"] == "active":
                 flow["status"] = "ready"
                 flow["last_completed_stage"] = "selected"
-        active["flows"][5]["status"] = "active"
-        active["flows"][5]["last_completed_stage"] = "implementation"
-        active["active_flow_id"] = active["flows"][5]["flow_id"]
+        active_flow = next(
+            flow
+            for flow in active["flows"]
+            if flow["flow_id"] == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+        )
+        active_flow["status"] = "active"
+        active_flow["last_completed_stage"] = "implementation"
+        active["active_flow_id"] = active_flow["flow_id"]
         self.assertEqual(
             controller.select_next(active)["flow_id"],
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
@@ -106,6 +111,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
 
     def test_initial_order_and_normalized_counts(self) -> None:
         expected = [
+            "CAMPAIGN-ATLAS-OFFLINE-FOUNDATION",
+            "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+            "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
             "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
@@ -134,13 +142,17 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         self.assertIn(counts["active"], (0, 1))
         # Approved but evidence-gated flows remain blocked; Gathering alone still needs a decision.
         # Both Nova flows (home atlas migration and supervised one-free pulse) are completed.
-        self.assertEqual(counts["ready"] + counts["active"], 6)
-        self.assertEqual(counts["blocked"], 10)
+        self.assertEqual(counts["ready"] + counts["active"], 7)
+        self.assertEqual(counts["blocked"], 12)
         self.assertEqual(counts["completed"], 2)
         self.assertEqual(counts["needs_product_decision"], 1)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
-        campaign = self.queue["flows"][0]
+        campaign = next(
+            flow
+            for flow in self.queue["flows"]
+            if flow["flow_id"] == "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+        )
         campaign_policy = next(
             item
             for item in self.policy["policies"]
@@ -168,7 +180,11 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         self.assertIn("HOME_PAN_GESTURES", runtime_source)
 
     def test_ultimate_challenge_blocked_metadata_is_retained(self) -> None:
-        ultimate = self.queue["flows"][1]
+        ultimate = next(
+            flow
+            for flow in self.queue["flows"]
+            if flow["flow_id"] == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+        )
         self.assertEqual(
             ultimate["flow_id"],
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",

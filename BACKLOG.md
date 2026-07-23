@@ -4983,12 +4983,94 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Next: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` remains first ready and is not activated
   by this correction.
 
+### CAMPAIGN-ATLAS-BACKLOG-DEPENDENCY-RECONCILIATION
+- Task ID: `CAMPAIGN-ATLAS-BACKLOG-DEPENDENCY-RECONCILIATION`.
+- Title: Establish Campaign Atlas atomic delivery dependencies.
+- Status: Completed offline (2026-07-23); authority-only reconciliation, no implementation or runtime input.
+- Milestone: Campaign Atlas delivery sequencing.
+- Dependencies: committed Ultimate Challenge offline slice `2d1dc50`, retained Campaign mechanics, and the approved Campaign Atlas design decision.
+- Blocked by: None for this offline reconciliation.
+- Objective: create three serial Campaign Atlas tasks and make their validated navigation layer a shared prerequisite for Campaign AP and Ultimate Challenge execution work.
+- Established facts: Campaign has Home Atlas entry and retained mechanics evidence but no Campaign-screen atlas, canonical survey, or production replay; difficulty switching must not be used as recentering.
+- Direct implementation files: `BACKLOG.md`, `tasks/flow_delivery_queue.json`, `tasks/backlog_task_index.json`, `CURRENT_HANDOFF.md`, and focused authority tests.
+- Shared dependencies: flow-delivery queue schema, backlog index generator, Home Atlas research, Campaign and Ultimate navigation seams.
+- Transitive regression set: flow-delivery orchestrator, Campaign destination separation, authority consistency, token/context hygiene, and governance.
+- Allowed changes: per-commit allowed paths are exactly `BACKLOG.md`, `CURRENT_HANDOFF.md`, `tasks/flow_delivery_queue.json`, `tasks/backlog_task_index.json`, and the four focused authority test files named below.
+- Prohibited changes: Campaign Atlas implementation, runtime input, evidence creation, attempt authorization, registration, scheduling, Campaign AP execution, Ultimate Challenge execution, or unrelated policy changes.
+- Authorized runtime action: None.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden; no runtime is in scope.
+- Consequential action: None.
+- Registration changes: None; production remains not registered.
+- Scheduler changes: None; gameplay scheduling remains disabled/ineligible.
+- Actions that must not be repeated: historical Campaign attempts, difficulty-switch recentering, or any Ultimate Challenge input.
+- Required source: `CURRENT_HANDOFF.md`, exact Campaign/Ultimate backlog sections, queue, retained implementation/history, and directly identified local mechanics captures only.
+- Exact target semantics: Foundation → native survey → navigation integration/replay → Ultimate/Campaign consumers.
+- Required local association: clean starting tree at `2d1dc50`, no lease, runtime owner, writable agent overlap, or unresolved consequential action.
+- Negative controls: zero live budget, zero runtime, no synthetic atlas or evidence, and no queue activation beyond the offline Foundation ready state.
+- Coordinate space: None; future survey contracts native 800x1280 only.
+- Accepted signals: valid queue dependency DAG, exact task identities/order, existing attempt history preserved, focused tests/checks passing, and coherent handoff/index.
+- Rejected weak signals: user phone screenshot or ignored local frames treated as atlas authority, difficulty switching treated as recentering, or placeholder runtime registration.
+- Ambiguous-result behavior: fail closed and leave future evidence requirements explicit.
+- Zero-cost requirement: no AP, stamina, currency, item, or challenge resource use.
+- Quantity limits: three new serial tasks; zero live attempts authorized.
+- Resource consumption policy: no gameplay resources or refills.
+- Premium or strategic restrictions: unchanged.
+- Active evidence manifest: None.
+- Required artifacts: backlog, queue, generated index, handoff, focused tests, validation result, and one commit.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs.
+- Additional task-specific artifacts: none.
+- Focused tests: `tests/test_flow_delivery_orchestrator.py`, `tests/test_campaign_story_destinations.py`, `tests/test_flow_delivery_authority_consistency.py`, `tests/test_flow_delivery_token_context_hygiene.py`, and `tests/test_governance_validation.py`.
+- Integration tests: queue loading, deterministic selection, dependency blocking, context packet, and governance parsing only.
+- Transitive regression tests: existing Campaign/Ultimate separation and Home Atlas seam tests.
+- Full-suite requirement: Not required for this authority-only task.
+- Validators: JSON parsing, deterministic backlog index, focused unittest suites, governance validation, `git diff --check`, and post-validation Git snapshot.
+- Known baseline failures: None accepted.
+- Evidence requirement: NOT_APPLICABLE; this task creates no runtime evidence.
+- Valid blocked outcomes: invalid queue DAG, index/handoff inconsistency, or a focused regression.
+- Blocked-result commit policy: preserve coherent work and report the exact blocker without starting Foundation.
+- Commit policy: one focused conventional local commit; no push.
+- Expected focused commits: `docs(flow-delivery): sequence campaign atlas work`.
+- Completion criteria: all authority artifacts agree; Foundation is the exact next ready task; survey/integration and both consumers remain blocked; every live budget remains zero; registration/scheduler unchanged; focused validation and diff check pass; one commit created.
+
+### CAMPAIGN-ATLAS-OFFLINE-FOUNDATION
+- Task ID: `CAMPAIGN-ATLAS-OFFLINE-FOUNDATION`.
+- Title: Build the Campaign-screen atlas offline foundation.
+- Status: Ready; not started by this reconciliation.
+- Dependencies: completed `CAMPAIGN-ATLAS-BACKLOG-DEPENDENCY-RECONCILIATION`.
+- Scope: implement Campaign-specific atlas/viewport/localization contracts, factor reusable registration without Home/zoom semantics, define HUD masks and a dry-run four-edge/overlapping-grid survey planner, and add independent tests.
+- Evidence boundary: no native atlas corpus exists; retained local Campaign frames are mechanics/landmark candidates only and must not authorize coordinates.
+- Prohibitions: no runtime input, evidence fabrication, assets pretending to be surveyed, registration, scheduling, AP, or Ultimate Challenge action.
+- Completion boundary: offline types, planner, provenance schema, fail-closed replay, and focused tests pass in one later atomic commit.
+
+### CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION
+- Task ID: `CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION`.
+- Title: Acquire and validate the native Campaign atlas corpus.
+- Status: Blocked / not activated.
+- Dependencies: completed `CAMPAIGN-ATLAS-OFFLINE-FOUNDATION`, explicit authorization, reviewed navigation-only plan, runtime/development lease, and a checked-in nonzero attempt budget.
+- Scope when authorized: collect native 800x1280 four-edge clamps and overlapping interior tiles; retain hashes, annotations, masks, transforms, coverage, loop closure, chapter/special anchors, and paired difficulty geometry evidence.
+- Recenter policy: localize the arbitrary current Campaign viewport through the atlas; never use difficulty switching as a recenter operation.
+- Prohibitions: no stage Challenge, AP, Auto Battle, refill, Ultimate Challenge Challenge/Exit/Flee, registration, or scheduling.
+- Current authorization: maximum and additional live attempts are zero.
+- Completion boundary: independently reviewed hash-bound corpus and atlas validation only; no gameplay execution promotion.
+
+### CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY
+- Task ID: `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`.
+- Title: Integrate Campaign atlas navigation and prove zero-transport replay.
+- Status: Blocked.
+- Dependencies: accepted `CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION` corpus.
+- Scope: integrate the Campaign atlas with shared Campaign AP and Ultimate Challenge navigation; retain direct current-frame chapter/special binding and direct subordinate-stage OCR; run production-path zero-transport replay.
+- Safety boundary: atlas projection never authorizes input; every target requires fresh native-frame association and semantic successor proof.
+- Prohibitions: no live input, AP, Auto Battle, Challenge/Flee, registration, or scheduling.
+- Completion boundary: both consumers may become evidence-ready only after validated atlas localization and zero-transport replay; any missing evidence returns `evidence_required`.
+
 ### CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION
 - Task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.
 - Title: Migrate Campaign AP entry to Home Atlas and verified destination navigation.
 - Status: Blocked (2026-07-21; three retained navigation-only attempts exhausted the checked-in
   live budget on shared Home zoom/localization preparation; implementation and evidence are
   preserved, and no retry is authorized by this status).
+- Dependencies: completed `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`.
 - Scope: replace legacy `HOME_PAN_GESTURES` with canonical Home Atlas entry; recognize Campaign
   Story mode; support difficulty 1 and 2; feedback-controlled Stage selection for Stages 20, 15,
   and 2; Chapter 9 selection; exact tuple verification for only `1-20-9`, `1-15-9`, and `2-2-9`;
@@ -5014,7 +5096,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   policy and truthful zero-transport evidence gate are implemented, but native selector evidence
   and a production-controller positive replay do not exist; no live attempt is authorized).
 - Milestone: Ultimate Challenge evidence-independent controller integration.
-- Dependencies: committed product-policy reconciliation `9c281a7`, retained Campaign Home Atlas
+- Dependencies: completed `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`, committed product-policy reconciliation `9c281a7`, retained Campaign Home Atlas
   entry, Ultimate Challenge entry/reset-idempotency implementation, gameplay contract schema, and
   explicit 2026-07-23 product policy.
 - Blocked by: absent native Challenge/lineup/Exit/Flee/Home selector sequence, absent consequential
@@ -5126,7 +5208,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Task ID: `ULTIMATE-CHALLENGE-NATIVE-EVIDENCE-AND-CANARY`.
 - Title: Acquire native Ultimate Challenge selectors and run one supervised evidence canary.
 - Status: Blocked / not activated (2026-07-23; no runtime input or live attempt is authorized).
-- Dependency: committed `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` offline controller slice,
+- Dependencies: completed `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`, committed `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` offline controller slice,
   explicit user authorization, positive game-day identity, inactive global unresolved-action gate,
   runtime/development lease, checked-in attempt budget, and reviewed evidence plan.
 - Scope when separately authorized: use the supported operational boundary to retain current native

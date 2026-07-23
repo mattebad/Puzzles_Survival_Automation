@@ -87,8 +87,10 @@ class ReadyFlowMetadataTests(unittest.TestCase):
                 self.assertIn(field, flow, msg=f"{flow['flow_id']} missing {field}")
 
     def test_campaign_and_ultimate_metadata(self) -> None:
-        campaign = self.queue["flows"][0]
-        ultimate = self.queue["flows"][1]
+        by_id = {flow["flow_id"]: flow for flow in self.queue["flows"]}
+        campaign = by_id[CAMPAIGN_ID]
+        ultimate = by_id[ULTIMATE_ID]
+        atlas_dependency = "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
         policy = json.loads(
             (ROOT / "tasks" / "flow_delivery_product_policy.json").read_text(encoding="utf-8")
         )
@@ -125,6 +127,8 @@ class ReadyFlowMetadataTests(unittest.TestCase):
         self.assertEqual(ultimate["last_completed_stage"], "blocked")
         self.assertTrue(ultimate["blocked_reason"])
         self.assertEqual(ultimate["priority"], 15)
+        self.assertEqual(campaign["dependencies"], [atlas_dependency])
+        self.assertEqual(ultimate["dependencies"], [atlas_dependency])
         self.assertIn("already_completed", ultimate["required_terminal_states"])
         self.assertIn("no Campaign AP coupling", " ".join(ultimate["scope_prohibitions"]))
 

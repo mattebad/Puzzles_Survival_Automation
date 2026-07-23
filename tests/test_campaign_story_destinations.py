@@ -68,10 +68,15 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         flow_ids = [item["flow_id"] for item in self.queue["flows"]]
         self.assertIn("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION", flow_ids)
         self.assertEqual(
-            flow_ids[0],
-            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+            flow_ids[:5],
+            [
+                "CAMPAIGN-ATLAS-OFFLINE-FOUNDATION",
+                "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+                "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
+                "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+                "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+            ],
         )
-        self.assertEqual(flow_ids[1], "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
         policy_ids = {item["policy_id"] for item in self.policy["policies"]}
         self.assertIn("ultimate-challenge-flow-separation", policy_ids)
         self.assertIn("ultimate-challenge-navigation-validation", policy_ids)
@@ -92,6 +97,11 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
 
     def test_completion_states_remain_independent(self) -> None:
         queue = deepcopy(self.queue)
+        for flow in queue["flows"]:
+            if flow["flow_id"].startswith("CAMPAIGN-ATLAS-"):
+                flow["status"] = "completed"
+                flow["last_completed_stage"] = "completed"
+                flow["blocked_reason"] = ""
         campaign = next(
             item
             for item in queue["flows"]
@@ -130,7 +140,11 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
             for item in self.policy["policies"]
             if item["policy_id"] == "campaign-supported-destinations"
         )
-        campaign = self.queue["flows"][0]
+        campaign = next(
+            item
+            for item in self.queue["flows"]
+            if item["flow_id"] == "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+        )
         self.assertEqual(campaign["destination_policy_id"], "campaign-supported-destinations")
         self.assertNotIn("supported_story_destinations", campaign)
         self.assertNotIn("rejected_destinations", campaign)
@@ -145,15 +159,23 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         )
         self.assertEqual(selected["flow_id"], expected["flow_id"])
 
-    def test_next_after_campaign_follows_corrected_order(self) -> None:
-        queue = deepcopy(self.queue)
-        queue["flows"][0]["status"] = "blocked"
-        queue["flows"][0]["blocked_reason"] = "test blocker"
-        queue["flows"][1]["status"] = "ready"
-        queue["flows"][1]["last_completed_stage"] = None
-        queue["flows"][1]["blocked_reason"] = ""
-        selected = control.FlowDeliveryController().select_next(queue)
-        self.assertEqual(selected["flow_id"], "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
+    def test_atlas_foundation_precedes_both_consumers(self) -> None:
+        by_id = {flow["flow_id"]: flow for flow in self.queue["flows"]}
+        dependency = "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
+        self.assertEqual(
+            by_id["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]["dependencies"],
+            [dependency],
+        )
+        self.assertEqual(
+            by_id["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]["backlog_task_id"],
+            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+        )
+        self.assertEqual(
+            by_id["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]["dependencies"],
+            [dependency],
+        )
+        selected = control.FlowDeliveryController().select_next(self.queue)
+        self.assertEqual(selected["flow_id"], "CAMPAIGN-ATLAS-OFFLINE-FOUNDATION")
 
     def test_coverage_keeps_objectives_separate(self) -> None:
         campaign = self.coverage["flows"]["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]
@@ -213,7 +235,12 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         self.assertIn("offline Phase F work", scheduler)
         self.assertNotIn("flow_delivery_queue", scheduler)
         self.assertNotIn("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION", scheduler)
-        for flow in self.queue["flows"][:2]:
+        by_id = {flow["flow_id"]: flow for flow in self.queue["flows"]}
+        for flow_id in (
+            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+        ):
+            flow = by_id[flow_id]
             self.assertNotEqual(flow.get("product_policy_status"), "explicitly_approved")
 
 
