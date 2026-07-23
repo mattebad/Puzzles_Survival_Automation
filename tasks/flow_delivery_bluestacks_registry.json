@@ -9,6 +9,12 @@
       "recovery_handler": "campaign_navigation_only_recovery",
       "consequence_class": "navigation_only"
     },
+    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION": {
+      "runner": "campaign_atlas_native_survey_runner",
+      "evidence_validator": "campaign_atlas_native_survey_evidence",
+      "recovery_handler": "campaign_atlas_native_survey_recovery",
+      "consequence_class": "navigation_only"
+    },
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
       "runner": "ultimate_challenge_navigation_only_runner",
       "evidence_validator": "ultimate_challenge_navigation_only_evidence",

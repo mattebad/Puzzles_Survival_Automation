@@ -1,54 +1,116 @@
 {
   "schema_version": 1,
   "flow_id": "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
-  "product_purpose": "Future native 800x1280 Campaign map survey and independent atlas validation.",
+  "product_purpose": "Acquire and independently validate a hash-bound native 800x1280 Campaign atlas survey corpus.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "session",
-  "required_starting_context": ["unknown_requires_evidence"],
+  "required_starting_context": [
+    "unknown_requires_evidence"
+  ],
   "shared_primitive_dependencies": [],
-  "recognized_states": ["contract_declared", "evidence_required"],
+  "recognized_states": [
+    "activated_scan_contract_ready",
+    "survey_session_prepared",
+    "evidence_required",
+    "native_survey_complete",
+    "blocked_fail_closed"
+  ],
   "state_transitions": [
     {
-      "from": "contract_declared",
+      "from": "activated_scan_contract_ready",
+      "to": "survey_session_prepared",
+      "via": "pnsctl_bluestacks_run_flow_zero_input_scaffold",
+      "notes": "Prep dry-run remains zero-input; activated live dispatch is pnsctl-only."
+    },
+    {
+      "from": "survey_session_prepared",
       "to": "evidence_required",
-      "via": "missing_explicit_authorization_and_native_corpus",
-      "notes": "Difficulty switching is not a recenter strategy."
+      "via": "map_scan_displacement_policy_or_corpus_absent",
+      "notes": "Difficulty switching is explicit comparison only and never a recenter strategy."
+    },
+    {
+      "from": "survey_session_prepared",
+      "to": "native_survey_complete",
+      "via": "accepted_hash_bound_corpus_and_safe_terminal",
+      "notes": "Requires four edge clamps, overlaps, registration residuals, coverage, loop closure, cross-difficulty geometry, and landmarks."
+    },
+    {
+      "from": "survey_session_prepared",
+      "to": "blocked_fail_closed",
+      "via": "lease_journal_native_identity_or_budget_failure",
+      "notes": "Preserve exact accounting; never identical blind retry."
     }
   ],
   "permitted_inputs": [],
-  "local_postconditions": ["evidence_required", "no_gameplay_execution"],
+  "navigation_input_authorization": {
+    "maximum_inputs": 272,
+    "inputs_used": 0,
+    "disposition": "blocked_preinput_safety_gates",
+    "reviewed_lower_bound": 4,
+    "budget_partitions": {
+      "edge_clamp_steps": 128,
+      "edge_steps_per_direction": 32,
+      "overlapping_viewport_steps": 128,
+      "auxiliary_entry_difficulty_safe_terminal_recovery": 16
+    },
+    "maximum_sessions": 0,
+    "notes": "The reviewed ceiling remains recorded, but no live session is currently authorized because overlap association/coverage policy, current-frame measured non-static difficulty/exit/base selectors, and fresh-recapture non-trivial SafeAction successor reconciliation are absent."
+  },
+  "local_postconditions": [
+    "evidence_required_or_native_survey_complete",
+    "no_gameplay_execution",
+    "registration_measurement_never_authorizes_input"
+  ],
   "consequential_action_class": "none_declared",
   "cost_quantity_requirements": {
     "free_only": true,
     "maximum_cost": 0,
     "quantity": 0,
     "resource_or_currency": null,
-    "notes": "Current transport budget is zero; future navigation-only acquisition needs separate authorization."
+    "notes": "Gameplay cost remains zero. One navigation-only survey session has a hard ceiling of 272 transport inputs."
   },
   "completion_identity": "campaign-atlas-native-survey-and-validation:accepted-corpus",
-  "terminal_outcomes": ["blocked", "manual_required"],
+  "terminal_outcomes": [
+    "blocked",
+    "manual_required"
+  ],
   "cooldown_deferred_behavior": "not_applicable_navigation_evidence",
-  "bounded_recovery_behavior": "stop_at_reviewed_budget_or_ambiguous_state",
+  "bounded_recovery_behavior": "evidence_supported_non_identical_within_auxiliary_16_or_stop",
   "evidence_requirements": [
     "evidence_required: native four-edge and overlapping viewport corpus with hashes, masks, transforms, coverage, and loop closure",
-    "evidence_required: independent cross-difficulty geometry and semantic anchor review"
+    "evidence_required: independent cross-difficulty geometry and semantic anchor review",
+    "evidence_required: every navigation input retains source/immediate-before/transport/immediate-post/semantic/journal identity",
+    "evidence_required: fresh-recapture non-trivial SafeAction successor reconciliation before live clearance"
   ],
   "replay_fixture_requirements": [
     {
       "fixture_id": "native_campaign_survey_corpus",
       "status": "required_evidence",
       "path": null,
-      "notes": "Not acquired or fabricated by the prep task."
+      "notes": "Not acquired or fabricated by offline preparation; parent owns live acquisition."
     }
   ],
   "live_validation_scenarios": [
     {
-      "id": "campaign-atlas-native-survey-pending",
+      "id": "campaign-atlas-native-survey",
       "mode": "blocked_until_evidence",
-      "notes": "Blocked at zero attempts pending explicit authorization and a checked-in nonzero plan."
+      "maximum_navigation_inputs": 272,
+      "navigation_inputs_used": 0,
+      "notes": "Blocked before live_preflight; maximum_navigation_inputs=272; inputs_used=0; no input is permitted until overlap policy, measured non-static selectors, and fresh-recapture semantic successor reconciliation all close."
     }
   ],
-  "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "blocking_unknown_modal"],
-  "implementation_status": "contract_only",
-  "proof_state": "evidence_required"
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "blocking_unknown_modal"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "operator_interface": "python scripts/pnsctl.py bluestacks run-flow CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+  "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+  "production_registration": "NOT_REGISTERED",
+  "scheduler_eligible": false
 }

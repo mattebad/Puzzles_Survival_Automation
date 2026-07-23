@@ -138,32 +138,37 @@
       ],
       "implementation_entrypoints": [
         "scripts/campaign_atlas_bluestacks.py",
+        "scripts/flow_delivery_campaign_atlas_bluestacks.py",
         "tasks/campaign_atlas.py",
-        "tasks/campaign_atlas_vision.py",
-        "tasks/campaign_auto_battle_vision.py"
+        "tasks/campaign_atlas_vision.py"
       ],
       "navigation_model": "campaign_screen_atlas_native_survey_and_validation",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "No live attempt is authorized; a future explicitly authorized navigation-only native survey must collect the Campaign map corpus and prove difficulty geometry invariance without using the difficulty switch as a recenter operation.",
+      "live_validation_scope": "One navigation-only survey session is authorized with a hard ceiling of 272 inputs: at most 128 edge-clamp steps, 128 overlapping-viewport steps, and 16 entry, difficulty-comparison, safe-terminal, or evidence-supported recovery inputs. Difficulty switching must never be used as recentering.",
       "consequence_policy": "Navigation-only survey; no stage selection, AP, Auto Battle, Ultimate Challenge action, or consequential input.",
       "product_policy_status": "navigation_only_validation",
       "maximum_live_attempts": 0,
       "live_attempt_count": 0,
       "live_attempts": [],
       "additional_live_attempts_authorized": 0,
+      "maximum_navigation_inputs": 272,
+      "navigation_inputs_used": 0,
+      "navigation_budget_disposition": "blocked_preinput_safety_gates",
       "focused_tests": [
-        "tests/test_home_atlas.py",
-        "tests/test_home_atlas_planner.py",
-        "tests/test_campaign_auto_battle_runtime.py"
+        "tests/test_campaign_atlas.py",
+        "tests/test_campaign_atlas_vision.py",
+        "tests/test_campaign_atlas_collector.py",
+        "tests/test_flow_delivery_authority_consistency.py",
+        "tests/test_flow_delivery_orchestrator.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "navigation_input_count",
         "relocalization_residual_pixels"
       ],
-      "blocked_reason": "Depends on the Campaign survey contract and collector prep and requires separate explicit authorization plus a reviewed nonzero native-survey budget.",
-      "next_concrete_action": "After collector prep and explicit authorization, acquire native four-edge/overlap frames and validate coverage, registration overlap, chapter landmarks, cross-difficulty geometry, and special-door identity.",
-      "last_completed_stage": null,
+      "blocked_reason": "live_preflight inadmissible: overlap association/coverage policy absent; difficulty/exit/base selectors resolve to compile-time static ROIs; and non-trivial fresh-recapture SafeAction successor reconciliation is absent; zero inputs used",
+      "next_concrete_action": "Define and independently review an evidence-grounded overlap association/coverage policy, current-frame measured non-static difficulty/exit/base selectors, and fresh-recapture semantic successor reconciliation in a separate atomic task; no live_preflight or survey input is authorized until all three gates close.",
+      "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
       "acceptance_criteria": [
@@ -177,7 +182,7 @@
         "no AP or stage Challenge",
         "no Auto Battle or refill",
         "no Ultimate Challenge Challenge, Exit, or Flee action",
-        "no live attempt until separately authorized",
+        "no more than one live survey session or 272 navigation inputs",
         "no production registration change",
         "no gameplay scheduler mutation",
         "no composition activation",
@@ -194,16 +199,30 @@
         "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP"
       ],
       "implementation_allowlist_seed": [
-        "scripts/campaign_atlas_bluestacks.py",
         "tasks/campaign_atlas.py",
         "tasks/campaign_atlas_vision.py",
+        "scripts/campaign_atlas_bluestacks.py",
+        "scripts/flow_delivery_campaign_atlas_bluestacks.py",
+        "scripts/pnsctl.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION.json",
+        "tasks/flow_delivery_queue.json",
         "tests/test_campaign_atlas.py",
-        "tests/test_campaign_atlas_vision.py"
+        "tests/test_campaign_atlas_vision.py",
+        "tests/test_campaign_atlas_collector.py",
+        "tests/test_flow_delivery_authority_consistency.py",
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_flow_delivery_ide_native_hardening.py",
+        "CURRENT_HANDOFF.md",
+        "BACKLOG.md",
+        "tasks/backlog_task_index.json"
       ],
       "live_validation_scenarios": [
         {
           "id": "campaign-atlas-native-survey",
-          "mode": "navigation_only_future_explicit_authorization"
+          "mode": "blocked_until_evidence",
+          "maximum_navigation_inputs": 272,
+          "navigation_inputs_used": 0
         }
       ],
       "required_terminal_states": [
@@ -212,12 +231,14 @@
         "blocked_fail_closed"
       ],
       "completion_tests": [
-        "tests/test_home_atlas.py",
-        "tests/test_home_atlas_planner.py",
-        "tests/test_campaign_auto_battle_runtime.py"
+        "tests/test_campaign_atlas.py",
+        "tests/test_campaign_atlas_vision.py",
+        "tests/test_campaign_atlas_collector.py",
+        "tests/test_flow_delivery_authority_consistency.py",
+        "tests/test_flow_delivery_orchestrator.py"
       ],
       "consequential_stage_policy": {
-        "live_input": "navigation_only_after_explicit_authorization",
+        "live_input": "prohibited_until_overlap_policy_and_measured_selectors_exist",
         "stage_or_ap_action": "prohibited",
         "ultimate_challenge_action": "prohibited"
       }

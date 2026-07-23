@@ -985,10 +985,15 @@ class BlueStacksRegistryHardeningTests(unittest.TestCase):
         self.assertIn("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION", flows)
         ultimate = flows["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]
         self.assertEqual(ultimate["consequence_class"], "navigation_only")
+        self.assertIn("CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION", flows)
+        survey = flows["CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"]
+        self.assertEqual(survey["consequence_class"], "navigation_only")
+        self.assertEqual(survey["runner"], "campaign_atlas_native_survey_runner")
         self.assertEqual(
             set(flows)
             - {
                 "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+                "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
                 "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             },
             set(),

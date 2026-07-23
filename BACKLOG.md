@@ -5086,13 +5086,57 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION
 - Task ID: `CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION`.
 - Title: Acquire and validate the native Campaign atlas corpus.
-- Status: Blocked / not activated.
+- Status: Blocked before live preflight (2026-07-23); the reviewed 272-input ceiling is recorded, but inputs used remain 0 and no live session is authorized because three native safety gates are absent.
+- Milestone: Campaign Atlas native evidence acquisition and independent validation.
 - Dependencies: completed `CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP`, explicit authorization, reviewed navigation-only plan, runtime/development lease, and a checked-in nonzero attempt budget.
-- Scope when authorized: collect native 800x1280 four-edge clamps and overlapping interior tiles; retain hashes, annotations, masks, transforms, coverage, loop closure, chapter/special anchors, and paired difficulty geometry evidence.
+- Blocked by: no evidence-grounded overlap association/coverage policy and no current-frame measured non-static difficulty/exit/base selectors; independent review also requires non-trivial SafeAction successor reconciliation before either gate may authorize live input.
+- Objective: acquire and independently validate a hash-bound native 800x1280 Campaign survey corpus covering all four map-edge clamps, overlapping interiors, Story difficulties 1 and 2, chapter landmarks, and the Prison Trial/Ultimate Challenge destination.
+- Established facts: the reviewed budget is 272 and inputs used are 0; the ceiling allocates at most 128 edge-clamp steps, 128 overlapping-viewport steps, and 16 entry, difficulty-comparison, safe-terminal, or evidence-supported recovery inputs; no canonical Campaign atlas corpus exists; retained local Campaign frames are mechanics/landmark candidates only.
+- Direct implementation files: `tasks/campaign_atlas.py`, `tasks/campaign_atlas_vision.py`, `scripts/campaign_atlas_bluestacks.py`, `scripts/flow_delivery_campaign_atlas_bluestacks.py`, `scripts/pnsctl.py`, `tasks/flow_delivery_bluestacks_registry.json`, the Campaign survey gameplay contract, and dedicated Campaign atlas/authority tests.
+- Shared dependencies: existing Home/Campaign route, immutable native-frame provenance, fixed-HUD mask, navigation journals, lease policy, and runtime input safety policy.
+- Transitive regression set: dedicated Campaign atlas, authority consistency, gameplay contract, flow-delivery orchestrator, and governance tests.
+- Allowed changes: per-commit allowed paths are the direct implementation files, `tasks/flow_delivery_queue.json`, `tasks/backlog_task_index.json`, `tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION.json`, dedicated Campaign atlas tests, directly attributable flow-delivery authority/registry tests, this exact backlog section, and `CURRENT_HANDOFF.md`.
+- Prohibited changes: Campaign AP or Ultimate Challenge integration; stage Challenge; AP, Auto Battle, Sweep, Blitz, Auto Complete, refill, Challenge/Exit/Flee; registration; scheduling; fabricated evidence; budget enlargement beyond 272; unrelated policy.
+- Authorized runtime action: None under the terminal blocked result; the finite 272-input ceiling remains recorded but does not authorize live_preflight or transport.
+- Maximum transport inputs: 272 navigation-only inputs, with 0 used before activation.
+- Navigation-only recovery: Only evidence-supported, non-identical, bounded recovery within the reserved 16-input allocation; ambiguous or unsafe states stop fail-closed.
+- Consequential action: None.
+- Registration changes: None; production remains not registered.
+- Scheduler changes: None; gameplay scheduling remains disabled/ineligible.
+- Actions that must not be repeated: do not blindly retry an identical input, exceed 272 inputs, use difficulty switching as recentering, or promote candidate retained frames without native provenance and independent inspection.
+- Required source: `CURRENT_HANDOFF.md`, this task and its direct dependency, queue and contract authority, commit `3b34b9d13e7d78a0a0823722e749c59091270708`, and directly referenced retained Campaign candidates.
+- Exact target semantics: native Campaign map edges, overlapping map content, spatially associated chapter labels, and the Prison Trial/Ultimate Challenge destination; filenames and unrelated OCR are non-authorizing.
+- Required local association: every accepted frame must bind native dimensions, profile, package, session, ordinal, UTC time, source path, transport hash, semantic hash, mask identity, and independently inspected annotation.
+- Negative controls: non-native, unhashed, local candidate, phone, scaled-preview, synthetic, placeholder, and zero-byte frames are rejected; Story difficulty switching cannot establish recentering.
+- Coordinate space: raw full-frame 800x1280 at 160 dpi only.
+- Accepted signals: independently inspected native frames with valid provenance plus measured edge clamps, overlap, registration residuals/inliers, coverage, loop closure, cross-difficulty geometry, and semantic landmarks.
+- Rejected weak signals: filenames, metadata alone, passing circular tests, transport success, Home atlas geometry, stale/scaled captures, or OCR not spatially associated with the target.
+- Ambiguous-result behavior: stop fail-closed, preserve accounting and evidence, and never issue an identical blind retry.
+- Zero-cost requirement: no AP, stamina, currency, item, challenge resource, or refill may be consumed.
+- Quantity limits: the reviewed ceiling remains 272 navigation inputs, but current maximum live survey sessions is zero and inputs used are zero; no collection is permitted while any preflight gate remains open.
+- Resource consumption policy: no gameplay resources or refills.
+- Premium or strategic restrictions: unchanged; no premium/resource/account action.
+- Active evidence manifest: None; live_preflight was not admitted and no task-local survey session or evidence was created.
+- Required artifacts: the blocked result retains the activated contract, fail-closed runner, exact zero-input accounting, independent reviews, authority updates, tests, and handoff; the native corpus and validation artifacts remain absent and required for future completion.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE for this zero-input blocked result; no navigation action was prepared or sent.
+- Additional task-specific artifacts: no visual ground truth was created. Retained local Campaign frames remain rejected as atlas authority and classified only as mechanics/landmark candidates.
+- Focused tests: `tests/test_campaign_atlas.py`, `tests/test_campaign_atlas_vision.py`, `tests/test_campaign_atlas_collector.py`, `tests/test_flow_delivery_authority_consistency.py`, `tests/test_gameplay_flow_contracts.py`, `tests/test_flow_delivery_orchestrator.py`, and `tests/test_governance_validation.py`.
+- Integration tests: collector/session validation, native evidence manifest validation, registration/coverage/loop-closure checks, and safe-terminal accounting; no Campaign AP or Ultimate Challenge consumer integration.
+- Transitive regression tests: no consumer integration test is required because Campaign AP and Ultimate Challenge remain unchanged and dependency-blocked.
+- Full-suite requirement: Required for this production-path blocked implementation before commit.
+- Validators: deterministic backlog index generation, focused unittest suites, flow-delivery authority validation, governance validation, JSON parsing, `git diff --check`, and post-validation Git snapshot.
+- Known baseline failures: full discovery ran 1,317 tests with 7 failures, 2 errors, and 2 skips. One task-induced registry-membership failure was corrected and its focused test passes. Eight pre-existing stale authority-expectation failures remain: one Campaign prep selection expectation, one Daily Campaign implementation-status expectation, two live-attempt hardening tests that mutate queue index 0 now occupied by the non-live prep flow, three parent-conversation rollover selection expectations, and one Nova active-flow expectation. They are test-contract defects owned by a corrective follow-up to committed Campaign sequencing `3b34b9d`; they are not waived or rewritten here.
+- Evidence requirement: NOT_APPLICABLE for this zero-input blocked-result commit; native survey evidence remains REQUIRED for future task completion and was not fabricated.
+- Valid blocked outcomes: absent reviewed overlap association/coverage policy, absent current-frame measured non-static selectors, unsafe reconciliation, invalid authority/lease/journal state, unsafe runtime source, or missing native provenance.
 - Recenter policy: localize the arbitrary current Campaign viewport through the atlas; never use difficulty switching as a recenter operation.
 - Prohibitions: no stage Challenge, AP, Auto Battle, refill, Ultimate Challenge Challenge/Exit/Flee, registration, or scheduling.
-- Current authorization: maximum and additional live attempts are zero.
+- Current authorization: exact navigation-input ceiling 272; navigation inputs used 0; maximum live survey sessions 0 after terminal blocking; additional live attempts authorized 0.
+- Blocked-result policy: if lease, journal, supported source, native-frame safety, evidence persistence, or semantic postconditions fail, stop without further input; preserve exact accounting and do not begin atlas integration.
+- Blocked-result commit policy: preserve coherent implementation/evidence and exact terminal accounting, document the blocker, run required validation, create one focused local commit, and stop.
+- Commit policy: one focused conventional local commit; no push.
+- Expected focused commits: `feat(campaign): gate native atlas survey`.
 - Completion boundary: independently reviewed hash-bound corpus and atlas validation only; no gameplay execution promotion.
+- Completion criteria: for this valid blocked result, livepreflight remains prohibited, exact input accounting is 0 of 272, no corpus or visual authority is claimed, the two evidence gates and reconciliation risk are recorded, consumers/registration/scheduler stay blocked, required tests and diff check pass, and one focused commit is created.
 
 ### CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY
 - Task ID: `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`.

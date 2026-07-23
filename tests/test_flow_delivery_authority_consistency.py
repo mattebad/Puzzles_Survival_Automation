@@ -105,10 +105,52 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertFalse(prep["requires_bluestacks_live"])
         self.assertEqual(survey["dependencies"], [prep["flow_id"]])
         self.assertEqual(integration["dependencies"], [survey["flow_id"]])
-        for flow in (prep, survey, integration):
+        for flow in (prep, integration):
             self.assertEqual(flow["maximum_live_attempts"], 0)
             self.assertEqual(flow["live_attempt_count"], 0)
             self.assertEqual(flow["additional_live_attempts_authorized"], 0)
+        self.assertEqual(survey["live_attempt_count"], 0)
+        self.assertEqual(survey["additional_live_attempts_authorized"], 0)
+        self.assertEqual(survey["maximum_navigation_inputs"], 272)
+        self.assertEqual(survey["navigation_inputs_used"], 0)
+        self.assertEqual(
+            survey["navigation_budget_disposition"],
+            "blocked_preinput_safety_gates",
+        )
+        self.assertEqual(survey["maximum_live_attempts"], 0)
+        self.assertIn("live_preflight inadmissible", survey["blocked_reason"])
+        self.assertEqual(
+            survey["focused_tests"],
+            [
+                "tests/test_campaign_atlas.py",
+                "tests/test_campaign_atlas_vision.py",
+                "tests/test_campaign_atlas_collector.py",
+                "tests/test_flow_delivery_authority_consistency.py",
+                "tests/test_flow_delivery_orchestrator.py",
+            ],
+        )
+        self.assertEqual(survey["completion_tests"], survey["focused_tests"])
+        self.assertIn("scripts/flow_delivery_campaign_atlas_bluestacks.py", survey["implementation_entrypoints"])
+        self.assertIn(
+            "scripts/flow_delivery_campaign_atlas_bluestacks.py",
+            survey["implementation_allowlist_seed"],
+        )
+        self.assertIn(
+            "tests/test_flow_delivery_orchestrator.py",
+            survey["implementation_allowlist_seed"],
+        )
+        registry = _read(REGISTRY)
+        survey_registry = registry["flows"]["CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"]
+        self.assertEqual(survey_registry["runner"], "campaign_atlas_native_survey_runner")
+        self.assertEqual(
+            survey_registry["evidence_validator"],
+            "campaign_atlas_native_survey_evidence",
+        )
+        self.assertEqual(
+            survey_registry["recovery_handler"],
+            "campaign_atlas_native_survey_recovery",
+        )
+        self.assertEqual(survey_registry["consequence_class"], "navigation_only")
         for consumer_id in (
             CAMPAIGN_FLOW_ID,
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
@@ -137,6 +179,11 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertNotIn("future_required_tests", prep)
         self.assertEqual(prep["last_completed_stage"], "completed")
         self.assertFalse(queue["gameplay_scheduler"])
+        self.assertEqual(by_id[CAMPAIGN_FLOW_ID]["status"], "blocked")
+        self.assertEqual(
+            by_id["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]["status"],
+            "blocked",
+        )
 
     def test_recruitment_retained_evidence_is_not_mislabeled_or_promoted(self) -> None:
         coverage = _read(COVERAGE)["flows"]

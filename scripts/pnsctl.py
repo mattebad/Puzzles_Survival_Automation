@@ -84,6 +84,7 @@ FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
 )
 BLUESTACKS_FLOW_IDS = (
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
     "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
     "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
@@ -115,6 +116,14 @@ def _register_checked_in_bluestacks_handlers() -> None:
     except ImportError:
         from flow_delivery_campaign_bluestacks import register as register_campaign
     try:
+        from scripts.flow_delivery_campaign_atlas_bluestacks import (
+            register as register_campaign_atlas,
+        )
+    except ImportError:
+        from flow_delivery_campaign_atlas_bluestacks import (
+            register as register_campaign_atlas,
+        )
+    try:
         from scripts.flow_delivery_ultimate_challenge_bluestacks import (
             register as register_ultimate_challenge,
         )
@@ -124,6 +133,11 @@ def _register_checked_in_bluestacks_handlers() -> None:
         )
 
     register_campaign(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+    register_campaign_atlas(
         _BLUESTACKS_FLOW_RUNNERS,
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
