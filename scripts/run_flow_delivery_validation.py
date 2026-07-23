@@ -27,6 +27,13 @@ PROFILE_ALIASES = {
     "architecture": "architecture_tests",
     "full": "full_suite",
     "governance": "governance",
+    # Proportionate profiles reserve the heavy full/architecture/governance load for
+    # promotion and keep navigation development on light, targeted checks.
+    "shared-navigation": "shared_navigation",
+    "task-navigation": "focused_tests",
+    "detector": "detector",
+    "consequential": "consequential",
+    "promotion": "promotion",
 }
 ALLOWED_PROFILES = set(PROFILE_ALIASES.values())
 MAX_CONSOLE_FAILURE_CHARS = 1200
@@ -119,6 +126,12 @@ def _parse_test_count(output: str) -> int | None:
 def _stage_for_profile(profile: str) -> str:
     if profile in {"focused_tests", "architecture_tests", "governance"}:
         return "focused_validation"
+    if profile in {"shared_navigation", "detector"}:
+        return "navigation_validation"
+    if profile == "consequential":
+        return "consequential_validation"
+    if profile == "promotion":
+        return "promotion_validation"
     if profile == "full_suite":
         return "full_validation"
     raise ValidationRunnerError(f"unsupported profile: {profile}")
@@ -228,7 +241,17 @@ def run_profile(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("focused", "architecture", "full", "governance"):
+    for name in (
+        "focused",
+        "architecture",
+        "full",
+        "governance",
+        "shared-navigation",
+        "task-navigation",
+        "detector",
+        "consequential",
+        "promotion",
+    ):
         command = sub.add_parser(name)
         command.add_argument("--flow-id", required=True)
         command.add_argument("--stage", default=None)

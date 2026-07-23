@@ -8,6 +8,15 @@
       "tests.test_flow_delivery_ide_native_hardening",
       "tests.test_home_atlas_verified_route"
     ],
+    "shared_navigation": [
+      "tests.test_navigation_development_boundary"
+    ],
+    "promotion": [
+      "tests.test_flow_delivery_orchestrator",
+      "tests.test_flow_delivery_ide_native_hardening",
+      "tests.test_home_atlas_verified_route",
+      "tests.test_governance_validation"
+    ],
     "full_suite": [
       "discover"
     ],
@@ -32,6 +41,8 @@
   },
   "notes": [
     "full_suite uses python -m unittest discover via the runner's dedicated branch",
-    "focused_tests may fall back to the active queue entry focused_tests paths"
+    "focused_tests may fall back to the active queue entry focused_tests paths",
+    "Proportionate profiles: shared_navigation (flow-agnostic boundary), task_navigation (alias of focused_tests), detector and consequential (flow-declared in flow_profiles), and promotion (architecture + governance) reserve the heavy full_suite for cleanup or promotion",
+    "detector and consequential are flow-declared: a flow lists them under flow_profiles; there is no global default"
   ]
 }
