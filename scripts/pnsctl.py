@@ -54,6 +54,9 @@ BLUESTACKS_ARTIFACT_ROOT = REPO_ROOT / ".local-captures" / "flow-delivery"
 NOVA_NAVIGATION_CANARY_OUTPUT_DEFAULT = (
     BLUESTACKS_ARTIFACT_ROOT / "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
 )
+NOAHS_TAVERN_NAV_OUTPUT_DEFAULT = (
+    BLUESTACKS_ARTIFACT_ROOT / "NOAHS-TAVERN-HOME-ATLAS-MIGRATION"
+)
 NOVA_SUPERVISED_PULSE_FLOW_ID = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
 NOVA_SUPERVISED_PULSE_SCENARIO_ID = "nova_praise_one_free_pulse"
 NOVA_SUPERVISED_PULSE_RESET_ID = "game-day-2026-07-22"
@@ -2769,6 +2772,65 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
     return json.dumps(route_result, sort_keys=True)
 
 
+def noahs_tavern_navigation(args: argparse.Namespace) -> str:
+    """Phase-3 navigation-only Noah's Tavern canary over the shared boundary (no recruit).
+
+    ``--preflight-only`` is genuinely zero-transport and needs no supervised opt-in. The live
+    path composes only the shared navigation-development session and the task-specific runner;
+    it reads no flow-delivery queue, lease, context, receipt, governance, or backlog state.
+    """
+
+    candidate_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    if args.preflight_only:
+        return json.dumps(
+            {
+                "status": "preflight_passed",
+                "scenario_id": "noahs_tavern_navigation_round_trip_no_recruit",
+                "candidate_commit": candidate_commit,
+                "runtime_connected": False,
+                "transport_calls": 0,
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+            },
+            sort_keys=True,
+        )
+    if not args.live:
+        raise OperatorError("noahs-tavern-nav requires --live or --preflight-only")
+    if not args.yes:
+        raise OperatorError("live Noah's Tavern navigation requires --yes")
+    if not args.supervised_live_opt_in:
+        raise OperatorError("live Noah's Tavern navigation requires --supervised-live-opt-in")
+    from scripts.navigation_development_boundary import NavigationDevelopmentSession
+
+    try:
+        from scripts import noahs_tavern_recruit_bluestacks as route_module
+    except ImportError as exc:
+        raise OperatorError("Noah's Tavern navigation route module is unavailable") from exc
+    runner = getattr(route_module, "run_noahs_tavern_navigation_canary", None)
+    if not callable(runner):
+        return json.dumps(
+            {
+                "status": "blocked",
+                "reason": "NOAHS_TAVERN_NAVIGATION_ROUTE_NOT_INTEGRATED",
+                "runtime_connected": False,
+                "transport_calls": 0,
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+            },
+            sort_keys=True,
+        )
+    owner = f"pnsctl-noahs-tavern-nav:{candidate_commit[:12]}"
+    invocation_id = f"noahs-tavern-nav-{candidate_commit[:12]}-{int(time.time())}"
+    with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
+        return runner(args, None)
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     root.add_argument("--run-id", default="help-all-20260713")
@@ -2833,6 +2895,19 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         default=NOVA_NAVIGATION_CANARY_OUTPUT_DEFAULT,
     )
+    tavern_nav = sub.add_parser("noahs-tavern-nav")
+    tavern_nav.add_argument("--live", action="store_true")
+    tavern_nav.add_argument("--preflight-only", action="store_true")
+    tavern_nav.add_argument("--yes", action="store_true")
+    tavern_nav.add_argument("--supervised-live-opt-in", action="store_true")
+    tavern_nav.add_argument("--adb", type=Path, default=BLUESTACKS_ADB)
+    tavern_nav.add_argument("--serial", default=BLUESTACKS_SERIAL)
+    tavern_nav.add_argument("--settle-seconds", type=float, default=1.0)
+    tavern_nav.add_argument(
+        "--output-directory",
+        type=Path,
+        default=NOAHS_TAVERN_NAV_OUTPUT_DEFAULT,
+    )
     nova_guard = sub.add_parser("nova-praise-supervised-guard")
     nova_guard_sub = nova_guard.add_subparsers(dest="nova_guard_command", required=True)
     nova_guard_reconcile = nova_guard_sub.add_parser("reconcile-proven-no-effect")
@@ -2876,6 +2951,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     {
                         "status": "failed",
                         "command": "nova-praise-pulse",
+                        "error": str(exc),
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+    if args.command == "noahs-tavern-nav":
+        try:
+            output = noahs_tavern_navigation(args)
+            print(output)
+            return 0
+        except (OperatorError, OSError, RuntimeError, ValueError) as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "command": "noahs-tavern-nav",
                         "error": str(exc),
                     },
                     sort_keys=True,

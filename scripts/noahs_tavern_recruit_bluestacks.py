@@ -21,9 +21,50 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tasks.noahs_tavern_recruit_runtime import NoahAction, NoahTavernRecruitRuntimeController
-from tasks.noahs_tavern_recruit import HERO_RECRUIT_RESULT_SCREEN, NOAHS_TAVERN_SCREEN, RecruitTier
+from tasks.noahs_tavern_recruit import (
+    HERO_RECRUIT_RESULT_SCREEN,
+    HOME_BASE_SCREEN,
+    NOAHS_TAVERN_SCREEN,
+    NOAHS_TAVERN_TIER_TARGET_PREFIX,
+    RecruitTier,
+)
 from tasks.noahs_tavern_recruit_vision import recognize_noahs_tavern_frame
-from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueStacksRuntime, NativeRuntimePort
+from scripts.bluestacks_native_runtime import (
+    CapturedNativeFrame,
+    IntegratedRouteResult,
+    LocalBlueStacksRuntime,
+    NativeRuntimePort,
+)
+from scripts.navigation_development_boundary import (
+    NavigationBoundaryError,
+    NavigationGuardedRuntime,
+    NavigationRouteDeclaration,
+    finalize_navigation_evidence,
+    make_source_safety_facts,
+)
+
+
+NOAHS_TAVERN_BUILDING_TARGET = "noahs-tavern-building"
+NOAHS_TAVERN_NAV_FLOW_ID = "NOAHS-TAVERN-HOME-ATLAS-MIGRATION"
+NOAHS_TAVERN_NAV_SCENARIO_ID = "noahs_tavern_navigation_round_trip_no_recruit"
+
+
+def noahs_tavern_navigation_route_declaration() -> NavigationRouteDeclaration:
+    """Noah's Tavern adapter route declaration for the shared navigation-development boundary.
+
+    Navigation-only: it deliberately omits the consequential ``noahs-tavern-daily-free`` target so
+    the shared firewall cannot dispatch a recruit through this route.
+    """
+
+    tier_targets = frozenset(
+        NOAHS_TAVERN_TIER_TARGET_PREFIX + tier.name for tier in RecruitTier
+    )
+    return NavigationRouteDeclaration(
+        allowed_source_states=frozenset({HOME_BASE_SCREEN, NOAHS_TAVERN_SCREEN}),
+        allowed_target_identities=frozenset({NOAHS_TAVERN_BUILDING_TARGET, "system-back"})
+        | tier_targets,
+        allowed_gesture_classes=frozenset({"tap", "back"}),
+    )
 
 
 @dataclass(frozen=True)
@@ -236,6 +277,311 @@ class NoahTavernIntegratedRoute:
                 return IntegratedRouteResult("blocked", command.reason or command.action.value, actions, str(self.runtime.session))
             time.sleep(self.post_input_delay)
         return IntegratedRouteResult("blocked", "maximum controller steps exceeded", actions, str(self.runtime.session))
+
+
+@dataclass(frozen=True)
+class NoahTavernNavigationResult:
+    status: str
+    reason: str
+    navigation_input_count: int
+    recruit_taps: int
+    terminal_home_verified: bool
+    records: tuple[dict[str, object], ...]
+    session: str
+
+    def to_mapping(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "reason": self.reason,
+            "navigation_input_count": self.navigation_input_count,
+            "recruit_taps": self.recruit_taps,
+            "terminal_home_verified": self.terminal_home_verified,
+            "records": list(self.records),
+            "session": self.session,
+        }
+
+
+class NoahTavernNavigationCanaryRoute:
+    """Bounded no-recruit Home -> Noah's Tavern -> Home route over the shared boundary.
+
+    This is the Phase 3 reusability proof for the flow-agnostic navigation-development boundary.
+    It reuses only task-specific recognition/route logic; the shared lock, transport firewall,
+    current-frame verifier, and evidence finalizer come from the boundary. The consequential
+    recruit endpoint is intentionally excluded: it is neither declared nor dispatched here, and the
+    firewall rejects any consequential gesture regardless.
+    """
+
+    def __init__(
+        self,
+        runtime: NativeRuntimePort,
+        *,
+        recognizer=recognize_noahs_tavern_frame,
+        route_declaration: NavigationRouteDeclaration | None = None,
+        settle_seconds: float = 1.0,
+        maximum_steps: int = 8,
+        maximum_return_inputs: int = 4,
+    ) -> None:
+        declaration = route_declaration or noahs_tavern_navigation_route_declaration()
+        declaration.validate()
+        if isinstance(runtime, NavigationGuardedRuntime):
+            self.runtime: NativeRuntimePort = runtime
+        else:
+            self.runtime = NavigationGuardedRuntime(runtime, declaration)
+        self.declaration = (
+            self.runtime.declaration
+            if isinstance(self.runtime, NavigationGuardedRuntime)
+            else declaration
+        )
+        self.recognizer = recognizer
+        self.settle_seconds = settle_seconds
+        self.maximum_steps = maximum_steps
+        self.maximum_return_inputs = maximum_return_inputs
+        self.records: list[dict[str, object]] = []
+        self.input_count = 0
+
+    def _capture(self, label: str) -> CapturedNativeFrame:
+        return self.runtime.capture(label)
+
+    def _recognize(self, captured: CapturedNativeFrame):
+        # recognize_noahs_tavern_frame returns a bare NoahTavernObservation.
+        return self.recognizer(captured.frame, captured_monotonic=captured.captured_monotonic)
+
+    def _observe(self, label: str):
+        captured = self._capture(label)
+        return captured, self._recognize(captured)
+
+    def _settle(self, immediate_label: str, settled_label: str):
+        immediate_post = self._capture(immediate_label)
+        if self.settle_seconds > 0:
+            time.sleep(self.settle_seconds)
+        settled = self._capture(settled_label)
+        return immediate_post, settled
+
+    def _record_input(self, action: str, source: CapturedNativeFrame, successor: CapturedNativeFrame, **details) -> None:
+        self.records.append(
+            {
+                "action": action,
+                "source_sha256": source.sha256,
+                "successor_sha256": successor.sha256,
+                **details,
+            }
+        )
+        self.input_count += 1
+
+    def _prepare(self, captured: CapturedNativeFrame, *, source_state: str, recognized: bool, target_roi=None) -> None:
+        if not isinstance(self.runtime, NavigationGuardedRuntime):
+            raise NavigationBoundaryError("navigation firewall required before transport")
+        # Adapter supplies recognition facts only; live package/device/profile/dims bind at dispatch.
+        facts = make_source_safety_facts(
+            recognized=recognized,
+            source_state=source_state,
+            overlay_state="none_observed",
+            frame_sha256=captured.sha256,
+            captured_monotonic=captured.captured_monotonic,
+            target_roi=target_roi,
+        )
+        self.runtime.prepare_source_safety(facts)
+
+    def _blocked(self, reason: str, *, terminal_home: bool = False) -> NoahTavernNavigationResult:
+        return NoahTavernNavigationResult(
+            "blocked",
+            reason,
+            self.input_count,
+            0,
+            terminal_home,
+            tuple(self.records),
+            str(self.runtime.session),
+        )
+
+    @staticmethod
+    def _positive_source_state(observation) -> tuple[str, bool]:
+        """Return the positively measured navigation surface; never promote from allowlist."""
+
+        overlay = str(getattr(observation, "overlay_state", "none") or "none").strip().casefold()
+        if observation.stale or not observation.recognized:
+            return observation.screen_state, False
+        if overlay not in {"none", "none_observed"}:
+            return observation.screen_state, False
+        if observation.screen_state in {HOME_BASE_SCREEN, NOAHS_TAVERN_SCREEN}:
+            return observation.screen_state, True
+        return observation.screen_state, False
+
+    def _return_home(self, captured: CapturedNativeFrame, observation) -> NoahTavernNavigationResult:
+        current = observation
+        for ordinal in range(1, self.maximum_return_inputs + 1):
+            if current.recognized and not current.stale and current.screen_state == HOME_BASE_SCREEN:
+                return NoahTavernNavigationResult(
+                    "completed",
+                    "verified_safe_return_home",
+                    self.input_count,
+                    0,
+                    True,
+                    tuple(self.records),
+                    str(self.runtime.session),
+                )
+            state, ok = self._positive_source_state(current)
+            if not ok or state not in {NOAHS_TAVERN_SCREEN, HERO_RECRUIT_RESULT_SCREEN}:
+                return self._blocked("return_source_not_recognized")
+            immediate_before = self._capture(f"tavern-return-{ordinal:02d}-immediate-before")
+            rebound = self._recognize(immediate_before)
+            rebound_state, rebound_ok = self._positive_source_state(rebound)
+            if not rebound_ok or rebound_state != state:
+                return self._blocked("return_source_revalidation_failed")
+            self._prepare(immediate_before, source_state=state, recognized=True)
+            self.runtime.back(
+                immediate_before,
+                action_key=f"noah-nav:return:{ordinal}:{immediate_before.sha256}",
+            )
+            _immediate_post, settled = self._settle(
+                f"tavern-return-{ordinal:02d}-immediate-post",
+                f"tavern-return-{ordinal:02d}-settled",
+            )
+            self._record_input("safe_return_back", immediate_before, settled)
+            current = self._recognize(settled)
+        return self._blocked("maximum_safe_return_inputs")
+
+    def run(self) -> NoahTavernNavigationResult:
+        source, observation = self._observe("tavern-canary-source")
+        for step in range(1, self.maximum_steps + 1):
+            state, ok = self._positive_source_state(observation)
+            if not ok:
+                return self._blocked(
+                    "unknown_or_overlaid_source_state"
+                    if observation.recognized
+                    else "source_state_not_recognized"
+                )
+            if state == HOME_BASE_SCREEN:
+                immediate_before = self._capture(f"tavern-open-{step:02d}-immediate-before")
+                rebound = self._recognize(immediate_before)
+                if (
+                    not rebound.recognized
+                    or rebound.stale
+                    or rebound.screen_state != HOME_BASE_SCREEN
+                    or rebound.home_tavern_target_roi is None
+                ):
+                    if (
+                        rebound.recognized
+                        and rebound.screen_state == HOME_BASE_SCREEN
+                        and rebound.home_tavern_target_roi is None
+                    ):
+                        return self._blocked("home_tavern_target_not_current_frame_bound")
+                    return self._blocked("home_tavern_open_revalidation_failed")
+                target_roi = rebound.home_tavern_target_roi
+                self._prepare(
+                    immediate_before,
+                    source_state=HOME_BASE_SCREEN,
+                    recognized=True,
+                    target_roi=target_roi,
+                )
+                self.runtime.tap(
+                    immediate_before,
+                    target_identity=NOAHS_TAVERN_BUILDING_TARGET,
+                    target_roi=target_roi,
+                    action_key=f"noah-nav:open-tavern:{immediate_before.sha256}",
+                    consequential=False,
+                )
+                _immediate_post, settled = self._settle(
+                    f"tavern-open-{step:02d}-immediate-post",
+                    f"tavern-open-{step:02d}-settled",
+                )
+                self._record_input("tap_tavern_navigation", immediate_before, settled)
+                observation = self._recognize(settled)
+                continue
+            if state == NOAHS_TAVERN_SCREEN:
+                # Navigation goal reached; the recruit endpoint is intentionally excluded.
+                return self._return_home(source, observation)
+            return self._blocked("unexpected_navigation_state")
+        return self._blocked("maximum_navigation_steps")
+
+
+def run_noahs_tavern_navigation_canary(args, identity=None) -> str:
+    """Checked-in pnsctl live runner for the navigation-only Tavern canary.
+
+    ``identity`` is accepted for runner-signature symmetry with the Nova canary; this
+    navigation-only route needs no account/server/reset identity.
+    """
+
+    runtime = LocalBlueStacksRuntime.connect(
+        adb=str(args.adb),
+        serial=args.serial,
+        output_directory=args.output_directory,
+        workflow="noahs-tavern-navigation-canary",
+        execute=True,
+    )
+    route = NoahTavernNavigationCanaryRoute(
+        runtime,
+        settle_seconds=getattr(args, "settle_seconds", 1.0),
+        route_declaration=noahs_tavern_navigation_route_declaration(),
+    )
+    result = None
+    try:
+        result = route.run()
+    except BaseException as exc:
+        finalize_navigation_evidence(
+            runtime.session,
+            status="failed",
+            reason=f"exception:{type(exc).__name__}",
+            records=tuple(route.records),
+            flow_id=NOAHS_TAVERN_NAV_FLOW_ID,
+            scenario_id=NOAHS_TAVERN_NAV_SCENARIO_ID,
+            navigation_input_count=route.input_count,
+            authorized_gestures=(
+                route.runtime.authorized_gestures
+                if isinstance(route.runtime, NavigationGuardedRuntime)
+                else ()
+            ),
+            extra={
+                "recruit_taps": 0,
+                "terminal_home_verified": False,
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+            },
+            exception=exc,
+        )
+        raise
+    finalize_navigation_evidence(
+        runtime.session,
+        status=result.status
+        if result.status in {"completed", "blocked", "manual_required", "unresolved", "failed"}
+        else "blocked",
+        reason=result.reason,
+        records=result.records,
+        flow_id=NOAHS_TAVERN_NAV_FLOW_ID,
+        scenario_id=NOAHS_TAVERN_NAV_SCENARIO_ID,
+        navigation_input_count=result.navigation_input_count,
+        authorized_gestures=(
+            route.runtime.authorized_gestures
+            if isinstance(route.runtime, NavigationGuardedRuntime)
+            else ()
+        ),
+        extra={
+            "recruit_taps": result.recruit_taps,
+            "terminal_home_verified": result.terminal_home_verified,
+            "production_registration": "NOT_REGISTERED",
+            "scheduler_enabled": False,
+            "route_declaration": {
+                "allowed_source_states": sorted(route.declaration.allowed_source_states),
+                "allowed_target_identities": sorted(route.declaration.allowed_target_identities),
+                "allowed_gesture_classes": sorted(route.declaration.allowed_gesture_classes),
+                "consequence_class": route.declaration.consequence_class,
+            },
+        },
+    )
+    return json.dumps(
+        {
+            "status": result.status,
+            "reason": result.reason,
+            "scenario_id": NOAHS_TAVERN_NAV_SCENARIO_ID,
+            "session_directory": str(runtime.session),
+            "navigation_input_count": result.navigation_input_count,
+            "recruit_taps": result.recruit_taps,
+            "transport_calls": result.navigation_input_count,
+            "terminal_home_verified": result.terminal_home_verified,
+            "production_registration": "NOT_REGISTERED",
+            "scheduler_enabled": False,
+        },
+        sort_keys=True,
+    )
 
 
 def read_frame(path: Path):
