@@ -70,7 +70,7 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         self.assertEqual(
             flow_ids[:5],
             [
-                "CAMPAIGN-ATLAS-OFFLINE-FOUNDATION",
+                "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
                 "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
                 "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
                 "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
@@ -159,7 +159,7 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         )
         self.assertEqual(selected["flow_id"], expected["flow_id"])
 
-    def test_atlas_foundation_precedes_both_consumers(self) -> None:
+    def test_survey_collector_prep_precedes_both_consumers(self) -> None:
         by_id = {flow["flow_id"]: flow for flow in self.queue["flows"]}
         dependency = "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
         self.assertEqual(
@@ -175,7 +175,10 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
             [dependency],
         )
         selected = control.FlowDeliveryController().select_next(self.queue)
-        self.assertEqual(selected["flow_id"], "CAMPAIGN-ATLAS-OFFLINE-FOUNDATION")
+        self.assertEqual(
+            selected["flow_id"],
+            "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
+        )
 
     def test_coverage_keeps_objectives_separate(self) -> None:
         campaign = self.coverage["flows"]["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]

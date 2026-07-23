@@ -35,25 +35,22 @@
   "active_flow_id": null,
   "flows": [
     {
-      "flow_id": "CAMPAIGN-ATLAS-OFFLINE-FOUNDATION",
-      "title": "Build the Campaign screen atlas offline foundation",
-      "kind": "navigation_foundation",
+      "flow_id": "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
+      "title": "Prepare the Campaign atlas survey contract and collector",
+      "kind": "navigation_contract_prep",
       "priority": 5,
       "status": "ready",
-      "backlog_task_id": "CAMPAIGN-ATLAS-OFFLINE-FOUNDATION",
+      "backlog_task_id": "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
       "dependencies": [],
       "implementation_entrypoints": [
         "tasks/campaign_atlas.py",
         "tasks/campaign_atlas_vision.py",
-        "scripts/campaign_atlas_bluestacks.py",
-        "tasks/campaign_auto_battle_vision.py",
-        "tasks/home_atlas.py",
-        "tasks/home_atlas_vision.py"
+        "scripts/campaign_atlas_bluestacks.py"
       ],
-      "navigation_model": "campaign_screen_atlas_offline_registration_and_planning",
+      "navigation_model": "campaign_native_survey_contract_and_dry_run_collector",
       "requires_bluestacks_live": false,
-      "live_validation_scope": "No live input; implement the Campaign atlas schema, registration, provenance, and zero-transport planner offline.",
-      "consequence_policy": "Offline-only atlas work; no Campaign stage, AP, Ultimate Challenge, or runtime input authority.",
+      "live_validation_scope": "No live input; prepare only native 800x1280 evidence/provenance schema, HUD exclusion masks, a generic registration seam, a bounded four-edge/overlap scan contract, and fail-closed zero-input dry-run collector tests before native corpus acquisition.",
+      "consequence_policy": "Zero-input contract preparation only; no atlas build, semantic navigation, Campaign stage, AP, Ultimate Challenge, production replay, or runtime input authority.",
       "product_policy_status": "navigation_only_validation",
       "maximum_live_attempts": 0,
       "live_attempt_count": 0,
@@ -62,28 +59,36 @@
       "focused_tests": [
         "tests/test_home_atlas.py",
         "tests/test_home_atlas_planner.py",
-        "tests/test_campaign_auto_battle_runtime.py",
         "tests/test_campaign_story_destinations.py"
+      ],
+      "current_validation_boundary": "The checked-in focused tests validate authority and reusable Home Atlas seams only; this prep task must create and promote dedicated Campaign survey-contract and collector tests before completion.",
+      "future_required_tests": [
+        "tests/test_campaign_atlas.py",
+        "tests/test_campaign_atlas_vision.py",
+        "tests/test_campaign_atlas_collector.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
       "blocked_reason": "",
-      "next_concrete_action": "Implement the Campaign-specific atlas schema, native-registration seam, and zero-transport planner without changing runtime authorization.",
+      "next_concrete_action": "Implement only the survey evidence/provenance schema, HUD mask contract, generic registration seam, bounded scan contract, and fail-closed zero-input collector dry-run.",
       "last_completed_stage": null,
       "last_commit": null,
-      "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-OFFLINE-FOUNDATION",
+      "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
       "acceptance_criteria": [
-        "Campaign atlas types remain separate from Home zoom and Home-context semantics",
-        "offline replay models four-edge clamps and overlapping atlas coverage with provenance",
-        "chapter and Ultimate Challenge anchors retain independent source-frame and transform evidence",
-        "projected atlas locations never authorize input without a fresh current-frame bind",
-        "existing direct stage OCR and Campaign/Ultimate separation remain intact",
-        "no runtime input, registration, scheduler, or composition activation occurs"
+        "native 800x1280 evidence and provenance schema is defined without fabricating a corpus",
+        "HUD exclusion mask contract is explicit and platform/profile bound",
+        "generic frame-registration seam API is defined without map-specific thresholds",
+        "bounded four-edge and overlapping-viewport scan contract is defined without final atlas geometry",
+        "fail-closed zero-input dry-run collector tests cover missing corpus and invalid provenance",
+        "dedicated Campaign prep tests are created and promoted into focused_tests and completion_tests before task completion"
       ],
       "scope_prohibitions": [
-        "no BlueStacks or production input",
-        "no native evidence acquisition",
-        "no Campaign AP, Auto Battle, or Ultimate Challenge action",
+        "no runtime input or native corpus acquisition in this prep task",
+        "no final atlas tiles or atlas geometry",
+        "no semantic chapter, stage, or Ultimate Challenge anchors",
+        "no recognition thresholds or threshold tuning",
+        "no Campaign localizer or navigator",
+        "no production replay",
         "no production registration change",
         "no gameplay scheduler mutation",
         "no composition activation",
@@ -92,8 +97,8 @@
       ],
       "reference_docs": [
         "docs/research/home_ui_atlas.md",
-        "docs/campaign-auto-battle.md",
-        "docs/runtime-input-safety-policy.md"
+        "docs/runtime-input-safety-policy.md",
+        "docs/evidence-retention-policy.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -101,28 +106,30 @@
         "tasks/campaign_atlas_vision.py",
         "scripts/campaign_atlas_bluestacks.py",
         "tests/test_campaign_atlas.py",
-        "tests/test_campaign_atlas_vision.py"
+        "tests/test_campaign_atlas_vision.py",
+        "tests/test_campaign_atlas_collector.py"
       ],
       "live_validation_scenarios": [
         {
-          "id": "campaign-atlas-offline-foundation",
-          "mode": "offline_only"
+          "id": "campaign-atlas-survey-contract-dry-run",
+          "mode": "offline_zero_input_collector"
         }
       ],
       "required_terminal_states": [
-        "offline_replay_complete",
+        "dry_run_collector_complete",
+        "evidence_required",
         "blocked_fail_closed"
       ],
       "completion_tests": [
         "tests/test_home_atlas.py",
         "tests/test_home_atlas_planner.py",
-        "tests/test_campaign_auto_battle_runtime.py",
         "tests/test_campaign_story_destinations.py"
       ],
       "consequential_stage_policy": {
         "live_input": "prohibited",
-        "native_survey": "separate_future_authorization",
-        "atlas_projection": "non_authorizing_until_current_frame_bind"
+        "native_corpus": "required_before_atlas_build",
+        "production_replay": "prohibited",
+        "collector": "zero_input_dry_run_only"
       }
     },
     {
@@ -133,7 +140,7 @@
       "status": "blocked",
       "backlog_task_id": "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
       "dependencies": [
-        "CAMPAIGN-ATLAS-OFFLINE-FOUNDATION"
+        "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP"
       ],
       "implementation_entrypoints": [
         "scripts/campaign_atlas_bluestacks.py",
@@ -160,8 +167,8 @@
         "navigation_input_count",
         "relocalization_residual_pixels"
       ],
-      "blocked_reason": "Depends on the offline Campaign atlas foundation and requires separate explicit authorization plus a reviewed nonzero native-survey budget.",
-      "next_concrete_action": "After Foundation completion and explicit authorization, acquire native four-edge/overlap frames and validate arbitrary-viewport localization, chapter anchors, cross-difficulty geometry, and special-door identity.",
+      "blocked_reason": "Depends on the Campaign survey contract and collector prep and requires separate explicit authorization plus a reviewed nonzero native-survey budget.",
+      "next_concrete_action": "After collector prep and explicit authorization, acquire native four-edge/overlap frames and validate coverage, registration overlap, chapter landmarks, cross-difficulty geometry, and special-door identity.",
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
@@ -190,7 +197,7 @@
         "docs/evidence-retention-policy.md"
       ],
       "direct_dependencies": [
-        "CAMPAIGN-ATLAS-OFFLINE-FOUNDATION"
+        "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP"
       ],
       "implementation_allowlist_seed": [
         "scripts/campaign_atlas_bluestacks.py",

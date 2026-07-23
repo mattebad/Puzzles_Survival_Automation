@@ -111,7 +111,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
 
     def test_initial_order_and_normalized_counts(self) -> None:
         expected = [
-            "CAMPAIGN-ATLAS-OFFLINE-FOUNDATION",
+            "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
             "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
             "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
             "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",

@@ -4986,11 +4986,11 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### CAMPAIGN-ATLAS-BACKLOG-DEPENDENCY-RECONCILIATION
 - Task ID: `CAMPAIGN-ATLAS-BACKLOG-DEPENDENCY-RECONCILIATION`.
 - Title: Establish Campaign Atlas atomic delivery dependencies.
-- Status: Completed offline (2026-07-23); authority-only reconciliation, no implementation or runtime input.
+- Status: Completed offline and scope-corrected (2026-07-23); authority-only reconciliation, no implementation or runtime input.
 - Milestone: Campaign Atlas delivery sequencing.
 - Dependencies: committed Ultimate Challenge offline slice `2d1dc50`, retained Campaign mechanics, and the approved Campaign Atlas design decision.
 - Blocked by: None for this offline reconciliation.
-- Objective: create three serial Campaign Atlas tasks and make their validated navigation layer a shared prerequisite for Campaign AP and Ultimate Challenge execution work.
+- Objective: create three serial Campaign Atlas tasks, beginning with minimal survey-contract/collector preparation, and make the later validated navigation layer a shared prerequisite for Campaign AP and Ultimate Challenge execution work.
 - Established facts: Campaign has Home Atlas entry and retained mechanics evidence but no Campaign-screen atlas, canonical survey, or production replay; difficulty switching must not be used as recentering.
 - Direct implementation files: `BACKLOG.md`, `tasks/flow_delivery_queue.json`, `tasks/backlog_task_index.json`, `CURRENT_HANDOFF.md`, and focused authority tests.
 - Shared dependencies: flow-delivery queue schema, backlog index generator, Home Atlas research, Campaign and Ultimate navigation seams.
@@ -5005,9 +5005,9 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Scheduler changes: None; gameplay scheduling remains disabled/ineligible.
 - Actions that must not be repeated: historical Campaign attempts, difficulty-switch recentering, or any Ultimate Challenge input.
 - Required source: `CURRENT_HANDOFF.md`, exact Campaign/Ultimate backlog sections, queue, retained implementation/history, and directly identified local mechanics captures only.
-- Exact target semantics: Foundation → native survey → navigation integration/replay → Ultimate/Campaign consumers.
+- Exact target semantics: survey contract/collector prep → native survey → atlas navigation integration/replay → Ultimate/Campaign consumers.
 - Required local association: clean starting tree at `2d1dc50`, no lease, runtime owner, writable agent overlap, or unresolved consequential action.
-- Negative controls: zero live budget, zero runtime, no synthetic atlas or evidence, and no queue activation beyond the offline Foundation ready state.
+- Negative controls: zero live budget, zero runtime, no synthetic atlas or evidence, and no queue activation beyond the survey-contract/collector-prep ready state.
 - Coordinate space: None; future survey contracts native 800x1280 only.
 - Accepted signals: valid queue dependency DAG, exact task identities/order, existing attempt history preserved, focused tests/checks passing, and coherent handoff/index.
 - Rejected weak signals: user phone screenshot or ignored local frames treated as atlas authority, difficulty switching treated as recentering, or placeholder runtime registration.
@@ -5019,7 +5019,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Active evidence manifest: None.
 - Required artifacts: backlog, queue, generated index, handoff, focused tests, validation result, and one commit.
 - Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs.
-- Additional task-specific artifacts: none.
+- Additional task-specific artifacts: explicit correction preventing atlas geometry, anchors, thresholds, localizer, or navigator implementation before native corpus acquisition.
 - Focused tests: `tests/test_flow_delivery_orchestrator.py`, `tests/test_campaign_story_destinations.py`, `tests/test_flow_delivery_authority_consistency.py`, `tests/test_flow_delivery_token_context_hygiene.py`, and `tests/test_governance_validation.py`.
 - Integration tests: queue loading, deterministic selection, dependency blocking, context packet, and governance parsing only.
 - Transitive regression tests: existing Campaign/Ultimate separation and Home Atlas seam tests.
@@ -5028,26 +5028,26 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Known baseline failures: None accepted.
 - Evidence requirement: NOT_APPLICABLE; this task creates no runtime evidence.
 - Valid blocked outcomes: invalid queue DAG, index/handoff inconsistency, or a focused regression.
-- Blocked-result commit policy: preserve coherent work and report the exact blocker without starting Foundation.
+- Blocked-result commit policy: preserve coherent work and report the exact blocker without starting collector preparation.
 - Commit policy: one focused conventional local commit; no push.
-- Expected focused commits: `docs(flow-delivery): sequence campaign atlas work`.
-- Completion criteria: all authority artifacts agree; Foundation is the exact next ready task; survey/integration and both consumers remain blocked; every live budget remains zero; registration/scheduler unchanged; focused validation and diff check pass; one commit created.
+- Expected focused commits: `docs(flow-delivery): sequence campaign atlas work`; corrective follow-up `fix(flow-delivery): narrow campaign atlas prep`.
+- Completion criteria: all authority artifacts agree; survey-contract/collector preparation is the exact next ready task; survey/integration and both consumers remain blocked; no final atlas behavior precedes native evidence; every live budget remains zero; registration/scheduler unchanged; focused validation and diff check pass; one focused corrective commit created.
 
-### CAMPAIGN-ATLAS-OFFLINE-FOUNDATION
-- Task ID: `CAMPAIGN-ATLAS-OFFLINE-FOUNDATION`.
-- Title: Build the Campaign-screen atlas offline foundation.
+### CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP
+- Task ID: `CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP`.
+- Title: Prepare the Campaign atlas survey contract and zero-input collector.
 - Status: Ready; not started by this reconciliation.
 - Dependencies: completed `CAMPAIGN-ATLAS-BACKLOG-DEPENDENCY-RECONCILIATION`.
-- Scope: implement Campaign-specific atlas/viewport/localization contracts, factor reusable registration without Home/zoom semantics, define HUD masks and a dry-run four-edge/overlapping-grid survey planner, and add independent tests.
+- Scope: define only the native 800x1280 evidence/provenance schema, HUD exclusion-mask contract, generic map-agnostic registration seam API, bounded four-edge/overlapping-viewport scan contract, and fail-closed zero-input dry-run collector with independent tests.
 - Evidence boundary: no native atlas corpus exists; retained local Campaign frames are mechanics/landmark candidates only and must not authorize coordinates.
-- Prohibitions: no runtime input, evidence fabrication, assets pretending to be surveyed, registration, scheduling, AP, or Ultimate Challenge action.
-- Completion boundary: offline types, planner, provenance schema, fail-closed replay, and focused tests pass in one later atomic commit.
+- Prohibitions: no runtime or native acquisition; no fabricated corpus; no final atlas tiles/geometry, semantic chapter/stage/Ultimate anchors, thresholds or tuning, Campaign localizer/navigator, production replay, registration, scheduling, AP, or Ultimate Challenge action.
+- Completion boundary: evidence schema, masks, registration interface, bounded scan contract, fail-closed zero-input collector dry run, and focused tests pass; no atlas implementation is claimed.
 
 ### CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION
 - Task ID: `CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION`.
 - Title: Acquire and validate the native Campaign atlas corpus.
 - Status: Blocked / not activated.
-- Dependencies: completed `CAMPAIGN-ATLAS-OFFLINE-FOUNDATION`, explicit authorization, reviewed navigation-only plan, runtime/development lease, and a checked-in nonzero attempt budget.
+- Dependencies: completed `CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP`, explicit authorization, reviewed navigation-only plan, runtime/development lease, and a checked-in nonzero attempt budget.
 - Scope when authorized: collect native 800x1280 four-edge clamps and overlapping interior tiles; retain hashes, annotations, masks, transforms, coverage, loop closure, chapter/special anchors, and paired difficulty geometry evidence.
 - Recenter policy: localize the arbitrary current Campaign viewport through the atlas; never use difficulty switching as a recenter operation.
 - Prohibitions: no stage Challenge, AP, Auto Battle, refill, Ultimate Challenge Challenge/Exit/Flee, registration, or scheduling.

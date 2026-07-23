@@ -95,17 +95,17 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertEqual(campaign["historical_live_attempt_count"], 3)
         self.assertEqual(len(campaign["historical_live_attempts"]), 3)
 
-    def test_campaign_atlas_dependency_chain_is_offline_first_and_zero_budget(self) -> None:
+    def test_campaign_atlas_dependency_chain_is_evidence_first_and_zero_budget(self) -> None:
         queue = _read(QUEUE)
         by_id = {item["flow_id"]: item for item in queue["flows"]}
-        foundation = by_id["CAMPAIGN-ATLAS-OFFLINE-FOUNDATION"]
+        prep = by_id["CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP"]
         survey = by_id["CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"]
         integration = by_id["CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"]
-        self.assertEqual(foundation["status"], "ready")
-        self.assertFalse(foundation["requires_bluestacks_live"])
-        self.assertEqual(survey["dependencies"], [foundation["flow_id"]])
+        self.assertEqual(prep["status"], "ready")
+        self.assertFalse(prep["requires_bluestacks_live"])
+        self.assertEqual(survey["dependencies"], [prep["flow_id"]])
         self.assertEqual(integration["dependencies"], [survey["flow_id"]])
-        for flow in (foundation, survey, integration):
+        for flow in (prep, survey, integration):
             self.assertEqual(flow["maximum_live_attempts"], 0)
             self.assertEqual(flow["live_attempt_count"], 0)
             self.assertEqual(flow["additional_live_attempts_authorized"], 0)
@@ -116,6 +116,24 @@ class AuthorityConsistencyTests(unittest.TestCase):
             self.assertEqual(by_id[consumer_id]["dependencies"], [integration["flow_id"]])
         survey_text = json.dumps(survey).casefold()
         self.assertIn("without using difficulty switching as recentering", survey_text)
+        prep_text = json.dumps(prep).casefold()
+        for prohibited in (
+            "no final atlas tiles or atlas geometry",
+            "no semantic chapter, stage, or ultimate challenge anchors",
+            "no recognition thresholds or threshold tuning",
+            "no campaign localizer or navigator",
+            "no production replay",
+        ):
+            self.assertIn(prohibited, prep_text)
+        self.assertEqual(
+            prep["future_required_tests"],
+            [
+                "tests/test_campaign_atlas.py",
+                "tests/test_campaign_atlas_vision.py",
+                "tests/test_campaign_atlas_collector.py",
+            ],
+        )
+        self.assertIn("must create and promote", prep["current_validation_boundary"])
         self.assertFalse(queue["gameplay_scheduler"])
 
     def test_recruitment_retained_evidence_is_not_mislabeled_or_promoted(self) -> None:
