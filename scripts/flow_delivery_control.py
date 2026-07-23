@@ -37,6 +37,8 @@ from tasks.flow_scenario_attempts import (
 
 DEFAULT_QUEUE_PATH = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 DEFAULT_POLICY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.json"
+DEFAULT_COVERAGE_PATH = REPO_ROOT / "tasks" / "flow_delivery_coverage.json"
+DEFAULT_REGISTRY_PATH = REPO_ROOT / "tasks" / "flow_delivery_bluestacks_registry.json"
 DEFAULT_ROUTING_POLICY_PATH = routing_policy.DEFAULT_ROUTING_POLICY_PATH
 DEFAULT_LOOP_POLICY_PATH = parent_progress.DEFAULT_LOOP_POLICY_PATH
 DEFAULT_PROGRESS_PATH = parent_progress.DEFAULT_PROGRESS_PATH
@@ -560,6 +562,250 @@ def validate_queue(payload: Mapping[str, Any]) -> None:
 
     for identity in by_id:
         visit(identity)
+
+
+_CAMPAIGN_FLOW_ID = "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+_CAMPAIGN_DESTINATION_POLICY_ID = "campaign-supported-destinations"
+_REGISTRY_CONSEQUENCE_TO_QUEUE_POLICY = {
+    "navigation_only": "navigation_only_validation",
+    "consequential": "supervised_consequential_validation",
+}
+
+
+def _flow_ids_from_queue(queue: Mapping[str, Any]) -> set[str]:
+    flows = queue.get("flows")
+    if not isinstance(flows, list):
+        raise FlowDeliveryError("queue flows must be a list")
+    identities: set[str] = set()
+    for flow in flows:
+        if not isinstance(flow, dict):
+            raise FlowDeliveryError("queue flow entry must be an object")
+        identities.add(_require_nonempty_string(flow.get("flow_id"), "queue.flow_id"))
+    return identities
+
+
+def _coverage_flows_by_id(coverage: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    flows = coverage.get("flows")
+    if isinstance(flows, dict):
+        by_id: dict[str, Mapping[str, Any]] = {}
+        for identity, entry in flows.items():
+            if not isinstance(identity, str) or not identity.strip():
+                raise FlowDeliveryError("coverage flow id must be a non-empty string")
+            if not isinstance(entry, dict):
+                raise FlowDeliveryError(f"coverage flow entry must be an object: {identity}")
+            by_id[identity] = entry
+        return by_id
+    if isinstance(flows, list):
+        by_id = {}
+        for entry in flows:
+            if not isinstance(entry, dict):
+                raise FlowDeliveryError("coverage flow entry must be an object")
+            identity = _require_nonempty_string(entry.get("flow_id"), "coverage.flow_id")
+            if identity in by_id:
+                raise FlowDeliveryError(f"duplicate coverage flow_id: {identity}")
+            by_id[identity] = entry
+        return by_id
+    raise FlowDeliveryError("coverage flows must be an object or list")
+
+
+def _registry_flows_by_id(registry: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    flows = registry.get("flows")
+    if isinstance(flows, dict):
+        by_id: dict[str, Mapping[str, Any]] = {}
+        for identity, entry in flows.items():
+            if not isinstance(identity, str) or not identity.strip():
+                raise FlowDeliveryError("registry flow id must be a non-empty string")
+            if not isinstance(entry, dict):
+                raise FlowDeliveryError(f"registry flow entry must be an object: {identity}")
+            by_id[identity] = entry
+        return by_id
+    if isinstance(flows, list):
+        by_id = {}
+        for entry in flows:
+            if not isinstance(entry, dict):
+                raise FlowDeliveryError("registry flow entry must be an object")
+            identity = _require_nonempty_string(entry.get("flow_id"), "registry.flow_id")
+            if identity in by_id:
+                raise FlowDeliveryError(f"duplicate registry flow_id: {identity}")
+            by_id[identity] = entry
+        return by_id
+    raise FlowDeliveryError("registry flows must be an object or list")
+
+
+def _destination_set(value: Any, field: str) -> set[str]:
+    if not isinstance(value, list):
+        raise FlowDeliveryError(f"{field} must be a list")
+    destinations: set[str] = set()
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            raise FlowDeliveryError(f"{field} must be a list of non-empty strings")
+        destinations.add(item)
+    return destinations
+
+
+def validate_authority_consistency(
+    queue: Mapping[str, Any],
+    policy: Mapping[str, Any],
+    coverage: Mapping[str, Any],
+    registry: Mapping[str, Any],
+) -> None:
+    """Assert O1/O2/O7 authority overlaps across queue, policy, coverage, and registry.
+
+    Standalone: not invoked from FlowDeliveryController.load().
+    """
+
+    queue_ids = _flow_ids_from_queue(queue)
+    queue_by_id = {
+        flow["flow_id"]: flow
+        for flow in queue["flows"]
+        if isinstance(flow, dict) and isinstance(flow.get("flow_id"), str)
+    }
+    coverage_by_id = _coverage_flows_by_id(coverage)
+    registry_by_id = _registry_flows_by_id(registry)
+
+    # O7 — membership subset: registry and coverage flow ids ⊆ queue flow ids.
+    for identity in sorted(registry_by_id):
+        if identity not in queue_ids:
+            raise FlowDeliveryError(
+                f"authority membership (O7): registry flow_id {identity!r} is absent from queue"
+            )
+    for identity in sorted(coverage_by_id):
+        if identity not in queue_ids:
+            raise FlowDeliveryError(
+                f"authority membership (O7): coverage flow_id {identity!r} is absent from queue"
+            )
+
+    # O1 — Campaign destination lists agree across policy, queue, coverage (as sets).
+    policies = policy.get("policies")
+    if not isinstance(policies, list):
+        raise FlowDeliveryError("product-policy policies must be a list")
+    campaign_policy = next(
+        (
+            entry
+            for entry in policies
+            if isinstance(entry, dict)
+            and entry.get("policy_id") == _CAMPAIGN_DESTINATION_POLICY_ID
+        ),
+        None,
+    )
+    if campaign_policy is None:
+        raise FlowDeliveryError(
+            f"authority destinations (O1): missing policy_id {_CAMPAIGN_DESTINATION_POLICY_ID!r}"
+        )
+    if "supported_story_destinations" not in campaign_policy:
+        raise FlowDeliveryError(
+            "authority destinations (O1): policy missing supported_story_destinations"
+        )
+    if "rejected_destinations" not in campaign_policy:
+        raise FlowDeliveryError(
+            "authority destinations (O1): policy missing rejected_destinations"
+        )
+    policy_supported = _destination_set(
+        campaign_policy["supported_story_destinations"],
+        "policy.supported_story_destinations",
+    )
+    policy_rejected = _destination_set(
+        campaign_policy["rejected_destinations"],
+        "policy.rejected_destinations",
+    )
+
+    campaign_queue = queue_by_id.get(_CAMPAIGN_FLOW_ID)
+    if campaign_queue is None:
+        raise FlowDeliveryError(
+            f"authority destinations (O1): queue missing flow_id {_CAMPAIGN_FLOW_ID!r}"
+        )
+    if "supported_story_destinations" not in campaign_queue:
+        raise FlowDeliveryError(
+            "authority destinations (O1): queue Campaign flow missing supported_story_destinations"
+        )
+    if "rejected_destinations" not in campaign_queue:
+        raise FlowDeliveryError(
+            "authority destinations (O1): queue Campaign flow missing rejected_destinations"
+        )
+    queue_supported = _destination_set(
+        campaign_queue["supported_story_destinations"],
+        "queue.supported_story_destinations",
+    )
+    queue_rejected = _destination_set(
+        campaign_queue["rejected_destinations"],
+        "queue.rejected_destinations",
+    )
+
+    campaign_coverage = coverage_by_id.get(_CAMPAIGN_FLOW_ID)
+    if campaign_coverage is None:
+        raise FlowDeliveryError(
+            f"authority destinations (O1): coverage missing flow_id {_CAMPAIGN_FLOW_ID!r}"
+        )
+    if "supported_story_destinations" not in campaign_coverage:
+        raise FlowDeliveryError(
+            "authority destinations (O1): coverage Campaign entry missing supported_story_destinations"
+        )
+    if "rejected_destinations" not in campaign_coverage:
+        raise FlowDeliveryError(
+            "authority destinations (O1): coverage Campaign entry missing rejected_destinations"
+        )
+    coverage_supported = _destination_set(
+        campaign_coverage["supported_story_destinations"],
+        "coverage.supported_story_destinations",
+    )
+    coverage_rejected = _destination_set(
+        campaign_coverage["rejected_destinations"],
+        "coverage.rejected_destinations",
+    )
+
+    if policy_supported != queue_supported:
+        raise FlowDeliveryError(
+            "authority destinations (O1): supported_story_destinations diverge between "
+            f"policy={sorted(policy_supported)!r} and queue={sorted(queue_supported)!r}"
+        )
+    if policy_supported != coverage_supported:
+        raise FlowDeliveryError(
+            "authority destinations (O1): supported_story_destinations diverge between "
+            f"policy={sorted(policy_supported)!r} and coverage={sorted(coverage_supported)!r}"
+        )
+    if policy_rejected != queue_rejected:
+        raise FlowDeliveryError(
+            "authority destinations (O1): rejected_destinations diverge between "
+            f"policy={sorted(policy_rejected)!r} and queue={sorted(queue_rejected)!r}"
+        )
+    if policy_rejected != coverage_rejected:
+        raise FlowDeliveryError(
+            "authority destinations (O1): rejected_destinations diverge between "
+            f"policy={sorted(policy_rejected)!r} and coverage={sorted(coverage_rejected)!r}"
+        )
+
+    # O2 — registry consequence_class matches queue product_policy_status.
+    # Applies only to registry-listed flows (registry ⊆ queue via O7), not the whole queue.
+    for identity, entry in sorted(registry_by_id.items()):
+        consequence_class = entry.get("consequence_class")
+        if consequence_class not in _REGISTRY_CONSEQUENCE_TO_QUEUE_POLICY:
+            raise FlowDeliveryError(
+                f"authority consequence (O2): registry flow {identity!r} has unknown "
+                f"consequence_class={consequence_class!r}"
+            )
+        queue_flow = queue_by_id[identity]
+        expected_status = _REGISTRY_CONSEQUENCE_TO_QUEUE_POLICY[consequence_class]
+        actual_status = queue_flow.get("product_policy_status")
+        if actual_status != expected_status:
+            raise FlowDeliveryError(
+                f"authority consequence (O2): flow {identity!r} registry "
+                f"consequence_class={consequence_class!r} requires queue "
+                f"product_policy_status={expected_status!r}, got {actual_status!r}"
+            )
+
+
+def load_and_validate_authority_consistency(
+    queue_path: Path = DEFAULT_QUEUE_PATH,
+    policy_path: Path = DEFAULT_POLICY_PATH,
+    coverage_path: Path = DEFAULT_COVERAGE_PATH,
+    registry_path: Path = DEFAULT_REGISTRY_PATH,
+) -> None:
+    validate_authority_consistency(
+        _read_json(queue_path),
+        _read_json(policy_path),
+        _read_json(coverage_path),
+        _read_json(registry_path),
+    )
 
 
 def apply_named_scenario_result(
@@ -2193,6 +2439,8 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     root.add_argument("--queue", type=Path, default=DEFAULT_QUEUE_PATH)
     root.add_argument("--policy", type=Path, default=DEFAULT_POLICY_PATH)
+    root.add_argument("--coverage", type=Path, default=DEFAULT_COVERAGE_PATH)
+    root.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY_PATH)
     root.add_argument("--loop-policy", type=Path, default=DEFAULT_LOOP_POLICY_PATH)
     root.add_argument("--progress", type=Path, default=DEFAULT_PROGRESS_PATH)
     root.add_argument("--lease", type=Path, default=DEFAULT_LEASE_PATH)
@@ -2328,6 +2576,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             controller.load()
             controller.lease()
             controller.load_parent_progress()
+            load_and_validate_authority_consistency(
+                queue_path=args.queue,
+                policy_path=args.policy,
+                coverage_path=args.coverage,
+                registry_path=args.registry,
+            )
             result = {"valid": True}
         elif args.command == "select-next":
             result = {
