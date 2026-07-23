@@ -5880,37 +5880,107 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   no unresolved action. The prior `CAPABILITY_STALE_OBSERVATION` blocker was removed by the
   OCR-free immediate-before revalidation (`revalidate_nova_praise_frame_fast`). Session evidence:
   `.local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z`.
+- Milestone: Gameplay Flow Factory Milestone A.
 - Dependencies: completed `GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY`; existing centralized
   `NovaPraiseActionBoundary`; retained 2026-07-16 proof of attempts 6→5 and `CD: 00:04:38`.
+- Blocked by: None. The earlier `CAPABILITY_STALE_OBSERVATION` blocker was removed before dispatch by
+  the OCR-free immediate-before revalidation; no open blocker remains.
 - Objective: expose `nova_praise_one_free_pulse` through pnsctl and run exactly one supervised
   BlueStacks Home → Research Lab → Nova → Praise → Home invocation.
-- Runtime identity: bind account/server aliases and `reset_id=game-day-2026-07-22` to the user's
-  positive statement that the 00:00 UTC reset occurred plus the post-reset Nova frame showing
-  restored attempts.
-- Allowed implementation paths: `scripts/pnsctl.py`, `scripts/nova_praise_bluestacks.py`,
+- Established facts: the post-reset Nova frame showed `Interaction attempts left: 7`; the centralized
+  `NovaPraiseActionBoundary` issued exactly one zero-cost capability; the single transport decremented
+  attempts 7 → 6 with `CD: 00:04:49`; the durable journal terminally confirmed action_key
+  `nova-praise:67cf07797fcb4384b0abeec7e6cf7aef4b2d8263964f3b9bad5b204c9b38cad5`; terminal Home was
+  recognized; and the bound reset identity was `reset_id=game-day-2026-07-22` from the user's positive
+  post-00:00-UTC reset statement.
+- Direct implementation files: `scripts/pnsctl.py`, `scripts/nova_praise_bluestacks.py`,
   `scripts/nova_praise_centralized.py`, `tasks/nova_praise.py`, `tasks/nova_praise_pulse.py`,
-  `tasks/flow_scenario_attempts.py`, task-local tests, `tasks/flow_delivery_product_policy.json`,
-  `tasks/gameplay_flow_contracts/NOVA-PRAISE-HOME-ATLAS-MIGRATION.json`,
+  `tasks/nova_praise_vision.py`, `tasks/flow_scenario_attempts.py`,
+  `tasks/gameplay_flow_contracts/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE.json`,
   `tasks/flow_delivery_queue.json`, `tasks/backlog_task_index.json`, `BACKLOG.md`, and
   `CURRENT_HANDOFF.md`.
-- Authorized live action: exactly one supervised zero-cost Praise only after current-frame OCR
-  proves `Interaction attempts left: X` with X>0, no active cooldown, Praise enabled, paid markers
-  absent, current reset identity verified, global unresolved gate clear, and immediate-before
-  target revalidation.
-- Postcondition: exact X→X-1, visible cooldown consistent with the fixed 300-second policy after
-  capture delay, terminal journal confirmation, then recognized safe return Home.
-- Maximum live attempts: one invocation; maximum consequential inputs: one Praise. Navigation is
-  bounded by the existing atlas route. An unresolved result prohibits retry and requires
-  reconciliation only.
-- Prohibited: loop through remaining attempts, second/identical Praise retry, paid or premium
-  actions, unknown popups, production registration, scheduler enablement, Bliss input, evidence
-  deletion, or push.
-- Required verification: focused Nova recognition/pulse/boundary/navigation/pnsctl/scenario tests,
-  product-policy and queue validation, committed candidate, fresh BlueStacks preflight, retained
-  source/immediate-before/transport/postcondition/Home evidence, and independent evidence review.
-- Registration/scheduler: `NOT_REGISTERED`; disabled and ineligible.
-- Completion criteria: one confirmed journaled Praise with attempts/cooldown proof and terminal
-  Home, or one terminal fail-closed/unresolved result with no unauthorized retry.
+- Per-commit allowed paths: `scripts/pnsctl.py`, `scripts/nova_praise_bluestacks.py`,
+  `scripts/nova_praise_centralized.py`, `tasks/nova_praise.py`, `tasks/nova_praise_pulse.py`,
+  `tasks/nova_praise_vision.py`, `tasks/flow_scenario_attempts.py`, task-local tests,
+  `tasks/gameplay_flow_contracts/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE.json`,
+  `docs/validation/gf-nova-praise-supervised-20260722-manifest.json`,
+  `tasks/flow_delivery_queue.json`, `tasks/backlog_task_index.json`, `BACKLOG.md`, and
+  `CURRENT_HANDOFF.md`.
+- Shared dependencies: pnsctl fixed command surface, supervised identity, LocalBlueStacksRuntime,
+  localize-first Home driver, the centralized `safe_action_core` boundary/journal, and retained Nova
+  recognition assets.
+- Transitive regression set: Nova semantics/pulse/vision/boundary, pnsctl/scenario accounting, Home
+  route, flow-delivery orchestrator/contracts, governance/context hygiene, and the full suite.
+- Allowed changes: only the pnsctl scenario exposure, the OCR-free immediate-before revalidation,
+  task-local tests, the supervised contract, and the exact governance/evidence records listed here.
+- Prohibited changes: no second Praise, no loop through remaining attempts, no paid or premium action,
+  no production registration or scheduler enablement, no Bliss change, no evidence deletion, and no
+  push.
+- Authorized runtime action: completed; exactly one supervised zero-cost Praise was authorized and
+  consumed. No further GF-NOVA-PRAISE-SUPERVISED runtime input is authorized.
+- Maximum transport inputs: one Praise transport plus three bounded navigation inputs; the accepted
+  run used exactly that.
+- Navigation-only recovery: bounded atlas route only; an unresolved result prohibits retry and
+  requires reconciliation, never a generic Back/Home retry.
+- Consequential action: exactly one zero-cost `PRAISE_NOVA` transport, action_id
+  `nova-praise-05b083a2ae9899e7cbf76d79175ad27639df87b76483c0356242f3c0df6dcf2a`.
+- Registration changes: None; `NOT_REGISTERED` and unchanged.
+- Scheduler changes: None; disabled and ineligible.
+- Actions that must not be repeated: the supervised Praise, any second or identical Praise, looping
+  remaining attempts, or rerunning the route without a newly authorized task.
+- Required source: session
+  `.local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z`
+  with its frames, result, events, journal, ledger, and capability audit.
+- Exact target semantics: the Praise control recognized on the current Nova frame with attempts > 0,
+  Praise enabled, no active cooldown, and no paid surface; matched by full recognition and revalidated
+  OCR-free immediately before dispatch.
+- Required local association: candidate `0ca611c`, scenario `nova_praise_one_free_pulse`, one Praise
+  transport, attempts 7 → 6, `CD: 00:04:49`, journal confirmed, terminal Home, released ownership, and
+  clear unresolved state.
+- Negative controls: treating transport as success, dispatching under stale observation, a second
+  Praise, or any paid or 10x surface.
+- Coordinate space: native 800×1280 only; retained frames are hashed in the active manifest.
+- Accepted signals: current-frame attempts OCR with X > 0, Praise-enabled recognition, OCR-free
+  color-ratio immediate-before revalidation, exact decrement, and cooldown consistent with the fixed
+  300-second policy.
+- Rejected weak signals: stale observation beyond the dispatch freshness window, ambiguous attempts,
+  paid markers, or transport without a confirmed successor.
+- Ambiguous-result behavior: an unresolved or ambiguous outcome fails closed with no retry and
+  requires reconciliation only.
+- Zero-cost requirement: no game resource or currency; the Praise is free and X→X-1 only.
+- Quantity limits: one invocation; `maximum_live_attempts` 1 / `live_attempt_count` 1; exactly one
+  Praise.
+- Resource consumption policy: none beyond the single free attempt.
+- Premium or strategic restrictions: all paid, premium, and strategic actions remain prohibited.
+- Active evidence manifest: `docs/validation/gf-nova-praise-supervised-20260722-manifest.json`.
+- Required artifacts: source, immediate-before, immediate-post, result, events, journal, ledger,
+  capability audit, terminal Home, and their hashes.
+- Immediate-before/immediate-post/result/journal: all present and hash-bound in the active manifest
+  (`0008` immediate-before, `0011` immediate-post, `result.json`, `journal.jsonl`).
+- Additional task-specific artifacts: the supervised gameplay flow contract and the queue
+  live-attempt record.
+- Focused tests: `tests/test_nova_praise.py`, `tests/test_nova_praise_pulse.py`,
+  `tests/test_nova_praise_centralized_boundary.py`, `tests/test_nova_navigation_canary.py`,
+  `tests/test_pnsctl_nova_praise.py`, and `tests/test_flow_scenario_attempts.py`.
+- Integration tests: `tests/test_flow_delivery_orchestrator.py` and
+  `tests/test_gameplay_flow_contracts.py`.
+- Transitive regression tests: flow-delivery hygiene and governance validation.
+- Full-suite requirement: satisfied for candidate `0ca611c`; this terminal record adds focused
+  governance and flow-delivery tests.
+- Validators: `python scripts/flow_delivery_control.py validate`,
+  `python scripts/validate_governance.py`, focused and integration unittests, evidence hashes, and
+  clean attributable Git status.
+- Known baseline failures: None after the 2026-07-23 reconciliation of the closeout governance records.
+- Evidence requirement: REQUIRED.
+- Valid blocked outcomes: a terminal fail-closed or unresolved result with no unauthorized retry would
+  have been valid; the accepted result is a confirmed Praise.
+- Blocked-result commit policy: preserve all sessions, keep unresolved clear, and never convert an
+  unresolved result into success.
+- Commit policy: parent-owned; stage only allowlisted files; no push.
+- Expected focused commits: the supervised composition candidate `0ca611c` plus the terminal closeout
+  and evidence-reconciliation records.
+- Completion criteria: Met; one confirmed journaled Praise with attempts 7 → 6, cooldown proof,
+  terminal Home, retained hashed evidence, and disabled registration/scheduler.
 
 ### GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY
 - Task ID: `GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY`.

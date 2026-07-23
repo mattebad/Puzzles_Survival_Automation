@@ -26,14 +26,14 @@
   "current_task_id": "GF-NOVA-PRAISE-SUPERVISED-20260722",
   "current_task_state": "completed",
   "next_task_id": "GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY",
-  "next_task_activation_status": "ready_not_active",
+  "next_task_activation_status": "ready",
   "active_task_or_flow": "none",
   "active_delivery_stage": null,
   "queue_counts": {
     "ready": 6,
     "active": 0,
-    "blocked": 5,
-    "completed": 1,
+    "blocked": 4,
+    "completed": 2,
     "needs_product_decision": 4
   },
   "first_ready_flow": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
@@ -87,7 +87,7 @@
   "evidence": {
     "evidence_requirement": "REQUIRED",
     "evidence_requirement_reason": "Retain the completed no-Praise route, current-reset attempts-before frame, immediate-before target, one Praise transport, exact decrement/cooldown successor, journal result, and terminal Home.",
-    "active_evidence_manifest": "pending supervised Praise session result",
+    "active_evidence_manifest": "docs/validation/gf-nova-praise-supervised-20260722-manifest.json",
     "do_not_recursively_inspect_parent_evidence_tree": true
   }
 }

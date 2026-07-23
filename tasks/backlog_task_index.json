@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "backlog_path": "BACKLOG.md",
-  "backlog_sha256": "f80058960fe961125e766fbc560a929b3b9979fab8ffb584f5bdbc88c86d8765",
-  "generated_from_head": "9efb433f58874b60e9be84d158b05ef0b6fb2ea9",
+  "backlog_sha256": "888ff46c9d82432efd7598742d0367dd54011b364f67e472e79610151b37e7b4",
+  "generated_from_head": "8b1dd89c569ab9ea3c132903d0bece601fcbc89f",
   "task_count": 16,
   "tasks": [
     {
@@ -33,8 +33,8 @@
       "task_id": "DQ-FLOW-CAMPAIGN-AUTO-BATTLE",
       "exact_markdown_heading": "### DQ-FLOW-CAMPAIGN-AUTO-BATTLE",
       "normalized_status": "Completed (2026-07-16; dormant configurable route contract amended from supervised",
-      "section_start": 474148,
-      "section_end": 481297,
+      "section_start": 480269,
+      "section_end": 487418,
       "section_digest": "28ecea27467e6013a63b1b20cb7a5cdd93d06f3d02959c1edcaf0a06348e595a",
       "direct_dependency_ids": [
         "DQ-FLOW-CAMPAIGN-AP",
@@ -48,8 +48,8 @@
       "task_id": "DQ-FLOW-GATHERING",
       "exact_markdown_heading": "### DQ-FLOW-GATHERING",
       "normalized_status": "Passed (2026-07-14; parameterized Wood/Steel/Gas offline contract and 6 focused tests).",
-      "section_start": 493142,
-      "section_end": 494244,
+      "section_start": 499263,
+      "section_end": 500365,
       "section_digest": "a5d7682abaacd7dacabefc72ca17ab1d65dd9a66871f7a816bcf0204402dd009",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -60,8 +60,8 @@
       "task_id": "DQ-FLOW-NANOWEAPON",
       "exact_markdown_heading": "### DQ-FLOW-NANOWEAPON",
       "normalized_status": "Passed (2026-07-14; Daily row adapter plus 5 focused tests).",
-      "section_start": 468626,
-      "section_end": 469685,
+      "section_start": 474747,
+      "section_end": 475806,
       "section_digest": "9791785b6d2fa48c7d917bf7351119bf068aab7ab09f8e123261b1c9d7f143a6",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -72,8 +72,8 @@
       "task_id": "DQ-FLOW-RECRUITMENT",
       "exact_markdown_heading": "### DQ-FLOW-RECRUITMENT",
       "normalized_status": "Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).",
-      "section_start": 467539,
-      "section_end": 468626,
+      "section_start": 473660,
+      "section_end": 474747,
       "section_digest": "48a1cb7c67f7908a1aeb392b8bb0f2751a8f8c2d0f1e605aea78c76daf9484c2",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -84,8 +84,8 @@
       "task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
       "exact_markdown_heading": "### DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
       "normalized_status": "Passed (2026-07-16; dormant implementation and supervised local validation)",
-      "section_start": 502311,
-      "section_end": 508533,
+      "section_start": 508432,
+      "section_end": 514654,
       "section_digest": "cfd793e17eef42f2a14d5634d46a9a92289de838f639a66985c6e09b1ebe5d5d",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -96,8 +96,8 @@
       "task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
       "exact_markdown_heading": "### DQ-FLOW-WORLD-STAMINA-ENGINE",
       "normalized_status": "Passed (2026-07-14; offline shared primitive and 5 focused tests).",
-      "section_start": 489990,
-      "section_end": 491075,
+      "section_start": 496111,
+      "section_end": 497196,
       "section_digest": "bf0cabeb799d37a9aff0878b6a419797852b0867a79d96d4fac3aeabf5805ca4",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -108,8 +108,8 @@
       "task_id": "DQ-FLOW-ZOMBIE-LAIR",
       "exact_markdown_heading": "### DQ-FLOW-ZOMBIE-LAIR",
       "normalized_status": "Passed (2026-07-14; Daily Lair adapter plus 5 focused tests).",
-      "section_start": 491075,
-      "section_end": 492148,
+      "section_start": 497196,
+      "section_end": 498269,
       "section_digest": "95652b3e2ef12cd8fd0b6202787f3ca867d141ebb188705796756c1f35b71dc4",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -131,10 +131,10 @@
     {
       "task_id": "GF-NOVA-PRAISE-SUPERVISED-20260722",
       "exact_markdown_heading": "### GF-NOVA-PRAISE-SUPERVISED-20260722",
-      "normalized_status": "In progress.",
+      "normalized_status": "Completed 2026-07-22 under candidate `0ca611c`. One supervised BlueStacks invocation ran",
       "section_start": 455701,
-      "section_end": 458364,
-      "section_digest": "70cc3b0295dd14aa019f6d1ff906b8b9cfe0288c037647221c43697d595fff9b",
+      "section_end": 464485,
+      "section_digest": "d138f289794a15e68a09293183d81755793bbbc8cb8a1c08705925849002cfc7",
       "direct_dependency_ids": [
         "GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY"
       ],

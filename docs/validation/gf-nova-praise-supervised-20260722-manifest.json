@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "manifest_id": "gf-nova-praise-supervised-one-free-pulse-20260722T223535494658Z",
+  "active_task_id": "GF-NOVA-PRAISE-SUPERVISED-20260722",
+  "next_task_id": "GF-MVP-010-LIVE-EVIDENCE-TO-REPLAY",
+  "relevant_transaction_action_ids": [
+    "nova-praise-05b083a2ae9899e7cbf76d79175ad27639df87b76483c0356242f3c0df6dcf2a"
+  ],
+  "canonical_evidence_session": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z",
+  "read_first": [
+    ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/result.json",
+    ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/journal.jsonl",
+    ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/events.jsonl"
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "result",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/result.json",
+      "expected_sha256": "825551844204476d477f01465e6ab4551f9341b4b7e3435da42689d0045dcf10",
+      "actual_sha256": "825551844204476d477f01465e6ab4551f9341b4b7e3435da42689d0045dcf10",
+      "reason": "Terminal semantic result: exactly one Praise transport, attempts 7 to 6, cooldown 299s, journal confirmed, terminal Home verified."
+    },
+    {
+      "artifact_id": "events",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/events.jsonl",
+      "expected_sha256": "fcc9920c4772c049121907dcf47b48f3eb86dfe2cc22c2ad251bb2b986f2b2aa",
+      "actual_sha256": "fcc9920c4772c049121907dcf47b48f3eb86dfe2cc22c2ad251bb2b986f2b2aa",
+      "reason": "Event stream containing exactly one consequential Praise dispatch and the reconciliation captures."
+    },
+    {
+      "artifact_id": "journal",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/journal.jsonl",
+      "expected_sha256": "9407c4501b763a2156608bd42e4e168a8df381901306790d9975830f31ddb7b4",
+      "actual_sha256": "9407c4501b763a2156608bd42e4e168a8df381901306790d9975830f31ddb7b4",
+      "reason": "Durable action journal terminally confirmed for action_key nova-praise:67cf07797fcb4384b0abeec7e6cf7aef4b2d8263964f3b9bad5b204c9b38cad5."
+    },
+    {
+      "artifact_id": "ledger",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/ledger.jsonl",
+      "expected_sha256": "99ab3991bd13e3fe594f2b962d27b6c098364d15768b8c1b379e31b61ab4302f",
+      "actual_sha256": "99ab3991bd13e3fe594f2b962d27b6c098364d15768b8c1b379e31b61ab4302f",
+      "reason": "Input ledger for the single authorized Praise invocation."
+    },
+    {
+      "artifact_id": "capability_audit",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/capability-audit.jsonl",
+      "expected_sha256": "925a0ac4a68c6efc7ab656ae032a0e93bc7cb4cd374d63b29d2fd366dea92dc0",
+      "actual_sha256": "925a0ac4a68c6efc7ab656ae032a0e93bc7cb4cd374d63b29d2fd366dea92dc0",
+      "reason": "Capability issuance audit for the exactly-one zero-cost Praise transport."
+    },
+    {
+      "artifact_id": "source",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/frames/0001-canary-source.png",
+      "expected_sha256": "e94705b61799568985b8dffbb64c8e59c642d2b17ef6d14c70aa533a535e32e1",
+      "actual_sha256": "e94705b61799568985b8dffbb64c8e59c642d2b17ef6d14c70aa533a535e32e1",
+      "reason": "Native 800x1280 source frame at flow start."
+    },
+    {
+      "artifact_id": "praise_immediate_before",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/frames/0008-praise-central-immediate-before.png",
+      "expected_sha256": "77434d48af42836a9da62ed41c80bc42637186b9c51c4a6f5bf7499c355da02b",
+      "actual_sha256": "77434d48af42836a9da62ed41c80bc42637186b9c51c4a6f5bf7499c355da02b",
+      "reason": "Immediate-before target frame with Interaction attempts left: 7 before the single Praise."
+    },
+    {
+      "artifact_id": "praise_immediate_post",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/frames/0011-praise-central-post-3.png",
+      "expected_sha256": "1dfc7909ff2a5983f323dd5e9ad29ccd403826f149a47dc6b39666bdbf10fd5a",
+      "actual_sha256": "1dfc7909ff2a5983f323dd5e9ad29ccd403826f149a47dc6b39666bdbf10fd5a",
+      "reason": "Immediate-post successor frame with Interaction attempts left: 6 and visible cooldown consistent with the fixed 300-second policy."
+    },
+    {
+      "artifact_id": "terminal_home",
+      "status": "PRESENT_VERIFIED",
+      "path": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260722T223535494658Z/frames/0014-canary-return-01-settled.png",
+      "expected_sha256": "abb002037a054209a25e29ea34a5aa916a9fe11ede7343e29e649eaae8336538",
+      "actual_sha256": "abb002037a054209a25e29ea34a5aa916a9fe11ede7343e29e649eaae8336538",
+      "reason": "Recognized safe terminal Home after the Praise and return path."
+    }
+  ],
+  "unresolved_evidence": [],
+  "integrity": {
+    "algorithm": "SHA-256",
+    "all_present_verified_entries_hashed": true,
+    "missing_or_not_located_entries_have_no_substitute": true
+  },
+  "must_not_be_compacted": [
+    "result",
+    "events",
+    "journal",
+    "praise_immediate_before",
+    "praise_immediate_post",
+    "terminal_home"
+  ],
+  "allowed_historical_references": [
+    ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z"
+  ],
+  "do_not_recursively_inspect_parent_evidence_tree": true
+}

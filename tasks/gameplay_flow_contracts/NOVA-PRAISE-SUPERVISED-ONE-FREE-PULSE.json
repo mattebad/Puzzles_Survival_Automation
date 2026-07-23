@@ -1,0 +1,482 @@
+{
+  "schema_version": 2,
+  "flow_id": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+  "product_purpose": "Supervised one free Nova Praise pulse from localized Home via Research Lab; exactly one zero-cost Praise per authorized invocation with verified safe Home return.",
+  "trigger_cadence_type": "cooldown_pulse",
+  "reset_scope": "daily_reset",
+  "required_starting_context": [
+    "home_localized"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_ready",
+    "home_localized",
+    "home_canonical",
+    "research_lab_visible",
+    "research_lab_bound",
+    "research_lab_radial",
+    "nova_lab",
+    "praise_attempts_available",
+    "praise_cooldown",
+    "praise_zero_attempts",
+    "home_returned",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
+    "blocked",
+    "manual_required",
+    "manual_only",
+    "unknown_fail_closed"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "localize_home",
+      "from": "home_ready",
+      "to": "home_localized",
+      "planner": "localize_home",
+      "permitted_input": null,
+      "postconditions": [
+        "fully_zoomed_out_home_has_confident_screen_to_atlas_transform"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "recover_unsupported_home_zoom",
+      "from": "home_ready",
+      "to": "home_canonical",
+      "planner": "ensure_canonical_home",
+      "permitted_input": "bounded_zoom_out",
+      "postconditions": [
+        "canonical_fully_zoomed_out_home_recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "localize_canonical_home",
+      "from": "home_canonical",
+      "to": "home_localized",
+      "planner": "localize_home",
+      "permitted_input": null,
+      "postconditions": [
+        "canonical_home_has_confident_screen_to_atlas_transform"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "bind_visible_research_lab",
+      "from": "home_localized",
+      "to": "research_lab_bound",
+      "planner": "navigate_home_building(home.building.research_lab)",
+      "permitted_input": null,
+      "postconditions": [
+        "current_frame_research_lab_binding_is_safe"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "pan_toward_research_lab",
+      "from": "home_localized",
+      "to": "home_localized",
+      "planner": "DirectPanNavigator.plan",
+      "permitted_input": "navigation_only_home_pan",
+      "postconditions": [
+        "fresh_frame_relocalized",
+        "measured_progress_toward_research_lab"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "open_research_lab_radial",
+      "from": "research_lab_bound",
+      "to": "research_lab_radial",
+      "planner": "plan_research_lab_tap",
+      "permitted_input": "tap_research_lab",
+      "postconditions": [
+        "research_lab_radial_recognized_with_fresh_tap_provenance"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "open_nova_lab",
+      "from": "research_lab_radial",
+      "to": "nova_lab",
+      "planner": "plan_nova_radial_tap",
+      "permitted_input": "tap_nova_radial",
+      "postconditions": [
+        "nova_lab_recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "return_home_without_praise",
+      "from": "nova_lab",
+      "to": "home_returned",
+      "planner": "plan_recognized_safe_return_home",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "home_ready_recognized_after_safe_exit"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "open_praise_attempts",
+      "from": "nova_lab",
+      "to": "praise_attempts_available",
+      "planner": "open_praise_read_attempts",
+      "permitted_input": "open_praise",
+      "postconditions": [
+        "attempts_remaining_is_known"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "dispatch_one_free_praise",
+      "from": "praise_attempts_available",
+      "to": "praise_cooldown",
+      "planner": "NovaPraiseActionBoundary.plan",
+      "permitted_input": "exactly_one_free_praise_when_authorized",
+      "postconditions": [
+        "attempts_remaining_decremented_by_one",
+        "cooldown_visible",
+        "cooldown_consistent_with_fixed_300_second_policy_after_capture_delay",
+        "no_paid_currency_consumed"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "complete_for_reset",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "observe_zero_attempts",
+      "from": "praise_attempts_available",
+      "to": "praise_zero_attempts",
+      "planner": "observe_attempts_remaining",
+      "permitted_input": null,
+      "postconditions": [
+        "attempts_remaining_equals_zero"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "already_complete"
+      ],
+      "evidence_gate_id": "nova_zero_attempts_fixture"
+    },
+    {
+      "transition_id": "defer_cooldown",
+      "from": "praise_cooldown",
+      "to": "deferred",
+      "planner": "yield_with_next_eligible_at",
+      "permitted_input": null,
+      "postconditions": [
+        "next_eligible_at_is_recorded"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "block_unknown_state",
+      "from": "unknown_fail_closed",
+      "to": "blocked",
+      "planner": "fail_closed_without_input",
+      "permitted_input": null,
+      "postconditions": [
+        "no_transport_dispatched"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    }
+  ],
+  "permitted_inputs": [
+    "bounded_zoom_out",
+    "navigation_only_home_pan",
+    "tap_research_lab",
+    "tap_nova_radial",
+    "safe_return_home",
+    "open_praise",
+    "exactly_one_free_praise_when_authorized"
+  ],
+  "consequential_action_class": "account_changing_zero_cost_praise",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 1,
+    "resource_or_currency": null,
+    "notes": "Exactly one free Praise per pulse when eligible."
+  },
+  "completion_identity": "nova:praise:complete_for_reset",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "If attempts remain but free Praise is cooling down, return deferred with next_eligible_at and do not wait inside the flow.",
+  "bounded_recovery_behavior": "Failed localization routes through ensure_canonical_home once; repeated identical recovery without new hypothesis is prohibited.",
+  "product_policy_refs": [
+    {
+      "policy_id": "nova-navigation-only",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "nova-supervised-one-free-praise",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "premium-spending",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "zero-cost-consequential-action",
+      "source": "safe_action_core.CentralPolicy"
+    }
+  ],
+  "evidence_requirements": [
+    "zero-attempt Praise fixture not retained from 2026-07-16 session",
+    "production registration and scheduler promotion remain separately gated and unauthorized"
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "nova_zero_attempts_fixture",
+      "status": "evidence_required",
+      "blocks": [
+        "observe_zero_attempts"
+      ],
+      "required_evidence": [
+        "native Nova Praise frame showing Interaction attempts left: 0"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "nova_production_identity",
+      "status": "evidence_required",
+      "blocks": [
+        "nova_praise_production_pulse"
+      ],
+      "required_evidence": [
+        "positively observed production account, server, and reset identity"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "canonical_home",
+      "status": "available",
+      "path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png",
+      "sha256": "594cd4fbb3306c97995fa77c6f2d93c87ae3f667682d128b9ba8766010976997",
+      "notes": "Tracked canonical fully-zoomed-out native Home atlas frame."
+    },
+    {
+      "fixture_id": "localized_noncanonical_home",
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-dry/nova-praise-20260716T191706436109Z/frames/0001-dry-run-source.png",
+      "sha256": "2d1d183bd919f41250c75059534c933ca36cc89789eb4768b29b81406e052b4d",
+      "notes": "Native Home frame localized at a noncanonical camera origin; Research Lab is also visible."
+    },
+    {
+      "fixture_id": "zoomed_in_home",
+      "status": "available",
+      "path": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION/nav-1-20-9-20260721T043634911470Z/1-20-9-20260721T043635359798Z/frames/frame-0001.png",
+      "sha256": "9c22d35937197ba2615681d585732949de13d65a17d7b8fb16ce2d8fd19b8912",
+      "notes": "Retained native Home negative classified zoomed_in by the project Home localizer; no Nova action is associated with it."
+    },
+    {
+      "fixture_id": "research_lab_visible",
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-dry/nova-praise-20260716T191706436109Z/frames/0001-dry-run-source.png",
+      "sha256": "2d1d183bd919f41250c75059534c933ca36cc89789eb4768b29b81406e052b4d",
+      "notes": "Native Home frame with OCR-visible Research Lab and project recognizer binding."
+    },
+    {
+      "fixture_id": "research_lab_offscreen",
+      "status": "available",
+      "path": "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-005.png",
+      "sha256": "8d91bd556a74b3b6297a8c99ebff215a6c04ffa85a705ae5a020ad90bf629e28",
+      "notes": "Tracked localized Home viewport y=1483.9..2764.1; Research Lab atlas polygon y=390..650 is offscreen."
+    },
+    {
+      "fixture_id": "research_lab_radial_menu",
+      "status": "available",
+      "path": "tests/fixtures/nova_praise_preflight/research-lab-radial-07f3d826.png",
+      "sha256": "07f3d8267d7a19384e4064e6439f0f655536d5a86fe41dff9897fca766ee88bd",
+      "notes": "Tracked native Research Lab radial with preceding current-frame Research Lab tap provenance."
+    },
+    {
+      "fixture_id": "nova_lab",
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0001-step-001-source.png",
+      "sha256": "f5297765bbf31ab1d3c884dae70cc1579eddef05a5318d09184a06366152c7b7",
+      "notes": "Native Nova Lab source frame immediately before the reconciled Praise."
+    },
+    {
+      "fixture_id": "praise_attempts_available",
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0001-step-001-source.png",
+      "sha256": "f5297765bbf31ab1d3c884dae70cc1579eddef05a5318d09184a06366152c7b7",
+      "notes": "Praise enabled with Interaction attempts left: 6."
+    },
+    {
+      "fixture_id": "praise_on_cooldown",
+      "status": "available",
+      "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0008-praise-postcondition-unresolved.png",
+      "sha256": "a42da3ad96547b03ccb6210596e9091905ee43542be8bc6c98c2ee2e85851aff",
+      "evidence_refs": [
+        {
+          "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/events.jsonl",
+          "sha256": "275c1aab3db6c8c571a4f18818e82014b7bf8fa7cbb312f464cc01378a515f44",
+          "kind": "dispatch_and_initial_reconciliation_journal",
+          "notes": "Contains the single consequential dispatch and retained initial unresolved classification."
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z/frames/0001-resume-current-source.png",
+          "sha256": "c942df249838216eb0cd7489fed1d5f4735cc5d33bdb6cf510561f864413213b",
+          "kind": "confirmed_reconciliation_source",
+          "notes": "Fresh Nova frame with attempts 5 and active cooldown."
+        },
+        {
+          "path": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z/events.jsonl",
+          "sha256": "09021f7076d8fa57e10a6345677859507d8c8eeb3909573ef8896006b6450f5c",
+          "kind": "terminal_reconciliation_journal",
+          "notes": "Confirms the original action key from exact decrement and cooldown evidence."
+        }
+      ],
+      "notes": "Exact successor shows Interaction attempts left: 5 and CD: 00:04:38; the same action key is terminally confirmed in the reconciliation session."
+    },
+    {
+      "fixture_id": "zero_attempts_remaining",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Interaction attempts left: 0."
+    },
+    {
+      "fixture_id": "unknown_or_negative_control",
+      "status": "synthetic_policy_ok",
+      "path": null,
+      "notes": "Synthetic unrecognized observation is policy-valid for fail-closed replay."
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "nova_navigation_round_trip_no_praise",
+      "mode": "navigation_only",
+      "start_state": "home_ready",
+      "terminal_state": "home_returned",
+      "permitted_inputs": [
+        "bounded_zoom_out",
+        "navigation_only_home_pan",
+        "tap_research_lab",
+        "tap_nova_radial",
+        "safe_return_home"
+      ],
+      "forbidden_inputs": [
+        "open_praise",
+        "exactly_one_free_praise_when_authorized"
+      ],
+      "required_transitions": [
+        "localize_home",
+        "bind_visible_research_lab",
+        "open_research_lab_radial",
+        "open_nova_lab",
+        "return_home_without_praise"
+      ],
+      "evidence_gate_ids": [],
+      "notes": "Existing queue scenario."
+    },
+    {
+      "scenario_id": "nova_praise_one_free_pulse",
+      "mode": "consequential_supervised",
+      "start_state": "home_ready",
+      "terminal_state": "home_returned",
+      "permitted_inputs": [
+        "bounded_zoom_out",
+        "navigation_only_home_pan",
+        "tap_research_lab",
+        "tap_nova_radial",
+        "open_praise",
+        "exactly_one_free_praise_when_authorized",
+        "safe_return_home"
+      ],
+      "forbidden_inputs": [],
+      "required_transitions": [
+        "localize_home",
+        "bind_visible_research_lab",
+        "open_research_lab_radial",
+        "open_nova_lab",
+        "open_praise_attempts",
+        "dispatch_one_free_praise",
+        "return_home_without_praise"
+      ],
+      "evidence_gate_ids": [],
+      "notes": "Acquired 2026-07-16: one Praise, attempts 6 to 5, visible CD: 00:04:38, terminally reconciled, returned Home. Revalidated only through one supervised full-route invocation per explicit authorization."
+    },
+    {
+      "scenario_id": "nova_praise_production_pulse",
+      "mode": "blocked_until_policy",
+      "start_state": "home_ready",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "bounded_zoom_out",
+        "navigation_only_home_pan",
+        "tap_research_lab",
+        "tap_nova_radial",
+        "safe_return_home",
+        "open_praise",
+        "exactly_one_free_praise_when_authorized"
+      ],
+      "required_transitions": [],
+      "evidence_gate_ids": [
+        "nova_production_identity"
+      ],
+      "notes": "Production registration and scheduling remain disabled."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "ambiguous_account_or_server_identity",
+    "blocking_unknown_modal"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "current",
+  "registration_state": "disabled",
+  "production_eligible": false
+}

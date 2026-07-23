@@ -92,7 +92,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             key=lambda flow: (flow["priority"], flow["flow_id"]),
         )
         self.assertEqual(selected["flow_id"], expected["flow_id"])
-        self.assertEqual(expected["flow_id"], "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE")
+        self.assertEqual(expected["flow_id"], "NOAHS-TAVERN-HOME-ATLAS-MIGRATION")
 
     def test_composition_bliss_and_gameplay_scheduler_are_excluded(self) -> None:
         identities = {item["flow_id"] for item in self.queue["flows"]}
@@ -130,10 +130,10 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         }
         self.assertIn(counts["active"], (0, 1))
         # Campaign, Ultimate Challenge, and two Daily claim flows are blocked.
-        # Nova home atlas is completed; supervised one-free pulse is active.
-        self.assertEqual(counts["ready"] + counts["active"], 7)
+        # Both Nova flows (home atlas migration and supervised one-free pulse) are completed.
+        self.assertEqual(counts["ready"] + counts["active"], 6)
         self.assertEqual(counts["blocked"], 4)
-        self.assertEqual(counts["completed"], 1)
+        self.assertEqual(counts["completed"], 2)
         self.assertEqual(counts["needs_product_decision"], 4)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
