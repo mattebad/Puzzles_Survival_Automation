@@ -107,11 +107,55 @@ class GameplayFlowContractTests(unittest.TestCase):
         with self.assertRaisesRegex(FlowContractError, "unknown transition"):
             validate_flow_contract(broken_scenario)
 
-    def test_schema_v1_contracts_remain_readable(self):
+    def test_campaign_contract_is_v2_auto_battle_and_registration_disabled(self):
         campaign = load_flow_contract(
             "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
         )
-        self.assertEqual(campaign["schema_version"], 1)
+        self.assertEqual(campaign["schema_version"], 2)
+        self.assertEqual(campaign["registration_state"], "disabled")
+        self.assertFalse(campaign["production_eligible"])
+        joined = json.dumps(campaign).casefold()
+        self.assertIn("auto_battle", joined)
+        self.assertIn("one ap per 360 seconds", joined)
+        self.assertIn("maximum ap 120", joined)
+
+    def test_daily_and_maintenance_contract_identities_are_separate(self):
+        pairs = (
+            ("NANOWEAPON-BLUESTACKS-INTEGRATION", "NANO-MATERIAL-PRODUCTION-MAINTENANCE"),
+            ("RECRUITMENT-BLUESTACKS-INTEGRATION", "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"),
+            ("ZOMBIE-LAIR-BLUESTACKS-INTEGRATION", "ZOMBIE-LAIR-HOME-MAINTENANCE"),
+        )
+        for daily_id, maintenance_id in pairs:
+            daily = load_flow_contract(daily_id)
+            maintenance = load_flow_contract(maintenance_id)
+            self.assertNotEqual(daily["completion_identity"], maintenance["completion_identity"])
+            self.assertEqual(daily["registration_state"], "disabled")
+            self.assertEqual(maintenance["registration_state"], "disabled")
+            self.assertFalse(daily["production_eligible"])
+            self.assertFalse(maintenance["production_eligible"])
+
+    def test_exact_policy_quantities_cooldowns_and_home_terminals(self):
+        nano_daily = json.dumps(load_flow_contract("NANOWEAPON-BLUESTACKS-INTEGRATION"))
+        nano_maintenance = json.dumps(load_flow_contract("NANO-MATERIAL-PRODUCTION-MAINTENANCE"))
+        recruitment_daily = json.dumps(load_flow_contract("RECRUITMENT-BLUESTACKS-INTEGRATION"))
+        recruitment_maintenance = json.dumps(load_flow_contract("RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"))
+        zombie_maintenance = json.dumps(load_flow_contract("ZOMBIE-LAIR-HOME-MAINTENANCE"))
+        self.assertIn("43200", nano_daily)
+        self.assertIn("100", nano_daily)
+        self.assertIn("21600", nano_maintenance)
+        self.assertIn("600", recruitment_daily)
+        for seconds in ("600", "86400", "172800"):
+            self.assertIn(seconds, recruitment_maintenance)
+        self.assertIn("28", zombie_maintenance)
+        for payload in (
+            nano_daily,
+            nano_maintenance,
+            recruitment_daily,
+            recruitment_maintenance,
+            zombie_maintenance,
+        ):
+            self.assertIn("home", payload.casefold())
+            self.assertIn("deferred", payload.casefold())
 
     def test_shared_home_dependency_change_marks_nova_regression_required(self):
         contracts = load_all_flow_contracts()

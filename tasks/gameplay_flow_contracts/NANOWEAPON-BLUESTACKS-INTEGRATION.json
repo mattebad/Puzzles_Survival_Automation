@@ -1,63 +1,484 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "NANOWEAPON-BLUESTACKS-INTEGRATION",
-  "product_purpose": "Nanoweapon workflow BlueStacks integration.",
-  "trigger_cadence_type": "evidence_gated",
+  "product_purpose": "Complete the once-per-reset Normal Craft Nanoweapon Daily objective from canonical Home without using Exclusive Craft or treating the rotating weapon display as a selector.",
+  "trigger_cadence_type": "daily_once",
   "reset_scope": "daily_reset",
   "required_starting_context": [
-    "unknown_requires_evidence"
+    "home_canonical"
   ],
-  "shared_primitive_dependencies": [],
-  "recognized_states": [
-    "contract_declared",
-    "evidence_required"
-  ],
-  "state_transitions": [
+  "shared_primitive_dependencies": [
     {
-      "from": "contract_declared",
-      "to": "evidence_required",
-      "via": "missing_gameplay_evidence",
-      "notes": "Product decision / evidence still required."
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "gear_factory_bound",
+    "gear_factory_radial",
+    "gear_factory_screen",
+    "nanoweapon_screen",
+    "completed_craft_available",
+    "craft_status_known",
+    "normal_craft_inspected",
+    "normal_craft_ready",
+    "craft_active",
+    "insufficient_parts",
+    "craft_disabled",
+    "already_started_this_reset",
+    "deferred",
+    "home_returned",
+    "complete_for_reset",
+    "already_complete",
+    "blocked",
+    "manual_required",
+    "unknown_fail_closed"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "bind_gear_factory",
+      "from": "home_canonical",
+      "to": "gear_factory_bound",
+      "planner": "navigate_home_building(home.building.gear_factory)",
+      "permitted_input": null,
+      "postconditions": [
+        "fresh_canonical_home_frame_binds_the_gear_factory_building"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "nanoweapon_route_selectors"
+    },
+    {
+      "transition_id": "open_gear_factory_radial",
+      "from": "gear_factory_bound",
+      "to": "gear_factory_radial",
+      "planner": "plan_gear_factory_building_tap",
+      "permitted_input": "tap_gear_factory",
+      "postconditions": [
+        "gear_factory_radial_is_positively_recognized_from_a_fresh_frame"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_route_selectors"
+    },
+    {
+      "transition_id": "open_gear_factory_screen",
+      "from": "gear_factory_radial",
+      "to": "gear_factory_screen",
+      "planner": "plan_gear_factory_radial_tap",
+      "permitted_input": "tap_gear_factory_radial",
+      "postconditions": [
+        "gear_factory_screen_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_route_selectors"
+    },
+    {
+      "transition_id": "open_nanoweapon_screen",
+      "from": "gear_factory_screen",
+      "to": "nanoweapon_screen",
+      "planner": "plan_nanoweapon_tab_tap",
+      "permitted_input": "tap_nanoweapon",
+      "postconditions": [
+        "nanoweapon_screen_is_positively_recognized",
+        "completed_craft_state_is_inspected_before_any_new_craft"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_route_selectors"
+    },
+    {
+      "transition_id": "observe_completed_craft",
+      "from": "nanoweapon_screen",
+      "to": "completed_craft_available",
+      "planner": "classify_nanoweapon_craft_state",
+      "permitted_input": null,
+      "postconditions": [
+        "completed_normal_craft_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "claim_completed_craft",
+      "from": "completed_craft_available",
+      "to": "craft_status_known",
+      "planner": "plan_completed_nanoweapon_claim",
+      "permitted_input": "claim_completed_nanoweapon",
+      "postconditions": [
+        "completed_nanoweapon_is_claimed_exactly_once",
+        "successor_no_longer_shows_the_completed_craft"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_claim_evidence"
+    },
+    {
+      "transition_id": "observe_no_completed_craft",
+      "from": "nanoweapon_screen",
+      "to": "craft_status_known",
+      "planner": "classify_nanoweapon_craft_state",
+      "permitted_input": null,
+      "postconditions": [
+        "no_completed_normal_craft_is_waiting"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "inspect_normal_craft",
+      "from": "craft_status_known",
+      "to": "normal_craft_inspected",
+      "planner": "select_and_inspect_normal_craft",
+      "permitted_input": "select_normal_craft",
+      "postconditions": [
+        "normal_craft_is_selected",
+        "exclusive_craft_is_not_selected",
+        "rotating_weapon_display_is_ignored_as_nonsemantic"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_route_selectors"
+    },
+    {
+      "transition_id": "authorize_normal_craft",
+      "from": "normal_craft_inspected",
+      "to": "normal_craft_ready",
+      "planner": "evaluate_normal_craft_policy",
+      "permitted_input": null,
+      "postconditions": [
+        "nano_parts_equals_100",
+        "craft_control_is_enabled",
+        "no_craft_is_active",
+        "no_nanoweapon_craft_has_started_in_this_reset",
+        "displayed_or_verified_duration_equals_43200_seconds"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "defer_active_craft",
+      "from": "normal_craft_inspected",
+      "to": "deferred",
+      "planner": "record_active_craft_due_time",
+      "permitted_input": null,
+      "postconditions": [
+        "one_existing_craft_remains_active",
+        "no_new_craft_or_resource_consumption_occurs"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "defer_insufficient_parts",
+      "from": "normal_craft_inspected",
+      "to": "insufficient_parts",
+      "planner": "evaluate_normal_craft_policy",
+      "permitted_input": null,
+      "postconditions": [
+        "nano_parts_are_below_100",
+        "no_resource_is_consumed"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "defer_disabled_craft",
+      "from": "normal_craft_inspected",
+      "to": "craft_disabled",
+      "planner": "evaluate_normal_craft_policy",
+      "permitted_input": null,
+      "postconditions": [
+        "craft_control_is_disabled",
+        "no_resource_is_consumed"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "observe_already_started",
+      "from": "normal_craft_inspected",
+      "to": "already_started_this_reset",
+      "planner": "evaluate_reset_start_ledger",
+      "permitted_input": null,
+      "postconditions": [
+        "one_nanoweapon_craft_was_already_started_in_this_reset",
+        "no_second_craft_is_started"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "start_one_normal_craft",
+      "from": "normal_craft_ready",
+      "to": "craft_active",
+      "planner": "plan_one_normal_nanoweapon_craft",
+      "permitted_input": "start_normal_craft",
+      "postconditions": [
+        "exactly_100_nano_parts_are_consumed",
+        "exactly_one_craft_is_active",
+        "craft_due_time_is_43200_seconds_from_verified_start",
+        "current_reset_start_ledger_records_exactly_one_start"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_craft_evidence"
+    },
+    {
+      "transition_id": "return_home_after_action",
+      "from": "craft_active",
+      "to": "home_returned",
+      "planner": "plan_recognized_safe_return_home",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "complete_for_reset",
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_route_selectors"
+    },
+    {
+      "transition_id": "return_home_after_defer",
+      "from": "deferred",
+      "to": "home_returned",
+      "planner": "plan_recognized_safe_return_home",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_route_selectors"
+    },
+    {
+      "transition_id": "return_home_after_insufficient_parts",
+      "from": "insufficient_parts",
+      "to": "home_returned",
+      "planner": "plan_recognized_safe_return_home",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_route_selectors"
+    },
+    {
+      "transition_id": "return_home_after_disabled_craft",
+      "from": "craft_disabled",
+      "to": "home_returned",
+      "planner": "plan_recognized_safe_return_home",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_route_selectors"
+    },
+    {
+      "transition_id": "return_home_already_complete",
+      "from": "already_started_this_reset",
+      "to": "home_returned",
+      "planner": "plan_recognized_safe_return_home",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "already_complete",
+        "blocked"
+      ],
+      "evidence_gate_id": "nanoweapon_route_selectors"
+    },
+    {
+      "transition_id": "block_ambiguous_craft_result",
+      "from": "unknown_fail_closed",
+      "to": "blocked",
+      "planner": "fail_closed_without_retry",
+      "permitted_input": null,
+      "postconditions": [
+        "no_consequential_retry_is_dispatched",
+        "ambiguous_action_state_is_preserved_for_reconciliation"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     }
   ],
   "permitted_inputs": [
-    "none_until_implemented"
+    "tap_gear_factory",
+    "tap_gear_factory_radial",
+    "tap_nanoweapon",
+    "claim_completed_nanoweapon",
+    "select_normal_craft",
+    "start_normal_craft",
+    "safe_return_home"
   ],
-  "local_postconditions": [
-    "evidence_required"
-  ],
-  "consequential_action_class": "none_declared",
+  "consequential_action_class": "consume_exact_nanoparts_and_start_one_timed_craft",
   "cost_quantity_requirements": {
-    "free_only": true,
-    "maximum_cost": null,
-    "quantity": null,
-    "resource_or_currency": null,
-    "notes": "Product decision / evidence still required."
+    "free_only": false,
+    "maximum_cost": 100,
+    "quantity": 1,
+    "resource_or_currency": "NANO_PARTS",
+    "notes": "Normal Craft consumes exactly 100 nano parts, starts at most one 12-hour craft per reset, and permits no currency, item, box, refill, or Exclusive Craft substitution."
   },
-  "completion_identity": "nanoweapon-bluestacks-integration:complete",
+  "completion_identity": "daily-nanoweapon:normal-craft-started-for-reset",
   "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "evidence_required",
-  "bounded_recovery_behavior": "evidence_required",
+  "cooldown_deferred_behavior": "An active 43200-second craft records or refreshes its due time and returns deferred; insufficient parts, a disabled Craft control, or an already-used reset allowance also defer without resource consumption or waiting in-flow.",
+  "bounded_recovery_behavior": "Unknown selectors, costs, reset identity, claim result, craft result, or Home recovery fail closed. A consequential claim or craft with an ambiguous result is never retried; only a positively recognized safe return to canonical Home is permitted.",
+  "product_policy_refs": [
+    {
+      "policy_id": "nanoweapon-material-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
   "evidence_requirements": [
-    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
-    "Product decision / evidence still required."
+    "Existing tasks/nanoweapon.py and tasks/daily_nanoweapon.py provide pure offline policy and postcondition primitives, but still encode legacy selected-weapon, zero-cost, and non-exact-duration assumptions that require later narrow implementation reconciliation.",
+    "Native selectors and postconditions remain required for Gear Factory radial entry, Gear Factory screen, Nanoweapon, completed-craft claim, Normal Craft, 100 nano parts, enabled/disabled Craft, active 12-hour timer, and canonical Home return.",
+    "A production-controller positive offline replay and a separately authorized supervised consequential canary remain required before registration or scheduling."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "nanoweapon_route_selectors",
+      "status": "evidence_required",
+      "blocks": [
+        "bind_gear_factory",
+        "open_gear_factory_radial",
+        "open_gear_factory_screen",
+        "open_nanoweapon_screen",
+        "inspect_normal_craft",
+        "return_home_after_action",
+        "return_home_after_defer",
+        "return_home_after_insufficient_parts",
+        "return_home_after_disabled_craft",
+        "return_home_already_complete"
+      ],
+      "required_evidence": [
+        "native current-frame selectors and bounded postconditions for the complete canonical Home to Nanoweapon route and canonical Home return"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "nanoweapon_claim_evidence",
+      "status": "evidence_required",
+      "blocks": [
+        "claim_completed_craft"
+      ],
+      "required_evidence": [
+        "native completed-craft Claim control and positive one-claim successor evidence"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "nanoweapon_craft_evidence",
+      "status": "evidence_required",
+      "blocks": [
+        "start_one_normal_craft"
+      ],
+      "required_evidence": [
+        "native Normal Craft target, 100-part readiness, enabled and disabled states, exact 12-hour successor, and one-active-craft evidence"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "nanoweapon_production_replay",
+      "status": "evidence_required",
+      "blocks": [
+        "nanoweapon_daily_production"
+      ],
+      "required_evidence": [
+        "positive offline replay through the production recognizer, controller, reset ledger, persistence, and Home terminal path",
+        "separately authorized supervised consequential canary"
+      ],
+      "permitted_inputs": []
+    }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "flow_entry",
+      "fixture_id": "legacy_synthetic_nanoweapon_policy",
+      "status": "synthetic_policy_ok",
+      "path": null,
+      "notes": "Existing phase-E synthetic observations exercise fail-closed pure code but do not prove the approved 100-part Normal Craft behavior or any visual selector."
+    },
+    {
+      "fixture_id": "nanoweapon_normal_craft_states",
       "status": "required_evidence",
       "path": null,
-      "notes": "Not fabricated in this task."
+      "notes": "Requires native ready, insufficient-parts, disabled, active, and already-started states."
+    },
+    {
+      "fixture_id": "nanoweapon_completed_claim",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Requires native completed-craft source and positive claim successor."
+    },
+    {
+      "fixture_id": "nanoweapon_canonical_home_round_trip",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Requires canonical Home start, complete route, and canonical Home terminal evidence."
     }
   ],
-  "live_validation_scenarios": [
+  "scenarios": [
     {
-      "id": "nanoweapon-bluestacks-integration-pending",
+      "scenario_id": "nanoweapon_daily_production",
       "mode": "blocked_until_policy",
-      "notes": "Product decision / evidence still required."
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "tap_gear_factory",
+        "tap_gear_factory_radial",
+        "tap_nanoweapon",
+        "claim_completed_nanoweapon",
+        "select_normal_craft",
+        "start_normal_craft",
+        "safe_return_home"
+      ],
+      "required_transitions": [],
+      "evidence_gate_ids": [
+        "nanoweapon_route_selectors",
+        "nanoweapon_claim_evidence",
+        "nanoweapon_craft_evidence",
+        "nanoweapon_production_replay"
+      ],
+      "notes": "Approved product behavior is explicit, but every route and consequential input remains evidence-gated; registration and scheduler eligibility are disabled."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -67,8 +488,16 @@
     "account_selection_or_switching",
     "credential_entry",
     "ambiguous_account_or_server_identity",
-    "blocking_unknown_modal"
+    "blocking_unknown_modal",
+    "exclusive_craft",
+    "paid_or_item_backed_craft",
+    "ambiguous_craft_or_claim_result"
   ],
-  "implementation_status": "contract_only",
-  "proof_state": "evidence_required"
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "regression_required",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false
 }

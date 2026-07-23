@@ -1,74 +1,35 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
-  "product_purpose": "Zombie Lair BlueStacks integration.",
-  "trigger_cadence_type": "evidence_gated",
-  "reset_scope": "daily_reset",
-  "required_starting_context": [
-    "world_map"
+  "product_purpose": "Own Zombie Lair Daily completion from the first verified eligible Home-maintenance join.",
+  "trigger_cadence_type": "reset_pulse",
+  "reset_scope": "game_daily_reset",
+  "required_starting_context": ["home_canonical"],
+  "shared_primitive_dependencies": [{"primitive_id": "zombie_lair_home_maintenance", "version_digest_field": "ZOMBIE_LAIR_HOME_MAINTENANCE_POLICY_VERSION", "required": true}],
+  "recognized_states": ["home_canonical", "maintenance_join_confirmed", "daily_complete", "already_complete", "deferred", "blocked"],
+  "transition_contracts": [
+    {"transition_id": "observe_first_join", "from": "home_canonical", "to": "maintenance_join_confirmed", "planner": "ZombieLairDailyObserver", "permitted_input": null, "postconditions": ["maintenance verified first eligible level 30-55 Quick Join with exact 28 stamina delta"], "terminal_outcomes": ["deferred", "blocked"], "evidence_gate_id": "zombie_daily_replay"},
+    {"transition_id": "record_daily_completion", "from": "maintenance_join_confirmed", "to": "daily_complete", "planner": "ZombieLairDailyObserver", "permitted_input": null, "postconditions": ["current-reset first successful join recorded", "canonical Home or safe Home-equivalent recognized"], "terminal_outcomes": ["complete_for_reset"]},
+    {"transition_id": "already_complete_noop", "from": "home_canonical", "to": "already_complete", "planner": "ZombieLairDailyObserver", "permitted_input": null, "postconditions": ["current-reset completion identity verified"], "terminal_outcomes": ["already_complete"]}
   ],
-  "shared_primitive_dependencies": [],
-  "recognized_states": [
-    "contract_declared",
-    "evidence_required"
-  ],
-  "state_transitions": [
-    {
-      "from": "contract_declared",
-      "to": "evidence_required",
-      "via": "missing_gameplay_evidence",
-      "notes": "Stamina/AP consumption prohibited until authorized."
-    }
-  ],
-  "permitted_inputs": [
-    "none_until_implemented"
-  ],
-  "local_postconditions": [
-    "evidence_required"
-  ],
-  "consequential_action_class": "none_declared",
-  "cost_quantity_requirements": {
-    "free_only": true,
-    "maximum_cost": null,
-    "quantity": null,
-    "resource_or_currency": null,
-    "notes": "Stamina/AP consumption prohibited until authorized."
-  },
-  "completion_identity": "zombie-lair-bluestacks-integration:complete",
-  "terminal_outcomes": [
-    "blocked",
-    "manual_required"
-  ],
-  "cooldown_deferred_behavior": "evidence_required",
-  "bounded_recovery_behavior": "evidence_required",
-  "evidence_requirements": [
-    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
-    "Stamina/AP consumption prohibited until authorized."
-  ],
-  "replay_fixture_requirements": [
-    {
-      "fixture_id": "flow_entry",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Not fabricated in this task."
-    }
-  ],
-  "live_validation_scenarios": [
-    {
-      "id": "zombie-lair-bluestacks-integration-pending",
-      "mode": "blocked_until_policy",
-      "notes": "Stamina/AP consumption prohibited until authorized."
-    }
-  ],
-  "unsupported_or_manual_only_states": [
-    "login",
-    "captcha",
-    "tutorial",
-    "account_selection_or_switching",
-    "credential_entry",
-    "ambiguous_account_or_server_identity",
-    "blocking_unknown_modal"
-  ],
+  "permitted_inputs": [],
+  "consequential_action_class": "observer_only_daily_completion",
+  "cost_quantity_requirements": {"free_only": false, "maximum_cost": 28, "quantity": 1, "resource_or_currency": "STAMINA", "notes": "Daily owns no dispatch; it observes the first successful eligible maintenance join."},
+  "completion_identity": "zombie-lair:first-eligible-join:complete-for-reset",
+  "terminal_outcomes": ["deferred", "complete_for_reset", "already_complete", "blocked", "manual_required"],
+  "cooldown_deferred_behavior": "No notification or stamina below 28 defers through maintenance; an already-complete Daily remains idempotent while maintenance may continue.",
+  "bounded_recovery_behavior": "Daily dispatches no input and never launches the static Daily row; ambiguous maintenance result blocks without changing completion state.",
+  "product_policy_refs": [{"policy_id": "zombie-lair-level-stamina-march", "source": "tasks/flow_delivery_product_policy.json"}, {"policy_id": "zombie-lair-level-60", "source": "tasks/flow_delivery_product_policy.json"}],
+  "evidence_requirements": ["Existing selected-Daily synthetic replay is not evidence for notification-driven ownership.", "A production-path replay must correlate the first eligible maintenance join to current-reset Daily completion and Home terminal."],
+  "evidence_gates": [{"gate_id": "zombie_daily_replay", "status": "evidence_required", "blocks": ["observe_first_join", "zombie_daily_production"], "required_evidence": ["production-controller positive replay correlating maintenance join, Daily completion, and Home terminal"], "permitted_inputs": []}],
+  "replay_fixture_requirements": [{"fixture_id": "zombie_daily_from_maintenance", "status": "required_evidence", "path": null, "notes": "No notification-driven Daily replay exists."}],
+  "scenarios": [{"scenario_id": "zombie_daily_production", "mode": "blocked_until_policy", "start_state": "home_canonical", "terminal_state": "blocked", "permitted_inputs": [], "forbidden_inputs": [], "required_transitions": [], "evidence_gate_ids": ["zombie_daily_replay"], "notes": "Observer remains dormant and registration-disabled."}],
+  "unsupported_or_manual_only_states": ["static_daily_row_launch", "level_60", "unknown_level_or_cost", "stamina_refill", "login", "captcha", "tutorial"],
   "implementation_status": "contract_only",
-  "proof_state": "evidence_required"
+  "proof_state": "evidence_required",
+  "offline_proof_state": "not_implemented",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false
 }

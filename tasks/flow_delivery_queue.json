@@ -56,13 +56,16 @@
       ],
       "navigation_model": "canonical_home_atlas_plus_feedback_controlled_campaign_destination",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "Navigation-only validation for exactly 1-20-9, 1-15-9, and 2-2-9; no AP execution without separate explicit policy; Ultimate Challenge is not a Campaign AP destination.",
-      "consequence_policy": "Preserve existing AP and battle logic; require Home Atlas Campaign entry, Story-mode recognition, difficulty 1/2, Stages 20/15/2, Chapter 9, and exact tuple verification before AP execution; unknown stage, AP cost, or consequence fails closed.",
+      "live_validation_scope": "No additional live attempt is authorized for 1-20-9, 1-15-9, or 2-2-9. Retain the three failed navigation attempts and local Auto Battle evidence; production-grade replay requires a later atomic task.",
+      "consequence_policy": "Navigate to and verify the configured stage and its static cost on every entry, then Auto Battle within displayed AP. AP is capped at 120 and regenerates one per 360 seconds. Sweep, Blitz, Auto Complete, every refill, and Ultimate Challenge coupling are prohibited; return canonical Home.",
       "product_policy_status": "navigation_only_validation",
+      "execution_product_policy_status": "explicitly_approved",
       "destination_policy_id": "campaign-supported-destinations",
-      "maximum_live_attempts": 3,
-      "live_attempt_count": 3,
-      "live_attempts": [
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "historical_live_attempt_count": 3,
+      "historical_live_attempts": [
         {
           "ordinal": 1,
           "active_flow": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
@@ -118,7 +121,7 @@
         "relocalization_residual_pixels"
       ],
       "blocked_reason": "maximum_live_attempts exhausted: Home Atlas Campaign entry failed LOCALIZATION_NOT_RECOGNIZED because live Home camera was zoomed_in; return-canonical/zoom-out prep landed only on final attempt and could not be re-tried within the checked-in budget of 3. Campaign adapter+pnsctl registry wiring is retained in WIP for a later correction with expanded live budget or pre-zoomed Home.",
-      "next_concrete_action": "Replace legacy HOME_PAN_GESTURES with the canonical Home Atlas and add remembered-state feedback control for the three approved Story destinations.",
+      "next_concrete_action": "Integrate exact stage costs, 120 AP, 360-second regeneration/defer policy, and canonical Home terminal into the retained Auto Battle route, then run production-path positive replay with zero transport.",
       "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
@@ -190,9 +193,10 @@
       ],
       "consequential_stage_policy": {
         "initial_live_validation": "navigation_only",
-        "ap_execution": "requires_separate_explicit_policy",
+        "ap_execution": "approved_auto_battle_but_evidence_gated",
         "ultimate_challenge": "not_a_campaign_destination"
-      }
+      },
+      "additional_live_attempts_authorized": 0
     },
     {
       "flow_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
@@ -215,10 +219,10 @@
       ],
       "navigation_model": "canonical_home_atlas_to_campaign_ultimate_challenge_entry",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "Navigation-only Home-to-Campaign-to-Ultimate-Challenge entry validation first; supervised daily execution requires separate explicit policy and is not part of Campaign AP farming.",
-      "consequence_policy": "Evaluate once per game daily reset; do not rerun after verified completion in the same reset window; already_completed is a valid terminal state; fail closed when reset identity or completion state is ambiguous; unidentified challenge actions are unauthorized.",
+      "live_validation_scope": "No live attempt is authorized. A later atomic task must first implement and positively replay Challenge -> lineup Challenge -> Exit -> Flee -> canonical Home.",
+      "consequence_policy": "Flee is the approved zero-resource Daily completion. Evaluate once per reset, never Auto Battle, preserve already-complete idempotency, and fail closed on ambiguous identity, result, or Home recovery.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 1,
+      "maximum_live_attempts": 0,
       "live_attempt_count": 0,
       "live_attempts": [],
       "focused_tests": [
@@ -233,8 +237,8 @@
         "navigation_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "Parent stopped delivery loop: Ultimate Challenge not ready to finish (offline WIP retained; no live path this session).",
-      "next_concrete_action": "Implement Home Atlas Campaign entry and verified Ultimate Challenge navigation without embedding it in Campaign AP destination parsing.",
+      "blocked_reason": "Product policy is closed, but consequential Flee selectors, postconditions, production-path replay, and supervised canary evidence are missing.",
+      "next_concrete_action": "Implement and offline-replay the approved Challenge -> lineup Challenge -> Exit -> Flee -> canonical Home sequence using the retained Campaign entry and reset-idempotency code.",
       "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
@@ -641,7 +645,7 @@
       "live_validation_scope": "One bounded navigation-only Home-to-Tavern-to-Home route; recruitment dispatch is prohibited.",
       "consequence_policy": "No recruitment is authorized by this migration; unknown free state or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 1,
+      "maximum_live_attempts": 0,
       "live_attempt_count": 0,
       "live_attempts": [],
       "focused_tests": [
@@ -1132,7 +1136,7 @@
       "title": "Integrate Nanoweapon crafting with BlueStacks",
       "kind": "consequential_integration",
       "priority": 100,
-      "status": "needs_product_decision",
+      "status": "blocked",
       "backlog_task_id": "DQ-FLOW-NANOWEAPON",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -1142,9 +1146,9 @@
       ],
       "navigation_model": "gear_factory_craft_weapon_route",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "None until an exact crafting-material and timer policy is approved.",
-      "consequence_policy": "Unidentified crafting materials, cost, recipe, or timer fail closed; Material Production and Inherit are excluded.",
-      "product_policy_status": "unresolved_user_decision",
+      "live_validation_scope": "No live attempt is authorized; native Gear Factory/radial/Nanoweapon, claim, parts, Craft, timer, and Home evidence are required first.",
+      "consequence_policy": "Daily owns Normal Craft only: claim completed on entry, require exactly 100 parts, one active craft, 43200-second duration, and at most one start per reset; Exclusive Craft and rotating-display selection are prohibited.",
+      "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
       "live_attempt_count": 0,
       "live_attempts": [],
@@ -1154,18 +1158,49 @@
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "No approved crafting-material, recipe-cost, or long-timer policy exists.",
-      "next_concrete_action": "Obtain a product decision defining an exact free or allowlisted material policy.",
+      "blocked_reason": "Policy is closed and pure offline craft code exists, but it has stale generic recipe semantics and lacks native selectors, claim/parts/timer/Home replay, and a supervised canary.",
+      "next_concrete_action": "After Nano Material Production, reconcile the existing pure contract to exact 100-part Normal Craft semantics and acquire native replay evidence before any canary.",
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NANOWEAPON-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
+      "title": "Implement Nano Material Production maintenance",
+      "kind": "maintenance_integration",
+      "priority": 105,
+      "status": "blocked",
+      "backlog_task_id": "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/nanoweapon.py",
+        "scripts/bluestacks_native_runtime.py"
+      ],
+      "navigation_model": "canonical_home_to_gear_factory_nanoweapon_material_production",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; native Material Production idle, active, complete, due-time, and Home evidence is required.",
+      "consequence_policy": "Zero-resource maintenance only: exactly one 21600-second production may be active; claim completed production and start the next, start idle production, or defer active production with a due time.",
+      "product_policy_status": "explicitly_approved",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_gameplay_flow_contracts.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "No Material Production implementation, native selector corpus, production replay, or supervised canary exists.",
+      "next_concrete_action": "Implement the zero-resource six-hour Material Production state machine and offline replay after Recruitment maintenance.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/NANO-MATERIAL-PRODUCTION-MAINTENANCE"
     },
     {
       "flow_id": "RECRUITMENT-BLUESTACKS-INTEGRATION",
       "title": "Integrate Daily recruitment with BlueStacks",
       "kind": "consequential_integration",
       "priority": 110,
-      "status": "needs_product_decision",
+      "status": "blocked",
       "backlog_task_id": "DQ-FLOW-RECRUITMENT",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -1175,9 +1210,9 @@
       ],
       "navigation_model": "canonical_home_atlas_to_tavern",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "None until the allowed number and type of free recruitment actions is approved.",
-      "consequence_policy": "Premium, 10x, item-backed, arbitrary, or unidentified recruitment is prohibited.",
-      "product_policy_status": "unresolved_user_decision",
+      "live_validation_scope": "No live attempt is authorized. Retained mechanics/navigation evidence is valid, but a hash-bound production-controller positive Basic-five replay is still required.",
+      "consequence_policy": "Daily completion is five Basic free singles per reset, one per 600-second window; already complete is idempotent. Int. and Advanced never own Daily completion. Paid, 10x, item-backed, or ambiguous recruitment is prohibited.",
+      "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
       "live_attempt_count": 0,
       "live_attempts": [],
@@ -1188,11 +1223,47 @@
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "The repository leaves whether five free singles are permitted as an unresolved product decision.",
-      "next_concrete_action": "Obtain an exact free-recruit quantity and reset/cooldown policy.",
+      "blocked_reason": "Policy is closed and retained mechanics evidence exists, but the Daily adapter is not Basic-only and no production-controller positive Basic-five replay exists.",
+      "next_concrete_action": "Extend retained primitives for Basic-only Daily ownership and production-grade replay as part of the Recruitment maintenance atomic task.",
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/RECRUITMENT-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+      "title": "Extend Noah's Tavern three-tab free-attempt maintenance",
+      "kind": "maintenance_integration",
+      "priority": 115,
+      "status": "blocked",
+      "backlog_task_id": "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/noahs_tavern_recruit_bluestacks.py",
+        "tasks/noahs_tavern_recruit.py",
+        "tasks/noahs_tavern_recruit_runtime.py",
+        "tasks/noahs_tavern_recruit_vision.py"
+      ],
+      "navigation_model": "canonical_home_atlas_to_tavern_three_tab_pass",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; retain the semantic 2026-07-16 session as mechanics evidence while requiring production-grade replay.",
+      "consequence_policy": "Inspect Basic, Int., and Advanced independently; use each available zero-cost single, persist 600/86400/172800-second due times, explicitly defer cooling/exhausted tabs, and return canonical Home.",
+      "product_policy_status": "explicitly_approved",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_free_recruitment.py",
+        "tests/test_daily_recruitment.py",
+        "tests/test_noahs_tavern_recruit.py",
+        "tests/test_noahs_tavern_navigation.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Shared three-tab implementation and valid mechanics evidence exist, but Daily/maintenance ownership is conflated and production-controller positive replay is absent.",
+      "next_concrete_action": "Separate maintenance from Basic-five Daily ownership, preserve shared primitives, and add a production-grade three-tab offline replay before any canary.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
     },
     {
       "flow_id": "WORLD-MAP-NAVIGATION-FOUNDATION",
@@ -1312,13 +1383,13 @@
     },
     {
       "flow_id": "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
-      "title": "Integrate Zombie Lair participation with BlueStacks",
+      "title": "Track Zombie Lair Daily completion from Home maintenance",
       "kind": "combat_march_integration",
       "priority": 140,
-      "status": "needs_product_decision",
+      "status": "blocked",
       "backlog_task_id": "DQ-FLOW-ZOMBIE-LAIR",
       "dependencies": [
-        "WORLD-MAP-NAVIGATION-FOUNDATION"
+        "ZOMBIE-LAIR-HOME-MAINTENANCE"
       ],
       "implementation_entrypoints": [
         "tasks/zombie_lair.py",
@@ -1326,11 +1397,11 @@
         "tasks/world_stamina.py",
         "scripts/bluestacks_native_runtime.py"
       ],
-      "navigation_model": "verified_world_lair_march",
+      "navigation_model": "observe_first_successful_home_maintenance_join",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "None until allowed lair levels, stamina budget, and march policy are approved.",
-      "consequence_policy": "Never join level 60; unknown level, stamina, march, target, or result fails closed.",
-      "product_policy_status": "unresolved_user_decision",
+      "live_validation_scope": "No live attempt is authorized; Daily completion is an observed result of the first successful eligible maintenance join.",
+      "consequence_policy": "The first successful level 30-55 join at exactly 28 stamina completes the Daily objective; never launch a static Daily-row flow and never join level 60 or refill stamina.",
+      "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
       "live_attempt_count": 0,
       "live_attempts": [],
@@ -1341,11 +1412,45 @@
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "Allowed non-60 lair levels, stamina budget, and march policy remain unresolved.",
-      "next_concrete_action": "Complete World Map foundation and obtain exact lair/stamina/march policy.",
+      "blocked_reason": "Policy is closed, but the existing selected-Daily/World adapter does not observe notification-driven Home maintenance completion.",
+      "next_concrete_action": "After Home maintenance is implemented, bind Daily completion idempotently to its first verified eligible join.",
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/ZOMBIE-LAIR-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "ZOMBIE-LAIR-HOME-MAINTENANCE",
+      "title": "Implement notification-driven Zombie Lair Home maintenance",
+      "kind": "maintenance_integration",
+      "priority": 145,
+      "status": "blocked",
+      "backlog_task_id": "ZOMBIE-LAIR-HOME-MAINTENANCE",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/zombie_lair.py",
+        "tasks/world_stamina.py",
+        "scripts/bluestacks_native_runtime.py"
+      ],
+      "navigation_model": "home_notification_panel_quick_join_and_home_return",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; native notification, level, stamina, Quick Join, refill prompt, join result, and Home terminal evidence is required.",
+      "consequence_policy": "Join levels 30-55 using Quick Join up to min(eligible count, floor(stamina/28)); continue after Daily completion, never join level 60 or refill, defer no-lair/below-28 states, and return Home or a recognized safe Home-equivalent.",
+      "product_policy_status": "explicitly_approved",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_zombie_lair.py",
+        "tests/test_daily_zombie_lair.py",
+        "tests/test_gameplay_flow_contracts.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Only a stale generic World single-join pure contract exists; Home notification, exact-budget, multi-lair, refill-cancel, recovery, and Home behavior are unimplemented and lack native evidence.",
+      "next_concrete_action": "Implement notification-driven Home maintenance after Nanoweapon Daily Craft, beginning with native evidence acquisition in a separately authorized task.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/ZOMBIE-LAIR-HOME-MAINTENANCE"
     }
   ]
 }

@@ -4997,8 +4997,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Product tuple format: `<story difficulty>-<stage>-<chapter>` (example `1-20-9` = difficulty 1,
   Stage 20, Chapter 9). Removed from the supported-destination contract: `1-2-9` and
   `ultimate-challenge` (not retained as aliases). All other Story destination tuples fail closed.
-- Safety boundary: navigation-only live validation until separate AP policy is explicit; exact
-  destination verification is mandatory before AP execution.
+- Execution policy: AP maximum 120; regeneration exactly one AP per 360 seconds; configured static
+  costs `1-15-9`=14, `1-20-9`=16, and `2-2-9`=20. Re-select and verify the configured stage and
+  displayed cost on every entry, then use Auto Battle for as many runs as displayed AP permits.
+  Sweep, Blitz, Auto Complete, every refill, and Ultimate Challenge coupling are prohibited.
+- Evidence boundary: retained Auto Battle implementation and local BlueStacks mechanics evidence
+  are valid; the three failed Home-localization attempts remain preserved. No additional live
+  attempt is authorized. Production-controller positive replay and a later canary remain required.
 - Authority: full normalized task state and tests are in `tasks/flow_delivery_queue.json`; this
   dormant pointer does not activate implementation, runtime input, registration, or scheduling.
 
@@ -5007,19 +5012,120 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Title: Integrate Ultimate Challenge daily task as a distinct BlueStacks flow.
 - Status: Blocked (2026-07-21; offline implementation retained, but the parent stopped before a
   terminal navigation-only live path and no live attempt is authorized by this status).
-- Scope: recognized Home → Home Atlas navigation to Campaign → verified Campaign screen → verified
-  Ultimate Challenge entry → determine whether today’s action is still required → execute only an
-  authorized daily action → verify completion or `already_completed` → record daily/reset state →
-  recover safely.
+- Scope: recognized Home → Campaign → Ultimate Challenge → Challenge → Hero Lineup Challenge →
+  immediate upper-right Exit → Flee warning → Flee → canonical Home. Verified Flee completes the
+  Daily objective at zero AP, stamina, currency, item, or other resource cost; Auto Battle is
+  prohibited.
 - Cadence and idempotency: normally evaluated once per game daily reset; must not rerun after
   verified completion in the same reset window; may return `already_completed`; requires persistent
   last-success/reset-window state before unattended scheduling; fails closed when reset identity or
   completion state is ambiguous; separate from ordinary Campaign AP expenditure.
-- Safety boundary: not embedded in or dispatched as Campaign AP farming; production registration
-  and recurring scheduling remain disabled; unidentified challenge actions and repeated execution
-  are unauthorized.
+- Implementation/evidence boundary: retained Campaign-entry navigation and reset-idempotency code
+  are current. Challenge/lineup/Exit/Flee selectors, postconditions, production-controller replay,
+  and a supervised canary are still required; maximum new live attempts is zero. Production
+  registration and recurring scheduling remain disabled.
 - Authority: full normalized task state is in `tasks/flow_delivery_queue.json` and
   `tasks/flow_delivery_product_policy.json`; this dormant pointer does not activate implementation.
+
+### FLOW-PRODUCT-POLICY-RECONCILIATION-20260723
+- Task ID: `FLOW-PRODUCT-POLICY-RECONCILIATION-20260723`.
+- Title: Reconcile approved Daily and maintenance product policy with retained work.
+- Status: Completed offline (2026-07-23); policy/contract/evidence classification only, no runtime
+  input, registration, scheduler eligibility, or downstream implementation.
+- Milestone: Offline flow-delivery authority reconciliation.
+- Dependencies: repository HEAD `07e35b5`, retained implementations/evidence, inactive runtime and
+  development leases, and the explicit 2026-07-23 product decisions.
+- Blocked by: None for offline reconciliation.
+- Objective: reconcile approved Nanoweapon, Nano Material Production, Recruitment, Campaign AP,
+  Ultimate Challenge, and Zombie Lair decisions with retained code/evidence and separate Daily from
+  maintenance ownership.
+- Established facts: Campaign Auto Battle, Ultimate navigation/idempotency, Recruitment integrated
+  primitives, and pure Nano/Zombie contracts are retained; Recruitment has valid 2026-07-16
+  mechanics evidence; no assigned flow has production-controller positive replay proof.
+- Direct implementation files: `tasks/flow_delivery_product_policy.json`,
+  `tasks/flow_delivery_queue.json`, `tasks/flow_delivery_coverage.json`, affected gameplay contracts,
+  authority/contract tests, relevant documentation, `BACKLOG.md`, `tasks/backlog_task_index.json`,
+  and `CURRENT_HANDOFF.md`.
+- Shared dependencies: contract schema/loader, flow-delivery controller, Home navigation primitives,
+  retained Campaign/Recruitment/Nano/Zombie modules, and governance validation.
+- Transitive regression set: authority consistency, gameplay contracts, flow-delivery orchestrator,
+  governance, and all four retained Recruitment suites.
+- Allowed changes: allowed paths are exactly the direct authority, affected contracts/tests/docs,
+  backlog index, backlog, and handoff files attributable to this reconciliation.
+- Prohibited changes: runtime input, flow registration, scheduler eligibility, evidence fabrication,
+  Gathering policy, Troop Training behavior, broad implementation, protected evidence, and push.
+- Authorized runtime action: None; offline repository reconciliation only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Not applicable; no runtime or navigation operation is authorized.
+- Consequential action: None.
+- Registration changes: None; all affected flows remain not registered.
+- Scheduler changes: None; all affected flows remain disabled/ineligible.
+- Actions that must not be repeated: runtime input, Campaign retries, Recruitment actions, evidence
+  fabrication, registration, scheduler promotion, or downstream implementation in this task.
+- Required source: repository state/history, exact relevant backlog sections, current handoff,
+  retained Recruitment record, affected code/tests/contracts/coverage, and explicit product policy.
+- Exact target semantics: eight separate Daily/maintenance identities with exact costs, quantities,
+  cooldowns, deferred outcomes, Home terminals, evidence classifications, and promotion gates.
+- Required local association: no active flow, runtime owner, development lease, writable agent, or
+  unresolved consequential action; historical Campaign attempts remain retained and exhausted.
+- Negative controls: no Sweep/Blitz/Auto Complete, Exclusive Craft, paid recruitment, level 60,
+  refills, static Daily-row Lair launch, fabricated evidence, registration, or scheduling.
+- Coordinate space: None; no coordinate operation.
+- Accepted signals: affected policy entries approved; Gathering unresolved; Troop Training unchanged;
+  queue/contracts/coverage/docs agree; Recruitment evidence preserved; focused tests/checks pass.
+- Rejected weak signals: conversation summary as authority, semantic Recruitment frames promoted to
+  hash-bound proof, synthetic fixtures treated as live evidence, or completion claimed from policy.
+- Ambiguous-result behavior: remain evidence-gated and fail closed; no retry or invented proof.
+- Zero-cost requirement: Ultimate Challenge, Recruitment free singles, and Nano Material Production
+  consume zero resources; other approved exact costs remain Campaign AP or Zombie Lair stamina only.
+- Quantity limits: Nano craft one/reset with 100 parts; Nano maintenance one active; Recruitment
+  Basic five/reset and Int./Advanced one/window; Campaign budget by displayed AP; Lair by stamina/28.
+- Resource consumption policy: no refills; only verified Campaign AP, 100 nano parts, and exact
+  28-stamina Lair joins may be modeled, with no live consumption in this task.
+- Premium or strategic restrictions: all paid/premium/item-backed recruitment, Exclusive Craft,
+  AP/stamina/item/currency refills, level 60 Lairs, and strategic troop composition are prohibited.
+- Active evidence manifest: None; offline reconciliation created no runtime evidence.
+- Required artifacts: product policy, queue, contracts, coverage, docs, backlog/index, tests, handoff,
+  focused validation receipts, and one local commit.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no input or runtime action
+  occurred; retained evidence and journals were not modified.
+- Additional task-specific artifacts: distinct maintenance contracts and future atomic sequence.
+- Focused tests: `tests/test_flow_delivery_authority_consistency.py`,
+  `tests/test_gameplay_flow_contracts.py`, `tests/test_flow_delivery_orchestrator.py`,
+  `tests/test_governance_validation.py`, and four Recruitment suites.
+- Integration tests: existing contract/authority/controller integration only; no runtime integration.
+- Transitive regression tests: additional focused production-component tests only if code changes;
+  no production gameplay code was changed.
+- Full-suite requirement: None requested; focused authority and Recruitment suites are required.
+- Validators: deterministic backlog index, governance/authority validation, handoff parsing,
+  `git diff --check`, and post-validation tree comparison.
+- Known baseline failures: None accepted; every focused failure must be diagnosed and corrected.
+- Evidence requirement: NOT_APPLICABLE because this atomic task is offline authority reconciliation
+  and creates no runtime evidence.
+- Valid blocked outcomes: authority contradiction, protected-work overlap, missing retained source,
+  or inability to preserve registration/scheduler/runtime boundaries.
+- Blocked-result commit policy: preserve coherent task-owned work, record the blocker, and do not
+  claim completion or start downstream work.
+- Commit policy: one focused conventional local commit over task-owned allowed paths; no push.
+- Expected focused commits: `docs(flow-delivery): reconcile approved gameplay policy`.
+- Completion criteria: policy/backlog/queue/contracts/coverage/docs/handoff agree; evidence classes
+  truthful; focused tests and checks pass; one focused commit; no downstream task started.
+- Evidence classification: preserve gameplay/mechanics evidence without promoting it to
+  production-controller positive replay; missing native evidence remains `evidence_required`.
+- Registration/scheduler: all affected flows remain not registered and disabled/ineligible.
+- Live attempts: zero new attempts authorized. Campaign's three historical failed navigation
+  attempts remain immutable retained attempt accounting and do not authorize another attempt.
+- Future atomic implementation order (recorded, not started):
+  1. Ultimate Challenge implementation and production-path replay.
+  2. Campaign AP static-cost/regeneration integration and Auto Battle replay.
+  3. Recruitment Basic-five/three-tab maintenance separation and production-grade replay.
+  4. Nano Material Production maintenance.
+  5. Nanoweapon Daily Normal Craft.
+  6. Zombie Lair Home notification maintenance and Daily-observer integration.
+- Ordering rationale: no dependency requires a change. Ultimate Challenge can reuse the retained
+  Campaign entry seam without Campaign AP execution; all later flows are independent atomic slices.
+- Exact next permitted task: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`, offline
+  implementation/replay only unless a later task separately authorizes a supervised canary.
 
 ### GF-MVP-001-AUTHORITY-BASELINE
 - Task ID: `GF-MVP-001-AUTHORITY-BASELINE`.
@@ -6104,7 +6210,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 
 ### DQ-FLOW-RECRUITMENT
 - Status: Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).
-- Covered: `recruit_noahs_tavern`; free single variant repeated to target quantity.
+- Covered: retained generic free-single replay; final Daily ownership is five Basic free singles in
+  the reset, one per exact 600-second availability window.
 - Exclusions: 10x, premium, unknown confirmation, vendor selector.
 - Dependencies/routes: inventory → Noah's Tavern.
 - Source/target/policy: explicit FREE mode/banner, quantity one, zero cost.
@@ -6112,27 +6219,53 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   `tests/test_daily_recruitment.py` cover selected-row ownership, exact five one-pulse
   successors, dispatch cardinality, Main/ambiguous negatives, and Claim separation; the shared
   free contract remains covered by `tests/test_free_recruitment.py`.
-- Bliss/live boundary: evidence-gated; no registration/input.
-- Transaction/postcondition/recovery: one `RECRUIT_FREE` per pulse, exactly enough pulses to reach
-  5/5; result/count increase required; stop on partial or ambiguous result.
+- Evidence: `evidence/sessions/20260716-noahs-tavern-daily-free/record.md` is valid retained
+  gameplay/mechanics plus semantic navigation evidence for three Basic, one Int., one Advanced,
+  observed cooldowns, result closure, 5/5, no Claim, and Home return. It is not hash-bound,
+  journal-backed, or a production-controller positive replay and does not prove five-Basic replay.
+- Gap: the Daily adapter is not Basic-only or window-aware and already-complete is not yet the final
+  idempotent no-op. Production replay remains evidence-gated; no registration/input.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `EVIDENCE_GATED`; unlocks after native pair.
 
+### RECRUITMENT-FREE-ATTEMPT-MAINTENANCE
+- Status: Blocked; approved policy and retained three-tab implementation/mechanics evidence, but
+  Daily and maintenance ownership remain conflated and production-controller replay is absent.
+- Policy: inspect Basic, Int., and Advanced on every pass; use each available free single; track
+  independent exact cooldowns 600, 86400, and 172800 seconds; explicitly defer cooling/exhausted
+  tabs; never use paid, premium, item-backed, 10x, or ambiguous recruitment; return canonical Home.
+- Existing work: reuse `tasks/noahs_tavern_recruit*.py` and the integrated route; do not rebuild it.
+- Registration/scheduler/live attempts: not registered; disabled/ineligible; zero.
+- Next: extend the shared controller for separated ownership and production-grade zero-transport
+  replay in the third future atomic task.
+
 ### DQ-FLOW-NANOWEAPON
 - Status: Passed (2026-07-14; Daily row adapter plus 5 focused tests).
-- Covered: `craft_nanoweapon`; Craft Weapon variant.
-- Exclusions: Material Production, Inherit Weapon, long/expensive craft, unknown materials.
+- Covered: existing pure single-craft replay, now governed by Normal Craft only, exactly 100 nano
+  parts, exactly 43200 seconds, one active craft, claim completed weapon on entry, and at most one
+  start per game-day/reset. Exclusive Craft and rotating-display selection semantics are prohibited.
 - Dependencies/routes: inventory → Gear Factory → Nanoweapon.
-- Source/target/policy: exact Craft Weapon target and free/allowlisted materials.
+- Source/target/policy: existing generic recipe model is stale and must be narrowed to the approved
+  parts/enabled-Craft contract; insufficient parts or disabled Craft explicitly defers.
 - Offline acceptance/tests: `tasks/daily_nanoweapon.py` and
   `tests/test_daily_nanoweapon.py` cover selected-row ownership, one-craft cardinality, successor
   proof, Main/static negatives, and Claim separation; shared recipe/material guards remain covered
   by `tests/test_nanoweapon.py`.
-- Bliss/live boundary: evidence-gated; no registration/input.
+- Bliss/live boundary: no native Nanoweapon navigation, claim, parts, Craft, timer, or Home evidence;
+  synthetic offline fixtures only; no registration/input.
 - Transaction/postcondition/recovery: one exact craft; timer/result and Daily 0/1 progress;
   stop on material, cost, timer, stale-frame, or successor ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `EVIDENCE_GATED` only if free policy is proven.
+- Promotion/unlocks: `EVIDENCE_GATED`; policy is closed but implementation/replay/canary proof is not.
+
+### NANO-MATERIAL-PRODUCTION-MAINTENANCE
+- Status: Blocked; distinct approved maintenance contract exists, implementation and native evidence
+  do not.
+- Policy: select Material Production; claim completed production and start the next, start when idle,
+  or refresh the due time and defer when active. Exactly one production, exactly 21600 seconds, and
+  zero base resources, boxes, currency, or items; return canonical Home.
+- Registration/scheduler/live attempts: not registered; disabled/ineligible; zero.
+- Next: implement and offline-replay this state machine as the fourth future atomic task.
 
 ### DQ-FLOW-ENHANCE-GEAR
 - Status: Passed (2026-07-14; Daily Gear adapter plus 5 focused tests).
@@ -6184,17 +6317,20 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 
 ### DQ-FLOW-CAMPAIGN-AP
 - Status: Passed (2026-07-14; Daily AP adapter plus 5 focused tests).
-- Covered: `consume_ap`; Sweep/Auto Complete variants.
-- Exclusions: uncontrolled battle, refill, unknown AP cost, Ultimate Challenge dispatch.
+- Covered: legacy selected-row AP arithmetic remains retained, but final execution ownership is the
+  existing configured-stage Auto Battle controller, not Sweep or Auto Complete.
+- Exclusions: Sweep, Blitz, Auto Complete, refills, unknown stage/cost, Ultimate Challenge dispatch.
 - Dependencies/routes: inventory → Campaign.
-- Source/target/policy: readable AP, allowlisted stage, exact Sweep/Auto Complete.
+- Source/target/policy: displayed AP, configured allowlisted stage and static cost, maximum 120 AP,
+  one AP per 360 seconds, exact Auto Battle result and Home terminal.
 - Offline acceptance/tests: `tasks/daily_campaign_ap.py` and
   `tests/test_daily_campaign_ap.py` cover selected-row ownership, AP budget/cost guards, exact
   progress arithmetic, route/cardinality, Main/static negatives, and Claim separation; shared
   Sweep/Auto Complete coverage remains in `tests/test_campaign_ap.py`.
 - Bliss/live boundary: evidence-gated; no registration/input.
-- Transaction/postcondition/recovery: one bounded known AP transaction; exact AP delta and Daily
-  progress; stop on battle, refill, budget, stale-frame, or successor ambiguity.
+- Transaction/postcondition/recovery: run as many verified configured-stage Auto Battles as displayed
+  AP permits; track expected AP; defer insufficient AP to calculated recovery; stop on refill,
+  stage/cost/ledger/result ambiguity; return canonical Home.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `EVIDENCE_GATED`; unlocks Challenge policy review.
 
@@ -6411,19 +6547,32 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 
 ### DQ-FLOW-ZOMBIE-LAIR
 - Status: Passed (2026-07-14; Daily Lair adapter plus 5 focused tests).
-- Covered: `defeat_zombie_lair`; Lair variant.
+- Covered: legacy selected-Daily single-join pure contract only; final Daily identity observes the
+  first successful eligible join produced by Home maintenance.
 - Exclusions: level 60, unknown level, arbitrary combat, Claim.
-- Dependencies/routes: DQ-FLOW-WORLD-STAMINA-ENGINE → recognized Lair.
-- Source/target/policy: exact row, lair level, stamina, march slot, join.
+- Dependencies/routes: `ZOMBIE-LAIR-HOME-MAINTENANCE`; never launch a static Daily-row flow merely
+  because no lair exists.
+- Source/target/policy: notification-driven Home pulse, levels 30-55 inclusive, exact 28 stamina,
+  Quick Join configured formation; level 60 and all refills prohibited.
 - Offline acceptance/tests: `tasks/daily_zombie_lair.py` and
   `tests/test_daily_zombie_lair.py` cover selected-row ownership, Lair level/march/stamina guards,
   exact result/cardinality, Main/static/combat negatives, and Claim separation; shared route
   coverage remains in `tests/test_zombie_lair.py`.
-- Bliss/live boundary: evidence-gated; no registration/input.
+- Bliss/live boundary: existing fixtures are synthetic generic World joins; Home notification,
+  eligible-level, stamina, Quick Join, refill-prompt, multi-lair, and terminal Home evidence required.
 - Transaction/postcondition/recovery: one exact join; positive participation/result and Daily 0/1
   progress; stop on wrong Lair, budget, combat, stale-frame, or successor ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `EVIDENCE_GATED`; requires explicit level/stamina policy.
+- Promotion/unlocks: `EVIDENCE_GATED`; policy closed, implementation/evidence missing.
+
+### ZOMBIE-LAIR-HOME-MAINTENANCE
+- Status: Blocked; notification-driven maintenance contract only.
+- Policy: join `min(eligible_lair_count, floor(current_stamina / 28))` levels 30-55, continue after
+  Daily completion, defer normally on no lair, and when below 28 persist recovery and stop pulsing.
+  Cancel/leave any refill prompt without consumption; return canonical Home or recognized safe
+  Home-equivalent.
+- Registration/scheduler/live attempts: not registered; disabled/ineligible; zero.
+- Next: implement after Nanoweapon Daily Craft as the sixth future atomic task.
 
 ### DQ-FLOW-STAMINA
 - Status: Passed (2026-07-14; disabled counter-only contract and 5 focused tests).

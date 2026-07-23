@@ -51,6 +51,63 @@ def _campaign_coverage_entry(coverage: dict) -> dict:
 
 
 class AuthorityConsistencyTests(unittest.TestCase):
+    def test_approved_reconciliation_closes_only_named_product_decisions(self) -> None:
+        policy = _read(POLICY)
+        entries = {item["policy_id"]: item for item in policy["policies"]}
+        for policy_id in (
+            "campaign-ap-budget",
+            "ultimate-challenge-unresolved-execution-details",
+            "recruitment-quantity-and-resource-policy",
+            "nanoweapon-material-policy",
+            "nano-material-production-maintenance",
+            "zombie-lair-level-stamina-march",
+        ):
+            self.assertEqual(entries[policy_id]["status"], "explicitly_approved")
+        self.assertEqual(
+            entries["gathering-resource-node-march-policy"]["status"],
+            "unresolved_user_decision",
+        )
+        self.assertEqual(
+            entries["troop-training-resource-policy"]["status"],
+            "unresolved_user_decision",
+        )
+
+    def test_affected_queue_flows_are_evidence_gated_and_not_live_authorized(self) -> None:
+        queue = _read(QUEUE)
+        affected = {
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+            "NANOWEAPON-BLUESTACKS-INTEGRATION",
+            "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
+            "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+            "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
+            "ZOMBIE-LAIR-HOME-MAINTENANCE",
+        }
+        by_id = {item["flow_id"]: item for item in queue["flows"]}
+        for flow_id in affected:
+            self.assertEqual(by_id[flow_id]["status"], "blocked")
+            self.assertEqual(by_id[flow_id]["maximum_live_attempts"], 0)
+            self.assertEqual(by_id[flow_id]["live_attempt_count"], 0)
+        campaign = by_id[CAMPAIGN_FLOW_ID]
+        self.assertEqual(campaign["additional_live_attempts_authorized"], 0)
+        self.assertEqual(campaign["maximum_live_attempts"], 0)
+        self.assertEqual(campaign["live_attempt_count"], 0)
+        self.assertEqual(campaign["historical_live_attempt_count"], 3)
+        self.assertEqual(len(campaign["historical_live_attempts"]), 3)
+
+    def test_recruitment_retained_evidence_is_not_mislabeled_or_promoted(self) -> None:
+        coverage = _read(COVERAGE)["flows"]
+        for flow_id in (
+            "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+        ):
+            payload = json.dumps(coverage[flow_id]).casefold()
+            self.assertIn("gameplay", payload)
+            self.assertIn("20260716-noahs-tavern-daily-free", payload)
+            self.assertIn("evidence_required", payload)
+            self.assertFalse(coverage[flow_id]["registered"])
+            self.assertFalse(coverage[flow_id]["scheduler_eligible"])
+
     def test_real_repo_authority_is_consistent(self) -> None:
         control.load_and_validate_authority_consistency()
 

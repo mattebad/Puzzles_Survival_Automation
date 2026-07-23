@@ -118,10 +118,13 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
             "NANOWEAPON-BLUESTACKS-INTEGRATION",
+            "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
             "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
             "WORLD-MAP-NAVIGATION-FOUNDATION",
             "GATHERING-BLUESTACKS-INTEGRATION",
             "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
+            "ZOMBIE-LAIR-HOME-MAINTENANCE",
         ]
         self.assertEqual([item["flow_id"] for item in self.queue["flows"]], expected)
         counts = {
@@ -129,12 +132,12 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             for status in control.QUEUE_STATUSES
         }
         self.assertIn(counts["active"], (0, 1))
-        # Campaign, Ultimate Challenge, and two Daily claim flows are blocked.
+        # Approved but evidence-gated flows remain blocked; Gathering alone still needs a decision.
         # Both Nova flows (home atlas migration and supervised one-free pulse) are completed.
         self.assertEqual(counts["ready"] + counts["active"], 6)
-        self.assertEqual(counts["blocked"], 4)
+        self.assertEqual(counts["blocked"], 10)
         self.assertEqual(counts["completed"], 2)
-        self.assertEqual(counts["needs_product_decision"], 4)
+        self.assertEqual(counts["needs_product_decision"], 1)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
         campaign = self.queue["flows"][0]

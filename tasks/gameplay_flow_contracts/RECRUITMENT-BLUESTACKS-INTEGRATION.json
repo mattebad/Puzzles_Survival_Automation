@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "RECRUITMENT-BLUESTACKS-INTEGRATION",
-  "product_purpose": "Recruitment BlueStacks integration.",
-  "trigger_cadence_type": "evidence_gated",
+  "product_purpose": "Complete the Recruitment Daily objective with five Basic free single recruits in the current reset, one per exact 600-second availability window, then return to canonical Home.",
+  "trigger_cadence_type": "cooldown_pulse",
   "reset_scope": "daily_reset",
   "required_starting_context": [
     "home_localized"
@@ -12,58 +12,350 @@
       "primitive_id": "home_navigation_primitives",
       "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
       "required": true
+    },
+    {
+      "primitive_id": "noahs_tavern_recruitment_primitives",
+      "version_digest_field": "NOAHS_TAVERN_RECRUITMENT_PRIMITIVES_DIGEST",
+      "required": true
     }
   ],
   "recognized_states": [
-    "contract_declared",
-    "evidence_required"
+    "home_localized",
+    "noahs_tavern",
+    "basic_tab_selected",
+    "basic_free_available",
+    "basic_free_cooldown",
+    "basic_free_exhausted",
+    "recruit_result",
+    "daily_complete",
+    "already_complete",
+    "deferred",
+    "ambiguous_result",
+    "home_returned",
+    "blocked",
+    "manual_required",
+    "unknown_fail_closed"
   ],
-  "state_transitions": [
+  "transition_contracts": [
     {
-      "from": "contract_declared",
-      "to": "evidence_required",
-      "via": "missing_gameplay_evidence",
-      "notes": "Product decision / evidence still required."
+      "transition_id": "recognize_already_complete",
+      "from": "home_localized",
+      "to": "already_complete",
+      "planner": "read_recruitment_daily_reset_ledger",
+      "permitted_input": null,
+      "postconditions": [
+        "five_basic_free_recruits_are_already_confirmed_for_current_reset",
+        "terminal_state_is_canonical_home"
+      ],
+      "terminal_outcomes": [
+        "already_complete"
+      ]
+    },
+    {
+      "transition_id": "enter_noahs_tavern",
+      "from": "home_localized",
+      "to": "noahs_tavern",
+      "planner": "reuse_noahs_tavern_home_navigation",
+      "permitted_input": "open_noahs_tavern",
+      "postconditions": [
+        "noahs_tavern_screen_recognized_from_fresh_native_frame"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "select_basic_tab",
+      "from": "noahs_tavern",
+      "to": "basic_tab_selected",
+      "planner": "reuse_noahs_tavern_tier_selector",
+      "permitted_input": "select_basic_tab",
+      "postconditions": [
+        "basic_tab_identity_is_positively_recognized",
+        "basic_availability_is_observed"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "authorize_basic_free_single",
+      "from": "basic_tab_selected",
+      "to": "basic_free_available",
+      "planner": "reuse_free_recruitment_authorization",
+      "permitted_input": null,
+      "postconditions": [
+        "free_single_control_is_enabled",
+        "quantity_is_one",
+        "cost_is_zero",
+        "paid_premium_item_backed_and_10x_controls_are_excluded",
+        "fewer_than_five_basic_recruits_are_confirmed_for_current_reset"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "dispatch_one_basic_free_single",
+      "from": "basic_free_available",
+      "to": "recruit_result",
+      "planner": "NoahTavernRecruitRuntimeController.next_command",
+      "permitted_input": "exactly_one_basic_free_single",
+      "postconditions": [
+        "explicit_recruit_result_is_recognized",
+        "exactly_one_basic_attempt_is_consumed",
+        "no_resource_currency_or_item_is_consumed"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked"
+      ],
+      "evidence_gate_id": "recruitment_daily_production_controller_replay"
+    },
+    {
+      "transition_id": "close_result_and_record_basic_cooldown",
+      "from": "recruit_result",
+      "to": "basic_free_cooldown",
+      "planner": "reuse_safe_result_close_and_postcondition",
+      "permitted_input": "close_safe_result_overlay",
+      "postconditions": [
+        "result_overlay_is_closed_safely",
+        "basic_progress_increment_is_persisted",
+        "next_basic_eligible_at_uses_exact_600_second_cooldown",
+        "daily_claim_is_not_selected"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "complete_after_fifth_basic",
+      "from": "recruit_result",
+      "to": "daily_complete",
+      "planner": "persist_basic_daily_completion",
+      "permitted_input": "close_safe_result_overlay",
+      "postconditions": [
+        "exactly_five_basic_free_recruits_are_confirmed_for_current_reset",
+        "daily_completion_is_owned_by_basic_recruitment_only",
+        "daily_claim_is_not_selected"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "defer_basic_cooldown",
+      "from": "basic_free_cooldown",
+      "to": "deferred",
+      "planner": "yield_with_next_eligible_at",
+      "permitted_input": null,
+      "postconditions": [
+        "next_basic_eligible_at_is_recorded",
+        "no_recruitment_input_is_dispatched"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "defer_basic_exhausted",
+      "from": "basic_free_exhausted",
+      "to": "deferred",
+      "planner": "record_exhausted_for_reset",
+      "permitted_input": null,
+      "postconditions": [
+        "no_paid_recruit_is_substituted",
+        "no_recruitment_input_is_dispatched"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "return_home_after_daily_pass",
+      "from": "deferred",
+      "to": "home_returned",
+      "planner": "reuse_recognized_safe_home_return",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "return_home_after_daily_completion",
+      "from": "daily_complete",
+      "to": "home_returned",
+      "planner": "reuse_recognized_safe_home_return",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "block_ambiguous_result",
+      "from": "ambiguous_result",
+      "to": "blocked",
+      "planner": "persist_unresolved_without_retry",
+      "permitted_input": null,
+      "postconditions": [
+        "consequential_result_is_recorded_unresolved",
+        "identical_recruit_retry_is_prohibited",
+        "bounded_safe_home_recovery_is_used_only_from_a_recognized_state"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "block_unknown_state",
+      "from": "unknown_fail_closed",
+      "to": "blocked",
+      "planner": "fail_closed_without_input",
+      "permitted_input": null,
+      "postconditions": [
+        "no_transport_is_dispatched"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
     }
   ],
   "permitted_inputs": [
-    "none_until_implemented"
+    "open_noahs_tavern",
+    "select_basic_tab",
+    "exactly_one_basic_free_single",
+    "close_safe_result_overlay",
+    "safe_return_home"
   ],
-  "local_postconditions": [
-    "evidence_required"
-  ],
-  "consequential_action_class": "none_declared",
+  "consequential_action_class": "account_changing_zero_cost_basic_recruitment",
   "cost_quantity_requirements": {
     "free_only": true,
-    "maximum_cost": null,
-    "quantity": null,
+    "maximum_cost": 0,
+    "quantity": 5,
     "resource_or_currency": null,
-    "notes": "Product decision / evidence still required."
+    "notes": "Five Basic free recruits per reset; each consequential transaction is exactly one free single and is separated by the exact 600-second Basic cooldown. Int. and Advanced never own Daily completion."
   },
-  "completion_identity": "recruitment-bluestacks-integration:complete",
+  "completion_identity": "recruitment:daily-basic-five:complete_for_reset",
   "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "evidence_required",
-  "bounded_recovery_behavior": "evidence_required",
+  "cooldown_deferred_behavior": "When the next Basic free single is cooling down, persist next_basic_eligible_at from the exact 600-second policy, return deferred without waiting or substituting a paid recruit, and return to canonical Home.",
+  "bounded_recovery_behavior": "Close only a positively recognized safe result overlay; ambiguous consequential results are persisted unresolved and never retried identically. Other recovery uses bounded recognized safe exit and must terminate at canonical Home or blocked if Home cannot be proven.",
+  "product_policy_refs": [
+    {
+      "policy_id": "recruitment-quantity-and-resource-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
   "evidence_requirements": [
-    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
-    "Product decision / evidence still required."
+    "The retained 2026-07-16 Computer Use session is valid gameplay and mechanics evidence for free variants, observed cooldowns, result handling, mixed-tier Daily progress, and Home return.",
+    "The retained semantic record is not raw hash-bound screenshot evidence, a consequential journal, a manifest, or a production-controller attempt record.",
+    "A production-controller positive replay of five Basic free recruits across exact availability windows with terminal canonical Home remains required before any live promotion.",
+    "A later supervised consequential canary remains required; registration and scheduler promotion are separately prohibited."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "recruitment_daily_production_controller_replay",
+      "status": "evidence_required",
+      "blocks": [
+        "dispatch_one_basic_free_single",
+        "recruitment_daily_basic_five_consequential"
+      ],
+      "required_evidence": [
+        "hash-bound native source, immediate-before, transport, immediate-post, semantic result, and terminal Home evidence",
+        "consequential journal and attempt record proving the production recognizer, controller, policy, persistence, and postcondition path",
+        "five Basic-only free singles in one reset with exact 600-second eligibility behavior and no paid substitution"
+      ],
+      "permitted_inputs": []
+    }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "flow_entry",
+      "fixture_id": "retained_recruitment_gameplay_mechanics_record",
+      "status": "available",
+      "path": "evidence/sessions/20260716-noahs-tavern-daily-free/record.md",
+      "sha256": "cc5d306033c559d014947ee48449b794e0e3e8c7175cff2011d2336d6ad896c4",
+      "notes": "Semantic Computer Use record; valid gameplay/mechanics evidence, not hash-bound production replay proof."
+    },
+    {
+      "fixture_id": "offline_daily_recruitment_policy_replay",
+      "status": "synthetic_policy_ok",
+      "path": "tests/fixtures/phase_e_daily_recruitment_observations.json",
+      "notes": "Synthetic five-count contract replay; it does not prove native selectors or production execution."
+    },
+    {
+      "fixture_id": "offline_noahs_tavern_controller_tests",
+      "status": "synthetic_policy_ok",
+      "path": "tests/test_noahs_tavern_recruit.py",
+      "notes": "Exercises existing tier, result, cooldown parsing, controller, and fail-closed primitives."
+    },
+    {
+      "fixture_id": "production_controller_basic_five_positive_replay",
       "status": "required_evidence",
       "path": null,
-      "notes": "Not fabricated in this task."
+      "notes": "Must use the production recognizer/controller/policy/persistence/postcondition path with zero transport substituted only at the transport boundary."
     }
   ],
-  "live_validation_scenarios": [
+  "scenarios": [
     {
-      "id": "recruitment-bluestacks-integration-pending",
-      "mode": "blocked_until_policy",
-      "notes": "Product decision / evidence still required."
+      "scenario_id": "recruitment_daily_offline_policy_replay",
+      "mode": "observe_only",
+      "start_state": "home_localized",
+      "terminal_state": "home_returned",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "open_noahs_tavern",
+        "select_basic_tab",
+        "exactly_one_basic_free_single",
+        "close_safe_result_overlay",
+        "safe_return_home"
+      ],
+      "required_transitions": [],
+      "evidence_gate_ids": [],
+      "notes": "Existing synthetic fixtures and controller tests validate offline policy only."
+    },
+    {
+      "scenario_id": "recruitment_daily_basic_five_consequential",
+      "mode": "consequential_supervised",
+      "start_state": "home_localized",
+      "terminal_state": "home_returned",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "open_noahs_tavern",
+        "select_basic_tab",
+        "exactly_one_basic_free_single",
+        "close_safe_result_overlay",
+        "safe_return_home"
+      ],
+      "required_transitions": [
+        "enter_noahs_tavern",
+        "select_basic_tab",
+        "authorize_basic_free_single",
+        "dispatch_one_basic_free_single",
+        "close_result_and_record_basic_cooldown",
+        "complete_after_fifth_basic",
+        "return_home_after_daily_completion"
+      ],
+      "evidence_gate_ids": [
+        "recruitment_daily_production_controller_replay"
+      ],
+      "notes": "Consequential execution remains evidence-gated, unregistered, and scheduler-disabled."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -73,8 +365,14 @@
     "account_selection_or_switching",
     "credential_entry",
     "ambiguous_account_or_server_identity",
-    "blocking_unknown_modal"
+    "blocking_unknown_modal",
+    "paid_or_ambiguously_priced_recruitment"
   ],
-  "implementation_status": "contract_only",
-  "proof_state": "evidence_required"
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false
 }

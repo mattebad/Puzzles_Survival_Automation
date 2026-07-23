@@ -127,7 +127,7 @@ class DailyRecruitmentContractTests(unittest.TestCase):
             for item in matrix["objectives"]
             if item["objective_key"] == "recruit_noahs_tavern"
         )
-        self.assertEqual(row["implementation_status"], "OFFLINE_CONTRACT_ONLY")
+        self.assertEqual(row["implementation_status"], "DORMANT_REFERENCE_IMPLEMENTATION")
         self.assertEqual(row["current_runtime_registration_status"], "NOT_REGISTERED")
         self.assertFalse(row["scheduler_eligibility"])
 

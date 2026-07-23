@@ -1,0 +1,503 @@
+{
+  "schema_version": 2,
+  "flow_id": "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+  "product_purpose": "Inspect Basic, Int., and Advanced recruitment independently, use every currently available zero-cost single, persist exact cooldown estimates, and return to canonical Home independently of Daily completion.",
+  "trigger_cadence_type": "cooldown_pulse",
+  "reset_scope": "cross_reset_independent_tier_cooldowns",
+  "required_starting_context": [
+    "home_localized"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    },
+    {
+      "primitive_id": "noahs_tavern_recruitment_primitives",
+      "version_digest_field": "NOAHS_TAVERN_RECRUITMENT_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_localized",
+    "noahs_tavern",
+    "basic_tab_selected",
+    "int_tab_selected",
+    "advanced_tab_selected",
+    "free_single_available",
+    "free_single_cooldown",
+    "free_single_exhausted",
+    "recruit_result",
+    "maintenance_pass_complete",
+    "deferred_no_available_free_single",
+    "ambiguous_result",
+    "home_returned",
+    "blocked",
+    "manual_required",
+    "unknown_fail_closed"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "enter_noahs_tavern_for_maintenance",
+      "from": "home_localized",
+      "to": "noahs_tavern",
+      "planner": "reuse_noahs_tavern_home_navigation",
+      "permitted_input": "open_noahs_tavern",
+      "postconditions": [
+        "noahs_tavern_screen_recognized_from_fresh_native_frame"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "inspect_basic_tab",
+      "from": "noahs_tavern",
+      "to": "basic_tab_selected",
+      "planner": "reuse_noahs_tavern_tier_selector",
+      "permitted_input": "select_basic_tab",
+      "postconditions": [
+        "basic_availability_is_observed_independently",
+        "basic_cooldown_policy_is_exactly_600_seconds"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "inspect_int_tab",
+      "from": "noahs_tavern",
+      "to": "int_tab_selected",
+      "planner": "reuse_noahs_tavern_tier_selector",
+      "permitted_input": "select_int_tab",
+      "postconditions": [
+        "int_availability_is_observed_independently",
+        "int_cooldown_policy_is_exactly_86400_seconds"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "inspect_advanced_tab",
+      "from": "noahs_tavern",
+      "to": "advanced_tab_selected",
+      "planner": "reuse_noahs_tavern_tier_selector",
+      "permitted_input": "select_advanced_tab",
+      "postconditions": [
+        "advanced_availability_is_observed_independently",
+        "advanced_cooldown_policy_is_exactly_172800_seconds"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "classify_basic_available",
+      "from": "basic_tab_selected",
+      "to": "free_single_available",
+      "planner": "classify_selected_basic_tab",
+      "permitted_input": null,
+      "postconditions": ["Basic free single is positively enabled and zero cost"],
+      "terminal_outcomes": ["blocked"]
+    },
+    {
+      "transition_id": "classify_basic_cooldown",
+      "from": "basic_tab_selected",
+      "to": "free_single_cooldown",
+      "planner": "classify_selected_basic_tab",
+      "permitted_input": null,
+      "postconditions": ["Basic cooldown is recognized and due time uses 600 seconds"],
+      "terminal_outcomes": ["deferred"]
+    },
+    {
+      "transition_id": "classify_basic_exhausted",
+      "from": "basic_tab_selected",
+      "to": "free_single_exhausted",
+      "planner": "classify_selected_basic_tab",
+      "permitted_input": null,
+      "postconditions": ["Basic free attempts are positively exhausted for the reset"],
+      "terminal_outcomes": ["deferred"]
+    },
+    {
+      "transition_id": "classify_int_available",
+      "from": "int_tab_selected",
+      "to": "free_single_available",
+      "planner": "classify_selected_int_tab",
+      "permitted_input": null,
+      "postconditions": ["Int. free single is positively enabled and zero cost"],
+      "terminal_outcomes": ["blocked"]
+    },
+    {
+      "transition_id": "classify_int_cooldown",
+      "from": "int_tab_selected",
+      "to": "free_single_cooldown",
+      "planner": "classify_selected_int_tab",
+      "permitted_input": null,
+      "postconditions": ["Int. cooldown is recognized and due time uses 86400 seconds"],
+      "terminal_outcomes": ["deferred"]
+    },
+    {
+      "transition_id": "classify_int_exhausted",
+      "from": "int_tab_selected",
+      "to": "free_single_exhausted",
+      "planner": "classify_selected_int_tab",
+      "permitted_input": null,
+      "postconditions": ["Int. free attempt is positively unavailable outside cooldown"],
+      "terminal_outcomes": ["deferred"]
+    },
+    {
+      "transition_id": "classify_advanced_available",
+      "from": "advanced_tab_selected",
+      "to": "free_single_available",
+      "planner": "classify_selected_advanced_tab",
+      "permitted_input": null,
+      "postconditions": ["Advanced free single is positively enabled and zero cost"],
+      "terminal_outcomes": ["blocked"]
+    },
+    {
+      "transition_id": "classify_advanced_cooldown",
+      "from": "advanced_tab_selected",
+      "to": "free_single_cooldown",
+      "planner": "classify_selected_advanced_tab",
+      "permitted_input": null,
+      "postconditions": ["Advanced cooldown is recognized and due time uses 172800 seconds"],
+      "terminal_outcomes": ["deferred"]
+    },
+    {
+      "transition_id": "classify_advanced_exhausted",
+      "from": "advanced_tab_selected",
+      "to": "free_single_exhausted",
+      "planner": "classify_selected_advanced_tab",
+      "permitted_input": null,
+      "postconditions": ["Advanced free attempt is positively unavailable outside cooldown"],
+      "terminal_outcomes": ["deferred"]
+    },
+    {
+      "transition_id": "authorize_available_free_single",
+      "from": "free_single_available",
+      "to": "free_single_available",
+      "planner": "reuse_selected_tier_free_recruitment_authorization",
+      "permitted_input": null,
+      "postconditions": [
+        "selected_tier_free_single_control_is_enabled",
+        "quantity_is_one",
+        "cost_is_zero",
+        "paid_premium_item_backed_10x_and_ambiguous_controls_are_excluded"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "dispatch_available_free_single",
+      "from": "free_single_available",
+      "to": "recruit_result",
+      "planner": "NoahTavernRecruitRuntimeController.next_command",
+      "permitted_input": "exactly_one_selected_tier_free_single",
+      "postconditions": [
+        "explicit_recruit_result_is_recognized",
+        "exactly_one_selected_tier_attempt_is_consumed",
+        "no_resource_currency_or_item_is_consumed"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked"
+      ],
+      "evidence_gate_id": "recruitment_maintenance_production_controller_replay"
+    },
+    {
+      "transition_id": "close_result_and_persist_tier_due_time",
+      "from": "recruit_result",
+      "to": "noahs_tavern",
+      "planner": "reuse_safe_result_close_and_postcondition",
+      "permitted_input": "close_safe_result_overlay",
+      "postconditions": [
+        "result_overlay_is_closed_safely",
+        "selected_tier_state_is_updated_independently",
+        "selected_tier_next_eligible_at_uses_its_exact_cooldown",
+        "daily_claim_is_not_selected"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "defer_cooling_tier",
+      "from": "free_single_cooldown",
+      "to": "noahs_tavern",
+      "planner": "record_selected_tier_due_time_and_continue",
+      "permitted_input": null,
+      "postconditions": [
+        "selected_tier_next_eligible_at_is_recorded",
+        "no_paid_recruit_is_substituted"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "defer_exhausted_tier",
+      "from": "free_single_exhausted",
+      "to": "noahs_tavern",
+      "planner": "record_selected_tier_exhausted_and_continue",
+      "permitted_input": null,
+      "postconditions": [
+        "selected_tier_is_explicitly_deferred",
+        "no_paid_recruit_is_substituted"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "complete_three_tab_inspection",
+      "from": "noahs_tavern",
+      "to": "maintenance_pass_complete",
+      "planner": "confirm_all_three_tiers_inspected",
+      "permitted_input": null,
+      "postconditions": [
+        "basic_int_and_advanced_were_all_inspected",
+        "every_currently_available_free_single_was_used_at_most_once",
+        "unavailable_tiers_have_explicit_deferred_outcomes",
+        "daily_completion_does_not_disable_maintenance"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "defer_no_available_free_single",
+      "from": "maintenance_pass_complete",
+      "to": "deferred_no_available_free_single",
+      "planner": "yield_until_earliest_independent_due_time",
+      "permitted_input": null,
+      "postconditions": [
+        "earliest_known_next_eligible_at_is_recorded",
+        "no_recruitment_input_was_dispatched"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "return_home_after_maintenance",
+      "from": "maintenance_pass_complete",
+      "to": "home_returned",
+      "planner": "reuse_recognized_safe_home_return",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "return_home_after_maintenance_defer",
+      "from": "deferred_no_available_free_single",
+      "to": "home_returned",
+      "planner": "reuse_recognized_safe_home_return",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "block_ambiguous_maintenance_result",
+      "from": "ambiguous_result",
+      "to": "blocked",
+      "planner": "persist_unresolved_without_retry",
+      "permitted_input": null,
+      "postconditions": [
+        "consequential_result_is_recorded_unresolved",
+        "identical_recruit_retry_is_prohibited",
+        "remaining_tier_dispatches_are_prohibited_for_this_pass"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "block_unknown_maintenance_state",
+      "from": "unknown_fail_closed",
+      "to": "blocked",
+      "planner": "fail_closed_without_input",
+      "permitted_input": null,
+      "postconditions": [
+        "no_transport_is_dispatched"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    }
+  ],
+  "permitted_inputs": [
+    "open_noahs_tavern",
+    "select_basic_tab",
+    "select_int_tab",
+    "select_advanced_tab",
+    "exactly_one_selected_tier_free_single",
+    "close_safe_result_overlay",
+    "safe_return_home"
+  ],
+  "consequential_action_class": "account_changing_zero_cost_recruitment_maintenance",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 1,
+    "resource_or_currency": null,
+    "notes": "Use at most one currently available free single per inspected tier per pass: Basic exact cooldown 600 seconds, Int. 86400 seconds, Advanced 172800 seconds. Never use paid, premium, item-backed, 10x, or ambiguously priced recruitment."
+  },
+  "completion_identity": "recruitment:free-attempt-maintenance:pass_complete",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "Track Basic, Int., and Advanced independently. Cooling or exhausted tiers produce explicit deferred outcomes; persist the exact-policy due estimate and do not wait inside the flow. After all three tabs are inspected, return to canonical Home.",
+  "bounded_recovery_behavior": "Close only a positively recognized safe result overlay. An ambiguous consequential result is persisted unresolved, stops the maintenance pass, and is never retried identically; otherwise use bounded recognized safe exit and require canonical Home.",
+  "product_policy_refs": [
+    {
+      "policy_id": "recruitment-quantity-and-resource-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "evidence_requirements": [
+    "The retained 2026-07-16 Computer Use session is valid gameplay and mechanics evidence for all three free variants, observed independent cooldowns, safe result handling, and Home return.",
+    "The retained semantic record is not raw hash-bound screenshot evidence, a consequential journal, a manifest, or a production-controller attempt record.",
+    "The existing integrated route, tier recognizer, independent tier state, result close, and scripted navigation replay must be reused rather than rebuilt.",
+    "A production-controller positive three-tab maintenance replay with independent persistence and terminal canonical Home remains required before any live promotion.",
+    "A later supervised consequential canary remains required; registration and scheduler promotion are separately prohibited."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "recruitment_maintenance_production_controller_replay",
+      "status": "evidence_required",
+      "blocks": [
+        "dispatch_available_free_single",
+        "recruitment_free_attempt_maintenance_consequential"
+      ],
+      "required_evidence": [
+        "hash-bound native three-tab source and successor frames with semantic tier identities",
+        "production recognizer, controller, policy, persistence, result postcondition, and canonical Home replay",
+        "independent Basic 600-second, Int. 86400-second, and Advanced 172800-second due-time behavior",
+        "consequential journal and attempt record for every zero-cost recruit action"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "retained_three_tier_gameplay_mechanics_record",
+      "status": "available",
+      "path": "evidence/sessions/20260716-noahs-tavern-daily-free/record.md",
+      "sha256": "cc5d306033c559d014947ee48449b794e0e3e8c7175cff2011d2336d6ad896c4",
+      "notes": "Semantic Computer Use record proving Basic, Int., and Advanced free mechanics; not production replay proof."
+    },
+    {
+      "fixture_id": "offline_free_recruitment_policy_replay",
+      "status": "synthetic_policy_ok",
+      "path": "tests/fixtures/phase_e_free_recruitment_observations.json",
+      "notes": "Synthetic free-single authorization replay; it does not prove native selectors or execution."
+    },
+    {
+      "fixture_id": "offline_three_tier_controller_tests",
+      "status": "synthetic_policy_ok",
+      "path": "tests/test_noahs_tavern_recruit.py",
+      "notes": "Exercises the retained tier recognizer/controller primitives and independent timer parsing."
+    },
+    {
+      "fixture_id": "scripted_home_tavern_home_navigation_replay",
+      "status": "synthetic_policy_ok",
+      "path": "tests/test_noahs_tavern_navigation.py",
+      "notes": "Scripted offline navigation replay; zero recruit taps and not production-controller proof."
+    },
+    {
+      "fixture_id": "production_controller_three_tab_positive_replay",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Must inspect all tabs, use each available free single, persist independent cooldowns, and end at canonical Home through the production path."
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "recruitment_maintenance_offline_policy_replay",
+      "mode": "observe_only",
+      "start_state": "home_localized",
+      "terminal_state": "home_returned",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "open_noahs_tavern",
+        "select_basic_tab",
+        "select_int_tab",
+        "select_advanced_tab",
+        "exactly_one_selected_tier_free_single",
+        "close_safe_result_overlay",
+        "safe_return_home"
+      ],
+      "required_transitions": [],
+      "evidence_gate_ids": [],
+      "notes": "Existing synthetic and scripted tests validate reusable offline primitives only."
+    },
+    {
+      "scenario_id": "recruitment_free_attempt_maintenance_consequential",
+      "mode": "consequential_supervised",
+      "start_state": "home_localized",
+      "terminal_state": "home_returned",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "open_noahs_tavern",
+        "select_basic_tab",
+        "select_int_tab",
+        "select_advanced_tab",
+        "exactly_one_selected_tier_free_single",
+        "close_safe_result_overlay",
+        "safe_return_home"
+      ],
+      "required_transitions": [
+        "enter_noahs_tavern_for_maintenance",
+        "inspect_basic_tab",
+        "inspect_int_tab",
+        "inspect_advanced_tab",
+        "authorize_available_free_single",
+        "dispatch_available_free_single",
+        "close_result_and_persist_tier_due_time",
+        "complete_three_tab_inspection",
+        "return_home_after_maintenance"
+      ],
+      "evidence_gate_ids": [
+        "recruitment_maintenance_production_controller_replay"
+      ],
+      "notes": "Consequential execution remains evidence-gated, unregistered, scheduler-disabled, and independent of Daily completion."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "ambiguous_account_or_server_identity",
+    "blocking_unknown_modal",
+    "paid_or_ambiguously_priced_recruitment"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false
+}

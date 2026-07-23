@@ -4,19 +4,34 @@ The semantic contract extends the existing one-pulse Campaign AP model. A separa
 BlueStacks adapter now binds native 800x1280 OCR/templates and emits one checked action at a time.
 It is not a registered production or scheduled task.
 
-## Configured route
+## Approved configured route
 
-A stage uses `tier-chapter-stage`, for example `1-20-9`. The adapter positively
-recognizes all three components before Challenge:
+A configured destination uses `<story difficulty>-<stage>-<chapter>`. The approved destinations
+and static costs are exactly:
 
-- the selected tier (`1` or `2` at the top of the Campaign map);
-- the chapter header, such as `Ch.3 Teton Ranch`;
-- the exact stage dialog, such as `[3-1] Teton Ranch`.
+| Destination | Static cost |
+| --- | ---: |
+| `1-15-9` | 14 AP |
+| `1-20-9` | 16 AP |
+| `2-2-9` | 20 AP |
 
-AP cost, current AP, an explicit AP budget, and a maximum run count are mandatory. Whole runs are
-bounded by fresh available AP, remaining budget, and the run cap. AP is re-read before every run;
-independently observed natural regeneration is recorded separately from stage spend. Refills and
-unknown costs fail closed.
+Maximum AP is 120. Natural regeneration is exactly one AP per 360 seconds. Home scheduling may
+use that rate to estimate the next eligible time, but an estimate never authorizes a battle: the
+current displayed AP, configured stage identity, and displayed stage cost must be read and matched
+again immediately before execution.
+
+The selected stage is not reliably retained. Every Campaign entry therefore navigates to and
+positively verifies all three configured destination components before Challenge. The displayed
+cost must equal the static cost above; a mismatch, unknown stage, unknown AP, or unknown cost fails
+closed.
+
+Execution uses Auto Battle only. Sweep, Blitz, and Auto Complete are prohibited. Each successful
+run advances the expected AP ledger by the static stage cost, then re-captures current AP before
+another run. The route runs as many configured-stage Auto Battles as current AP safely permits,
+never opens or accepts an AP refill, and never consumes an item, currency, or other refill
+resource. Insufficient AP returns a deferred outcome with the calculated recovery time and no
+resource input. Every safe terminal path returns to canonical Home. Ultimate Challenge is a
+separate zero-AP flow.
 
 ## Captured route
 
@@ -26,7 +41,8 @@ The local BlueStacks session
 1. Home/Base to Campaign.
 2. Campaign tier/chapter map.
 3. Exact stage selection (`[3-1] Teton Ranch`, 20 AP).
-4. The fixed bottom lineup Challenge button; hero identities and lineup contents are ignored.
+4. The stage-dialog Challenge control, followed by the fixed bottom Hero Lineup Challenge control;
+   hero identities and lineup contents are ignored.
 5. Active battle and explicit Auto enablement.
 6. Screenshot polling while battle remains active.
 7. Success only when `WINNER`, `Loot`, and `Tap to continue` are jointly recognized.
@@ -39,7 +55,9 @@ The local BlueStacks session
 Battle duration is deliberately not modeled as a fixed sleep. The hard polling ceiling is 180
 seconds. Timeout or an unknown result is unresolved/blocked, never success.
 
-The supervised BlueStacks `1-20-9` run on 2026-07-16 established a 16 AP cost, six consecutive
+The earlier `[3-1]` capture is retained gameplay/mechanics evidence for the controller state
+sequence, not authorization for an approved configured destination. The supervised BlueStacks
+`1-20-9` run on 2026-07-16 established a 16 AP cost, six consecutive
 victories, battle durations ranging beyond 30 seconds, natural AP regeneration during the loop,
 and an insufficient state that renders the 16 cost red without automatically opening a refill.
 The run spent 96 AP and returned to Home/Base with 6/120 AP after three regenerated AP.
@@ -59,13 +77,28 @@ panel is explicitly excluded. After continuation, `loss_seen` takes priority ove
 so chapter, tier, and Home states can only unwind and complete; they cannot re-enter the stage.
 
 Project-owned templates are retained under `tasks/assets/campaign_auto_battle/800x1280/`.
-`scripts/bluestacks_campaign_ap.py` is dry-run by default, requires the exact local BlueStacks
-serial and explicit stage/cost/budget/run cap, and records every frame and command locally.
+`tasks/campaign_auto_battle.py`, `tasks/campaign_auto_battle_runtime.py`,
+`tasks/campaign_auto_battle_vision.py`, and `scripts/bluestacks_campaign_ap.py` preserve the
+existing destination, AP-ledger, Auto, result, and Home-return implementation. The local script is
+dry-run by default and records every frame and command. Its legacy explicit cost/budget/run-cap
+configuration is an implementation gap: later policy integration must derive the cost from the
+approved static map, enforce the 120 maximum and 360-second regeneration contract, and still
+verify the displayed values before each battle.
 
-## Promotion gaps
+## Evidence classification and promotion gaps
 
-Before a live Bliss adapter can be promoted, capture and validate Bliss-native 800x1280 source,
-target, immediate-before, and successor evidence for each input.
+The retained 2026-07-16 BlueStacks sessions are valid gameplay/mechanics evidence: they establish
+stage navigation, displayed AP/cost handling, stage and lineup Challenge controls, Auto enablement,
+victory/defeat recognition, repeated bounded runs, insufficient AP behavior, refill avoidance, and
+Home return. The checked-in controller, vision code, templates, and focused fixtures provide
+offline implementation and replay support.
 
-BlueStacks frames are route-translation sources only. Runtime registration and scheduler eligibility
-remain disabled.
+That retained work does not by itself prove a production-grade controller replay on the production
+runtime. It is not a hash-bound production attempt journal or a supervised production canary.
+Remaining proof requires native production frames for every approved destination and static cost,
+the production recognizer/controller/persistence path in a zero-transport positive replay, AP
+regeneration and insufficient-AP defer evidence, refill-prompt rejection, and a separately
+authorized supervised consequential canary with canonical Home terminal proof.
+
+No live attempt is authorized by this contract reconciliation. Runtime registration and scheduler
+eligibility remain disabled.

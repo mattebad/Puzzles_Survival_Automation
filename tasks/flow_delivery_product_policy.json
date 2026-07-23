@@ -51,9 +51,19 @@
     {
       "policy_id": "campaign-ap-budget",
       "scope": "campaign.ap_spend",
-      "status": "unresolved_user_decision",
-      "decision": "No arbitrary AP amount, stage execution count, refill behavior, or AP spend outside the supported Campaign Story destinations is approved.",
-      "source": "execution_matrix_and_explicit_user_direction"
+      "status": "explicitly_approved",
+      "decision": "Campaign AP is capped at 120 and regenerates exactly 1 AP per 360 seconds. On every entry select and verify the configured Story stage and displayed cost, then use Auto Battle for as many runs as current displayed AP safely permits. Sweep, Blitz, Auto Complete, AP refills, and every resource, item, or currency refill are prohibited. Return to canonical Home.",
+      "maximum_ap": 120,
+      "regeneration_seconds_per_ap": 360,
+      "stage_costs": {
+        "1-15-9": 14,
+        "1-20-9": 16,
+        "2-2-9": 20
+      },
+      "execution_mode": "auto_battle",
+      "refills_allowed": false,
+      "terminal_state": "home_canonical",
+      "source": "explicit_user_direction_2026-07-23"
     },
     {
       "policy_id": "ultimate-challenge-flow-separation",
@@ -92,10 +102,19 @@
     },
     {
       "policy_id": "ultimate-challenge-unresolved-execution-details",
-      "scope": "ultimate_challenge.unresolved_execution",
-      "status": "unresolved_user_decision",
-      "decision": "Exact challenge-action control identity and postcondition details remain unresolved; fail closed when reset identity, completion state, or action identity is ambiguous.",
-      "source": "explicit_user_direction"
+      "scope": "ultimate_challenge.daily_execution",
+      "status": "explicitly_approved",
+      "decision": "From Campaign select Ultimate Challenge, tap Challenge, tap Challenge again in Hero Lineup, immediately tap the upper-right Exit control, then tap Flee on the warning. Verified Flee completes the Daily objective without AP, stamina, currency, items, or other resources. Auto Battle is prohibited. Already-complete is idempotent and every terminal returns to canonical Home.",
+      "execution_sequence": [
+        "select_ultimate_challenge",
+        "tap_challenge",
+        "tap_lineup_challenge",
+        "tap_upper_right_exit",
+        "tap_flee"
+      ],
+      "resource_cost": 0,
+      "terminal_state": "home_canonical",
+      "source": "explicit_user_direction_2026-07-23"
     },
     {
       "policy_id": "ultimate-challenge-repeated-execution",
@@ -149,9 +168,21 @@
     {
       "policy_id": "zombie-lair-level-stamina-march",
       "scope": "zombie_lair.allowed_levels_and_budget",
-      "status": "unresolved_user_decision",
-      "decision": "Allowed non-60 levels, stamina budget, and march policy are not approved.",
-      "source": "execution_matrix_and_explicit_user_direction"
+      "status": "explicitly_approved",
+      "decision": "Zombie Lair is a notification-driven Home maintenance pulse, not a static Daily-row flow. Join eligible levels 30 through 55 with Quick Join at exactly 28 stamina each, up to min(eligible count, floor(current stamina / 28)); never join level 60 or refill stamina. The first successful eligible join owns Daily completion, while maintenance remains eligible afterward. No lair and stamina below 28 are explicit deferred outcomes; return to canonical Home or a recognized safe Home-equivalent state.",
+      "daily_owner": "first_successful_eligible_join_per_reset",
+      "maintenance_owner": "home_notification_pulse",
+      "minimum_level": 30,
+      "maximum_level": 55,
+      "stamina_cost": 28,
+      "refills_allowed": false,
+      "formation_policy": "quick_join_configured_formation",
+      "troop_composition_owned": false,
+      "terminal_states": [
+        "home_canonical",
+        "safe_home_equivalent"
+      ],
+      "source": "explicit_user_direction_2026-07-23"
     },
     {
       "policy_id": "gathering-existing-march-or-occupied-target",
@@ -177,16 +208,57 @@
     {
       "policy_id": "recruitment-quantity-and-resource-policy",
       "scope": "recruitment.execution",
-      "status": "unresolved_user_decision",
-      "decision": "Arbitrary recruitment and the number of free singles to use are not approved.",
-      "source": "execution_matrix_and_explicit_user_direction"
+      "status": "explicitly_approved",
+      "decision": "Recruitment Daily completion is owned only by five Basic free singles in the current reset, one per exact 600-second availability window. Independent maintenance inspects Basic, Int., and Advanced and uses every currently available zero-cost single; Int. cooldown is 86400 seconds and Advanced cooldown is 172800 seconds. Paid, premium, item-backed, 10x, and ambiguously priced recruitment are prohibited. Cooling-down or exhausted tabs defer and every pass returns to canonical Home.",
+      "daily_owner": "five_basic_free_singles_per_reset",
+      "maintenance_owner": "three_tab_free_attempt_pass",
+      "tabs": {
+        "basic": {
+          "free_attempts_per_reset": 5,
+          "cooldown_seconds": 600,
+          "owns_daily_completion": true
+        },
+        "intermediate": {
+          "free_attempts_per_window": 1,
+          "cooldown_seconds": 86400,
+          "owns_daily_completion": false
+        },
+        "advanced": {
+          "free_attempts_per_window": 1,
+          "cooldown_seconds": 172800,
+          "owns_daily_completion": false
+        }
+      },
+      "paid_recruitment_allowed": false,
+      "terminal_state": "home_canonical",
+      "source": "explicit_user_direction_2026-07-23"
     },
     {
       "policy_id": "nanoweapon-material-policy",
       "scope": "nanoweapon.crafting",
-      "status": "unresolved_user_decision",
-      "decision": "No unidentified crafting material, recipe, cost, or timer is approved.",
-      "source": "execution_matrix_and_explicit_user_direction"
+      "status": "explicitly_approved",
+      "decision": "Nanoweapon Daily Craft uses Normal Craft only. Claim a completed weapon on entry, then initiate at most one craft per game-day/reset only when nano parts are at least 100 and Craft is enabled. Exactly 100 nano parts are required, duration is exactly 43200 seconds, only one craft may be active, Exclusive Craft and rotating-display selection semantics are prohibited, and insufficient/disabled states defer without spending. Return to canonical Home.",
+      "daily_owner": "one_normal_craft_start_per_reset",
+      "parts_required": 100,
+      "craft_duration_seconds": 43200,
+      "maximum_active_crafts": 1,
+      "maximum_starts_per_reset": 1,
+      "claim_completed_on_entry": true,
+      "exclusive_craft_allowed": false,
+      "terminal_state": "home_canonical",
+      "source": "explicit_user_direction_2026-07-23"
+    },
+    {
+      "policy_id": "nano-material-production-maintenance",
+      "scope": "nanoweapon.material_production",
+      "status": "explicitly_approved",
+      "decision": "Nano Material Production is independent maintenance. On the Nanoweapon screen select Material Production; claim completed production and start the next, refresh the due time when active, or start when idle. Exactly one production may be active, duration is exactly 21600 seconds, and no base resources, boxes, currency, or items may be consumed. Return to canonical Home.",
+      "maintenance_owner": "nano_material_production",
+      "production_duration_seconds": 21600,
+      "maximum_active_productions": 1,
+      "resource_cost": 0,
+      "terminal_state": "home_canonical",
+      "source": "explicit_user_direction_2026-07-23"
     },
     {
       "policy_id": "ordinary-daily-row-claim",

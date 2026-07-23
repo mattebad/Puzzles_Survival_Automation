@@ -1,33 +1,187 @@
 {
   "schema_version": 1,
   "registry_kind": "flow_delivery_coverage",
-  "purpose": "Machine-readable development-flow coverage states. Campaign AP and Ultimate Challenge remain separate objectives.",
+  "purpose": "Machine-readable Daily-objective and independent-maintenance coverage. Offline or retained evidence never authorizes registration, scheduling, or runtime input.",
   "status_vocabulary": [
     "contracted_not_implemented",
-    "preserved_existing_behavior_separate_from_destination_verification",
-    "explicit_allowlist",
-    "not_applicable_to_this_flow",
+    "offline_contract_implemented",
+    "offline_controller_replay_implemented",
     "offline_navigation_contract_implemented",
-    "offline_contract_implemented"
+    "not_applicable_to_this_flow"
   ],
   "flows": {
+    "NANOWEAPON-BLUESTACKS-INTEGRATION": {
+      "objective": "nanoweapon_daily_craft",
+      "identity_kind": "daily_objective",
+      "daily_ownership": "one_normal_craft_per_game_day_reset",
+      "independent_maintenance_flow": "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
+      "implementation_state": "offline_contract_implemented",
+      "navigation_state": "contracted_not_implemented",
+      "consequential_execution_state": "contracted_not_implemented",
+      "evidence_classification": {
+        "gameplay_mechanics_evidence": "none",
+        "navigation_evidence": "none",
+        "offline_replay_evidence": "legacy Daily one-craft semantic replay retained; final Normal Craft, exact-parts, claim-first, and once-per-reset policy still requires reconciliation",
+        "production_controller_positive_replay": "not_proven",
+        "supervised_consequential_canary": "not_proven",
+        "evidence_required": "native Normal Craft availability, 100-part state, completed-claim, 12-hour timer, same-reset defer, and canonical Home successor"
+      },
+      "terminal_home_required": true,
+      "registered": false,
+      "scheduler_eligible": false,
+      "maximum_live_attempts": 0
+    },
+    "NANO-MATERIAL-PRODUCTION-MAINTENANCE": {
+      "objective": "nano_material_production_maintenance",
+      "identity_kind": "independent_maintenance",
+      "daily_ownership": "none",
+      "daily_objective_flow": "NANOWEAPON-BLUESTACKS-INTEGRATION",
+      "implementation_state": "contracted_not_implemented",
+      "navigation_state": "contracted_not_implemented",
+      "consequential_execution_state": "contracted_not_implemented",
+      "evidence_classification": {
+        "gameplay_mechanics_evidence": "none",
+        "navigation_evidence": "none",
+        "offline_replay_evidence": "none",
+        "production_controller_positive_replay": "not_proven",
+        "supervised_consequential_canary": "not_proven",
+        "evidence_required": "native Material Production idle, active, complete/claim, six-hour timer, restart, defer, and canonical Home states"
+      },
+      "terminal_home_required": true,
+      "registered": false,
+      "scheduler_eligible": false,
+      "maximum_live_attempts": 0
+    },
+    "RECRUITMENT-BLUESTACKS-INTEGRATION": {
+      "objective": "recruitment_basic_five_daily",
+      "identity_kind": "daily_objective",
+      "daily_ownership": "five_basic_free_single_recruits_per_game_day_reset",
+      "independent_maintenance_flow": "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+      "implementation_state": "offline_controller_replay_implemented",
+      "navigation_state": "offline_navigation_contract_implemented",
+      "consequential_execution_state": "retained_nonproduction_gameplay_execution",
+      "evidence_classification": {
+        "gameplay_mechanics_evidence": "evidence/sessions/20260716-noahs-tavern-daily-free/record.md is the retained Computer Use session proving zero-cost Basic, Int., and Advanced singles, observed cooldowns, safe result closure, Daily 5/5, and Home return",
+        "navigation_evidence": "retained semantic-frame Home-to-Tavern and Tavern-to-Home evidence plus offline Home Atlas navigation implementation",
+        "offline_replay_evidence": "shared free-recruit, Daily replay, integrated recognizer, controller, and route tests retained",
+        "production_controller_positive_replay": "not_proven",
+        "supervised_consequential_canary": "not_proven_to_current_hash_journal_attempt_standard",
+        "evidence_required": "hash-bound native production-controller replay proving five Basic availability windows, independent maintenance, durable cooldown state, and canonical Home"
+      },
+      "terminal_home_required": true,
+      "registered": false,
+      "scheduler_eligible": false,
+      "maximum_live_attempts": 0
+    },
+    "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": {
+      "objective": "recruitment_free_attempt_maintenance",
+      "identity_kind": "independent_maintenance",
+      "daily_ownership": "none",
+      "daily_objective_flow": "RECRUITMENT-BLUESTACKS-INTEGRATION",
+      "implementation_state": "offline_controller_replay_implemented",
+      "navigation_state": "offline_navigation_contract_implemented",
+      "consequential_execution_state": "retained_nonproduction_gameplay_execution",
+      "evidence_classification": {
+        "gameplay_mechanics_evidence": "evidence/sessions/20260716-noahs-tavern-daily-free/record.md proves all three free variants and independent observed cooldowns",
+        "navigation_evidence": "retained semantic-frame Home-to-Tavern and Home-return evidence plus offline Home Atlas navigation implementation",
+        "offline_replay_evidence": "integrated three-tier recognizer/controller and result-overlay replay retained; final inspect-all-tabs/defer policy still requires reconciliation",
+        "production_controller_positive_replay": "not_proven",
+        "supervised_consequential_canary": "not_proven_to_current_hash_journal_attempt_standard",
+        "evidence_required": "hash-bound production-controller positive replay for independent Basic/Int./Advanced availability, exact cooldown persistence, explicit per-tab defer, and canonical Home"
+      },
+      "terminal_home_required": true,
+      "registered": false,
+      "scheduler_eligible": false,
+      "maximum_live_attempts": 0
+    },
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
       "objective": "campaign_ap_farming",
-      "home_navigation_state": "contracted_not_implemented",
-      "story_destination_navigation_state": "contracted_not_implemented",
-      "ap_execution_state": "preserved_existing_behavior_separate_from_destination_verification",
+      "identity_kind": "maintenance",
+      "daily_ownership": "campaign_ap_consumption_only",
+      "home_navigation_state": "offline_navigation_contract_implemented",
+      "story_destination_navigation_state": "offline_navigation_contract_implemented",
+      "ap_execution_state": "offline_controller_replay_implemented",
       "destination_policy_id": "campaign-supported-destinations",
-      "ultimate_challenge_coverage": "not_applicable_to_this_flow"
+      "ultimate_challenge_coverage": "not_applicable_to_this_flow",
+      "evidence_classification": {
+        "gameplay_mechanics_evidence": "retained supervised BlueStacks Auto Battle sessions prove stage cost, repeated victories, natural AP regeneration, insufficient AP handling, no refill, and Home return",
+        "navigation_evidence": "Home Atlas/destination implementation and retained navigation-only attempts exist; the production terminal navigation route is not proven",
+        "offline_replay_evidence": "configured-stage parser, destination selection, AP budgeting, Auto Battle controller, vision, victory/defeat, and Home-return replay retained",
+        "production_controller_positive_replay": "not_proven",
+        "supervised_consequential_canary": "retained_bluestacks_only_not_production_authority",
+        "evidence_required": "native production-controller replay of every-entry stage selection, displayed AP/cost verification, exact static costs, 360-second regeneration accounting, Auto Battle loop, insufficient defer, and canonical Home"
+      },
+      "terminal_home_required": true,
+      "registered": false,
+      "scheduler_eligible": false,
+      "maximum_live_attempts": 0,
+      "additional_live_attempts_authorized": 0
     },
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
       "objective": "ultimate_challenge_daily",
+      "identity_kind": "daily_objective",
+      "daily_ownership": "one_verified_flee_completion_per_game_day_reset",
       "campaign_entry_state": "offline_navigation_contract_implemented",
       "ultimate_challenge_navigation_state": "offline_navigation_contract_implemented",
       "daily_execution_state": "contracted_not_implemented",
       "already_completed_detection_state": "offline_contract_implemented",
       "reset_idempotency_state": "offline_contract_implemented",
       "campaign_ap_coverage": "not_applicable_to_this_flow",
-      "supported_story_destinations": []
+      "supported_story_destinations": [],
+      "evidence_classification": {
+        "gameplay_mechanics_evidence": "none_for_challenge_exit_flee_completion",
+        "navigation_evidence": "offline Campaign entry and Ultimate Challenge entry binding retained; no terminal navigation-only live route",
+        "offline_replay_evidence": "entry recognition, already-complete detection, reset idempotency, and persistence replay retained",
+        "production_controller_positive_replay": "not_proven",
+        "supervised_consequential_canary": "not_proven",
+        "evidence_required": "native Challenge, Hero Lineup Challenge, upper-right Exit, Flee warning/result, no-resource, already-complete, and canonical Home states"
+      },
+      "terminal_home_required": true,
+      "registered": false,
+      "scheduler_eligible": false,
+      "maximum_live_attempts": 0
+    },
+    "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION": {
+      "objective": "zombie_lair_daily_completion",
+      "identity_kind": "daily_objective",
+      "daily_ownership": "first_successful_eligible_join_per_game_day_reset",
+      "independent_maintenance_flow": "ZOMBIE-LAIR-HOME-MAINTENANCE",
+      "implementation_state": "offline_contract_implemented",
+      "navigation_state": "contracted_not_implemented",
+      "consequential_execution_state": "contracted_not_implemented",
+      "evidence_classification": {
+        "gameplay_mechanics_evidence": "none",
+        "navigation_evidence": "none_for_home_notification_route",
+        "offline_replay_evidence": "legacy selected-Daily one-Lair semantic replay retained; notification-driven first-join ownership still requires reconciliation",
+        "production_controller_positive_replay": "not_proven",
+        "supervised_consequential_canary": "not_proven",
+        "evidence_required": "native Home notification, eligible 30-55 level, Quick Join, exact 28-stamina delta, first-join Daily completion, refill cancellation, and safe Home terminal"
+      },
+      "terminal_home_required": true,
+      "registered": false,
+      "scheduler_eligible": false,
+      "maximum_live_attempts": 0
+    },
+    "ZOMBIE-LAIR-HOME-MAINTENANCE": {
+      "objective": "zombie_lair_home_maintenance",
+      "identity_kind": "independent_maintenance",
+      "daily_ownership": "none",
+      "daily_objective_flow": "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
+      "implementation_state": "contracted_not_implemented",
+      "navigation_state": "contracted_not_implemented",
+      "consequential_execution_state": "contracted_not_implemented",
+      "evidence_classification": {
+        "gameplay_mechanics_evidence": "none",
+        "navigation_evidence": "none_for_home_notification_route",
+        "offline_replay_evidence": "legacy one-Lair World/stamina primitives retained; multi-Lair Home maintenance replay absent",
+        "production_controller_positive_replay": "not_proven",
+        "supervised_consequential_canary": "not_proven",
+        "evidence_required": "native no-lair defer, multi-lair ordering, 30-55 filtering, level-60 rejection, exact 28-stamina budgeting/recovery, Quick Join, refill cancellation, post-Daily continuation, and safe Home terminal"
+      },
+      "terminal_home_required": true,
+      "registered": false,
+      "scheduler_eligible": false,
+      "maximum_live_attempts": 0
     }
   }
 }

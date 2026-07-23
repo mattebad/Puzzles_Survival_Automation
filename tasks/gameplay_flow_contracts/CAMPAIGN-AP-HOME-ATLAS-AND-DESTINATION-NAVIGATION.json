@@ -1,80 +1,50 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-  "product_purpose": "Migrate Campaign AP entry through Home Atlas and verified story destinations.",
+  "product_purpose": "Campaign AP configured-stage Auto Battle maintenance, separate from Ultimate Challenge.",
   "trigger_cadence_type": "eligibility_pulse",
-  "reset_scope": "daily_reset",
-  "required_starting_context": [
-    "home_localized"
-  ],
+  "reset_scope": "continuous_resource_recovery_with_game_day_accounting",
+  "required_starting_context": ["home_canonical"],
   "shared_primitive_dependencies": [
-    {
-      "primitive_id": "home_navigation_primitives",
-      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
-      "required": true
-    }
+    {"primitive_id": "home_navigation_primitives", "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST", "required": true}
   ],
-  "recognized_states": [
-    "contract_declared",
-    "evidence_required"
+  "recognized_states": ["home_canonical", "campaign_story", "configured_stage_verified", "lineup", "auto_battle", "battle_result", "insufficient_ap", "home_returned", "blocked"],
+  "transition_contracts": [
+    {"transition_id": "navigate_and_verify_stage", "from": "home_canonical", "to": "configured_stage_verified", "planner": "CampaignAutoBattleController", "permitted_input": "navigate_configured_stage", "postconditions": ["displayed stage and static AP cost match configured allowlist"], "terminal_outcomes": ["deferred", "blocked"]},
+    {"transition_id": "start_auto_battle", "from": "configured_stage_verified", "to": "auto_battle", "planner": "CampaignAutoBattleController", "permitted_input": "start_auto_battle", "postconditions": ["displayed AP covers cost", "lineup Challenge used", "Auto enabled", "expected AP ledger decremented"], "terminal_outcomes": ["action_performed", "blocked"], "evidence_gate_id": "campaign_production_replay"},
+    {"transition_id": "reconcile_battle", "from": "auto_battle", "to": "battle_result", "planner": "CampaignAutoBattleRuntime", "permitted_input": "continue_verified_result", "postconditions": ["victory or defeat recognized", "displayed AP reconciled", "no refill opened"], "terminal_outcomes": ["action_performed", "blocked"]},
+    {"transition_id": "defer_insufficient_ap", "from": "configured_stage_verified", "to": "insufficient_ap", "planner": "CampaignAPRecovery", "permitted_input": null, "postconditions": ["due time uses one AP per 360 seconds"], "terminal_outcomes": ["deferred"]},
+    {"transition_id": "return_home", "from": "battle_result", "to": "home_returned", "planner": "CampaignAutoBattleController", "permitted_input": "return_canonical_home", "postconditions": ["canonical Home recognized"], "terminal_outcomes": ["complete_for_reset", "blocked"]}
   ],
-  "state_transitions": [
-    {
-      "from": "contract_declared",
-      "to": "evidence_required",
-      "via": "missing_gameplay_evidence",
-      "notes": "Campaign AP battle remains policy-gated; navigation migration only."
-    }
+  "permitted_inputs": ["navigate_configured_stage", "start_auto_battle", "continue_verified_result", "return_canonical_home", "sweep", "blitz", "auto_complete", "ap_refill"],
+  "consequential_action_class": "campaign_ap_auto_battle",
+  "cost_quantity_requirements": {"free_only": false, "maximum_cost": 20, "quantity": null, "resource_or_currency": "CAMPAIGN_AP", "notes": "Maximum AP 120; costs are 1-15-9=14, 1-20-9=16, 2-2-9=20; run count is floor(displayed AP / verified configured cost)."},
+  "completion_identity": "campaign-ap:auto-battle:maintenance-pass",
+  "terminal_outcomes": ["action_performed", "deferred", "complete_for_reset", "blocked", "manual_required"],
+  "cooldown_deferred_behavior": "When displayed AP is insufficient, persist expected AP and defer until (cost-current AP)*360 seconds; always re-read displayed AP and cost on re-entry.",
+  "bounded_recovery_behavior": "Stop on wrong stage/cost, refill, defeat ambiguity, AP-ledger mismatch, or unknown successor; only recognized Campaign exits may return to canonical Home.",
+  "product_policy_refs": [
+    {"policy_id": "campaign-supported-destinations", "source": "tasks/flow_delivery_product_policy.json"},
+    {"policy_id": "campaign-ap-budget", "source": "tasks/flow_delivery_product_policy.json"},
+    {"policy_id": "campaign-rejects-ultimate-challenge", "source": "tasks/flow_delivery_product_policy.json"}
   ],
-  "permitted_inputs": [
-    "none_until_implemented"
-  ],
-  "local_postconditions": [
-    "evidence_required"
-  ],
-  "consequential_action_class": "none_declared",
-  "cost_quantity_requirements": {
-    "free_only": true,
-    "maximum_cost": null,
-    "quantity": null,
-    "resource_or_currency": null,
-    "notes": "Campaign AP battle remains policy-gated; navigation migration only."
-  },
-  "completion_identity": "campaign-ap-home-atlas-and-destination-navigation:complete",
-  "terminal_outcomes": [
-    "blocked",
-    "manual_required"
-  ],
-  "cooldown_deferred_behavior": "evidence_required",
-  "bounded_recovery_behavior": "evidence_required",
-  "evidence_requirements": [
-    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
-    "Campaign AP battle remains policy-gated; navigation migration only."
+  "evidence_requirements": ["Retained local BlueStacks mechanics and controller evidence is valid but is not a production-controller positive replay.", "Production-path positive replay must verify all three static costs, AP regeneration/defer, result handling, and canonical Home.", "A later supervised consequential canary requires separate authorization."],
+  "evidence_gates": [
+    {"gate_id": "campaign_production_replay", "status": "evidence_required", "blocks": ["start_auto_battle", "campaign_auto_battle_production"], "required_evidence": ["hash-bound production-controller positive replay with journal-backed zero-transport boundary"], "permitted_inputs": []}
   ],
   "replay_fixture_requirements": [
-    {
-      "fixture_id": "flow_entry",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Not fabricated in this task."
-    }
+    {"fixture_id": "retained_local_campaign_mechanics", "status": "required_evidence", "path": null, "notes": "Retained local evidence proves mechanics, Auto Battle, AP deltas, and Home return; it is not production proof."},
+    {"fixture_id": "campaign_negative_policy", "status": "synthetic_policy_ok", "path": null, "notes": "Synthetic negatives may cover wrong cost, refills, Sweep, Blitz, and Auto Complete only."}
   ],
-  "live_validation_scenarios": [
-    {
-      "id": "campaign-ap-home-atlas-and-destination-navigation-pending",
-      "mode": "blocked_until_policy",
-      "notes": "Campaign AP battle remains policy-gated; navigation migration only."
-    }
+  "scenarios": [
+    {"scenario_id": "campaign_auto_battle_production", "mode": "blocked_until_policy", "start_state": "home_canonical", "terminal_state": "blocked", "permitted_inputs": [], "forbidden_inputs": ["navigate_configured_stage", "start_auto_battle", "continue_verified_result", "return_canonical_home", "sweep", "blitz", "auto_complete", "ap_refill"], "required_transitions": [], "evidence_gate_ids": ["campaign_production_replay"], "notes": "Policy is approved; evidence and separate live authorization are missing."}
   ],
-  "unsupported_or_manual_only_states": [
-    "login",
-    "captcha",
-    "tutorial",
-    "account_selection_or_switching",
-    "credential_entry",
-    "ambiguous_account_or_server_identity",
-    "blocking_unknown_modal"
-  ],
-  "implementation_status": "contract_only",
-  "proof_state": "evidence_required"
+  "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "unknown_stage_or_cost", "sweep", "blitz", "auto_complete", "ap_or_resource_refill", "ultimate_challenge"],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false
 }

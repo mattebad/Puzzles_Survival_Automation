@@ -1,0 +1,382 @@
+{
+  "schema_version": 2,
+  "flow_id": "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
+  "product_purpose": "Maintain one zero-resource Nano Material Production batch independently of the once-per-reset Nanoweapon Daily craft.",
+  "trigger_cadence_type": "cooldown_pulse",
+  "reset_scope": "independent_six_hour_maintenance",
+  "required_starting_context": [
+    "home_canonical"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "nanoweapon_screen",
+    "material_production_tab",
+    "production_complete",
+    "production_claimed",
+    "production_idle",
+    "production_active",
+    "due_time_recorded",
+    "deferred",
+    "home_returned",
+    "blocked",
+    "manual_required",
+    "unknown_fail_closed"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "navigate_to_nanoweapon",
+      "from": "home_canonical",
+      "to": "nanoweapon_screen",
+      "planner": "navigate_home_to_nanoweapon_via_gear_factory",
+      "permitted_input": "navigate_to_nanoweapon",
+      "postconditions": [
+        "nanoweapon_screen_is_positively_recognized_from_canonical_home"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "nano_material_route_selectors"
+    },
+    {
+      "transition_id": "select_material_production",
+      "from": "nanoweapon_screen",
+      "to": "material_production_tab",
+      "planner": "plan_material_production_tab_tap",
+      "permitted_input": "select_material_production",
+      "postconditions": [
+        "material_production_tab_is_positively_recognized",
+        "normal_and_exclusive_craft_controls_are_not_targeted"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "nano_material_route_selectors"
+    },
+    {
+      "transition_id": "observe_completed_production",
+      "from": "material_production_tab",
+      "to": "production_complete",
+      "planner": "classify_material_production_state",
+      "permitted_input": null,
+      "postconditions": [
+        "exactly_one_completed_batch_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "claim_completed_production",
+      "from": "production_complete",
+      "to": "production_claimed",
+      "planner": "plan_material_production_claim",
+      "permitted_input": "claim_material_production",
+      "postconditions": [
+        "completed_batch_is_claimed_exactly_once",
+        "no_base_resource_box_currency_or_item_is_consumed"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "nano_material_claim_evidence"
+    },
+    {
+      "transition_id": "claim_yields_idle_production",
+      "from": "production_claimed",
+      "to": "production_idle",
+      "planner": "classify_material_production_state",
+      "permitted_input": null,
+      "postconditions": [
+        "no_production_batch_is_active",
+        "one_zero_resource_production_start_is_available"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "observe_idle_production",
+      "from": "material_production_tab",
+      "to": "production_idle",
+      "planner": "classify_material_production_state",
+      "permitted_input": null,
+      "postconditions": [
+        "no_production_batch_is_active",
+        "one_zero_resource_production_start_is_available"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "start_one_production",
+      "from": "production_idle",
+      "to": "production_active",
+      "planner": "plan_one_material_production_start",
+      "permitted_input": "start_material_production",
+      "postconditions": [
+        "exactly_one_production_batch_is_active",
+        "due_time_is_21600_seconds_from_verified_start",
+        "no_base_resource_box_currency_or_item_is_consumed"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "nano_material_start_evidence"
+    },
+    {
+      "transition_id": "observe_active_production",
+      "from": "material_production_tab",
+      "to": "production_active",
+      "planner": "classify_material_production_state",
+      "permitted_input": null,
+      "postconditions": [
+        "exactly_one_production_batch_is_active",
+        "no_claim_or_second_start_is_dispatched"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "record_active_due_time",
+      "from": "production_active",
+      "to": "due_time_recorded",
+      "planner": "record_or_refresh_material_production_due_time",
+      "permitted_input": null,
+      "postconditions": [
+        "next_eligible_at_is_recorded_from_the_exact_21600_second_duration"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "defer_active_production",
+      "from": "due_time_recorded",
+      "to": "deferred",
+      "planner": "yield_without_waiting",
+      "permitted_input": null,
+      "postconditions": [
+        "active_batch_is_unchanged",
+        "no_resource_or_item_is_consumed"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "return_home_after_start",
+      "from": "production_active",
+      "to": "home_returned",
+      "planner": "plan_recognized_safe_return_home",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked"
+      ],
+      "evidence_gate_id": "nano_material_route_selectors"
+    },
+    {
+      "transition_id": "return_home_after_defer",
+      "from": "deferred",
+      "to": "home_returned",
+      "planner": "plan_recognized_safe_return_home",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "canonical_home_is_positively_recognized"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "nano_material_route_selectors"
+    },
+    {
+      "transition_id": "block_ambiguous_production_state",
+      "from": "unknown_fail_closed",
+      "to": "blocked",
+      "planner": "fail_closed_without_retry",
+      "permitted_input": null,
+      "postconditions": [
+        "no_claim_start_or_resource_input_is_dispatched",
+        "ambiguous_action_state_is_preserved_for_reconciliation"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    }
+  ],
+  "permitted_inputs": [
+    "navigate_to_nanoweapon",
+    "select_material_production",
+    "claim_material_production",
+    "start_material_production",
+    "safe_return_home"
+  ],
+  "consequential_action_class": "zero_resource_claim_and_timed_maintenance_start",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 1,
+    "resource_or_currency": null,
+    "notes": "Exactly one six-hour Material Production batch may be active; claiming and starting consume no base resources, boxes, currency, or items."
+  },
+  "completion_identity": "nano-material-production:maintenance-pulse-complete",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "When one production is active, record or refresh its exact 21600-second due time, return deferred, and never wait or start a second batch inside the pulse.",
+  "bounded_recovery_behavior": "Unknown production state, timer, selector, claim result, start result, or Home recovery fails closed. An ambiguous consequential claim or start is not retried; only a positively recognized safe return to canonical Home is permitted.",
+  "product_policy_refs": [
+    {
+      "policy_id": "nano-material-production-maintenance",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "evidence_requirements": [
+    "No Material Production implementation, native selector set, consequential postcondition evidence, or production-controller replay currently exists.",
+    "Native evidence remains required for the Material Production tab, complete, active, idle, claim, zero-resource start, exact six-hour timer, one-active-batch guard, and canonical Home return.",
+    "A production-controller positive offline replay and separately authorized supervised claim/start canary remain required before registration or scheduling."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "nano_material_route_selectors",
+      "status": "evidence_required",
+      "blocks": [
+        "navigate_to_nanoweapon",
+        "select_material_production",
+        "return_home_after_start",
+        "return_home_after_defer"
+      ],
+      "required_evidence": [
+        "native canonical Home to Nanoweapon route, Material Production tab selector, and canonical Home return evidence"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "nano_material_claim_evidence",
+      "status": "evidence_required",
+      "blocks": [
+        "claim_completed_production"
+      ],
+      "required_evidence": [
+        "native completed-production Claim target and positive zero-resource successor evidence"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "nano_material_start_evidence",
+      "status": "evidence_required",
+      "blocks": [
+        "start_one_production"
+      ],
+      "required_evidence": [
+        "native idle/start target, exact 21600-second active successor, one-active guard, and zero-resource proof"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "nano_material_production_replay",
+      "status": "evidence_required",
+      "blocks": [
+        "nano_material_production_maintenance"
+      ],
+      "required_evidence": [
+        "positive offline replay through the production recognizer, controller, due-time persistence, and Home terminal path",
+        "separately authorized supervised consequential canary"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "legacy_material_production_negative",
+      "status": "synthetic_policy_ok",
+      "path": null,
+      "notes": "The existing Nanoweapon fixture only proves that legacy Daily Craft rejected Material Production; it is not positive maintenance evidence."
+    },
+    {
+      "fixture_id": "material_production_complete",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Requires native completed source, claim target, and positive claimed successor."
+    },
+    {
+      "fixture_id": "material_production_active",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Requires native active batch and readable exact due-time evidence."
+    },
+    {
+      "fixture_id": "material_production_idle_start",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Requires native idle source, zero-resource start target, and exact six-hour successor."
+    },
+    {
+      "fixture_id": "material_production_canonical_home_round_trip",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Requires canonical Home start and canonical Home terminal evidence."
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "nano_material_production_maintenance",
+      "mode": "blocked_until_policy",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "navigate_to_nanoweapon",
+        "select_material_production",
+        "claim_material_production",
+        "start_material_production",
+        "safe_return_home"
+      ],
+      "required_transitions": [],
+      "evidence_gate_ids": [
+        "nano_material_route_selectors",
+        "nano_material_claim_evidence",
+        "nano_material_start_evidence",
+        "nano_material_production_replay"
+      ],
+      "notes": "The independent maintenance contract is approved but unimplemented and evidence-gated; registration and scheduler eligibility are disabled."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "ambiguous_account_or_server_identity",
+    "blocking_unknown_modal",
+    "resource_or_item_cost_prompt",
+    "multiple_active_productions",
+    "ambiguous_claim_or_start_result"
+  ],
+  "implementation_status": "contract_only",
+  "proof_state": "not_implemented",
+  "offline_proof_state": "not_implemented",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false
+}
