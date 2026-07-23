@@ -14,7 +14,11 @@ Flow: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`
 | `home_navigation_state` | contracted, not implemented |
 | `story_destination_navigation_state` | contracted, not implemented |
 | `ap_execution_state` | preserved existing behavior; separate from destination verification |
-| `supported_story_destinations` | `1-20-9`, `1-15-9`, `2-2-9` |
+| `destination_policy_id` | `campaign-supported-destinations` (references product-policy arrays) |
+
+Supported and rejected Campaign Story destinations are owned solely by product policy entry
+`campaign-supported-destinations` in `tasks/flow_delivery_product_policy.json`. Queue and coverage
+Campaign entries reference that policy id and must not store duplicate destination arrays.
 
 Product tuple format:
 

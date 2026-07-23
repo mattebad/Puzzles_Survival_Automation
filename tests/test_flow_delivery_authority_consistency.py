@@ -54,49 +54,101 @@ class AuthorityConsistencyTests(unittest.TestCase):
     def test_real_repo_authority_is_consistent(self) -> None:
         control.load_and_validate_authority_consistency()
 
-        # Independent anchor: policy destinations must equal queue + coverage Campaign sets.
+        # Independent anchor: product policy owns destination arrays; queue/coverage only ref.
         policy = _read(POLICY)
         queue = _read(QUEUE)
         coverage = _read(COVERAGE)
         campaign_policy = _campaign_policy_entry(policy)
-        expected_supported = set(campaign_policy["supported_story_destinations"])
-        expected_rejected = set(campaign_policy["rejected_destinations"])
+        self.assertIsInstance(campaign_policy["supported_story_destinations"], list)
+        self.assertIsInstance(campaign_policy["rejected_destinations"], list)
+        self.assertTrue(campaign_policy["supported_story_destinations"])
+        self.assertTrue(campaign_policy["rejected_destinations"])
         queue_campaign = _campaign_queue_flow(queue)
         coverage_campaign = _campaign_coverage_entry(coverage)
-        self.assertEqual(set(queue_campaign["supported_story_destinations"]), expected_supported)
-        self.assertEqual(set(queue_campaign["rejected_destinations"]), expected_rejected)
-        self.assertEqual(
-            set(coverage_campaign["supported_story_destinations"]), expected_supported
-        )
-        self.assertEqual(set(coverage_campaign["rejected_destinations"]), expected_rejected)
+        self.assertEqual(queue_campaign["destination_policy_id"], CAMPAIGN_POLICY_ID)
+        self.assertEqual(coverage_campaign["destination_policy_id"], CAMPAIGN_POLICY_ID)
+        self.assertNotIn("supported_story_destinations", queue_campaign)
+        self.assertNotIn("rejected_destinations", queue_campaign)
+        self.assertNotIn("supported_story_destinations", coverage_campaign)
+        self.assertNotIn("rejected_destinations", coverage_campaign)
 
-    def test_destination_drift_raises(self) -> None:
+    def test_malformed_policy_destination_raises(self) -> None:
         queue = _read(QUEUE)
-        policy = _read(POLICY)
+        policy = deepcopy(_read(POLICY))
         coverage = _read(COVERAGE)
         registry = _read(REGISTRY)
-        drifted_policy = deepcopy(policy)
-        campaign = _campaign_policy_entry(drifted_policy)
-        # Derive baseline from policy so the assertion is not circular vs queue/coverage.
-        baseline = set(campaign["supported_story_destinations"])
-        campaign["supported_story_destinations"] = list(baseline) + ["bogus-9-9-9"]
+        campaign = _campaign_policy_entry(policy)
+        campaign["supported_story_destinations"] = ["1-20-9", 99]
         with self.assertRaises(control.FlowDeliveryError):
-            control.validate_authority_consistency(
-                queue, drifted_policy, coverage, registry
-            )
+            control.validate_authority_consistency(queue, policy, coverage, registry)
 
-    def test_destination_value_drift_raises(self) -> None:
+    def test_missing_policy_destination_list_raises(self) -> None:
+        queue = _read(QUEUE)
+        policy = deepcopy(_read(POLICY))
+        coverage = _read(COVERAGE)
+        registry = _read(REGISTRY)
+        campaign = _campaign_policy_entry(policy)
+        del campaign["supported_story_destinations"]
+        with self.assertRaises(control.FlowDeliveryError):
+            control.validate_authority_consistency(queue, policy, coverage, registry)
+
+    def test_missing_queue_destination_ref_raises(self) -> None:
         queue = deepcopy(_read(QUEUE))
         policy = _read(POLICY)
         coverage = _read(COVERAGE)
         registry = _read(REGISTRY)
         campaign = _campaign_queue_flow(queue)
-        supported = list(campaign["supported_story_destinations"])
-        self.assertTrue(supported, "expected at least one supported destination")
-        supported[0] = f"{supported[0]}-drifted"
-        campaign["supported_story_destinations"] = supported
+        del campaign["destination_policy_id"]
         with self.assertRaises(control.FlowDeliveryError):
             control.validate_authority_consistency(queue, policy, coverage, registry)
+
+    def test_missing_coverage_destination_ref_raises(self) -> None:
+        queue = _read(QUEUE)
+        policy = _read(POLICY)
+        coverage = deepcopy(_read(COVERAGE))
+        registry = _read(REGISTRY)
+        campaign = _campaign_coverage_entry(coverage)
+        del campaign["destination_policy_id"]
+        with self.assertRaises(control.FlowDeliveryError):
+            control.validate_authority_consistency(queue, policy, coverage, registry)
+
+    def test_wrong_destination_ref_raises(self) -> None:
+        queue = deepcopy(_read(QUEUE))
+        policy = _read(POLICY)
+        coverage = _read(COVERAGE)
+        registry = _read(REGISTRY)
+        campaign = _campaign_queue_flow(queue)
+        campaign["destination_policy_id"] = "not-campaign-supported-destinations"
+        with self.assertRaises(control.FlowDeliveryError):
+            control.validate_authority_consistency(queue, policy, coverage, registry)
+
+    def test_residual_queue_destination_arrays_raise(self) -> None:
+        queue = deepcopy(_read(QUEUE))
+        policy = _read(POLICY)
+        coverage = _read(COVERAGE)
+        registry = _read(REGISTRY)
+        campaign = _campaign_queue_flow(queue)
+        campaign["supported_story_destinations"] = list(
+            _campaign_policy_entry(policy)["supported_story_destinations"]
+        )
+        with self.assertRaises(control.FlowDeliveryError) as raised:
+            control.validate_authority_consistency(queue, policy, coverage, registry)
+        self.assertIn("duplicate authority", str(raised.exception))
+        self.assertIn("queue", str(raised.exception))
+
+    def test_residual_coverage_destination_arrays_raise(self) -> None:
+        queue = _read(QUEUE)
+        policy = _read(POLICY)
+        coverage = deepcopy(_read(COVERAGE))
+        registry = _read(REGISTRY)
+        campaign = _campaign_coverage_entry(coverage)
+        campaign["rejected_destinations"] = list(
+            _campaign_policy_entry(policy)["rejected_destinations"]
+        )
+        with self.assertRaises(control.FlowDeliveryError) as raised:
+            control.validate_authority_consistency(queue, policy, coverage, registry)
+        self.assertIn("duplicate authority", str(raised.exception))
+        self.assertIn("coverage", str(raised.exception))
 
     def test_registry_class_drift_raises(self) -> None:
         queue = deepcopy(_read(QUEUE))
@@ -186,8 +238,15 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertEqual(coverage, before["coverage"])
         self.assertEqual(registry, before["registry"])
         self.assertEqual(queue.get("gameplay_scheduler"), before["queue"].get("gameplay_scheduler"))
+        self.assertFalse(queue.get("gameplay_scheduler"))
         for flow, prior in zip(queue["flows"], before["queue"]["flows"]):
+            self.assertEqual(flow.get("maximum_live_attempts"), prior.get("maximum_live_attempts"))
+            self.assertEqual(flow.get("live_attempt_count"), prior.get("live_attempt_count"))
             self.assertEqual(flow.get("live_attempts"), prior.get("live_attempts"))
+            self.assertEqual(flow.get("named_scenarios"), prior.get("named_scenarios"))
+            self.assertEqual(
+                flow.get("product_policy_status"), prior.get("product_policy_status")
+            )
 
     def test_validate_cli_invokes_authority_check(self) -> None:
         mock_check = Mock()

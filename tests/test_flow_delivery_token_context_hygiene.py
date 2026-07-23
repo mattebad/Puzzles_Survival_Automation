@@ -89,11 +89,37 @@ class ReadyFlowMetadataTests(unittest.TestCase):
     def test_campaign_and_ultimate_metadata(self) -> None:
         campaign = self.queue["flows"][0]
         ultimate = self.queue["flows"][1]
+        policy = json.loads(
+            (ROOT / "tasks" / "flow_delivery_product_policy.json").read_text(encoding="utf-8")
+        )
+        coverage = json.loads(
+            (ROOT / "tasks" / "flow_delivery_coverage.json").read_text(encoding="utf-8")
+        )
+        campaign_policy = next(
+            item
+            for item in policy["policies"]
+            if item["policy_id"] == "campaign-supported-destinations"
+        )
+        coverage_campaign = coverage["flows"][CAMPAIGN_ID]
         self.assertEqual(campaign["flow_id"], CAMPAIGN_ID)
-        self.assertEqual(campaign["supported_story_destinations"], ["1-20-9", "1-15-9", "2-2-9"])
-        self.assertEqual(campaign["rejected_destinations"], ["1-2-9", "ultimate-challenge"])
-        self.assertNotIn("1-2-9", campaign["supported_story_destinations"])
-        self.assertNotIn("ultimate-challenge", campaign["supported_story_destinations"])
+        self.assertEqual(campaign["destination_policy_id"], "campaign-supported-destinations")
+        self.assertEqual(
+            coverage_campaign["destination_policy_id"], "campaign-supported-destinations"
+        )
+        self.assertNotIn("supported_story_destinations", campaign)
+        self.assertNotIn("rejected_destinations", campaign)
+        self.assertNotIn("supported_story_destinations", coverage_campaign)
+        self.assertNotIn("rejected_destinations", coverage_campaign)
+        self.assertEqual(
+            campaign_policy["supported_story_destinations"],
+            ["1-20-9", "1-15-9", "2-2-9"],
+        )
+        self.assertEqual(
+            campaign_policy["rejected_destinations"],
+            ["1-2-9", "ultimate-challenge"],
+        )
+        self.assertNotIn("1-2-9", campaign_policy["supported_story_destinations"])
+        self.assertNotIn("ultimate-challenge", campaign_policy["supported_story_destinations"])
         self.assertEqual(ultimate["flow_id"], ULTIMATE_ID)
         self.assertEqual(ultimate["status"], "blocked")
         self.assertEqual(ultimate["last_completed_stage"], "blocked")
@@ -157,7 +183,27 @@ class ContextPacketTests(unittest.TestCase):
         packet = json.loads((ROOT / first["packet_path"]).read_text(encoding="utf-8"))
         self.assertEqual(packet["active_flow_id"], CAMPAIGN_ID)
         self.assertEqual(packet["active_delivery_stage"], "reconnaissance")
-        self.assertIn("1-20-9", json.dumps(packet["active_queue_entry"]))
+        policy_entry = packet["active_product_policy_entry"]
+        self.assertIsNotNone(policy_entry)
+        self.assertEqual(policy_entry["policy_id"], "campaign-supported-destinations")
+        supported = policy_entry["supported_story_destinations"]
+        rejected = policy_entry["rejected_destinations"]
+        self.assertIsInstance(supported, list)
+        self.assertIsInstance(rejected, list)
+        self.assertTrue(supported)
+        self.assertTrue(rejected)
+        self.assertTrue(all(isinstance(item, str) and item for item in supported))
+        self.assertTrue(all(isinstance(item, str) and item for item in rejected))
+        self.assertEqual(
+            packet["active_queue_entry"]["destination_policy_id"],
+            "campaign-supported-destinations",
+        )
+        self.assertEqual(
+            packet["active_coverage_entry"]["destination_policy_id"],
+            "campaign-supported-destinations",
+        )
+        self.assertNotIn("supported_story_destinations", packet["active_queue_entry"])
+        self.assertNotIn("supported_story_destinations", packet["active_coverage_entry"])
         self.assertNotIn(".specstory", json.dumps(packet))
         second = context.build_context_packet(
             flow_id=CAMPAIGN_ID,

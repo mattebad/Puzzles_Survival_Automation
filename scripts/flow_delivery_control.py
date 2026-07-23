@@ -676,7 +676,7 @@ def validate_authority_consistency(
                 f"authority membership (O7): coverage flow_id {identity!r} is absent from queue"
             )
 
-    # O1 — Campaign destination lists agree across policy, queue, coverage (as sets).
+    # O1 — Campaign destinations: product policy owns arrays; queue/coverage reference only.
     policies = policy.get("policies")
     if not isinstance(policies, list):
         raise FlowDeliveryError("product-policy policies must be a list")
@@ -709,70 +709,57 @@ def validate_authority_consistency(
         campaign_policy["rejected_destinations"],
         "policy.rejected_destinations",
     )
+    if not policy_supported:
+        raise FlowDeliveryError(
+            "authority destinations (O1): policy.supported_story_destinations must be non-empty"
+        )
+    if not policy_rejected:
+        raise FlowDeliveryError(
+            "authority destinations (O1): policy.rejected_destinations must be non-empty"
+        )
 
     campaign_queue = queue_by_id.get(_CAMPAIGN_FLOW_ID)
     if campaign_queue is None:
         raise FlowDeliveryError(
             f"authority destinations (O1): queue missing flow_id {_CAMPAIGN_FLOW_ID!r}"
         )
-    if "supported_story_destinations" not in campaign_queue:
+    for residual_key in ("supported_story_destinations", "rejected_destinations"):
+        if residual_key in campaign_queue:
+            raise FlowDeliveryError(
+                "authority destinations (O1): queue Campaign retains raw "
+                f"{residual_key}; duplicate authority (use destination_policy_id only)"
+            )
+    queue_ref = campaign_queue.get("destination_policy_id")
+    if queue_ref is None:
         raise FlowDeliveryError(
-            "authority destinations (O1): queue Campaign flow missing supported_story_destinations"
+            "authority destinations (O1): queue Campaign flow missing destination_policy_id"
         )
-    if "rejected_destinations" not in campaign_queue:
+    if queue_ref != _CAMPAIGN_DESTINATION_POLICY_ID:
         raise FlowDeliveryError(
-            "authority destinations (O1): queue Campaign flow missing rejected_destinations"
+            "authority destinations (O1): queue Campaign destination_policy_id must be "
+            f"{_CAMPAIGN_DESTINATION_POLICY_ID!r}, got {queue_ref!r}"
         )
-    queue_supported = _destination_set(
-        campaign_queue["supported_story_destinations"],
-        "queue.supported_story_destinations",
-    )
-    queue_rejected = _destination_set(
-        campaign_queue["rejected_destinations"],
-        "queue.rejected_destinations",
-    )
 
     campaign_coverage = coverage_by_id.get(_CAMPAIGN_FLOW_ID)
     if campaign_coverage is None:
         raise FlowDeliveryError(
             f"authority destinations (O1): coverage missing flow_id {_CAMPAIGN_FLOW_ID!r}"
         )
-    if "supported_story_destinations" not in campaign_coverage:
+    for residual_key in ("supported_story_destinations", "rejected_destinations"):
+        if residual_key in campaign_coverage:
+            raise FlowDeliveryError(
+                "authority destinations (O1): coverage Campaign retains raw "
+                f"{residual_key}; duplicate authority (use destination_policy_id only)"
+            )
+    coverage_ref = campaign_coverage.get("destination_policy_id")
+    if coverage_ref is None:
         raise FlowDeliveryError(
-            "authority destinations (O1): coverage Campaign entry missing supported_story_destinations"
+            "authority destinations (O1): coverage Campaign entry missing destination_policy_id"
         )
-    if "rejected_destinations" not in campaign_coverage:
+    if coverage_ref != _CAMPAIGN_DESTINATION_POLICY_ID:
         raise FlowDeliveryError(
-            "authority destinations (O1): coverage Campaign entry missing rejected_destinations"
-        )
-    coverage_supported = _destination_set(
-        campaign_coverage["supported_story_destinations"],
-        "coverage.supported_story_destinations",
-    )
-    coverage_rejected = _destination_set(
-        campaign_coverage["rejected_destinations"],
-        "coverage.rejected_destinations",
-    )
-
-    if policy_supported != queue_supported:
-        raise FlowDeliveryError(
-            "authority destinations (O1): supported_story_destinations diverge between "
-            f"policy={sorted(policy_supported)!r} and queue={sorted(queue_supported)!r}"
-        )
-    if policy_supported != coverage_supported:
-        raise FlowDeliveryError(
-            "authority destinations (O1): supported_story_destinations diverge between "
-            f"policy={sorted(policy_supported)!r} and coverage={sorted(coverage_supported)!r}"
-        )
-    if policy_rejected != queue_rejected:
-        raise FlowDeliveryError(
-            "authority destinations (O1): rejected_destinations diverge between "
-            f"policy={sorted(policy_rejected)!r} and queue={sorted(queue_rejected)!r}"
-        )
-    if policy_rejected != coverage_rejected:
-        raise FlowDeliveryError(
-            "authority destinations (O1): rejected_destinations diverge between "
-            f"policy={sorted(policy_rejected)!r} and coverage={sorted(coverage_rejected)!r}"
+            "authority destinations (O1): coverage Campaign destination_policy_id must be "
+            f"{_CAMPAIGN_DESTINATION_POLICY_ID!r}, got {coverage_ref!r}"
         )
 
     # O2 — registry consequence_class matches queue product_policy_status.

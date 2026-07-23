@@ -59,15 +59,7 @@
       "live_validation_scope": "Navigation-only validation for exactly 1-20-9, 1-15-9, and 2-2-9; no AP execution without separate explicit policy; Ultimate Challenge is not a Campaign AP destination.",
       "consequence_policy": "Preserve existing AP and battle logic; require Home Atlas Campaign entry, Story-mode recognition, difficulty 1/2, Stages 20/15/2, Chapter 9, and exact tuple verification before AP execution; unknown stage, AP cost, or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
-      "supported_story_destinations": [
-        "1-20-9",
-        "1-15-9",
-        "2-2-9"
-      ],
-      "rejected_destinations": [
-        "1-2-9",
-        "ultimate-challenge"
-      ],
+      "destination_policy_id": "campaign-supported-destinations",
       "maximum_live_attempts": 3,
       "live_attempt_count": 3,
       "live_attempts": [

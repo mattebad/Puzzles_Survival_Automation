@@ -138,13 +138,20 @@ class FlowDeliveryQueueTests(unittest.TestCase):
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
         campaign = self.queue["flows"][0]
+        campaign_policy = next(
+            item
+            for item in self.policy["policies"]
+            if item["policy_id"] == "campaign-supported-destinations"
+        )
         scope = campaign["live_validation_scope"]
-        for destination in ("1-20-9", "1-15-9", "2-2-9"):
+        self.assertEqual(campaign["destination_policy_id"], "campaign-supported-destinations")
+        self.assertNotIn("supported_story_destinations", campaign)
+        self.assertNotIn("rejected_destinations", campaign)
+        for destination in campaign_policy["supported_story_destinations"]:
             self.assertIn(destination, scope)
-            self.assertIn(destination, campaign["supported_story_destinations"])
-        for rejected in ("1-2-9", "ultimate-challenge"):
-            self.assertNotIn(rejected, campaign["supported_story_destinations"])
-            self.assertIn(rejected, campaign["rejected_destinations"])
+        for rejected in campaign_policy["rejected_destinations"]:
+            self.assertNotIn(rejected, campaign_policy["supported_story_destinations"])
+            self.assertNotIn(rejected, scope)
         self.assertNotIn("1-2-9", scope)
         self.assertNotIn("ultimate-challenge", scope)
         campaign_source = (ROOT / "scripts" / "bluestacks_campaign_ap.py").read_text(

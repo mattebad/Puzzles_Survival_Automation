@@ -16,15 +16,7 @@
       "home_navigation_state": "contracted_not_implemented",
       "story_destination_navigation_state": "contracted_not_implemented",
       "ap_execution_state": "preserved_existing_behavior_separate_from_destination_verification",
-      "supported_story_destinations": [
-        "1-20-9",
-        "1-15-9",
-        "2-2-9"
-      ],
-      "rejected_destinations": [
-        "1-2-9",
-        "ultimate-challenge"
-      ],
+      "destination_policy_id": "campaign-supported-destinations",
       "ultimate_challenge_coverage": "not_applicable_to_this_flow"
     },
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {

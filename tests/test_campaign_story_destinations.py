@@ -125,9 +125,17 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
     def test_campaign_parser_cannot_select_ultimate_challenge(self) -> None:
         with self.assertRaises(ValueError):
             parse_supported_campaign_story_destination("ultimate-challenge")
+        campaign_policy = next(
+            item
+            for item in self.policy["policies"]
+            if item["policy_id"] == "campaign-supported-destinations"
+        )
         campaign = self.queue["flows"][0]
-        self.assertNotIn("ultimate-challenge", campaign["supported_story_destinations"])
-        self.assertIn("ultimate-challenge", campaign["rejected_destinations"])
+        self.assertEqual(campaign["destination_policy_id"], "campaign-supported-destinations")
+        self.assertNotIn("supported_story_destinations", campaign)
+        self.assertNotIn("rejected_destinations", campaign)
+        self.assertNotIn("ultimate-challenge", campaign_policy["supported_story_destinations"])
+        self.assertIn("ultimate-challenge", campaign_policy["rejected_destinations"])
 
     def test_queue_selects_first_current_ready_flow(self) -> None:
         selected = control.FlowDeliveryController().select_next(self.queue)
@@ -150,11 +158,16 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
     def test_coverage_keeps_objectives_separate(self) -> None:
         campaign = self.coverage["flows"]["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]
         ultimate = self.coverage["flows"]["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]
+        campaign_policy = next(
+            item
+            for item in self.policy["policies"]
+            if item["policy_id"] == "campaign-supported-destinations"
+        )
         for field in (
             "home_navigation_state",
             "story_destination_navigation_state",
             "ap_execution_state",
-            "supported_story_destinations",
+            "destination_policy_id",
         ):
             self.assertIn(field, campaign)
         for field in (
@@ -165,8 +178,11 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
             "reset_idempotency_state",
         ):
             self.assertIn(field, ultimate)
+        self.assertEqual(campaign["destination_policy_id"], "campaign-supported-destinations")
+        self.assertNotIn("supported_story_destinations", campaign)
+        self.assertNotIn("rejected_destinations", campaign)
         self.assertEqual(
-            campaign["supported_story_destinations"],
+            campaign_policy["supported_story_destinations"],
             ["1-20-9", "1-15-9", "2-2-9"],
         )
         self.assertEqual(ultimate["supported_story_destinations"], [])

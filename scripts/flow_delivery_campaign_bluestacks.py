@@ -203,7 +203,8 @@ def verify_campaign_navigation_only(
     lease: Mapping[str, Any],
 ) -> dict[str, Any]:
     pnsctl = _pnsctl()
-    del lease
+    # Queue destination arrays were removed; allowlist is DESTINATIONS only (no product-policy load).
+    del queue, lease
     result = structure["result"]
     if result.get("flow_id") != FLOW_ID:
         raise pnsctl.OperatorError("Campaign evidence belongs to another flow")
@@ -215,9 +216,6 @@ def verify_campaign_navigation_only(
         raise pnsctl.OperatorError("Campaign evidence is not navigation_only_complete")
     if result.get("terminal_runtime_state") != "recognized_home":
         raise pnsctl.OperatorError("Campaign evidence terminal runtime state is unsafe")
-    flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
-    if destination not in flow.get("supported_story_destinations", []):
-        raise pnsctl.OperatorError("Campaign evidence destination is outside the flow contract")
     return {
         "status": "verified",
         "flow_id": FLOW_ID,
