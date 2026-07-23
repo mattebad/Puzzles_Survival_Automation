@@ -5010,8 +5010,95 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION
 - Task ID: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`.
 - Title: Integrate Ultimate Challenge daily task as a distinct BlueStacks flow.
-- Status: Blocked (2026-07-21; offline implementation retained, but the parent stopped before a
-  terminal navigation-only live path and no live attempt is authorized by this status).
+- Status: Blocked after focused offline implementation (2026-07-23; the exact ordered execution
+  policy and truthful zero-transport evidence gate are implemented, but native selector evidence
+  and a production-controller positive replay do not exist; no live attempt is authorized).
+- Milestone: Ultimate Challenge evidence-independent controller integration.
+- Dependencies: committed product-policy reconciliation `9c281a7`, retained Campaign Home Atlas
+  entry, Ultimate Challenge entry/reset-idempotency implementation, gameplay contract schema, and
+  explicit 2026-07-23 product policy.
+- Blocked by: absent native Challenge/lineup/Exit/Flee/Home selector sequence, absent consequential
+  SafeAction/SafetyStore journal integration, and no authorized positive replay or canary attempt.
+- Objective: implement every evidence-independent execution invariant and a truthful zero-transport
+  evidence gate without manufacturing selector or replay proof.
+- Established facts: retained work proves Campaign entry, Ultimate Challenge entry OCR,
+  already-complete/reset persistence, and navigation-only seams; it does not prove the
+  consequential sequence or canonical Home terminal.
+- Direct implementation files: `tasks/ultimate_challenge_daily.py`, its gameplay contract,
+  `tasks/gameplay_flow_contracts.py`, `tasks/gameplay_flow_contracts/schema.json`, queue,
+  coverage/docs, focused tests, `BACKLOG.md`, `tasks/backlog_task_index.json`, and
+  `CURRENT_HANDOFF.md`.
+- Shared dependencies: `tasks/gameplay_flow_contracts.py`, Campaign Home Atlas entry, canonical Home
+  semantics, reset identity, and future SafeAction/SafetyStore journal boundary.
+- Transitive regression set: Ultimate Challenge policy, gameplay contracts, flow-delivery authority
+  and orchestrator, Campaign separation/Home seam, governance, IDE hardening, and token/index tests.
+- Allowed changes: allowed paths are exactly the direct implementation files, both contract-schema
+  validator representations for the evidence-gated mode, and focused fixture-isolation test hunks
+  attributable to this task.
+- Prohibited changes: runtime input, evidence/fixture manufacture, visual selector invention,
+  Campaign/Ruins asset promotion, production registration, scheduler eligibility, queue activation,
+  live-attempt authorization, Gathering/Troop Training changes, downstream Campaign work, or push.
+- Authorized runtime action: None; offline code, policy tests, and zero-transport missing-evidence
+  evaluation only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden in this atomic task.
+- Consequential action: Forbidden; Challenge, lineup Challenge, Exit, and Flee are not dispatched.
+- Registration changes: None; preserve not registered.
+- Scheduler changes: None; preserve disabled/ineligible.
+- Actions that must not be repeated: Campaign navigation attempts, Ultimate Challenge input, stale
+  or ambiguous transition dispatch, and any use of semantic observations as native evidence.
+- Required source: current handoff, this backlog section and direct dependencies, queue/policy/
+  coverage/contract, retained code/history, and directly referenced evidence records only.
+- Exact target semantics: plan only Challenge → Hero Lineup Challenge → upper-right Exit → Flee →
+  canonical `home_returned`; completion identity is `complete_for_reset` only after Home.
+- Required local association: explicit positive current and observation reset identities must match;
+  every future target requires current native 800x1280 frame/profile/hash/ROI provenance.
+- Negative controls: no Auto Battle, AP/stamina/currency/item/resource cost, refill, paid action,
+  Campaign AP coupling, generic hash assertion, synthetic positive replay, or non-Home completion.
+- Coordinate space: native 800x1280 contract bounds only; no coordinate dispatch in this task.
+- Accepted signals: exact ordered policy actions, dispatch always false while evidence-gated,
+  evidence_required with zero transport, matched reset identity, fail-closed ambiguity, and explicit
+  canonical Home persistence.
+- Rejected weak signals: caller booleans, regex-shaped hashes alone, semantic-only observations,
+  unrelated Campaign/Ruins templates, transport success, or contract prose as visual proof.
+- Ambiguous-result behavior: return blocked/evidence_required, record no success, issue no retry, and
+  preserve the unresolved-action requirement for future consequential integration.
+- Zero-cost requirement: exact zero AP, stamina, currency, item, or other resource consumption.
+- Quantity limits: at most one verified completion per positive game-day/reset; repeated completion
+  is prohibited.
+- Resource consumption policy: no resource or refill transaction is permitted.
+- Premium or strategic restrictions: Auto Battle, paid/premium/item-backed action, Campaign AP
+  dispatch, and any refill are prohibited.
+- Active evidence manifest: None; no runtime evidence was created or modified.
+- Required artifacts: controller policy, replay gate, contract/queue/coverage/docs, focused tests,
+  backlog index, handoff, validation results, and one focused local commit.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE for runtime because transport is
+  zero; missing future native/journal evidence remains an explicit blocker.
+- Additional task-specific artifacts: backlog pointer for the separately authorized supervised
+  native-evidence/canary task.
+- Focused tests: `tests/test_ultimate_challenge_daily.py`,
+  `tests/test_gameplay_flow_contracts.py`, `tests/test_flow_delivery_authority_consistency.py`,
+  `tests/test_flow_delivery_orchestrator.py`, and `tests/test_governance_validation.py`.
+- Integration tests: focused Campaign separation and Home Atlas Ultimate Challenge seam tests.
+- Transitive regression tests: IDE native hardening and flow-delivery token/context hygiene.
+- Full-suite requirement: Not required for this blocked offline slice; report the last known full
+  suite separately.
+- Validators: focused unittest suites, governance/authority loaders, regenerated backlog index,
+  `git diff --check`, and post-validation Git snapshot.
+- Known baseline failures: two IDE live-budget tests assumed the first queue flow retained a live
+  budget; their isolated temporary fixture now supplies three attempts without changing authority.
+- Evidence requirement: NOT_APPLICABLE for this zero-transport offline slice because it creates no
+  runtime evidence; native selector sequence and journal-backed positive replay remain required by
+  the future promotion gate.
+- Valid blocked outcomes: missing native selector corpus, SafeAction/journal integration, positive
+  replay, or separately authorized canary, with coherent offline work preserved.
+- Blocked-result commit policy: commit the coherent evidence-independent implementation and truthful
+  blocker; do not claim production replay or activate downstream work.
+- Commit policy: one focused conventional local commit over task-owned allowed paths; no push.
+- Expected focused commits: `feat(ultimate-challenge): add evidence-gated execution policy`.
+- Completion criteria: exact offline policy/controller and Home persistence tests pass; authority,
+  coverage, docs, and handoff agree on the evidence blocker; no runtime/registration/scheduler
+  change; focused validations and diff check pass; one local blocked-result commit is created.
 - Scope: recognized Home → Campaign → Ultimate Challenge → Challenge → Hero Lineup Challenge →
   immediate upper-right Exit → Flee warning → Flee → canonical Home. Verified Flee completes the
   Daily objective at zero AP, stamina, currency, item, or other resource cost; Auto Battle is
@@ -5021,11 +5108,38 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   last-success/reset-window state before unattended scheduling; fails closed when reset identity or
   completion state is ambiguous; separate from ordinary Campaign AP expenditure.
 - Implementation/evidence boundary: retained Campaign-entry navigation and reset-idempotency code
-  are current. Challenge/lineup/Exit/Flee selectors, postconditions, production-controller replay,
-  and a supervised canary are still required; maximum new live attempts is zero. Production
-  registration and recurring scheduling remain disabled.
+  remain current. The offline controller now enforces the exact Challenge/lineup/Exit/Flee/Home
+  order, zero resources, no Auto Battle/refill, positive reset identity, bounded state succession,
+  native-frame/target provenance, and canonical-Home-only success persistence. Its replay gate
+  truthfully returns `evidence_required` with zero transport because no native consequential
+  sequence exists. Native selectors, SafeAction/SafetyStore and consequential journal integration,
+  production-controller positive replay, and a supervised canary are still required; maximum new
+  live attempts is zero. Production registration and recurring scheduling remain disabled.
+- Exact next permitted action: in a separately authorized evidence-only atomic task, retain native
+  hash-bound Challenge, Hero Lineup Challenge, upper-right Exit, Flee warning/result, and canonical
+  Home frames without consequential dispatch; then a later offline task may wire the production
+  recognizer/controller and journal-backed zero-transport replay. A Flee canary is not authorized.
 - Authority: full normalized task state is in `tasks/flow_delivery_queue.json` and
   `tasks/flow_delivery_product_policy.json`; this dormant pointer does not activate implementation.
+
+### ULTIMATE-CHALLENGE-NATIVE-EVIDENCE-AND-CANARY
+- Task ID: `ULTIMATE-CHALLENGE-NATIVE-EVIDENCE-AND-CANARY`.
+- Title: Acquire native Ultimate Challenge selectors and run one supervised evidence canary.
+- Status: Blocked / not activated (2026-07-23; no runtime input or live attempt is authorized).
+- Dependency: committed `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` offline controller slice,
+  explicit user authorization, positive game-day identity, inactive global unresolved-action gate,
+  runtime/development lease, checked-in attempt budget, and reviewed evidence plan.
+- Scope when separately authorized: use the supported operational boundary to retain current native
+  800x1280 Challenge, Hero Lineup Challenge, upper-right Exit, Flee warning/result, no-resource
+  result, and canonical Home frames with source hashes, ROIs, annotations, journal/capability/ledger
+  records, and one bounded supervised consequential canary. Do not infer selectors from Campaign or
+  Ruins assets and do not repeat an ambiguous consequential action.
+- Current authorization: maximum live attempts zero; evidence acquisition, Challenge/Flee input,
+  registration, and scheduler promotion are prohibited until a later atomic activation changes the
+  attempt budget explicitly.
+- Completion boundary: retained native selector corpus and terminal canary evidence may unblock a
+  later production recognizer/SafeAction integration and journal-backed zero-transport replay; this
+  task does not itself authorize registration or scheduling.
 
 ### FLOW-PRODUCT-POLICY-RECONCILIATION-20260723
 - Task ID: `FLOW-PRODUCT-POLICY-RECONCILIATION-20260723`.
@@ -5124,8 +5238,10 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   6. Zombie Lair Home notification maintenance and Daily-observer integration.
 - Ordering rationale: no dependency requires a change. Ultimate Challenge can reuse the retained
   Campaign entry seam without Campaign AP execution; all later flows are independent atomic slices.
-- Exact next permitted task: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`, offline
-  implementation/replay only unless a later task separately authorizes a supervised canary.
+- Sequence state: step 1 was activated on 2026-07-23. Its evidence-independent controller slice is
+  implemented, but positive production replay remains blocked by absent native selectors. The next
+  permitted atomic task is Ultimate Challenge native visual evidence acquisition without
+  consequential dispatch; a supervised canary remains separately gated and unauthorized.
 
 ### GF-MVP-001-AUTHORITY-BASELINE
 - Task ID: `GF-MVP-001-AUTHORITY-BASELINE`.

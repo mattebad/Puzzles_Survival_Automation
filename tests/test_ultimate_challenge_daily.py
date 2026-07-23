@@ -12,22 +12,38 @@ from tasks.campaign_auto_battle import (
     parse_supported_campaign_story_destination,
 )
 from tasks.ultimate_challenge_daily import (
+    ACTION_RETURN_CANONICAL_HOME,
+    ACTION_TAP_CHALLENGE,
+    ACTION_TAP_FLEE,
+    ACTION_TAP_LINEUP_CHALLENGE,
+    ACTION_TAP_UPPER_RIGHT_EXIT,
+    ACTIVE_CHALLENGE_STATE,
     COMPLETION_COMPLETED,
     COMPLETION_NOT_COMPLETED,
     COMPLETION_UNKNOWN,
+    FLEE_CONFIRMED_STATE,
+    FLEE_WARNING_STATE,
     FLOW_ID,
+    HERO_LINEUP_STATE,
+    HOME_RETURNED_STATE,
+    REPLAY_EVIDENCE_REQUIRED,
     TERMINAL_ALREADY_COMPLETED,
     TERMINAL_BLOCKED,
+    TERMINAL_COMPLETE_FOR_RESET,
     TERMINAL_NAVIGATION_ONLY_COMPLETE,
+    ULTIMATE_CHALLENGE_STATE,
     ULTIMATE_CHALLENGE_ENTRY_IDENTITY,
     ULTIMATE_CHALLENGE_OBJECTIVE,
+    UltimateChallengeExecutionObservation,
     UltimateChallengeEntryObservation,
     UltimateChallengeResetWindowState,
+    evaluate_execution_step,
     empty_reset_window_state,
     evaluate_already_completed,
     evaluate_navigation_only,
     load_reset_window_state,
     record_verified_success,
+    ultimate_challenge_zero_transport_replay_gate,
     recognize_ultimate_challenge_entry_from_texts,
     save_reset_window_state,
     ultimate_challenge_already_completed_from_ocr_hits,
@@ -36,6 +52,20 @@ from tasks.ultimate_challenge_daily import (
 
 
 FRAME = "a" * 64
+TARGET_ROI = (200, 400, 600, 520)
+RESET_IDENTITY = "game-day-2026-07-20"
+
+
+def _execution_decision(
+    observation: UltimateChallengeExecutionObservation,
+    *,
+    prior_state: str | None = None,
+):
+    return evaluate_execution_step(
+        observation,
+        current_reset_identity=RESET_IDENTITY,
+        prior_state=prior_state,
+    )
 
 
 def _bound_entry(**overrides) -> UltimateChallengeEntryObservation:
@@ -127,18 +157,30 @@ class UltimateChallengeDailyContractTests(unittest.TestCase):
             path = Path(directory) / "uc-reset.json"
             state = empty_reset_window_state()
             self.assertEqual(state.completion_state, COMPLETION_NOT_COMPLETED)
-            updated = record_verified_success(state, reset_identity="game-day-2026-07-20")
+            updated = record_verified_success(
+                state,
+                reset_identity="game-day-2026-07-20",
+                terminal_state=HOME_RETURNED_STATE,
+            )
             save_reset_window_state(path, updated)
             loaded = load_reset_window_state(path)
             self.assertEqual(loaded.completion_state, COMPLETION_COMPLETED)
             self.assertEqual(loaded.last_success_reset_identity, "game-day-2026-07-20")
             self.assertEqual(loaded.flow_id, FLOW_ID)
             with self.assertRaisesRegex(ValueError, "same reset window"):
-                record_verified_success(loaded, reset_identity="game-day-2026-07-20")
+                record_verified_success(
+                    loaded,
+                    reset_identity="game-day-2026-07-20",
+                    terminal_state=HOME_RETURNED_STATE,
+                )
 
     def test_record_success_requires_positive_reset_identity(self) -> None:
         with self.assertRaisesRegex(ValueError, "positive reset identity"):
-            record_verified_success(empty_reset_window_state(), reset_identity="")
+            record_verified_success(
+                empty_reset_window_state(),
+                reset_identity="",
+                terminal_state=HOME_RETURNED_STATE,
+            )
 
     def test_ocr_text_hits_bind_entry_without_campaign_destination(self) -> None:
         observation = recognize_ultimate_challenge_entry_from_texts(
@@ -460,6 +502,216 @@ class UltimateChallengeDailyContractTests(unittest.TestCase):
             )
             self.assertFalse(observation.entry_control_visible)
             self.assertEqual(observation.entry_control_identity, "")
+
+    # Policy/gate tests below intentionally use semantic observations only;
+    # they do not claim visual, live, or production-controller evidence.
+    def test_policy_exact_order_and_zero_resource_route(self) -> None:
+        states = [
+            ULTIMATE_CHALLENGE_STATE,
+            HERO_LINEUP_STATE,
+            ACTIVE_CHALLENGE_STATE,
+            FLEE_WARNING_STATE,
+            FLEE_CONFIRMED_STATE,
+        ]
+        actions = [
+            ACTION_TAP_CHALLENGE,
+            ACTION_TAP_LINEUP_CHALLENGE,
+            ACTION_TAP_UPPER_RIGHT_EXIT,
+            ACTION_TAP_FLEE,
+            ACTION_RETURN_CANONICAL_HOME,
+        ]
+        expected_successors = [
+            HERO_LINEUP_STATE,
+            ACTIVE_CHALLENGE_STATE,
+            FLEE_WARNING_STATE,
+            FLEE_CONFIRMED_STATE,
+            HOME_RETURNED_STATE,
+        ]
+        prior_state = None
+        for state, action, successor in zip(states, actions, expected_successors):
+            decision = _execution_decision(
+                UltimateChallengeExecutionObservation(
+                    state=state,
+                    target_bound=True,
+                    native_selector_evidence=True,
+                    reset_identity="game-day-2026-07-20",
+                    source_frame_sha256=FRAME,
+                    target_roi=TARGET_ROI,
+                ),
+                prior_state=prior_state,
+            )
+            self.assertFalse(decision.dispatch_authorized)
+            self.assertEqual(decision.action, action)
+            self.assertEqual(decision.successor_state, successor)
+            self.assertFalse(decision.completion_recordable)
+            prior_state = state
+
+    def test_policy_wrong_valid_state_fails_closed(self) -> None:
+        decision = _execution_decision(
+            UltimateChallengeExecutionObservation(
+                state=ACTIVE_CHALLENGE_STATE,
+                target_bound=True,
+                native_selector_evidence=True,
+                reset_identity="game-day-2026-07-20",
+                source_frame_sha256=FRAME,
+                target_roi=TARGET_ROI,
+            ),
+            prior_state=ULTIMATE_CHALLENGE_STATE,
+        )
+        self.assertFalse(decision.dispatch_authorized)
+        self.assertEqual(decision.terminal, TERMINAL_BLOCKED)
+
+    def test_policy_requires_explicit_matching_current_and_observation_reset(self) -> None:
+        base = dict(
+            state=ULTIMATE_CHALLENGE_STATE,
+            target_bound=True,
+            native_selector_evidence=True,
+            source_frame_sha256=FRAME,
+            target_roi=TARGET_ROI,
+        )
+        for current, observed in (
+            (None, RESET_IDENTITY),
+            ("", RESET_IDENTITY),
+            (RESET_IDENTITY, None),
+            (RESET_IDENTITY, "game-day-2026-07-19"),
+        ):
+            with self.subTest(current=current, observed=observed):
+                decision = evaluate_execution_step(
+                    UltimateChallengeExecutionObservation(
+                        **base,
+                        reset_identity=observed,
+                    ),
+                    current_reset_identity=current,
+                )
+                self.assertFalse(decision.dispatch_authorized)
+                self.assertEqual(decision.terminal, TERMINAL_BLOCKED)
+
+    def test_policy_completion_requires_home_after_flee(self) -> None:
+        flee = _execution_decision(
+            UltimateChallengeExecutionObservation(
+                state=FLEE_CONFIRMED_STATE,
+                target_bound=True,
+                native_selector_evidence=True,
+                reset_identity="game-day-2026-07-20",
+                source_frame_sha256=FRAME,
+                target_roi=TARGET_ROI,
+            ),
+            prior_state=FLEE_WARNING_STATE,
+        )
+        self.assertFalse(flee.completion_recordable)
+        home = _execution_decision(
+            UltimateChallengeExecutionObservation(
+                state=HOME_RETURNED_STATE,
+                target_bound=False,
+                native_selector_evidence=True,
+                reset_identity="game-day-2026-07-20",
+                source_frame_sha256=FRAME,
+                target_roi=None,
+            ),
+            prior_state=FLEE_CONFIRMED_STATE,
+        )
+        self.assertEqual(home.terminal, TERMINAL_BLOCKED)
+        self.assertFalse(home.completion_recordable)
+        self.assertIn(TERMINAL_COMPLETE_FOR_RESET, home.reason)
+        with self.assertRaisesRegex(ValueError, "canonical Home"):
+            record_verified_success(
+                empty_reset_window_state(),
+                reset_identity="game-day-2026-07-20",
+                terminal_state=FLEE_CONFIRMED_STATE,
+            )
+        with self.assertRaisesRegex(ValueError, "canonical Home"):
+            record_verified_success(
+                empty_reset_window_state(),
+                reset_identity="game-day-2026-07-20",
+            )
+
+    def test_policy_rejects_resources_auto_battle_and_missing_native_bind(self) -> None:
+        base = dict(
+            state=ULTIMATE_CHALLENGE_STATE,
+            target_bound=True,
+            native_selector_evidence=True,
+            reset_identity="game-day-2026-07-20",
+            source_frame_sha256=FRAME,
+            target_roi=TARGET_ROI,
+        )
+        for changes in (
+            {"resource_prompt_visible": True},
+            {"resource_cost": 0},
+            {"auto_battle_visible": True},
+            {"refill_visible": True},
+            {"target_bound": False},
+            {"target_roi": None},
+            {"native_selector_evidence": False},
+            {"source_frame_sha256": ""},
+            {"overlay_state": "warning"},
+            {"recognized": False},
+        ):
+            decision = _execution_decision(
+                UltimateChallengeExecutionObservation(**{**base, **changes})
+            )
+            self.assertFalse(decision.dispatch_authorized, changes)
+            self.assertEqual(decision.terminal, TERMINAL_BLOCKED)
+
+    def test_policy_already_complete_is_home_only_idempotent_noop(self) -> None:
+        entry = _execution_decision(
+            UltimateChallengeExecutionObservation(
+                state=ULTIMATE_CHALLENGE_STATE,
+                target_bound=True,
+                native_selector_evidence=True,
+                reset_identity="game-day-2026-07-20",
+                source_frame_sha256=FRAME,
+                target_roi=TARGET_ROI,
+                already_complete=True,
+            )
+        )
+        self.assertFalse(entry.dispatch_authorized)
+        self.assertEqual(entry.action, ACTION_RETURN_CANONICAL_HOME)
+        self.assertEqual(entry.successor_state, HOME_RETURNED_STATE)
+        intermediate = _execution_decision(
+            UltimateChallengeExecutionObservation(
+                state=FLEE_WARNING_STATE,
+                target_bound=True,
+                native_selector_evidence=True,
+                reset_identity="game-day-2026-07-20",
+                source_frame_sha256=FRAME,
+                target_roi=TARGET_ROI,
+                already_complete=True,
+            )
+        )
+        self.assertFalse(intermediate.dispatch_authorized)
+        self.assertEqual(intermediate.terminal, TERMINAL_BLOCKED)
+        home = _execution_decision(
+            UltimateChallengeExecutionObservation(
+                state=HOME_RETURNED_STATE,
+                target_bound=False,
+                native_selector_evidence=True,
+                reset_identity="game-day-2026-07-20",
+                source_frame_sha256=FRAME,
+                target_roi=None,
+                already_complete=True,
+            ),
+            prior_state=ULTIMATE_CHALLENGE_STATE,
+        )
+        self.assertFalse(home.dispatch_authorized)
+        self.assertEqual(home.terminal, TERMINAL_BLOCKED)
+        self.assertIn("native replay evidence", home.reason)
+
+    def test_replay_gate_truthfully_requires_missing_native_fixture(self) -> None:
+        gate = ultimate_challenge_zero_transport_replay_gate()
+        self.assertEqual(gate.status, REPLAY_EVIDENCE_REQUIRED)
+        self.assertEqual(gate.transport_count, 0)
+        self.assertFalse(gate.dispatch_authorized)
+        self.assertTrue(gate.evidence_required)
+        self.assertEqual(
+            ultimate_challenge_zero_transport_replay_gate({"native_hash_bound": False}).status,
+            REPLAY_EVIDENCE_REQUIRED,
+        )
+        self.assertEqual(
+            ultimate_challenge_zero_transport_replay_gate(
+                {"native_hash_bound": True, "source_frame_sha256": FRAME}
+            ).status,
+            REPLAY_EVIDENCE_REQUIRED,
+        )
 
 
 if __name__ == "__main__":

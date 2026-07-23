@@ -87,7 +87,13 @@ _IMPL = frozenset(
 _PROOF = frozenset({"current", "regression_required", "evidence_required", "not_implemented"})
 _FIXTURE_STATUS = frozenset({"available", "required_evidence", "synthetic_policy_ok"})
 _LIVE_MODE = frozenset(
-    {"navigation_only", "consequential_supervised", "observe_only", "blocked_until_policy"}
+    {
+        "navigation_only",
+        "consequential_supervised",
+        "observe_only",
+        "blocked_until_policy",
+        "blocked_until_evidence",
+    }
 )
 _EVIDENCE_GATE_STATUS = frozenset({"satisfied", "evidence_required"})
 _REGISTRATION_STATE = frozenset({"disabled", "eligible", "registered"})

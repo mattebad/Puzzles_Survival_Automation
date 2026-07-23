@@ -147,9 +147,12 @@ or scheduler-eligible.
   → upper-right Exit → Flee → canonical Home. Flee completes the reset objective without AP,
   stamina, currency, item, or Auto Battle use; already-complete is idempotent.
 - Existing work: Campaign Home Atlas entry reuse, Ultimate Challenge entry recognition,
-  already-complete evaluation, and reset-window persistence are implemented offline/navigation-only.
-- Gap/evidence: Challenge/lineup/Exit/Flee selectors, consequential controller/postconditions,
-  ambiguous-result recovery, production replay, supervised Flee canary, and Home terminal proof.
+  already-complete evaluation, reset-window persistence, the exact ordered execution policy,
+  zero-resource/Auto Battle/refill guards, canonical-Home completion gating, and a fail-closed
+  zero-transport replay evidence gate are implemented offline.
+- Gap/evidence: native Challenge/lineup/Exit/Flee/Home selectors, consequential SafeAction/SafetyStore
+  and journal integration, production-controller positive replay, supervised Flee canary, and Home
+  terminal proof. Synthetic observations and self-declared hashes do not satisfy this gate.
 
 ### Zombie Lair Daily completion
 

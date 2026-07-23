@@ -219,9 +219,10 @@
       ],
       "navigation_model": "canonical_home_atlas_to_campaign_ultimate_challenge_entry",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "No live attempt is authorized. A later atomic task must first implement and positively replay Challenge -> lineup Challenge -> Exit -> Flee -> canonical Home.",
+      "live_validation_scope": "No live attempt is authorized. Native selector acquisition and one supervised canary require a separately activated task and nonzero attempt budget; production-controller positive replay remains a later offline gate.",
       "consequence_policy": "Flee is the approved zero-resource Daily completion. Evaluate once per reset, never Auto Battle, preserve already-complete idempotency, and fail closed on ambiguous identity, result, or Home recovery.",
       "product_policy_status": "navigation_only_validation",
+      "execution_product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
       "live_attempt_count": 0,
       "live_attempts": [],
@@ -237,8 +238,8 @@
         "navigation_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "Product policy is closed, but consequential Flee selectors, postconditions, production-path replay, and supervised canary evidence are missing.",
-      "next_concrete_action": "Implement and offline-replay the approved Challenge -> lineup Challenge -> Exit -> Flee -> canonical Home sequence using the retained Campaign entry and reset-idempotency code.",
+      "blocked_reason": "The offline ordered execution policy, zero-resource guards, canonical-Home completion gate, and truthful zero-transport evidence gate are implemented. Native Challenge, Hero Lineup Challenge, Exit, Flee, completion, and Home selectors; consequential SafetyStore/journal integration; production-controller positive replay; and a supervised canary remain evidence-required.",
+      "next_concrete_action": "In a separately authorized evidence task, retain native hash-bound Challenge -> Hero Lineup Challenge -> upper-right Exit -> Flee -> canonical Home frames without consequential input, then wire the production recognizer/controller and run a journal-backed zero-transport positive replay.",
       "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
@@ -248,7 +249,9 @@
         "already_completed is a valid terminal state",
         "one-success-per-reset idempotency with persistent reset-window state contract",
         "fail closed on ambiguous reset identity or completion state",
-        "navigation-only validation initially"
+        "approved execution sequence encoded offline with no transport",
+        "missing native selector evidence returns evidence_required with zero transport",
+        "completion persistence requires explicit canonical Home"
       ],
       "scope_prohibitions": [
         "Campaign completion must not complete Ultimate Challenge",
@@ -283,6 +286,8 @@
       "required_terminal_states": [
         "already_completed",
         "navigation_only_complete",
+        "complete_for_reset",
+        "evidence_required",
         "blocked_fail_closed"
       ],
       "completion_tests": [
@@ -291,7 +296,7 @@
       ],
       "consequential_stage_policy": {
         "initial_live_validation": "navigation_only",
-        "daily_execution": "requires_separate_explicit_policy",
+        "daily_execution": "explicitly_approved_but_native_evidence_and_positive_replay_required",
         "campaign_ap_coupling": "prohibited"
       }
     },

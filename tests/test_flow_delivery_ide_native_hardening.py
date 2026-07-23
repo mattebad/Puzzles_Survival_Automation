@@ -445,6 +445,18 @@ class ControllerHardeningTests(unittest.TestCase):
         controller.lease_path.write_text(json.dumps(lease) + "\n", encoding="utf-8")
         return flow["flow_id"]
 
+    def set_fixture_live_attempt_budget(
+        self,
+        controller: control.FlowDeliveryController,
+        maximum: int = 3,
+    ) -> None:
+        """Give only the isolated controller fixture a budget for budget-behavior tests."""
+
+        queue = json.loads(controller.queue_path.read_text(encoding="utf-8"))
+        flow = next(item for item in queue["flows"] if item["status"] == "active")
+        flow["maximum_live_attempts"] = maximum
+        controller.queue_path.write_text(json.dumps(queue) + "\n", encoding="utf-8")
+
     def record_invocation(
         self,
         controller: control.FlowDeliveryController,
@@ -622,6 +634,7 @@ class ControllerHardeningTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             controller = self.make_controller(Path(directory))
             self.set_active(controller, stage="live_execution")
+            self.set_fixture_live_attempt_budget(controller)
             first = controller.begin_live_attempt(owner="parent")
             self.assertEqual(first["ordinal"], 1)
             controller.finish_live_attempt(
@@ -659,6 +672,7 @@ class ControllerHardeningTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             controller = self.make_controller(Path(directory))
             self.set_active(controller, stage="live_execution")
+            self.set_fixture_live_attempt_budget(controller)
             controller.begin_live_attempt(owner="parent")
             controller.block(owner="parent", reason="ambiguous post-transport state")
             self.assertIsNone(controller.select_next())

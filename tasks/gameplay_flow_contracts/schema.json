@@ -431,7 +431,8 @@
               "navigation_only",
               "consequential_supervised",
               "observe_only",
-              "blocked_until_policy"
+              "blocked_until_policy",
+              "blocked_until_evidence"
             ]
           },
           "notes": {
@@ -467,7 +468,8 @@
               "navigation_only",
               "consequential_supervised",
               "observe_only",
-              "blocked_until_policy"
+              "blocked_until_policy",
+              "blocked_until_evidence"
             ]
           },
           "start_state": {

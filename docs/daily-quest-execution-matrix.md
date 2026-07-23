@@ -39,7 +39,7 @@ Daily gameplay-flow identity. That identity does not manufacture a selected-Dail
 | `RECRUITMENT-BLUESTACKS-INTEGRATION` | Daily: five Basic free recruits | retained mechanics/navigation + offline controller; production replay required | none / disabled |
 | `RECRUITMENT-FREE-ATTEMPT-MAINTENANCE` | independent three-tab maintenance | retained mechanics/navigation + offline controller; production replay required | none / disabled |
 | `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` | Campaign AP maintenance | retained navigation/controller/BlueStacks mechanics; production replay required | none / disabled |
-| `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` | Daily: one verified Flee per reset | navigation/idempotency only; execution evidence required | none / disabled |
+| `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` | Daily: one verified Flee per reset | navigation/idempotency + ordered offline policy; native execution evidence and positive replay required | none / disabled |
 | `ZOMBIE-LAIR-BLUESTACKS-INTEGRATION` | Daily: first eligible join | legacy offline replay; Home-notification evidence required | none / disabled |
 | `ZOMBIE-LAIR-HOME-MAINTENANCE` | independent Home pulse | World/stamina primitives only; evidence required | none / disabled |
 

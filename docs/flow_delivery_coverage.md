@@ -17,7 +17,7 @@ attempts authorized.
 | `RECRUITMENT-BLUESTACKS-INTEGRATION` | Daily: five Basic free singles | shared + integrated controller replay retained | 2026-07-16 semantic-frame mechanics/navigation | not proven | hash-bound production replay of five Basic windows and Home |
 | `RECRUITMENT-FREE-ATTEMPT-MAINTENANCE` | maintenance; inspect Basic/Int./Advanced | integrated three-tier replay retained | 2026-07-16 semantic-frame mechanics/navigation | not proven | independent cooldown persistence, per-tab defer, production replay, Home |
 | `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` | Campaign AP maintenance | navigation, destination, vision, controller, battle replay retained | supervised BlueStacks mechanics + nonterminal production navigation attempts | not proven | native configured-stage Auto Battle production replay and Home |
-| `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` | Daily: one verified Flee per reset | entry/already-complete/idempotency replay retained | offline navigation only; no Flee evidence | not proven | native Challenge → Exit → Flee, no-resource result, Home |
+| `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` | Daily: one verified Flee per reset | entry/idempotency + ordered policy controller; missing-evidence gate is zero transport | offline navigation only; no Flee evidence | not proven | native Challenge → Exit → Flee, no-resource result, journal-backed replay, Home |
 | `ZOMBIE-LAIR-BLUESTACKS-INTEGRATION` | Daily: first eligible join | legacy selected-Daily one-Lair replay | no Home-notification evidence | not proven | native notification, eligible join, 28 stamina, Daily result, Home |
 | `ZOMBIE-LAIR-HOME-MAINTENANCE` | maintenance; continues after Daily | World/stamina primitives only | no Home-notification evidence | not proven | native defer/multi-lair/refill/recovery/Quick Join states and Home |
 
@@ -90,9 +90,13 @@ maximum, 360-second regeneration accounting, no refill, bounded repetition, defe
 Flow: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`
 
 Ultimate Challenge remains separate from Campaign AP. Campaign entry reuse, Ultimate Challenge
-entry binding, already-complete detection, and reset idempotency are implemented offline. Challenge,
-Hero Lineup Challenge, upper-right Exit, Flee, the no-resource completion result, and canonical Home
-have no consequential replay/canary proof and remain evidence-required.
+entry binding, already-complete detection, reset idempotency, the exact ordered execution policy,
+zero-resource/Auto Battle/refill guards, canonical-Home-only success persistence, and a truthful
+zero-transport missing-evidence gate are implemented offline. The gate currently returns
+`evidence_required` with zero transport: Challenge, Hero Lineup Challenge, upper-right Exit, Flee,
+the no-resource completion result, and canonical Home have no native selector sequence or positive
+production-controller replay/canary proof. Consequential SafeAction/SafetyStore journal integration
+also remains required. Registration and scheduler eligibility remain disabled.
 
 ## Zombie Lair Daily completion
 

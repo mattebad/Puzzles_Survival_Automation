@@ -26,6 +26,48 @@ ULTIMATE_CHALLENGE_OBJECTIVE = "ultimate_challenge_daily"
 TERMINAL_ALREADY_COMPLETED = "already_completed"
 TERMINAL_NAVIGATION_ONLY_COMPLETE = "navigation_only_complete"
 TERMINAL_BLOCKED = "blocked_fail_closed"
+TERMINAL_COMPLETE_FOR_RESET = "complete_for_reset"
+
+# The consequential route is intentionally explicit and finite.  These values
+# are state identities, not visual evidence claims; a production recognizer
+# must positively bind each state before its corresponding action is allowed.
+ULTIMATE_CHALLENGE_STATE = "ultimate_challenge"
+HERO_LINEUP_STATE = "hero_lineup"
+ACTIVE_CHALLENGE_STATE = "active_challenge"
+FLEE_WARNING_STATE = "flee_warning"
+FLEE_CONFIRMED_STATE = "flee_confirmed"
+HOME_RETURNED_STATE = "home_returned"
+ULTIMATE_CHALLENGE_STATES = (
+    ULTIMATE_CHALLENGE_STATE,
+    HERO_LINEUP_STATE,
+    ACTIVE_CHALLENGE_STATE,
+    FLEE_WARNING_STATE,
+    FLEE_CONFIRMED_STATE,
+    HOME_RETURNED_STATE,
+)
+
+ACTION_TAP_CHALLENGE = "tap_challenge"
+ACTION_TAP_LINEUP_CHALLENGE = "tap_lineup_challenge"
+ACTION_TAP_UPPER_RIGHT_EXIT = "tap_upper_right_exit"
+ACTION_TAP_FLEE = "tap_flee"
+ACTION_RETURN_CANONICAL_HOME = "return_canonical_home"
+ULTIMATE_CHALLENGE_ACTIONS = (
+    ACTION_TAP_CHALLENGE,
+    ACTION_TAP_LINEUP_CHALLENGE,
+    ACTION_TAP_UPPER_RIGHT_EXIT,
+    ACTION_TAP_FLEE,
+    ACTION_RETURN_CANONICAL_HOME,
+)
+
+_EXPECTED_PREDECESSOR = {
+    HERO_LINEUP_STATE: ULTIMATE_CHALLENGE_STATE,
+    ACTIVE_CHALLENGE_STATE: HERO_LINEUP_STATE,
+    FLEE_WARNING_STATE: ACTIVE_CHALLENGE_STATE,
+    FLEE_CONFIRMED_STATE: FLEE_WARNING_STATE,
+    HOME_RETURNED_STATE: FLEE_CONFIRMED_STATE,
+}
+
+REPLAY_EVIDENCE_REQUIRED = "evidence_required"
 
 COMPLETION_UNKNOWN = "unknown"
 COMPLETION_COMPLETED = "completed"
@@ -102,6 +144,71 @@ class UltimateChallengeNavigationDecision:
     details: Mapping[str, object] | None = None
 
 
+@dataclass(frozen=True)
+class UltimateChallengeExecutionObservation:
+    """One positively recognized frame for the bounded consequential route.
+
+    ``native_selector_evidence`` is deliberately separate from a boolean
+    target bind.  A semantic state or coordinate alone cannot authorize an
+    input; both must be backed by current native, hash-bound selector proof.
+    """
+
+    state: str
+    target_bound: bool
+    native_selector_evidence: bool
+    reset_identity: Optional[str]
+    source_frame_sha256: str
+    target_roi: Optional[ROI]
+    recognized: bool = True
+    overlay_state: str = "none_observed"
+    resource_prompt_visible: bool = False
+    resource_cost: object | None = None
+    auto_battle_visible: bool = False
+    refill_visible: bool = False
+    already_complete: bool = False
+    runtime_profile_id: str = PROFILE_ID
+
+    def __post_init__(self) -> None:
+        if self.target_roi is not None:
+            x0, y0, x1, y1 = self.target_roi
+            if not (0 <= x0 < x1 <= 800 and 0 <= y0 < y1 <= 1280):
+                raise ValueError("Ultimate Challenge target ROI must be native 800x1280 bounds")
+
+
+@dataclass(frozen=True)
+class UltimateChallengeExecutionDecision:
+    """Bounded next-step decision; ``dispatch_authorized`` gates transport."""
+
+    state: str
+    action: str | None
+    successor_state: str | None
+    dispatch_authorized: bool
+    terminal: str
+    reason: str
+    reset_identity: Optional[str] = None
+    completion_recordable: bool = False
+
+
+@dataclass(frozen=True)
+class UltimateChallengeReplayGate:
+    """Truthful zero-transport replay status for the current evidence set."""
+
+    status: str
+    transport_count: int
+    dispatch_authorized: bool
+    evidence_required: bool
+    reason: str
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "transport_count": self.transport_count,
+            "dispatch_authorized": self.dispatch_authorized,
+            "evidence_required": self.evidence_required,
+            "reason": self.reason,
+        }
+
+
 def reset_identity_is_positive(reset_identity: Optional[str]) -> bool:
     """True only for a positively established non-empty reset / game-day identity."""
 
@@ -109,6 +216,228 @@ def reset_identity_is_positive(reset_identity: Optional[str]) -> bool:
         return False
     value = reset_identity.strip()
     return bool(value) and bool(_RESET_IDENTITY_RE.fullmatch(value))
+
+
+def _execution_blocked(
+    observation: UltimateChallengeExecutionObservation,
+    reason: str,
+    *,
+    reset_identity: Optional[str],
+) -> UltimateChallengeExecutionDecision:
+    return UltimateChallengeExecutionDecision(
+        state=observation.state,
+        action=None,
+        successor_state=None,
+        dispatch_authorized=False,
+        terminal=TERMINAL_BLOCKED,
+        reason=reason,
+        reset_identity=reset_identity,
+    )
+
+
+def evaluate_execution_step(
+    observation: UltimateChallengeExecutionObservation,
+    *,
+    current_reset_identity: Optional[str] = None,
+    prior_state: str | None = None,
+) -> UltimateChallengeExecutionDecision:
+    """Plan one exact Ultimate Challenge step, failing closed before transport.
+
+    This is an offline policy seam only.  It does not dispatch input, register a
+    runner, or infer missing visual evidence.  Completion is recordable only
+    after a recognized ``flee_confirmed`` successor reaches canonical Home.
+    """
+
+    identity = current_reset_identity
+    if not reset_identity_is_positive(identity):
+        return _execution_blocked(
+            observation,
+            "Ultimate Challenge requires an explicit positive current reset identity",
+            reset_identity=identity,
+        )
+    if observation.state not in ULTIMATE_CHALLENGE_STATES:
+        return _execution_blocked(
+            observation,
+            "unrecognized Ultimate Challenge state",
+            reset_identity=identity,
+        )
+    if not reset_identity_is_positive(observation.reset_identity):
+        return _execution_blocked(
+            observation,
+            "observation requires an explicit positive reset identity",
+            reset_identity=identity,
+        )
+    if observation.reset_identity != current_reset_identity:
+        return _execution_blocked(
+            observation,
+            "observation reset identity does not match current reset window",
+            reset_identity=identity,
+        )
+
+    if not observation.already_complete:
+        expected_predecessor = _EXPECTED_PREDECESSOR.get(observation.state)
+        if observation.state != ULTIMATE_CHALLENGE_STATE and prior_state is None:
+            return _execution_blocked(
+                observation,
+                "Ultimate Challenge route must start at ultimate_challenge",
+                reset_identity=identity,
+            )
+        if prior_state is not None and expected_predecessor != prior_state:
+            return _execution_blocked(
+                observation,
+                "state does not follow the required Ultimate Challenge transition",
+                reset_identity=identity,
+            )
+
+    if not observation.recognized:
+        return _execution_blocked(observation, "state is not recognized", reset_identity=identity)
+    if observation.runtime_profile_id != PROFILE_ID or not _SHA256_RE.fullmatch(
+        observation.source_frame_sha256 or ""
+    ):
+        return _execution_blocked(
+            observation,
+            "current native frame/profile provenance is required",
+            reset_identity=identity,
+        )
+    if observation.overlay_state not in {"none", "none_observed"}:
+        return _execution_blocked(
+            observation,
+            "unexpected overlay blocks Ultimate Challenge dispatch",
+            reset_identity=identity,
+        )
+    if (
+        observation.resource_prompt_visible
+        or observation.resource_cost is not None
+        or observation.auto_battle_visible
+        or observation.refill_visible
+    ):
+        return _execution_blocked(
+            observation,
+            "resource prompt/cost, refill, or Auto Battle is prohibited",
+            reset_identity=identity,
+        )
+    if observation.state == HOME_RETURNED_STATE:
+        if not observation.native_selector_evidence:
+            return _execution_blocked(
+                observation,
+                "native hash-bound Home evidence is required",
+                reset_identity=identity,
+            )
+        if observation.already_complete:
+            return UltimateChallengeExecutionDecision(
+                state=observation.state,
+                action=None,
+                successor_state=HOME_RETURNED_STATE,
+                dispatch_authorized=False,
+                terminal=TERMINAL_BLOCKED,
+                reason="already-complete Home policy is valid but native replay evidence is required",
+                reset_identity=identity,
+            )
+        completed = prior_state == FLEE_CONFIRMED_STATE
+        return UltimateChallengeExecutionDecision(
+            state=HOME_RETURNED_STATE,
+            action=None,
+            successor_state=HOME_RETURNED_STATE,
+            dispatch_authorized=False,
+            terminal=TERMINAL_BLOCKED,
+            reason=(
+                "complete_for_reset is planned after Home but native replay evidence is required"
+                if completed
+                else "canonical Home reached without a recognized Flee successor"
+            ),
+            reset_identity=identity,
+            completion_recordable=False,
+        )
+    if observation.already_complete and observation.state == ULTIMATE_CHALLENGE_STATE:
+        if not observation.native_selector_evidence:
+            return _execution_blocked(
+                observation,
+                "native hash-bound already-complete evidence is required",
+                reset_identity=identity,
+            )
+        return UltimateChallengeExecutionDecision(
+            state=ULTIMATE_CHALLENGE_STATE,
+            action=ACTION_RETURN_CANONICAL_HOME,
+            successor_state=HOME_RETURNED_STATE,
+            dispatch_authorized=False,
+            terminal=TERMINAL_BLOCKED,
+            reason="already-complete Home return is planned but native replay evidence is required",
+            reset_identity=identity,
+        )
+    if observation.already_complete:
+        return _execution_blocked(
+            observation,
+            "already-complete requires canonical Home terminal",
+            reset_identity=identity,
+        )
+    if not observation.target_bound or observation.target_roi is None:
+        return _execution_blocked(
+            observation,
+            "consequential target is not positively bound",
+            reset_identity=identity,
+        )
+    if not observation.native_selector_evidence:
+        return _execution_blocked(
+            observation,
+            "native hash-bound selector evidence is required",
+            reset_identity=identity,
+        )
+
+    transitions = {
+        ULTIMATE_CHALLENGE_STATE: (ACTION_TAP_CHALLENGE, HERO_LINEUP_STATE),
+        HERO_LINEUP_STATE: (ACTION_TAP_LINEUP_CHALLENGE, ACTIVE_CHALLENGE_STATE),
+        ACTIVE_CHALLENGE_STATE: (ACTION_TAP_UPPER_RIGHT_EXIT, FLEE_WARNING_STATE),
+        FLEE_WARNING_STATE: (ACTION_TAP_FLEE, FLEE_CONFIRMED_STATE),
+        FLEE_CONFIRMED_STATE: (ACTION_RETURN_CANONICAL_HOME, HOME_RETURNED_STATE),
+    }
+    action, successor = transitions[observation.state]
+    return UltimateChallengeExecutionDecision(
+        state=observation.state,
+        action=action,
+        successor_state=successor,
+        dispatch_authorized=False,
+        terminal=TERMINAL_BLOCKED,
+        reason=(
+            f"policy plans only {action} from {observation.state}; "
+            "native production replay evidence is required before dispatch"
+        ),
+        reset_identity=identity,
+    )
+
+
+# Explicit alias for callers that describe this seam as a route planner.
+plan_ultimate_challenge_execution = evaluate_execution_step
+
+
+def ultimate_challenge_zero_transport_replay_gate(
+    native_selector_fixture: Mapping[str, object] | None = None,
+) -> UltimateChallengeReplayGate:
+    """Report the evidence gate without fabricating a positive replay.
+
+    No native hash-bound Ultimate Challenge selector fixture is retained in the
+    repository today, so the default result is always ``evidence_required``
+    with zero transport.  A future task may pass a real fixture after the
+    independent evidence-retention requirements are satisfied.
+    """
+
+    if not isinstance(native_selector_fixture, Mapping):
+        return UltimateChallengeReplayGate(
+            status=REPLAY_EVIDENCE_REQUIRED,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=True,
+            reason="native hash-bound Ultimate Challenge selector fixture is absent",
+        )
+    # Self-declared metadata or a plausible digest is not evidence. The gate
+    # remains closed until a later task wires a retained native sequence through
+    # the production recognizer/controller and consequential journal path.
+    return UltimateChallengeReplayGate(
+        status=REPLAY_EVIDENCE_REQUIRED,
+        transport_count=0,
+        dispatch_authorized=False,
+        evidence_required=True,
+        reason="production-recognizer native sequence and journal-backed replay are absent",
+    )
 
 
 def entry_observation_is_bound(observation: UltimateChallengeEntryObservation) -> bool:
@@ -256,11 +585,18 @@ def record_verified_success(
     *,
     reset_identity: str,
     success_at: str | None = None,
+    terminal_state: str | None = None,
 ) -> UltimateChallengeResetWindowState:
-    """Persist one success for the given reset window; fail closed on ambiguous identity."""
+    """Persist one success only after the canonical Home terminal.
+
+    Callers must explicitly supply the canonical Home terminal; recording from
+    Flee or any intermediate/omitted state is rejected.
+    """
 
     if not reset_identity_is_positive(reset_identity):
         raise ValueError("cannot record Ultimate Challenge success without positive reset identity")
+    if terminal_state != HOME_RETURNED_STATE:
+        raise ValueError("Ultimate Challenge success requires canonical Home terminal")
     if (
         state.completion_state == COMPLETION_COMPLETED
         and state.last_success_reset_identity == reset_identity
@@ -272,6 +608,22 @@ def record_verified_success(
         last_success_reset_identity=reset_identity,
         last_success_at=stamp,
         completion_state=COMPLETION_COMPLETED,
+    )
+
+
+def record_verified_home_success(
+    state: UltimateChallengeResetWindowState,
+    *,
+    reset_identity: str,
+    success_at: str | None = None,
+) -> UltimateChallengeResetWindowState:
+    """Named Home-terminal wrapper for new execution integrations."""
+
+    return record_verified_success(
+        state,
+        reset_identity=reset_identity,
+        success_at=success_at,
+        terminal_state=HOME_RETURNED_STATE,
     )
 
 

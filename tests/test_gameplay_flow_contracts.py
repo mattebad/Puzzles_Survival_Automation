@@ -43,6 +43,16 @@ class GameplayFlowContractTests(unittest.TestCase):
                 self.assertNotEqual(contract["implementation_status"], "live_validated")
                 self.assertNotEqual(contract["implementation_status"], "scheduler_eligible")
 
+    def test_ultimate_challenge_is_blocked_by_evidence_not_policy(self):
+        contract = load_flow_contract("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
+        scenario = next(
+            item
+            for item in contract["scenarios"]
+            if item["scenario_id"] == "ultimate_flee_production"
+        )
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+
     def test_nova_contract_separates_live_proof_from_production_eligibility(self):
         nova = load_flow_contract("NOVA-PRAISE-HOME-ATLAS-MIGRATION")
         self.assertEqual(nova["schema_version"], 2)

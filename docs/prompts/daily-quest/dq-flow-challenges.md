@@ -10,8 +10,10 @@ Bind current frame.
 
 Policy: DISABLED_POLICY; no challenge entry, resource transaction, registration, scheduler eligibility,
 or live input. Ruins Challenge identity/cost/result replay is implemented in
-`tasks/challenge_disabled.py`; Ultimate Challenge remains Main-only and every entry dispatch is
-blocked. Postcondition: offline contract proves no dispatch. Recovery: fail closed on challenge,
+`tasks/challenge_disabled.py`. Ultimate Challenge is not owned by this Ruins flow or the selected-
+Daily catalog; its distinct reset-bound Daily identity has an approved zero-resource Flee policy,
+an offline ordered controller contract, and a still-closed native-evidence gate. This Ruins flow
+cannot dispatch or authorize it. Postcondition: offline contract proves no Ruins dispatch. Recovery: fail closed on challenge,
 cost, stale-frame, or result ambiguity. Claim independent. Persistence dormant.
 
 Tests: `tests/test_challenge_disabled.py` covers Ruins identity, cost/AP guards, disabled dispatch,

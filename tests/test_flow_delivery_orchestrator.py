@@ -178,6 +178,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         self.assertTrue(ultimate["blocked_reason"])
         self.assertEqual(ultimate["priority"], 15)
         self.assertEqual(ultimate["product_policy_status"], "navigation_only_validation")
+        self.assertEqual(ultimate["execution_product_policy_status"], "explicitly_approved")
         policy_ids = {item["policy_id"] for item in self.policy["policies"]}
         self.assertIn("ultimate-challenge-flow-separation", policy_ids)
         registry = json.loads(

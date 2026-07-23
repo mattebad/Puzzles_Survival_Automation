@@ -31,16 +31,16 @@
     {"policy_id": "ultimate-challenge-unresolved-execution-details", "source": "tasks/flow_delivery_product_policy.json"},
     {"policy_id": "ultimate-challenge-one-success-per-reset", "source": "tasks/flow_delivery_product_policy.json"}
   ],
-  "evidence_requirements": ["Retained navigation and reset-idempotency implementation is current.", "Native Challenge, lineup Challenge, upper-right Exit, Flee warning, completion, and canonical Home evidence is required.", "Production-controller positive replay and a later supervised canary are required before promotion."],
+  "evidence_requirements": ["Retained navigation and reset-idempotency implementation is current.", "The ordered offline policy controller, zero-resource guards, explicit canonical-Home persistence gate, and zero-transport missing-evidence result are implemented.", "Native Challenge, lineup Challenge, upper-right Exit, Flee warning, completion, and canonical Home evidence is required.", "Consequential SafetyStore/journal integration, production-controller positive replay, and a later supervised canary are required before promotion."],
   "evidence_gates": [
-    {"gate_id": "ultimate_flee_replay", "status": "evidence_required", "blocks": ["open_lineup", "start_challenge", "open_flee_warning", "confirm_flee", "ultimate_flee_production"], "required_evidence": ["hash-bound native selector corpus and production-controller positive replay through Flee and canonical Home"], "permitted_inputs": []}
+    {"gate_id": "ultimate_flee_replay", "status": "evidence_required", "blocks": ["open_lineup", "start_challenge", "open_flee_warning", "confirm_flee", "ultimate_flee_production"], "required_evidence": ["hash-bound native selector corpus", "production recognizer and SafeAction/SafetyStore journal integration", "production-controller positive replay through Flee and canonical Home"], "current_offline_result": "evidence_required_zero_transport", "permitted_inputs": []}
   ],
   "replay_fixture_requirements": [
-    {"fixture_id": "ultimate_navigation_and_already_complete", "status": "synthetic_policy_ok", "path": null, "notes": "Existing offline tests cover entry recognition and reset idempotency only."},
-    {"fixture_id": "ultimate_flee_sequence", "status": "required_evidence", "path": null, "notes": "No native consequential sequence exists."}
+    {"fixture_id": "ultimate_navigation_and_already_complete", "status": "synthetic_policy_ok", "path": null, "notes": "Offline policy tests cover entry recognition, reset idempotency, exact transition order, resource prohibitions, canonical-Home completion, and the missing-evidence gate; they are not native replay evidence."},
+    {"fixture_id": "ultimate_flee_sequence", "status": "required_evidence", "path": null, "notes": "No native consequential sequence exists; self-declared hashes or synthetic observations cannot open the replay gate."}
   ],
   "scenarios": [
-    {"scenario_id": "ultimate_flee_production", "mode": "blocked_until_policy", "start_state": "home_canonical", "terminal_state": "blocked", "permitted_inputs": [], "forbidden_inputs": ["navigate_ultimate_challenge", "tap_challenge", "tap_lineup_challenge", "tap_upper_right_exit", "tap_flee", "return_canonical_home"], "required_transitions": [], "evidence_gate_ids": ["ultimate_flee_replay"], "notes": "Approved policy does not authorize live input; Auto Battle is unsupported and prohibited."}
+    {"scenario_id": "ultimate_flee_production", "mode": "blocked_until_evidence", "start_state": "home_canonical", "terminal_state": "blocked", "permitted_inputs": [], "forbidden_inputs": ["navigate_ultimate_challenge", "tap_challenge", "tap_lineup_challenge", "tap_upper_right_exit", "tap_flee", "return_canonical_home"], "required_transitions": [], "evidence_gate_ids": ["ultimate_flee_replay"], "notes": "The exact execution policy is approved and implemented offline, but the production scenario remains blocked until native evidence and replay promotion; the offline gate reports evidence_required with zero transport and Auto Battle is prohibited."}
   ],
   "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "ambiguous_reset_or_completion", "auto_battle", "campaign_ap_coupling"],
   "implementation_status": "reference_implemented",
