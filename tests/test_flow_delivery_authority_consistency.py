@@ -101,7 +101,7 @@ class AuthorityConsistencyTests(unittest.TestCase):
         prep = by_id["CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP"]
         survey = by_id["CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"]
         integration = by_id["CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"]
-        self.assertEqual(prep["status"], "ready")
+        self.assertEqual(prep["status"], "completed")
         self.assertFalse(prep["requires_bluestacks_live"])
         self.assertEqual(survey["dependencies"], [prep["flow_id"]])
         self.assertEqual(integration["dependencies"], [survey["flow_id"]])
@@ -126,14 +126,16 @@ class AuthorityConsistencyTests(unittest.TestCase):
         ):
             self.assertIn(prohibited, prep_text)
         self.assertEqual(
-            prep["future_required_tests"],
+            prep["focused_tests"],
             [
                 "tests/test_campaign_atlas.py",
                 "tests/test_campaign_atlas_vision.py",
                 "tests/test_campaign_atlas_collector.py",
             ],
         )
-        self.assertIn("must create and promote", prep["current_validation_boundary"])
+        self.assertEqual(prep["completion_tests"], prep["focused_tests"])
+        self.assertNotIn("future_required_tests", prep)
+        self.assertEqual(prep["last_completed_stage"], "completed")
         self.assertFalse(queue["gameplay_scheduler"])
 
     def test_recruitment_retained_evidence_is_not_mislabeled_or_promoted(self) -> None:

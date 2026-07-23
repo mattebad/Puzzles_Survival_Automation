@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "flow_id": "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+  "product_purpose": "Future native 800x1280 Campaign map survey and independent atlas validation.",
+  "trigger_cadence_type": "evidence_gated",
+  "reset_scope": "session",
+  "required_starting_context": ["unknown_requires_evidence"],
+  "shared_primitive_dependencies": [],
+  "recognized_states": ["contract_declared", "evidence_required"],
+  "state_transitions": [
+    {
+      "from": "contract_declared",
+      "to": "evidence_required",
+      "via": "missing_explicit_authorization_and_native_corpus",
+      "notes": "Difficulty switching is not a recenter strategy."
+    }
+  ],
+  "permitted_inputs": [],
+  "local_postconditions": ["evidence_required", "no_gameplay_execution"],
+  "consequential_action_class": "none_declared",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 0,
+    "resource_or_currency": null,
+    "notes": "Current transport budget is zero; future navigation-only acquisition needs separate authorization."
+  },
+  "completion_identity": "campaign-atlas-native-survey-and-validation:accepted-corpus",
+  "terminal_outcomes": ["blocked", "manual_required"],
+  "cooldown_deferred_behavior": "not_applicable_navigation_evidence",
+  "bounded_recovery_behavior": "stop_at_reviewed_budget_or_ambiguous_state",
+  "evidence_requirements": [
+    "evidence_required: native four-edge and overlapping viewport corpus with hashes, masks, transforms, coverage, and loop closure",
+    "evidence_required: independent cross-difficulty geometry and semantic anchor review"
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "native_campaign_survey_corpus",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Not acquired or fabricated by the prep task."
+    }
+  ],
+  "live_validation_scenarios": [
+    {
+      "id": "campaign-atlas-native-survey-pending",
+      "mode": "blocked_until_evidence",
+      "notes": "Blocked at zero attempts pending explicit authorization and a checked-in nonzero plan."
+    }
+  ],
+  "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "blocking_unknown_modal"],
+  "implementation_status": "contract_only",
+  "proof_state": "evidence_required"
+}

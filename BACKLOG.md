@@ -5036,12 +5036,52 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP
 - Task ID: `CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP`.
 - Title: Prepare the Campaign atlas survey contract and zero-input collector.
-- Status: Ready; not started by this reconciliation.
+- Status: Completed offline (2026-07-23); zero-input contract preparation only, no native acquisition or atlas implementation.
+- Milestone: Campaign Atlas evidence-contract preparation.
 - Dependencies: completed `CAMPAIGN-ATLAS-BACKLOG-DEPENDENCY-RECONCILIATION`.
-- Scope: define only the native 800x1280 evidence/provenance schema, HUD exclusion-mask contract, generic map-agnostic registration seam API, bounded four-edge/overlapping-viewport scan contract, and fail-closed zero-input dry-run collector with independent tests.
-- Evidence boundary: no native atlas corpus exists; retained local Campaign frames are mechanics/landmark candidates only and must not authorize coordinates.
-- Prohibitions: no runtime or native acquisition; no fabricated corpus; no final atlas tiles/geometry, semantic chapter/stage/Ultimate anchors, thresholds or tuning, Campaign localizer/navigator, production replay, registration, scheduling, AP, or Ultimate Challenge action.
-- Completion boundary: evidence schema, masks, registration interface, bounded scan contract, fail-closed zero-input collector dry run, and focused tests pass; no atlas implementation is claimed.
+- Blocked by: None for this completed offline preparation.
+- Objective: define only the native 800x1280 evidence/provenance schema, HUD exclusion-mask contract, generic map-agnostic registration seam API, bounded four-edge/overlapping-viewport scan contract, and fail-closed zero-input dry-run collector with independent tests.
+- Established facts: no canonical native Campaign atlas corpus exists; retained local Campaign frames are mechanics/landmark candidates only; Home-specific registration thresholds and atlas geometry do not transfer authority to Campaign.
+- Direct implementation files: `tasks/campaign_atlas.py`, `tasks/campaign_atlas_vision.py`, `scripts/campaign_atlas_bluestacks.py`, and their three dedicated tests.
+- Shared dependencies: immutable native-frame identity conventions and native-frame digest discipline; no Home localizer, navigator, or registration policy is reused.
+- Transitive regression set: flow-delivery authority, gameplay contracts, orchestrator, governance, and the three dedicated Campaign prep suites.
+- Allowed changes: per-commit allowed paths are the three direct implementation files, three dedicated tests, three evidence-gated Campaign Atlas gameplay contracts, focused authority expectation tests, this exact backlog section, queue, generated backlog index, and handoff.
+- Prohibited changes: runtime or native acquisition; fabricated corpus; final atlas tiles or geometry; semantic chapter, stage, or Ultimate Challenge anchors; thresholds or tuning; Campaign localizer or navigator; production replay; registration; scheduling; AP or Ultimate Challenge action; unrelated policy.
+- Authorized runtime action: None.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden; no runtime is in scope.
+- Consequential action: None.
+- Registration changes: None; production remains not registered.
+- Scheduler changes: None; gameplay scheduling remains disabled/ineligible.
+- Actions that must not be repeated: historical Campaign attempts, difficulty-switch recentering, or any runtime collection during this task.
+- Required source: `CURRENT_HANDOFF.md`, this task and its direct dependencies, queue authority, existing immutable-frame and Home Atlas seam implementations, and retained Git history.
+- Exact target semantics: immutable native-frame provenance, profile-bound fixed-HUD exclusion, injected threshold-free frame measurement, abstract bounded survey phases, and an evidence-required zero-input collector terminal.
+- Required local association: native dimensions, runtime profile, package, capture session and ordinal, transport hash, semantic hash, UTC capture time, and source identity must all validate before later survey use.
+- Negative controls: zero transport and acquisition budgets, no corpus ingestion or promotion, no atlas output, no semantic anchors, and registration observations never authorize input.
+- Coordinate space: native 800x1280 metadata and mask rectangles only; no map, gesture, target, or atlas coordinates.
+- Accepted signals: strict provenance validation, deterministic HUD mask, injected backend measurement, fail-closed collector output, and focused test success.
+- Rejected weak signals: filenames, phone screenshots, synthetic fixtures, Home thresholds, backend confidence, or a transform treated as evidence or input authority.
+- Ambiguous-result behavior: return `blocked_fail_closed` or raise a contract error; never infer evidence, atlas acceptance, or runtime authority.
+- Zero-cost requirement: no AP, stamina, currency, item, challenge resource, or transport input.
+- Quantity limits: maximum transport inputs zero; maximum acquired native frames zero; no evidence artifacts or atlas created.
+- Resource consumption policy: no gameplay resources or refills.
+- Premium or strategic restrictions: unchanged.
+- Active evidence manifest: None; this task creates no evidence manifest.
+- Required artifacts: the three implementation modules, three dedicated test modules, reconciled backlog/queue/index/handoff, validation result, and one focused commit.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs.
+- Additional task-specific artifacts: explicit future scan-phase topology and the measurement-only registration result that remains unaccepted and cannot authorize input.
+- Focused tests: `tests/test_campaign_atlas.py`, `tests/test_campaign_atlas_vision.py`, `tests/test_campaign_atlas_collector.py`, `tests/test_flow_delivery_authority_consistency.py`, `tests/test_gameplay_flow_contracts.py`, `tests/test_flow_delivery_orchestrator.py`, and `tests/test_governance_validation.py`.
+- Integration tests: offline CLI dry-run, queue/path consistency, dependency blocking, and governance parsing only.
+- Transitive regression tests: existing Home Atlas and Campaign destination tests only if a changed shared component requires them; no shared production component changed.
+- Full-suite requirement: Not required for this narrow offline preparation.
+- Validators: JSON parsing, deterministic backlog index generation, focused unittest suites, governance validation, `git diff --check`, and post-validation Git snapshot.
+- Known baseline failures: None accepted.
+- Evidence requirement: NOT_APPLICABLE because this offline preparation creates no runtime evidence; native Campaign survey evidence remains required by a later separately authorized task.
+- Valid blocked outcomes: invalid provenance or mask contract, an implicit registration threshold or input path, queue/index/handoff inconsistency, or a focused regression.
+- Blocked-result commit policy: preserve coherent work and report the exact blocker without acquiring native frames or starting atlas implementation.
+- Commit policy: one focused conventional local commit; no push.
+- Expected focused commits: `feat(campaign): prepare atlas survey contract`.
+- Completion criteria: schema, mask, threshold-free registration seam, bounded zero-budget scan contract, and fail-closed collector exist; dedicated and authority tests pass; native evidence and atlas remain absent; survey/integration consumers remain blocked; all live budgets remain zero; registration/scheduler unchanged; diff check passes; one focused commit created.
 
 ### CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION
 - Task ID: `CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION`.

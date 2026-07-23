@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "flow_id": "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
+  "product_purpose": "Offline-only native Campaign survey contract and fail-closed collector preparation.",
+  "trigger_cadence_type": "evidence_gated",
+  "reset_scope": "session",
+  "required_starting_context": ["unknown_requires_evidence"],
+  "shared_primitive_dependencies": [],
+  "recognized_states": ["contract_declared", "evidence_required"],
+  "state_transitions": [
+    {
+      "from": "contract_declared",
+      "to": "evidence_required",
+      "via": "zero_input_collector_dry_run",
+      "notes": "No corpus, atlas, semantic anchor, threshold, localization, navigation, or runtime authority is created."
+    }
+  ],
+  "permitted_inputs": [],
+  "local_postconditions": ["evidence_required", "zero_transport_inputs", "no_atlas_created"],
+  "consequential_action_class": "none_declared",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 0,
+    "resource_or_currency": null,
+    "notes": "Maximum transport inputs and acquired native frames are both zero."
+  },
+  "completion_identity": "campaign-atlas-survey-contract-and-collector-prep:complete",
+  "terminal_outcomes": ["blocked"],
+  "cooldown_deferred_behavior": "not_applicable_offline_contract_prep",
+  "bounded_recovery_behavior": "fail_closed_without_input_or_artifact_creation",
+  "evidence_requirements": [
+    "evidence_required: native hash-bound Campaign survey frames do not exist and are not created here"
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "native_campaign_survey_corpus",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Must be acquired in a later separately authorized atomic task; never fabricated."
+    }
+  ],
+  "live_validation_scenarios": [
+    {
+      "id": "campaign-atlas-prep-zero-input",
+      "mode": "blocked_until_evidence",
+      "notes": "Offline collector reports evidence_required and cannot connect to runtime transport."
+    }
+  ],
+  "unsupported_or_manual_only_states": ["all_runtime_states", "all_gameplay_inputs"],
+  "implementation_status": "shared_foundation",
+  "proof_state": "evidence_required"
+}

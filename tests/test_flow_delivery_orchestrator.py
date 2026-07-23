@@ -142,9 +142,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         self.assertIn(counts["active"], (0, 1))
         # Approved but evidence-gated flows remain blocked; Gathering alone still needs a decision.
         # Both Nova flows (home atlas migration and supervised one-free pulse) are completed.
-        self.assertEqual(counts["ready"] + counts["active"], 7)
+        self.assertEqual(counts["ready"] + counts["active"], 6)
         self.assertEqual(counts["blocked"], 12)
-        self.assertEqual(counts["completed"], 2)
+        self.assertEqual(counts["completed"], 3)
         self.assertEqual(counts["needs_product_decision"], 1)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:

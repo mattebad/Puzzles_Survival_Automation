@@ -39,7 +39,7 @@
       "title": "Prepare the Campaign atlas survey contract and collector",
       "kind": "navigation_contract_prep",
       "priority": 5,
-      "status": "ready",
+      "status": "completed",
       "backlog_task_id": "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -57,12 +57,6 @@
       "live_attempts": [],
       "additional_live_attempts_authorized": 0,
       "focused_tests": [
-        "tests/test_home_atlas.py",
-        "tests/test_home_atlas_planner.py",
-        "tests/test_campaign_story_destinations.py"
-      ],
-      "current_validation_boundary": "The checked-in focused tests validate authority and reusable Home Atlas seams only; this prep task must create and promote dedicated Campaign survey-contract and collector tests before completion.",
-      "future_required_tests": [
         "tests/test_campaign_atlas.py",
         "tests/test_campaign_atlas_vision.py",
         "tests/test_campaign_atlas_collector.py"
@@ -70,8 +64,8 @@
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
       "blocked_reason": "",
-      "next_concrete_action": "Implement only the survey evidence/provenance schema, HUD mask contract, generic registration seam, bounded scan contract, and fail-closed zero-input collector dry-run.",
-      "last_completed_stage": null,
+      "next_concrete_action": "Keep the native survey blocked until a separate atomic task supplies explicit authorization and a reviewed nonzero navigation-only attempt budget.",
+      "last_completed_stage": "completed",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
       "acceptance_criteria": [
@@ -121,9 +115,9 @@
         "blocked_fail_closed"
       ],
       "completion_tests": [
-        "tests/test_home_atlas.py",
-        "tests/test_home_atlas_planner.py",
-        "tests/test_campaign_story_destinations.py"
+        "tests/test_campaign_atlas.py",
+        "tests/test_campaign_atlas_vision.py",
+        "tests/test_campaign_atlas_collector.py"
       ],
       "consequential_stage_policy": {
         "live_input": "prohibited",

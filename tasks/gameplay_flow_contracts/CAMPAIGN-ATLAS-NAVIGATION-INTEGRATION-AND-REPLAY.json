@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "flow_id": "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
+  "product_purpose": "Future shared Campaign atlas navigation integration and production-path zero-transport replay.",
+  "trigger_cadence_type": "evidence_gated",
+  "reset_scope": "session",
+  "required_starting_context": ["unknown_requires_evidence"],
+  "shared_primitive_dependencies": [],
+  "recognized_states": ["contract_declared", "evidence_required"],
+  "state_transitions": [
+    {
+      "from": "contract_declared",
+      "to": "evidence_required",
+      "via": "missing_accepted_native_atlas_corpus",
+      "notes": "Atlas projection alone never authorizes input or semantic target binding."
+    }
+  ],
+  "permitted_inputs": [],
+  "local_postconditions": ["evidence_required", "zero_transport_replay_pending"],
+  "consequential_action_class": "none_declared",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 0,
+    "resource_or_currency": null,
+    "notes": "No live input, AP, Challenge, Auto Battle, or Flee is permitted."
+  },
+  "completion_identity": "campaign-atlas-navigation-integration-and-replay:accepted",
+  "terminal_outcomes": ["blocked"],
+  "cooldown_deferred_behavior": "not_applicable_navigation_integration",
+  "bounded_recovery_behavior": "return_evidence_required_on_missing_or_ambiguous_frame",
+  "evidence_requirements": [
+    "evidence_required: accepted native Campaign atlas corpus",
+    "evidence_required: production recognizer/controller zero-transport replay for both consumers"
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "accepted_campaign_atlas_replay",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Must use the later accepted native corpus and production path."
+    }
+  ],
+  "live_validation_scenarios": [
+    {
+      "id": "campaign-atlas-navigation-replay-pending",
+      "mode": "blocked_until_evidence",
+      "notes": "No integration begins before native survey acceptance."
+    }
+  ],
+  "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "blocking_unknown_modal"],
+  "implementation_status": "contract_only",
+  "proof_state": "evidence_required"
+}
