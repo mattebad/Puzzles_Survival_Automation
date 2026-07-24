@@ -2,23 +2,14 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "e6ecb381dfb8f3ebeb4b8d2135632eefe977f52c",
+  "head": "2e59a9418ef7701b6a5a2aadaba281572653d7cb",
   "ahead_behind": {
-    "ahead": 2,
+    "ahead": 3,
     "behind": 0
   },
   "attributable_dirty_paths": [
-    "BACKLOG.md",
-    "CURRENT_HANDOFF.md",
-    "scripts/bluestacks_campaign_ap.py",
-    "scripts/flow_delivery_campaign_bluestacks.py",
-    "tasks/backlog_task_index.json",
-    "tasks/campaign_atlas_chapter_nav.py",
-    "tasks/campaign_auto_battle_runtime.py",
-    "tasks/campaign_auto_battle_vision.py",
     "tasks/flow_delivery_queue.json",
-    "tests/test_campaign_atlas_chapter_nav.py",
-    "tests/test_campaign_auto_battle_runtime.py"
+    "CURRENT_HANDOFF.md"
   ],
   "protected_user_owned_paths": [
     ".cursor/plans/**",
@@ -29,12 +20,12 @@
     ".local-reference/**",
     ".local-captures/**"
   ],
-  "current_task_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-  "current_task_state": "completing",
-  "next_task_id": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+  "current_task_id": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+  "current_task_state": "ready",
+  "next_task_id": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
   "next_task_activation_status": "ready",
-  "active_task_or_flow": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-  "active_delivery_stage": "selected",
+  "active_task_or_flow": null,
+  "active_delivery_stage": "completed",
   "queue_counts": {
     "ready": 6,
     "active": 1,
@@ -42,8 +33,8 @@
     "completed": 5,
     "needs_product_decision": 1
   },
-  "first_ready_flow": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-  "next_ready_flow": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+  "first_ready_flow": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+  "next_ready_flow": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
   "development_lease_state": "held",
   "runtime_ownership_state": "none",
   "writable_agent_state": "absent",
@@ -55,22 +46,22 @@
     "completed_gameplay_flows_this_parent": 0,
     "rollover_required": false,
     "rollover_stop_reason": null,
-    "note": "Campaign AP finish wrapping: Stage-9 complete; commit+complete pending."
+    "note": "Campaign AP navigation finish completed at 2e59a94; Noah Tavern is first ready."
   },
   "latest_focused_validation_result": "test_campaign_stage9_destination_replay OK (all three STAGE9_VERIFIED / DESTINATION_REPLAY_VERIFIED).",
   "latest_full_suite_result": "Not yet required; navigation-only shared_navigation profile gates live_preflight.",
-  "current_live_attempt_state": "All three destinations completed (attempts 9/13/14). Stage-9 Ch.15/Ch.2 packaged.",
+  "current_live_attempt_state": "Campaign AP complete; no active live attempt.",
   "current_evidence_or_session_reference": "nav-1-20-9-20260724T213721049798Z; nav-1-15-9-20260724T220450188105Z; nav-2-2-9-20260724T221131230091Z; campaign-ap-live Stage-9 GT copies",
-  "last_safe_completed_step": "Packaged Stage-9 Ch.15/Ch.2 GT from live frames; zero-transport replay verified for 1-20-9/1-15-9/2-2-9.",
-  "exact_next_permitted_action": "Focused commit then flow_delivery_control complete; do not consume AP; no push.",
+  "last_safe_completed_step": "Completed CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION at 2e59a94.",
+  "exact_next_permitted_action": "Acquire/activate NOAHS-TAVERN-HOME-ATLAS-MIGRATION when authorized; commit remaining queue/handoff completion hygiene if needed.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not consume AP, register/scheduler-enable, rebuild atlas, or use OCR residual chapter pans.",
+  "prohibited_repeated_action": "Do not reopen Campaign AP live attempts, consume AP, or register/scheduler-enable without a new atomic task.",
   "recent_relevant_commits": [
+    "2e59a94 feat(campaign): finish atlas destination navigation canaries",
     "e6ecb38 docs(flow-delivery): close campaign ap offline block",
     "b35f9c9 feat(campaign): add stage9 provenance destination replay",
     "f336ff9 fix(campaign): correct atlas stitch and destination tuple",
-    "adb89e5 docs(flow-delivery): finalize atlas integration handoff",
-    "dbf79df docs(flow-delivery): close campaign atlas integration"
+    "adb89e5 docs(flow-delivery): finalize atlas integration handoff"
   ],
   "process_deviations": [
     "Explicit user-authorized finish of Campaign AP with maximum_live_attempts=6 ahead of ready Noah's Tavern without changing Noah's status."
@@ -105,12 +96,12 @@ authoritative journals.
 
 ## Atomic task outcome
 
-CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION live canaries and Stage-9 provenance for
-1-20-9, 1-15-9, and 2-2-9 are complete. Zero-transport destination replay verifies all three.
-AP execution never authorized. Registration/scheduler unchanged. Noah's Tavern remains next ready.
+CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION is completed at 2e59a94 with live
+destination_verified for 1-20-9, 1-15-9, and 2-2-9, Stage-9 provenance for all three, and
+zero-transport replay. AP execution was never authorized. Registration/scheduler unchanged.
 
 ## Exact next action
 
-Create the focused local commit, then 
-ecord-commit + complete under the held lease. No push.
+First ready flow is NOAHS-TAVERN-HOME-ATLAS-MIGRATION. Activate only with explicit authorization.
+Commit remaining queue/handoff hygiene if the working tree still shows post-complete queue drift.
 

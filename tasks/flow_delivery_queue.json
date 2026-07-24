@@ -32,7 +32,7 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+  "active_flow_id": null,
   "flows": [
     {
       "flow_id": "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
@@ -446,7 +446,7 @@
       "title": "Migrate Campaign AP entry to Home Atlas and verified destination navigation",
       "kind": "navigation_migration",
       "priority": 10,
-      "status": "active",
+      "status": "completed",
       "backlog_task_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
       "dependencies": [
         "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
@@ -721,8 +721,8 @@
       ],
       "blocked_reason": "",
       "next_concrete_action": "Commit Stage-9 + atlas navigation finish artifacts, record-commit, complete flow.",
-      "last_completed_stage": "commit",
-      "last_commit": null,
+      "last_completed_stage": "completed",
+      "last_commit": "2e59a9418ef7701b6a5a2aadaba281572653d7cb",
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
       "acceptance_criteria": [
         "canonical Home Atlas Campaign entry replaces HOME_PAN_GESTURES or fail-closes it",
