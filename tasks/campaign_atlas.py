@@ -36,21 +36,10 @@ ACTIVATED_MAXIMUM_SESSIONS = 1
 # Upper bound only: each navigation input retains source/before/transport/post/result refs.
 ACTIVATED_MAXIMUM_NATIVE_FRAMES = ACTIVATED_TRANSPORT_INPUT_CEILING * 5
 
-# Live survey remains inadmissible until these evidence gaps close.
-LIVE_SURVEY_PREFLIGHT_BLOCKERS: tuple[str, ...] = (
-    (
-        "evidence_required: overlap_association_and_coverage_policy_absent;"
-        "do_not_spend_overlap_inputs_without_reviewed_measurement_association"
-    ),
-    (
-        "evidence_required: difficulty_exit_base_targets_are_compile_time_static_rois;"
-        "require_current_frame_measured_template_or_ocr_associated_geometry_before_tap"
-    ),
-    (
-        "evidence_required: safe_action_successor_reconciliation_is_non_trivial_and_absent;"
-        "require_fresh_recapture_and_semantic_successor_proof_before_live_clearance"
-    ),
-)
+# Gate closure is explicit in campaign_atlas_vision and the checked-in runner:
+# reviewed overlap thresholds, current-frame template binding, fresh pre-dispatch
+# recapture, and semantic post-input reconciliation.
+LIVE_SURVEY_PREFLIGHT_BLOCKERS: tuple[str, ...] = ()
 
 
 def live_survey_preflight_blockers() -> tuple[str, ...]:
@@ -921,10 +910,14 @@ def validate_survey_session_report(report: SurveySessionReport) -> None:
     if report.disposition is CollectorDisposition.NATIVE_SURVEY_COMPLETE:
         if report.safe_terminal is None or not report.safe_terminal.recognized:
             raise ValueError("complete survey requires a recognized safe terminal")
+        if report.safe_terminal.terminal_state != "HOME_BASE":
+            raise ValueError("complete survey requires Home-bound safe terminal (HOME_BASE)")
         if report.loop_closure is None or not report.loop_closure.closed:
             raise ValueError("complete survey requires defensible closed loop-closure")
         if report.cross_difficulty is None:
             raise ValueError("complete survey requires cross-difficulty reporting")
+        if not report.overlaps:
+            raise ValueError("complete survey requires progress-step overlap association reports")
         if any(not item.associated for item in report.overlaps):
             raise ValueError("complete survey requires policy-accepted overlap associations")
         kinds = {item.kind for item in report.landmarks}
@@ -934,11 +927,18 @@ def validate_survey_session_report(report: SurveySessionReport) -> None:
             raise ValueError("complete survey requires Prison Trial/Ultimate Challenge landmark")
         if len(report.edge_clamps) < 4:
             raise ValueError("complete survey requires four edge-clamp reports")
+        if any(
+            str(entry.terminal_classification).startswith("blocked_fail_closed_zero_transport")
+            for entry in report.journal
+        ):
+            raise ValueError("complete survey cannot include zero-transport journal closings")
     if any(entry.lifecycle is InputLifecycle.UNRESOLVED for entry in report.journal):
         if report.disposition is CollectorDisposition.NATIVE_SURVEY_COMPLETE:
             raise ValueError("unresolved navigation inputs forbid native_survey_complete")
         if report.safe_terminal is not None and report.safe_terminal.recognized:
             raise ValueError("unresolved navigation cannot claim recognized safe terminal")
+        if report.safe_terminal is not None and report.safe_terminal.terminal_state == "HOME_BASE":
+            raise ValueError("unresolved navigation cannot claim recognized Home terminal")
 
 
 def build_empty_activated_session_report(

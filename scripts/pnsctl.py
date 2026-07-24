@@ -542,7 +542,7 @@ def preserve_evidence(cfg: OperatorConfig, destination: Path, names: Sequence[st
 def evidence_status(cfg: OperatorConfig) -> str:
     return run_remote(
         cfg,
-        f"find {quote(cfg.remote_evidence)} -maxdepth 1 -type f -printf '%f\\n' | sort",
+        f"find {quote(cfg.remote_evidence)} -maxdepth 1 -type f -printf '%f\n' | sort",
     )
 
 
@@ -2204,6 +2204,42 @@ def bluestacks_recover_home() -> str:
     return _BLUESTACKS_RECOVERY_HANDLERS[contract["recovery_handler"]](queue, lease)
 
 
+def bluestacks_reconcile_campaign_atlas_survey_action(
+    session_directory: Path,
+    *,
+    action_key: str,
+) -> str:
+    """Offline zero-input reconciliation for one unresolved Campaign atlas survey action."""
+
+    try:
+        from scripts.flow_delivery_campaign_atlas_bluestacks import (
+            FLOW_ID,
+            reconcile_campaign_atlas_survey_action_offline,
+        )
+    except ImportError as exc:
+        raise OperatorError("Campaign atlas survey reconciler unavailable") from exc
+    session = Path(session_directory)
+    if not session.is_dir():
+        raise OperatorError("survey session directory is missing")
+    try:
+        session.relative_to(BLUESTACKS_ARTIFACT_ROOT / FLOW_ID)
+    except ValueError as exc:
+        raise OperatorError(
+            "session must live under the Campaign atlas BlueStacks artifact root"
+        ) from exc
+    try:
+        result = reconcile_campaign_atlas_survey_action_offline(
+            session,
+            action_key=str(action_key),
+            expected_flow_id=FLOW_ID,
+        )
+    except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        raise OperatorError(f"Campaign atlas survey offline reconciliation failed: {exc}") from exc
+    if result.get("zero_input") is not True:
+        raise OperatorError("offline reconciliation must remain zero-input")
+    return json.dumps(result, sort_keys=True)
+
+
 def nova_praise_pulse_replay(args: argparse.Namespace) -> str:
     """Run the retained production-path Nova action/cooldown replay with zero transport."""
 
@@ -2945,6 +2981,15 @@ def parser() -> argparse.ArgumentParser:
     verify_flow = bluestacks_sub.add_parser("verify-flow")
     verify_flow.add_argument("session_directory", type=Path)
     bluestacks_sub.add_parser("recover-home")
+    reconcile_survey = bluestacks_sub.add_parser(
+        "reconcile-campaign-atlas-survey-action",
+        help=(
+            "Offline zero-input reconciliation for exactly one unresolved "
+            "Campaign atlas survey action (retained frames only; no runtime input)."
+        ),
+    )
+    reconcile_survey.add_argument("--session-directory", type=Path, required=True)
+    reconcile_survey.add_argument("--action-key", required=True)
     return root
 
 
@@ -3032,6 +3077,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output = bluestacks_verify_flow(args.session_directory)
             elif args.bluestacks_command == "recover-home":
                 output = bluestacks_recover_home()
+            elif args.bluestacks_command == "reconcile-campaign-atlas-survey-action":
+                output = bluestacks_reconcile_campaign_atlas_survey_action(
+                    args.session_directory,
+                    action_key=str(args.action_key),
+                )
             else:
                 raise OperatorError("unknown BlueStacks command")
             print(output)

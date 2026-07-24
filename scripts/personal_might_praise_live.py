@@ -419,9 +419,20 @@ def recognize_reset_popup(frame: np.ndarray) -> dict[str, Any]:
 
     body_crop = cv2.resize(crop(frame, VIP_POPUP_BODY_REGION), None, fx=2.5, fy=2.5, interpolation=cv2.INTER_CUBIC)
     body_text = normalized(pytesseract.image_to_string(body_crop, config="--psm 6"))
+    # Prefer exact phrase match; letter-compact fallback tolerates OCR separators
+    # (e.g. "vip | nip" for "vip pt") without loosening the semantic requirements.
+    body_letters = re.sub(r"[^a-z]", "", body_text)
     body_identity = bool(
-        "log in every day to get vip pt" in body_text
-        and ("obtained vip pt" in body_text or "obtaind vip pt" in body_text)
+        (
+            "log in every day to get vip pt" in body_text
+            or "logineverydaytogetvip" in body_letters
+        )
+        and (
+            "obtained vip pt" in body_text
+            or "obtaind vip pt" in body_text
+            or "obtainedvippt" in body_letters
+            or "obtaindvippt" in body_letters
+        )
     )
 
     close_crop = crop(frame, RESET_POPUP_CLOSE_REGION)

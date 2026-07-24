@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import math
+from pathlib import Path
 from typing import Mapping, Protocol
 
 import cv2
@@ -25,10 +26,12 @@ from .campaign_atlas import (
     RegistrationResidualReport,
 )
 from .campaign_auto_battle_vision import (
+    ASSET_ROOT,
     CAMPAIGN_EXIT_ROI,
     MAP_SEARCH_ROI,
     TIER_ONE_ROI,
     TIER_TWO_ROI,
+    _selected_tier,
 )
 
 # Compile-time static ROIs from the Campaign recognizer seam. Survey taps must
@@ -67,6 +70,34 @@ CAMPAIGN_HUD_MASK = HudMaskContract(
 HUD_SAFE_PAN_HALF_TRAVEL_PX = 140
 NO_PROGRESS_TRANSLATION_PX = 8.0
 NO_PROGRESS_RESIDUAL_PX = 6.0
+MIN_ASSOCIATION_MATCHES = 24
+MIN_ASSOCIATION_CONFIDENCE = 0.30
+MAX_ASSOCIATION_RESIDUAL_PX = 12.0
+MIN_ASSOCIATION_OVERLAP_RATIO = 0.25
+CURRENT_TARGET_TEMPLATE_THRESHOLD = 0.55
+TIER_CONTROL_SEARCH_ROI = (320, 35, 710, 190)
+CAMPAIGN_EXIT_SEARCH_ROI = (560, 780, 800, 1140)
+CAMPAIGN_EXIT_TEMPLATE_THRESHOLD = 0.72
+# Highlighted (legacy) plus current-frame unhighlighted appearance.
+CAMPAIGN_EXIT_ASSETS: tuple[str, ...] = (
+    "campaign_exit_unhighlighted.png",
+    "campaign_exit.png",
+)
+TIER_SELECTION_ASSETS: Mapping[str, Mapping[str, str]] = {
+    "campaign-tier-1": {
+        "unselected": "tier1_unselected.png",
+        "selected": "tier1_selected.png",
+    },
+    "campaign-tier-2": {
+        "unselected": "tier2_unselected.png",
+        "selected": "tier2_selected.png",
+    },
+}
+# Pre-tap selection required before authorizing the opposite unselected button.
+TIER_TAP_REQUIRED_SELECTED: Mapping[str, int] = {
+    "campaign-tier-1": 2,
+    "campaign-tier-2": 1,
+}
 
 
 @dataclass(frozen=True)
@@ -220,6 +251,154 @@ def registration_progress_outcome(measurement: RegistrationMeasurement) -> str:
     if clamp_detected(measurement):
         return "no_progress"
     return "progress"
+
+
+def overlap_association_accepted(measurement: RegistrationMeasurement) -> bool:
+    """Conservative measured association used to retain overlapping viewports."""
+
+    return bool(
+        registration_measurement_is_finite(measurement)
+        and measurement.matches >= MIN_ASSOCIATION_MATCHES
+        and measurement.inliers >= MIN_ASSOCIATION_MATCHES
+        and measurement.confidence >= MIN_ASSOCIATION_CONFIDENCE
+        and measurement.residual_px <= MAX_ASSOCIATION_RESIDUAL_PX
+        and measurement.overlap_ratio >= MIN_ASSOCIATION_OVERLAP_RATIO
+    )
+
+
+def loop_closure_accepted(measurement: RegistrationMeasurement) -> bool:
+    """Require a strong finite near-identity registration for loop closure."""
+
+    return bool(
+        overlap_association_accepted(measurement)
+        and measurement.translation_px <= NO_PROGRESS_TRANSLATION_PX
+        and measurement.residual_px <= NO_PROGRESS_RESIDUAL_PX
+    )
+
+
+def _locate_template(
+    frame: np.ndarray,
+    *,
+    asset_name: str,
+    search_roi: tuple[int, int, int, int],
+    threshold: float = CURRENT_TARGET_TEMPLATE_THRESHOLD,
+) -> tuple[tuple[int, int, int, int], float]:
+    if frame.shape != (1280, 800, 3):
+        raise RuntimeError("current-frame target binding requires native 800x1280 BGR")
+    template_path = Path(ASSET_ROOT) / asset_name
+    template = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
+    if template is None:
+        raise RuntimeError(f"missing project-owned target template: {asset_name}")
+    x0, y0, x1, y1 = search_roi
+    search = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+    if search.shape[0] < template.shape[0] or search.shape[1] < template.shape[1]:
+        raise RuntimeError(f"target search region is smaller than template: {asset_name}")
+    response = cv2.matchTemplate(search, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, point = cv2.minMaxLoc(response)
+    if not math.isfinite(score) or score < threshold:
+        raise RuntimeError(
+            f"current-frame template target {asset_name} not bound: score={score:.3f}"
+        )
+    left, top = x0 + point[0], y0 + point[1]
+    height, width = template.shape
+    return (left, top, left + width, top + height), float(score)
+
+
+def require_tier_map_selection_state(
+    frame: np.ndarray, *, selected_tier: int
+) -> tuple[int, dict[str, float]]:
+    """Fail closed unless gold-ratio selection matches the required Story difficulty."""
+
+    observed, ratios = _selected_tier(frame)
+    if observed != int(selected_tier):
+        raise RuntimeError(
+            "tier selection state mismatch: "
+            f"required_selected={selected_tier} observed={observed} ratios={ratios}"
+        )
+    return int(observed), ratios
+
+
+def measured_survey_target(
+    frame: np.ndarray, identity: str
+) -> tuple[tuple[int, int, int, int], float]:
+    """Bind a survey control from the current native frame, never a retained coordinate."""
+
+    if identity in TIER_SELECTION_ASSETS:
+        assets = TIER_SELECTION_ASSETS[identity]
+        required_selected = TIER_TAP_REQUIRED_SELECTED[identity]
+        require_tier_map_selection_state(frame, selected_tier=required_selected)
+        unselected_roi, unselected_score = _locate_template(
+            frame,
+            asset_name=assets["unselected"],
+            search_roi=TIER_CONTROL_SEARCH_ROI,
+            threshold=CURRENT_TARGET_TEMPLATE_THRESHOLD,
+        )
+        selected_roi, selected_score = _locate_template(
+            frame,
+            asset_name=assets["selected"],
+            search_roi=TIER_CONTROL_SEARCH_ROI,
+            threshold=-1.0,
+        )
+        if unselected_score <= selected_score:
+            raise RuntimeError(
+                "tier button selection-aware bind rejected: "
+                f"{identity} unselected_score={unselected_score:.3f} "
+                f"selected_score={selected_score:.3f} "
+                f"unselected_roi={unselected_roi} selected_roi={selected_roi}"
+            )
+        if is_compile_time_static_survey_roi(identity, unselected_roi):
+            raise RuntimeError(
+                "evidence_required: measured tier ROI matched compile-time static ROI; "
+                "fresh dynamic geometry is required"
+            )
+        # Geometry sanity: tier1 left of tier2 centerline within the search band.
+        cx = (unselected_roi[0] + unselected_roi[2]) // 2
+        search_left, _search_top, search_right, _search_bottom = TIER_CONTROL_SEARCH_ROI
+        mid = (search_left + search_right) // 2
+        if identity == "campaign-tier-1" and cx >= mid:
+            raise RuntimeError("campaign-tier-1 bound right of expected control band")
+        if identity == "campaign-tier-2" and cx <= mid:
+            raise RuntimeError("campaign-tier-2 bound left of expected control band")
+        return unselected_roi, float(unselected_score)
+    if identity == "campaign-exit-base":
+        best_roi: tuple[int, int, int, int] | None = None
+        best_score = float("-inf")
+        best_asset = ""
+        failures: list[str] = []
+        for asset_name in CAMPAIGN_EXIT_ASSETS:
+            try:
+                roi, score = _locate_template(
+                    frame,
+                    asset_name=asset_name,
+                    search_roi=CAMPAIGN_EXIT_SEARCH_ROI,
+                    threshold=CAMPAIGN_EXIT_TEMPLATE_THRESHOLD,
+                )
+            except RuntimeError as exc:
+                failures.append(f"{asset_name}:{exc}")
+                continue
+            if score > best_score:
+                best_roi = roi
+                best_score = float(score)
+                best_asset = asset_name
+        if best_roi is None:
+            raise RuntimeError(
+                "current-frame campaign-exit-base not bound by highlighted or "
+                f"unhighlighted template; failures={failures}"
+            )
+        left, top, right, bottom = best_roi
+        search_left, search_top, search_right, search_bottom = CAMPAIGN_EXIT_SEARCH_ROI
+        if not (
+            search_left <= left < right <= search_right
+            and search_top <= top < bottom <= search_bottom
+        ):
+            raise RuntimeError(
+                "campaign-exit-base measured ROI escapes exit search geometry: "
+                f"roi={best_roi} asset={best_asset}"
+            )
+        # Authority is template measurement on the fresh frame. Compile-time
+        # CAMPAIGN_EXIT_ROI is crop metadata only and never a live fallback.
+        return best_roi, float(best_score)
+    raise RuntimeError(f"no current-frame measured selector for survey target: {identity}")
 
 
 def is_compile_time_static_survey_roi(

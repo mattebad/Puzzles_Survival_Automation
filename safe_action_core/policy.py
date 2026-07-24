@@ -889,8 +889,20 @@ class CentralPolicy:
             if req.semantic_action == "DISMISS_RESET_POPUP":
                 if obs.source_state != "RESET_POPUP" or obs.target_identity != "reset-popup-close":
                     return deny, "RESET_POPUP_CLOSE_REQUIRED", "only the recognized reset popup Close control is allowed"
-                if obs.expected_postcondition != "HOME_BASE":
-                    return deny, "RESET_POPUP_SUCCESSOR_REQUIRED", "reset popup dismissal must return to Home/Base"
+                # Narrow task-keyed successor: Campaign atlas survey may expect
+                # CAMPAIGN_TIER_MAP; all other tasks keep HOME_BASE only.
+                campaign_atlas_task = (
+                    req.task_id == "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
+                )
+                if campaign_atlas_task:
+                    if obs.expected_postcondition != "CAMPAIGN_TIER_MAP":
+                        return deny, "RESET_POPUP_SUCCESSOR_REQUIRED", (
+                            "Campaign atlas VIP dismissal must return to CAMPAIGN_TIER_MAP"
+                        )
+                elif obs.expected_postcondition != "HOME_BASE":
+                    return deny, "RESET_POPUP_SUCCESSOR_REQUIRED", (
+                        "reset popup dismissal must return to Home/Base"
+                    )
                 x0, y0, x1, y1 = obs.target_roi
                 if x0 < 200 or y0 < 700 or x1 > 600 or y1 > 920:
                     return deny, "RESET_POPUP_CLOSE_ROI_INVALID", "reset popup Close target is outside its bounded ROI"

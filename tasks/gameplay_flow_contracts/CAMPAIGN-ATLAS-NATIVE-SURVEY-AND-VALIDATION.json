@@ -41,20 +41,23 @@
       "notes": "Preserve exact accounting; never identical blind retry."
     }
   ],
-  "permitted_inputs": [],
+  "permitted_inputs": [
+    "HUD-safe Campaign map pan gestures",
+    "current-frame measured Story difficulty 1 and 2 comparison taps"
+  ],
   "navigation_input_authorization": {
     "maximum_inputs": 272,
-    "inputs_used": 0,
-    "disposition": "blocked_preinput_safety_gates",
-    "reviewed_lower_bound": 4,
+    "inputs_used": 93,
+    "disposition": "authorized_navigation_only_survey",
+    "reviewed_lower_bound": 93,
     "budget_partitions": {
       "edge_clamp_steps": 128,
       "edge_steps_per_direction": 32,
       "overlapping_viewport_steps": 128,
       "auxiliary_entry_difficulty_safe_terminal_recovery": 16
     },
-    "maximum_sessions": 0,
-    "notes": "The reviewed ceiling remains recorded, but no live session is currently authorized because overlap association/coverage policy, current-frame measured non-static difficulty/exit/base selectors, and fresh-recapture non-trivial SafeAction successor reconciliation are absent."
+    "maximum_sessions": 1,
+    "notes": "Cumulative navigation_inputs_used=93 = AUX7/EDGE24/OVERLAP62 from accepted evidence chain ending at survey-20260724T023336884972Z (terminal native_survey_complete; recognized Home; session sent one exit input). survey-20260724T002912186392Z retained uncounted. Remaining 179 total / AUX9 / EDGE104 / OVERLAP66. Same unfinished controller live_attempt (finished_at null); next stage evidence_review."
   },
   "local_postconditions": [
     "evidence_required_or_native_survey_complete",
@@ -79,8 +82,7 @@
   "evidence_requirements": [
     "evidence_required: native four-edge and overlapping viewport corpus with hashes, masks, transforms, coverage, and loop closure",
     "evidence_required: independent cross-difficulty geometry and semantic anchor review",
-    "evidence_required: every navigation input retains source/immediate-before/transport/immediate-post/semantic/journal identity",
-    "evidence_required: fresh-recapture non-trivial SafeAction successor reconciliation before live clearance"
+    "evidence_required: every navigation input retains source/immediate-before/transport/immediate-post/semantic/journal identity"
   ],
   "replay_fixture_requirements": [
     {
@@ -93,10 +95,10 @@
   "live_validation_scenarios": [
     {
       "id": "campaign-atlas-native-survey",
-      "mode": "blocked_until_evidence",
+      "mode": "navigation_only",
       "maximum_navigation_inputs": 272,
-      "navigation_inputs_used": 0,
-      "notes": "Blocked before live_preflight; maximum_navigation_inputs=272; inputs_used=0; no input is permitted until overlap policy, measured non-static selectors, and fresh-recapture semantic successor reconciliation all close."
+      "navigation_inputs_used": 93,
+      "notes": "Cumulative navigation_inputs_used=93 = AUX7/EDGE24/OVERLAP62 from accepted evidence chain ending at survey-20260724T023336884972Z (terminal native_survey_complete; recognized Home; session sent one exit input). survey-20260724T002912186392Z retained uncounted. Remaining 179 total / AUX9 / EDGE104 / OVERLAP66. Same unfinished controller live_attempt (finished_at null); next stage evidence_review."
     }
   ],
   "unsupported_or_manual_only_states": [

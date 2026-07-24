@@ -32,7 +32,7 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": null,
+  "active_flow_id": "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
   "flows": [
     {
       "flow_id": "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
@@ -131,7 +131,7 @@
       "title": "Acquire and validate native Campaign atlas survey evidence",
       "kind": "navigation_validation",
       "priority": 6,
-      "status": "blocked",
+      "status": "active",
       "backlog_task_id": "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
       "dependencies": [
         "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP"
@@ -139,36 +139,81 @@
       "implementation_entrypoints": [
         "scripts/campaign_atlas_bluestacks.py",
         "scripts/flow_delivery_campaign_atlas_bluestacks.py",
+        "scripts/home_atlas_bluestacks.py",
         "tasks/campaign_atlas.py",
-        "tasks/campaign_atlas_vision.py"
+        "tasks/campaign_atlas_vision.py",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION.json",
+        "CURRENT_HANDOFF.md",
+        "BACKLOG.md",
+        "safe_action_core/policy.py",
+        "scripts/personal_might_praise_live.py",
+        "tasks/assets/campaign_auto_battle/800x1280/manifest.json",
+        "scripts/pnsctl.py",
+        "tasks/assets/campaign_auto_battle/800x1280/campaign_exit_unhighlighted.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/campaign-exit-unhighlighted/annotated-exit-unhighlighted-from-0006-campaign-exit-home-immediate-before.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/campaign-exit-unhighlighted/manifest.json",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier1-selected-from-0261-difficulty-tier-2-immediate-before.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier1-unselected-from-0258-difficulty-tier-1-immediate-before.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier2-selected-from-0258-difficulty-tier-1-immediate-before.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier2-unselected-from-0261-difficulty-tier-2-immediate-before.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/manifest.json",
+        "tasks/assets/campaign_auto_battle/800x1280/tier1_selected.png",
+        "tasks/assets/campaign_auto_battle/800x1280/tier1_unselected.png",
+        "tasks/assets/campaign_auto_battle/800x1280/tier2_selected.png",
+        "tasks/assets/campaign_auto_battle/800x1280/tier2_unselected.png",
+        "tasks/backlog_task_index.json",
+        "tasks/flow_delivery_queue.json"
       ],
       "navigation_model": "campaign_screen_atlas_native_survey_and_validation",
       "requires_bluestacks_live": true,
       "live_validation_scope": "One navigation-only survey session is authorized with a hard ceiling of 272 inputs: at most 128 edge-clamp steps, 128 overlapping-viewport steps, and 16 entry, difficulty-comparison, safe-terminal, or evidence-supported recovery inputs. Difficulty switching must never be used as recentering.",
       "consequence_policy": "Navigation-only survey; no stage selection, AP, Auto Battle, Ultimate Challenge action, or consequential input.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 0,
-      "live_attempt_count": 0,
-      "live_attempts": [],
-      "additional_live_attempts_authorized": 0,
+      "maximum_live_attempts": 1,
+      "live_attempt_count": 1,
+      "live_attempts": [
+        {
+          "ordinal": 1,
+          "active_flow": "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+          "lease_owner": "parent-cursor-chat-campaign-atlas-20260723",
+          "lease_session": "campaign-atlas-gate-closure-review-20260723",
+          "repository_head": "44f607ee816a52df947acf3bd33fae2435c0aa3a",
+          "started_at": "2026-07-23T23:05:17.405129Z",
+          "finished_at": "2026-07-24T02:52:20.001438Z",
+          "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION\\survey-20260724T023336884972Z",
+          "terminal_outcome": "completed",
+          "diagnosis": "Native Campaign survey completed at 93/272 inputs across accepted sessions survey-20260723T232154448911Z, survey-20260724T000253173324Z, survey-20260724T004227747200Z, survey-20260724T012057293610Z, survey-20260724T021222146973Z, and survey-20260724T023336884972Z; direct measured exit returned to recognized Home"
+        }
+      ],
+      "additional_live_attempts_authorized": 1,
       "maximum_navigation_inputs": 272,
-      "navigation_inputs_used": 0,
-      "navigation_budget_disposition": "blocked_preinput_safety_gates",
+      "navigation_inputs_used": 93,
+      "survey_continuation_prior_session_ids": [
+        "survey-20260723T232154448911Z",
+        "survey-20260724T000253173324Z",
+        "survey-20260724T004227747200Z",
+        "survey-20260724T012057293610Z",
+        "survey-20260724T021222146973Z",
+        "survey-20260724T023336884972Z"
+      ],
+      "navigation_budget_disposition": "authorized_navigation_only_survey",
       "focused_tests": [
         "tests/test_campaign_atlas.py",
         "tests/test_campaign_atlas_vision.py",
         "tests/test_campaign_atlas_collector.py",
         "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py"
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_home_atlas_verified_route.py",
+        "tests/test_personal_might_praise.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "navigation_input_count",
         "relocalization_residual_pixels"
       ],
-      "blocked_reason": "live_preflight inadmissible: overlap association/coverage policy absent; difficulty/exit/base selectors resolve to compile-time static ROIs; and non-trivial fresh-recapture SafeAction successor reconciliation is absent; zero inputs used",
-      "next_concrete_action": "Define and independently review an evidence-grounded overlap association/coverage policy, current-frame measured non-static difficulty/exit/base selectors, and fresh-recapture semantic successor reconciliation in a separate atomic task; no live_preflight or survey input is authorized until all three gates close.",
-      "last_completed_stage": "blocked",
+      "blocked_reason": "",
+      "next_concrete_action": "Advance to evidence_review for completed live session survey-20260724T023336884972Z (terminal native_survey_complete, used=93); parent runs finish-live-attempt after review-worktree.",
+      "last_completed_stage": "commit",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
       "acceptance_criteria": [
@@ -203,6 +248,7 @@
         "tasks/campaign_atlas_vision.py",
         "scripts/campaign_atlas_bluestacks.py",
         "scripts/flow_delivery_campaign_atlas_bluestacks.py",
+        "scripts/home_atlas_bluestacks.py",
         "scripts/pnsctl.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION.json",
@@ -213,16 +259,34 @@
         "tests/test_flow_delivery_authority_consistency.py",
         "tests/test_flow_delivery_orchestrator.py",
         "tests/test_flow_delivery_ide_native_hardening.py",
+        "tests/test_home_atlas_verified_route.py",
         "CURRENT_HANDOFF.md",
         "BACKLOG.md",
-        "tasks/backlog_task_index.json"
+        "tasks/backlog_task_index.json",
+        "safe_action_core/policy.py",
+        "scripts/personal_might_praise_live.py",
+        "tests/test_personal_might_praise.py",
+        "tasks/assets/campaign_auto_battle/800x1280/manifest.json",
+        "tasks/assets/campaign_auto_battle/800x1280/campaign_exit_unhighlighted.png",
+        "tasks/assets/campaign_auto_battle/800x1280/tier1_selected.png",
+        "tasks/assets/campaign_auto_battle/800x1280/tier1_unselected.png",
+        "tasks/assets/campaign_auto_battle/800x1280/tier2_selected.png",
+        "tasks/assets/campaign_auto_battle/800x1280/tier2_unselected.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/campaign-exit-unhighlighted/manifest.json",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/campaign-exit-unhighlighted/annotated-exit-unhighlighted-from-0006-campaign-exit-home-immediate-before.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/manifest.json",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier1-selected-from-0261-difficulty-tier-2-immediate-before.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier1-unselected-from-0258-difficulty-tier-1-immediate-before.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier2-selected-from-0258-difficulty-tier-1-immediate-before.png",
+        "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier2-unselected-from-0261-difficulty-tier-2-immediate-before.png"
       ],
       "live_validation_scenarios": [
         {
           "id": "campaign-atlas-native-survey",
-          "mode": "blocked_until_evidence",
+          "mode": "navigation_only",
           "maximum_navigation_inputs": 272,
-          "navigation_inputs_used": 0
+          "navigation_inputs_used": 93,
+          "notes": "Cumulative navigation_inputs_used=93 = AUX7/EDGE24/OVERLAP62 from accepted evidence chain ending at survey-20260724T023336884972Z (terminal native_survey_complete; recognized Home; session sent one exit input). survey-20260724T002912186392Z retained uncounted. Remaining 179 total / AUX9 / EDGE104 / OVERLAP66. Same unfinished controller live_attempt (finished_at null); next stage evidence_review."
         }
       ],
       "required_terminal_states": [
@@ -235,10 +299,11 @@
         "tests/test_campaign_atlas_vision.py",
         "tests/test_campaign_atlas_collector.py",
         "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py"
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_home_atlas_verified_route.py"
       ],
       "consequential_stage_policy": {
-        "live_input": "prohibited_until_overlap_policy_and_measured_selectors_exist",
+        "live_input": "navigation_only_survey_authorized",
         "stage_or_ap_action": "prohibited",
         "ultimate_challenge_action": "prohibited"
       }

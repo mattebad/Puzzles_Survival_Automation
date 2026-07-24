@@ -142,9 +142,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         self.assertIn(counts["active"], (0, 1))
         # Approved but evidence-gated flows remain blocked; Gathering alone still needs a decision.
         # Both Nova flows (home atlas migration and supervised one-free pulse) are completed.
-        # Campaign atlas native survey is blocked before live preflight.
-        self.assertEqual(counts["ready"] + counts["active"], 6)
-        self.assertEqual(counts["blocked"], 12)
+        # Campaign atlas native survey has one bounded navigation-only attempt.
+        self.assertEqual(counts["ready"] + counts["active"], 7)
+        self.assertEqual(counts["blocked"], 11)
         self.assertEqual(counts["completed"], 3)
         self.assertEqual(counts["needs_product_decision"], 1)
 

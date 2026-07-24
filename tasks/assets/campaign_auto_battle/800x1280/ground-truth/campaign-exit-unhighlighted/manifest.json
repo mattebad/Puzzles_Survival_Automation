@@ -1,0 +1,45 @@
+{
+  "authority_note": "Independent ground truth for unhighlighted Campaign exit control. Existing campaign_exit.png remains the highlighted variant. Static CAMPAIGN_EXIT_ROI is crop metadata only and never authorizes live binding.",
+  "created_utc": "2026-07-24T02:24:25Z",
+  "crop_roi_xyxy": [
+    690,
+    920,
+    800,
+    1060
+  ],
+  "exit_search_roi_xyxy": [
+    560,
+    780,
+    800,
+    1140
+  ],
+  "flow_id": "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+  "kind": "campaign_exit_unhighlighted_ground_truth",
+  "native_size": [
+    800,
+    1280
+  ],
+  "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+  "schema_version": 1,
+  "templates": [
+    {
+      "annotated_source_path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/campaign-exit-unhighlighted/annotated-exit-unhighlighted-from-0006-campaign-exit-home-immediate-before.png",
+      "annotated_source_sha256": "ababfeed9fc1d70008991d2b7c3e1f4e573d48167eb86982ffc7f399882a9042",
+      "asset_name": "campaign_exit_unhighlighted.png",
+      "crop_roi_xyxy": [
+        690,
+        920,
+        800,
+        1060
+      ],
+      "notes": "Unhighlighted Campaign exit/base control cropped from current TIER_MAP tier2-selected frame; highlighted campaign_exit.png must not be the sole matcher.",
+      "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+      "selection_state": "unhighlighted",
+      "source_frame_path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION/survey-20260724T021222146973Z/runtime/frames/0006-campaign-exit-home-immediate-before.png",
+      "source_frame_sha256": "4ef20c76232a2995a2d48f66f4b41ecd40b93e90c681ed5d634e4e5addabb759",
+      "source_session_id": "survey-20260724T021222146973Z",
+      "template_path": "tasks/assets/campaign_auto_battle/800x1280/campaign_exit_unhighlighted.png",
+      "template_sha256": "cd444f1d3935ebef82cd3b09bf2a0b108e99a68200f1816ff0d6ff336d3a68d1"
+    }
+  ]
+}

@@ -226,10 +226,111 @@ class PraiseExecutorTests(unittest.TestCase):
             game_day_id="daily-2026-07-13",
             action_class=ActionClass.NAVIGATION_ONLY,
         )
-        self.assertEqual(CentralPolicy().evaluate(request).reason_code, "AUTHORIZED_NAVIGATION_ONLY")
+        self.assertEqual(
+            CentralPolicy().evaluate(request).reason_code, "AUTHORIZED_NAVIGATION_ONLY"
+        )
         self.assertEqual(
             CentralPolicy().evaluate(replace(request, observation=replace(obs, overlay_state="unknown"))).reason_code,
             "UNKNOWN_OVERLAY",
+        )
+
+    def test_campaign_atlas_vip_dismiss_successor_is_task_keyed(self):
+        """Only CAMPAIGN-ATLAS may expect CAMPAIGN_TIER_MAP; other tasks keep HOME_BASE."""
+
+        from dataclasses import replace
+
+        from safe_action_core.models import ActionClass, Observation, PolicyRequest
+        from safe_action_core.policy import CentralPolicy
+
+        profile = "pns-blissos-poc-virgl-800x1280-v1"
+        base_obs = Observation(
+            frame_sha256="a" * 64,
+            capture_completed_monotonic=999.5,
+            runtime_profile_id=profile,
+            width=800,
+            height=1280,
+            valid_png=True,
+            corrupt=False,
+            black=False,
+            source_state="RESET_POPUP",
+            overlay_state="known_reset_popup",
+            target_identity="reset-popup-close",
+            target_roi=(280, 770, 520, 845),
+            consequence="navigate_zero_cost",
+            cost_type="none",
+            cost_amount=0,
+            quantity=1,
+            expected_postcondition="CAMPAIGN_TIER_MAP",
+            critical_roi_hashes=(("popup_close", "b" * 64),),
+        )
+
+        def _req(task_id: str, obs: Observation) -> PolicyRequest:
+            return PolicyRequest(
+                action_id="popup-campaign-1",
+                action_key="popup:campaign-atlas-vip",
+                task_id=task_id,
+                task_mode="supervised_validation",
+                semantic_action="DISMISS_RESET_POPUP",
+                expected_runtime_profile_id=profile,
+                observation=obs,
+                monotonic_now=1000.0,
+                observation_max_age_seconds=3.0,
+                dispatch_max_age_seconds=2.0,
+                lease_owner="popup",
+                lease_valid=True,
+                unresolved_action=False,
+                duplicate_action_key=False,
+                action_class=ActionClass.NAVIGATION_ONLY,
+            )
+
+        policy = CentralPolicy(
+            supervised_tasks=frozenset(
+                {
+                    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+                    "MVP-QUEST-TO-CLAIM",
+                }
+            )
+        )
+        self.assertEqual(
+            policy.evaluate(
+                _req("CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION", base_obs)
+            ).reason_code,
+            "AUTHORIZED_NAVIGATION_ONLY",
+        )
+        # Other tasks cannot use CAMPAIGN_TIER_MAP successor.
+        self.assertEqual(
+            policy.evaluate(_req("MVP-QUEST-TO-CLAIM", base_obs)).reason_code,
+            "RESET_POPUP_SUCCESSOR_REQUIRED",
+        )
+        # Campaign task cannot keep HOME_BASE successor.
+        self.assertEqual(
+            policy.evaluate(
+                _req(
+                    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+                    replace(base_obs, expected_postcondition="HOME_BASE"),
+                )
+            ).reason_code,
+            "RESET_POPUP_SUCCESSOR_REQUIRED",
+        )
+        # Non-campaign HOME_BASE path unchanged.
+        self.assertEqual(
+            policy.evaluate(
+                _req(
+                    "MVP-QUEST-TO-CLAIM",
+                    replace(base_obs, expected_postcondition="HOME_BASE"),
+                )
+            ).reason_code,
+            "AUTHORIZED_NAVIGATION_ONLY",
+        )
+        # Wrong ROI still denied for campaign task.
+        self.assertEqual(
+            policy.evaluate(
+                _req(
+                    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+                    replace(base_obs, target_roi=(100, 770, 180, 845)),
+                )
+            ).reason_code,
+            "RESET_POPUP_CLOSE_ROI_INVALID",
         )
 
 

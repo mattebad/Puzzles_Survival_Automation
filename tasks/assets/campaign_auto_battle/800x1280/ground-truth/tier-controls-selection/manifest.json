@@ -1,0 +1,106 @@
+{
+  "authority_note": "Independent ground truth for selection-aware Survey difficulty taps. Static compile-time ROIs never authorize live binding; fresh current-frame template match plus selection-state checks are required.",
+  "created_utc": "2026-07-24T01:58:29Z",
+  "dual_controls_match_roi_xyxy": [
+    410,
+    65,
+    625,
+    133
+  ],
+  "dual_controls_search_roi_xyxy": [
+    320,
+    35,
+    710,
+    190
+  ],
+  "flow_id": "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+  "kind": "campaign_tier_control_selection_ground_truth",
+  "native_size": [
+    800,
+    1280
+  ],
+  "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+  "schema_version": 1,
+  "templates": [
+    {
+      "annotated_source_path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier1-unselected-from-0258-difficulty-tier-1-immediate-before.png",
+      "annotated_source_sha256": "c262b3db1671ff025b80fa8cce1083e53cc0e78e0e239bad417fe07d822465bf",
+      "asset_name": "tier1_unselected.png",
+      "crop_roi_xyxy": [
+        415,
+        65,
+        512,
+        133
+      ],
+      "notes": "Per-button unselected crop for Story difficulty tier 1; source frame shows companion selected_tier=2.",
+      "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+      "selection_state": "unselected",
+      "source_frame_path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION/survey-20260724T012057293610Z/runtime/frames/0258-difficulty-tier-1-immediate-before.png",
+      "source_frame_sha256": "0f711504e11021032e0a13e464791c6fe2044516af99fc2e2f6a65b959e536aa",
+      "source_session_id": "survey-20260724T012057293610Z",
+      "template_path": "tasks/assets/campaign_auto_battle/800x1280/tier1_unselected.png",
+      "template_sha256": "e2d8c87415f43e5bbffd3a8dc26d2a7c435faa51835bd8df00f6f44ce3455907",
+      "tier": 1
+    },
+    {
+      "annotated_source_path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier2-unselected-from-0261-difficulty-tier-2-immediate-before.png",
+      "annotated_source_sha256": "f47386ad5576b669d765bb38ddc6aedcf1e52c148036320ef04352af693f2742",
+      "asset_name": "tier2_unselected.png",
+      "crop_roi_xyxy": [
+        522,
+        65,
+        620,
+        133
+      ],
+      "notes": "Per-button unselected crop for Story difficulty tier 2; source frame shows companion selected_tier=1.",
+      "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+      "selection_state": "unselected",
+      "source_frame_path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION/survey-20260724T012057293610Z/runtime/frames/0261-difficulty-tier-2-immediate-before.png",
+      "source_frame_sha256": "1e0477775c663fdc989ba9f2a265bf34eacd26bdf39996fb2ef1c208cab8939e",
+      "source_session_id": "survey-20260724T012057293610Z",
+      "template_path": "tasks/assets/campaign_auto_battle/800x1280/tier2_unselected.png",
+      "template_sha256": "d45ab07ff182148c7113777b54f253f734b09a6c5ccecadd077e8b9d37aa75cb",
+      "tier": 2
+    },
+    {
+      "annotated_source_path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier1-selected-from-0261-difficulty-tier-2-immediate-before.png",
+      "annotated_source_sha256": "14acd3608f73f499f653de31908cdc97d6b010c92763f83d868dfe1d3039e9cc",
+      "asset_name": "tier1_selected.png",
+      "crop_roi_xyxy": [
+        415,
+        65,
+        512,
+        133
+      ],
+      "notes": "Per-button selected crop for Story difficulty tier 1; source frame shows companion selected_tier=1.",
+      "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+      "selection_state": "selected",
+      "source_frame_path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION/survey-20260724T012057293610Z/runtime/frames/0261-difficulty-tier-2-immediate-before.png",
+      "source_frame_sha256": "1e0477775c663fdc989ba9f2a265bf34eacd26bdf39996fb2ef1c208cab8939e",
+      "source_session_id": "survey-20260724T012057293610Z",
+      "template_path": "tasks/assets/campaign_auto_battle/800x1280/tier1_selected.png",
+      "template_sha256": "8339c1f1dbf78b6dd1f73e883525bb19b497a1cf4a20457f3b61379fde04e593",
+      "tier": 1
+    },
+    {
+      "annotated_source_path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier2-selected-from-0258-difficulty-tier-1-immediate-before.png",
+      "annotated_source_sha256": "9109ee320c405e5d0b76e6c74272e9291282ce641b77d08b4efe9454a24deff9",
+      "asset_name": "tier2_selected.png",
+      "crop_roi_xyxy": [
+        522,
+        65,
+        620,
+        133
+      ],
+      "notes": "Per-button selected crop for Story difficulty tier 2; source frame shows companion selected_tier=2.",
+      "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+      "selection_state": "selected",
+      "source_frame_path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION/survey-20260724T012057293610Z/runtime/frames/0258-difficulty-tier-1-immediate-before.png",
+      "source_frame_sha256": "0f711504e11021032e0a13e464791c6fe2044516af99fc2e2f6a65b959e536aa",
+      "source_session_id": "survey-20260724T012057293610Z",
+      "template_path": "tasks/assets/campaign_auto_battle/800x1280/tier2_selected.png",
+      "template_sha256": "4da4c0a2e651aa3c42afb71d15bb0f6856fd02be7c005ad086d35af2adaf6cd1",
+      "tier": 2
+    }
+  ]
+}

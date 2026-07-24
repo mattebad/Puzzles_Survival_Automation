@@ -3145,6 +3145,7 @@ def run_verified_campaign_home_atlas_entry(
     )
     store: SafetyStore | None = None
     last_residual: float | None = None
+    source_home_recorded = False
 
     def _ensure_store() -> SafetyStore:
         nonlocal store
@@ -3200,14 +3201,41 @@ def run_verified_campaign_home_atlas_entry(
                     "records": records,
                     "relocalization_residual_pixels": last_residual,
                 }
+            if not source_home_recorded:
+                record_source_home_verified(
+                    nav_session,
+                    frame=identity,
+                    localization_confidence=localization.confidence,
+                    localization_residual_px=localization.residual_px,
+                    contextual_class=(
+                        perception.context.contextual_class.value if perception.context else ""
+                    ),
+                )
+                source_home_recorded = True
             last_residual = _residual(localization.residual_px)
             controller.calibration = session_calibration.effective_gesture_calibration()
             plan = controller.plan(localization, binding)
+            origin = (
+                camera_origin(localization)
+                if localization.recognized and localization.screen_to_atlas is not None
+                else None
+            )
+            record_plan(
+                nav_session,
+                requested=plan.requested_camera_displacement,
+                predicted=plan.predicted_camera_displacement,
+                remaining=plan.predicted_remaining_displacement,
+                reason=plan.reason,
+                seen_viewport=(
+                    (int(round(origin[0])), int(round(origin[1]))) if origin is not None else None
+                ),
+            )
             record = {
                 "ordinal": ordinal,
                 "disposition": plan.disposition.value,
                 "reason": plan.reason,
                 "building_id": building_id,
+                "navigation_checkpoint": nav_session.checkpoint.value,
             }
             records.append(record)
             if plan.disposition is PlanDisposition.COMPLETE and binding is not None:
@@ -3352,10 +3380,34 @@ def run_verified_campaign_home_atlas_entry(
                     time.sleep(settle_seconds)
                 settled = runtime.capture(f"campaign-entry-{ordinal:02d}-settled")
                 settled_localization = localizer.localize(settled.frame)
+                settled_ordinal = getattr(runtime, "ordinal", None)
+                if settled_ordinal is None:
+                    settled_ordinal = ordinal + 2
+                settled_identity = identity_from_captured(
+                    settled,
+                    session_id=str(runtime.session),
+                    ordinal=int(settled_ordinal),
+                    label=f"campaign-entry-{ordinal:02d}-settled",
+                )
                 progress = controller.record_progress(localization, settled_localization)
                 last_residual = _residual(
                     settled_localization.residual_px,
                     progress.remaining_displacement,
+                )
+                reconcile_pan(
+                    nav_session,
+                    action_key,
+                    post_frame=settled_identity,
+                    measured=progress.measured_camera_displacement,
+                    residual=progress.remaining_displacement,
+                    progress_px=progress.progress_px,
+                    accepted=progress.accepted,
+                    reason=progress.reason,
+                    localization_confidence=(
+                        settled_localization.confidence
+                        if settled_localization.recognized
+                        else None
+                    ),
                 )
                 if not progress.accepted:
                     return {

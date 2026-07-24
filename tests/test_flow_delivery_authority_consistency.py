@@ -95,7 +95,7 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertEqual(campaign["historical_live_attempt_count"], 3)
         self.assertEqual(len(campaign["historical_live_attempts"]), 3)
 
-    def test_campaign_atlas_dependency_chain_is_evidence_first_and_zero_budget(self) -> None:
+    def test_campaign_atlas_dependency_chain_authorizes_one_bounded_survey(self) -> None:
         queue = _read(QUEUE)
         by_id = {item["flow_id"]: item for item in queue["flows"]}
         prep = by_id["CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP"]
@@ -109,16 +109,62 @@ class AuthorityConsistencyTests(unittest.TestCase):
             self.assertEqual(flow["maximum_live_attempts"], 0)
             self.assertEqual(flow["live_attempt_count"], 0)
             self.assertEqual(flow["additional_live_attempts_authorized"], 0)
-        self.assertEqual(survey["live_attempt_count"], 0)
-        self.assertEqual(survey["additional_live_attempts_authorized"], 0)
+        self.assertEqual(survey["live_attempt_count"], 1)
+        self.assertEqual(survey["additional_live_attempts_authorized"], 1)
         self.assertEqual(survey["maximum_navigation_inputs"], 272)
-        self.assertEqual(survey["navigation_inputs_used"], 0)
+        self.assertEqual(survey["navigation_inputs_used"], 93)
+        self.assertEqual(
+            survey["live_validation_scenarios"][0]["navigation_inputs_used"],
+            93,
+        )
         self.assertEqual(
             survey["navigation_budget_disposition"],
-            "blocked_preinput_safety_gates",
+            "authorized_navigation_only_survey",
         )
-        self.assertEqual(survey["maximum_live_attempts"], 0)
-        self.assertIn("live_preflight inadmissible", survey["blocked_reason"])
+        self.assertEqual(survey["maximum_live_attempts"], 1)
+        self.assertIsNone(survey["live_attempts"][0]["finished_at"])
+        self.assertIsNone(survey["live_attempts"][0]["terminal_outcome"])
+        self.assertIsNone(survey["live_attempts"][0]["session_directory"])
+        self.assertEqual(
+            survey.get("survey_continuation_prior_session_ids"),
+            [
+                "survey-20260723T232154448911Z",
+                "survey-20260724T000253173324Z",
+                "survey-20260724T004227747200Z",
+                "survey-20260724T012057293610Z",
+                "survey-20260724T021222146973Z",
+                "survey-20260724T023336884972Z",
+            ],
+        )
+        diagnosis = str(survey["live_attempts"][0].get("diagnosis") or "")
+        self.assertIn("survey-20260723T232154448911Z", diagnosis)
+        self.assertIn("survey-20260724T000253173324Z", diagnosis)
+        self.assertIn("survey-20260724T004227747200Z", diagnosis)
+        self.assertIn("survey-20260724T012057293610Z", diagnosis)
+        self.assertIn("survey-20260724T021222146973Z", diagnosis)
+        self.assertIn("survey-20260724T023336884972Z", diagnosis)
+        self.assertIn("used=93", diagnosis)
+        self.assertIn("native_survey_complete", diagnosis)
+        self.assertIn("survey-20260724T002912186392Z", diagnosis)
+        self.assertIn("evidence_review", diagnosis)
+        self.assertEqual(survey["last_completed_stage"], "live_execution")
+        self.assertIn(
+            "tasks/assets/campaign_auto_battle/800x1280/campaign_exit_unhighlighted.png",
+            survey["implementation_allowlist_seed"],
+        )
+        self.assertIn(
+            "tasks/assets/campaign_auto_battle/800x1280/tier1_selected.png",
+            survey["implementation_allowlist_seed"],
+        )
+        self.assertIn(
+            "safe_action_core/policy.py",
+            survey["implementation_allowlist_seed"],
+        )
+        self.assertIn(
+            "scripts/personal_might_praise_live.py",
+            survey["implementation_allowlist_seed"],
+        )
+        self.assertEqual(survey["blocked_reason"], "")
         self.assertEqual(
             survey["focused_tests"],
             [
@@ -127,16 +173,33 @@ class AuthorityConsistencyTests(unittest.TestCase):
                 "tests/test_campaign_atlas_collector.py",
                 "tests/test_flow_delivery_authority_consistency.py",
                 "tests/test_flow_delivery_orchestrator.py",
+                "tests/test_home_atlas_verified_route.py",
             ],
         )
         self.assertEqual(survey["completion_tests"], survey["focused_tests"])
         self.assertIn("scripts/flow_delivery_campaign_atlas_bluestacks.py", survey["implementation_entrypoints"])
         self.assertIn(
+            "scripts/home_atlas_bluestacks.py",
+            survey["implementation_entrypoints"],
+        )
+        self.assertIn(
             "scripts/flow_delivery_campaign_atlas_bluestacks.py",
             survey["implementation_allowlist_seed"],
         )
         self.assertIn(
+            "scripts/home_atlas_bluestacks.py",
+            survey["implementation_allowlist_seed"],
+        )
+        self.assertIn(
             "tests/test_flow_delivery_orchestrator.py",
+            survey["implementation_allowlist_seed"],
+        )
+        self.assertIn(
+            "tests/test_home_atlas_verified_route.py",
+            survey["implementation_allowlist_seed"],
+        )
+        self.assertNotIn(
+            "tests/test_navigation_session.py",
             survey["implementation_allowlist_seed"],
         )
         registry = _read(REGISTRY)

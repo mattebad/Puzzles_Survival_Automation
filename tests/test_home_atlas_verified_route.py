@@ -1304,6 +1304,161 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             self.assertIs(telemetry.get("verified"), False)
             self.assertIs(telemetry.get("completed"), False)
 
+    def test_campaign_home_entry_plans_before_pan_prepare(self) -> None:
+        """Campaign entry must advance created -> source_home -> plan_created before prepare."""
+
+        from scripts.home_atlas_bluestacks import (
+            CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            run_verified_campaign_home_atlas_entry,
+        )
+        from tasks.navigation_session import (
+            NavigationCheckpoint,
+            NavigationSessionError,
+            record_pan_prepared,
+            record_plan,
+            record_source_home_verified,
+        )
+
+        campaign = _building(
+            semantic_id=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            polygon=((900, 900), (1040, 900), (1040, 1040), (900, 1040)),
+        )
+        world = _atlas(campaign)
+        lifecycle: list[tuple[str, str]] = []
+
+        def _wrap_source(session, **kwargs):
+            lifecycle.append(("before_source_home", session.checkpoint.value))
+            record_source_home_verified(session, **kwargs)
+            lifecycle.append(("after_source_home", session.checkpoint.value))
+
+        def _wrap_plan(session, **kwargs):
+            lifecycle.append(("before_plan", session.checkpoint.value))
+            record_plan(session, **kwargs)
+            lifecycle.append(("after_plan", session.checkpoint.value))
+
+        def _wrap_prepare(session, **kwargs):
+            lifecycle.append(("before_prepare", session.checkpoint.value))
+            if session.checkpoint is not NavigationCheckpoint.PLAN_CREATED:
+                raise NavigationSessionError("PREPARE_REQUIRES_PLAN", session.checkpoint.value)
+            return record_pan_prepared(session, **kwargs)
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            sample = runtime.capture("seed")
+            digest = frame_digest(sample.frame)
+            loc = replace(_localization(digest, x=0.0, y=0.0), frame_sha256=digest)
+            fake_localizer = SimpleNamespace(
+                localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame))
+            )
+            with patch(
+                "scripts.home_atlas_bluestacks.require_campaign_home_atlas_building",
+                return_value=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            ), patch(
+                "scripts.home_atlas_bluestacks.load_home_atlas",
+                return_value=world,
+            ), patch(
+                "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer",
+                return_value=fake_localizer,
+            ), patch(
+                "scripts.home_atlas_bluestacks.bind_visible_building",
+                return_value=None,
+            ), patch(
+                "scripts.home_atlas_bluestacks.record_source_home_verified",
+                side_effect=_wrap_source,
+            ), patch(
+                "scripts.home_atlas_bluestacks.record_plan",
+                side_effect=_wrap_plan,
+            ), patch(
+                "scripts.home_atlas_bluestacks.record_pan_prepared",
+                side_effect=_wrap_prepare,
+            ), patch(
+                "scripts.home_atlas_bluestacks.time.monotonic",
+                side_effect=lambda: float(runtime.ordinal) + 0.2,
+            ):
+                result = run_verified_campaign_home_atlas_entry(
+                    runtime,
+                    atlas_path=Path(directory) / "atlas.json",
+                    maximum_pans=1,
+                    execute=True,
+                    settle_seconds=0,
+                    semantic_opened_check=lambda _frame: False,
+                )
+
+            self.assertEqual(result["status"], "blocked_fail_closed")
+            self.assertEqual(len(runtime.swipes), 1)
+            self.assertEqual(
+                [item[0] for item in lifecycle[:6]],
+                [
+                    "before_source_home",
+                    "after_source_home",
+                    "before_plan",
+                    "after_plan",
+                    "before_prepare",
+                ],
+            )
+            self.assertEqual(lifecycle[0][1], NavigationCheckpoint.CREATED.value)
+            self.assertEqual(
+                lifecycle[1][1], NavigationCheckpoint.SOURCE_HOME_VERIFIED.value
+            )
+            self.assertEqual(lifecycle[2][1], NavigationCheckpoint.SOURCE_HOME_VERIFIED.value)
+            self.assertEqual(lifecycle[3][1], NavigationCheckpoint.PLAN_CREATED.value)
+            self.assertEqual(lifecycle[4][1], NavigationCheckpoint.PLAN_CREATED.value)
+            self.assertEqual(result["records"][0]["navigation_checkpoint"], "plan_created")
+
+    def test_campaign_home_entry_fail_closed_without_plan(self) -> None:
+        """Skipping record_plan must still fail closed at prepare; no pan dispatch."""
+
+        from scripts.home_atlas_bluestacks import (
+            CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            run_verified_campaign_home_atlas_entry,
+        )
+        from tasks.navigation_session import NavigationSessionError
+
+        campaign = _building(
+            semantic_id=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            polygon=((900, 900), (1040, 900), (1040, 1040), (900, 1040)),
+        )
+        world = _atlas(campaign)
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            sample = runtime.capture("seed")
+            digest = frame_digest(sample.frame)
+            loc = replace(_localization(digest), frame_sha256=digest)
+            fake_localizer = SimpleNamespace(
+                localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame))
+            )
+            with patch(
+                "scripts.home_atlas_bluestacks.require_campaign_home_atlas_building",
+                return_value=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            ), patch(
+                "scripts.home_atlas_bluestacks.load_home_atlas",
+                return_value=world,
+            ), patch(
+                "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer",
+                return_value=fake_localizer,
+            ), patch(
+                "scripts.home_atlas_bluestacks.bind_visible_building",
+                return_value=None,
+            ), patch(
+                "scripts.home_atlas_bluestacks.record_plan",
+                lambda *_args, **_kwargs: None,
+            ), patch(
+                "scripts.home_atlas_bluestacks.time.monotonic",
+                side_effect=lambda: float(runtime.ordinal) + 0.2,
+            ):
+                with self.assertRaises(NavigationSessionError) as raised:
+                    run_verified_campaign_home_atlas_entry(
+                        runtime,
+                        atlas_path=Path(directory) / "atlas.json",
+                        maximum_pans=1,
+                        execute=True,
+                        settle_seconds=0,
+                        semantic_opened_check=lambda _frame: False,
+                    )
+            self.assertEqual(raised.exception.reason_code, "PREPARE_REQUIRES_PLAN")
+            self.assertEqual(str(raised.exception), "source_home_verified")
+            self.assertEqual(runtime.swipes, [])
+
 
 if __name__ == "__main__":
     unittest.main()
