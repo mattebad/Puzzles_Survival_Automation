@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed controller for the serial gameplay-flow development queue.
+"""Fail-closed controller for the parent-led gameplay-flow development queue.
 
 The controller never invokes an agent, executes gameplay input, mutates the gameplay scheduler, or
 changes SafetyStore action results.
@@ -25,7 +25,6 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts import flow_delivery_parent_progress as parent_progress
-from scripts import flow_delivery_routing_policy as routing_policy
 from tasks.flow_scenario_attempts import (
     NOVA_CANARY_SCENARIO_ID,
     ScenarioAttemptError,
@@ -40,7 +39,6 @@ DEFAULT_POLICY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.json"
 DEFAULT_COVERAGE_PATH = REPO_ROOT / "tasks" / "flow_delivery_coverage.json"
 DEFAULT_REGISTRY_PATH = REPO_ROOT / "tasks" / "flow_delivery_bluestacks_registry.json"
 DEFAULT_CONTRACTS_DIR = REPO_ROOT / "tasks" / "gameplay_flow_contracts"
-DEFAULT_ROUTING_POLICY_PATH = routing_policy.DEFAULT_ROUTING_POLICY_PATH
 DEFAULT_LOOP_POLICY_PATH = parent_progress.DEFAULT_LOOP_POLICY_PATH
 DEFAULT_PROGRESS_PATH = parent_progress.DEFAULT_PROGRESS_PATH
 DEFAULT_LEASE_PATH = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
@@ -53,8 +51,6 @@ CANARY_FLOW_ID = "IDE-NATIVE-SUBAGENT-CANARY"
 PARENT_CONVERSATION_ROLLOVER_REQUIRED = parent_progress.PARENT_CONVERSATION_ROLLOVER_REQUIRED
 RESUME_INVOCATION = parent_progress.RESUME_INVOCATION
 COUNTED_GAMEPLAY_QUEUE_KIND = "development_flow_delivery"
-SUBAGENT_ROUTING_POLICY = routing_policy.load_subagent_routing_policy()
-SUBAGENT_ROUTING_POLICY_DIGEST = routing_policy.routing_policy_digest(SUBAGENT_ROUTING_POLICY)
 ACTIVE_DELIVERY_STAGES = {
     "selected",
     "reconnaissance",
@@ -118,10 +114,6 @@ READY_FLOW_PACKET_FIELDS = {
     "completion_tests",
     "consequential_stage_policy",
 }
-EXPECTED_SUBAGENT_MODEL = SUBAGENT_ROUTING_POLICY["approved_model"]
-SUBAGENT_TERMINAL_OUTCOMES = {"completed", "blocked", "failed"}
-STAGE_AGENTS = dict(SUBAGENT_ROUTING_POLICY["stage_agents"])
-ALLOWED_SUBAGENTS = set(SUBAGENT_ROUTING_POLICY["allowed_agents"])
 REQUIRED_RECEIPTS_BY_STAGE = {
     "focused_validation": {"focused_tests", "architecture_tests"},
     "full_validation": {"full_suite"},
@@ -146,15 +138,9 @@ OVERHEAD_KINDS = {
 }
 # Empty mapping: every navigation-only stage defers the kinds above.
 NAVIGATION_ONLY_OVERHEAD_BY_STAGE: dict[str, set[str]] = {}
-# Consequential / promotion controller paths still build stage context packets
-# (and their dependency digests) before native subagent stages.
-CONSEQUENTIAL_OVERHEAD_BY_STAGE = {
-    "reconnaissance": {"context_packet", "dependency_section_digests"},
-    "implementation": {"context_packet", "dependency_section_digests"},
-    "implementation_review": {"context_packet", "dependency_section_digests"},
-    "correction": {"context_packet", "dependency_section_digests"},
-    "evidence_review": {"context_packet", "dependency_section_digests"},
-}
+# Context packets and dependency digests are optional parent conveniences. They
+# are no longer a prerequisite for ordinary implementation or correction.
+CONSEQUENTIAL_OVERHEAD_BY_STAGE: dict[str, set[str]] = {}
 
 
 def _flow_consequence_class(flow: Mapping[str, Any]) -> str:
@@ -170,14 +156,7 @@ def required_receipts_for(consequence_class: str, stage: str) -> set[str]:
 
 
 def required_overhead_for(consequence_class: str, stage: str) -> set[str]:
-    """Return deferred-or-required governance overhead kinds for a stage.
-
-    Navigation-only discovery returns the empty set so context packets, strict
-    manifests, dependency digests, and replay-capsule promotion are not required
-    until stabilization/promotion. Consequential stages keep context packets
-    before native subagent work. This helper does not authorize live input and
-    does not replace automatic runner evidence requirements.
-    """
+    """Return optional governance overhead; no agent packet is mandatory."""
     if consequence_class == "navigation_only":
         return set(NAVIGATION_ONLY_OVERHEAD_BY_STAGE.get(stage, set()))
     return set(CONSEQUENTIAL_OVERHEAD_BY_STAGE.get(stage, set()))
@@ -240,11 +219,14 @@ REQUIRED_LEASE_FIELDS = {
     "gates",
 }
 TRANSITIONS = {
-    "selected": {"reconnaissance", "blocked"},
-    "reconnaissance": {"implementation", "blocked"},
-    "implementation": {"implementation_review", "blocked"},
+    # These descriptive stages remain available for queue history, but they are
+    # no longer a mandatory agent pipeline. The parent can take the shortest
+    # safe path to implementation or validation.
+    "selected": {"reconnaissance", "implementation", "focused_validation", "blocked"},
+    "reconnaissance": {"implementation", "focused_validation", "blocked"},
+    "implementation": {"implementation_review", "focused_validation", "blocked"},
     "implementation_review": {"correction", "focused_validation", "blocked"},
-    "correction": {"implementation_review", "blocked"},
+    "correction": {"implementation", "implementation_review", "focused_validation", "blocked"},
     "focused_validation": {"full_validation", "blocked"},
     "full_validation": {"live_preflight", "evidence_review", "commit", "blocked"},
     "live_preflight": {"live_execution", "blocked"},
@@ -1134,7 +1116,7 @@ class FlowDeliveryController:
         if lease["safety_blocked_flow"]:
             raise FlowDeliveryError("previous live work remains safety-blocked")
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("writable subagent marker remains unresolved")
+            raise FlowDeliveryError("optional delegated writer remains active")
         if not self._attempts_terminal(queue):
             raise FlowDeliveryError("a prior live attempt lacks terminal evidence")
 
@@ -1291,10 +1273,6 @@ class FlowDeliveryController:
                 unsafe.append("runtime_ownership")
             if lease.get("unresolved_action_state") != "clear":
                 unsafe.append("unresolved_action")
-            for receipt in lease.get("subagent_invocation_receipts") or []:
-                if receipt.get("terminal_outcome") not in SUBAGENT_TERMINAL_OUTCOMES:
-                    unsafe.append("active_native_subagent_invocation")
-                    break
             for flow in queue["flows"]:
                 for attempt in flow.get("live_attempts") or []:
                     if attempt.get("finished_at") is None:
@@ -1431,8 +1409,6 @@ class FlowDeliveryController:
                 raise FlowDeliveryError("unresolved action remains")
             if lease.get("active_stage") in ACTIVE_DELIVERY_STAGES:
                 raise FlowDeliveryError("active delivery stage remains")
-        if self.writable_marker_path.exists():
-            raise FlowDeliveryError("writable marker still present")
         resolved = self._resolve_commit(counted_commit)
         if self._repo_head() != resolved:
             raise FlowDeliveryError("counted commit must be current HEAD")
@@ -1565,7 +1541,7 @@ class FlowDeliveryController:
         if self.lease_path.exists():
             raise FlowDeliveryError(f"development lease conflict: {self.lease()['owner']}")
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("writable subagent marker remains unresolved")
+            raise FlowDeliveryError("optional delegated writer marker remains unresolved")
         queue, _ = self.load()
         if ide_native_canary:
             if queue.get("active_flow_id"):
@@ -1725,6 +1701,8 @@ class FlowDeliveryController:
 
     def review_worktree(self, *, owner: str, paths: Sequence[str]) -> dict[str, Any]:
         lease = self._require_lease(owner)
+        if self.writable_marker_path.exists():
+            raise FlowDeliveryError("cannot review worktree while delegated writer is active")
         if lease["lease_mode"] != "delivery" or not lease["active_flow"]:
             raise FlowDeliveryError("reviewed worktree requires an active delivery flow")
         if self._repo_head() != lease["expected_repository_head"]:
@@ -1760,160 +1738,85 @@ class FlowDeliveryController:
             "working_tree_fingerprint": fingerprint,
         }
 
-    def _optional_hook_cross_check(
+    def begin_delegation(
         self,
         *,
-        lease: Mapping[str, Any],
-        subagent_id: str,
-        expected: Mapping[str, Any],
+        owner: str,
+        delegation_id: str,
+        agent: str = "pns-flow-implementer",
     ) -> dict[str, Any]:
-        try:
-            lines = self.routing_events_path.read_text(encoding="utf-8").splitlines()
-        except FileNotFoundError:
-            return {
-                "required": False,
-                "status": "not_emitted",
-                "source": "optional_subagent_start_hook",
-            }
-        except (OSError, UnicodeError) as exc:
-            raise FlowDeliveryError("optional hook routing evidence is unreadable") from exc
-        acquired_at = _parse_timestamp(
-            lease["acquisition_timestamp"],
-            "lease.acquisition_timestamp",
-        )
-        current: list[tuple[datetime, dict[str, Any]]] = []
-        for ordinal, line in enumerate(lines, start=1):
-            if not line.strip():
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise FlowDeliveryError(
-                    f"optional hook routing event line {ordinal} is invalid"
-                ) from exc
-            if not isinstance(event, dict):
-                raise FlowDeliveryError(
-                    f"optional hook routing event line {ordinal} must be an object"
-                )
-            event_at = _parse_timestamp(event.get("timestamp"), "hook event timestamp")
-            if event_at > datetime.now(timezone.utc):
-                raise FlowDeliveryError("optional hook routing event is from the future")
-            if event_at >= acquired_at:
-                current.append((event_at, event))
-        if not current:
-            return {
-                "required": False,
-                "status": "not_emitted",
-                "source": "optional_subagent_start_hook",
-            }
-        matching = [item for item in current if item[1].get("subagent_id") == subagent_id]
-        if not matching:
-            raise FlowDeliveryError(
-                "current optional hook event does not match the returned native subagent"
-            )
-        _, event = max(matching, key=lambda item: item[0])
-        bindings = {
+        """Reserve the sole writer lane for one optional coding delegation."""
+        _require_nonempty_string(delegation_id, "delegation_id")
+        _require_nonempty_string(agent, "agent")
+        lease = self._require_lease(owner)
+        self._assert_repository_state(lease)
+        if not lease["active_flow"]:
+            raise FlowDeliveryError("optional delegation requires an active flow")
+        if lease["runtime_ownership_state"] not in {"none", "released"}:
+            raise FlowDeliveryError("optional delegation cannot overlap runtime ownership")
+        if lease["unresolved_action_state"] != "clear":
+            raise FlowDeliveryError("optional delegation requires clear unresolved-action state")
+        if self.writable_marker_path.exists():
+            raise FlowDeliveryError("another optional delegated writer is already active")
+        marker = {
+            "schema_version": 1,
+            "delegation_id": delegation_id,
+            "agent": agent,
             "lease_owner": lease["owner"],
             "lease_session": lease["process_or_session_identity"],
-            "lease_acquisition_timestamp": lease["acquisition_timestamp"],
-            "parent_conversation_id": expected["parent_conversation_id"],
-            "active_flow": expected["active_flow"],
-            "active_stage": expected["active_stage"],
-            "subagent_type": expected["custom_agent"],
+            "active_flow": lease["active_flow"],
+            "active_stage": lease["active_stage"],
+            "parent_conversation_id": lease.get("bound_parent_conversation_id"),
+            "started_at": utc_now(),
         }
-        for field, value in bindings.items():
-            observed = event.get(field)
-            if observed is not None and observed != value:
-                raise FlowDeliveryError(f"optional hook event {field} mismatch")
-        observed_model = event.get("subagent_model") or event.get("model")
-        if observed_model is not None and observed_model != expected["requested_model"]:
-            raise FlowDeliveryError("optional hook event model mismatch")
-        requested_versus_resolved = True
-        if event.get("requested_versus_resolved_match") is False:
-            raise FlowDeliveryError(
-                "audit subagentStart resolved identity does not match preToolUse authorization"
+        self.writable_marker_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            descriptor = os.open(
+                self.writable_marker_path,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
             )
-        if event.get("audit_only") is True:
-            source = "audit_only_subagent_start_hook"
-        else:
-            source = "optional_subagent_start_hook"
-        return {
-            "required": False,
-            "status": "matched",
-            "source": source,
-            "event_digest": _canonical_digest(event),
-            "requested_versus_resolved_match": requested_versus_resolved,
-        }
+        except FileExistsError as exc:
+            raise FlowDeliveryError(
+                "another optional delegated writer is already active"
+            ) from exc
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+                json.dump(marker, handle, indent=2, sort_keys=True)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+        except Exception:
+            self.writable_marker_path.unlink(missing_ok=True)
+            raise
+        return deepcopy(marker)
 
-    def _authorization_cross_check(
+    def end_delegation(
         self,
         *,
-        lease: Mapping[str, Any],
-        expected: Mapping[str, Any],
+        owner: str,
+        delegation_id: str,
+        outcome: str,
     ) -> dict[str, Any]:
-        try:
-            lines = self.authorization_events_path.read_text(encoding="utf-8").splitlines()
-        except FileNotFoundError:
-            return {
-                "required": False,
-                "status": "not_emitted",
-                "source": "preToolUse_task_authorization",
-                "policy_digest": SUBAGENT_ROUTING_POLICY_DIGEST,
-            }
-        except (OSError, UnicodeError) as exc:
-            raise FlowDeliveryError("preToolUse authorization evidence is unreadable") from exc
-        acquired_at = _parse_timestamp(
-            lease["acquisition_timestamp"],
-            "lease.acquisition_timestamp",
-        )
-        current: list[tuple[datetime, dict[str, Any]]] = []
-        for ordinal, line in enumerate(lines, start=1):
-            if not line.strip():
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise FlowDeliveryError(
-                    f"preToolUse authorization evidence is malformed at line {ordinal}"
-                ) from exc
-            if not isinstance(event, dict):
-                raise FlowDeliveryError("preToolUse authorization evidence entry is invalid")
-            if event.get("authorization_verdict") != "allow":
-                continue
-            timestamp = event.get("timestamp")
-            if not isinstance(timestamp, str) or not timestamp.strip():
-                continue
-            event_at = _parse_timestamp(timestamp, "authorization.timestamp")
-            if event_at < acquired_at or event_at > datetime.now(timezone.utc):
-                continue
-            if (
-                event.get("lease_session") == lease["process_or_session_identity"]
-                and event.get("active_flow") == expected["active_flow"]
-                and event.get("active_stage") == expected["active_stage"]
-                and event.get("requested_agent") == expected["custom_agent"]
-                and event.get("requested_model") == expected["requested_model"]
-            ):
-                current.append((event_at, event))
-        if not current:
-            return {
-                "required": False,
-                "status": "not_emitted",
-                "source": "preToolUse_task_authorization",
-                "policy_digest": SUBAGENT_ROUTING_POLICY_DIGEST,
-            }
-        _, event = max(current, key=lambda item: item[0])
-        digest = event.get("policy_digest")
-        if digest is not None and digest != SUBAGENT_ROUTING_POLICY_DIGEST:
-            raise FlowDeliveryError("preToolUse authorization policy digest mismatch")
+        """Release the writer lane after the named delegation terminates."""
+        if outcome not in {"completed", "blocked", "failed"}:
+            raise FlowDeliveryError("delegation outcome is not terminal")
+        lease = self._require_lease(owner)
+        if not self.writable_marker_path.exists():
+            raise FlowDeliveryError("no optional delegated writer is active")
+        marker = _read_json(self.writable_marker_path)
+        if marker.get("delegation_id") != delegation_id:
+            raise FlowDeliveryError("delegation identity mismatch")
+        if (
+            marker.get("lease_owner") != lease["owner"]
+            or marker.get("lease_session") != lease["process_or_session_identity"]
+            or marker.get("active_flow") != lease["active_flow"]
+        ):
+            raise FlowDeliveryError("delegated writer belongs to another lease or flow")
+        self.writable_marker_path.unlink()
         return {
-            "required": False,
-            "status": "matched",
-            "source": "preToolUse_task_authorization",
-            "policy_digest": digest or SUBAGENT_ROUTING_POLICY_DIGEST,
-            "event_digest": event.get("event_digest") or _canonical_digest(event),
-            "authorization_verdict": "allow",
-            "authorization_reason": event.get("authorization_reason"),
-            "tool_use_id": event.get("tool_use_id"),
+            "released": True,
+            "delegation_id": delegation_id,
+            "outcome": outcome,
         }
 
     def record_subagent_invocation(
@@ -1946,15 +1849,9 @@ class FlowDeliveryController:
             (repository_head, "repository_head"),
         ):
             _require_nonempty_string(value, f"invocation.{field}")
-        if custom_agent not in ALLOWED_SUBAGENTS:
-            raise FlowDeliveryError("native invocation did not use an allowed custom agent")
-        if STAGE_AGENTS.get(active_stage) != custom_agent:
-            raise FlowDeliveryError("native invocation agent does not match the active stage")
-        if requested_model != EXPECTED_SUBAGENT_MODEL:
-            raise FlowDeliveryError("native invocation did not request Grok 4.5 High")
         if type(is_background) is not bool or is_background:
-            raise FlowDeliveryError("native invocation must be foreground")
-        if terminal_outcome not in SUBAGENT_TERMINAL_OUTCOMES:
+            raise FlowDeliveryError("optional delegation must be foreground when used")
+        if terminal_outcome not in {"completed", "blocked", "failed"}:
             raise FlowDeliveryError("native invocation outcome is not terminal")
         if lease["process_or_session_identity"] != lease_session:
             raise FlowDeliveryError("native invocation belongs to another lease session")
@@ -2000,23 +1897,10 @@ class FlowDeliveryController:
             "timestamp": timestamp,
             "repository_head": repository_head,
         }
-        unsigned["hook_cross_check"] = self._optional_hook_cross_check(
-            lease=lease,
-            subagent_id=subagent_id,
-            expected=unsigned,
-        )
-        unsigned["authorization"] = self._authorization_cross_check(
-            lease=lease,
-            expected=unsigned,
-        )
-        unsigned["policy_digest"] = SUBAGENT_ROUTING_POLICY_DIGEST
-        unsigned["requested_versus_resolved_match"] = unsigned["hook_cross_check"].get(
-            "requested_versus_resolved_match",
-            True,
-        )
-        if unsigned["hook_cross_check"].get("status") == "matched":
-            if unsigned["requested_versus_resolved_match"] is not True:
-                raise FlowDeliveryError("requested-versus-resolved identity mismatch")
+        unsigned["delegation"] = {
+            "status": "optional",
+            "source": "parent_selected_native_subagent",
+        }
         receipt = {**unsigned, "receipt_digest": _canonical_digest(unsigned)}
         lease["bound_parent_conversation_id"] = parent_conversation_id
         lease["subagent_invocation_receipts"].append(receipt)
@@ -2026,50 +1910,14 @@ class FlowDeliveryController:
 
     @staticmethod
     def _require_subagent_invocation(lease: Mapping[str, Any], stage: str) -> None:
-        expected_agent = STAGE_AGENTS.get(stage)
-        if expected_agent is None:
-            return
-        entered_at = _parse_timestamp(
-            lease["active_stage_entered_at"],
-            "lease.active_stage_entered_at",
-        )
-        valid = [
-            receipt
-            for receipt in lease["subagent_invocation_receipts"]
-            if receipt.get("active_flow") == lease["active_flow"]
-            and receipt.get("active_stage") == stage
-            and receipt.get("lease_owner") == lease["owner"]
-            and receipt.get("lease_session") == lease["process_or_session_identity"]
-            and receipt.get("parent_conversation_id") == lease["bound_parent_conversation_id"]
-            and receipt.get("custom_agent") == expected_agent
-            and receipt.get("requested_model") == EXPECTED_SUBAGENT_MODEL
-            and receipt.get("is_background") is False
-            and receipt.get("terminal_outcome") == "completed"
-            and receipt.get("repository_head") == lease["expected_repository_head"]
-            and receipt.get("receipt_digest")
-            == _canonical_digest(
-                {
-                    key: value
-                    for key, value in receipt.items()
-                    if key != "receipt_digest"
-                }
-            )
-            and isinstance(receipt.get("hook_cross_check"), dict)
-            and receipt["hook_cross_check"].get("status") in {"matched", "not_emitted"}
-            and receipt["hook_cross_check"].get("required") is False
-            and _parse_timestamp(
-                receipt.get("timestamp"),
-                "invocation receipt timestamp",
-            )
-            >= entered_at
-        ]
-        if not valid:
-            raise FlowDeliveryError(
-                f"{stage} lacks a valid native subagent invocation receipt"
-            )
+        # Kept as a compatibility hook for callers that used the former
+        # serial pipeline. Delegation is optional and never gates progress.
+        return
 
     def record_validation_receipt(self, *, owner: str, receipt_path: Path) -> dict[str, Any]:
         lease = self._require_lease(owner)
+        if self.writable_marker_path.exists():
+            raise FlowDeliveryError("cannot record validation while delegated writer is active")
         self._assert_repository_state(lease)
         receipt = _read_json(receipt_path)
         required = {
@@ -2149,6 +1997,8 @@ class FlowDeliveryController:
             raise FlowDeliveryError(f"unknown delivery stage: {stage}")
         lease = self._require_lease(owner)
         self._assert_repository_state(lease)
+        if self.writable_marker_path.exists():
+            raise FlowDeliveryError("parent stage changes cannot overlap an optional delegated writer")
         queue, _ = self.load()
         active_id = queue.get("active_flow_id")
         if not active_id or lease["active_flow"] != active_id:
@@ -2159,13 +2009,13 @@ class FlowDeliveryController:
             raise FlowDeliveryError("queue and lease stages do not match")
         if current not in STAGES or stage not in TRANSITIONS[current]:
             raise FlowDeliveryError(f"invalid stage transition: {current} -> {stage}")
-        self._require_subagent_invocation(lease, current)
         if current == "full_validation" and flow["requires_bluestacks_live"] and stage != "live_preflight":
             raise FlowDeliveryError("live-required flow cannot bypass live preflight")
-        if parent_reviewed:
+        # `parent_reviewed` is retained as a compatibility flag for existing
+        # lease records, but review is a proportional parent decision rather
+        # than a mandatory subagent stage.
+        if parent_reviewed and isinstance(lease.get("gates"), dict):
             lease["gates"]["implementation_parent_reviewed"] = True
-        if stage == "implementation_review" and not lease["gates"]["implementation_parent_reviewed"]:
-            raise FlowDeliveryError("implementation review requires parent acceptance")
         self._require_receipts(lease, stage, _flow_consequence_class(flow))
         if stage in {"live_preflight", "live_execution"}:
             if not flow["requires_bluestacks_live"] or flow["maximum_live_attempts"] <= 0:
@@ -2175,7 +2025,7 @@ class FlowDeliveryController:
             if lease["unresolved_action_state"] != "clear":
                 raise FlowDeliveryError("global unresolved-action gate is not clear")
             if self.writable_marker_path.exists():
-                raise FlowDeliveryError("writable subagent marker remains unresolved")
+                raise FlowDeliveryError("live stages cannot overlap an optional delegated writer")
             if flow["product_policy_status"] not in LIVE_POLICY_STATUSES:
                 raise FlowDeliveryError("live policy is not explicit")
             _require_nonempty_string(flow["evidence_validator"], "evidence_validator")
@@ -2206,7 +2056,7 @@ class FlowDeliveryController:
         if lease["unresolved_action_state"] != "clear":
             raise FlowDeliveryError("global unresolved-action gate is not clear")
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("writable subagent marker remains unresolved")
+            raise FlowDeliveryError("live attempt cannot overlap an optional delegated writer")
         flow = self._flows(queue)[active_id]
         attempts = flow["live_attempts"]
         if flow["live_attempt_count"] >= flow["maximum_live_attempts"]:
@@ -2276,6 +2126,8 @@ class FlowDeliveryController:
 
     def record_commit(self, *, owner: str, commit: str) -> dict[str, Any]:
         lease = self._require_lease(owner)
+        if self.writable_marker_path.exists():
+            raise FlowDeliveryError("cannot record commit while delegated writer is active")
         queue, _ = self.load()
         active_id = queue.get("active_flow_id")
         if not active_id or lease["active_flow"] != active_id or lease["active_stage"] != "commit":
@@ -2324,7 +2176,7 @@ class FlowDeliveryController:
         if lease["unresolved_action_state"] != "clear":
             raise FlowDeliveryError("unresolved-action gate must be clear before completion")
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("writable subagent marker remains unresolved")
+            raise FlowDeliveryError("optional delegated writer remains active")
         if flow["live_attempts"]:
             last = flow["live_attempts"][-1]
             if last["finished_at"] is None or last["terminal_outcome"] not in TERMINAL_ATTEMPT_OUTCOMES:
@@ -2349,6 +2201,8 @@ class FlowDeliveryController:
         _require_nonempty_string(reason, "reason")
         lease = self._require_lease(owner)
         self._assert_repository_state(lease)
+        if self.writable_marker_path.exists():
+            raise FlowDeliveryError("cannot block flow while delegated writer is active")
         queue, _ = self.load()
         active_id = queue.get("active_flow_id")
         if not active_id or lease["active_flow"] != active_id:
@@ -2388,7 +2242,7 @@ class FlowDeliveryController:
         queue, _ = self.load()
         self._assert_repository_state(lease)
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("cannot release with an unresolved writable marker")
+            raise FlowDeliveryError("cannot release with an active optional delegated writer")
         if lease["runtime_ownership_state"] not in {"none", "released"}:
             raise FlowDeliveryError("cannot release while runtime ownership is held or unknown")
         if lease["unresolved_action_state"] != "clear":
@@ -2414,7 +2268,7 @@ class FlowDeliveryController:
         if lease is None:
             return {"reconciled": False, "reason": "no_lease"}
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("stale lease cannot clear with an unresolved writable marker")
+            raise FlowDeliveryError("cannot reconcile with an active optional delegated writer")
         if runtime_state != "released":
             raise FlowDeliveryError("stale lease cannot clear while runtime ownership is unknown/held")
         if journal_state != "resolved":
@@ -2540,6 +2394,18 @@ def parser() -> argparse.ArgumentParser:
     worktree = sub.add_parser("review-worktree")
     worktree.add_argument("--owner", required=True)
     worktree.add_argument("--path", action="append", required=True)
+    begin_delegation = sub.add_parser("begin-delegation")
+    begin_delegation.add_argument("--owner", required=True)
+    begin_delegation.add_argument("--delegation-id", required=True)
+    begin_delegation.add_argument("--agent", default="pns-flow-implementer")
+    end_delegation = sub.add_parser("end-delegation")
+    end_delegation.add_argument("--owner", required=True)
+    end_delegation.add_argument("--delegation-id", required=True)
+    end_delegation.add_argument(
+        "--outcome",
+        required=True,
+        choices=("completed", "blocked", "failed"),
+    )
     invocation = sub.add_parser("record-subagent-invocation")
     invocation.add_argument("--owner", required=True)
     invocation.add_argument("--active-flow", required=True)
@@ -2667,6 +2533,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "review-worktree":
             result = controller.review_worktree(owner=args.owner, paths=args.path)
+        elif args.command == "begin-delegation":
+            result = controller.begin_delegation(
+                owner=args.owner,
+                delegation_id=args.delegation_id,
+                agent=args.agent,
+            )
+        elif args.command == "end-delegation":
+            result = controller.end_delegation(
+                owner=args.owner,
+                delegation_id=args.delegation_id,
+                outcome=args.outcome,
+            )
         elif args.command == "record-subagent-invocation":
             result = controller.record_subagent_invocation(
                 owner=args.owner,

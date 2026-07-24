@@ -1,66 +1,29 @@
-IDE-NATIVE EXECUTION ONLY.
-Do not invoke Cursor CLI, cursor-agent, agent, SDK, ACP, or a detached parent.
-All custom subagents must be launched through the native Subagent/Task tool in this conversation.
+Parent-led PnS development loop.
 
-Load and follow `.cursor/skills/pns-flow-delivery/SKILL.md` as the canonical detailed lifecycle.
+1. Read `AGENTS.md`, `CURRENT_HANDOFF.md`, the active queue item, and its direct references.
+2. Run:
+   `python scripts/flow_delivery_control.py validate`
+3. Check `status`, select or resume exactly one queue flow, and acquire/heartbeat the development
+   lease. Confirm runtime ownership is clear before any live work.
+4. Have the selected parent implement the smallest useful slice. Edit directly or optionally
+   delegate one coherent slice to `pns-flow-implementer`. Wrap only that invocation with
+   `begin-delegation` / `end-delegation` using one ID, so parent and child writes cannot overlap.
+   Do not require a recon/review/evidence agent for every change.
+5. Run the active flow's focused tests. Fix reproduced failures in the same parent loop or resume
+   the same implementer; do not restart the entire lifecycle.
+6. Advance queue history with `record-stage` as needed. Descriptive stages are not agent gates.
+7. For live validation, the parent alone runs the supported `scripts/pnsctl.py bluestacks` command.
+   Maintain the runtime singleton, current-frame binding, immediate-before checks, attempt budget,
+   evidence chain, and unresolved-action gate.
+8. Perform one proportional final review, record validation receipts required by the task, commit
+   only attributable files, complete the queue transition, and record counted completion.
+9. Never activate registration, scheduler eligibility, composition, M6, or Bliss migration through
+   this loop.
 
-## Bootstrap
+The controller policy in `tasks/flow_delivery_loop_policy.json` defines the parent-conversation
+maximum. On a safe terminal boundary emit exactly `PARENT_CONVERSATION_ROLLOVER_REQUIRED` and use
+the checked-in resume invocation:
 
-1. Verify repository, queue, development lease, runtime ownership, unresolved-action, registration,
-   and scheduler state.
-2. Run `python scripts/flow_delivery_control.py validate`.
-3. Continue an existing active flow or select exactly one ready flow.
-4. Before every native subagent invocation:
-   - Consult `required_overhead_for(consequence_class, stage)` in
-     `scripts/flow_delivery_control.py`. Navigation-only discovery stages return
-     no `context_packet` / dependency digests / strict manifests / replay-capsule
-     promotion — defer those to stabilization or consequential promotion.
-   - When overhead includes `context_packet`:
-     - `python scripts/flow_delivery_context.py build --flow-id <flow> --stage <stage> --reuse-if-current`
-     - `python scripts/flow_delivery_context.py validate --packet <packet-path>`
-     - pass only packet path, active flow ID, active stage, and exact requested deliverable
-   - When overhead omits `context_packet` (navigation-only discovery), pass only
-     active flow ID, active stage, and exact requested deliverable. Keep automatic
-     runner evidence mandatory; do not skip the navigation-development boundary.
-5. Keep every custom subagent foreground and serial. Set the exact custom agent, request
-   `cursor-grok-4.5-high` explicitly, wait for its terminal result, and immediately run
-   `record-subagent-invocation` before advancing. Never say "use an exploration/general-purpose
-   agent" or "choose the best agent"; use only the checked-in stage-to-agent mapping.
-6. Use bounded validation profiles only:
-   - `python scripts/run_flow_delivery_validation.py focused --flow-id <flow>`
-   - `python scripts/run_flow_delivery_validation.py architecture --flow-id <flow>`
-   - `python scripts/run_flow_delivery_validation.py full --flow-id <flow>`
-   - `python scripts/run_flow_delivery_validation.py governance --flow-id <flow>`
-   - `python scripts/run_flow_delivery_validation.py shared-navigation --flow-id <flow>` (navigation-only full_validation)
-7. Continue the authoritative queue until a checked-in hard stop condition occurs.
-
-## Parent-conversation rollover hard stop
-
-The controller loop policy in `tasks/flow_delivery_loop_policy.json` is the sole authoritative
-maximum for completed gameplay-delivery flows in one parent conversation. Count only verified
-completed gameplay-delivery queue flows. Do not begin another flow after that maximum is reached.
-Enforce rollover only at a safe terminal boundary. Emit exactly
-`PARENT_CONVERSATION_ROLLOVER_REQUIRED` and the compact resume command below. A new parent identity
-starts at completed-flow count zero. A valid current full-suite receipt may be reused at rollover
-when the controller accepts it.
-
-```text
 /loop Load and follow `.cursor/commands/pns-flow-delivery-loop.md` exactly.
-Continue the authoritative queue until a checked-in hard stop condition occurs.
-IDE-native custom subagents only; no CLI fallback.
-```
 
-`preToolUse(Task)` is the fail-closed authorization gate before child creation. `subagentStart` is
-audit-only for resolved-identity correlation and is not a reliable deny boundary. When preToolUse
-denies a Task: do not fall back to built-in agents, Sol, or Cursor CLI; stop blocked unless one
-explicit corrected project-owned mapping exists.
-
-```text
-A missing optional subagentStart audit event does not authorize another execution surface.
-It only disables the additional resolved-identity cross-check.
-```
-
-Stop with `IDE_NATIVE_SUBAGENT_TOOL_UNAVAILABLE` rather than substituting the parent or another
-delegation surface.
-
-Do not activate composition, M6, Bliss migration, production registration, or gameplay scheduling.
+Do not hardcode a competing maximum.

@@ -3,7 +3,6 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from pathlib import Path
-import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -141,11 +140,11 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         }
         self.assertIn(counts["active"], (0, 1))
         # Approved but evidence-gated flows remain blocked; Gathering alone still needs a decision.
-        # Both Nova flows (home atlas migration and supervised one-free pulse) are completed.
+        # Both Nova flows and the completed Campaign survey are terminal.
         # Campaign atlas native survey has one bounded navigation-only attempt.
-        self.assertEqual(counts["ready"] + counts["active"], 7)
+        self.assertEqual(counts["ready"] + counts["active"], 6)
         self.assertEqual(counts["blocked"], 11)
-        self.assertEqual(counts["completed"], 3)
+        self.assertEqual(counts["completed"], 4)
         self.assertEqual(counts["needs_product_decision"], 1)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
@@ -252,9 +251,9 @@ class FlowDeliveryControllerTests(unittest.TestCase):
                 )
                 controller.activate(owner="parent")
                 before = controller.queue_path.read_bytes()
-                with self.assertRaisesRegex(control.FlowDeliveryError, "invalid stage transition"):
-                    controller.record_stage(owner="parent", stage="implementation")
-            self.assertEqual(controller.queue_path.read_bytes(), before)
+                result = controller.record_stage(owner="parent", stage="implementation")
+            self.assertNotEqual(controller.queue_path.read_bytes(), before)
+            self.assertEqual(result["last_completed_stage"], "implementation")
 
     def test_local_lease_conflict_is_detected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -333,83 +332,38 @@ class FlowDeliveryControllerTests(unittest.TestCase):
 
 
 class FlowDeliveryCursorContractTests(unittest.TestCase):
-    def test_custom_agents_are_unique_grok_high_and_single_writer(self) -> None:
+    def test_optional_implementer_is_the_only_development_agent(self) -> None:
         paths = sorted((ROOT / ".cursor" / "agents").glob("*.md"))
         self.assertEqual(
             [path.stem for path in paths],
-            [
-                "pns-evidence-reviewer",
-                "pns-flow-implementer",
-                "pns-flow-recon",
-                "pns-flow-reviewer",
-            ],
+            ["pns-flow-implementer"],
         )
-        writable = []
-        names = set()
-        for path in paths:
-            text = path.read_text(encoding="utf-8")
-            name = re.search(r"(?m)^name:\s*(\S+)$", text).group(1)
-            model = re.search(r"(?m)^model:\s*(\S+)$", text).group(1)
-            readonly = re.search(r"(?m)^readonly:\s*(\S+)$", text).group(1)
-            self.assertNotIn(name, names)
-            names.add(name)
-            self.assertEqual(model, "cursor-grok-4.5-high")
-            if readonly == "false":
-                writable.append(name)
-            self.assertIn("invoke another subagent", text)
-        self.assertEqual(writable, ["pns-flow-implementer"])
+        text = paths[0].read_text(encoding="utf-8")
+        self.assertIn("model: cursor-grok-4.5-high", text)
+        self.assertIn("readonly: false", text)
 
-    def test_skill_names_only_allowlisted_subagents(self) -> None:
+    def test_skill_is_parent_led_and_delegation_is_optional(self) -> None:
         skill = (
             ROOT / ".cursor" / "skills" / "pns-flow-delivery" / "SKILL.md"
         ).read_text(encoding="utf-8")
-        self.assertNotRegex(skill, r"/pns-[a-z-]+")
-        for agent in (
-            "pns-flow-recon",
-            "pns-flow-implementer",
-            "pns-flow-reviewer",
-            "pns-evidence-reviewer",
-        ):
-            self.assertIn(f"`{agent}`", skill)
-        self.assertIn("native `Subagent`/`Task` tool", skill)
-        self.assertIn("IDE_NATIVE_SUBAGENT_TOOL_UNAVAILABLE", skill)
-        for built_in in ("generalPurpose", "/explore", "/shell"):
-            self.assertNotIn(built_in, skill)
+        self.assertIn("The selected high-intelligence parent is the orchestrator", skill)
+        self.assertIn("The parent may edit directly", skill)
+        self.assertIn("optional `pns-flow-implementer`", skill)
+        self.assertIn("Do not restart the whole workflow", skill)
+        self.assertNotIn("pns-flow-recon", skill)
+        self.assertNotIn("pns-flow-reviewer", skill)
 
-    def test_hook_is_scoped_and_uses_installed_schema_fields(self) -> None:
-        hooks = json.loads((ROOT / ".cursor" / "hooks.json").read_text(encoding="utf-8"))
-        pre = hooks["hooks"]["preToolUse"][0]
-        self.assertTrue(pre["failClosed"])
-        self.assertEqual(pre.get("matcher"), "Task")
-        start = hooks["hooks"]["subagentStart"][0]
-        self.assertFalse(start["failClosed"])
-        guard = (
-            ROOT / ".cursor" / "hooks" / "pns_flow_subagent_guard.py"
-        ).read_text(encoding="utf-8")
-        self.assertIn("authorize_task_call", guard)
-        self.assertIn("preToolUse", guard)
-        self.assertIn("audit_only", guard)
-        self.assertIn("delivery_lease_active()", guard)
-        self.assertIn("Path(__file__).resolve().parents[2]", guard)
-        self.assertNotIn("ROOT = Path.cwd()", guard)
-
-    def test_hook_fails_closed_on_model_fallback_and_duplicate_writer(self) -> None:
-        guard = (
-            ROOT / ".cursor" / "hooks" / "pns_flow_subagent_guard.py"
-        ).read_text(encoding="utf-8")
-        self.assertIn("subagent routing state lock is unavailable", guard)
-        self.assertIn("a writable PnS flow implementer marker remains unresolved", guard)
-        self.assertIn("unapproved model is denied", guard)
-        self.assertIn("audit_only", guard)
-        for field in (
-            "lease_owner",
-            "lease_session",
-            "parent_conversation_id",
-            "active_flow",
-            "subagent_id",
-            "created_at",
-        ):
-            self.assertIn(f'"{field}"', guard)
+    def test_mandatory_task_routing_hooks_are_removed(self) -> None:
+        self.assertFalse((ROOT / ".cursor" / "hooks.json").exists())
+        self.assertFalse(
+            (ROOT / ".cursor" / "hooks" / "pns_flow_subagent_guard.py").exists()
+        )
+        self.assertFalse(
+            (ROOT / ".cursor" / "rules" / "pns-flow-delivery-subagents.mdc").exists()
+        )
+        self.assertFalse(
+            (ROOT / "tasks" / "flow_delivery_subagent_routing_policy.json").exists()
+        )
 
     def test_obsolete_prompt_is_non_authoritative_and_history_preserved(self) -> None:
         prompt = (ROOT / "autonomous_iteration_prompt.md").read_text(encoding="utf-8")
@@ -422,7 +376,7 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         for path in (
             QUEUE_PATH,
             POLICY_PATH,
-            ROOT / ".cursor" / "agents" / "pns-flow-recon.md",
+            ROOT / ".cursor" / "agents" / "pns-flow-implementer.md",
             ROOT / "autonomous_iteration_prompt.md",
         ):
             self.assertNotIn(b"\r\n", path.read_bytes())

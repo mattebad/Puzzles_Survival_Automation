@@ -5,7 +5,7 @@
   "global_profiles": {
     "architecture_tests": [
       "tests.test_flow_delivery_orchestrator",
-      "tests.test_flow_delivery_ide_native_hardening",
+      "tests.test_flow_delivery_lean_workflow",
       "tests.test_home_atlas_verified_route"
     ],
     "shared_navigation": [
@@ -13,7 +13,7 @@
     ],
     "promotion": [
       "tests.test_flow_delivery_orchestrator",
-      "tests.test_flow_delivery_ide_native_hardening",
+      "tests.test_flow_delivery_lean_workflow",
       "tests.test_home_atlas_verified_route",
       "tests.test_governance_validation"
     ],

@@ -258,7 +258,7 @@
         "tests/test_campaign_atlas_collector.py",
         "tests/test_flow_delivery_authority_consistency.py",
         "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_flow_delivery_ide_native_hardening.py",
+        "tests/test_flow_delivery_lean_workflow.py",
         "tests/test_home_atlas_verified_route.py",
         "CURRENT_HANDOFF.md",
         "BACKLOG.md",
@@ -497,7 +497,7 @@
         "tests/test_flow_delivery_token_context_hygiene.py",
         "tests/test_governance_validation.py",
         "tests/test_flow_delivery_parent_conversation_rollover.py",
-        "tests/test_flow_delivery_ide_native_hardening.py"
+        "tests/test_flow_delivery_lean_workflow.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -619,7 +619,7 @@
         "tests/test_flow_delivery_orchestrator.py",
         "tests/test_home_atlas_verified_route.py",
         "tests/test_ultimate_challenge_daily.py",
-        "tests/test_flow_delivery_ide_native_hardening.py",
+        "tests/test_flow_delivery_lean_workflow.py",
         "tests/test_flow_delivery_token_context_hygiene.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
