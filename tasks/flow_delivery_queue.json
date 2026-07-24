@@ -212,7 +212,7 @@
         "relocalization_residual_pixels"
       ],
       "blocked_reason": "",
-      "next_concrete_action": "Advance to evidence_review for completed live session survey-20260724T023336884972Z (terminal native_survey_complete, used=93); parent runs finish-live-attempt after review-worktree.",
+      "next_concrete_action": "None for this completed atomic flow; Campaign atlas integration remains a separate downstream task.",
       "last_completed_stage": "completed",
       "last_commit": "1e58f6623101f1350a85e90b34033096d5005a1c",
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",

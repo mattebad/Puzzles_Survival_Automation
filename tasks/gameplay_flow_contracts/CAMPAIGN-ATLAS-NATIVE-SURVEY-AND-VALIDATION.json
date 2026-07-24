@@ -57,7 +57,7 @@
       "auxiliary_entry_difficulty_safe_terminal_recovery": 16
     },
     "maximum_sessions": 1,
-    "notes": "Cumulative navigation_inputs_used=93 = AUX7/EDGE24/OVERLAP62 from accepted evidence chain ending at survey-20260724T023336884972Z (terminal native_survey_complete; recognized Home; session sent one exit input). survey-20260724T002912186392Z retained uncounted. Remaining 179 total / AUX9 / EDGE104 / OVERLAP66. Same unfinished controller live_attempt (finished_at null); next stage evidence_review."
+    "notes": "Completed evidence chain ending at survey-20260724T023336884972Z used 93 inputs = AUX7/EDGE24/OVERLAP62, reached verified native_survey_complete, and returned to recognized Home. The controller attempt is terminal, runtime ownership is released, and no further input is authorized by this flow."
   },
   "local_postconditions": [
     "evidence_required_or_native_survey_complete",
@@ -98,7 +98,7 @@
       "mode": "navigation_only",
       "maximum_navigation_inputs": 272,
       "navigation_inputs_used": 93,
-      "notes": "Cumulative navigation_inputs_used=93 = AUX7/EDGE24/OVERLAP62 from accepted evidence chain ending at survey-20260724T023336884972Z (terminal native_survey_complete; recognized Home; session sent one exit input). survey-20260724T002912186392Z retained uncounted. Remaining 179 total / AUX9 / EDGE104 / OVERLAP66. Same unfinished controller live_attempt (finished_at null); next stage evidence_review."
+      "notes": "Completed at 93 inputs = AUX7/EDGE24/OVERLAP62 with verified native_survey_complete and recognized Home. The retained evidence chain was independently accepted; no further input is authorized by this completed flow."
     }
   ],
   "unsupported_or_manual_only_states": [
