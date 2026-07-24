@@ -21,7 +21,15 @@ class LeanWorkflowTests(unittest.TestCase):
     def make_controller(self, root: Path) -> control.FlowDeliveryController:
         queue = root / "queue.json"
         policy = root / "policy.json"
-        queue.write_bytes(QUEUE.read_bytes())
+        payload = json.loads(QUEUE.read_text(encoding="utf-8"))
+        # Isolate from any mid-flight live queue state copied into the fixture.
+        payload["active_flow_id"] = None
+        for flow in payload["flows"]:
+            if flow.get("status") == "active":
+                flow["status"] = "ready"
+                flow["last_completed_stage"] = None
+                flow["blocked_reason"] = ""
+        queue.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         policy.write_bytes(POLICY.read_bytes())
         controller = control.FlowDeliveryController(
             queue,

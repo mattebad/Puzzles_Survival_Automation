@@ -9,6 +9,7 @@ import json
 import re
 import subprocess
 import sys
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -458,6 +459,45 @@ def _previous_stage(stage: str) -> str | None:
     return order[index - 1] if index > 0 else None
 
 
+def _compact_queue_entry_for_packet(flow: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep packet-bound queue metadata under budget without dropping authority fields."""
+
+    compact = deepcopy(dict(flow))
+    history = compact.get("historical_live_attempts")
+    if isinstance(history, list) and history:
+        compact["historical_live_attempt_count"] = int(
+            compact.get("historical_live_attempt_count") or len(history)
+        )
+        compact["historical_live_attempts"] = [
+            {
+                "ordinal": item.get("ordinal"),
+                "terminal_outcome": item.get("terminal_outcome"),
+                "diagnosis": str(item.get("diagnosis") or "")[:160],
+            }
+            for item in history
+            if isinstance(item, Mapping)
+        ]
+    # Allowlist seed is still hashed via referenced_file_hashes; omit bulky duplicate list.
+    if isinstance(compact.get("implementation_allowlist_seed"), list):
+        compact["implementation_allowlist_seed_count"] = len(compact["implementation_allowlist_seed"])
+        compact["implementation_allowlist_seed"] = list(compact["implementation_allowlist_seed"])[:8]
+    return compact
+
+
+def _compact_backlog_section_for_packet(section: Mapping[str, Any], *, limit: int = 2400) -> dict[str, Any]:
+    text = str(section.get("section_text") or "")
+    if len(text.encode("utf-8")) > limit:
+        encoded = text.encode("utf-8")[:limit]
+        text = encoded.decode("utf-8", errors="ignore") + "\n…[truncated for packet budget]"
+    return {
+        "task_id": section["task_id"],
+        "heading": section["heading"],
+        "normalized_status": section["normalized_status"],
+        "section_digest": section["section_digest"],
+        "section_text": text,
+    }
+
+
 def build_context_packet(
     *,
     flow_id: str,
@@ -539,6 +579,10 @@ def build_context_packet(
     ):
         if not isinstance(path, str):
             continue
+        # Binary assets may remain on the delivery allowlist for review/commit attribution,
+        # but never enter the text context packet.
+        if path.casefold().endswith(PROHIBITED_PACKET_SUFFIXES):
+            continue
         assert_packet_path_allowed(path)
         info = _file_hash_if_present(path)
         if info is not None and info not in referenced_files:
@@ -584,25 +628,13 @@ def build_context_packet(
         "packet_schema_version": PACKET_SCHEMA_VERSION,
         "active_flow_id": flow_id,
         "active_delivery_stage": stage,
-        "active_queue_entry": flow,
+        "active_queue_entry": _compact_queue_entry_for_packet(flow),
         "active_product_policy_entry": policy_entry,
         "active_coverage_entry": coverage_entry,
         "active_bluestacks_registry_entry": bluestacks_entry,
-        "active_backlog_section": {
-            "task_id": active_section["task_id"],
-            "heading": active_section["heading"],
-            "normalized_status": active_section["normalized_status"],
-            "section_digest": active_section["section_digest"],
-            "section_text": active_section["section_text"],
-        },
+        "active_backlog_section": _compact_backlog_section_for_packet(active_section, limit=3200),
         "direct_dependency_sections": [
-            {
-                "task_id": item["task_id"],
-                "heading": item["heading"],
-                "normalized_status": item["normalized_status"],
-                "section_digest": item["section_digest"],
-                "section_text": item["section_text"],
-            }
+            _compact_backlog_section_for_packet(item, limit=1800)
             for item in dependency_sections
         ],
         "implementation_entrypoint_hashes": [

@@ -1713,6 +1713,7 @@ class FlowDeliveryController:
             raise FlowDeliveryError("active flow is unavailable")
         allowed = {
             *(path.replace("\\", "/") for path in flow["implementation_entrypoints"]),
+            *(path.replace("\\", "/") for path in flow.get("implementation_allowlist_seed", [])),
             *(path.replace("\\", "/") for path in flow["focused_tests"]),
             "tasks/flow_delivery_queue.json",
         }

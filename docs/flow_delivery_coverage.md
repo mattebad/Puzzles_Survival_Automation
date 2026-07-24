@@ -16,7 +16,7 @@ attempts authorized.
 | `NANO-MATERIAL-PRODUCTION-MAINTENANCE` | maintenance; no Daily ownership | not implemented | none | not proven | native idle/active/complete, claim/restart, six-hour timer, defer, Home |
 | `RECRUITMENT-BLUESTACKS-INTEGRATION` | Daily: five Basic free singles | shared + integrated controller replay retained | 2026-07-16 semantic-frame mechanics/navigation | not proven | hash-bound production replay of five Basic windows and Home |
 | `RECRUITMENT-FREE-ATTEMPT-MAINTENANCE` | maintenance; inspect Basic/Int./Advanced | integrated three-tier replay retained | 2026-07-16 semantic-frame mechanics/navigation | not proven | independent cooldown persistence, per-tab defer, production replay, Home |
-| `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` | Campaign AP maintenance | navigation, destination, vision, controller, battle replay retained | supervised BlueStacks mechanics + nonterminal production navigation attempts | not proven | native configured-stage Auto Battle production replay and Home |
+| `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` | Campaign AP maintenance | Home Atlas entry, destination tuple, Stage-9 Ch.20 provenance, destination zero-transport | supervised BlueStacks mechanics + Ch.20 Stage-9 retained frames; atlas v4 | not proven | Stage-9 for Ch.15/Ch.2, live navigation canary, Auto Battle production replay, Home |
 | `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY` | shared Campaign atlas navigation | atlas build, localizer, destination bind, shared seam, zero-transport replay | accepted survey corpus + offline zero-transport for atlas-supported destinations | not proven (live) | stage-9 under-chapter bind + live canary remain unauthorized |
 | `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` | Daily: one verified Flee per reset | entry/idempotency + ordered policy controller; missing-evidence gate is zero transport | offline navigation only; no Flee evidence | not proven | native Challenge → Exit → Flee, no-resource result, journal-backed replay, Home |
 | `ZOMBIE-LAIR-BLUESTACKS-INTEGRATION` | Daily: first eligible join | legacy selected-Daily one-Lair replay | no Home-notification evidence | not proven | native notification, eligible join, 28 stamina, Daily result, Home |
@@ -76,7 +76,7 @@ Flow: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`
 
 Supported and rejected Story destinations remain owned by product policy entry
 `campaign-supported-destinations`; coverage does not duplicate those arrays. Tuple format is
-`<story difficulty>-<stage>-<chapter>`. `1-2-9`, `ultimate-challenge`, and all other unsupported
+`<story difficulty>-<chapter>-<stage>`. `1-2-9`, `ultimate-challenge`, and all other unsupported
 tuples fail closed.
 
 Retained supervised BlueStacks sessions are valid gameplay/mechanics evidence for configured-stage

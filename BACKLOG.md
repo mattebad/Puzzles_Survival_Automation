@@ -4908,7 +4908,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Objective: correct the autonomous delivery queue and product contracts so Campaign AP farming and
   Ultimate Challenge are two separate gameplay flows, without implementing either flow.
 - Established facts: previous Campaign destinations were `1-20-9`, `1-2-9`, and `ultimate-challenge`;
-  product tuple format is `<story difficulty>-<stage>-<chapter>`; Campaign flow ID
+  product tuple format is `<story difficulty>-<chapter>-<stage>`; Campaign flow ID
   `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` is retained; production registration and
   scheduler remain disabled; composition remains blocked and excluded.
 - Direct implementation files: `tasks/flow_delivery_queue.json`,
@@ -5239,27 +5239,100 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION
 - Task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.
 - Title: Migrate Campaign AP entry to Home Atlas and verified destination navigation.
-- Status: Blocked (2026-07-21; three retained navigation-only attempts exhausted the checked-in
-  live budget on shared Home zoom/localization preparation; implementation and evidence are
-  preserved, and no retry is authorized by this status).
-- Dependencies: completed `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`.
-- Scope: replace legacy `HOME_PAN_GESTURES` with canonical Home Atlas entry; recognize Campaign
-  Story mode; support difficulty 1 and 2; feedback-controlled Stage selection for Stages 20, 15,
-  and 2; Chapter 9 selection; exact tuple verification for only `1-20-9`, `1-15-9`, and `2-2-9`;
-  separate destination verification from AP-consuming execution; preserve existing AP/battle
-  behavior; reject Ultimate Challenge as a Campaign AP destination.
-- Product tuple format: `<story difficulty>-<stage>-<chapter>` (example `1-20-9` = difficulty 1,
-  Stage 20, Chapter 9). Removed from the supported-destination contract: `1-2-9` and
-  `ultimate-challenge` (not retained as aliases). All other Story destination tuples fail closed.
-- Execution policy: AP maximum 120; regeneration exactly one AP per 360 seconds; configured static
-  costs `1-15-9`=14, `1-20-9`=16, and `2-2-9`=20. Re-select and verify the configured stage and
-  displayed cost on every entry, then use Auto Battle for as many runs as displayed AP permits.
-  Sweep, Blitz, Auto Complete, every refill, and Ultimate Challenge coupling are prohibited.
-- Evidence boundary: retained Auto Battle implementation and local BlueStacks mechanics evidence
-  are valid; the three failed Home-localization attempts remain preserved. No additional live
-  attempt is authorized. Production-controller positive replay and a later canary remain required.
-- Authority: full normalized task state and tests are in `tasks/flow_delivery_queue.json`; this
-  dormant pointer does not activate implementation, runtime input, registration, or scheduling.
+- Status: Blocked (2026-07-24; offline Stage-9 Ch.20 + destination zero-transport delivered; Stage-9
+  native chapter-map ground truth still absent for `1-15-9` and `2-2-9`; `maximum_live_attempts=0`;
+  no live input).
+- Milestone: Campaign AP Home Atlas destination navigation offline delivery.
+- Dependencies: completed `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY` with accepted atlas
+  `campaign-atlas-native-800x1280-v4`.
+- Blocked by: Stage-9 native chapter-map ground truth absent for `1-15-9` and `2-2-9`; Auto Battle
+  production replay and live navigation canary remain unauthorized.
+- Objective: correct tuple semantics to `<difficulty>-<chapter>-<stage>`, reuse Home Atlas and
+  Campaign atlas chapter binding, add Stage-9 recognition only from retained native provenance,
+  run production-path zero-transport destination replay for the three supported destinations, and
+  keep AP/Challenge/Sweep/Blitz/Auto Complete/refills/Ultimate Challenge prohibited.
+- Established facts: foundation `f336ff9`; atlas v4 hash
+  `11214e52a1004cb72c15df0dab5db2b11047b96c0b0f17f078d73208b67b5ac7`; supported destinations exactly
+  `1-20-9`, `1-15-9`, `2-2-9`; Stage-9 Ch.20 retained native ground truth exists; Ch.15/Ch.2 Stage-9
+  evidence is absent; three historical live attempts remain terminal.
+- Direct implementation files: `tasks/campaign_auto_battle.py`, `tasks/campaign_stage9.py`, Campaign
+  AP gameplay contract, Stage-9 ground-truth assets, queue, coverage/docs, focused tests,
+  `BACKLOG.md`, `tasks/backlog_task_index.json`, `CURRENT_HANDOFF.md`, and context/control hygiene
+  hunks attributable to packet/review allowlisting.
+- Shared dependencies: Home Atlas Campaign entry, Campaign atlas localization/binding, product
+  destination policy, and retained BlueStacks Campaign mechanics evidence.
+- Transitive regression set: Campaign destinations, Home Atlas seam, atlas navigation, gameplay
+  contracts, flow-delivery authority/orchestrator/token/lean/governance tests.
+- Allowed changes: allowed paths are the direct implementation files, Stage-9 ground-truth assets,
+  attributable docs/queue/index/handoff, and focused test hunks for this flow; no push.
+- Prohibited changes: live input, inventing `maximum_live_attempts`, fabricating Stage-9 evidence for
+  Ch.15/Ch.2, atlas rebuild/recollect, Noah's Tavern mutation, registration, scheduler eligibility,
+  composition, M6, or push.
+- Authorized runtime action: None; offline code, authority, and zero-transport replay only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Forbidden in this atomic offline slice.
+- Consequential action: Forbidden; Challenge, Auto Battle, Sweep, Blitz, Auto Complete, and refills
+  are not dispatched.
+- Registration changes: None; preserve not registered.
+- Scheduler changes: None; preserve disabled/ineligible.
+- Actions that must not be repeated: historical Home zoom/localization live attempts, identical
+  retries, AP consumption, Ultimate Challenge coupling, or Stage-9 fixture manufacture.
+- Required source: current handoff, this backlog section, queue/policy/coverage/contract, accepted
+  atlas v4, and directly referenced retained native frames only.
+- Exact target semantics: destinations are difficulty-chapter-stage; `1-20-9` means difficulty 1,
+  Chapter 20, Stage 9; verify chapter identity, Stage 9, and dialog `[chapter-9]` association
+  without AP execution.
+- Required local association: Stage-9 templates require native source frame, source hash, crop ROI,
+  template hash, runtime profile, annotated ground truth, and nearby chapter semantic label.
+- Negative controls: no filename-only Stage-9 identity, synthetic images, circular fixtures, AP
+  spend, Sweep/Blitz/Auto Complete/refill, or Ultimate Challenge as a Campaign destination.
+- Coordinate space: native 800x1280 BlueStacks contract bounds only.
+- Accepted signals: atlas chapter landmark present, Stage-9 rebound by production recognizer on
+  retained native frames, dialog `[20-9]` association for Ch.20, zero transport, no dispatch.
+- Rejected weak signals: reversed tuple prose, synthetic Stage-9 crops, transport success, or
+  production constants as visual proof.
+- Ambiguous-result behavior: return `evidence_required` or fail closed with zero input authority.
+- Zero-cost requirement: this offline slice consumes no AP or other resources.
+- Quantity limits: destination verification only; no AP-consuming runs.
+- Resource consumption policy: AP execution remains evidence-gated and unauthorized here.
+- Premium or strategic restrictions: Sweep, Blitz, Auto Complete, every refill, and Ultimate
+  Challenge coupling are prohibited.
+- Active evidence manifest: None for governance slot; task-local Stage-9 ground truth and retained
+  `.local-captures/campaign-ap-live/` frames are referenced explicitly.
+- Required artifacts: Stage-9 Ch.20 ground-truth manifest/template/annotation, destination
+  zero-transport replay results, updated contract/queue/docs/handoff/index, focused tests, and one
+  focused local commit.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE for live transport; retained native
+  frame hashes and recognizer outputs back destination verification only.
+- Additional task-specific artifacts: accepted atlas
+  `.local-captures/.../campaign-atlas-native-800x1280-v4/atlas.json`.
+- Focused tests: `tests/test_campaign_stage9_destination_replay.py`,
+  `tests/test_campaign_auto_battle.py`, `tests/test_campaign_story_destinations.py`,
+  `tests/test_home_atlas_verified_route.py`, orchestrator/token/lean/governance suites listed in
+  the queue entry.
+- Integration tests: Campaign atlas navigation and Home Atlas Campaign entry regressions.
+- Transitive regression tests: flow-delivery parent-rollover and authority consistency.
+- Full-suite requirement: Not required beyond focused Campaign/Home/authority profiles for this
+  offline evidence-gated slice.
+- Validators: focused unittest suites, regenerated backlog index, governance/authority loaders,
+  `git diff --check`, and Git snapshot around mutating validators.
+- Known baseline failures: none newly waived; diagnose individually.
+- Evidence requirement: NOT_APPLICABLE for this zero-transport offline slice because it creates no
+  governance-manifest runtime evidence; Stage-9 Ch.15/Ch.2 native chapter-map ground truth and a
+  later authorized live canary remain required blockers.
+- Valid blocked outcomes: missing Stage-9 native chapter-map evidence for `1-15-9`/`2-2-9`, missing
+  Auto Battle production replay, or missing separately authorized positive live budget.
+- Blocked-result commit policy: commit coherent offline destination/Stage-9 work and truthful
+  blocker; do not claim all three destinations complete or authorize live input.
+- Commit policy: one focused conventional local commit over task-owned allowed paths; no push.
+- Expected focused commits: `feat(campaign): add stage9 provenance destination replay`.
+- Completion criteria: offline authority/tuple/Stage-9 Ch.20 proof and zero-transport replay are
+  truthful; missing Ch.15/Ch.2 Stage-9 remains explicit `evidence_required`; focused validations
+  pass; registration/scheduler unchanged; one local commit; no push.
+- Scope: Home Atlas → Campaign Story; difficulty 1/2; Chapters 20/15/2; Stage 9; destinations
+  `1-20-9`/`1-15-9`/`2-2-9` only; destination verification separate from AP execution.
+- Product tuple format: `<story difficulty>-<chapter>-<stage>`.
+- Authority: full normalized task state remains in `tasks/flow_delivery_queue.json`.
 
 ### ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION
 - Task ID: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`.

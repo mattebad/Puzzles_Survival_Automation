@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "kind": "campaign_stage9_chapter_map_ground_truth",
+  "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+  "authority_note": "Independent Stage-9 ground truth from retained native BlueStacks chapter-map evidence. Filename and production constants do not authorize identity; current-frame recognition must rebind Stage 9.",
+  "created_utc": "2026-07-24T18:51:29Z",
+  "native_size": [
+    800,
+    1280
+  ],
+  "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+  "destination_identity": "1-20-9",
+  "story_difficulty": 1,
+  "chapter": 20,
+  "stage": 9,
+  "dialog_identity": "[20-9]",
+  "templates": [
+    {
+      "asset_name": "stage9_chapter20.png",
+      "template_path": "tasks/assets/campaign_auto_battle/800x1280/stage9_chapter20.png",
+      "template_sha256": "0ee3afb16c2afe6826dfb822181bfdef139101bf988cc85297217dc6f30ab66d",
+      "crop_roi_xyxy": [
+        556,
+        402,
+        603,
+        449
+      ],
+      "source_frame_path": ".local-captures/campaign-ap-live/1-20-9-20260716T050321849157Z/frames/frame-0006.png",
+      "source_frame_sha256": "219c68c72bb305cb584993a436704568ad551f141a6ebd6a61e5dd546f53a557",
+      "source_session_id": "1-20-9-20260716T050321849157Z",
+      "annotated_source_path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/stage-9-chapter-20/annotated-stage9-from-050321-frame-0006-chapter-map.png",
+      "annotated_source_sha256": "51cad94b7ffd0b9cffeb15770cd04ceaeecdff0aaf085303b5c25e6291fb6ae9",
+      "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+      "nearby_semantic_label": "Ch.20 Westwinds",
+      "notes": "Stage-9 node crop from retained Chapter 20 map; OCR/node recognition must rebind on current frames."
+    }
+  ],
+  "dialog_association": {
+    "source_frame_path": ".local-captures/campaign-ap-live/1-20-9-20260716T050321849157Z/frames/frame-0007.png",
+    "source_frame_sha256": "9fc72315a0a6021609f0e8f68ca28a841029112d93dc9231b0c171c084687e41",
+    "source_session_id": "1-20-9-20260716T050321849157Z",
+    "dialog_header": "[20-9] Westwinds",
+    "dialog_identity": "[20-9]",
+    "static_ap_cost": 16,
+    "notes": "Retained stage dialog immediately after Stage-9 selection on the same session."
+  },
+  "missing_destinations": [
+    "1-15-9",
+    "2-2-9"
+  ]
+}

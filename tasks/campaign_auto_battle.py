@@ -565,3 +565,240 @@ def campaign_next_decision(
         )
 
     return _decision(CampaignAction.BLOCKED, "unsupported or ambiguous Campaign state", terminal=True)
+
+
+# ---------------------------------------------------------------------------
+# Destination-only zero-transport replay (no AP / Challenge / Auto Battle)
+# ---------------------------------------------------------------------------
+
+DESTINATION_REPLAY_VERIFIED = "destination_verified"
+DESTINATION_REPLAY_EVIDENCE_REQUIRED = "evidence_required"
+DESTINATION_REPLAY_BLOCKED = "blocked_fail_closed"
+
+
+@dataclass(frozen=True)
+class CampaignDestinationReplayResult:
+    destination: str
+    status: str
+    transport_count: int
+    dispatch_authorized: bool
+    evidence_required: bool
+    reason: str
+    atlas_id: str = ""
+    chapter_label: str = ""
+    stage9_status: str = ""
+    static_ap_cost: int | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "destination": self.destination,
+            "status": self.status,
+            "transport_count": self.transport_count,
+            "dispatch_authorized": self.dispatch_authorized,
+            "evidence_required": self.evidence_required,
+            "reason": self.reason,
+            "atlas_id": self.atlas_id,
+            "chapter_label": self.chapter_label,
+            "stage9_status": self.stage9_status,
+            "static_ap_cost": self.static_ap_cost,
+        }
+
+
+@dataclass(frozen=True)
+class CampaignDestinationReplayReport:
+    status: str
+    atlas_id: str
+    results: tuple[CampaignDestinationReplayResult, ...]
+    transport_count: int
+    dispatch_authorized: bool
+    evidence_required: bool
+    reason: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "atlas_id": self.atlas_id,
+            "results": [item.to_dict() for item in self.results],
+            "transport_count": self.transport_count,
+            "dispatch_authorized": self.dispatch_authorized,
+            "evidence_required": self.evidence_required,
+            "reason": self.reason,
+        }
+
+
+def _static_cost_for_destination(destination: str) -> int | None:
+    costs = {"1-15-9": 14, "1-20-9": 16, "2-2-9": 20}
+    return costs.get(destination)
+
+
+def run_campaign_ap_destination_zero_transport_replay(
+    destination: str,
+    *,
+    atlas_path: object | None = None,
+) -> CampaignDestinationReplayResult:
+    """Production-path destination verification with zero transport.
+
+    Reuses the accepted Campaign atlas chapter landmark and Stage-9 provenance gate.
+    Never authorizes Challenge, Auto Battle, Sweep, Blitz, Auto Complete, refill, or
+    Ultimate Challenge. Missing Stage-9 native evidence remains evidence_required.
+    """
+
+    from pathlib import Path
+
+    from tasks.campaign_atlas import (
+        LandmarkKind,
+        load_campaign_atlas,
+        resolve_campaign_consumer_destination,
+    )
+    from tasks.campaign_stage9 import (
+        EVIDENCE_REQUIRED as STAGE9_EVIDENCE_REQUIRED,
+        STAGE9_VERIFIED,
+        evaluate_stage9_on_retained_native_evidence,
+    )
+
+    stage = parse_supported_campaign_story_destination(destination)
+    kind, chapter_label = resolve_campaign_consumer_destination("campaign_ap", stage.identity)
+    if kind.value != "chapter":
+        return CampaignDestinationReplayResult(
+            destination=stage.identity,
+            status=DESTINATION_REPLAY_BLOCKED,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=False,
+            reason="Campaign AP destination must resolve to a chapter landmark",
+            chapter_label=chapter_label,
+            static_ap_cost=_static_cost_for_destination(stage.identity),
+        )
+
+    default_atlas = Path(
+        ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/"
+        "campaign-atlas-native-800x1280-v4/atlas.json"
+    )
+    atlas_file = Path(atlas_path) if atlas_path is not None else default_atlas
+    if not atlas_file.is_file():
+        return CampaignDestinationReplayResult(
+            destination=stage.identity,
+            status=DESTINATION_REPLAY_EVIDENCE_REQUIRED,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=True,
+            reason="accepted Campaign atlas artifact is absent",
+            chapter_label=chapter_label,
+            static_ap_cost=_static_cost_for_destination(stage.identity),
+        )
+    atlas = load_campaign_atlas(atlas_file)
+    landmark = atlas.lookup_landmark(kind=LandmarkKind.CHAPTER, label=chapter_label)
+    if landmark is None or not landmark.spatially_associated:
+        return CampaignDestinationReplayResult(
+            destination=stage.identity,
+            status=DESTINATION_REPLAY_EVIDENCE_REQUIRED,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=True,
+            reason=f"atlas lacks spatially associated landmark for {chapter_label}",
+            atlas_id=atlas.atlas_id,
+            chapter_label=chapter_label,
+            static_ap_cost=_static_cost_for_destination(stage.identity),
+        )
+
+    stage9 = evaluate_stage9_on_retained_native_evidence(stage.identity)
+    if stage9.status == STAGE9_EVIDENCE_REQUIRED or stage9.evidence_required:
+        return CampaignDestinationReplayResult(
+            destination=stage.identity,
+            status=DESTINATION_REPLAY_EVIDENCE_REQUIRED,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=True,
+            reason=stage9.reason,
+            atlas_id=atlas.atlas_id,
+            chapter_label=chapter_label,
+            stage9_status=stage9.status,
+            static_ap_cost=_static_cost_for_destination(stage.identity),
+        )
+    if stage9.status != STAGE9_VERIFIED:
+        return CampaignDestinationReplayResult(
+            destination=stage.identity,
+            status=DESTINATION_REPLAY_BLOCKED,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=False,
+            reason=stage9.reason,
+            atlas_id=atlas.atlas_id,
+            chapter_label=chapter_label,
+            stage9_status=stage9.status,
+            static_ap_cost=_static_cost_for_destination(stage.identity),
+        )
+
+    return CampaignDestinationReplayResult(
+        destination=stage.identity,
+        status=DESTINATION_REPLAY_VERIFIED,
+        transport_count=0,
+        dispatch_authorized=False,
+        evidence_required=False,
+        reason=(
+            f"chapter {chapter_label} present in atlas {atlas.atlas_id}; Stage 9 and "
+            f"{stage.dialog_identity} verified on retained native evidence; AP execution prohibited"
+        ),
+        atlas_id=atlas.atlas_id,
+        chapter_label=chapter_label,
+        stage9_status=stage9.status,
+        static_ap_cost=_static_cost_for_destination(stage.identity),
+    )
+
+
+def run_all_campaign_ap_destination_zero_transport_replays(
+    *,
+    atlas_path: object | None = None,
+) -> CampaignDestinationReplayReport:
+    results = tuple(
+        run_campaign_ap_destination_zero_transport_replay(destination, atlas_path=atlas_path)
+        for destination in sorted(SUPPORTED_CAMPAIGN_STORY_DESTINATIONS)
+    )
+    atlas_id = next((item.atlas_id for item in results if item.atlas_id), "")
+    if any(item.transport_count != 0 or item.dispatch_authorized for item in results):
+        return CampaignDestinationReplayReport(
+            status=DESTINATION_REPLAY_BLOCKED,
+            atlas_id=atlas_id,
+            results=results,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=False,
+            reason="destination replay attempted transport or dispatch authority",
+        )
+    if any(item.status == DESTINATION_REPLAY_BLOCKED for item in results):
+        return CampaignDestinationReplayReport(
+            status=DESTINATION_REPLAY_BLOCKED,
+            atlas_id=atlas_id,
+            results=results,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=False,
+            reason="one or more Campaign AP destinations failed closed",
+        )
+    if any(item.evidence_required or item.status == DESTINATION_REPLAY_EVIDENCE_REQUIRED for item in results):
+        missing = [
+            item.destination
+            for item in results
+            if item.evidence_required or item.status == DESTINATION_REPLAY_EVIDENCE_REQUIRED
+        ]
+        return CampaignDestinationReplayReport(
+            status=DESTINATION_REPLAY_EVIDENCE_REQUIRED,
+            atlas_id=atlas_id,
+            results=results,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=True,
+            reason=(
+                "Stage-9 native chapter-map evidence still required for "
+                + ", ".join(missing)
+            ),
+        )
+    return CampaignDestinationReplayReport(
+        status=DESTINATION_REPLAY_VERIFIED,
+        atlas_id=atlas_id,
+        results=results,
+        transport_count=0,
+        dispatch_authorized=False,
+        evidence_required=False,
+        reason="all three supported Campaign AP destinations verified with zero transport",
+    )

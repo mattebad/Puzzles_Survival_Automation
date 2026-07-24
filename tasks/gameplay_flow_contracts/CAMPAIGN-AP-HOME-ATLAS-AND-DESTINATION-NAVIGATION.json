@@ -28,21 +28,31 @@
     {"policy_id": "campaign-ap-budget", "source": "tasks/flow_delivery_product_policy.json"},
     {"policy_id": "campaign-rejects-ultimate-challenge", "source": "tasks/flow_delivery_product_policy.json"}
   ],
-  "evidence_requirements": ["Retained local BlueStacks mechanics and controller evidence is valid but is not a production-controller positive replay.", "Production-path positive replay must verify all three static costs, AP regeneration/defer, result handling, and canonical Home.", "A later supervised consequential canary requires separate authorization."],
+  "evidence_requirements": [
+    "Retained local BlueStacks mechanics and controller evidence is valid but is not a production-controller positive Auto Battle replay.",
+    "Destination verification requires Stage-9 native chapter-map ground truth with independent source hash, crop ROI, template hash, runtime profile, annotated source, and dialog association.",
+    "Retained Stage-9 provenance currently covers only 1-20-9; 1-15-9 and 2-2-9 remain evidence_required.",
+    "Production-path positive Auto Battle replay must verify all three static costs, AP regeneration/defer, result handling, and canonical Home.",
+    "A later supervised navigation or consequential canary requires separate authorization and an exact positive maximum_live_attempts value."
+  ],
   "evidence_gates": [
+    {"gate_id": "campaign_stage9_native_provenance", "status": "partial", "blocks": [], "required_evidence": ["native Stage-9 chapter-map ground truth for Chapters 15 and 2"], "permitted_inputs": [], "notes": "Chapter 20 Stage-9 retained provenance exists; Chapters 15 and 2 do not."},
+    {"gate_id": "campaign_destination_zero_transport", "status": "evidence_required", "blocks": ["campaign_destination_complete"], "required_evidence": ["production-path zero-transport destination verification for 1-15-9 and 2-2-9 Stage 9"], "permitted_inputs": []},
     {"gate_id": "campaign_production_replay", "status": "evidence_required", "blocks": ["start_auto_battle", "campaign_auto_battle_production"], "required_evidence": ["hash-bound production-controller positive replay with journal-backed zero-transport boundary"], "permitted_inputs": []}
   ],
   "replay_fixture_requirements": [
     {"fixture_id": "retained_local_campaign_mechanics", "status": "required_evidence", "path": null, "notes": "Retained local evidence proves mechanics, Auto Battle, AP deltas, and Home return; it is not production proof."},
+    {"fixture_id": "stage9_chapter20_ground_truth", "status": "available", "path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/stage-9-chapter-20/manifest.json", "notes": "Independent Stage-9 Chapter 20 ground truth from retained native BlueStacks frames."},
     {"fixture_id": "campaign_negative_policy", "status": "synthetic_policy_ok", "path": null, "notes": "Synthetic negatives may cover wrong cost, refills, Sweep, Blitz, and Auto Complete only."}
   ],
   "scenarios": [
-    {"scenario_id": "campaign_auto_battle_production", "mode": "blocked_until_policy", "start_state": "home_canonical", "terminal_state": "blocked", "permitted_inputs": [], "forbidden_inputs": ["navigate_configured_stage", "start_auto_battle", "continue_verified_result", "return_canonical_home", "sweep", "blitz", "auto_complete", "ap_refill"], "required_transitions": [], "evidence_gate_ids": ["campaign_production_replay"], "notes": "Policy is approved; evidence and separate live authorization are missing."}
+    {"scenario_id": "campaign_destination_zero_transport", "mode": "evidence_gated", "start_state": "home_canonical", "terminal_state": "blocked", "permitted_inputs": [], "forbidden_inputs": ["start_auto_battle", "sweep", "blitz", "auto_complete", "ap_refill"], "required_transitions": ["navigate_and_verify_stage"], "evidence_gate_ids": ["campaign_destination_zero_transport", "campaign_stage9_native_provenance"], "notes": "Destination verification only; 1-20-9 Stage-9 proven on retained frames; 1-15-9 and 2-2-9 Stage-9 evidence_required."},
+    {"scenario_id": "campaign_auto_battle_production", "mode": "blocked_until_policy", "start_state": "home_canonical", "terminal_state": "blocked", "permitted_inputs": [], "forbidden_inputs": ["navigate_configured_stage", "start_auto_battle", "continue_verified_result", "return_canonical_home", "sweep", "blitz", "auto_complete", "ap_refill"], "required_transitions": [], "evidence_gate_ids": ["campaign_production_replay"], "notes": "Policy is approved; Auto Battle evidence and separate live authorization are missing."}
   ],
   "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "unknown_stage_or_cost", "sweep", "blitz", "auto_complete", "ap_or_resource_refill", "ultimate_challenge"],
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
-  "offline_proof_state": "current",
+  "offline_proof_state": "partial",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
   "registration_state": "disabled",

@@ -154,6 +154,15 @@
         133
       ],
       "role": "story difficulty tier2 selected button (disambiguation)"
+    },
+    "stage9_chapter20.png": {
+      "source_bbox": [
+        556,
+        402,
+        603,
+        449
+      ],
+      "role": "chapter-20 stage-9 node crop; ground-truth only, not sole live matcher"
     }
   }
 }

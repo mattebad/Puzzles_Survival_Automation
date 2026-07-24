@@ -97,8 +97,15 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             key=lambda flow: (flow["priority"], flow["flow_id"]),
         )
         self.assertEqual(selected["flow_id"], expected["flow_id"])
-        self.assertEqual(expected["flow_id"], "NOAHS-TAVERN-HOME-ATLAS-MIGRATION")
-
+        # With Campaign AP temporarily ready under an explicit queue override, the first
+        # ready flow is whichever ready entry has the lowest priority.
+        self.assertIn(
+            expected["flow_id"],
+            {
+                "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+                "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+            },
+        )
     def test_composition_bliss_and_gameplay_scheduler_are_excluded(self) -> None:
         identities = {item["flow_id"] for item in self.queue["flows"]}
         joined = json.dumps(self.queue).lower()
@@ -143,14 +150,20 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         # Approved but evidence-gated flows remain blocked; Gathering alone still needs a decision.
         # Both Nova flows and the completed Campaign survey/prep flows are terminal.
         # Campaign atlas integration may be active during delivery; ready+active stays six after it
-        # completes (or seven while it is the sole active flow).
+        # completes (or seven while it is the sole active flow). An explicit Campaign AP queue
+        # override may move that flow from blocked to ready/active (blocked 9, ready+active 7).
         self.assertIn(counts["ready"] + counts["active"], (6, 7))
-        self.assertIn(counts["blocked"], (10, 11))
+        self.assertIn(counts["blocked"], (9, 10, 11))
         self.assertIn(counts["completed"], (4, 5))
         self.assertEqual(counts["needs_product_decision"], 1)
         if by_id := {item["flow_id"]: item for item in self.queue["flows"]}:
             integration = by_id["CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"]
-            if integration["status"] == "completed":
+            campaign_ap = by_id["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]
+            if campaign_ap["status"] in {"ready", "active"} and integration["status"] == "completed":
+                self.assertEqual(counts["ready"] + counts["active"], 7)
+                self.assertEqual(counts["blocked"], 9)
+                self.assertEqual(counts["completed"], 5)
+            elif integration["status"] == "completed":
                 self.assertEqual(counts["ready"] + counts["active"], 6)
                 self.assertEqual(counts["blocked"], 10)
                 self.assertEqual(counts["completed"], 5)

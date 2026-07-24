@@ -6,8 +6,8 @@ It is not a registered production or scheduled task.
 
 ## Approved configured route
 
-A configured destination uses `<story difficulty>-<stage>-<chapter>`. The approved destinations
-and static costs are exactly:
+A configured destination uses `<story difficulty>-<chapter>-<stage>` (example `1-20-9` =
+difficulty 1, Chapter 20, Stage 9). The approved destinations and static costs are exactly:
 
 | Destination | Static cost |
 | --- | ---: |

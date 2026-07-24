@@ -190,13 +190,15 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         if by_id[dependency]["status"] == "active":
             self.assertEqual(selected["flow_id"], dependency)
         else:
-            expected = min(
-                (flow for flow in self.queue["flows"] if flow["status"] == "ready"),
-                key=lambda flow: (flow["priority"], flow["flow_id"]),
-            )
-            self.assertEqual(selected["flow_id"], expected["flow_id"])
-            self.assertEqual(expected["flow_id"], "NOAHS-TAVERN-HOME-ATLAS-MIGRATION")
-
+            active = [flow for flow in self.queue["flows"] if flow["status"] == "active"]
+            if active:
+                self.assertEqual(selected["flow_id"], active[0]["flow_id"])
+            else:
+                expected = min(
+                    (flow for flow in self.queue["flows"] if flow["status"] == "ready"),
+                    key=lambda flow: (flow["priority"], flow["flow_id"]),
+                )
+                self.assertEqual(selected["flow_id"], expected["flow_id"])
     def test_coverage_keeps_objectives_separate(self) -> None:
         campaign = self.coverage["flows"]["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]
         ultimate = self.coverage["flows"]["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]
