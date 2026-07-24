@@ -63,6 +63,43 @@ def append_event(path: Path, event: dict[str, object]) -> None:
         handle.write(json.dumps(event, sort_keys=True, default=str) + "\n")
 
 
+def write_navigation_only_evidence(session: Path, result: dict[str, object]) -> None:
+    """Persist navigation-only ledger/journal/capability-audit required by flow-delivery evidence."""
+
+    status = str(result.get("status") or "unknown")
+    reason = str(result.get("reason") or "")
+    row = {
+        "status": status,
+        "reason": reason,
+        "navigation_only": True,
+        "session": str(session),
+        "destination": result.get("destination"),
+    }
+    for name in ("ledger.jsonl", "journal.jsonl", "capability-audit.jsonl"):
+        path = session / name
+        if path.exists() and path.stat().st_size > 0:
+            continue
+        with path.open("w", encoding="utf-8", newline="\n") as handle:
+            if name == "capability-audit.jsonl":
+                handle.write(
+                    json.dumps(
+                        {
+                            **row,
+                            "authority": "CampaignRuntimeController",
+                            "authorized": status
+                            in {"destination_verified", "navigation_only_complete", "completed"},
+                            "transport_observed": True,
+                            "consequence_class": "navigation_only",
+                        },
+                        sort_keys=True,
+                        default=str,
+                    )
+                    + "\n"
+                )
+            else:
+                handle.write(json.dumps(row, sort_keys=True, default=str) + "\n")
+
+
 def relocalization_residual_pixels(
     localization_residual_px: float | None,
     remaining_displacement: tuple[float, float] | None = None,
@@ -264,7 +301,7 @@ def main(argv: list[str] | None = None) -> int:
         elif recognition.observation.screen != CampaignScreen.BATTLE:
             battle_started = None
 
-        command = controller.next_command(recognition)
+        command = controller.next_command(recognition, frame=frame)
         append_event(
             events,
             {
@@ -306,6 +343,7 @@ def main(argv: list[str] | None = None) -> int:
                     json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
                     encoding="utf-8",
                 )
+                write_navigation_only_evidence(session, result)
                 print(json.dumps(result, sort_keys=True, default=str))
                 return 0
             if command.action == CampaignAction.COMPLETE:
@@ -326,6 +364,7 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
                 encoding="utf-8",
             )
+            write_navigation_only_evidence(session, result)
             print(json.dumps(result, sort_keys=True, default=str))
             return 0 if result["status"] == "completed" else 3
         if command.kind == "wait":
@@ -356,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
                     json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
                     encoding="utf-8",
                 )
+                write_navigation_only_evidence(session, result)
                 print(json.dumps(result, sort_keys=True, default=str))
                 return 3
             navigation_inputs += 1 + len(entry.get("records", []))

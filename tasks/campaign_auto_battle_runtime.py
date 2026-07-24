@@ -33,8 +33,12 @@ HOME_PAN_GESTURES = (
 # Drag left reveals content toward higher map numbers; drag right reveals lower.
 CHAPTER_PAN_TOWARD_HIGHER = (620, 620, 180, 620, 550)
 CHAPTER_PAN_TOWARD_LOWER = (180, 620, 620, 620, 550)
+CHAPTER_PAN_TOWARD_HIGHER_STRONG = (720, 580, 80, 580, 700)
+CHAPTER_PAN_TOWARD_LOWER_STRONG = (80, 580, 720, 580, 700)
 STAGE_PAN_TOWARD_HIGHER = (620, 700, 220, 700, 500)
 STAGE_PAN_TOWARD_LOWER = (220, 700, 620, 700, 500)
+STAGE_PAN_TOWARD_HIGHER_STRONG = (720, 700, 100, 700, 650)
+STAGE_PAN_TOWARD_LOWER_STRONG = (100, 700, 720, 700, 650)
 
 # Legacy gesture tables retained as non-authoritative references only.
 CHAPTER_PAN_GESTURES = (
@@ -90,6 +94,30 @@ def residual_pan_swipe(
     if abs(target - high) <= abs(target - low):
         return toward_higher
     return toward_lower
+
+
+def stronger_residual_pan_swipe(
+    swipe: tuple[int, int, int, int, int],
+) -> tuple[int, int, int, int, int]:
+    """Return a materially longer pan in the same residual direction.
+
+    Used when a prior residual pan made progress but the default geometry would be an
+    identical retry. This is a corrected longer gesture, not a blind duplicate.
+    """
+
+    mapping = {
+        CHAPTER_PAN_TOWARD_HIGHER: CHAPTER_PAN_TOWARD_HIGHER_STRONG,
+        CHAPTER_PAN_TOWARD_LOWER: CHAPTER_PAN_TOWARD_LOWER_STRONG,
+        STAGE_PAN_TOWARD_HIGHER: STAGE_PAN_TOWARD_HIGHER_STRONG,
+        STAGE_PAN_TOWARD_LOWER: STAGE_PAN_TOWARD_LOWER_STRONG,
+        CHAPTER_PAN_TOWARD_HIGHER_STRONG: CHAPTER_PAN_TOWARD_HIGHER_STRONG,
+        CHAPTER_PAN_TOWARD_LOWER_STRONG: CHAPTER_PAN_TOWARD_LOWER_STRONG,
+        STAGE_PAN_TOWARD_HIGHER_STRONG: STAGE_PAN_TOWARD_HIGHER_STRONG,
+        STAGE_PAN_TOWARD_LOWER_STRONG: STAGE_PAN_TOWARD_LOWER_STRONG,
+    }
+    if swipe not in mapping:
+        raise ValueError("stronger residual pan requires a known residual swipe geometry")
+    return mapping[swipe]
 
 
 def visible_set_moved_toward_target(
@@ -148,6 +176,9 @@ class CampaignRuntimeController:
         self._awaiting_chapter_progress = False
         self._awaiting_stage_progress = False
         self._destination_verified = False
+        self._awaiting_atlas_chapter_progress = False
+        self._remembered_atlas_chapter_distance: float | None = None
+        self._remembered_atlas_localization_support: tuple[str, ...] | None = None
 
     def _terminal(self, action: CampaignAction, reason: str) -> CampaignRuntimeCommand:
         return CampaignRuntimeCommand(action, "terminal", reason, terminal=True)
@@ -163,6 +194,113 @@ class CampaignRuntimeController:
         if command.kind in {"tap", "swipe", "home_atlas_entry"} and signature == self._last_dispatched_signature:
             return self._terminal(CampaignAction.BLOCKED, "identical input retry is forbidden")
         return command
+
+    def _visible_chapter_rois(
+        self, recognition: CampaignFrameRecognition
+    ) -> dict[int, tuple[int, int, int, int]]:
+        rois: dict[int, tuple[int, int, int, int]] = {}
+        for identity, box in recognition.targets:
+            if not identity.startswith("campaign-chapter-"):
+                continue
+            suffix = identity.split("campaign-chapter-", 1)[-1]
+            if not suffix.isdigit():
+                continue
+            rois[int(suffix)] = tuple(int(value) for value in box)
+        return rois
+
+    def _atlas_chapter_command(
+        self,
+        recognition: CampaignFrameRecognition,
+        frame: object,
+    ) -> CampaignRuntimeCommand:
+        from tasks.campaign_atlas_chapter_nav import resolve_atlas_chapter_navigation
+
+        decision = resolve_atlas_chapter_navigation(
+            frame,  # type: ignore[arg-type]
+            destination_id=self.config.target_stage.identity,
+            visible_chapter_rois=self._visible_chapter_rois(recognition),
+        )
+        if self._awaiting_atlas_chapter_progress:
+            if decision.kind == "tap":
+                self._awaiting_atlas_chapter_progress = False
+                self._remembered_atlas_chapter_distance = None
+                self._remembered_atlas_localization_support = None
+            elif (
+                self._remembered_atlas_localization_support is not None
+                and decision.localization_support
+                != self._remembered_atlas_localization_support
+            ):
+                # Anchor/ORB support identity changed; projected distances are not comparable.
+                self._awaiting_atlas_chapter_progress = False
+                self._remembered_atlas_chapter_distance = None
+                self._remembered_atlas_localization_support = None
+            elif (
+                decision.distance_to_screen_center_px is not None
+                and self._remembered_atlas_chapter_distance is not None
+                and decision.distance_to_screen_center_px
+                < self._remembered_atlas_chapter_distance - 8.0
+            ):
+                self._awaiting_atlas_chapter_progress = False
+            else:
+                return self._terminal(
+                    CampaignAction.BLOCKED,
+                    "Campaign atlas chapter pan produced no progress toward the configured landmark",
+                )
+
+        if decision.kind == "tap":
+            assert decision.target_roi is not None
+            return self._checked(
+                CampaignRuntimeCommand(
+                    CampaignAction.NAVIGATE_CHAPTER,
+                    "tap",
+                    decision.reason,
+                    target_identity=decision.target_identity,
+                    target_roi=decision.target_roi,
+                )
+            )
+        if decision.kind == "swipe":
+            assert decision.swipe is not None
+            swipe = decision.swipe
+            reason = decision.reason
+            signature = (
+                CampaignAction.NAVIGATE_CHAPTER,
+                "swipe",
+                None,
+                None,
+                swipe,
+            )
+            if signature == self._last_dispatched_signature:
+                from tasks.campaign_atlas_vision import (
+                    HUD_SAFE_PAN_HALF_TRAVEL_STRONG_PX,
+                    hud_safe_pan_gesture,
+                )
+
+                direction = decision.pan_direction
+                if direction is None:
+                    return self._terminal(
+                        CampaignAction.BLOCKED,
+                        "Campaign atlas chapter pan would repeat without a stronger direction",
+                    )
+                swipe = hud_safe_pan_gesture(
+                    direction,
+                    travel_px=HUD_SAFE_PAN_HALF_TRAVEL_STRONG_PX,
+                ).as_swipe()
+                reason = (
+                    f"{decision.reason}; stronger atlas-directed pan after measured progress"
+                )
+            command = self._checked(
+                CampaignRuntimeCommand(
+                    CampaignAction.NAVIGATE_CHAPTER,
+                    "swipe",
+                    reason,
+                    swipe=swipe,
+                )
+            )
+            if not command.terminal:
+                self._remembered_atlas_chapter_distance = decision.distance_to_screen_center_px
+                self._remembered_atlas_localization_support = decision.localization_support
+            return command
+        return self._terminal(CampaignAction.BLOCKED, decision.reason)
 
     def _initialize_or_reconcile(self, recognition: CampaignFrameRecognition) -> str | None:
         observation = recognition.observation
@@ -239,7 +377,11 @@ class CampaignRuntimeController:
             )
         return None
 
-    def next_command(self, recognition: CampaignFrameRecognition) -> CampaignRuntimeCommand:
+    def next_command(
+        self,
+        recognition: CampaignFrameRecognition,
+        frame: object | None = None,
+    ) -> CampaignRuntimeCommand:
         if self._last_frame_hash == recognition.frame_sha256 and recognition.observation.screen == CampaignScreen.UNKNOWN:
             return self._terminal(CampaignAction.BLOCKED, "unchanged unknown frame")
         self._last_frame_hash = recognition.frame_sha256
@@ -305,33 +447,23 @@ class CampaignRuntimeController:
                     target_identity=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
                 )
             )
-        if decision.action == CampaignAction.NAVIGATE_CHAPTER and target is None:
-            visible = observation.visible_chapter_numbers
-            if observation.chapter_number is not None and not visible:
-                visible = (observation.chapter_number,)
-            if not visible:
+        if decision.action == CampaignAction.NAVIGATE_CHAPTER:
+            if target is not None:
+                return self._checked(
+                    CampaignRuntimeCommand(
+                        decision.action,
+                        "tap",
+                        decision.reason,
+                        target_identity=decision.target_identity,
+                        target_roi=target,
+                    )
+                )
+            if frame is None:
                 return self._terminal(
                     CampaignAction.BLOCKED,
-                    "chapter residual pan requires non-empty visible chapter set before pan",
+                    "Campaign atlas chapter navigation requires the current native frame",
                 )
-            swipe = residual_pan_swipe(
-                self.config.target_stage.chapter,
-                visible,
-                toward_higher=CHAPTER_PAN_TOWARD_HIGHER,
-                toward_lower=CHAPTER_PAN_TOWARD_LOWER,
-            )
-            command = self._checked(
-                CampaignRuntimeCommand(
-                    decision.action,
-                    "swipe",
-                    decision.reason,
-                    swipe=swipe,
-                )
-            )
-            if not command.terminal:
-                # Never remember empty () as a residual baseline.
-                self._remembered_chapter_visible = visible
-            return command
+            return self._atlas_chapter_command(recognition, frame)
         if decision.action == CampaignAction.NAVIGATE_STAGE and target is None:
             visible = observation.visible_stage_numbers
             if not visible:
@@ -345,11 +477,22 @@ class CampaignRuntimeController:
                 toward_higher=STAGE_PAN_TOWARD_HIGHER,
                 toward_lower=STAGE_PAN_TOWARD_LOWER,
             )
+            reason = decision.reason
+            signature = (
+                decision.action,
+                "swipe",
+                None,
+                None,
+                swipe,
+            )
+            if signature == self._last_dispatched_signature:
+                swipe = stronger_residual_pan_swipe(swipe)
+                reason = f"{decision.reason}; stronger residual stage pan after measured progress"
             command = self._checked(
                 CampaignRuntimeCommand(
                     decision.action,
                     "swipe",
-                    decision.reason,
+                    reason,
                     swipe=swipe,
                 )
             )
@@ -401,6 +544,9 @@ class CampaignRuntimeController:
             assert self.progress is not None
             self.progress = replace(self.progress, loss_seen=True)
         elif command.kind == "swipe" and command.action == CampaignAction.NAVIGATE_CHAPTER:
-            self._awaiting_chapter_progress = True
+            if "atlas" in command.reason.casefold():
+                self._awaiting_atlas_chapter_progress = True
+            else:
+                self._awaiting_chapter_progress = True
         elif command.kind == "swipe" and command.action == CampaignAction.NAVIGATE_STAGE:
             self._awaiting_stage_progress = True

@@ -56,7 +56,9 @@ TIER_CONTROLS_ROI: Box = (410, 65, 625, 133)
 MAP_AP_ROI: Box = (3, 190, 129, 232)
 HOME_AP_ROI: Box = (3, 225, 129, 261)
 
-_STAGE_DIALOG_RE = re.compile(r"\[(\d+)\s*[-–]\s*(\d+)\]")
+_STAGE_DIALOG_RE = re.compile(
+    r"(?:\[(\d+)\s*[-–]\s*(\d+)\]|(\d+)\s*[-–]\s*(\d+)\])"
+)
 _CHAPTER_RE = re.compile(r"\bch\.?\s*(\d+)\b", re.IGNORECASE)
 _FRACTION_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
 
@@ -161,7 +163,14 @@ def _green_ratio(frame: np.ndarray, box: Box) -> float:
 
 def _fraction(text: str) -> tuple[int, int] | None:
     match = _FRACTION_RE.search(text)
-    return (int(match.group(1)), int(match.group(2))) if match else None
+    if not match:
+        return None
+    current = int(match.group(1))
+    maximum = int(match.group(2))
+    # Reject OCR garbage such as BGR "720/120" for a real "120/120" HUD.
+    if maximum <= 0 or current < 0 or current > maximum:
+        return None
+    return (current, maximum)
 
 
 def _ocr_boxes(frame: np.ndarray, box: Box) -> list[tuple[str, Box, float]]:
@@ -358,7 +367,9 @@ def recognize_campaign_frame(
         cost_text = _threshold_ocr(frame, STAGE_COST_ROI, threshold=150, whitelist="0123456789")
         balance = _fraction(balance_text)
         cost_digits = re.sub(r"\D", "", cost_text)
-        stage = CampaignStage(target_stage.tier, int(stage_match.group(1)), int(stage_match.group(2)))
+        chapter = int(stage_match.group(1) or stage_match.group(3))
+        stage_number = int(stage_match.group(2) or stage_match.group(4))
+        stage = CampaignStage(target_stage.tier, chapter, stage_number)
         challenge_ready = challenge_gold >= 0.18
         targets.extend(
             [
@@ -450,7 +461,7 @@ def recognize_campaign_frame(
                 ("campaign-base-request", (0, 1170, 132, 1280)),
             ]
         )
-        if campaign_exit_score >= 0.72:
+        if campaign_exit_score >= 0.60:
             targets.append(("campaign-exit-base", CAMPAIGN_EXIT_ROI))
         for number, bounds in map_numbers.items():
             targets.append((f"campaign-chapter-{number}", bounds))

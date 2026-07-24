@@ -68,6 +68,7 @@ CAMPAIGN_HUD_MASK = HudMaskContract(
 
 # Finger travel for one map pan inside the HUD-safe central corridor.
 HUD_SAFE_PAN_HALF_TRAVEL_PX = 140
+HUD_SAFE_PAN_HALF_TRAVEL_STRONG_PX = 200
 NO_PROGRESS_TRANSLATION_PX = 8.0
 NO_PROGRESS_RESIDUAL_PX = 6.0
 MIN_ASSOCIATION_MATCHES = 24
@@ -192,13 +193,19 @@ def _point_in_rect(point: tuple[int, int], rect: Rect) -> bool:
     return rect.left <= x < rect.right and rect.top <= y < rect.bottom
 
 
-def hud_safe_pan_gesture(direction: str) -> HudSafePanGesture:
+def hud_safe_pan_gesture(
+    direction: str,
+    *,
+    travel_px: int | None = None,
+) -> HudSafePanGesture:
     """Build a finger swipe that pans the map toward ``direction`` inside HUD-safe content."""
 
     region = hud_safe_central_region()
     cx = (region.left + region.right) // 2
     cy = (region.top + region.bottom) // 2
-    travel = HUD_SAFE_PAN_HALF_TRAVEL_PX
+    travel = HUD_SAFE_PAN_HALF_TRAVEL_PX if travel_px is None else int(travel_px)
+    if travel <= 0:
+        raise ValueError("HUD-safe pan travel must be positive")
     # Finger motion opposite the desired content edge (drag map toward that edge).
     if direction == "top":
         start, end = (cx, cy - 20), (cx, cy + travel)
@@ -1557,7 +1564,7 @@ def bind_campaign_destination_from_current_frame(
         )
     result = cv2.matchTemplate(haystack, template, cv2.TM_CCOEFF_NORMED)
     _min_val, max_val, _min_loc, max_loc = cv2.minMaxLoc(result)
-    if float(max_val) < 0.55:
+    if float(max_val) < 0.52:
         return CampaignDestinationBinding(
             kind,
             label,

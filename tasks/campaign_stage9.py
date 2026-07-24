@@ -32,6 +32,13 @@ STAGE9_GROUND_TRUTH_ROOT = (
     / "ground-truth"
 )
 STAGE9_CHAPTER20_MANIFEST = STAGE9_GROUND_TRUTH_ROOT / "stage-9-chapter-20" / "manifest.json"
+STAGE9_CHAPTER15_MANIFEST = STAGE9_GROUND_TRUTH_ROOT / "stage-9-chapter-15" / "manifest.json"
+STAGE9_CHAPTER2_MANIFEST = STAGE9_GROUND_TRUTH_ROOT / "stage-9-chapter-2" / "manifest.json"
+DEFAULT_STAGE9_MANIFESTS = (
+    STAGE9_CHAPTER20_MANIFEST,
+    STAGE9_CHAPTER15_MANIFEST,
+    STAGE9_CHAPTER2_MANIFEST,
+)
 
 EVIDENCE_REQUIRED = "evidence_required"
 STAGE9_VERIFIED = "stage9_verified"
@@ -138,7 +145,7 @@ def load_stage9_ground_truth_catalog(
 ) -> dict[str, Stage9TemplateProvenance]:
     """Load retained Stage-9 ground-truth manifests; absent chapters are omitted."""
 
-    paths = list(manifest_paths) if manifest_paths is not None else [STAGE9_CHAPTER20_MANIFEST]
+    paths = list(manifest_paths) if manifest_paths is not None else list(DEFAULT_STAGE9_MANIFESTS)
     catalog: dict[str, Stage9TemplateProvenance] = {}
     for path in paths:
         if not path.is_file():

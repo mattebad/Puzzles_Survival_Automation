@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "campaign_stage9_chapter_map_ground_truth",
+  "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+  "authority_note": "Independent Stage-9 ground truth from retained native BlueStacks chapter-map evidence. Filename and production constants do not authorize identity; current-frame recognition must rebind Stage 9.",
+  "created_utc": "2026-07-24T23:15:16Z",
+  "native_size": [
+    800,
+    1280
+  ],
+  "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+  "destination_identity": "2-2-9",
+  "story_difficulty": 2,
+  "chapter": 2,
+  "stage": 9,
+  "dialog_identity": "[2-9]",
+  "templates": [
+    {
+      "asset_name": "stage9_chapter2.png",
+      "template_path": "tasks/assets/campaign_auto_battle/800x1280/stage9_chapter2.png",
+      "template_sha256": "8ee1db67d9ff34d77ae58f96a438231ffa5016af1c0268643075b1a30292ff13",
+      "crop_roi_xyxy": [
+        150,
+        536,
+        197,
+        583
+      ],
+      "source_frame_path": ".local-captures/campaign-ap-live/2-2-9-20260724T221321850089Z/frames/frame-chapter-map.png",
+      "source_frame_sha256": "50e2d02d692e2d20701fc523e3773840f343814fb1311a7aae835bc6322ca02f",
+      "source_session_id": "2-2-9-20260724T221321850089Z",
+      "annotated_source_path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/stage-9-chapter-2/annotated-stage9-from-2-2-9-20260724T221321850089Z-chapter-map.png",
+      "annotated_source_sha256": "bed2fced1a47b61bd402382870c0efd239c37c7bdd2ca8878813ddf59b83f6c5",
+      "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+      "nearby_semantic_label": "Ch.2 Eclipolis",
+      "notes": "Stage-9 node crop from retained Chapter 2 map; OCR/node recognition must rebind on current frames."
+    }
+  ],
+  "dialog_association": {
+    "source_frame_path": ".local-captures/campaign-ap-live/2-2-9-20260724T221321850089Z/frames/frame-stage-dialog.png",
+    "source_frame_sha256": "8ea8aca376931ee47072ff90e1e712c09e2015756d7630c98886455ee4d88ae0",
+    "source_session_id": "2-2-9-20260724T221321850089Z",
+    "dialog_header": "[2-9] Eclipolis",
+    "dialog_identity": "[2-9]",
+    "static_ap_cost": 20,
+    "notes": "Retained stage dialog immediately after Stage-9 selection on the same session."
+  },
+  "missing_destinations": []
+}

@@ -42,8 +42,186 @@ def _destination_for_attempt(flow: Mapping[str, Any]) -> str:
     return DESTINATIONS[completed]
 
 
+def _parse_json_payload(text: str) -> dict[str, Any] | None:
+    payload = (text or "").strip()
+    if not payload:
+        return None
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _recognized_fully_zoomed_out(localization: Mapping[str, Any] | None) -> bool:
+    if not isinstance(localization, Mapping):
+        return False
+    return bool(localization.get("recognized")) and localization.get("zoom_identity") == "fully_zoomed_out"
+
+
+def _return_canonical_sufficient_for_campaign_entry(result: Mapping[str, Any]) -> bool:
+    """Accept near-canonical stuck states when Home is already atlas-recognized.
+
+    Campaign entry pans to ``home.building.campaign`` from the current recognized
+    fully-zoomed-out viewport. Exact viewport-001 centering is preferred but not
+    required once zoom-out has restored canonical localization.
+    """
+
+    if result.get("status") == "completed":
+        return True
+    reason = str(result.get("reason") or "")
+    if reason not in {"no_measured_progress", "maximum_pan_count", "repeated_viewport"}:
+        return False
+    localization = result.get("localization")
+    if isinstance(localization, Mapping) and _recognized_fully_zoomed_out(localization):
+        return True
+    records = result.get("records")
+    if not isinstance(records, list) or not records:
+        return False
+    last = records[-1]
+    if not isinstance(last, Mapping):
+        return False
+    return _recognized_fully_zoomed_out(last.get("localization"))
+
+
+def _target_roi(recognition: object, identity: str) -> tuple[int, int, int, int] | None:
+    targets = getattr(recognition, "targets", ())
+    for name, box in targets:
+        if name == identity:
+            return tuple(int(value) for value in box)
+    return None
+
+
+def _ensure_home_surface_before_prep(session: Path) -> None:
+    """Leave Campaign Story surfaces via bound Base/Exit controls before Home Atlas prep.
+
+    Navigation-only canaries may end on the tier map. Zoom-out requires Home, so one
+    authorized Base request plus optional highlighted Exit is required before prep.
+    """
+
+    import time
+
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
+    from tasks.campaign_auto_battle_vision import recognize_campaign_frame
+
+    pnsctl = _pnsctl()
+    runtime = LocalBlueStacksRuntime.connect(
+        adb=str(pnsctl.BLUESTACKS_ADB),
+        serial=pnsctl.BLUESTACKS_SERIAL,
+        output_directory=session / "campaign-exit-to-home",
+        workflow="campaign-exit-to-home",
+        execute=True,
+    )
+    probe_stage = CampaignStage(1, 20, 9)
+    records: list[dict[str, object]] = []
+
+    for ordinal in range(6):
+        immediate_before = runtime.capture(f"exit-{ordinal:02d}-immediate-before")
+        recognition = recognize_campaign_frame(immediate_before.frame, probe_stage)
+        screen = recognition.observation.screen
+        records.append(
+            {
+                "ordinal": ordinal,
+                "screen": getattr(screen, "name", str(screen)),
+                "frame_sha256": recognition.frame_sha256,
+                "targets": [name for name, _box in recognition.targets],
+            }
+        )
+        if screen == CampaignScreen.HOME_BASE:
+            (session / "campaign-exit-to-home-accepted.json").write_text(
+                json.dumps(
+                    {
+                        "status": "accepted",
+                        "reason": "home_base_recognized",
+                        "records": records,
+                        "session": str(runtime.session),
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            return
+
+        if screen == CampaignScreen.STAGE_DIALOG:
+            close = _target_roi(recognition, "campaign-stage-dialog-close")
+            if close is None:
+                raise pnsctl.OperatorError(
+                    "Campaign stage dialog is open but dialog-close is not bound for Home prep"
+                )
+            runtime.tap(
+                immediate_before,
+                target_identity="campaign-stage-dialog-close",
+                target_roi=close,
+                action_key=f"campaign-stage-dialog-close-{ordinal}-{int(time.time() * 1000)}",
+                consequential=False,
+            )
+            time.sleep(1.2)
+            continue
+
+        if screen == CampaignScreen.CHAPTER_MAP:
+            back = _target_roi(recognition, "campaign-chapter-back")
+            if back is None:
+                raise pnsctl.OperatorError(
+                    "Campaign chapter map is open but chapter-back is not bound for Home prep"
+                )
+            runtime.tap(
+                immediate_before,
+                target_identity="campaign-chapter-back",
+                target_roi=back,
+                action_key=f"campaign-chapter-back-{ordinal}-{int(time.time() * 1000)}",
+                consequential=False,
+            )
+            time.sleep(1.2)
+            continue
+
+        if screen == CampaignScreen.TIER_MAP:
+            exit_roi = _target_roi(recognition, "campaign-exit-base")
+            request_roi = _target_roi(recognition, "campaign-base-request")
+            exit_score = float(recognition.diagnostics.get("campaign_exit_score") or 0.0)
+            if exit_roi is None and exit_score >= 0.50:
+                from tasks.campaign_auto_battle_vision import CAMPAIGN_EXIT_ROI
+
+                exit_roi = CAMPAIGN_EXIT_ROI
+            if exit_roi is not None:
+                runtime.tap(
+                    immediate_before,
+                    target_identity="campaign-exit-base",
+                    target_roi=exit_roi,
+                    action_key=f"campaign-exit-base-{ordinal}-{int(time.time() * 1000)}",
+                    consequential=False,
+                )
+                time.sleep(1.5)
+                continue
+            if request_roi is not None:
+                runtime.tap(
+                    immediate_before,
+                    target_identity="campaign-base-request",
+                    target_roi=request_roi,
+                    action_key=f"campaign-base-request-{ordinal}-{int(time.time() * 1000)}",
+                    consequential=False,
+                )
+                time.sleep(1.2)
+                continue
+            raise pnsctl.OperatorError(
+                "Campaign tier map is open but Base request/Exit controls are not bound"
+            )
+
+        raise pnsctl.OperatorError(
+            f"Campaign Home prep cannot start from unrecognized screen {screen}"
+        )
+
+    raise pnsctl.OperatorError(
+        "Campaign exit-to-home did not reach HOME_BASE within bounded navigation-only taps: "
+        + json.dumps(records, sort_keys=True)
+    )
+
+
 def _prepare_canonical_home(session: Path) -> None:
     pnsctl = _pnsctl()
+    _ensure_home_surface_before_prep(session)
     atlas = REPO_ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
     # Viewport reference used by checked-in zoom-out / localize tooling.
     canonical_reference = atlas.parent / "tiles" / "viewport-001.png"
@@ -96,11 +274,64 @@ def _prepare_canonical_home(session: Path) -> None:
     )
     (session / "return-canonical-stdout.log").write_text(completed.stdout or "", encoding="utf-8")
     (session / "return-canonical-stderr.log").write_text(completed.stderr or "", encoding="utf-8")
-    if completed.returncode != 0:
-        raise pnsctl.OperatorError(
-            "Campaign pre-entry return-canonical failed: "
-            f"{completed.stderr or completed.stdout or 'unknown'}"
+    result = _parse_json_payload(completed.stdout or "")
+    if result is None:
+        for candidate in sorted((session / "return-canonical").rglob("return-canonical-result.json")):
+            result = _parse_json_payload(candidate.read_text(encoding="utf-8"))
+            if result is not None:
+                break
+    if completed.returncode == 0 and result is not None and result.get("status") == "completed":
+        (session / "home-prep-accepted.json").write_text(
+            json.dumps(
+                {
+                    "status": "accepted",
+                    "mode": "exact_canonical_viewport",
+                    "return_canonical": result,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
         )
+        return
+    if result is not None and _return_canonical_sufficient_for_campaign_entry(result):
+        (session / "home-prep-accepted.json").write_text(
+            json.dumps(
+                {
+                    "status": "accepted",
+                    "mode": "recognized_fully_zoomed_out_near_canonical",
+                    "return_canonical": result,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return
+    raise pnsctl.OperatorError(
+        "Campaign pre-entry return-canonical failed: "
+        f"{completed.stderr or completed.stdout or 'unknown'}"
+    )
+
+
+def _resolve_campaign_operator_session(session: Path, destination: str) -> Path:
+    """Prefer the destination operator session over zoom/return-canonical prep dirs."""
+
+    preferred = sorted(
+        path
+        for path in session.iterdir()
+        if path.is_dir() and path.name.startswith(f"{destination}-") and (path / "result.json").is_file()
+    )
+    if preferred:
+        return preferred[-1]
+    with_result = sorted(
+        path for path in session.iterdir() if path.is_dir() and (path / "result.json").is_file()
+    )
+    if with_result:
+        return with_result[-1]
+    return session
 
 
 def run_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
@@ -141,8 +372,7 @@ def run_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, A
     )
     (session / "operator-stdout.log").write_text(completed.stdout or "", encoding="utf-8")
     (session / "operator-stderr.log").write_text(completed.stderr or "", encoding="utf-8")
-    child_sessions = sorted(path for path in session.iterdir() if path.is_dir())
-    campaign_session = child_sessions[-1] if child_sessions else session
+    campaign_session = _resolve_campaign_operator_session(session, destination)
     try:
         campaign_result, frame_names = require_operator_evidence(campaign_session)
     except FlowEvidenceIntegrityError as exc:

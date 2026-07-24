@@ -5239,22 +5239,23 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION
 - Task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.
 - Title: Migrate Campaign AP entry to Home Atlas and verified destination navigation.
-- Status: Blocked (2026-07-24; offline Stage-9 Ch.20 + destination zero-transport delivered; Stage-9
-  native chapter-map ground truth still absent for `1-15-9` and `2-2-9`; `maximum_live_attempts=0`;
-  no live input).
-- Milestone: Campaign AP Home Atlas destination navigation offline delivery.
+- Status: Completed (2026-07-24; live navigation-only canaries destination_verified for
+  `1-20-9`, `1-15-9`, `2-2-9`; Stage-9 Ch.20/Ch.15/Ch.2 native ground truth packaged; zero-transport
+  destination replay verified for all three; AP execution never authorized; registration/scheduler
+  unchanged).
+- Milestone: Campaign AP Home Atlas destination navigation live finish.
 - Dependencies: completed `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY` with accepted atlas
   `campaign-atlas-native-800x1280-v4`.
-- Blocked by: Stage-9 native chapter-map ground truth absent for `1-15-9` and `2-2-9`; Auto Battle
-  production replay and live navigation canary remain unauthorized.
+- Blocked by: None for authorized navigation-only live validation; Auto Battle production replay
+  remains evidence-gated and out of this navigation finish unless separately authorized.
 - Objective: correct tuple semantics to `<difficulty>-<chapter>-<stage>`, reuse Home Atlas and
   Campaign atlas chapter binding, add Stage-9 recognition only from retained native provenance,
   run production-path zero-transport destination replay for the three supported destinations, and
   keep AP/Challenge/Sweep/Blitz/Auto Complete/refills/Ultimate Challenge prohibited.
 - Established facts: foundation `f336ff9`; atlas v4 hash
   `11214e52a1004cb72c15df0dab5db2b11047b96c0b0f17f078d73208b67b5ac7`; supported destinations exactly
-  `1-20-9`, `1-15-9`, `2-2-9`; Stage-9 Ch.20 retained native ground truth exists; Ch.15/Ch.2 Stage-9
-  evidence is absent; three historical live attempts remain terminal.
+  `1-20-9`, `1-15-9`, `2-2-9`; Stage-9 Ch.20/Ch.15/Ch.2 retained native ground truth exists; live
+  destination_verified sessions retained under flow artifact root; AP unchanged across canaries.
 - Direct implementation files: `tasks/campaign_auto_battle.py`, `tasks/campaign_stage9.py`, Campaign
   AP gameplay contract, Stage-9 ground-truth assets, queue, coverage/docs, focused tests,
   `BACKLOG.md`, `tasks/backlog_task_index.json`, `CURRENT_HANDOFF.md`, and context/control hygiene
@@ -5265,12 +5266,14 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   contracts, flow-delivery authority/orchestrator/token/lean/governance tests.
 - Allowed changes: allowed paths are the direct implementation files, Stage-9 ground-truth assets,
   attributable docs/queue/index/handoff, and focused test hunks for this flow; no push.
-- Prohibited changes: live input, inventing `maximum_live_attempts`, fabricating Stage-9 evidence for
-  Ch.15/Ch.2, atlas rebuild/recollect, Noah's Tavern mutation, registration, scheduler eligibility,
-  composition, M6, or push.
-- Authorized runtime action: None; offline code, authority, and zero-transport replay only.
-- Maximum transport inputs: Zero.
-- Navigation-only recovery: Forbidden in this atomic offline slice.
+- Prohibited changes: fabricating Stage-9 evidence without retained native frames, atlas
+  rebuild/recollect, Noah's Tavern mutation, registration, scheduler eligibility, composition, M6,
+  AP consumption, or push.
+- Authorized runtime action: navigation-only BlueStacks Campaign destination canaries via
+  `scripts/pnsctl.py bluestacks run-flow` within `maximum_live_attempts=10`.
+- Maximum transport inputs: bounded by navigation-only runner and live-attempt budget (10).
+- Navigation-only recovery: allowed only through checked-in Campaign recovery handler after a
+  terminal failed attempt; no identical blind retries.
 - Consequential action: Forbidden; Challenge, Auto Battle, Sweep, Blitz, Auto Complete, and refills
   are not dispatched.
 - Registration changes: None; preserve not registered.
@@ -5317,17 +5320,17 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Validators: focused unittest suites, regenerated backlog index, governance/authority loaders,
   `git diff --check`, and Git snapshot around mutating validators.
 - Known baseline failures: none newly waived; diagnose individually.
-- Evidence requirement: NOT_APPLICABLE for this zero-transport offline slice because it creates no
-  governance-manifest runtime evidence; Stage-9 Ch.15/Ch.2 native chapter-map ground truth and a
-  later authorized live canary remain required blockers.
-- Valid blocked outcomes: missing Stage-9 native chapter-map evidence for `1-15-9`/`2-2-9`, missing
-  Auto Battle production replay, or missing separately authorized positive live budget.
-- Blocked-result commit policy: commit coherent offline destination/Stage-9 work and truthful
-  blocker; do not claim all three destinations complete or authorize live input.
+- Evidence requirement: SATISFIED for navigation-only live destination verification and Stage-9
+  native chapter-map ground truth for all three destinations; AP-consuming Auto Battle production
+  replay remains out of scope.
+- Valid blocked outcomes: none remaining for this navigation finish; AP execution and registration
+  remain unauthorized.
+- Blocked-result commit policy: not applicable; task completed with truthful live and Stage-9 proof.
 - Commit policy: one focused conventional local commit over task-owned allowed paths; no push.
-- Expected focused commits: `feat(campaign): add stage9 provenance destination replay`.
-- Completion criteria: offline authority/tuple/Stage-9 Ch.20 proof and zero-transport replay are
-  truthful; missing Ch.15/Ch.2 Stage-9 remains explicit `evidence_required`; focused validations
+- Expected focused commits: `feat(campaign): finish atlas destination navigation canaries`.
+- Completion criteria: Home Atlas Campaign entry, atlas chapter navigation, Stage-9 Ch.20/Ch.15/Ch.2
+  provenance, zero-transport destination replay for all three destinations, and live
+  `destination_verified` / `navigation_only_complete` canaries are truthful; focused validations
   pass; registration/scheduler unchanged; one local commit; no push.
 - Scope: Home Atlas → Campaign Story; difficulty 1/2; Chapters 20/15/2; Stage 9; destinations
   `1-20-9`/`1-15-9`/`2-2-9` only; destination verification separate from AP execution.

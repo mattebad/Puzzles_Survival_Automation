@@ -163,6 +163,24 @@
         449
       ],
       "role": "chapter-20 stage-9 node crop; ground-truth only, not sole live matcher"
+    },
+    "stage9_chapter15.png": {
+      "source_bbox": [
+        155,
+        382,
+        202,
+        428
+      ],
+      "role": "chapter-15 stage-9 node crop; ground-truth only, not sole live matcher"
+    },
+    "stage9_chapter2.png": {
+      "source_bbox": [
+        150,
+        536,
+        197,
+        583
+      ],
+      "role": "chapter-2 stage-9 node crop; ground-truth only, not sole live matcher"
     }
   }
 }

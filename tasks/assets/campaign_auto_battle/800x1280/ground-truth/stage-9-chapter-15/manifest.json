@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "campaign_stage9_chapter_map_ground_truth",
+  "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+  "authority_note": "Independent Stage-9 ground truth from retained native BlueStacks chapter-map evidence. Filename and production constants do not authorize identity; current-frame recognition must rebind Stage 9.",
+  "created_utc": "2026-07-24T23:15:16Z",
+  "native_size": [
+    800,
+    1280
+  ],
+  "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+  "destination_identity": "1-15-9",
+  "story_difficulty": 1,
+  "chapter": 15,
+  "stage": 9,
+  "dialog_identity": "[15-9]",
+  "templates": [
+    {
+      "asset_name": "stage9_chapter15.png",
+      "template_path": "tasks/assets/campaign_auto_battle/800x1280/stage9_chapter15.png",
+      "template_sha256": "c761845df795aa332d40ba0270760895b30db5ea94e8646fd39c6c7ed07d8923",
+      "crop_roi_xyxy": [
+        155,
+        382,
+        202,
+        428
+      ],
+      "source_frame_path": ".local-captures/campaign-ap-live/1-15-9-20260724T220628066834Z/frames/frame-chapter-map.png",
+      "source_frame_sha256": "0b245ab6bdf79dfcabc97e9d10b11601f0e0d646e7cec6b8be633f41313c3d91",
+      "source_session_id": "1-15-9-20260724T220628066834Z",
+      "annotated_source_path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/stage-9-chapter-15/annotated-stage9-from-1-15-9-20260724T220628066834Z-chapter-map.png",
+      "annotated_source_sha256": "9e3384f4e9746ff1093dae1c08e98c68bebc7a066628a6501d1044ecaa369183",
+      "runtime_profile": "pns-bluestacks-5-p64-800x1280-v1",
+      "nearby_semantic_label": "Ch.15 #26 Sanctuary",
+      "notes": "Stage-9 node crop from retained Chapter 15 map; OCR/node recognition must rebind on current frames."
+    }
+  ],
+  "dialog_association": {
+    "source_frame_path": ".local-captures/campaign-ap-live/1-15-9-20260724T220628066834Z/frames/frame-stage-dialog.png",
+    "source_frame_sha256": "860856e2918e320cc9ca97db810e7808e40339ac819e657c9ee0268f4a5f0352",
+    "source_session_id": "1-15-9-20260724T220628066834Z",
+    "dialog_header": "[15-9] #26 Sanctuary",
+    "dialog_identity": "[15-9]",
+    "static_ap_cost": 14,
+    "notes": "Retained stage dialog immediately after Stage-9 selection on the same session."
+  },
+  "missing_destinations": []
+}

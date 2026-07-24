@@ -44,8 +44,5 @@
     "static_ap_cost": 16,
     "notes": "Retained stage dialog immediately after Stage-9 selection on the same session."
   },
-  "missing_destinations": [
-    "1-15-9",
-    "2-2-9"
-  ]
+  "missing_destinations": []
 }

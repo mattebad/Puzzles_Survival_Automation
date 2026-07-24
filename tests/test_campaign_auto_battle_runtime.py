@@ -26,6 +26,7 @@ from tasks.campaign_auto_battle_runtime import (
 )
 from tasks.campaign_auto_battle_vision import CampaignFrameRecognition, read_campaign_frame
 from tasks.campaign_auto_battle_vision import BUY_NOW_FORBIDDEN_ROI, DEFEAT_CONTINUE_ROI
+from tasks.campaign_auto_battle_vision import _fraction
 
 
 def recognized(
@@ -161,7 +162,7 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
         self.assertEqual(self.controller.progress.ap_spent, 16)
         self.assertEqual(self.controller.progress.ap_regenerated, 1)
 
-    def test_missing_map_target_drags_instead_of_clicking_intermediate_chapter(self):
+    def test_missing_map_target_uses_campaign_atlas_not_ocr_residual_pan(self):
         self.controller.next_command(
             recognized(
                 CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),
@@ -181,10 +182,9 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
             frame_hash="tier",
         )
         command = self.controller.next_command(tier)
-        self.assertEqual(command.action, CampaignAction.NAVIGATE_CHAPTER)
-        self.assertEqual(command.kind, "swipe")
-        self.assertEqual(command.swipe, CHAPTER_PAN_TOWARD_HIGHER)
-        self.assertIsNone(command.target_identity)
+        self.assertEqual(command.action, CampaignAction.BLOCKED)
+        self.assertIn("Campaign atlas chapter navigation requires the current native frame", command.reason)
+        self.assertIsNone(command.swipe)
 
     def test_return_home_requires_one_request_then_highlighted_exit(self):
         controller = CampaignRuntimeController(self.config, initial_ap=8)
@@ -289,7 +289,7 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
         self.assertIsNone(command.swipe)
         self.assertIn("HOME_PAN_GESTURES is fail-closed", command.reason)
 
-    def test_chapter_pan_uses_remembered_residual_and_fails_closed_on_no_progress(self):
+    def test_unbound_chapter_requires_native_frame_for_atlas_navigation(self):
         self.controller.next_command(
             recognized(
                 CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),
@@ -297,106 +297,28 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
                 frame_hash="home",
             )
         )
-        tier = recognized(
-            CampaignRouteObservation(
-                screen=CampaignScreen.TIER_MAP,
-                selected_tier=1,
-                chapter_number=None,
-                visible_chapter_numbers=(3, 4, 5),
-                chapter_navigation_available=True,
-            ),
-            ("campaign-chapter-3", (100, 100, 200, 200)),
-            frame_hash="tier-low",
-        )
-        first = self.controller.next_command(tier)
-        self.assertEqual(first.action, CampaignAction.NAVIGATE_CHAPTER)
-        self.assertEqual(first.kind, "swipe")
-        self.assertEqual(first.swipe, CHAPTER_PAN_TOWARD_HIGHER)
-        self.controller.accept_dispatched(first)
-
-        stalled = recognized(
-            CampaignRouteObservation(
-                screen=CampaignScreen.TIER_MAP,
-                selected_tier=1,
-                chapter_number=None,
-                visible_chapter_numbers=(3, 4, 5),
-                chapter_navigation_available=True,
-            ),
-            frame_hash="tier-stalled",
-        )
-        blocked = self.controller.next_command(stalled)
-        self.assertTrue(blocked.terminal)
-        self.assertIn("no progress", blocked.reason)
-
-        toward_lower = residual_pan_swipe(
-            2,
-            (15, 16, 17),
-            toward_higher=CHAPTER_PAN_TOWARD_HIGHER,
-            toward_lower=CHAPTER_PAN_TOWARD_LOWER,
-        )
-        self.assertEqual(toward_lower, CHAPTER_PAN_TOWARD_LOWER)
-
-    def test_chapter_pan_empty_visible_after_pan_is_not_progress(self):
-        self.controller.next_command(
-            recognized(
-                CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),
-                ("campaign-entry", (1, 1, 2, 2)),
-                frame_hash="home-empty-gate",
+        for frame_hash, visible in (
+            ("tier-unbound", (3, 4, 5)),
+            ("tier-empty", ()),
+        ):
+            blocked = self.controller.next_command(
+                recognized(
+                    CampaignRouteObservation(
+                        screen=CampaignScreen.TIER_MAP,
+                        selected_tier=1,
+                        chapter_number=None,
+                        visible_chapter_numbers=visible,
+                        chapter_navigation_available=True,
+                    ),
+                    frame_hash=frame_hash,
+                )
             )
-        )
-        tier = recognized(
-            CampaignRouteObservation(
-                screen=CampaignScreen.TIER_MAP,
-                selected_tier=1,
-                chapter_number=None,
-                visible_chapter_numbers=(3, 4, 5),
-                chapter_navigation_available=True,
-            ),
-            frame_hash="tier-before-empty",
-        )
-        first = self.controller.next_command(tier)
-        self.assertEqual(first.action, CampaignAction.NAVIGATE_CHAPTER)
-        self.controller.accept_dispatched(first)
-
-        empty_after = recognized(
-            CampaignRouteObservation(
-                screen=CampaignScreen.TIER_MAP,
-                selected_tier=1,
-                chapter_number=None,
-                visible_chapter_numbers=(),
-                chapter_navigation_available=True,
-            ),
-            frame_hash="tier-empty-after",
-        )
-        blocked = self.controller.next_command(empty_after)
-        self.assertTrue(blocked.terminal)
-        self.assertIn("empty/OCR-failed", blocked.reason)
-
-    def test_chapter_pan_empty_visible_before_pan_fails_closed(self):
-        self.controller.next_command(
-            recognized(
-                CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),
-                ("campaign-entry", (1, 1, 2, 2)),
-                frame_hash="home-empty-before",
+            self.assertTrue(blocked.terminal)
+            self.assertEqual(blocked.action, CampaignAction.BLOCKED)
+            self.assertIn(
+                "Campaign atlas chapter navigation requires the current native frame",
+                blocked.reason,
             )
-        )
-        empty_before = recognized(
-            CampaignRouteObservation(
-                screen=CampaignScreen.TIER_MAP,
-                selected_tier=1,
-                chapter_number=None,
-                visible_chapter_numbers=(),
-                chapter_navigation_available=True,
-            ),
-            frame_hash="tier-empty-before",
-        )
-        blocked = self.controller.next_command(empty_before)
-        self.assertTrue(blocked.terminal)
-        self.assertEqual(blocked.action, CampaignAction.BLOCKED)
-        self.assertEqual(blocked.kind, "terminal")
-        self.assertIsNone(blocked.swipe)
-        self.assertIn("non-empty visible chapter set before pan", blocked.reason)
-        self.assertIsNone(self.controller._remembered_chapter_visible)
 
     def test_stage_pan_empty_visible_before_pan_fails_closed(self):
         self.controller.next_command(
@@ -432,6 +354,17 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
                 toward_lower=CHAPTER_PAN_TOWARD_LOWER,
             )
         self.assertIn("non-empty visible set", str(raised.exception))
+
+    def test_stronger_residual_pan_helper_maps_known_geometries(self):
+        from tasks.campaign_auto_battle_runtime import (
+            CHAPTER_PAN_TOWARD_HIGHER_STRONG,
+            stronger_residual_pan_swipe,
+        )
+
+        self.assertEqual(
+            stronger_residual_pan_swipe(CHAPTER_PAN_TOWARD_HIGHER),
+            CHAPTER_PAN_TOWARD_HIGHER_STRONG,
+        )
 
     def test_stage_pan_uses_remembered_residual_and_fails_closed_on_no_progress(self):
         self.controller.next_command(
@@ -589,6 +522,11 @@ class CampaignVisionReplayTests(unittest.TestCase):
         ".local-captures/bluestacks/consume-ap-campaign/"
         "20260716T014118395232Z/frames"
     )
+
+    def test_ap_fraction_rejects_current_above_maximum(self):
+        self.assertEqual(_fraction("120/120"), (120, 120))
+        self.assertIsNone(_fraction("720/120"))
+        self.assertIsNone(_fraction("0/0"))
 
     def test_project_templates_exist_and_have_expected_shapes(self):
         assets = Path("tasks/assets/campaign_auto_battle/800x1280")
