@@ -40,7 +40,7 @@
       "from": "atlas_built",
       "to": "evidence_required",
       "via": "missing_or_ambiguous_landmark_or_frame",
-      "notes": "Product Campaign AP destinations that need Chapter 9 remain evidence_required until that landmark is accepted."
+      "notes": "Product Campaign AP destinations remain evidence_required only when their atlas chapter landmark or current-frame bind is missing."
     }
   ],
   "permitted_inputs": [],
@@ -65,35 +65,36 @@
   "evidence_requirements": [
     "accepted native Campaign atlas corpus with source hashes and provenance",
     "production recognizer/controller zero-transport replay for both consumers",
-    "Chapter 9 remains evidence_required for product Campaign AP destinations 1-20-9 / 1-15-9 / 2-2-9"
+    "product Campaign AP atlas chapters 20/15/2 are attached for destinations 1-20-9 / 1-15-9 / 2-2-9"
   ],
   "replay_fixture_requirements": [
     {
       "fixture_id": "accepted_campaign_atlas_replay",
       "status": "available",
-      "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/campaign-atlas-native-800x1280-v1/atlas.json",
-      "sha256": "be7b6f05025b08598f6961b851b149f5e719b6fb294d4d0d9385cbff0218a4c2",
-      "notes": "Built from accepted survey sessions; not a synthetic fixture."
+      "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/campaign-atlas-native-800x1280-v4/atlas.json",
+      "sha256": "11214e52a1004cb72c15df0dab5db2b11047b96c0b0f17f078d73208b67b5ac7",
+      "notes": "Sequential traversal-post chain with corrected transforms, Chapters 15/20 attached, Home-style atlas.png mosaic; not a synthetic fixture."
     },
     {
       "fixture_id": "zero_transport_both_consumers",
       "status": "available",
       "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/replay/zero-transport-both-consumers.json",
       "sha256": "8bf8c7a698198c55c2cac8e0846830a9101cfa46ed0f6349c0e9506d318d9ad9",
-      "notes": "Campaign chapter present in atlas (e.g. 1-20-21) plus Ultimate Challenge; transport_count=0."
+      "notes": "Campaign chapter present in atlas (e.g. Chapter 21) plus Ultimate Challenge; transport_count=0."
     },
     {
-      "fixture_id": "zero_transport_chapter_9_evidence_required",
+      "fixture_id": "zero_transport_product_campaign_ap",
       "status": "available",
-      "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/replay/zero-transport-chapter-9-evidence-required.json",
-      "sha256": "97c016fad667cfb3306e75d8c2dd97f2863a4d5e8176ffef7e717b2b80bd2c73",
-      "notes": "Product destination 1-20-9 correctly returns evidence_required without input authority."
+      "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/replay/zero-transport-product-campaign-ap.json",
+      "sha256": "8e21c10f51c8c2380814691df864cc44ebe8b7183dbeaf10895c8bd32f1ff485",
+      "notes": "Product destination 2-2-9 plus Ultimate Challenge on retained landmark frame; Chapters 15/20 proven separately on their source frames."
     },
     {
-      "fixture_id": "campaign_ap_chapter_9_landmark",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Chapter 9 landmark is absent from the accepted survey; product AP destinations remain evidence_required."
+      "fixture_id": "campaign_ap_product_chapter_landmarks",
+      "status": "available",
+      "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION/survey-20260724T021222146973Z/annotations",
+      "sha256": null,
+      "notes": "Chapters 15 and 20 annotated from retained traversal frames; Chapter 2 already present."
     }
   ],
   "live_validation_scenarios": [

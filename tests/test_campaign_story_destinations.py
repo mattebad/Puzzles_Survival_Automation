@@ -30,8 +30,8 @@ class CampaignStoryDestinationParserTests(unittest.TestCase):
     def test_product_tuple_semantics(self) -> None:
         stage = parse_supported_campaign_story_destination("1-20-9")
         self.assertEqual(stage.story_difficulty, 1)
-        self.assertEqual(stage.story_stage, 20)
-        self.assertEqual(stage.story_chapter, 9)
+        self.assertEqual(stage.story_chapter, 20)
+        self.assertEqual(stage.story_stage, 9)
         self.assertEqual(stage.dialog_identity, "[20-9]")
 
     def test_rejects_removed_and_unsupported_destinations(self) -> None:
@@ -51,7 +51,7 @@ class CampaignStoryDestinationParserTests(unittest.TestCase):
     def test_difficulty_two_only_where_explicitly_registered(self) -> None:
         accepted = parse_supported_campaign_story_destination("2-2-9")
         self.assertEqual(accepted.story_difficulty, 2)
-        self.assertEqual(accepted.story_stage, 2)
+        self.assertEqual(accepted.story_chapter, 2)
         with self.assertRaises(ValueError):
             parse_supported_campaign_story_destination("2-20-9")
         with self.assertRaises(ValueError):

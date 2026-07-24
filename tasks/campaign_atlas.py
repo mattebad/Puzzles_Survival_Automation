@@ -37,7 +37,7 @@ ACCEPTED_TERMINAL_SESSION_ID = "survey-20260724T023336884972Z"
 DEFAULT_ATLAS_ARTIFACT_ROOT = Path(
     ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
 )
-DEFAULT_ATLAS_ID = "campaign-atlas-native-800x1280-v1"
+DEFAULT_ATLAS_ID = "campaign-atlas-native-800x1280-v4"
 Matrix3 = tuple[tuple[float, float, float], ...]
 Point = tuple[float, float]
 Box = tuple[int, int, int, int]
@@ -1338,11 +1338,12 @@ def resolve_campaign_consumer_destination(consumer: str, destination_id: str) ->
             raise ValueError("Ultimate Challenge consumer requires the Ultimate Challenge destination")
         return CampaignDestinationKind.ULTIMATE_CHALLENGE, "Ultimate Challenge"
     if consumer_key in {"campaign_ap", "campaign-ap", "campaign_stage", "campaign-stage"}:
-        # Product destinations are difficulty-stage-chapter; atlas binding uses chapter labels.
+        # Product destinations are difficulty-chapter-stage; atlas binding uses the chapter
+        # (middle field / mosaic node). Stage (last field) is selected after chapter open.
         parts = destination.split("-")
         if len(parts) != 3 or not all(part.isdigit() for part in parts):
-            raise ValueError("Campaign AP destination must be difficulty-stage-chapter")
-        chapter = int(parts[2])
+            raise ValueError("Campaign AP destination must be difficulty-chapter-stage")
+        chapter = int(parts[1])
         return CampaignDestinationKind.CHAPTER, f"Chapter {chapter}"
     raise ValueError(f"unknown Campaign navigation consumer: {consumer}")
 

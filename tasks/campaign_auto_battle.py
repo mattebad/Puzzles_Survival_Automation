@@ -15,18 +15,17 @@ import re
 
 _STAGE_RE = re.compile(r"^(?:campaign-stage-)?([1-9]\d*)-([1-9]\d*)-([1-9]\d*)$")
 
-# Product tuple format: <story difficulty>-<stage>-<chapter>
-# Example: 1-20-9 means difficulty 1, Stage 20, Chapter 9.
-# CampaignStage field names remain legacy (tier/chapter/stage) for battle-route compatibility;
-# identity strings preserve difficulty-stage-chapter order.
+# Product tuple format: <story difficulty>-<chapter>-<stage>
+# Example: 1-20-9 means difficulty 1, Chapter 20 (atlas map node), Stage 9 (under chapter).
+# CampaignStage.tier remains the legacy field name for story difficulty.
 SUPPORTED_CAMPAIGN_STORY_DESTINATIONS = frozenset({"1-20-9", "1-15-9", "2-2-9"})
 REJECTED_CAMPAIGN_AP_DESTINATIONS = frozenset({"1-2-9", "ultimate-challenge"})
 SUPPORTED_CAMPAIGN_DIFFICULTIES = frozenset({1, 2})
-SUPPORTED_CAMPAIGN_STAGES_BY_DIFFICULTY = {
+SUPPORTED_CAMPAIGN_CHAPTERS_BY_DIFFICULTY = {
     1: frozenset({20, 15}),
     2: frozenset({2}),
 }
-SUPPORTED_CAMPAIGN_CHAPTER = 9
+SUPPORTED_CAMPAIGN_STAGE = 9
 
 
 class CampaignScreen(str, Enum):
@@ -83,7 +82,7 @@ class CampaignStage:
         match = _STAGE_RE.fullmatch(value.strip())
         if not match:
             raise ValueError(
-                "stage must use positive difficulty-stage-chapter form, for example 1-20-9"
+                "stage must use positive difficulty-chapter-stage form, for example 1-20-9"
             )
         return cls(*(int(part) for part in match.groups()))
 
@@ -102,14 +101,14 @@ class CampaignStage:
         return self.tier
 
     @property
-    def story_stage(self) -> int:
-        """Product Stage number (legacy field name: chapter)."""
+    def story_chapter(self) -> int:
+        """Atlas chapter number (middle field)."""
 
         return self.chapter
 
     @property
-    def story_chapter(self) -> int:
-        """Product Chapter number (legacy field name: stage)."""
+    def story_stage(self) -> int:
+        """Stage under the selected chapter (last field)."""
 
         return self.stage
 
@@ -141,17 +140,17 @@ def parse_supported_campaign_story_destination(value: str) -> CampaignStage:
         raise ValueError(
             f"difficulty {stage.story_difficulty} is not registered for Campaign AP"
         )
-    allowed_stages = SUPPORTED_CAMPAIGN_STAGES_BY_DIFFICULTY.get(
+    allowed_chapters = SUPPORTED_CAMPAIGN_CHAPTERS_BY_DIFFICULTY.get(
         stage.story_difficulty, frozenset()
     )
-    if stage.story_stage not in allowed_stages:
+    if stage.story_chapter not in allowed_chapters:
         raise ValueError(
-            f"stage {stage.story_stage} is not registered for difficulty "
+            f"chapter {stage.story_chapter} is not registered for difficulty "
             f"{stage.story_difficulty}"
         )
-    if stage.story_chapter != SUPPORTED_CAMPAIGN_CHAPTER:
+    if stage.story_stage != SUPPORTED_CAMPAIGN_STAGE:
         raise ValueError(
-            f"chapter {stage.story_chapter} is not registered for Campaign AP"
+            f"stage {stage.story_stage} is not registered for Campaign AP"
         )
     return stage
 

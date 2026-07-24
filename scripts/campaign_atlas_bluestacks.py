@@ -305,8 +305,13 @@ def build_parser() -> argparse.ArgumentParser:
             ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
         ),
     )
-    build_atlas.add_argument("--atlas-id", default="campaign-atlas-native-800x1280-v1")
-    build_atlas.add_argument("--max-viewports", type=int, default=28)
+    build_atlas.add_argument("--atlas-id", default="campaign-atlas-native-800x1280-v4")
+    build_atlas.add_argument("--max-viewports", type=int, default=96)
+    render_mosaic = sub.add_parser(
+        "render-mosaic",
+        help="stitch an existing Campaign atlas into a Home-style atlas.png (offline)",
+    )
+    render_mosaic.add_argument("--atlas", type=Path, required=True)
     replay = sub.add_parser(
         "zero-transport-replay",
         help="run shared consumer navigation zero-transport replay against a built atlas",
@@ -335,7 +340,29 @@ def command_build_atlas(args: argparse.Namespace) -> int:
         "manifest_path": str((args.output_root / args.atlas_id / "atlas.json")).replace(
             "\\", "/"
         ),
+        "image_path": atlas.image_path,
         "difficulty_used_as_recenter": atlas.difficulty_used_as_recenter,
+    }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
+
+
+def command_render_mosaic(args: argparse.Namespace) -> int:
+    from tasks.campaign_atlas import load_campaign_atlas
+    from tasks.campaign_atlas_vision import render_campaign_atlas_mosaic
+
+    manifest = Path(args.atlas)
+    atlas = load_campaign_atlas(manifest)
+    updated = render_campaign_atlas_mosaic(atlas, manifest)
+    mosaic_path = manifest.parent / (updated.image_path or "atlas.png")
+    payload = {
+        "atlas_id": updated.atlas_id,
+        "image_path": updated.image_path,
+        "mosaic_path": str(mosaic_path).replace("\\", "/"),
+        "width": updated.width,
+        "height": updated.height,
+        "viewport_count": len(updated.viewports),
+        "landmark_count": len(updated.landmarks),
     }
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
@@ -437,6 +464,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "build-atlas":
         return command_build_atlas(args)
+    if args.command == "render-mosaic":
+        return command_render_mosaic(args)
     if args.command == "zero-transport-replay":
         return command_zero_transport_replay(args)
     parser.error(f"unknown command: {args.command}")

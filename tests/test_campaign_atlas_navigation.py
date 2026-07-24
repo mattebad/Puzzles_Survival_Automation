@@ -30,7 +30,7 @@ from tasks.ultimate_challenge_daily import plan_ultimate_challenge_atlas_navigat
 
 ATLAS_MANIFEST = Path(
     ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/"
-    "campaign-atlas-native-800x1280-v1/atlas.json"
+    "campaign-atlas-native-800x1280-v4/atlas.json"
 )
 IDENTITY = (
     (1.0, 0.0, 0.0),
@@ -148,9 +148,11 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
             )
 
     def test_resolve_consumer_destinations(self) -> None:
-        kind, label = resolve_campaign_consumer_destination("campaign_ap", "1-20-21")
+        kind, label = resolve_campaign_consumer_destination("campaign_ap", "1-21-9")
         self.assertIs(kind, CampaignDestinationKind.CHAPTER)
         self.assertEqual(label, "Chapter 21")
+        kind, label = resolve_campaign_consumer_destination("campaign_ap", "1-20-9")
+        self.assertEqual(label, "Chapter 20")
         kind, label = resolve_campaign_consumer_destination("ultimate_challenge", "prison-trial")
         self.assertIs(kind, CampaignDestinationKind.ULTIMATE_CHALLENGE)
         self.assertEqual(label, "Ultimate Challenge")
@@ -170,7 +172,7 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
         atlas = _atlas()
         missing = plan_shared_campaign_destination_navigation(
             consumer="campaign_ap",
-            destination_id="1-20-21",
+            destination_id="1-21-9",
             localization=None,
             binding=None,
             atlas=atlas,
@@ -182,7 +184,7 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
 
         unbound = plan_shared_campaign_destination_navigation(
             consumer="campaign_ap",
-            destination_id="1-20-21",
+            destination_id="1-21-9",
             localization=_localized(),
             binding=CampaignDestinationBinding(
                 CampaignDestinationKind.CHAPTER,
@@ -204,7 +206,7 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
         atlas = _atlas()
         campaign = plan_shared_campaign_destination_navigation(
             consumer="campaign_ap",
-            destination_id="1-20-21",
+            destination_id="1-21-9",
             localization=_localized(),
             binding=_bound(kind=CampaignDestinationKind.CHAPTER, label="Chapter 21"),
             atlas=atlas,
@@ -229,7 +231,7 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
         self.assertEqual(report.transport_count, 0)
         self.assertFalse(report.dispatch_authorized)
 
-    def test_missing_chapter_nine_is_evidence_required(self) -> None:
+    def test_missing_product_chapter_is_evidence_required(self) -> None:
         atlas = _atlas(chapter_label="Chapter 21")
         decision = plan_shared_campaign_destination_navigation(
             consumer="campaign_ap",
@@ -239,7 +241,7 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
             atlas=atlas,
         )
         self.assertEqual(decision.terminal, NAVIGATION_EVIDENCE_REQUIRED)
-        self.assertIn("Chapter 9", decision.reason)
+        self.assertIn("Chapter 20", decision.reason)
 
     def test_consumer_wrappers_reuse_shared_seam(self) -> None:
         atlas = _atlas()
@@ -250,6 +252,7 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
             atlas=atlas,
         )
         self.assertEqual(campaign.terminal, NAVIGATION_EVIDENCE_REQUIRED)
+        self.assertIn("Chapter 20", campaign.reason)
         ultimate = plan_ultimate_challenge_atlas_navigation(
             localization=_localized(),
             binding=_bound(
@@ -266,7 +269,7 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
         atlas = _atlas()
         decision = plan_shared_campaign_destination_navigation(
             consumer="campaign_ap",
-            destination_id="1-20-21",
+            destination_id="1-21-9",
             localization=_localized(),
             binding=_bound(kind=CampaignDestinationKind.CHAPTER, label="Chapter 7"),
             atlas=atlas,
@@ -277,17 +280,21 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
         if not ATLAS_MANIFEST.is_file():
             self.skipTest("accepted Campaign atlas artifact not built in this workspace")
         atlas = load_campaign_atlas(ATLAS_MANIFEST)
-        self.assertEqual(atlas.atlas_id, "campaign-atlas-native-800x1280-v1")
+        self.assertEqual(atlas.atlas_id, "campaign-atlas-native-800x1280-v4")
         self.assertFalse(atlas.difficulty_used_as_recenter)
         labels = {item.label for item in atlas.landmarks}
         self.assertIn("Ultimate Challenge", labels)
         self.assertIn("Chapter 21", labels)
-        self.assertNotIn("Chapter 9", labels)
+        self.assertIn("Chapter 20", labels)
+        self.assertIn("Chapter 15", labels)
+        self.assertIn("Chapter 2", labels)
         self.assertIsNone(
             atlas.lookup_landmark(kind=LandmarkKind.CHAPTER, label="Chapter 9")
         )
-        self.assertGreaterEqual(len(atlas.viewports), 3)
-        self.assertGreaterEqual(len(atlas.landmarks), 10)
+        self.assertGreaterEqual(len(atlas.viewports), 8)
+        self.assertGreaterEqual(len(atlas.landmarks), 12)
+        self.assertEqual(atlas.image_path, "atlas.png")
+        self.assertTrue((ATLAS_MANIFEST.parent / "atlas.png").is_file())
 
 
 if __name__ == "__main__":

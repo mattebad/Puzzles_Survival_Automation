@@ -74,6 +74,8 @@ MIN_ASSOCIATION_MATCHES = 24
 MIN_ASSOCIATION_CONFIDENCE = 0.30
 MAX_ASSOCIATION_RESIDUAL_PX = 12.0
 MIN_ASSOCIATION_OVERLAP_RATIO = 0.25
+# Home-parity: reject near-duplicate viewports whose centers collapse together.
+MIN_VIEWPORT_CENTER_SEPARATION_PX = 32.0
 CURRENT_TARGET_TEMPLATE_THRESHOLD = 0.55
 TIER_CONTROL_SEARCH_ROI = (320, 35, 710, 190)
 CAMPAIGN_EXIT_SEARCH_ROI = (560, 780, 800, 1140)
@@ -494,7 +496,12 @@ def prison_trial_roi_from_strong_spatial_evidence(
 
 
 class OrbTranslationBackend:
-    """Measurement-only ORB/translation backend. Never authorizes input."""
+    """Measurement-only ORB/translation backend. Never authorizes input.
+
+    Transform convention matches Home: ``transform_candidate_to_reference`` maps
+    candidate pixel coordinates into the reference frame (destination - source
+    where source is candidate and destination is reference).
+    """
 
     def measure(
         self,
@@ -507,27 +514,37 @@ class OrbTranslationBackend:
                 "none", None, 0.0, float("inf"), 0, 0, 0.0, "shape_mismatch", 0.0
             )
         orb = cv2.ORB_create(1200)
-        kp1, des1 = orb.detectAndCompute(reference, mask)
-        kp2, des2 = orb.detectAndCompute(candidate, mask)
-        if des1 is None or des2 is None or len(kp1) < 8 or len(kp2) < 8:
+        kp_candidate, des_candidate = orb.detectAndCompute(candidate, mask)
+        kp_reference, des_reference = orb.detectAndCompute(reference, mask)
+        if (
+            des_candidate is None
+            or des_reference is None
+            or len(kp_candidate) < 8
+            or len(kp_reference) < 8
+        ):
             return RegistrationMeasurement(
                 "none", None, 0.0, float("inf"), 0, 0, 0.0, "insufficient_features", 0.0
             )
         matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        matches = matcher.match(des1, des2)
+        matches = matcher.match(des_candidate, des_reference)
         if len(matches) < 8:
             return RegistrationMeasurement(
                 "none", None, 0.0, float("inf"), 0, len(matches), 0.0, "insufficient_matches", 0.0
             )
         matches = sorted(matches, key=lambda item: item.distance)[:200]
-        src = np.float32([kp1[item.queryIdx].pt for item in matches])
-        dst = np.float32([kp2[item.trainIdx].pt for item in matches])
-        delta = dst - src
+        # Home convention: source=candidate, destination=reference.
+        source = np.float32([kp_candidate[item.queryIdx].pt for item in matches])
+        destination = np.float32([kp_reference[item.trainIdx].pt for item in matches])
+        delta = destination - source
         tx, ty = float(np.median(delta[:, 0])), float(np.median(delta[:, 1]))
         translation = float(np.hypot(tx, ty))
         residual = float(np.median(np.linalg.norm(delta - np.array([tx, ty]), axis=1)))
         matrix = np.array([[1.0, 0.0, tx], [0.0, 1.0, ty], [0.0, 0.0, 1.0]], dtype=np.float64)
-        overlap = max(0.0, 1.0 - translation / 400.0)
+        corners = np.float32([[0, 0], [800, 0], [800, 1280], [0, 1280]])
+        projected = cv2.perspectiveTransform(corners.reshape(-1, 1, 2), matrix).reshape(-1, 2)
+        x0, y0 = np.maximum(projected.min(axis=0), (0.0, 0.0))
+        x1, y1 = np.minimum(projected.max(axis=0), (800.0, 1280.0))
+        overlap = float(max(0.0, x1 - x0) * max(0.0, y1 - y0) / float(800 * 1280))
         return RegistrationMeasurement(
             model="translation",
             transform_candidate_to_reference=matrix,
@@ -793,9 +810,14 @@ def build_campaign_atlas_from_accepted_survey(
     survey_root: Path = ACCEPTED_SURVEY_ROOT,
     output_root: Path = DEFAULT_ATLAS_ARTIFACT_ROOT,
     atlas_id: str = DEFAULT_ATLAS_ID,
-    max_viewports: int = 28,
+    max_viewports: int = 96,
 ) -> CampaignAtlas:
-    """Build a hash-bound Campaign atlas from the accepted native survey (offline)."""
+    """Build a hash-bound Campaign atlas from the accepted native survey (offline).
+
+    Primary geometry comes from chaining sequential retained traversal ``*-post.png``
+    frames (Home-style), not from disconnected terminal-report overlap pairs.
+    Landmark-session frames are registered onto that chain for chapter/UC ROIs.
+    """
 
     survey_root = Path(survey_root)
     terminal_report_path = (
@@ -811,26 +833,29 @@ def build_campaign_atlas_from_accepted_survey(
     if bool(report.get("cross_difficulty", {}).get("used_as_recenter", False)):
         raise RuntimeError("survey used difficulty switching as recentering")
 
-    frame_index = index_survey_frames_by_semantic_sha(survey_root)
-    overlaps = [item for item in report.get("overlaps", []) if item.get("associated")]
-    if not overlaps:
-        raise RuntimeError("accepted survey lacks associated overlaps for atlas build")
+    traversal_frames = survey_root / ACCEPTED_TRAVERSAL_SESSION_ID / "runtime" / "frames"
+    if not traversal_frames.is_dir():
+        raise FileNotFoundError(f"accepted traversal frames missing: {traversal_frames}")
 
-    # Landmark-session frames carry the reviewed chapter/UC ROIs; seed the atlas from them.
-    landmark_session = survey_root / ACCEPTED_LANDMARK_SESSION_ID
-    landmark_frames_dir = landmark_session / "runtime" / "frames"
-    landmark_seed_names = (
-        "0001-source.png",
-        "0002-difficulty-tier-2-before.png",
-        "0004-difficulty-tier-2-post.png",
-    )
-    landmark_paths: list[Path] = []
-    for name in landmark_seed_names:
-        path = landmark_frames_dir / name
-        if path.is_file():
-            landmark_paths.append(path)
-    if not landmark_paths:
-        raise RuntimeError("accepted landmark session lacks native frames for atlas seed")
+    ordered_paths: list[Path] = []
+    source = traversal_frames / "0001-source.png"
+    if source.is_file():
+        ordered_paths.append(source)
+    for path in sorted(traversal_frames.glob("*-post.png")):
+        name = path.name.casefold()
+        # Difficulty comparison frames must not recenter or warp the atlas chain.
+        if "difficulty" in name or "tier" in name:
+            continue
+        ordered_paths.append(path)
+    if len(ordered_paths) < 2:
+        raise RuntimeError("accepted traversal lacks sequential post frames for atlas chain")
+
+    if len(ordered_paths) > max_viewports:
+        # Keep endpoints and sample evenly so mosaic coverage stays map-wide.
+        keep = {0, len(ordered_paths) - 1}
+        stride = max(1, (len(ordered_paths) - 1) // (max_viewports - 1))
+        keep.update(range(0, len(ordered_paths), stride))
+        ordered_paths = [ordered_paths[i] for i in sorted(keep)][:max_viewports]
 
     backend = OrbTranslationBackend()
     output_root = Path(output_root)
@@ -842,17 +867,18 @@ def build_campaign_atlas_from_accepted_survey(
     viewports: list[CampaignAtlasViewport] = []
     transforms: dict[str, Matrix3] = {}
     path_by_semantic: dict[str, Path] = {}
+    frame_by_semantic: dict[str, np.ndarray] = {}
 
-    seed_path = landmark_paths[0]
+    seed_path = ordered_paths[0]
     seed_frame = _load_bgr(seed_path)
     seed_sha = frame_digest(seed_frame)
-    frame_index[seed_sha] = seed_path
-    path_by_semantic[seed_sha] = seed_path
     transforms[seed_sha] = (
         (1.0, 0.0, 0.0),
         (0.0, 1.0, 0.0),
         (0.0, 0.0, 1.0),
     )
+    path_by_semantic[seed_sha] = seed_path
+    frame_by_semantic[seed_sha] = seed_frame
     tile_name = "viewport-001.png"
     shutil.copy2(seed_path, tiles_dir / tile_name)
     viewports.append(
@@ -864,26 +890,46 @@ def build_campaign_atlas_from_accepted_survey(
             transform_to_atlas=transforms[seed_sha],
             residual_px=0.0,
             overlap_ratio=1.0,
-            source_session_id=ACCEPTED_LANDMARK_SESSION_ID,
+            source_session_id=ACCEPTED_TRAVERSAL_SESSION_ID,
         )
     )
     ordinal = 2
+    previous_sha = seed_sha
 
-    def _append_viewport(
+    def _append(
         *,
         path: Path,
+        frame: np.ndarray,
         semantic: str,
         absolute: Matrix3,
         residual_px: float,
         overlap_ratio: float,
         session_id: str,
-    ) -> None:
+    ) -> bool:
         nonlocal ordinal
         if semantic in transforms:
-            return
+            return False
+        center_x = float(absolute[0][2]) + (NATIVE_WIDTH / 2.0)
+        center_y = float(absolute[1][2]) + (NATIVE_HEIGHT / 2.0)
+        nearest = None
+        nearest_dist = float("inf")
+        for existing in viewports:
+            prior_x = float(existing.transform_to_atlas[0][2]) + (NATIVE_WIDTH / 2.0)
+            prior_y = float(existing.transform_to_atlas[1][2]) + (NATIVE_HEIGHT / 2.0)
+            dist = math.hypot(center_x - prior_x, center_y - prior_y)
+            if dist < nearest_dist:
+                nearest = existing
+                nearest_dist = dist
+        if nearest is not None and nearest_dist < MIN_VIEWPORT_CENTER_SEPARATION_PX:
+            # Alias the frame onto the nearest accepted viewport so landmark ROIs
+            # can still resolve without stacking a near-duplicate mosaic tile.
+            transforms[semantic] = nearest.transform_to_atlas
+            path_by_semantic[semantic] = path
+            frame_by_semantic[semantic] = frame
+            return False
         transforms[semantic] = absolute
         path_by_semantic[semantic] = path
-        frame_index[semantic] = path
+        frame_by_semantic[semantic] = frame
         tile = f"viewport-{ordinal:03d}.png"
         shutil.copy2(path, tiles_dir / tile)
         viewports.append(
@@ -899,25 +945,82 @@ def build_campaign_atlas_from_accepted_survey(
             )
         )
         ordinal += 1
+        return True
 
-    # Chain remaining landmark-session frames against the best registered viewport.
-    for path in landmark_paths[1:]:
-        if len(viewports) >= max_viewports:
-            break
+    # Sequential Home-style chain: each post registers against the previous accepted tile.
+    for path in ordered_paths[1:]:
+        frame = _load_bgr(path)
+        semantic = frame_digest(frame)
+        if semantic in transforms:
+            previous_sha = semantic
+            continue
+        registered = None
+        # Prefer immediate predecessor; fall back to a few earlier accepted tiles.
+        search = [previous_sha] + [
+            item.source_sha256 for item in reversed(viewports[:-1])
+        ][:3]
+        seen_refs: set[str] = set()
+        for ref_sha in search:
+            if ref_sha in seen_refs or ref_sha not in transforms:
+                continue
+            seen_refs.add(ref_sha)
+            registered = _try_register_viewport(
+                candidate_path=path,
+                candidate_frame=frame,
+                candidate_semantic=semantic,
+                reference_path=path_by_semantic[ref_sha],
+                reference_frame=frame_by_semantic[ref_sha],
+                reference_semantic=ref_sha,
+                reference_transform=transforms[ref_sha],
+                backend=backend,
+                ordinal=ordinal,
+            )
+            if registered is not None:
+                break
+        if registered is None:
+            continue
+        absolute, measurement = registered
+        if not _append(
+            path=path,
+            frame=frame,
+            semantic=semantic,
+            absolute=absolute,
+            residual_px=float(measurement.residual_px),
+            overlap_ratio=float(measurement.overlap_ratio),
+            session_id=ACCEPTED_TRAVERSAL_SESSION_ID,
+        ):
+            continue
+        previous_sha = semantic
+
+    if len(viewports) < 8:
+        raise RuntimeError(
+            f"traversal chain produced only {len(viewports)} viewports; "
+            "accepted survey posts failed to associate into a map atlas"
+        )
+
+    # Register landmark-session frames onto the traversal atlas for chapter/UC ROIs.
+    landmark_session = survey_root / ACCEPTED_LANDMARK_SESSION_ID
+    landmark_frames_dir = landmark_session / "runtime" / "frames"
+    for name in (
+        "0001-source.png",
+        "0002-difficulty-tier-2-before.png",
+        "0004-difficulty-tier-2-post.png",
+    ):
+        path = landmark_frames_dir / name
+        if not path.is_file():
+            continue
         frame = _load_bgr(path)
         semantic = frame_digest(frame)
         if semantic in transforms:
             continue
         best = None
         for existing in viewports:
-            ref_path = path_by_semantic[existing.source_sha256]
-            ref_frame = _load_bgr(ref_path)
             registered = _try_register_viewport(
                 candidate_path=path,
                 candidate_frame=frame,
                 candidate_semantic=semantic,
-                reference_path=ref_path,
-                reference_frame=ref_frame,
+                reference_path=path_by_semantic[existing.source_sha256],
+                reference_frame=frame_by_semantic[existing.source_sha256],
                 reference_semantic=existing.source_sha256,
                 reference_transform=existing.transform_to_atlas,
                 backend=backend,
@@ -930,23 +1033,10 @@ def build_campaign_atlas_from_accepted_survey(
             if best is None or score > best[0]:
                 best = (score, absolute, measurement)
         if best is None:
-            # Keep landmark frame as an independent atlas island so ROI binding still works
-            # when cross-difficulty association fails (never use difficulty as recenter).
-            _append_viewport(
-                path=path,
-                semantic=semantic,
-                absolute=(
-                    (1.0, 0.0, float((ordinal - 1) * NATIVE_WIDTH)),
-                    (0.0, 1.0, 0.0),
-                    (0.0, 0.0, 1.0),
-                ),
-                residual_px=0.0,
-                overlap_ratio=0.0,
-                session_id=ACCEPTED_LANDMARK_SESSION_ID,
-            )
             continue
-        _append_viewport(
+        _append(
             path=path,
+            frame=frame,
             semantic=semantic,
             absolute=best[1],
             residual_px=float(best[2].residual_px),
@@ -954,87 +1044,6 @@ def build_campaign_atlas_from_accepted_survey(
             session_id=ACCEPTED_LANDMARK_SESSION_ID,
         )
 
-    # Extend with associated survey overlaps when semantic/transport hashes resolve.
-    step = max(1, len(overlaps) // max(1, max(1, max_viewports - len(viewports))))
-    selected_overlaps = overlaps[::step]
-    for item in selected_overlaps:
-        if len(viewports) >= max_viewports:
-            break
-        candidate_key = str(item["candidate_sha256"])
-        reference_key = str(item["reference_sha256"])
-        if candidate_key not in frame_index:
-            continue
-        candidate_path = frame_index[candidate_key]
-        candidate_frame = _load_bgr(candidate_path)
-        candidate_semantic = frame_digest(candidate_frame)
-        if candidate_semantic in transforms:
-            continue
-        reference_semantic = None
-        reference_path = None
-        if reference_key in frame_index:
-            reference_path = frame_index[reference_key]
-            reference_frame = _load_bgr(reference_path)
-            reference_semantic = frame_digest(reference_frame)
-        if reference_semantic not in transforms:
-            # Fall back: register against the best existing viewport.
-            best = None
-            for existing in viewports:
-                ref_path = path_by_semantic[existing.source_sha256]
-                ref_frame = _load_bgr(ref_path)
-                registered = _try_register_viewport(
-                    candidate_path=candidate_path,
-                    candidate_frame=candidate_frame,
-                    candidate_semantic=candidate_semantic,
-                    reference_path=ref_path,
-                    reference_frame=ref_frame,
-                    reference_semantic=existing.source_sha256,
-                    reference_transform=existing.transform_to_atlas,
-                    backend=backend,
-                    ordinal=ordinal,
-                )
-                if registered is None:
-                    continue
-                absolute, measurement = registered
-                score = (float(measurement.confidence), -float(measurement.residual_px))
-                if best is None or score > best[0]:
-                    best = (score, absolute, measurement)
-            if best is None:
-                continue
-            _append_viewport(
-                path=candidate_path,
-                semantic=candidate_semantic,
-                absolute=best[1],
-                residual_px=float(best[2].residual_px),
-                overlap_ratio=float(best[2].overlap_ratio),
-                session_id=candidate_path.parents[2].name,
-            )
-            continue
-        assert reference_path is not None and reference_semantic is not None
-        reference_frame = _load_bgr(reference_path)
-        registered = _try_register_viewport(
-            candidate_path=candidate_path,
-            candidate_frame=candidate_frame,
-            candidate_semantic=candidate_semantic,
-            reference_path=reference_path,
-            reference_frame=reference_frame,
-            reference_semantic=reference_semantic,
-            reference_transform=transforms[reference_semantic],
-            backend=backend,
-            ordinal=ordinal,
-        )
-        if registered is None:
-            continue
-        absolute, measurement = registered
-        _append_viewport(
-            path=candidate_path,
-            semantic=candidate_semantic,
-            absolute=absolute,
-            residual_px=float(measurement.residual_px),
-            overlap_ratio=float(measurement.overlap_ratio),
-            session_id=candidate_path.parents[2].name,
-        )
-
-    # Attach reviewed landmark annotations (chapter + Ultimate Challenge only).
     annotation_dir = landmark_session / "annotations"
     landmarks: list[CampaignAtlasLandmark] = []
     if annotation_dir.is_dir():
@@ -1054,19 +1063,34 @@ def build_campaign_atlas_from_accepted_survey(
                 display = "Ultimate Challenge"
             else:
                 continue
-            if source_sha not in frame_index:
+            # Resolve annotation hash through traversal/landmark frames.
+            path = None
+            semantic = None
+            if source_sha in path_by_semantic:
+                path = path_by_semantic[source_sha]
+                semantic = source_sha
+            else:
+                for candidate in sorted(landmark_frames_dir.glob("*.png")):
+                    frame = _load_bgr(candidate)
+                    digest = frame_digest(frame)
+                    if digest == source_sha or _transport_sha256(candidate) == source_sha:
+                        path = candidate
+                        semantic = digest
+                        break
+            if path is None or semantic is None or semantic not in transforms:
                 continue
-            path = frame_index[source_sha]
-            semantic = frame_digest(_load_bgr(path))
-            if semantic not in transforms:
-                # Annotation hash may be transport-era; resolve via path semantic.
-                if source_sha in transforms:
-                    semantic = source_sha
-                else:
-                    continue
-            viewport = next(v for v in viewports if v.source_sha256 == semantic)
-            tx = float(viewport.transform_to_atlas[0][2])
-            ty = float(viewport.transform_to_atlas[1][2])
+            transform = transforms[semantic]
+            tx = float(transform[0][2])
+            ty = float(transform[1][2])
+            source_viewport_id = next(
+                (
+                    item.viewport_id
+                    for item in viewports
+                    if item.source_sha256 == semantic
+                    or item.transform_to_atlas == transform
+                ),
+                viewports[0].viewport_id,
+            )
             atlas_roi = (
                 int(roi[0] + tx),
                 int(roi[1] + ty),
@@ -1080,7 +1104,7 @@ def build_campaign_atlas_from_accepted_survey(
                     label=display,
                     atlas_roi=atlas_roi,
                     supporting_frame_sha256=semantic,
-                    source_viewport_id=viewport.viewport_id,
+                    source_viewport_id=source_viewport_id,
                     spatially_associated=True,
                 )
             )
@@ -1122,6 +1146,7 @@ def build_campaign_atlas_from_accepted_survey(
     )
     manifest_path = output_root / atlas_id / "atlas.json"
     save_campaign_atlas(atlas, manifest_path)
+    atlas = render_campaign_atlas_mosaic(atlas, manifest_path)
     (output_root / atlas_id / "provenance.json").write_text(
         json.dumps(
             {
@@ -1129,6 +1154,8 @@ def build_campaign_atlas_from_accepted_survey(
                 "terminal_report": str(terminal_report_path).replace("\\", "/"),
                 "viewport_count": len(atlas.viewports),
                 "landmark_count": len(atlas.landmarks),
+                "image_path": atlas.image_path,
+                "build_mode": "sequential_traversal_post_chain",
                 "source_survey_session_ids": list(atlas.source_survey_session_ids),
                 "manifest": campaign_atlas_to_dict(atlas),
             },
@@ -1139,6 +1166,133 @@ def build_campaign_atlas_from_accepted_survey(
         encoding="utf-8",
     )
     return atlas
+
+
+def render_campaign_atlas_mosaic(
+    atlas: CampaignAtlas,
+    atlas_manifest_path: Path,
+    *,
+    mosaic_name: str = "atlas.png",
+) -> CampaignAtlas:
+    """Stitch accepted Campaign tiles into a Home-style atlas.png mosaic (offline)."""
+
+    root = Path(atlas_manifest_path).resolve().parent
+    accepted = [item for item in atlas.viewports if item.accepted]
+    if not accepted:
+        raise RuntimeError("Campaign atlas has no accepted viewports to mosaic")
+
+    corners = np.float32(
+        [[0, 0], [NATIVE_WIDTH, 0], [NATIVE_WIDTH, NATIVE_HEIGHT], [0, NATIVE_HEIGHT]]
+    )
+    transforms: list[np.ndarray] = []
+    frames: list[np.ndarray] = []
+    for viewport in accepted:
+        tile_path = (root / viewport.image_path).resolve()
+        frame = _load_bgr(tile_path)
+        if frame_digest(frame) != viewport.source_sha256:
+            raise ValueError(f"atlas tile digest mismatch while mosaicing: {viewport.viewport_id}")
+        matrix = np.asarray(viewport.transform_to_atlas, dtype=np.float64)
+        transforms.append(matrix)
+        frames.append(frame)
+
+    projected = [
+        cv2.perspectiveTransform(corners.reshape(-1, 1, 2), matrix).reshape(-1, 2)
+        for matrix in transforms
+    ]
+    all_points = np.vstack(projected)
+    minimum = np.floor(all_points.min(axis=0)).astype(int)
+    maximum = np.ceil(all_points.max(axis=0)).astype(int)
+    shift = np.array(
+        [[1.0, 0.0, float(-minimum[0])], [0.0, 1.0, float(-minimum[1])], [0.0, 0.0, 1.0]],
+        dtype=np.float64,
+    )
+    width = int(maximum[0] - minimum[0])
+    height = int(maximum[1] - minimum[1])
+    if width <= 0 or height <= 0 or width * height > 80_000_000:
+        raise RuntimeError("Campaign atlas mosaic bounds are invalid or unexpectedly large")
+
+    weighted = np.zeros((height, width, 3), np.float64)
+    weights = np.zeros((height, width), np.float64)
+    source_mask = campaign_hud_mask().astype(np.float32) / 255.0
+    for frame, matrix in zip(frames, transforms):
+        final_transform = shift @ matrix
+        warped = cv2.warpPerspective(frame, final_transform, (width, height), flags=cv2.INTER_LINEAR)
+        warped_mask = cv2.warpPerspective(
+            source_mask, final_transform, (width, height), flags=cv2.INTER_NEAREST
+        )
+        weighted += warped.astype(np.float64) * warped_mask[..., None]
+        weights += warped_mask
+
+    mosaic = np.zeros((height, width, 3), np.uint8)
+    covered = weights > 0
+    mosaic[covered] = np.clip(weighted[covered] / weights[covered, None], 0, 255).astype(np.uint8)
+    mosaic_path = root / mosaic_name
+    if not cv2.imwrite(str(mosaic_path), mosaic):
+        raise RuntimeError(f"could not write Campaign atlas mosaic: {mosaic_path}")
+
+    # Persist shifted transforms so mosaic coordinates and atlas.json stay aligned.
+    shifted_viewports = []
+    for viewport, matrix in zip(accepted, transforms):
+        final = shift @ matrix
+        shifted_viewports.append(
+            CampaignAtlasViewport(
+                viewport_id=viewport.viewport_id,
+                image_path=viewport.image_path,
+                source_sha256=viewport.source_sha256,
+                transport_sha256=viewport.transport_sha256,
+                transform_to_atlas=_matrix_from_ndarray(final),
+                residual_px=viewport.residual_px,
+                overlap_ratio=viewport.overlap_ratio,
+                accepted=viewport.accepted,
+                source_session_id=viewport.source_session_id,
+            )
+        )
+
+    # Landmark atlas ROIs were expressed in the pre-shift atlas frame; apply the same shift.
+    sx = float(-minimum[0])
+    sy = float(-minimum[1])
+    shifted_landmarks = []
+    for landmark in atlas.landmarks:
+        left, top, right, bottom = landmark.atlas_roi
+        shifted_landmarks.append(
+            CampaignAtlasLandmark(
+                landmark_id=landmark.landmark_id,
+                kind=landmark.kind,
+                label=landmark.label,
+                atlas_roi=(
+                    int(left + sx),
+                    int(top + sy),
+                    int(right + sx),
+                    int(bottom + sy),
+                ),
+                supporting_frame_sha256=landmark.supporting_frame_sha256,
+                source_viewport_id=landmark.source_viewport_id,
+                spatially_associated=landmark.spatially_associated,
+            )
+        )
+
+    updated = CampaignAtlas(
+        schema_version=atlas.schema_version,
+        atlas_id=atlas.atlas_id,
+        flow_id=atlas.flow_id,
+        profile_id=atlas.profile_id,
+        platform=atlas.platform,
+        package=atlas.package,
+        native_width=atlas.native_width,
+        native_height=atlas.native_height,
+        width=width,
+        height=height,
+        source_survey_session_ids=atlas.source_survey_session_ids,
+        viewports=tuple(shifted_viewports),
+        landmarks=tuple(shifted_landmarks),
+        loop_closure_residual_px=atlas.loop_closure_residual_px,
+        cross_difficulty_compared=atlas.cross_difficulty_compared,
+        difficulty_used_as_recenter=atlas.difficulty_used_as_recenter,
+        image_path=mosaic_name,
+        created_at_utc=atlas.created_at_utc,
+    )
+    save_campaign_atlas(updated, atlas_manifest_path)
+    return updated
 
 
 class BlueStacksCampaignLocalizer:

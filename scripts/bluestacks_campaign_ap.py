@@ -150,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--stage",
         required=True,
-        help="supported Story destination difficulty-stage-chapter, for example 1-20-9",
+        help="supported Story destination difficulty-chapter-stage, for example 1-20-9",
     )
     parser.add_argument("--ap-cost", required=True, type=int)
     parser.add_argument("--ap-budget", required=True, type=int)

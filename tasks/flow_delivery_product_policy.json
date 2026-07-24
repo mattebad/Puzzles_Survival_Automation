@@ -15,7 +15,7 @@
       "policy_id": "campaign-supported-destinations",
       "scope": "campaign.destination",
       "status": "explicitly_approved",
-      "decision": "Only Story destinations 1-20-9, 1-15-9, and 2-2-9 are supported for Campaign AP. Tuple format is <story difficulty>-<stage>-<chapter>. 1-2-9 and ultimate-challenge are removed and are not aliases.",
+      "decision": "Only Story destinations 1-20-9, 1-15-9, and 2-2-9 are supported for Campaign AP. Tuple format is <story difficulty>-<chapter>-<stage>. 1-2-9 and ultimate-challenge are removed and are not aliases.",
       "supported_story_destinations": [
         "1-20-9",
         "1-15-9",
@@ -31,7 +31,7 @@
       "policy_id": "campaign-navigation-validation",
       "scope": "campaign.navigation",
       "status": "navigation_only_validation",
-      "decision": "Home Atlas Campaign entry, Story-mode recognition, difficulty 1/2 selection, Stages 20/15/2, Chapter 9, and exact tuple verification may be validated without AP execution.",
+      "decision": "Home Atlas Campaign entry, Story-mode recognition, difficulty 1/2 selection, Chapters 20/15/2, Stage 9, and exact tuple verification may be validated without AP execution.",
       "source": "explicit_user_direction"
     },
     {
