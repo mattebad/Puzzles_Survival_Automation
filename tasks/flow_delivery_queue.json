@@ -32,7 +32,7 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+  "active_flow_id": null,
   "flows": [
     {
       "flow_id": "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
@@ -131,7 +131,7 @@
       "title": "Acquire and validate native Campaign atlas survey evidence",
       "kind": "navigation_validation",
       "priority": 6,
-      "status": "active",
+      "status": "completed",
       "backlog_task_id": "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
       "dependencies": [
         "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP"
@@ -213,8 +213,8 @@
       ],
       "blocked_reason": "",
       "next_concrete_action": "Advance to evidence_review for completed live session survey-20260724T023336884972Z (terminal native_survey_complete, used=93); parent runs finish-live-attempt after review-worktree.",
-      "last_completed_stage": "commit",
-      "last_commit": null,
+      "last_completed_stage": "completed",
+      "last_commit": "1e58f6623101f1350a85e90b34033096d5005a1c",
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
       "acceptance_criteria": [
         "native 800x1280 Campaign map frames cover measured map edges and overlapping interior viewports",
