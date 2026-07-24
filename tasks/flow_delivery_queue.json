@@ -32,7 +32,7 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": null,
+  "active_flow_id": "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
   "flows": [
     {
       "flow_id": "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
@@ -313,7 +313,7 @@
       "title": "Integrate Campaign atlas navigation and zero-transport replay",
       "kind": "navigation_integration",
       "priority": 7,
-      "status": "blocked",
+      "status": "active",
       "backlog_task_id": "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
       "dependencies": [
         "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
@@ -321,11 +321,16 @@
       "implementation_entrypoints": [
         "tasks/campaign_atlas.py",
         "tasks/campaign_atlas_vision.py",
+        "scripts/campaign_atlas_bluestacks.py",
         "tasks/campaign_auto_battle.py",
-        "tasks/campaign_auto_battle_runtime.py",
-        "tasks/campaign_auto_battle_vision.py",
-        "scripts/bluestacks_campaign_ap.py",
-        "scripts/bluestacks_ultimate_challenge.py"
+        "tasks/ultimate_challenge_daily.py",
+        "CURRENT_HANDOFF.md",
+        "BACKLOG.md",
+        "tasks/flow_delivery_queue.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
+        "tasks/backlog_task_index.json",
+        "tasks/flow_delivery_coverage.json",
+        "docs/flow_delivery_coverage.md"
       ],
       "navigation_model": "campaign_atlas_verified_destination_and_ultimate_entry_replay",
       "requires_bluestacks_live": false,
@@ -337,11 +342,14 @@
       "live_attempts": [],
       "additional_live_attempts_authorized": 0,
       "focused_tests": [
-        "tests/test_home_atlas.py",
-        "tests/test_home_atlas_planner.py",
-        "tests/test_campaign_auto_battle_runtime.py",
+        "tests/test_campaign_atlas.py",
+        "tests/test_campaign_atlas_vision.py",
+        "tests/test_campaign_atlas_navigation.py",
         "tests/test_campaign_story_destinations.py",
-        "tests/test_ultimate_challenge_daily.py"
+        "tests/test_ultimate_challenge_daily.py",
+        "tests/test_flow_delivery_authority_consistency.py",
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_governance_validation.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -349,9 +357,9 @@
         "navigation_input_count",
         "relocalization_residual_pixels"
       ],
-      "blocked_reason": "Depends on a validated native Campaign atlas corpus; no integration or replay may proceed before the survey dependency is complete.",
-      "next_concrete_action": "After native survey validation, integrate atlas planning with current-frame Campaign/Ultimate binds and prove zero-transport replay from canonical Home entry.",
-      "last_completed_stage": null,
+      "blocked_reason": "",
+      "next_concrete_action": "None for this completed offline atomic flow; next ready development flow is NOAHS-TAVERN-HOME-ATLAS-MIGRATION. Campaign AP and Ultimate Challenge remain blocked pending their own evidence/authorization.",
+      "last_completed_stage": "commit",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
       "acceptance_criteria": [
@@ -385,18 +393,30 @@
       "implementation_allowlist_seed": [
         "tasks/campaign_atlas.py",
         "tasks/campaign_atlas_vision.py",
+        "scripts/campaign_atlas_bluestacks.py",
         "tasks/campaign_auto_battle.py",
-        "tasks/campaign_auto_battle_runtime.py",
-        "tasks/campaign_auto_battle_vision.py",
-        "scripts/bluestacks_campaign_ap.py",
-        "scripts/bluestacks_ultimate_challenge.py",
+        "tasks/ultimate_challenge_daily.py",
         "tests/test_campaign_atlas.py",
-        "tests/test_campaign_atlas_vision.py"
+        "tests/test_campaign_atlas_vision.py",
+        "tests/test_campaign_atlas_navigation.py",
+        "tests/test_campaign_story_destinations.py",
+        "tests/test_ultimate_challenge_daily.py",
+        "tests/test_flow_delivery_authority_consistency.py",
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_governance_validation.py",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
+        "tasks/flow_delivery_queue.json",
+        "CURRENT_HANDOFF.md",
+        "BACKLOG.md",
+        "tasks/backlog_task_index.json",
+        "docs/flow_delivery_coverage.md",
+        "tasks/flow_delivery_coverage.json"
       ],
       "live_validation_scenarios": [
         {
           "id": "campaign-atlas-zero-transport-replay",
-          "mode": "offline_zero_transport"
+          "mode": "offline_zero_transport",
+          "notes": "Replay both consumers through navigation-only zero transport; stop before Challenge/AP/Auto Battle."
         }
       ],
       "required_terminal_states": [
@@ -405,11 +425,15 @@
         "blocked_fail_closed"
       ],
       "completion_tests": [
-        "tests/test_home_atlas.py",
-        "tests/test_home_atlas_planner.py",
-        "tests/test_campaign_auto_battle_runtime.py",
+        "tests/test_campaign_atlas.py",
+        "tests/test_campaign_atlas_vision.py",
+        "tests/test_campaign_atlas_navigation.py",
         "tests/test_campaign_story_destinations.py",
-        "tests/test_ultimate_challenge_daily.py"
+        "tests/test_ultimate_challenge_daily.py",
+        "tests/test_flow_delivery_authority_consistency.py",
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_governance_validation.py",
+        "tests/test_gameplay_flow_contracts.py"
       ],
       "consequential_stage_policy": {
         "live_input": "prohibited",

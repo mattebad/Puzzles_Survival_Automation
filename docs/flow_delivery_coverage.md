@@ -17,6 +17,7 @@ attempts authorized.
 | `RECRUITMENT-BLUESTACKS-INTEGRATION` | Daily: five Basic free singles | shared + integrated controller replay retained | 2026-07-16 semantic-frame mechanics/navigation | not proven | hash-bound production replay of five Basic windows and Home |
 | `RECRUITMENT-FREE-ATTEMPT-MAINTENANCE` | maintenance; inspect Basic/Int./Advanced | integrated three-tier replay retained | 2026-07-16 semantic-frame mechanics/navigation | not proven | independent cooldown persistence, per-tab defer, production replay, Home |
 | `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` | Campaign AP maintenance | navigation, destination, vision, controller, battle replay retained | supervised BlueStacks mechanics + nonterminal production navigation attempts | not proven | native configured-stage Auto Battle production replay and Home |
+| `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY` | shared Campaign atlas navigation | atlas build, localizer, destination bind, shared seam, zero-transport replay | accepted survey corpus + offline zero-transport for atlas-supported destinations | not proven (live) | Chapter 9 landmark for product AP tuples; live canary remains prohibited |
 | `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` | Daily: one verified Flee per reset | entry/idempotency + ordered policy controller; missing-evidence gate is zero transport | offline navigation only; no Flee evidence | not proven | native Challenge → Exit → Flee, no-resource result, journal-backed replay, Home |
 | `ZOMBIE-LAIR-BLUESTACKS-INTEGRATION` | Daily: first eligible join | legacy selected-Daily one-Lair replay | no Home-notification evidence | not proven | native notification, eligible join, 28 stamina, Daily result, Home |
 | `ZOMBIE-LAIR-HOME-MAINTENANCE` | maintenance; continues after Daily | World/stamina primitives only | no Home-notification evidence | not proven | native defer/multi-lair/refill/recovery/Quick Join states and Home |
@@ -84,6 +85,17 @@ Home return. Retained Home Atlas/destination code and navigation-only attempts a
 evidence, but no terminal production route or production-controller positive replay is proven.
 Fresh native replay must verify the displayed stage and cost on every entry, static costs, 120 AP
 maximum, 360-second regeneration accounting, no refill, bounded repetition, defer, and Home.
+
+## Campaign atlas navigation integration
+
+Flow: `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`
+
+Offline atlas build, viewport localization, current-frame destination binding, and shared
+Campaign AP / Ultimate Challenge navigation seam are implemented. Production-path zero-transport
+replay is retained for atlas-supported destinations (chapters present in the accepted survey plus
+Ultimate Challenge). Atlas projection never authorizes input. Product Campaign AP destinations
+`1-20-9`, `1-15-9`, and `2-2-9` remain `evidence_required` until Chapter 9 is accepted. No live
+input, registration, or scheduler eligibility is authorized.
 
 ## Ultimate Challenge Daily
 

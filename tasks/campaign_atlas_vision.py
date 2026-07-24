@@ -632,3 +632,804 @@ def require_measured_nonstatic_survey_target(
             "current-frame measured template/OCR-associated geometry is required before tap"
         )
     return roi  # type: ignore[return-value]
+
+
+# ---------------------------------------------------------------------------
+# Atlas build / localize / current-frame destination bind (offline)
+# ---------------------------------------------------------------------------
+
+from datetime import datetime, timezone
+import hashlib
+import json
+import shutil
+from pathlib import Path
+
+from .campaign_atlas import (
+    ACCEPTED_LANDMARK_SESSION_ID,
+    ACCEPTED_SURVEY_ROOT,
+    ACCEPTED_TERMINAL_SESSION_ID,
+    ACCEPTED_TRAVERSAL_SESSION_ID,
+    CAMPAIGN_PACKAGE,
+    CAMPAIGN_PLATFORM,
+    CampaignAmbiguityState,
+    CampaignAtlas,
+    CampaignAtlasLandmark,
+    CampaignAtlasViewport,
+    CampaignDestinationBinding,
+    CampaignDestinationKind,
+    CampaignLocalizationResult,
+    DEFAULT_ATLAS_ARTIFACT_ROOT,
+    DEFAULT_ATLAS_ID,
+    INTEGRATION_FLOW_ID,
+    LandmarkKind,
+    NATIVE_HEIGHT,
+    NATIVE_WIDTH,
+    Matrix3,
+    campaign_atlas_to_dict,
+    project_landmark_search_roi,
+    resolve_campaign_consumer_destination,
+    save_campaign_atlas,
+)
+
+
+def _transport_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _load_bgr(path: Path) -> np.ndarray:
+    frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if frame is None or not native_campaign_frame_guard(frame):
+        raise ValueError(f"native Campaign frame required: {path}")
+    return frame
+
+
+def _compose_translation(left: Matrix3, right: Matrix3) -> Matrix3:
+    lx, ly = float(left[0][2]), float(left[1][2])
+    rx, ry = float(right[0][2]), float(right[1][2])
+    return (
+        (1.0, 0.0, lx + rx),
+        (0.0, 1.0, ly + ry),
+        (0.0, 0.0, 1.0),
+    )
+
+
+def _invert_translation(matrix: Matrix3) -> Matrix3:
+    return (
+        (1.0, 0.0, -float(matrix[0][2])),
+        (0.0, 1.0, -float(matrix[1][2])),
+        (0.0, 0.0, 1.0),
+    )
+
+
+def _matrix_from_ndarray(matrix: np.ndarray) -> Matrix3:
+    return tuple(tuple(float(cell) for cell in row) for row in matrix)  # type: ignore[return-value]
+
+
+def index_survey_frames_by_semantic_sha(
+    survey_root: Path = ACCEPTED_SURVEY_ROOT,
+) -> dict[str, Path]:
+    """Map semantic frame digests to retained native PNGs under accepted survey sessions."""
+
+    indexed: dict[str, Path] = {}
+    if not survey_root.is_dir():
+        return indexed
+    for session_dir in sorted(survey_root.iterdir()):
+        frames_dir = session_dir / "runtime" / "frames"
+        if not frames_dir.is_dir():
+            continue
+        for path in sorted(frames_dir.glob("*.png")):
+            try:
+                frame = _load_bgr(path)
+            except ValueError:
+                continue
+            digest = frame_digest(frame)
+            indexed.setdefault(digest, path)
+            transport = _transport_sha256(path)
+            indexed.setdefault(transport, path)
+    return indexed
+
+
+def _provenance_for_path(path: Path, *, ordinal: int, semantic: str, transport: str) -> NativeFrameProvenance:
+    session_id = path.parents[2].name if len(path.parents) >= 3 else path.parent.name
+    return NativeFrameProvenance(
+        source_id=str(path).replace("\\", "/"),
+        capture_kind="fixture",
+        runtime_session_id=f"campaign-atlas-build-{session_id}",
+        capture_ordinal=ordinal,
+        capture_completed_monotonic=float(ordinal),
+        transport_sha256=transport,
+        semantic_sha256=semantic,
+        captured_at_utc="2026-07-24T00:00:00Z",
+        width=NATIVE_WIDTH,
+        height=NATIVE_HEIGHT,
+    )
+
+
+def _try_register_viewport(
+    *,
+    candidate_path: Path,
+    candidate_frame: np.ndarray,
+    candidate_semantic: str,
+    reference_path: Path,
+    reference_frame: np.ndarray,
+    reference_semantic: str,
+    reference_transform: Matrix3,
+    backend: OrbTranslationBackend,
+    ordinal: int,
+) -> tuple[Matrix3, object] | None:
+    observation = measure_campaign_frame_pair(
+        candidate_frame,
+        reference_frame,
+        candidate_provenance=_provenance_for_path(
+            candidate_path,
+            ordinal=ordinal,
+            semantic=candidate_semantic,
+            transport=_transport_sha256(candidate_path),
+        ),
+        reference_provenance=_provenance_for_path(
+            reference_path,
+            ordinal=max(1, ordinal - 1),
+            semantic=reference_semantic,
+            transport=_transport_sha256(reference_path),
+        ),
+        backend=backend,
+    )
+    measurement = observation.measurement
+    if (
+        measurement.transform_candidate_to_reference is None
+        or measurement.matches < MIN_ASSOCIATION_MATCHES
+        or measurement.confidence < MIN_ASSOCIATION_CONFIDENCE
+        or measurement.residual_px > MAX_ASSOCIATION_RESIDUAL_PX
+        or measurement.overlap_ratio < MIN_ASSOCIATION_OVERLAP_RATIO
+    ):
+        return None
+    relative = _matrix_from_ndarray(measurement.transform_candidate_to_reference)
+    absolute = _compose_translation(reference_transform, relative)
+    return absolute, measurement
+
+
+def build_campaign_atlas_from_accepted_survey(
+    *,
+    survey_root: Path = ACCEPTED_SURVEY_ROOT,
+    output_root: Path = DEFAULT_ATLAS_ARTIFACT_ROOT,
+    atlas_id: str = DEFAULT_ATLAS_ID,
+    max_viewports: int = 28,
+) -> CampaignAtlas:
+    """Build a hash-bound Campaign atlas from the accepted native survey (offline)."""
+
+    survey_root = Path(survey_root)
+    terminal_report_path = (
+        survey_root / ACCEPTED_TERMINAL_SESSION_ID / "survey-session-report.json"
+    )
+    if not terminal_report_path.is_file():
+        raise FileNotFoundError(
+            f"accepted terminal survey report missing: {terminal_report_path}"
+        )
+    report = json.loads(terminal_report_path.read_text(encoding="utf-8"))
+    if report.get("disposition") != "native_survey_complete":
+        raise RuntimeError("accepted survey report is not native_survey_complete")
+    if bool(report.get("cross_difficulty", {}).get("used_as_recenter", False)):
+        raise RuntimeError("survey used difficulty switching as recentering")
+
+    frame_index = index_survey_frames_by_semantic_sha(survey_root)
+    overlaps = [item for item in report.get("overlaps", []) if item.get("associated")]
+    if not overlaps:
+        raise RuntimeError("accepted survey lacks associated overlaps for atlas build")
+
+    # Landmark-session frames carry the reviewed chapter/UC ROIs; seed the atlas from them.
+    landmark_session = survey_root / ACCEPTED_LANDMARK_SESSION_ID
+    landmark_frames_dir = landmark_session / "runtime" / "frames"
+    landmark_seed_names = (
+        "0001-source.png",
+        "0002-difficulty-tier-2-before.png",
+        "0004-difficulty-tier-2-post.png",
+    )
+    landmark_paths: list[Path] = []
+    for name in landmark_seed_names:
+        path = landmark_frames_dir / name
+        if path.is_file():
+            landmark_paths.append(path)
+    if not landmark_paths:
+        raise RuntimeError("accepted landmark session lacks native frames for atlas seed")
+
+    backend = OrbTranslationBackend()
+    output_root = Path(output_root)
+    tiles_dir = output_root / atlas_id / "tiles"
+    if tiles_dir.exists():
+        shutil.rmtree(tiles_dir)
+    tiles_dir.mkdir(parents=True, exist_ok=True)
+
+    viewports: list[CampaignAtlasViewport] = []
+    transforms: dict[str, Matrix3] = {}
+    path_by_semantic: dict[str, Path] = {}
+
+    seed_path = landmark_paths[0]
+    seed_frame = _load_bgr(seed_path)
+    seed_sha = frame_digest(seed_frame)
+    frame_index[seed_sha] = seed_path
+    path_by_semantic[seed_sha] = seed_path
+    transforms[seed_sha] = (
+        (1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (0.0, 0.0, 1.0),
+    )
+    tile_name = "viewport-001.png"
+    shutil.copy2(seed_path, tiles_dir / tile_name)
+    viewports.append(
+        CampaignAtlasViewport(
+            viewport_id="viewport-001",
+            image_path=f"tiles/{tile_name}",
+            source_sha256=seed_sha,
+            transport_sha256=_transport_sha256(seed_path),
+            transform_to_atlas=transforms[seed_sha],
+            residual_px=0.0,
+            overlap_ratio=1.0,
+            source_session_id=ACCEPTED_LANDMARK_SESSION_ID,
+        )
+    )
+    ordinal = 2
+
+    def _append_viewport(
+        *,
+        path: Path,
+        semantic: str,
+        absolute: Matrix3,
+        residual_px: float,
+        overlap_ratio: float,
+        session_id: str,
+    ) -> None:
+        nonlocal ordinal
+        if semantic in transforms:
+            return
+        transforms[semantic] = absolute
+        path_by_semantic[semantic] = path
+        frame_index[semantic] = path
+        tile = f"viewport-{ordinal:03d}.png"
+        shutil.copy2(path, tiles_dir / tile)
+        viewports.append(
+            CampaignAtlasViewport(
+                viewport_id=f"viewport-{ordinal:03d}",
+                image_path=f"tiles/{tile}",
+                source_sha256=semantic,
+                transport_sha256=_transport_sha256(path),
+                transform_to_atlas=absolute,
+                residual_px=float(residual_px),
+                overlap_ratio=float(overlap_ratio),
+                source_session_id=session_id,
+            )
+        )
+        ordinal += 1
+
+    # Chain remaining landmark-session frames against the best registered viewport.
+    for path in landmark_paths[1:]:
+        if len(viewports) >= max_viewports:
+            break
+        frame = _load_bgr(path)
+        semantic = frame_digest(frame)
+        if semantic in transforms:
+            continue
+        best = None
+        for existing in viewports:
+            ref_path = path_by_semantic[existing.source_sha256]
+            ref_frame = _load_bgr(ref_path)
+            registered = _try_register_viewport(
+                candidate_path=path,
+                candidate_frame=frame,
+                candidate_semantic=semantic,
+                reference_path=ref_path,
+                reference_frame=ref_frame,
+                reference_semantic=existing.source_sha256,
+                reference_transform=existing.transform_to_atlas,
+                backend=backend,
+                ordinal=ordinal,
+            )
+            if registered is None:
+                continue
+            absolute, measurement = registered
+            score = (float(measurement.confidence), -float(measurement.residual_px))
+            if best is None or score > best[0]:
+                best = (score, absolute, measurement)
+        if best is None:
+            # Keep landmark frame as an independent atlas island so ROI binding still works
+            # when cross-difficulty association fails (never use difficulty as recenter).
+            _append_viewport(
+                path=path,
+                semantic=semantic,
+                absolute=(
+                    (1.0, 0.0, float((ordinal - 1) * NATIVE_WIDTH)),
+                    (0.0, 1.0, 0.0),
+                    (0.0, 0.0, 1.0),
+                ),
+                residual_px=0.0,
+                overlap_ratio=0.0,
+                session_id=ACCEPTED_LANDMARK_SESSION_ID,
+            )
+            continue
+        _append_viewport(
+            path=path,
+            semantic=semantic,
+            absolute=best[1],
+            residual_px=float(best[2].residual_px),
+            overlap_ratio=float(best[2].overlap_ratio),
+            session_id=ACCEPTED_LANDMARK_SESSION_ID,
+        )
+
+    # Extend with associated survey overlaps when semantic/transport hashes resolve.
+    step = max(1, len(overlaps) // max(1, max(1, max_viewports - len(viewports))))
+    selected_overlaps = overlaps[::step]
+    for item in selected_overlaps:
+        if len(viewports) >= max_viewports:
+            break
+        candidate_key = str(item["candidate_sha256"])
+        reference_key = str(item["reference_sha256"])
+        if candidate_key not in frame_index:
+            continue
+        candidate_path = frame_index[candidate_key]
+        candidate_frame = _load_bgr(candidate_path)
+        candidate_semantic = frame_digest(candidate_frame)
+        if candidate_semantic in transforms:
+            continue
+        reference_semantic = None
+        reference_path = None
+        if reference_key in frame_index:
+            reference_path = frame_index[reference_key]
+            reference_frame = _load_bgr(reference_path)
+            reference_semantic = frame_digest(reference_frame)
+        if reference_semantic not in transforms:
+            # Fall back: register against the best existing viewport.
+            best = None
+            for existing in viewports:
+                ref_path = path_by_semantic[existing.source_sha256]
+                ref_frame = _load_bgr(ref_path)
+                registered = _try_register_viewport(
+                    candidate_path=candidate_path,
+                    candidate_frame=candidate_frame,
+                    candidate_semantic=candidate_semantic,
+                    reference_path=ref_path,
+                    reference_frame=ref_frame,
+                    reference_semantic=existing.source_sha256,
+                    reference_transform=existing.transform_to_atlas,
+                    backend=backend,
+                    ordinal=ordinal,
+                )
+                if registered is None:
+                    continue
+                absolute, measurement = registered
+                score = (float(measurement.confidence), -float(measurement.residual_px))
+                if best is None or score > best[0]:
+                    best = (score, absolute, measurement)
+            if best is None:
+                continue
+            _append_viewport(
+                path=candidate_path,
+                semantic=candidate_semantic,
+                absolute=best[1],
+                residual_px=float(best[2].residual_px),
+                overlap_ratio=float(best[2].overlap_ratio),
+                session_id=candidate_path.parents[2].name,
+            )
+            continue
+        assert reference_path is not None and reference_semantic is not None
+        reference_frame = _load_bgr(reference_path)
+        registered = _try_register_viewport(
+            candidate_path=candidate_path,
+            candidate_frame=candidate_frame,
+            candidate_semantic=candidate_semantic,
+            reference_path=reference_path,
+            reference_frame=reference_frame,
+            reference_semantic=reference_semantic,
+            reference_transform=transforms[reference_semantic],
+            backend=backend,
+            ordinal=ordinal,
+        )
+        if registered is None:
+            continue
+        absolute, measurement = registered
+        _append_viewport(
+            path=candidate_path,
+            semantic=candidate_semantic,
+            absolute=absolute,
+            residual_px=float(measurement.residual_px),
+            overlap_ratio=float(measurement.overlap_ratio),
+            session_id=candidate_path.parents[2].name,
+        )
+
+    # Attach reviewed landmark annotations (chapter + Ultimate Challenge only).
+    annotation_dir = landmark_session / "annotations"
+    landmarks: list[CampaignAtlasLandmark] = []
+    if annotation_dir.is_dir():
+        for annotation_path in sorted(annotation_dir.glob("*.json")):
+            payload = json.loads(annotation_path.read_text(encoding="utf-8"))
+            source_sha = str(payload["source_sha256"])
+            roi = tuple(int(v) for v in payload["roi"])
+            if len(roi) != 4:
+                continue
+            label = str(payload.get("label", ""))
+            if label.startswith("campaign-chapter-"):
+                kind = LandmarkKind.CHAPTER
+                number = label.rsplit("-", 1)[-1]
+                display = f"Chapter {number}"
+            elif "ultimate" in label.casefold():
+                kind = LandmarkKind.ULTIMATE_CHALLENGE
+                display = "Ultimate Challenge"
+            else:
+                continue
+            if source_sha not in frame_index:
+                continue
+            path = frame_index[source_sha]
+            semantic = frame_digest(_load_bgr(path))
+            if semantic not in transforms:
+                # Annotation hash may be transport-era; resolve via path semantic.
+                if source_sha in transforms:
+                    semantic = source_sha
+                else:
+                    continue
+            viewport = next(v for v in viewports if v.source_sha256 == semantic)
+            tx = float(viewport.transform_to_atlas[0][2])
+            ty = float(viewport.transform_to_atlas[1][2])
+            atlas_roi = (
+                int(roi[0] + tx),
+                int(roi[1] + ty),
+                int(roi[2] + tx),
+                int(roi[3] + ty),
+            )
+            landmarks.append(
+                CampaignAtlasLandmark(
+                    landmark_id=f"{kind.value}-{display.casefold().replace(' ', '-')}",
+                    kind=kind,
+                    label=display,
+                    atlas_roi=atlas_roi,
+                    supporting_frame_sha256=semantic,
+                    source_viewport_id=viewport.viewport_id,
+                    spatially_associated=True,
+                )
+            )
+
+    if not landmarks:
+        raise RuntimeError(
+            "atlas build produced zero landmarks; accepted landmark annotations must attach"
+        )
+
+    xs = [float(v.transform_to_atlas[0][2]) for v in viewports] + [0.0]
+    ys = [float(v.transform_to_atlas[1][2]) for v in viewports] + [0.0]
+    width = int(max(xs) - min(xs)) + NATIVE_WIDTH
+    height = int(max(ys) - min(ys)) + NATIVE_HEIGHT
+    loop = report.get("loop_closure") or {}
+    cross = report.get("cross_difficulty") or {}
+    atlas = CampaignAtlas(
+        schema_version=1,
+        atlas_id=atlas_id,
+        flow_id=INTEGRATION_FLOW_ID,
+        profile_id=CAMPAIGN_PROFILE_ID,
+        platform=CAMPAIGN_PLATFORM,
+        package=CAMPAIGN_PACKAGE,
+        native_width=NATIVE_WIDTH,
+        native_height=NATIVE_HEIGHT,
+        width=max(NATIVE_WIDTH, width),
+        height=max(NATIVE_HEIGHT, height),
+        source_survey_session_ids=(
+            ACCEPTED_TRAVERSAL_SESSION_ID,
+            ACCEPTED_LANDMARK_SESSION_ID,
+            ACCEPTED_TERMINAL_SESSION_ID,
+        ),
+        viewports=tuple(viewports),
+        landmarks=tuple(landmarks),
+        loop_closure_residual_px=float(loop.get("residual_px", 0.0)),
+        cross_difficulty_compared=bool(cross.get("compared", False)),
+        difficulty_used_as_recenter=bool(cross.get("used_as_recenter", False)),
+        image_path=None,
+        created_at_utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    manifest_path = output_root / atlas_id / "atlas.json"
+    save_campaign_atlas(atlas, manifest_path)
+    (output_root / atlas_id / "provenance.json").write_text(
+        json.dumps(
+            {
+                "atlas_id": atlas.atlas_id,
+                "terminal_report": str(terminal_report_path).replace("\\", "/"),
+                "viewport_count": len(atlas.viewports),
+                "landmark_count": len(atlas.landmarks),
+                "source_survey_session_ids": list(atlas.source_survey_session_ids),
+                "manifest": campaign_atlas_to_dict(atlas),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return atlas
+
+
+class BlueStacksCampaignLocalizer:
+    """Localize an arbitrary current Campaign viewport against the atlas tiles."""
+
+    def __init__(self, atlas: CampaignAtlas, atlas_manifest_path: Path) -> None:
+        if atlas.profile_id != CAMPAIGN_PROFILE_ID:
+            raise ValueError("Campaign localizer refuses a non-BlueStacks atlas profile")
+        self.atlas = atlas
+        self.root = Path(atlas_manifest_path).resolve().parent
+        self.backend = OrbTranslationBackend()
+        self.references: list[tuple[CampaignAtlasViewport, np.ndarray]] = []
+        for viewport in atlas.viewports:
+            if not viewport.accepted:
+                continue
+            path = (self.root / viewport.image_path).resolve()
+            frame = _load_bgr(path)
+            if frame_digest(frame) != viewport.source_sha256:
+                raise ValueError(f"atlas tile digest mismatch: {viewport.viewport_id}")
+            self.references.append((viewport, frame))
+        if not self.references:
+            raise ValueError("atlas contains no accepted Campaign viewports")
+
+    def localize(
+        self,
+        frame: np.ndarray,
+        *,
+        campaign_screen_recognized: bool = True,
+        stale: bool = False,
+    ) -> CampaignLocalizationResult:
+        digest = frame_digest(frame) if native_campaign_frame_guard(frame) else ""
+        if not native_campaign_frame_guard(frame):
+            return CampaignLocalizationResult(
+                False,
+                CAMPAIGN_PROFILE_ID,
+                None,
+                0.0,
+                None,
+                (),
+                CampaignAmbiguityState.WRONG_PROFILE,
+                digest,
+            )
+        if stale:
+            return CampaignLocalizationResult(
+                False,
+                CAMPAIGN_PROFILE_ID,
+                None,
+                0.0,
+                None,
+                (),
+                CampaignAmbiguityState.STALE_FRAME,
+                digest,
+            )
+        if not campaign_screen_recognized:
+            return CampaignLocalizationResult(
+                False,
+                CAMPAIGN_PROFILE_ID,
+                None,
+                0.0,
+                None,
+                (),
+                CampaignAmbiguityState.WRONG_SCREEN,
+                digest,
+            )
+        candidates: list[tuple[float, float, str, Matrix3]] = []
+        for viewport, reference in self.references:
+            observation = measure_campaign_frame_pair(
+                frame,
+                reference,
+                candidate_provenance=_provenance_for_path(
+                    Path("current-frame.png"),
+                    ordinal=1,
+                    semantic=digest,
+                    transport=digest,
+                ),
+                reference_provenance=_provenance_for_path(
+                    self.root / viewport.image_path,
+                    ordinal=1,
+                    semantic=viewport.source_sha256,
+                    transport=viewport.transport_sha256,
+                ),
+                backend=self.backend,
+            )
+            measurement = observation.measurement
+            if measurement.transform_candidate_to_reference is None:
+                continue
+            if (
+                measurement.matches < MIN_ASSOCIATION_MATCHES
+                or measurement.confidence < MIN_ASSOCIATION_CONFIDENCE
+                or measurement.residual_px > MAX_ASSOCIATION_RESIDUAL_PX
+            ):
+                continue
+            relative = _matrix_from_ndarray(measurement.transform_candidate_to_reference)
+            absolute = _compose_translation(viewport.transform_to_atlas, relative)
+            candidates.append(
+                (
+                    float(measurement.confidence),
+                    float(measurement.residual_px),
+                    viewport.viewport_id,
+                    absolute,
+                )
+            )
+        if not candidates:
+            return CampaignLocalizationResult(
+                False,
+                CAMPAIGN_PROFILE_ID,
+                None,
+                0.0,
+                None,
+                (),
+                CampaignAmbiguityState.INSUFFICIENT_LANDMARKS,
+                digest,
+            )
+        candidates.sort(key=lambda item: (-item[0], item[1]))
+        best = candidates[0]
+        if len(candidates) > 1 and candidates[1][0] >= best[0] - 0.04:
+            dx = abs(best[3][0][2] - candidates[1][3][0][2])
+            dy = abs(best[3][1][2] - candidates[1][3][1][2])
+            if (dx + dy) > 48:
+                return CampaignLocalizationResult(
+                    False,
+                    CAMPAIGN_PROFILE_ID,
+                    None,
+                    best[0],
+                    best[1],
+                    (best[2], candidates[1][2]),
+                    CampaignAmbiguityState.CONFLICTING_TRANSFORMS,
+                    digest,
+                )
+        return CampaignLocalizationResult(
+            True,
+            CAMPAIGN_PROFILE_ID,
+            best[3],
+            best[0],
+            best[1],
+            tuple(item[2] for item in candidates[:3]),
+            CampaignAmbiguityState.NONE,
+            digest,
+        )
+
+
+def bind_campaign_destination_from_current_frame(
+    frame: np.ndarray,
+    *,
+    atlas: CampaignAtlas,
+    localization: CampaignLocalizationResult,
+    consumer: str,
+    destination_id: str,
+) -> CampaignDestinationBinding:
+    """Bind a destination from the current native frame; atlas projection only narrows search."""
+
+    digest = frame_digest(frame) if native_campaign_frame_guard(frame) else ""
+    if not native_campaign_frame_guard(frame):
+        return CampaignDestinationBinding(
+            CampaignDestinationKind.CHAPTER,
+            destination_id,
+            False,
+            None,
+            digest,
+            0.0,
+            False,
+            None,
+            "current frame is not native 800x1280",
+        )
+    kind, label = resolve_campaign_consumer_destination(consumer, destination_id)
+    landmark_kind = (
+        LandmarkKind.ULTIMATE_CHALLENGE
+        if kind is CampaignDestinationKind.ULTIMATE_CHALLENGE
+        else LandmarkKind.CHAPTER
+    )
+    landmark = atlas.lookup_landmark(kind=landmark_kind, label=label)
+    if landmark is None:
+        return CampaignDestinationBinding(
+            kind,
+            label,
+            False,
+            None,
+            digest,
+            0.0,
+            False,
+            None,
+            f"atlas landmark missing for {label}",
+        )
+    search_roi = project_landmark_search_roi(localization, landmark)
+    # Current-frame semantic association: require the landmark's supporting crop to
+    # match inside the projected search window (or full map-search ROI as fallback).
+    source_viewport = next(
+        (item for item in atlas.viewports if item.viewport_id == landmark.source_viewport_id),
+        None,
+    )
+    if source_viewport is None:
+        return CampaignDestinationBinding(
+            kind,
+            label,
+            False,
+            None,
+            digest,
+            0.0,
+            search_roi is not None,
+            search_roi,
+            "landmark source viewport missing from atlas",
+        )
+    # Reconstruct template from atlas tile using original frame-space ROI.
+    tx = float(source_viewport.transform_to_atlas[0][2])
+    ty = float(source_viewport.transform_to_atlas[1][2])
+    frame_roi = (
+        int(landmark.atlas_roi[0] - tx),
+        int(landmark.atlas_roi[1] - ty),
+        int(landmark.atlas_roi[2] - tx),
+        int(landmark.atlas_roi[3] - ty),
+    )
+    tile_path = Path(source_viewport.image_path)
+    # Caller supplies atlas root via localizer usually; resolve relative to CWD artifact.
+    # Prefer reading through ACCEPTED survey index by semantic hash.
+    indexed = index_survey_frames_by_semantic_sha()
+    if landmark.supporting_frame_sha256 in indexed:
+        source_frame = _load_bgr(indexed[landmark.supporting_frame_sha256])
+    else:
+        return CampaignDestinationBinding(
+            kind,
+            label,
+            False,
+            None,
+            digest,
+            0.0,
+            search_roi is not None,
+            search_roi,
+            "landmark supporting native frame is not retained",
+        )
+    left, top, right, bottom = frame_roi
+    left = max(0, left)
+    top = max(0, top)
+    right = min(NATIVE_WIDTH, right)
+    bottom = min(NATIVE_HEIGHT, bottom)
+    if right - left < 8 or bottom - top < 8:
+        return CampaignDestinationBinding(
+            kind,
+            label,
+            False,
+            None,
+            digest,
+            0.0,
+            search_roi is not None,
+            search_roi,
+            "landmark template ROI is empty",
+        )
+    template = source_frame[top:bottom, left:right]
+    window = search_roi or MAP_SEARCH_ROI
+    x0, y0, x1, y1 = window
+    haystack = frame[y0:y1, x0:x1]
+    if haystack.size == 0 or template.size == 0 or haystack.shape[0] < template.shape[0] or haystack.shape[1] < template.shape[1]:
+        return CampaignDestinationBinding(
+            kind,
+            label,
+            False,
+            None,
+            digest,
+            0.0,
+            search_roi is not None,
+            search_roi,
+            "search window cannot contain landmark template",
+        )
+    result = cv2.matchTemplate(haystack, template, cv2.TM_CCOEFF_NORMED)
+    _min_val, max_val, _min_loc, max_loc = cv2.minMaxLoc(result)
+    if float(max_val) < 0.55:
+        return CampaignDestinationBinding(
+            kind,
+            label,
+            False,
+            None,
+            digest,
+            float(max_val),
+            search_roi is not None,
+            search_roi,
+            f"current-frame template score too low: {max_val:.3f}",
+        )
+    th, tw = template.shape[:2]
+    bound_roi = (
+        x0 + int(max_loc[0]),
+        y0 + int(max_loc[1]),
+        x0 + int(max_loc[0]) + tw,
+        y0 + int(max_loc[1]) + th,
+    )
+    return CampaignDestinationBinding(
+        kind,
+        label,
+        True,
+        bound_roi,
+        digest,
+        float(max_val),
+        search_roi is not None,
+        search_roi,
+        "current-frame semantic destination bound",
+    )

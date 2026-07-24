@@ -122,9 +122,12 @@ class AuthorityConsistencyTests(unittest.TestCase):
             "authorized_navigation_only_survey",
         )
         self.assertEqual(survey["maximum_live_attempts"], 1)
-        self.assertIsNone(survey["live_attempts"][0]["finished_at"])
-        self.assertIsNone(survey["live_attempts"][0]["terminal_outcome"])
-        self.assertIsNone(survey["live_attempts"][0]["session_directory"])
+        self.assertEqual(survey["live_attempts"][0]["finished_at"], "2026-07-24T02:52:20.001438Z")
+        self.assertEqual(survey["live_attempts"][0]["terminal_outcome"], "completed")
+        self.assertIn(
+            "survey-20260724T023336884972Z",
+            str(survey["live_attempts"][0]["session_directory"]),
+        )
         self.assertEqual(
             survey.get("survey_continuation_prior_session_ids"),
             [
@@ -143,11 +146,9 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertIn("survey-20260724T012057293610Z", diagnosis)
         self.assertIn("survey-20260724T021222146973Z", diagnosis)
         self.assertIn("survey-20260724T023336884972Z", diagnosis)
-        self.assertIn("used=93", diagnosis)
-        self.assertIn("native_survey_complete", diagnosis)
-        self.assertIn("survey-20260724T002912186392Z", diagnosis)
-        self.assertIn("evidence_review", diagnosis)
-        self.assertEqual(survey["last_completed_stage"], "live_execution")
+        self.assertIn("93/272", diagnosis)
+        self.assertEqual(survey["status"], "completed")
+        self.assertEqual(survey["last_completed_stage"], "completed")
         self.assertIn(
             "tasks/assets/campaign_auto_battle/800x1280/campaign_exit_unhighlighted.png",
             survey["implementation_allowlist_seed"],
@@ -174,9 +175,27 @@ class AuthorityConsistencyTests(unittest.TestCase):
                 "tests/test_flow_delivery_authority_consistency.py",
                 "tests/test_flow_delivery_orchestrator.py",
                 "tests/test_home_atlas_verified_route.py",
+                "tests/test_personal_might_praise.py",
             ],
         )
-        self.assertEqual(survey["completion_tests"], survey["focused_tests"])
+        self.assertEqual(
+            survey["completion_tests"],
+            [
+                "tests/test_campaign_atlas.py",
+                "tests/test_campaign_atlas_vision.py",
+                "tests/test_campaign_atlas_collector.py",
+                "tests/test_flow_delivery_authority_consistency.py",
+                "tests/test_flow_delivery_orchestrator.py",
+                "tests/test_home_atlas_verified_route.py",
+            ],
+        )
+        self.assertEqual(integration["maximum_live_attempts"], 0)
+        self.assertEqual(integration["live_attempt_count"], 0)
+        self.assertIn("tests/test_campaign_atlas_navigation.py", integration["focused_tests"])
+        self.assertIn(
+            "tests/test_campaign_atlas_navigation.py",
+            integration["completion_tests"],
+        )
         self.assertIn("scripts/flow_delivery_campaign_atlas_bluestacks.py", survey["implementation_entrypoints"])
         self.assertIn(
             "scripts/home_atlas_bluestacks.py",

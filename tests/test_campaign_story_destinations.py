@@ -153,6 +153,10 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
 
     def test_queue_selects_first_current_ready_flow(self) -> None:
         selected = control.FlowDeliveryController().select_next(self.queue)
+        active_id = self.queue.get("active_flow_id")
+        if active_id:
+            self.assertEqual(selected["flow_id"], active_id)
+            return
         expected = min(
             (flow for flow in self.queue["flows"] if flow["status"] == "ready"),
             key=lambda flow: (flow["priority"], flow["flow_id"]),
@@ -174,11 +178,24 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
             by_id["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]["dependencies"],
             [dependency],
         )
-        selected = control.FlowDeliveryController().select_next(self.queue)
         self.assertEqual(
-            selected["flow_id"],
-            "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
+            by_id["CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"]["dependencies"],
+            ["CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP"],
         )
+        self.assertEqual(
+            by_id[dependency]["dependencies"],
+            ["CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"],
+        )
+        selected = control.FlowDeliveryController().select_next(self.queue)
+        if by_id[dependency]["status"] == "active":
+            self.assertEqual(selected["flow_id"], dependency)
+        else:
+            expected = min(
+                (flow for flow in self.queue["flows"] if flow["status"] == "ready"),
+                key=lambda flow: (flow["priority"], flow["flow_id"]),
+            )
+            self.assertEqual(selected["flow_id"], expected["flow_id"])
+            self.assertEqual(expected["flow_id"], "NOAHS-TAVERN-HOME-ATLAS-MIGRATION")
 
     def test_coverage_keeps_objectives_separate(self) -> None:
         campaign = self.coverage["flows"]["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]

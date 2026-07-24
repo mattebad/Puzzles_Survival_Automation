@@ -118,6 +118,26 @@
       "maximum_live_attempts": 0,
       "additional_live_attempts_authorized": 0
     },
+    "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY": {
+      "objective": "campaign_atlas_shared_navigation",
+      "identity_kind": "navigation_foundation",
+      "daily_ownership": "none",
+      "implementation_state": "offline_controller_replay_implemented",
+      "navigation_state": "offline_navigation_contract_implemented",
+      "consequential_execution_state": "not_applicable_to_this_flow",
+      "evidence_classification": {
+        "gameplay_mechanics_evidence": "none",
+        "navigation_evidence": "accepted native survey corpus plus atlas localization/binding for Chapters 2/3/4/6/7/21/24/26/47 and Ultimate Challenge",
+        "offline_replay_evidence": "production-path zero-transport replay retained for atlas-supported destinations; Chapter 9 product AP tuples remain evidence_required",
+        "production_controller_positive_replay": "not_proven",
+        "supervised_consequential_canary": "not_proven",
+        "evidence_required": "Chapter 9 landmark for product Campaign AP destinations; live canary remains unauthorized"
+      },
+      "terminal_home_required": true,
+      "registered": false,
+      "scheduler_eligible": false,
+      "maximum_live_attempts": 0
+    },
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
       "objective": "ultimate_challenge_daily",
       "identity_kind": "daily_objective",

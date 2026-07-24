@@ -294,7 +294,118 @@ def build_parser() -> argparse.ArgumentParser:
         help="validate a session report JSON against activated schemas",
     )
     validate.add_argument("session_report", type=Path)
+    build_atlas = sub.add_parser(
+        "build-atlas",
+        help="build Campaign atlas artifact from the accepted native survey (offline)",
+    )
+    build_atlas.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path(
+            ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
+        ),
+    )
+    build_atlas.add_argument("--atlas-id", default="campaign-atlas-native-800x1280-v1")
+    build_atlas.add_argument("--max-viewports", type=int, default=28)
+    replay = sub.add_parser(
+        "zero-transport-replay",
+        help="run shared consumer navigation zero-transport replay against a built atlas",
+    )
+    replay.add_argument("--atlas", type=Path, required=True)
+    replay.add_argument("--frame", type=Path, required=True)
+    replay.add_argument("--campaign-destination", default="1-20-9")
+    replay.add_argument("--ultimate-destination", default="ultimate-challenge")
     return parser
+
+
+def command_build_atlas(args: argparse.Namespace) -> int:
+    from tasks.campaign_atlas_vision import build_campaign_atlas_from_accepted_survey
+
+    atlas = build_campaign_atlas_from_accepted_survey(
+        output_root=args.output_root,
+        atlas_id=args.atlas_id,
+        max_viewports=int(args.max_viewports),
+    )
+    payload = {
+        "atlas_id": atlas.atlas_id,
+        "viewport_count": len(atlas.viewports),
+        "landmark_count": len(atlas.landmarks),
+        "landmarks": [item.label for item in atlas.landmarks],
+        "source_survey_session_ids": list(atlas.source_survey_session_ids),
+        "manifest_path": str((args.output_root / args.atlas_id / "atlas.json")).replace(
+            "\\", "/"
+        ),
+        "difficulty_used_as_recenter": atlas.difficulty_used_as_recenter,
+    }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
+
+
+def command_zero_transport_replay(args: argparse.Namespace) -> int:
+    import cv2
+
+    from tasks.campaign_atlas import (
+        load_campaign_atlas,
+        plan_shared_campaign_destination_navigation,
+        summarize_zero_transport_replay,
+    )
+    from tasks.campaign_atlas_vision import (
+        BlueStacksCampaignLocalizer,
+        bind_campaign_destination_from_current_frame,
+        frame_digest,
+        native_campaign_frame_guard,
+    )
+
+    atlas = load_campaign_atlas(args.atlas)
+    frame = cv2.imread(str(args.frame), cv2.IMREAD_COLOR)
+    if frame is None or not native_campaign_frame_guard(frame):
+        raise SystemExit(f"native Campaign frame required: {args.frame}")
+    localizer = BlueStacksCampaignLocalizer(atlas, args.atlas)
+    localization = localizer.localize(frame, campaign_screen_recognized=True)
+    decisions = []
+    for consumer, destination in (
+        ("campaign_ap", args.campaign_destination),
+        ("ultimate_challenge", args.ultimate_destination),
+    ):
+        binding = bind_campaign_destination_from_current_frame(
+            frame,
+            atlas=atlas,
+            localization=localization,
+            consumer=consumer,
+            destination_id=destination,
+        )
+        decisions.append(
+            plan_shared_campaign_destination_navigation(
+                consumer=consumer,
+                destination_id=destination,
+                localization=localization,
+                binding=binding,
+                atlas=atlas,
+            )
+        )
+    report = summarize_zero_transport_replay(atlas=atlas, decisions=decisions)
+    payload = {
+        "status": report.status,
+        "atlas_id": report.atlas_id,
+        "transport_count": report.transport_count,
+        "dispatch_authorized": report.dispatch_authorized,
+        "reason": report.reason,
+        "frame_sha256": frame_digest(frame),
+        "localization_recognized": localization.recognized,
+        "consumers": [
+            {
+                "consumer": item.consumer,
+                "destination_id": item.destination_id,
+                "terminal": item.terminal,
+                "evidence_required": item.evidence_required,
+                "reason": item.reason,
+                "bound": bool(item.binding and item.binding.bound),
+            }
+            for item in report.consumer_results
+        ],
+    }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if report.status in {"zero_transport_replay_complete", "evidence_required"} else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -324,6 +435,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
+    if args.command == "build-atlas":
+        return command_build_atlas(args)
+    if args.command == "zero-transport-replay":
+        return command_zero_transport_replay(args)
     parser.error(f"unknown command: {args.command}")
     return 2
 

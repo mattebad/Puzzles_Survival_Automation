@@ -1,19 +1,23 @@
-"""Evidence-gated contracts for native Campaign map survey preparation and activation.
+"""Evidence-gated Campaign map survey contracts and atlas navigation integration.
 
-Prep retains a zero-input dry-run boundary. The activated scan contract is a separate
-explicit budget (272 navigation-only inputs, one session) with fail-closed session,
-manifest, journal, and accounting schemas. Registration measurements never authorize
-input. No atlas geometry, consumer integration, or consequential surfaces live here.
+Survey prep retains a zero-input dry-run boundary. The activated scan contract is a
+separate explicit budget (272 navigation-only inputs, one session) with fail-closed
+session, manifest, journal, and accounting schemas. Registration measurements never
+authorize input. After an accepted native survey, this module also owns the Campaign
+atlas artifact contract, shared destination-navigation seam, and zero-transport replay
+gates used by Campaign AP and Ultimate Challenge consumers.
 """
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
+import json
 import math
 import re
-from typing import Any, Iterable, Mapping
+from pathlib import Path
+from typing import Any, Iterable, Mapping, Sequence
 
 
 CAMPAIGN_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
@@ -22,7 +26,24 @@ CAMPAIGN_PACKAGE = "com.global.ztmslg"
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280
 FLOW_ID = "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
+INTEGRATION_FLOW_ID = "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
 MASK_CONTRACT_ID = "campaign-map-fixed-hud-v1"
+ACCEPTED_SURVEY_ROOT = Path(
+    ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
+)
+ACCEPTED_TRAVERSAL_SESSION_ID = "survey-20260724T012057293610Z"
+ACCEPTED_LANDMARK_SESSION_ID = "survey-20260724T021222146973Z"
+ACCEPTED_TERMINAL_SESSION_ID = "survey-20260724T023336884972Z"
+DEFAULT_ATLAS_ARTIFACT_ROOT = Path(
+    ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
+)
+DEFAULT_ATLAS_ID = "campaign-atlas-native-800x1280-v1"
+Matrix3 = tuple[tuple[float, float, float], ...]
+Point = tuple[float, float]
+Box = tuple[int, int, int, int]
+ZERO_TRANSPORT_REPLAY_COMPLETE = "zero_transport_replay_complete"
+NAVIGATION_EVIDENCE_REQUIRED = "evidence_required"
+NAVIGATION_BLOCKED_FAIL_CLOSED = "blocked_fail_closed"
 
 ACTIVATED_EDGE_STEPS_PER_DIRECTION = 32
 ACTIVATED_EDGE_DIRECTIONS = 4
@@ -984,3 +1005,510 @@ def build_empty_activated_session_report(
     )
     validate_survey_session_report(report)
     return report
+
+
+# ---------------------------------------------------------------------------
+# Campaign atlas navigation integration (post-survey, offline / zero-transport)
+# ---------------------------------------------------------------------------
+
+
+class CampaignDestinationKind(str, Enum):
+    CHAPTER = "chapter"
+    ULTIMATE_CHALLENGE = "ultimate_challenge"
+    SUBORDINATE_STAGE = "subordinate_stage"
+
+
+class CampaignAmbiguityState(str, Enum):
+    NONE = "none"
+    INSUFFICIENT_LANDMARKS = "insufficient_landmarks"
+    CONFLICTING_TRANSFORMS = "conflicting_transforms"
+    EXCESSIVE_RESIDUAL = "excessive_residual"
+    STALE_FRAME = "stale_frame"
+    WRONG_PROFILE = "wrong_profile"
+    WRONG_SCREEN = "wrong_screen"
+    MISSING_ATLAS = "missing_atlas"
+    MISSING_DESTINATION = "missing_destination"
+
+
+@dataclass(frozen=True)
+class CampaignAtlasViewport:
+    viewport_id: str
+    image_path: str
+    source_sha256: str
+    transport_sha256: str
+    transform_to_atlas: Matrix3
+    residual_px: float
+    overlap_ratio: float
+    accepted: bool = True
+    source_session_id: str = ""
+
+
+@dataclass(frozen=True)
+class CampaignAtlasLandmark:
+    landmark_id: str
+    kind: LandmarkKind
+    label: str
+    atlas_roi: Box
+    supporting_frame_sha256: str
+    source_viewport_id: str
+    spatially_associated: bool = True
+
+
+@dataclass(frozen=True)
+class CampaignAtlas:
+    schema_version: int
+    atlas_id: str
+    flow_id: str
+    profile_id: str
+    platform: str
+    package: str
+    native_width: int
+    native_height: int
+    width: int
+    height: int
+    source_survey_session_ids: tuple[str, ...]
+    viewports: tuple[CampaignAtlasViewport, ...]
+    landmarks: tuple[CampaignAtlasLandmark, ...]
+    loop_closure_residual_px: float
+    cross_difficulty_compared: bool
+    difficulty_used_as_recenter: bool
+    image_path: str | None = None
+    created_at_utc: str = ""
+
+    def __post_init__(self) -> None:
+        if self.flow_id != INTEGRATION_FLOW_ID:
+            raise ValueError("Campaign atlas must bind the integration flow id")
+        if self.profile_id != CAMPAIGN_PROFILE_ID:
+            raise ValueError("Campaign atlas requires the BlueStacks 800x1280 profile")
+        if (self.native_width, self.native_height) != (NATIVE_WIDTH, NATIVE_HEIGHT):
+            raise ValueError("Campaign atlas native viewport must be 800x1280")
+        if self.difficulty_used_as_recenter:
+            raise ValueError("difficulty switching must never be used as recentering")
+        if not self.source_survey_session_ids:
+            raise ValueError("Campaign atlas requires accepted survey session provenance")
+        if not self.viewports:
+            raise ValueError("Campaign atlas requires at least one accepted viewport")
+
+    def lookup_landmark(self, *, kind: LandmarkKind, label: str) -> CampaignAtlasLandmark | None:
+        matches = [
+            item
+            for item in self.landmarks
+            if item.kind is kind and item.label.casefold() == label.casefold()
+        ]
+        if len(matches) != 1:
+            return None
+        return matches[0]
+
+
+@dataclass(frozen=True)
+class CampaignLocalizationResult:
+    recognized: bool
+    profile_id: str
+    screen_to_atlas: Matrix3 | None
+    confidence: float
+    residual_px: float | None
+    supporting_viewports: tuple[str, ...]
+    ambiguity_state: CampaignAmbiguityState
+    frame_sha256: str
+    authorizes_input: bool = False
+
+    def __post_init__(self) -> None:
+        if self.authorizes_input:
+            raise ValueError("localization must never authorize input")
+
+
+@dataclass(frozen=True)
+class CampaignDestinationBinding:
+    destination_kind: CampaignDestinationKind
+    destination_id: str
+    bound: bool
+    current_frame_roi: Box | None
+    current_frame_sha256: str
+    confidence: float
+    atlas_projected: bool
+    atlas_search_roi: Box | None
+    reason: str
+    authorizes_input: bool = False
+
+    def __post_init__(self) -> None:
+        if self.authorizes_input:
+            raise ValueError("destination binding must never authorize input by itself")
+        if self.bound and self.current_frame_roi is None:
+            raise ValueError("bound destinations require a current-frame ROI")
+
+
+@dataclass(frozen=True)
+class SharedCampaignNavigationDecision:
+    terminal: str
+    consumer: str
+    destination_id: str
+    localization: CampaignLocalizationResult | None
+    binding: CampaignDestinationBinding | None
+    transport_count: int
+    dispatch_authorized: bool
+    evidence_required: bool
+    reason: str
+    home_terminal_required: bool = True
+
+    def __post_init__(self) -> None:
+        if self.dispatch_authorized and self.transport_count != 0:
+            raise ValueError("shared seam must not combine dispatch with nonzero transport here")
+        if self.dispatch_authorized:
+            raise ValueError("shared Campaign navigation seam never authorizes live dispatch")
+        if self.transport_count < 0:
+            raise ValueError("transport_count must be nonnegative")
+
+
+@dataclass(frozen=True)
+class CampaignZeroTransportReplayReport:
+    status: str
+    atlas_id: str
+    consumer_results: tuple[SharedCampaignNavigationDecision, ...]
+    transport_count: int
+    dispatch_authorized: bool
+    reason: str
+
+    def __post_init__(self) -> None:
+        if self.dispatch_authorized or self.transport_count != 0:
+            raise ValueError("zero-transport replay must keep transport at zero")
+        if self.status not in {
+            ZERO_TRANSPORT_REPLAY_COMPLETE,
+            NAVIGATION_EVIDENCE_REQUIRED,
+            NAVIGATION_BLOCKED_FAIL_CLOSED,
+        }:
+            raise ValueError(f"unknown replay status: {self.status}")
+
+
+def _identity_matrix() -> Matrix3:
+    return (
+        (1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (0.0, 0.0, 1.0),
+    )
+
+
+def _matrix_to_list(matrix: Matrix3) -> list[list[float]]:
+    return [list(row) for row in matrix]
+
+
+def _matrix_from_list(values: Sequence[Sequence[float]]) -> Matrix3:
+    if len(values) != 3 or any(len(row) != 3 for row in values):
+        raise ValueError("transform_to_atlas must be a 3x3 matrix")
+    return tuple(tuple(float(cell) for cell in row) for row in values)  # type: ignore[return-value]
+
+
+def campaign_atlas_to_dict(atlas: CampaignAtlas) -> dict[str, Any]:
+    return {
+        "schema_version": atlas.schema_version,
+        "atlas_id": atlas.atlas_id,
+        "flow_id": atlas.flow_id,
+        "profile_id": atlas.profile_id,
+        "platform": atlas.platform,
+        "package": atlas.package,
+        "native_width": atlas.native_width,
+        "native_height": atlas.native_height,
+        "width": atlas.width,
+        "height": atlas.height,
+        "source_survey_session_ids": list(atlas.source_survey_session_ids),
+        "loop_closure_residual_px": atlas.loop_closure_residual_px,
+        "cross_difficulty_compared": atlas.cross_difficulty_compared,
+        "difficulty_used_as_recenter": atlas.difficulty_used_as_recenter,
+        "image_path": atlas.image_path,
+        "created_at_utc": atlas.created_at_utc,
+        "viewports": [
+            {
+                "viewport_id": item.viewport_id,
+                "image_path": item.image_path,
+                "source_sha256": item.source_sha256,
+                "transport_sha256": item.transport_sha256,
+                "transform_to_atlas": _matrix_to_list(item.transform_to_atlas),
+                "residual_px": item.residual_px,
+                "overlap_ratio": item.overlap_ratio,
+                "accepted": item.accepted,
+                "source_session_id": item.source_session_id,
+            }
+            for item in atlas.viewports
+        ],
+        "landmarks": [
+            {
+                "landmark_id": item.landmark_id,
+                "kind": item.kind.value,
+                "label": item.label,
+                "atlas_roi": list(item.atlas_roi),
+                "supporting_frame_sha256": item.supporting_frame_sha256,
+                "source_viewport_id": item.source_viewport_id,
+                "spatially_associated": item.spatially_associated,
+            }
+            for item in atlas.landmarks
+        ],
+    }
+
+
+def load_campaign_atlas(path: Path) -> CampaignAtlas:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    viewports = tuple(
+        CampaignAtlasViewport(
+            viewport_id=str(item["viewport_id"]),
+            image_path=str(item["image_path"]),
+            source_sha256=str(item["source_sha256"]),
+            transport_sha256=str(item["transport_sha256"]),
+            transform_to_atlas=_matrix_from_list(item["transform_to_atlas"]),
+            residual_px=float(item["residual_px"]),
+            overlap_ratio=float(item["overlap_ratio"]),
+            accepted=bool(item.get("accepted", True)),
+            source_session_id=str(item.get("source_session_id", "")),
+        )
+        for item in payload["viewports"]
+    )
+    landmarks = tuple(
+        CampaignAtlasLandmark(
+            landmark_id=str(item["landmark_id"]),
+            kind=LandmarkKind(str(item["kind"])),
+            label=str(item["label"]),
+            atlas_roi=tuple(int(v) for v in item["atlas_roi"]),  # type: ignore[arg-type]
+            supporting_frame_sha256=str(item["supporting_frame_sha256"]),
+            source_viewport_id=str(item["source_viewport_id"]),
+            spatially_associated=bool(item.get("spatially_associated", True)),
+        )
+        for item in payload.get("landmarks", ())
+    )
+    return CampaignAtlas(
+        schema_version=int(payload["schema_version"]),
+        atlas_id=str(payload["atlas_id"]),
+        flow_id=str(payload["flow_id"]),
+        profile_id=str(payload["profile_id"]),
+        platform=str(payload["platform"]),
+        package=str(payload["package"]),
+        native_width=int(payload["native_width"]),
+        native_height=int(payload["native_height"]),
+        width=int(payload["width"]),
+        height=int(payload["height"]),
+        source_survey_session_ids=tuple(str(v) for v in payload["source_survey_session_ids"]),
+        viewports=viewports,
+        landmarks=landmarks,
+        loop_closure_residual_px=float(payload["loop_closure_residual_px"]),
+        cross_difficulty_compared=bool(payload["cross_difficulty_compared"]),
+        difficulty_used_as_recenter=bool(payload["difficulty_used_as_recenter"]),
+        image_path=payload.get("image_path"),
+        created_at_utc=str(payload.get("created_at_utc", "")),
+    )
+
+
+def save_campaign_atlas(atlas: CampaignAtlas, path: Path) -> Path:
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(campaign_atlas_to_dict(atlas), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(destination)
+    return destination
+
+
+def project_landmark_search_roi(
+    localization: CampaignLocalizationResult,
+    landmark: CampaignAtlasLandmark,
+    *,
+    pad_px: int = 48,
+) -> Box | None:
+    """Project an atlas landmark into the current frame as a non-authorizing search hint."""
+
+    if not localization.recognized or localization.screen_to_atlas is None:
+        return None
+    matrix = localization.screen_to_atlas
+    # Invert translation-only atlas transform: screen = atlas - translation.
+    tx, ty = float(matrix[0][2]), float(matrix[1][2])
+    left = int(landmark.atlas_roi[0] - tx) - pad_px
+    top = int(landmark.atlas_roi[1] - ty) - pad_px
+    right = int(landmark.atlas_roi[2] - tx) + pad_px
+    bottom = int(landmark.atlas_roi[3] - ty) + pad_px
+    left = max(0, min(NATIVE_WIDTH - 1, left))
+    top = max(0, min(NATIVE_HEIGHT - 1, top))
+    right = max(left + 1, min(NATIVE_WIDTH, right))
+    bottom = max(top + 1, min(NATIVE_HEIGHT, bottom))
+    return (left, top, right, bottom)
+
+
+def resolve_campaign_consumer_destination(consumer: str, destination_id: str) -> tuple[CampaignDestinationKind, str]:
+    consumer_key = consumer.strip().casefold()
+    destination = destination_id.strip()
+    if consumer_key in {"ultimate_challenge", "ultimate-challenge", "uc"}:
+        if destination.casefold() not in {"ultimate-challenge", "ultimate_challenge", "prison-trial"}:
+            raise ValueError("Ultimate Challenge consumer requires the Ultimate Challenge destination")
+        return CampaignDestinationKind.ULTIMATE_CHALLENGE, "Ultimate Challenge"
+    if consumer_key in {"campaign_ap", "campaign-ap", "campaign_stage", "campaign-stage"}:
+        # Product destinations are difficulty-stage-chapter; atlas binding uses chapter labels.
+        parts = destination.split("-")
+        if len(parts) != 3 or not all(part.isdigit() for part in parts):
+            raise ValueError("Campaign AP destination must be difficulty-stage-chapter")
+        chapter = int(parts[2])
+        return CampaignDestinationKind.CHAPTER, f"Chapter {chapter}"
+    raise ValueError(f"unknown Campaign navigation consumer: {consumer}")
+
+
+def plan_shared_campaign_destination_navigation(
+    *,
+    consumer: str,
+    destination_id: str,
+    localization: CampaignLocalizationResult | None,
+    binding: CampaignDestinationBinding | None,
+    atlas: CampaignAtlas | None,
+) -> SharedCampaignNavigationDecision:
+    """Shared Campaign AP / Ultimate Challenge navigation seam.
+
+    Atlas projection may narrow search only. Current-frame binding is required before any
+    future live authorization, and this seam never authorizes transport.
+    """
+
+    if atlas is None:
+        return SharedCampaignNavigationDecision(
+            terminal=NAVIGATION_EVIDENCE_REQUIRED,
+            consumer=consumer,
+            destination_id=destination_id,
+            localization=localization,
+            binding=binding,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=True,
+            reason="accepted Campaign atlas artifact is absent",
+        )
+    try:
+        kind, label = resolve_campaign_consumer_destination(consumer, destination_id)
+    except ValueError as exc:
+        return SharedCampaignNavigationDecision(
+            terminal=NAVIGATION_BLOCKED_FAIL_CLOSED,
+            consumer=consumer,
+            destination_id=destination_id,
+            localization=localization,
+            binding=binding,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=False,
+            reason=str(exc),
+        )
+    landmark = atlas.lookup_landmark(
+        kind=(
+            LandmarkKind.ULTIMATE_CHALLENGE
+            if kind is CampaignDestinationKind.ULTIMATE_CHALLENGE
+            else LandmarkKind.CHAPTER
+        ),
+        label=label,
+    )
+    if landmark is None:
+        return SharedCampaignNavigationDecision(
+            terminal=NAVIGATION_EVIDENCE_REQUIRED,
+            consumer=consumer,
+            destination_id=destination_id,
+            localization=localization,
+            binding=binding,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=True,
+            reason=f"atlas lacks spatially associated landmark for {label}",
+        )
+    if localization is None or not localization.recognized:
+        return SharedCampaignNavigationDecision(
+            terminal=NAVIGATION_EVIDENCE_REQUIRED,
+            consumer=consumer,
+            destination_id=destination_id,
+            localization=localization,
+            binding=binding,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=True,
+            reason="current Campaign viewport is not localized against the atlas",
+        )
+    if binding is None or not binding.bound or binding.current_frame_roi is None:
+        return SharedCampaignNavigationDecision(
+            terminal=NAVIGATION_EVIDENCE_REQUIRED,
+            consumer=consumer,
+            destination_id=destination_id,
+            localization=localization,
+            binding=binding,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=True,
+            reason="destination requires fresh current-frame semantic binding before authority",
+        )
+    if (
+        binding.destination_id.casefold() != label.casefold()
+        or binding.destination_kind is not kind
+    ):
+        return SharedCampaignNavigationDecision(
+            terminal=NAVIGATION_BLOCKED_FAIL_CLOSED,
+            consumer=consumer,
+            destination_id=destination_id,
+            localization=localization,
+            binding=binding,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=False,
+            reason="bound destination identity does not match the requested consumer destination",
+        )
+    return SharedCampaignNavigationDecision(
+        terminal=ZERO_TRANSPORT_REPLAY_COMPLETE,
+        consumer=consumer,
+        destination_id=destination_id,
+        localization=localization,
+        binding=binding,
+        transport_count=0,
+        dispatch_authorized=False,
+        evidence_required=False,
+        reason=(
+            "localized and current-frame-bound; zero-transport path complete; "
+            "live Challenge/AP/Auto Battle remain prohibited"
+        ),
+    )
+
+
+def summarize_zero_transport_replay(
+    *,
+    atlas: CampaignAtlas | None,
+    decisions: Sequence[SharedCampaignNavigationDecision],
+) -> CampaignZeroTransportReplayReport:
+    results = tuple(decisions)
+    if atlas is None:
+        return CampaignZeroTransportReplayReport(
+            status=NAVIGATION_EVIDENCE_REQUIRED,
+            atlas_id="",
+            consumer_results=results,
+            transport_count=0,
+            dispatch_authorized=False,
+            reason="Campaign atlas artifact missing",
+        )
+    if any(item.transport_count != 0 or item.dispatch_authorized for item in results):
+        return CampaignZeroTransportReplayReport(
+            status=NAVIGATION_BLOCKED_FAIL_CLOSED,
+            atlas_id=atlas.atlas_id,
+            consumer_results=results,
+            transport_count=0,
+            dispatch_authorized=False,
+            reason="replay attempted transport or dispatch authority",
+        )
+    if any(item.terminal == NAVIGATION_BLOCKED_FAIL_CLOSED for item in results):
+        return CampaignZeroTransportReplayReport(
+            status=NAVIGATION_BLOCKED_FAIL_CLOSED,
+            atlas_id=atlas.atlas_id,
+            consumer_results=results,
+            transport_count=0,
+            dispatch_authorized=False,
+            reason="one or more consumer paths failed closed",
+        )
+    if any(item.evidence_required or item.terminal == NAVIGATION_EVIDENCE_REQUIRED for item in results):
+        return CampaignZeroTransportReplayReport(
+            status=NAVIGATION_EVIDENCE_REQUIRED,
+            atlas_id=atlas.atlas_id,
+            consumer_results=results,
+            transport_count=0,
+            dispatch_authorized=False,
+            reason="one or more consumer destinations still require evidence",
+        )
+    return CampaignZeroTransportReplayReport(
+        status=ZERO_TRANSPORT_REPLAY_COMPLETE,
+        atlas_id=atlas.atlas_id,
+        consumer_results=results,
+        transport_count=0,
+        dispatch_authorized=False,
+        reason="both consumers completed navigation-only zero-transport replay",
+    )

@@ -5141,12 +5141,100 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY
 - Task ID: `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`.
 - Title: Integrate Campaign atlas navigation and prove zero-transport replay.
-- Status: Blocked.
-- Dependencies: accepted `CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION` corpus.
-- Scope: integrate the Campaign atlas with shared Campaign AP and Ultimate Challenge navigation; retain direct current-frame chapter/special binding and direct subordinate-stage OCR; run production-path zero-transport replay.
-- Safety boundary: atlas projection never authorizes input; every target requires fresh native-frame association and semantic successor proof.
-- Prohibitions: no live input, AP, Auto Battle, Challenge/Flee, registration, or scheduling.
-- Completion boundary: both consumers may become evidence-ready only after validated atlas localization and zero-transport replay; any missing evidence returns `evidence_required`.
+- Status: Completed offline (2026-07-24); zero-transport navigation integration only, no live input.
+- Milestone: Campaign Atlas shared navigation integration.
+- Dependencies: accepted `CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION` corpus
+  (`survey-20260724T012057293610Z`, `survey-20260724T021222146973Z`,
+  `survey-20260724T023336884972Z` / `native_survey_complete`).
+- Blocked by: None for this completed offline integration; Chapter 9 landmark remains an
+  evidence gap for product Campaign AP destinations only.
+- Objective: build the hash-bound Campaign atlas from the accepted survey; localize arbitrary
+  current Campaign viewports; bind configured chapters and Ultimate Challenge from the current
+  native frame; reuse the shared Campaign entry route for Campaign AP and Ultimate Challenge;
+  prove production-path zero-transport replay for both consumers; stop before Challenge, Auto
+  Battle, Exit, Flee, or AP consumption.
+- Established facts: accepted survey corpus and landmarks cover Chapters 2/3/4/6/7/21/24/26/47
+  plus Ultimate Challenge; Chapter 9 is absent; atlas projection never authorizes input;
+  difficulty switching is never recentering.
+- Direct implementation files: `tasks/campaign_atlas.py`, `tasks/campaign_atlas_vision.py`,
+  `scripts/campaign_atlas_bluestacks.py`, consumer seam wrappers in
+  `tasks/campaign_auto_battle.py` and `tasks/ultimate_challenge_daily.py`, gameplay contract,
+  queue, coverage, focused tests, backlog index, and handoff.
+- Shared dependencies: accepted native survey sessions, shared Campaign entry route, Home
+  terminal semantics, and existing Campaign/Ultimate destination parsers.
+- Transitive regression set: Campaign destination separation, Ultimate Challenge daily policy,
+  flow-delivery authority/orchestrator, gameplay contracts, and governance.
+- Allowed changes: per-commit allowed paths are exactly the direct implementation files above,
+  `tests/test_campaign_atlas_navigation.py`, attributable authority-test expectation updates,
+  `docs/flow_delivery_coverage.md`, `tasks/flow_delivery_coverage.json`,
+  `tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json`,
+  `tasks/flow_delivery_queue.json`, `BACKLOG.md`, `tasks/backlog_task_index.json`, and
+  `CURRENT_HANDOFF.md`.
+- Prohibited changes: live input; new native acquisition without contradictory evidence blocker;
+  AP/Auto Battle/Challenge/Flee; fabricated fixtures; registration; scheduling; push; downstream
+  consumer gameplay beyond the shared navigation seam.
+- Authorized runtime action: None; offline atlas build and zero-transport replay only.
+- Maximum transport inputs: Zero.
+- Navigation-only recovery: Offline bounded relocalization planning only; no live pans.
+- Consequential action: None.
+- Registration changes: None; production remains not registered.
+- Scheduler changes: None; gameplay scheduling remains disabled/ineligible.
+- Actions that must not be repeated: live Campaign/UC input, rebuilding the accepted survey
+  corpus, treating atlas projection as authority, or promoting Chapter 9 product destinations
+  without a landmark.
+- Required source: `CURRENT_HANDOFF.md`, this task and the accepted survey dependency, queue and
+  contract authority, retained survey frames/annotations, and Git history.
+- Exact target semantics: current-frame chapter and Ultimate Challenge / Prison Trial binding
+  plus subordinate-stage OCR on the native Campaign screen; no stage-map atlas geometry.
+- Required local association: atlas tiles and landmarks must carry source hashes and survey
+  session provenance; every bind requires current native 800x1280 association and bounds check.
+- Negative controls: missing/ambiguous evidence returns `evidence_required` with zero transport
+  and no dispatch authority; difficulty switching cannot recenter.
+- Coordinate space: raw full-frame 800x1280 BlueStacks profile only.
+- Accepted signals: hash-bound atlas artifact, localization against atlas tiles, current-frame
+  template association inside projected search ROI, and zero-transport shared-seam terminals.
+- Rejected weak signals: filenames, synthetic fixtures, atlas projection alone, transport success,
+  or OCR not spatially associated with the bound control.
+- Ambiguous-result behavior: return `evidence_required` or `blocked_fail_closed`; never authorize
+  input.
+- Zero-cost requirement: no AP, stamina, currency, item, challenge resource, or refill.
+- Quantity limits: zero live attempts; one offline atlas build; navigation-only zero-transport
+  replay for both consumers.
+- Resource consumption policy: no gameplay resources or refills.
+- Premium or strategic restrictions: unchanged.
+- Active evidence manifest: task-local atlas/replay under
+  `.local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/`; not the
+  canonical governance-manifest slot.
+- Required artifacts: validated atlas JSON with provenance, localizer/navigator seam, shared
+  consumer wrappers, zero-transport replay results, focused tests, backlog/queue/contract/
+  coverage/index/handoff updates, and one focused local commit.
+- Immediate-before/immediate-post/result/journal: NOT_APPLICABLE because no runtime input occurs;
+  replay uses retained native frames only.
+- Additional task-specific artifacts: `campaign-atlas-native-800x1280-v1` and replay JSON under
+  the flow artifact root.
+- Focused tests: `tests/test_campaign_atlas.py`, `tests/test_campaign_atlas_vision.py`,
+  `tests/test_campaign_atlas_navigation.py`, `tests/test_campaign_story_destinations.py`,
+  `tests/test_ultimate_challenge_daily.py`, `tests/test_flow_delivery_authority_consistency.py`,
+  `tests/test_flow_delivery_orchestrator.py`, `tests/test_gameplay_flow_contracts.py`, and
+  `tests/test_governance_validation.py`.
+- Integration tests: offline `build-atlas` and `zero-transport-replay` CLI paths only.
+- Transitive regression tests: Campaign destination and Ultimate Challenge suites listed above.
+- Full-suite requirement: Not required beyond focused/governance suites for this offline task.
+- Validators: deterministic backlog index, focused unittest suites, gameplay-contract validation,
+  governance validation, `git diff --check`, and post-validation Git snapshot.
+- Known baseline failures: None accepted for touched components.
+- Evidence requirement: NOT_APPLICABLE for the canonical governance-manifest slot; this offline
+  navigation-integration flow uses task-local atlas/replay artifacts under `.local-captures`.
+- Valid blocked outcomes: missing accepted survey, landmark attach failure, ambiguous localization,
+  or failing focused/governance validation.
+- Blocked-result commit policy: preserve coherent implementation/evidence, document the blocker,
+  run required validation, create one focused local commit when work is coherent, and stop; no push.
+- Commit policy: one focused conventional local commit; no push.
+- Expected focused commits: `feat(campaign): integrate atlas navigation replay`.
+- Completion criteria: atlas artifact validated; shared seam proves zero-transport for
+  atlas-supported destinations; Chapter 9 product destinations remain `evidence_required`;
+  consumers/registration/scheduler unchanged; required tests and diff check pass; one focused
+  local commit created; no push.
 
 ### CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION
 - Task ID: `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION`.

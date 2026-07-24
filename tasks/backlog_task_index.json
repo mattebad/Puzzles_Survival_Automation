@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
   "backlog_path": "BACKLOG.md",
-  "backlog_sha256": "4ac426e156358d60c66d22034b4bdf52c62b2c25dc94928ea1726ad71ec44101",
-  "generated_from_head": "d50d7c8198090025bcacc6766893fdc2383d10cc",
+  "backlog_sha256": "f10d9faf89cc1089b6567d630620f795a7861375a387b038c832e2f27e92f99b",
+  "generated_from_head": "bb4c94655eb1a4dc0406cd4fc9eea59291bc4b77",
   "task_count": 22,
   "tasks": [
     {
       "task_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
       "exact_markdown_heading": "### CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
       "normalized_status": "Blocked (2026-07-21; three retained navigation-only attempts exhausted the checked-in",
-      "section_start": 412142,
-      "section_end": 414267,
+      "section_start": 418678,
+      "section_end": 420803,
       "section_digest": "06c5541a8f536527a5e21f7aa4a4c487cc4a0abbc3bcffb5f8cfd0ab0cc4259f",
       "direct_dependency_ids": [
         "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
@@ -36,10 +36,10 @@
     {
       "task_id": "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
       "exact_markdown_heading": "### CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
-      "normalized_status": "Blocked.",
+      "normalized_status": "Completed offline (2026-07-24); zero-transport navigation integration only, no live input.",
       "section_start": 411206,
-      "section_end": 412142,
-      "section_digest": "96748e79037299bfec239da2a89606736494e262da2235cb55802feabb3f15a4",
+      "section_end": 418678,
+      "section_digest": "be62e1f47b6edad6366f9b9dfa58b5afd26cbb3d8de643cacded2c0cdbca6638",
       "direct_dependency_ids": [
         "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
       ],
@@ -89,8 +89,8 @@
       "task_id": "DQ-FLOW-GATHERING",
       "exact_markdown_heading": "### DQ-FLOW-GATHERING",
       "normalized_status": "Passed (2026-07-14; parameterized Wood/Steel/Gas offline contract and 6 focused tests).",
-      "section_start": 545677,
-      "section_end": 546779,
+      "section_start": 552213,
+      "section_end": 553315,
       "section_digest": "a5d7682abaacd7dacabefc72ca17ab1d65dd9a66871f7a816bcf0204402dd009",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -101,8 +101,8 @@
       "task_id": "DQ-FLOW-NANOWEAPON",
       "exact_markdown_heading": "### DQ-FLOW-NANOWEAPON",
       "normalized_status": "Passed (2026-07-14; Daily row adapter plus 5 focused tests).",
-      "section_start": 518879,
-      "section_end": 520329,
+      "section_start": 525415,
+      "section_end": 526865,
       "section_digest": "fd57cae2b329fb36e5d49204ed31bd7da238e1110f03add64e6fa503a8a4677e",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -113,8 +113,8 @@
       "task_id": "DQ-FLOW-RECRUITMENT",
       "exact_markdown_heading": "### DQ-FLOW-RECRUITMENT",
       "normalized_status": "Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).",
-      "section_start": 516537,
-      "section_end": 518028,
+      "section_start": 523073,
+      "section_end": 524564,
       "section_digest": "df92dfc723df8a0022cdd7ccb58b43afd60af2a560642f3f6511bd2823b32319",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -125,8 +125,8 @@
       "task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
       "exact_markdown_heading": "### DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
       "normalized_status": "Passed (2026-07-16; dormant implementation and supervised local validation)",
-      "section_start": 554846,
-      "section_end": 561068,
+      "section_start": 561382,
+      "section_end": 567604,
       "section_digest": "cfd793e17eef42f2a14d5634d46a9a92289de838f639a66985c6e09b1ebe5d5d",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -137,8 +137,8 @@
       "task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
       "exact_markdown_heading": "### DQ-FLOW-WORLD-STAMINA-ENGINE",
       "normalized_status": "Passed (2026-07-14; offline shared primitive and 5 focused tests).",
-      "section_start": 541539,
-      "section_end": 542624,
+      "section_start": 548075,
+      "section_end": 549160,
       "section_digest": "bf0cabeb799d37a9aff0878b6a419797852b0867a79d96d4fac3aeabf5805ca4",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -149,8 +149,8 @@
       "task_id": "DQ-FLOW-ZOMBIE-LAIR",
       "exact_markdown_heading": "### DQ-FLOW-ZOMBIE-LAIR",
       "normalized_status": "Passed (2026-07-14; Daily Lair adapter plus 5 focused tests).",
-      "section_start": 542624,
-      "section_end": 544106,
+      "section_start": 549160,
+      "section_end": 550642,
       "section_digest": "5181833bfcd791196bd764199bb16e2783d3303eb498321576ecbdf1144072ba",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -173,8 +173,8 @@
       "task_id": "GF-NOVA-PRAISE-SUPERVISED-20260722",
       "exact_markdown_heading": "### GF-NOVA-PRAISE-SUPERVISED-20260722",
       "normalized_status": "Completed 2026-07-22 under candidate `0ca611c`. One supervised BlueStacks invocation ran",
-      "section_start": 498578,
-      "section_end": 507362,
+      "section_start": 505114,
+      "section_end": 513898,
       "section_digest": "d138f289794a15e68a09293183d81755793bbbc8cb8a1c08705925849002cfc7",
       "direct_dependency_ids": [
         "GF-MVP-009-NOVA-NAVIGATION-LIVE-CANARY"
@@ -187,8 +187,8 @@
       "task_id": "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
       "exact_markdown_heading": "### NANO-MATERIAL-PRODUCTION-MAINTENANCE",
       "normalized_status": "Blocked; distinct approved maintenance contract exists, implementation and native evidence",
-      "section_start": 520329,
-      "section_end": 520930,
+      "section_start": 526865,
+      "section_end": 527466,
       "section_digest": "402e3df18eabf868f2a47fd02ebc5a414745011d3e88747e88fb7b90059d5837",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -223,8 +223,8 @@
       "task_id": "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
       "exact_markdown_heading": "### RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
       "normalized_status": "Blocked; approved policy and retained three-tab implementation/mechanics evidence, but",
-      "section_start": 518028,
-      "section_end": 518879,
+      "section_start": 524564,
+      "section_end": 525415,
       "section_digest": "8d8509afd73dc582175a8a4428cc258e7cd0237e223017303faa2c1a2f6c5c04",
       "direct_dependency_ids": [],
       "queue_flow_ids": [
@@ -261,8 +261,8 @@
       "task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
       "exact_markdown_heading": "### ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
       "normalized_status": "Blocked after focused offline implementation (2026-07-23; the exact ordered execution",
-      "section_start": 414267,
-      "section_end": 423929,
+      "section_start": 420803,
+      "section_end": 430465,
       "section_digest": "deafdd3b03d852094c99de84419e8c5812f1f7ed2ac47de69c3e2b05481a34dc",
       "direct_dependency_ids": [
         "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
@@ -275,8 +275,8 @@
       "task_id": "ZOMBIE-LAIR-HOME-MAINTENANCE",
       "exact_markdown_heading": "### ZOMBIE-LAIR-HOME-MAINTENANCE",
       "normalized_status": "Blocked; notification-driven maintenance contract only.",
-      "section_start": 544106,
-      "section_end": 544683,
+      "section_start": 550642,
+      "section_end": 551219,
       "section_digest": "90c2c3dcee5753a2a9c388dc3fba4cb0a0c1e6cfe6f6974e8b02efa70dbf5bb4",
       "direct_dependency_ids": [],
       "queue_flow_ids": [

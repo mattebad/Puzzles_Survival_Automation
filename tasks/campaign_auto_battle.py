@@ -156,6 +156,27 @@ def parse_supported_campaign_story_destination(value: str) -> CampaignStage:
     return stage
 
 
+def plan_campaign_ap_atlas_navigation(
+    *,
+    destination: str,
+    localization: object | None,
+    binding: object | None,
+    atlas: object | None,
+):
+    """Shared Campaign atlas navigation seam for Campaign AP (never authorizes transport)."""
+
+    from tasks.campaign_atlas import plan_shared_campaign_destination_navigation
+
+    parse_supported_campaign_story_destination(destination)
+    return plan_shared_campaign_destination_navigation(
+        consumer="campaign_ap",
+        destination_id=destination,
+        localization=localization,  # type: ignore[arg-type]
+        binding=binding,  # type: ignore[arg-type]
+        atlas=atlas,  # type: ignore[arg-type]
+    )
+
+
 @dataclass(frozen=True)
 class CampaignAutoBattleConfig:
     target_stage: CampaignStage

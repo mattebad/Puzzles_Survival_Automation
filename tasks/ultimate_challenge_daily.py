@@ -414,29 +414,59 @@ def ultimate_challenge_zero_transport_replay_gate(
 ) -> UltimateChallengeReplayGate:
     """Report the evidence gate without fabricating a positive replay.
 
-    No native hash-bound Ultimate Challenge selector fixture is retained in the
-    repository today, so the default result is always ``evidence_required``
-    with zero transport.  A future task may pass a real fixture after the
-    independent evidence-retention requirements are satisfied.
+    When ``native_selector_fixture`` includes an atlas-backed shared navigation
+    decision for Ultimate Challenge, that decision is mirrored. Otherwise the
+    gate remains ``evidence_required`` with zero transport.
     """
 
-    if not isinstance(native_selector_fixture, Mapping):
+    if isinstance(native_selector_fixture, Mapping):
+        decision = native_selector_fixture.get("shared_navigation_decision")
+        if decision is not None:
+            terminal = str(getattr(decision, "terminal", REPLAY_EVIDENCE_REQUIRED))
+            return UltimateChallengeReplayGate(
+                status=terminal,
+                transport_count=int(getattr(decision, "transport_count", 0)),
+                dispatch_authorized=False,
+                evidence_required=bool(
+                    getattr(decision, "evidence_required", True)
+                    or terminal == REPLAY_EVIDENCE_REQUIRED
+                ),
+                reason=str(getattr(decision, "reason", "atlas-backed shared seam decision")),
+            )
+        # Self-declared metadata alone is not evidence.
         return UltimateChallengeReplayGate(
             status=REPLAY_EVIDENCE_REQUIRED,
             transport_count=0,
             dispatch_authorized=False,
             evidence_required=True,
-            reason="native hash-bound Ultimate Challenge selector fixture is absent",
+            reason="production-recognizer native sequence and journal-backed replay are absent",
         )
-    # Self-declared metadata or a plausible digest is not evidence. The gate
-    # remains closed until a later task wires a retained native sequence through
-    # the production recognizer/controller and consequential journal path.
     return UltimateChallengeReplayGate(
         status=REPLAY_EVIDENCE_REQUIRED,
         transport_count=0,
         dispatch_authorized=False,
         evidence_required=True,
-        reason="production-recognizer native sequence and journal-backed replay are absent",
+        reason="native hash-bound Ultimate Challenge selector fixture is absent",
+    )
+
+
+def plan_ultimate_challenge_atlas_navigation(
+    *,
+    localization: object | None,
+    binding: object | None,
+    atlas: object | None,
+    destination_id: str = "ultimate-challenge",
+):
+    """Shared Campaign atlas navigation seam for Ultimate Challenge (zero transport)."""
+
+    from tasks.campaign_atlas import plan_shared_campaign_destination_navigation
+
+    return plan_shared_campaign_destination_navigation(
+        consumer="ultimate_challenge",
+        destination_id=destination_id,
+        localization=localization,  # type: ignore[arg-type]
+        binding=binding,  # type: ignore[arg-type]
+        atlas=atlas,  # type: ignore[arg-type]
     )
 
 

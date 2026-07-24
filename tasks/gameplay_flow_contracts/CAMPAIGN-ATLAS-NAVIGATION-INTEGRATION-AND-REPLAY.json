@@ -1,54 +1,121 @@
 {
   "schema_version": 1,
   "flow_id": "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
-  "product_purpose": "Future shared Campaign atlas navigation integration and production-path zero-transport replay.",
+  "product_purpose": "Shared Campaign atlas localization and destination navigation for Campaign AP and Ultimate Challenge, proven by production-path zero-transport replay only.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "session",
   "required_starting_context": ["unknown_requires_evidence"],
-  "shared_primitive_dependencies": [],
-  "recognized_states": ["contract_declared", "evidence_required"],
+  "shared_primitive_dependencies": [
+    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+    "shared_campaign_entry_route"
+  ],
+  "recognized_states": [
+    "atlas_built",
+    "viewport_localized",
+    "destination_bound",
+    "zero_transport_replay_complete",
+    "evidence_required",
+    "blocked_fail_closed"
+  ],
   "state_transitions": [
     {
-      "from": "contract_declared",
+      "from": "atlas_built",
+      "to": "viewport_localized",
+      "via": "current_native_frame_registration",
+      "notes": "Localization never authorizes input."
+    },
+    {
+      "from": "viewport_localized",
+      "to": "destination_bound",
+      "via": "current_frame_semantic_association",
+      "notes": "Atlas projection may narrow search only; bounds/overlay validation required."
+    },
+    {
+      "from": "destination_bound",
+      "to": "zero_transport_replay_complete",
+      "via": "shared_consumer_navigation_seam",
+      "notes": "Stops before Challenge, Auto Battle, Exit, Flee, or AP consumption."
+    },
+    {
+      "from": "atlas_built",
       "to": "evidence_required",
-      "via": "missing_accepted_native_atlas_corpus",
-      "notes": "Atlas projection alone never authorizes input or semantic target binding."
+      "via": "missing_or_ambiguous_landmark_or_frame",
+      "notes": "Product Campaign AP destinations that need Chapter 9 remain evidence_required until that landmark is accepted."
     }
   ],
   "permitted_inputs": [],
-  "local_postconditions": ["evidence_required", "zero_transport_replay_pending"],
+  "local_postconditions": [
+    "zero_transport_replay_complete",
+    "evidence_required",
+    "blocked_fail_closed",
+    "canonical_home_terminal_required"
+  ],
   "consequential_action_class": "none_declared",
   "cost_quantity_requirements": {
     "free_only": true,
     "maximum_cost": 0,
     "quantity": 0,
     "resource_or_currency": null,
-    "notes": "No live input, AP, Challenge, Auto Battle, or Flee is permitted."
+    "notes": "No live input, AP, Challenge, Auto Battle, Exit, or Flee is permitted."
   },
-  "completion_identity": "campaign-atlas-navigation-integration-and-replay:accepted",
+  "completion_identity": "campaign-atlas-navigation-integration-and-replay:zero-transport-accepted",
   "terminal_outcomes": ["blocked"],
   "cooldown_deferred_behavior": "not_applicable_navigation_integration",
   "bounded_recovery_behavior": "return_evidence_required_on_missing_or_ambiguous_frame",
   "evidence_requirements": [
-    "evidence_required: accepted native Campaign atlas corpus",
-    "evidence_required: production recognizer/controller zero-transport replay for both consumers"
+    "accepted native Campaign atlas corpus with source hashes and provenance",
+    "production recognizer/controller zero-transport replay for both consumers",
+    "Chapter 9 remains evidence_required for product Campaign AP destinations 1-20-9 / 1-15-9 / 2-2-9"
   ],
   "replay_fixture_requirements": [
     {
       "fixture_id": "accepted_campaign_atlas_replay",
+      "status": "available",
+      "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/campaign-atlas-native-800x1280-v1/atlas.json",
+      "sha256": "be7b6f05025b08598f6961b851b149f5e719b6fb294d4d0d9385cbff0218a4c2",
+      "notes": "Built from accepted survey sessions; not a synthetic fixture."
+    },
+    {
+      "fixture_id": "zero_transport_both_consumers",
+      "status": "available",
+      "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/replay/zero-transport-both-consumers.json",
+      "sha256": "8bf8c7a698198c55c2cac8e0846830a9101cfa46ed0f6349c0e9506d318d9ad9",
+      "notes": "Campaign chapter present in atlas (e.g. 1-20-21) plus Ultimate Challenge; transport_count=0."
+    },
+    {
+      "fixture_id": "zero_transport_chapter_9_evidence_required",
+      "status": "available",
+      "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/replay/zero-transport-chapter-9-evidence-required.json",
+      "sha256": "97c016fad667cfb3306e75d8c2dd97f2863a4d5e8176ffef7e717b2b80bd2c73",
+      "notes": "Product destination 1-20-9 correctly returns evidence_required without input authority."
+    },
+    {
+      "fixture_id": "campaign_ap_chapter_9_landmark",
       "status": "required_evidence",
       "path": null,
-      "notes": "Must use the later accepted native corpus and production path."
+      "notes": "Chapter 9 landmark is absent from the accepted survey; product AP destinations remain evidence_required."
     }
   ],
   "live_validation_scenarios": [
     {
-      "id": "campaign-atlas-navigation-replay-pending",
-      "mode": "blocked_until_evidence",
-      "notes": "No integration begins before native survey acceptance."
+      "id": "campaign-atlas-zero-transport-replay",
+      "mode": "observe_only",
+      "notes": "Replay both consumers through navigation-only zero transport; stop before Challenge/AP/Auto Battle. No live input."
     }
   ],
-  "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "blocking_unknown_modal"],
-  "implementation_status": "contract_only",
-  "proof_state": "evidence_required"
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "blocking_unknown_modal"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "current",
+  "supervised_live_proof_state": "evidence_required",
+  "production_registration": "NOT_REGISTERED",
+  "scheduler_eligible": false
 }
