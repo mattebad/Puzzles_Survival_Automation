@@ -1502,7 +1502,7 @@
       "blocked_reason": "",
       "next_concrete_action": "None for this completed flow. Ultimate Challenge requires a separate atomic task/chat and must not reuse Campaign destination authority.",
       "last_completed_stage": "completed",
-      "last_commit": null,
+      "last_commit": "a424ddc",
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
       "acceptance_criteria": [
         "production recognizer/controller/policy/persistence zero-transport replay clears campaign_production_replay",
