@@ -5340,15 +5340,14 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION
 - Task ID: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`.
 - Title: Integrate Ultimate Challenge daily task as a distinct BlueStacks flow.
-- Status: Blocked after focused offline implementation (2026-07-23; the exact ordered execution
-  policy and truthful zero-transport evidence gate are implemented, but native selector evidence
-  and a production-controller positive replay do not exist; no live attempt is authorized).
+- Status: Blocked (2026-07-26; six authorized attempts exhausted without native consequential replay).
 - Milestone: Ultimate Challenge evidence-independent controller integration.
 - Dependencies: completed `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`, committed product-policy reconciliation `9c281a7`, retained Campaign Home Atlas
   entry, Ultimate Challenge entry/reset-idempotency implementation, gameplay contract schema, and
   explicit 2026-07-23 product policy.
-- Blocked by: absent native Challenge/lineup/Exit/Flee/Home selector sequence, absent consequential
-  SafeAction/SafetyStore journal integration, and no authorized positive replay or canary attempt.
+- Blocked by: maximum six-attempt budget exhausted; native Challenge/lineup/Exit/Flee selectors,
+  production zero-transport replay, consequential journal evidence, and canonical Home terminal
+  proof remain absent.
 - Objective: implement every evidence-independent execution invariant and a truthful zero-transport
   evidence gate without manufacturing selector or replay proof.
 - Established facts: retained work proves Campaign entry, Ultimate Challenge entry OCR,
@@ -5368,11 +5367,12 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Prohibited changes: runtime input, evidence/fixture manufacture, visual selector invention,
   Campaign/Ruins asset promotion, production registration, scheduler eligibility, queue activation,
   live-attempt authorization, Gathering/Troop Training changes, downstream Campaign work, or push.
-- Authorized runtime action: None; offline code, policy tests, and zero-transport missing-evidence
-  evaluation only.
-- Maximum transport inputs: Zero.
-- Navigation-only recovery: Forbidden in this atomic task.
-- Consequential action: Forbidden; Challenge, lineup Challenge, Exit, and Flee are not dispatched.
+- Authorized runtime action: No further runtime action. The six-attempt authorization was consumed;
+  do not increase the ceiling or retry without new explicit authorization and evidence.
+- Maximum transport inputs: Six live attempts, one exact input per bound state; no identical retries.
+- Navigation-only recovery: Supported canonical Home recovery only.
+- Consequential action: Challenge, lineup Challenge, immediate upper-right Exit, and Flee only;
+  Auto Battle/refill/purchase/AP are prohibited.
 - Registration changes: None; preserve not registered.
 - Scheduler changes: None; preserve disabled/ineligible.
 - Actions that must not be repeated: Campaign navigation attempts, Ultimate Challenge input, stale
@@ -5399,7 +5399,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Resource consumption policy: no resource or refill transaction is permitted.
 - Premium or strategic restrictions: Auto Battle, paid/premium/item-backed action, Campaign AP
   dispatch, and any refill are prohibited.
-- Active evidence manifest: None; no runtime evidence was created or modified.
+- Active evidence manifest: None; retained sessions contain navigation/pre-entry evidence only and
+  no promotable consequential replay.
 - Required artifacts: controller policy, replay gate, contract/queue/coverage/docs, focused tests,
   backlog index, handoff, validation results, and one focused local commit.
 - Immediate-before/immediate-post/result/journal: NOT_APPLICABLE for runtime because transport is
@@ -5417,9 +5418,9 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   `git diff --check`, and post-validation Git snapshot.
 - Known baseline failures: two IDE live-budget tests assumed the first queue flow retained a live
   budget; their isolated temporary fixture now supplies three attempts without changing authority.
-- Evidence requirement: NOT_APPLICABLE for this zero-transport offline slice because it creates no
-  runtime evidence; native selector sequence and journal-backed positive replay remain required by
-  the future promotion gate.
+- Evidence requirement: NOT_APPLICABLE for this blocked result because no promotable evidence
+  manifest exists; native selector sequence and journal-backed positive replay remain required by
+  any future promotion gate.
 - Valid blocked outcomes: missing native selector corpus, SafeAction/journal integration, positive
   replay, or separately authorized canary, with coherent offline work preserved.
 - Blocked-result commit policy: commit the coherent evidence-independent implementation and truthful
@@ -5443,12 +5444,10 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   native-frame/target provenance, and canonical-Home-only success persistence. Its replay gate
   truthfully returns `evidence_required` with zero transport because no native consequential
   sequence exists. Native selectors, SafeAction/SafetyStore and consequential journal integration,
-  production-controller positive replay, and a supervised canary are still required; maximum new
-  live attempts is zero. Production registration and recurring scheduling remain disabled.
-- Exact next permitted action: in a separately authorized evidence-only atomic task, retain native
-  hash-bound Challenge, Hero Lineup Challenge, upper-right Exit, Flee warning/result, and canonical
-  Home frames without consequential dispatch; then a later offline task may wire the production
-  recognizer/controller and journal-backed zero-transport replay. A Flee canary is not authorized.
+  production-controller positive replay, and a supervised canary are still required; no additional
+  live attempt is authorized. Production registration and recurring scheduling remain disabled.
+- Exact next permitted action: Do not retry or increase the attempt ceiling. Preserve the six
+  retained sessions and await explicit new evidence/authorization for a future atomic task.
 - Authority: full normalized task state is in `tasks/flow_delivery_queue.json` and
   `tasks/flow_delivery_product_policy.json`; this dormant pointer does not activate implementation.
 

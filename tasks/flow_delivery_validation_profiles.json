@@ -25,6 +25,11 @@
     ]
   },
   "flow_profiles": {
+    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
+      "architecture_tests": [
+        "tests.test_ultimate_challenge_daily"
+      ]
+    },
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
       "focused_tests": [
         "tests.test_campaign_auto_battle",

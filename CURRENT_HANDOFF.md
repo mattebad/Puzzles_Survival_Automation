@@ -2,46 +2,36 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "a424ddc",
-  "current_task_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
-  "current_task_state": "completed",
-  "next_task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
-  "next_task_activation_status": "requires_new_atomic_chat_and_authority_review",
-  "active_task_or_flow": null,
-  "active_delivery_stage": "completed",
+  "head": "ebb5e7151b276f3c17ff32dc8ce89cee17f02d13",
+  "ahead_behind": {"ahead": 0, "behind": 0},
+  "attributable_dirty_paths": ["BACKLOG.md", "CURRENT_HANDOFF.md", "scripts/bluestacks_ultimate_challenge.py", "scripts/flow_delivery_ultimate_challenge_bluestacks.py", "tasks/backlog_task_index.json", "tasks/flow_delivery_bluestacks_registry.json", "tasks/flow_delivery_coverage.json", "tasks/flow_delivery_queue.json", "tasks/flow_delivery_validation_profiles.json"],
+  "protected_user_owned_paths": [".local-reference/", ".local-captures/", "evidence/"],
+  "current_task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+  "current_task_state": "blocked",
+  "next_task_id": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+  "next_task_activation_status": "dependency_blocked",
+  "active_task_or_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+  "active_delivery_stage": "blocked",
+  "queue_counts": {"ready": 6, "active": 0, "blocked": 9, "completed": 7, "needs_product_decision": 1},
+  "first_ready_flow": "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
+  "next_ready_flow": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
   "development_lease_state": "released",
   "runtime_ownership_state": "released",
   "writable_agent_state": "absent",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "User removed the test requirement; touched Python modules compile and live production-path validation passed for all three configured destinations.",
-  "latest_full_suite_result": "Manual opt-in only; not run for this completion.",
-  "current_live_attempt_state": "Terminal at maximum_live_attempts=15. Attempts 10, 13, and 15 completed the consequential destination proof; attempts 11, 12, and 14 blocked before AP spend and were corrected without blind retry.",
-  "current_evidence_or_session_reference": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-15-9-20260726T191852393138Z/1-15-9-20260726T191858180172Z",
-  "last_safe_completed_step": "1-15-9 victory reconciled AP 101->88 with cost 14 and regeneration 1, then returned recognized Home.",
-  "exact_next_permitted_action": "Commit and push the completed Campaign flow. Begin Ultimate Challenge only in a new atomic chat after reading its active backlog/queue/contract state and acquiring a fresh lease.",
-  "current_blocker": null,
-  "prohibited_repeated_action": "Do not rerun Campaign AP canaries, refill AP, or treat Ultimate Challenge as a Campaign destination.",
-  "registration_and_scheduler": {
-    "registered_operator_tasks": "NOT_REGISTERED_UNCHANGED",
-    "scheduler_enabled_disabled": "DISABLED/INELIGIBLE",
-    "composition_blocked": true,
-    "m6_unactivated": true,
-    "bliss_unchanged": true
-  },
-  "journals_and_lease": {
-    "development_lease_path": ".local-orchestrator/flow-delivery-lease.json",
-    "active_prepared_input_sent_unresolved_action_ids": [],
-    "historical_unresolved_classification": "No active unresolved consequential action."
-  },
-  "evidence": {
-    "evidence_requirement": "SATISFIED",
-    "active_evidence_manifest": "docs/validation/campaign-ap-auto-battle-live-canary-manifest.json",
-    "destination_results": {
-      "1-20-9": "seven victories; AP 111->2; spent 112; regenerated 3; recognized Home",
-      "2-2-9": "one victory; AP 120->100; spent 20; regenerated 0; recognized Home",
-      "1-15-9": "one victory; AP 101->88; spent 14; regenerated 1; recognized Home"
-    }
-  }
+  "latest_focused_validation_result": "Ultimate Challenge focused policy tests 27/27 and architecture profile 27/27 pass; six live attempts are blocked without native consequential replay proof.",
+  "latest_full_suite_result": "Manual opt-in only; not run.",
+  "current_live_attempt_state": "Six of six authorized attempts finished blocked; attempt 6 opened Ultimate Challenge and stopped before any consequential selector dispatch. Consequential input count 0; resource delta 0.",
+  "current_evidence_or_session_reference": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20260726T223144611948Z",
+  "last_safe_completed_step": "Attempt 6 positively opened the Ultimate Challenge chapter map and captured native immediate-before evidence; Challenge selector was not bound and the run failed closed.",
+  "exact_next_permitted_action": "No retry or attempt-ceiling increase is permitted. Preserve retained sessions and await explicit new evidence/authorization for a future atomic task.",
+  "current_blocker": "Maximum six live attempts exhausted without native Challenge/lineup/Exit/Flee replay, zero-transport production replay, or canonical Home terminal proof; result writer also exposed a missing constant import (fixed locally).",
+  "prohibited_repeated_action": "Do not retry this flow, increase the six-attempt ceiling, dispatch Challenge/lineup/Exit/Flee, rerun Campaign AP canaries, spend AP, use Auto Battle/refill/purchase, or treat Ultimate Challenge as a Campaign destination.",
+  "recent_relevant_commits": ["ebb5e71", "c1c76d1", "d104291"],
+  "process_deviations": [],
+  "registration_and_scheduler": {"registered_operator_tasks": "NOT_REGISTERED_UNCHANGED", "scheduler_enabled_disabled": "DISABLED/INELIGIBLE", "scheduler_eligible_flows": [], "composition_blocked": true, "m6_unactivated": true, "bliss_unchanged": true},
+  "journals_and_lease": {"development_lease_path": ".local-orchestrator/flow-delivery-lease.json", "development_lease_status": "released", "active_prepared_input_sent_unresolved_action_ids": [], "historical_unresolved_classification": "No active unresolved consequential action."},
+  "evidence": {"evidence_requirement": "NOT_APPLICABLE", "evidence_requirement_reason": "This blocked result has no promotable runtime evidence manifest; native consequential replay and canonical Home proof remain required for any future activation.", "active_evidence_manifest": null, "do_not_recursively_inspect_parent_evidence_tree": true}
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
@@ -53,6 +43,6 @@ verified victory, exact AP reconciliation including natural regeneration, and re
 `1-20-9`, `2-2-9`, and `1-15-9`. No refill, paid action, Sweep, Blitz, Auto Complete, Ultimate
 Challenge action, registration, scheduler, composition, M6, or Bliss mutation occurred.
 
-The next requested work is Ultimate Challenge in a separate atomic chat. It must establish its own
-authority, lease, evidence gate, bounded live-attempt budget, and explicit consequence policy; it
-must not inherit Campaign AP destination authority.
+Ultimate Challenge remains blocked after the explicitly authorized six-attempt canary budget was
+exhausted without a bound consequential Challenge selector. No Flee completion or canonical Home
+terminal proof exists; do not retry or increase the ceiling without new authorization and evidence.
