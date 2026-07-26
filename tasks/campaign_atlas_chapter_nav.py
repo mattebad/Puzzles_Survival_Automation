@@ -237,19 +237,23 @@ def pan_direction_toward_screen_point(screen_x: float, screen_y: float) -> str:
 
 
 ORB_PREFERRED_RESIDUAL_PX = 12.0
-PROJECTION_ON_SCREEN_MARGIN_PX = 40.0
-LOCAL_OCR_PAD_PX = 240
+CHAPTER_SAFE_VIEWPORT: Box = (160, 180, 700, 980)
+LOCAL_OCR_PAD_PX = 120
+LOCAL_OCR_MAX_PROJECTION_DISTANCE_PX = 100.0
 
 
-def projection_is_on_screen(screen_x: float, screen_y: float) -> bool:
-    """True when the projected landmark center lies inside the usable map area."""
+def projection_is_safely_framed(screen_x: float, screen_y: float) -> bool:
+    """True when a projected chapter center is clear of fixed HUD and edge overlays."""
 
-    return (
-        PROJECTION_ON_SCREEN_MARGIN_PX
-        <= screen_x
-        <= (NATIVE_WIDTH - PROJECTION_ON_SCREEN_MARGIN_PX)
-        and 150.0 <= screen_y <= (NATIVE_HEIGHT - 180.0)
-    )
+    x0, y0, x1, y1 = CHAPTER_SAFE_VIEWPORT
+    return x0 <= screen_x <= x1 and y0 <= screen_y <= y1
+
+
+def chapter_roi_is_safely_framed(roi: Box) -> bool:
+    """Require the complete current-frame chapter binding inside the safe viewport."""
+
+    x0, y0, x1, y1 = CHAPTER_SAFE_VIEWPORT
+    return x0 <= roi[0] and y0 <= roi[1] and roi[2] <= x1 and roi[3] <= y1
 
 
 def ocr_chapter_roi_near_projection(
@@ -308,6 +312,8 @@ def ocr_chapter_roi_near_projection(
                         roi = (x0 + left, y0 + top, x0 + left + width, y0 + top + height)
                         center = _box_center(roi)
                         dist = ((center[0] - cx) ** 2 + (center[1] - cy) ** 2) ** 0.5
+                        if dist > LOCAL_OCR_MAX_PROJECTION_DISTANCE_PX:
+                            continue
                         if best is None or dist < best[0]:
                             best = (float(dist), roi)
     return None if best is None else best[1]
@@ -422,7 +428,37 @@ def resolve_atlas_chapter_navigation(
         )
 
     target_identity = f"campaign-chapter-{destination_id.split('-')[1]}"
-    if binding.bound and binding.current_frame_roi is not None:
+    safely_projected = bool(
+        localization.recognized
+        and projected is not None
+        and projection_is_safely_framed(projected[0], projected[1])
+    )
+    if localization.recognized and projected is not None and not safely_projected:
+        direction = pan_direction_toward_screen_point(projected[0], projected[1])
+        gesture = hud_safe_pan_gesture(direction)
+        return AtlasChapterNavDecision(
+            kind="swipe",
+            reason=(
+                f"Campaign atlas-directed pan {direction} to safely frame {label} before binding "
+                f"(bound={binding.bound}; {binding.reason}; {loc_state})"
+            ),
+            swipe=gesture.as_swipe(),
+            pan_direction=direction,
+            localization_recognized=True,
+            binding_bound=False,
+            projected_screen_center=projected,
+            distance_to_screen_center_px=distance,
+            anchor_count=anchor_count,
+            localization_support=support,
+            localization_residual_px=residual,
+        )
+
+    if (
+        safely_projected
+        and binding.bound
+        and binding.current_frame_roi is not None
+        and chapter_roi_is_safely_framed(binding.current_frame_roi)
+    ):
         return AtlasChapterNavDecision(
             kind="tap",
             reason=f"Campaign atlas current-frame bind for {label}",
@@ -440,14 +476,14 @@ def resolve_atlas_chapter_navigation(
     if (
         localization.recognized
         and projected is not None
-        and projection_is_on_screen(projected[0], projected[1])
+        and safely_projected
     ):
         ocr_roi = ocr_chapter_roi_near_projection(
             frame,
             chapter=target_chapter,
             projected_screen_center=projected,
         )
-        if ocr_roi is not None:
+        if ocr_roi is not None and chapter_roi_is_safely_framed(ocr_roi):
             return AtlasChapterNavDecision(
                 kind="tap",
                 reason=(
@@ -468,7 +504,7 @@ def resolve_atlas_chapter_navigation(
             kind="blocked",
             reason=(
                 f"Campaign atlas projected {label} on-screen but could not bind it "
-                f"(template={binding.reason}; local OCR miss; {loc_state})"
+                f"(template={binding.reason}; local OCR miss/unsafe/misaligned; {loc_state})"
             ),
             localization_recognized=True,
             binding_bound=False,

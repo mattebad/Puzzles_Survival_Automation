@@ -223,6 +223,62 @@ def _numeric_targets(frame: np.ndarray, box: Box) -> dict[int, Box]:
     return targets
 
 
+def _chapter_medallion_targets(frame: np.ndarray, box: Box) -> dict[int, Box]:
+    """OCR chapter digits inside their circular map medallions.
+
+    Full-map OCR can merge a chapter number with text or counters beside it.  Circle
+    localization makes the OCR spatially local to the current-frame chapter control
+    without encoding any destination-specific coordinates or values.
+    """
+
+    x0, y0, x1, y1 = box
+    gray = cv2.cvtColor(_crop(frame, box), cv2.COLOR_BGR2GRAY)
+    circles = cv2.HoughCircles(
+        cv2.GaussianBlur(gray, (5, 5), 1.2),
+        cv2.HOUGH_GRADIENT,
+        dp=1.2,
+        minDist=50,
+        param1=100,
+        param2=35,
+        minRadius=20,
+        maxRadius=38,
+    )
+    if circles is None:
+        return {}
+
+    targets: dict[int, Box] = {}
+    for local_x, local_y, radius in circles[0]:
+        cx = int(round(local_x)) + x0
+        cy = int(round(local_y)) + y0
+        radius = int(round(radius))
+        inset = max(12, int(round(radius * 0.75)))
+        digit_roi = (
+            max(0, cx - inset),
+            max(0, cy - inset),
+            min(PROFILE_SIZE[0], cx + inset),
+            min(PROFILE_SIZE[1], cy + inset),
+        )
+        digit = cv2.cvtColor(_crop(frame, digit_roi), cv2.COLOR_BGR2GRAY)
+        enlarged = cv2.resize(digit, None, fx=8, fy=8, interpolation=cv2.INTER_CUBIC)
+        token = pytesseract.image_to_string(
+            enlarged,
+            config="--psm 8 -c tessedit_char_whitelist=0123456789",
+        ).strip()
+        if not token.isdigit() or len(token) > 2:
+            continue
+        value = int(token)
+        if not 1 <= value <= 99:
+            continue
+        control_roi = (
+            max(0, cx - radius),
+            max(0, cy - radius),
+            min(PROFILE_SIZE[0], cx + radius),
+            min(PROFILE_SIZE[1], cy + radius),
+        )
+        targets.setdefault(value, control_roi)
+    return targets
+
+
 def _stage_node_targets(frame: np.ndarray) -> dict[int, Box]:
     """Locate red Campaign stage nodes and OCR only their high-contrast white center glyphs."""
 
@@ -449,6 +505,13 @@ def recognize_campaign_frame(
     diagnostics["tier_controls_score"] = tier_controls_score
     tier_text = _ocr(frame, (400, 55, 635, 140), psm=6)
     map_numbers = _numeric_targets(frame, MAP_SEARCH_ROI)
+    map_numbers.update(
+        {
+            number: bounds
+            for number, bounds in _chapter_medallion_targets(frame, MAP_SEARCH_ROI).items()
+            if number not in map_numbers
+        }
+    )
     diagnostics.update(tier_text=tier_text, visible_chapter_numbers=sorted(map_numbers))
     if selected_tier is not None and tier_controls_score >= 0.45:
         tier_ap = _ap_fraction(frame, MAP_AP_ROI)

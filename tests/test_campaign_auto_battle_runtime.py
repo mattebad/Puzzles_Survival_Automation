@@ -60,7 +60,8 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
         )
         command = self.controller.next_command(home)
         self.assertEqual(command.action, CampaignAction.OPEN_CAMPAIGN)
-        self.assertEqual(command.tap_point, (460, 555))
+        self.assertEqual(command.kind, "home_atlas_entry")
+        self.assertEqual(command.target_identity, CAMPAIGN_HOME_ATLAS_BUILDING_ID)
 
         tier = recognized(
             CampaignRouteObservation(
@@ -68,11 +69,27 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
                 selected_tier=1,
                 chapter_number=20,
                 chapter_navigation_available=True,
+                ap_current=99,
             ),
             ("campaign-chapter-20", (300, 400, 420, 480)),
             frame_hash="tier",
         )
         self.assertEqual(self.controller.next_command(tier).tap_point, (360, 440))
+
+        unsafe_tier = recognized(
+            CampaignRouteObservation(
+                screen=CampaignScreen.TIER_MAP,
+                selected_tier=1,
+                chapter_number=20,
+                chapter_navigation_available=True,
+                ap_current=99,
+            ),
+            ("campaign-chapter-20", (620, 930, 700, 1010)),
+            frame_hash="unsafe-tier",
+        )
+        unsafe_command = CampaignRuntimeController(self.config).next_command(unsafe_tier)
+        self.assertEqual(unsafe_command.action, CampaignAction.BLOCKED)
+        self.assertIn("edge/HUD clipped", unsafe_command.reason)
 
         chapter = recognized(
             CampaignRouteObservation(

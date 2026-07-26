@@ -489,15 +489,23 @@ class CampaignRuntimeController:
             )
         if decision.action == CampaignAction.NAVIGATE_CHAPTER:
             if target is not None:
-                return self._checked(
-                    CampaignRuntimeCommand(
-                        decision.action,
-                        "tap",
-                        decision.reason,
-                        target_identity=decision.target_identity,
-                        target_roi=target,
+                from tasks.campaign_atlas_chapter_nav import chapter_roi_is_safely_framed
+
+                if chapter_roi_is_safely_framed(target):
+                    return self._checked(
+                        CampaignRuntimeCommand(
+                            decision.action,
+                            "tap",
+                            f"{decision.reason}; complete chapter ROI is safely framed",
+                            target_identity=decision.target_identity,
+                            target_roi=target,
+                        )
                     )
-                )
+                if frame is None:
+                    return self._terminal(
+                        CampaignAction.BLOCKED,
+                        "recognized chapter target is edge/HUD clipped and atlas reframing requires the current native frame",
+                    )
             if frame is None:
                 return self._terminal(
                     CampaignAction.BLOCKED,
