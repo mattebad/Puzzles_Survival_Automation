@@ -67,7 +67,7 @@
       "blocked_reason": "",
       "next_concrete_action": "Keep the native survey blocked until a separate atomic task supplies explicit authorization and a reviewed nonzero navigation-only attempt budget.",
       "last_completed_stage": "completed",
-      "last_commit": null,
+      "last_commit": "f2b3386633008fb5db1f8a235f2627facc7b5abb",
       "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
       "acceptance_criteria": [
         "native 800x1280 evidence and provenance schema is defined without fabricating a corpus",

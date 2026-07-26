@@ -2,9 +2,9 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "ebb5e7151b276f3c17ff32dc8ce89cee17f02d13",
+  "head": "f2b3386633008fb5db1f8a235f2627facc7b5abb",
   "ahead_behind": {"ahead": 0, "behind": 0},
-  "attributable_dirty_paths": ["BACKLOG.md", "CURRENT_HANDOFF.md", "scripts/bluestacks_ultimate_challenge.py", "scripts/flow_delivery_ultimate_challenge_bluestacks.py", "tasks/backlog_task_index.json", "tasks/flow_delivery_bluestacks_registry.json", "tasks/flow_delivery_coverage.json", "tasks/flow_delivery_queue.json", "tasks/flow_delivery_validation_profiles.json"],
+  "attributable_dirty_paths": [],
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", "evidence/"],
   "current_task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
   "current_task_state": "blocked",
