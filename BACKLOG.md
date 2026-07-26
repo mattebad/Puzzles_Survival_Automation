@@ -7248,3 +7248,142 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   building, cost, duration, stale-frame, or successor ambiguity.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
 - Promotion/unlocks: `DISABLED_POLICY`; resource-building boost policy required.
+
+### CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY
+- Task ID: `CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY`.
+- Title: Spend Campaign AP through the production Auto Battle controller and prove the canonical
+  Home round trip.
+- Status: Completed (2026-07-26; all three destinations passed consequential production-path Auto
+  Battle validation and returned recognized Home; focused local commit pending in this handoff).
+- Milestone: Campaign AP consequential canary.
+- Dependencies: completed `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` at `3f3fd3a`;
+  accepted Campaign Atlas v4 and Stage-9 native ground truth for `1-20-9`, `1-15-9`, and `2-2-9`.
+- Blocked by: none after the production-controller zero-transport replay gate is cleared; any
+  unresolved consequential action, stale game-day identity, or missing native target blocks live
+  dispatch.
+- Objective: reuse the accepted Home Atlas and Campaign chapter navigation, then execute one
+  bounded `1-20-9` Challenge → Hero Lineup Challenge → Auto Battle → verified result → Home loop,
+  reconciling displayed AP exactly against the configured static cost. Additional destinations are
+  optional only after the first success and remaining budget.
+- Established facts: the navigation-only Campaign flow is terminal at `2e59a94`; native Stage-9
+  ground truth and destination verification already exist for `1-20-9`, `1-15-9`, and `2-2-9`;
+  the retained production-path replay proves exact `120 → 100` AP for a `20`-AP victory with zero
+  transport and Home terminal; this task is the separate consequential promotion.
+- Direct implementation files: `tasks/campaign_auto_battle.py`,
+  `tasks/campaign_auto_battle_runtime.py`, `tasks/campaign_auto_battle_vision.py`,
+  `scripts/bluestacks_campaign_ap.py`, `scripts/flow_delivery_campaign_bluestacks.py`,
+  `scripts/flow_delivery_context.py`, `scripts/pnsctl.py`, `tasks/flow_delivery_queue.json`,
+  `tasks/flow_delivery_bluestacks_registry.json`, the new gameplay contract, focused tests,
+  `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tasks/backlog_task_index.json`.
+- Shared dependencies: accepted Campaign Atlas/chapter navigator, Home localizer, native
+  BlueStacks runtime identity, `CampaignRuntimeController`, journal/lease policy, and pnsctl.
+- Transitive regression set: Campaign Auto Battle/controller/vision, Campaign destination replay,
+  pnsctl/flow-delivery registry and queue, governance, and authoritative discovery.
+- Allowed changes: only the named Campaign canary implementation, contract/registry/queue wiring,
+  focused tests, backlog/index/handoff authority, and retained task-local evidence receipts.
+- Per-commit allowed paths: the direct implementation files above, the new Campaign canary contract,
+  focused tests, `BACKLOG.md`, `CURRENT_HANDOFF.md`, and `tasks/backlog_task_index.json`; protected
+  evidence remains untracked and unstaged.
+- Prohibited changes: no atlas rebuild, unrelated flow mutation, Bliss/Unraid changes, account/manual
+  state automation, refill/Sweep/Blitz/Auto Complete/Ultimate Challenge, registration, scheduler,
+  composition, M6, ad hoc transport, or push.
+- Authorized runtime action: one supervised Campaign Auto Battle AP canary beginning at `1-20-9`;
+  navigation may reuse the accepted route, and only the exact Challenge/lineup/Auto/result inputs
+  are consequentially authorized after all gates pass.
+- Maximum transport inputs: maximum fifteen live attempts; within the completed 1-20-9 exhaustion invocation, repeat the configured
+  stage only while freshly displayed AP remains at least its static cost, with no refill input.
+- Navigation-only recovery: reuse accepted exit-to-Home and atlas recovery; after any input require
+  fresh successor recognition and stop unresolved rather than retrying blindly.
+- Consequential action: one authorized Auto Battle stage execution, exact AP ledger reconciliation,
+  explicit victory or handled defeat, then Home; AP spend is evidence-gated.
+- Registration changes: none; production remains not registered.
+- Scheduler changes: none; scheduler remains disabled/ineligible.
+- Actions that must not be repeated: any ambiguous or failed consequential input, any identical
+  candidate, and any attempt to open refill or another forbidden Campaign mode.
+- Required source: current raw native `800x1280` Home frame, fresh Campaign destination frame, and
+  retained Stage-9 ground truth for the configured stage.
+- Exact target semantics: Campaign `1-20-9` stage dialog with static cost `16`, lineup Challenge,
+  Auto enabled/active, victory or handled defeat terminal, and recognized Home.
+- Required local association: stage header/cost OCR spatially bound to the selected stage dialog,
+  AP HUD bound to the same frame sequence, and result semantics bound to the battle surface.
+- Negative controls: AP fraction garbage such as `720/120`, wrong destination, refill/Buy Now,
+  Sweep/Blitz/Auto Complete/Ultimate Challenge, stale Home/atlas binding, and transport-only success.
+- Coordinate space: raw full-frame native `800x1280` at the fixed BlueStacks profile only.
+- Accepted signals: fresh source identity, exact static cost, one transport per consequential step,
+  immediate post-frame, explicit result, exact AP delta, journal/ledger continuity, and Home terminal.
+- Rejected weak signals: OCR alone, stale coordinates, transport return code, projected atlas location,
+  ambiguous result, or any synthetic/fabricated replay evidence.
+- Ambiguous-result behavior: mark unresolved, retain evidence, reconcile journal/lease, and prohibit
+  identical retry until a new diagnosis and authorization exist.
+- Zero-cost requirement: not applicable; AP spend is authorized only at the configured static cost.
+- Quantity limits: completed repeated `1-20-9` within one live attempt until freshly displayed AP was below 16;
+  then one bounded live battle at `2-2-9` and `1-15-9`; maximum fifteen live attempts total.
+- Resource consumption policy: spend Campaign AP only; reconcile cost plus independently observed
+  natural regeneration; never refill or purchase AP.
+- Premium or strategic restrictions: no paid actions, Buy Now, premium currency, refill, or strategic
+  mode substitution.
+- Active evidence manifest: task-local live session manifest under
+  `.local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/`.
+- Required artifacts: source/immediate-before, transport decision, immediate-post, semantic result,
+  AP ledger, journal, capability audit, unresolved proof when applicable, and final Home frame.
+- Immediate-before/immediate-post/result/journal: all must be fresh, native, hash-bound, and retained
+  before terminal reconciliation.
+- Additional task-specific artifacts: production replay `result.json`/`events.jsonl`, flow-delivery
+  result, destination cost/outcome summary, and attempt accounting record.
+- Focused tests: Campaign Auto Battle/controller/runtime/vision, Campaign AP adapter, daily Campaign
+  AP compatibility, Stage-9 destination replay, queue/registry/contract validation, context-packet
+  budget hygiene, and governance.
+- Integration tests: production-path zero-transport replay, pnsctl preflight/live runner/validator,
+  and one canonical Home-to-Campaign-to-Home canary.
+- Transitive regression tests: Campaign navigation/atlas, flow-delivery controller, pnsctl, governance,
+  and the touched-component focused/architecture profiles; unrelated baseline failures remain
+  separately classified.
+- Full-suite requirement: none during active development. Repository-wide discovery is manual opt-in
+  only via `python scripts/run_flow_delivery_validation.py full --flow-id
+  CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY --manual`; it never gates implementation, live preflight,
+  live execution, evidence review, commit, or handoff.
+- Validators: flow-delivery controller/queue, gameplay contract loader, pnsctl evidence validator,
+  governance validation, focused tests, and clean attributable Git review.
+- Known baseline failures: the last manually requested discover run contained pre-existing
+  governance/fixture errors and queue-order expectations that do not include this explicitly
+  authorized priority flow; touched Campaign focused tests pass except the pre-existing daily matrix
+  expectation. No discovery rerun is implied by these baseline failures.
+- Evidence requirement: REQUIRED for live execution and terminal completion.
+- Valid blocked outcomes: stale identity, missing target, unresolved action, ambiguous result, failed
+  AP reconciliation, or missing evidence; no retry is implied by a blocked result.
+- Blocked-result commit policy: preserve the blocked session and diagnosis, leave registration and
+  scheduler unchanged, and record the prohibited repeated input in the handoff.
+- Authorization: live consequential Auto Battle AP spend is explicitly approved in this message;
+  `maximum_live_attempts=15`; no registration, scheduler, composition, M6, or push.
+- Product policy: `product_policy_status=supervised_consequential_validation` with
+  `execution_product_policy_status=explicitly_approved`; `navigation_only=false` is enabled only
+  for this flow after `campaign_production_replay` passes with a real production-path zero-transport
+  replay.
+- Destinations: exactly `1-20-9` first (cost 16); optionally `1-15-9` (cost 14) and `2-2-9`
+  (cost 20) while the bounded live-attempt budget remains. AP maximum is 120; natural regeneration
+  is reconciled only when independently observed.
+- Required route: recognized/canonical Home → Home Atlas Campaign entry → atlas chapter and Stage-9
+  dialog with static cost → Challenge → Hero Lineup Challenge → enable Auto if needed → explicit
+  victory or handled defeat → exact AP ledger reconciliation → canonical Home.
+- Forbidden: Sweep, Blitz, Auto Complete, Ultimate Challenge, AP refill, Buy Now, paid actions,
+  identical blind retries, account/login/tutorial/CAPTCHA automation, production registration,
+  scheduler enablement, and any ad hoc ADB/plink/Docker path.
+- Production replay gate: `campaign_production_replay` must be changed from `evidence_required` only
+  by retained output from the same recognizer, `CampaignRuntimeController`, policy, and persistence
+  path with transport boundary set to zero; synthetic or fabricated evidence is invalid.
+- Evidence: retain source, immediate-before, transport decision, immediate-post, semantic result,
+  AP before/after, journal/ledger references, unresolved proof when applicable, and final Home proof
+  under `.local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/`.
+- Focused tests: `tests.test_campaign_auto_battle`, `tests.test_campaign_auto_battle_runtime`,
+  `tests.test_campaign_ap`, `tests.test_daily_campaign_ap`, `tests.test_campaign_stage9_destination_replay`,
+  and governance/queue validation.
+- Live attempt accounting: every invocation, including zero-input gate blocks, must be recorded in
+  the queue; no more than ten live attempts may consume the bounded budget.
+- Terminal states: `completed` only after a verified result, exact AP reconciliation, final Home,
+  flushed evidence, clear unresolved gate, focused commit, and truthful handoff; otherwise
+  `blocked` with diagnosis and prohibited repeated input.
+- Commit policy: focused local commit(s) only; no push unless separately requested.
+- Expected focused commits: one or more local commits containing only the canary implementation,
+  contract/queue/registry wiring, focused tests, and authority records.
+- Completion criteria: one verified `1-20-9` Auto Battle AP spend with exact ledger and Home terminal,
+  or a truthful blocked terminal with preserved evidence and diagnosis; no forbidden action, no push.

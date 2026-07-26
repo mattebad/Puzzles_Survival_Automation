@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "manifest_id": "campaign-ap-auto-battle-live-canary",
+  "active_task_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+  "next_task_id": "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
+  "relevant_transaction_action_ids": [],
+  "canonical_evidence_session": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+  "read_first": [],
+  "artifacts": [],
+  "unresolved_evidence": [],
+  "integrity": {
+    "algorithm": "SHA-256",
+    "all_present_verified_entries_hashed": true,
+    "missing_or_not_located_entries_have_no_substitute": true
+  },
+  "must_not_be_compacted": [],
+  "allowed_historical_references": [],
+  "do_not_recursively_inspect_parent_evidence_tree": true
+}

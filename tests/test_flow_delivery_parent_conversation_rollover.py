@@ -494,10 +494,11 @@ class ParentConversationRolloverControllerTests(unittest.TestCase):
                 commit=head,
                 receipts=[good],
             )
-            self.assertTrue(recorded["full_suite"]["reuse"])
-            self.assertEqual(
-                recorded["entry"]["counted_completions"][0]["full_suite_receipt_digest"],
-                "digest",
+            self.assertFalse(recorded["full_suite"]["required"])
+            self.assertFalse(recorded["full_suite"]["reuse"])
+            self.assertEqual(recorded["full_suite"]["reason"], "full_suite_manual_only")
+            self.assertIsNone(
+                recorded["entry"]["counted_completions"][0]["full_suite_receipt_digest"]
             )
 
 

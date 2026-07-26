@@ -111,6 +111,8 @@ def _read_json(path: Path) -> Any:
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+    if path.is_file() and path.read_text(encoding="utf-8") == text:
+        return
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         handle.write(text)
 
@@ -463,20 +465,26 @@ def _compact_queue_entry_for_packet(flow: Mapping[str, Any]) -> dict[str, Any]:
     """Keep packet-bound queue metadata under budget without dropping authority fields."""
 
     compact = deepcopy(dict(flow))
-    history = compact.get("historical_live_attempts")
-    if isinstance(history, list) and history:
-        compact["historical_live_attempt_count"] = int(
-            compact.get("historical_live_attempt_count") or len(history)
-        )
-        compact["historical_live_attempts"] = [
-            {
-                "ordinal": item.get("ordinal"),
-                "terminal_outcome": item.get("terminal_outcome"),
-                "diagnosis": str(item.get("diagnosis") or "")[:160],
-            }
-            for item in history
-            if isinstance(item, Mapping)
-        ]
+    for key, count_key in (
+        ("live_attempts", "live_attempt_count"),
+        ("historical_live_attempts", "historical_live_attempt_count"),
+    ):
+        attempts = compact.get(key)
+        if isinstance(attempts, list) and attempts:
+            compact[count_key] = int(compact.get(count_key) or len(attempts))
+            compact[key] = [
+                {
+                    "ordinal": item.get("ordinal"),
+                    "terminal_outcome": item.get("terminal_outcome"),
+                    "diagnosis": str(item.get("diagnosis") or "")[:100],
+                }
+                for item in attempts[-6:]
+                if isinstance(item, Mapping)
+            ]
+    entrypoints = compact.get("implementation_entrypoints")
+    if isinstance(entrypoints, list) and len(entrypoints) > 8:
+        compact["implementation_entrypoint_count"] = len(entrypoints)
+        compact["implementation_entrypoints"] = list(entrypoints)[:8]
     # Allowlist seed is still hashed via referenced_file_hashes; omit bulky duplicate list.
     if isinstance(compact.get("implementation_allowlist_seed"), list):
         compact["implementation_allowlist_seed_count"] = len(compact["implementation_allowlist_seed"])
@@ -632,7 +640,7 @@ def build_context_packet(
         "active_product_policy_entry": policy_entry,
         "active_coverage_entry": coverage_entry,
         "active_bluestacks_registry_entry": bluestacks_entry,
-        "active_backlog_section": _compact_backlog_section_for_packet(active_section, limit=3200),
+        "active_backlog_section": _compact_backlog_section_for_packet(active_section, limit=2400),
         "direct_dependency_sections": [
             _compact_backlog_section_for_packet(item, limit=1800)
             for item in dependency_sections

@@ -62,6 +62,16 @@ class ProportionateProfileTests(unittest.TestCase):
     def test_full_suite_still_requires_discover_only(self) -> None:
         self.assertEqual(_resolve("full_suite"), ["discover"])
 
+    def test_full_suite_is_manual_opt_in(self) -> None:
+        with self.assertRaisesRegex(
+            runner.ValidationRunnerError,
+            "full_suite is manual-only",
+        ):
+            runner.run_profile(
+                flow_id="SYNTHETIC-FLOW",
+                profile_alias="full",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

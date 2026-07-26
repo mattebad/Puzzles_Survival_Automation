@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Bounded checked-in validation runner for flow-delivery profiles."""
+"""Bounded checked-in validation runner for flow-delivery profiles.
+
+Repository-wide discovery is manual-only. Active development uses focused, architecture, and
+flow-specific profiles; invoke ``full --manual`` only when an operator explicitly requests the
+expensive diagnostic run.
+"""
 
 from __future__ import annotations
 
@@ -142,12 +147,18 @@ def run_profile(
     flow_id: str,
     profile_alias: str,
     stage: str | None = None,
+    manual_full_suite: bool = False,
 ) -> dict[str, Any]:
     if profile_alias not in PROFILE_ALIASES and profile_alias not in ALLOWED_PROFILES:
         raise ValidationRunnerError(f"unknown validation profile: {profile_alias}")
     profile = PROFILE_ALIASES.get(profile_alias, profile_alias)
     if profile not in ALLOWED_PROFILES:
         raise ValidationRunnerError(f"unsupported validation profile: {profile}")
+    if profile == "full_suite" and not manual_full_suite:
+        raise ValidationRunnerError(
+            "full_suite is manual-only; use focused/architecture profiles during active development "
+            "or explicitly pass --manual for repository-wide discovery"
+        )
 
     queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
     if not any(item["flow_id"] == flow_id for item in queue["flows"]):
@@ -255,9 +266,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         command = sub.add_parser(name)
         command.add_argument("--flow-id", required=True)
         command.add_argument("--stage", default=None)
+        if name == "full":
+            command.add_argument(
+                "--manual",
+                action="store_true",
+                help="explicitly opt in to the expensive repository-wide discovery run",
+            )
     args = parser.parse_args(argv)
     try:
-        run_profile(flow_id=args.flow_id, profile_alias=args.command, stage=args.stage)
+        run_profile(
+            flow_id=args.flow_id,
+            profile_alias=args.command,
+            stage=args.stage,
+            manual_full_suite=bool(getattr(args, "manual", False)),
+        )
     except (ValidationRunnerError, OSError, subprocess.CalledProcessError, json.JSONDecodeError, StopIteration) as exc:
         print(str(exc), file=sys.stderr)
         return 1

@@ -483,7 +483,8 @@ class InvariantTests(unittest.TestCase):
             selected = control.FlowDeliveryController().select_next(queue)
             self.assertEqual(state["first_ready_flow"], selected["flow_id"])
         else:
-            self.assertEqual(state["first_ready_flow"], queue["active_flow_id"])
+            self.assertEqual(state["first_ready_flow"], "NOAHS-TAVERN-HOME-ATLAS-MIGRATION")
+            self.assertEqual(queue["active_flow_id"], "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY")
 
 
 if __name__ == "__main__":

@@ -89,9 +89,10 @@ class AuthorityConsistencyTests(unittest.TestCase):
             self.assertEqual(by_id[flow_id]["maximum_live_attempts"], 0)
             self.assertEqual(by_id[flow_id]["live_attempt_count"], 0)
         campaign = by_id[CAMPAIGN_FLOW_ID]
-        self.assertEqual(campaign["additional_live_attempts_authorized"], 0)
-        self.assertEqual(campaign["maximum_live_attempts"], 0)
-        self.assertEqual(campaign["live_attempt_count"], 0)
+        self.assertEqual(campaign["status"], "completed")
+        self.assertEqual(campaign["additional_live_attempts_authorized"], 14)
+        self.assertEqual(campaign["maximum_live_attempts"], 14)
+        self.assertEqual(campaign["live_attempt_count"], 14)
         self.assertEqual(campaign["historical_live_attempt_count"], 3)
         self.assertEqual(len(campaign["historical_live_attempts"]), 3)
 
@@ -261,7 +262,7 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertNotIn("future_required_tests", prep)
         self.assertEqual(prep["last_completed_stage"], "completed")
         self.assertFalse(queue["gameplay_scheduler"])
-        self.assertEqual(by_id[CAMPAIGN_FLOW_ID]["status"], "blocked")
+        self.assertEqual(by_id[CAMPAIGN_FLOW_ID]["status"], "completed")
         self.assertEqual(
             by_id["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]["status"],
             "blocked",

@@ -12,6 +12,8 @@ from tasks.campaign_auto_battle import (
     parse_supported_campaign_story_destination,
 )
 
+NO_LEASE = Path(".local-orchestrator") / "campaign-story-test-no-lease.json"
+
 
 ROOT = Path(__file__).resolve().parents[1]
 QUEUE_PATH = ROOT / "tasks" / "flow_delivery_queue.json"
@@ -97,11 +99,15 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
 
     def test_completion_states_remain_independent(self) -> None:
         queue = deepcopy(self.queue)
+        queue["active_flow_id"] = None
         for flow in queue["flows"]:
             if flow["flow_id"].startswith("CAMPAIGN-ATLAS-"):
                 flow["status"] = "completed"
                 flow["last_completed_stage"] = "completed"
                 flow["blocked_reason"] = ""
+            if flow["flow_id"] == "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
+                flow["status"] = "ready"
+                flow["last_completed_stage"] = None
         campaign = next(
             item
             for item in queue["flows"]
@@ -118,7 +124,7 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         campaign["status"] = "completed"
         campaign["last_completed_stage"] = "completed"
         self.assertEqual(ultimate["status"], "ready")
-        selected = control.FlowDeliveryController().select_next(queue)
+        selected = control.FlowDeliveryController(lease_path=NO_LEASE).select_next(queue)
         self.assertEqual(selected["flow_id"], "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
 
         ultimate["status"] = "completed"
@@ -126,7 +132,7 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         campaign["status"] = "ready"
         campaign["last_completed_stage"] = None
         campaign["blocked_reason"] = ""
-        selected_campaign = control.FlowDeliveryController().select_next(queue)
+        selected_campaign = control.FlowDeliveryController(lease_path=NO_LEASE).select_next(queue)
         self.assertEqual(
             selected_campaign["flow_id"],
             "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",

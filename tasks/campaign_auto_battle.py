@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
+import json
+from pathlib import Path
 import re
 
 
@@ -802,3 +804,233 @@ def run_all_campaign_ap_destination_zero_transport_replays(
         evidence_required=False,
         reason="all three supported Campaign AP destinations verified with zero transport",
     )
+
+
+# ---------------------------------------------------------------------------
+# Production-controller Auto Battle zero-transport replay
+# ---------------------------------------------------------------------------
+
+PRODUCTION_REPLAY_VERIFIED = "production_replay_verified"
+PRODUCTION_REPLAY_EVIDENCE_REQUIRED = "evidence_required"
+PRODUCTION_REPLAY_BLOCKED = "blocked_fail_closed"
+
+
+@dataclass(frozen=True)
+class CampaignProductionReplayResult:
+    """Result of replaying the production recognizer/controller with transport sealed at zero."""
+
+    status: str
+    replay_stage: str
+    transport_count: int
+    dispatch_authorized: bool
+    evidence_required: bool
+    battle_outcome: str
+    ap_before: int | None
+    ap_after: int | None
+    ap_cost: int | None
+    terminal_screen: str
+    event_count: int
+    reason: str
+    evidence_path: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "replay_stage": self.replay_stage,
+            "transport_count": self.transport_count,
+            "dispatch_authorized": self.dispatch_authorized,
+            "evidence_required": self.evidence_required,
+            "battle_outcome": self.battle_outcome,
+            "ap_before": self.ap_before,
+            "ap_after": self.ap_after,
+            "ap_cost": self.ap_cost,
+            "terminal_screen": self.terminal_screen,
+            "event_count": self.event_count,
+            "reason": self.reason,
+            "evidence_path": self.evidence_path,
+        }
+
+
+_PRODUCTION_REPLAY_FRAMES = (
+    "step-002-before.png",
+    "step-002-after.png",
+    "step-003-after.png",
+    "step-004-after.png",
+    "step-005-after.png",
+    "step-006-after.png",
+    "step-007-after.png",
+    "step-008-before.png",
+    "step-008-after.png",
+    "step-011-before.png",
+    "step-011-after.png",
+)
+
+
+def run_campaign_ap_production_zero_transport_replay(
+    *,
+    capture_root: Path | None = None,
+    evidence_dir: Path | None = None,
+) -> CampaignProductionReplayResult:
+    """Replay production vision, controller, policy, and ledger with no physical transport.
+
+    The retained native BlueStacks mechanics capture is used only as an input corpus. Every frame
+    goes through ``recognize_campaign_frame`` and every command through ``CampaignRuntimeController``;
+    the transport boundary is sealed by recording ``dispatched=false`` while still applying the
+    controller's post-dispatch state transition. This proves the production path without spending
+    AP or authorizing live input.
+    """
+
+    from tasks.campaign_auto_battle_runtime import CampaignRuntimeController
+    from tasks.campaign_auto_battle_vision import read_campaign_frame
+
+    replay_stage = CampaignStage.parse("1-3-1")
+    default_root = Path(
+        ".local-captures/bluestacks/consume-ap-campaign/20260716T014118395232Z/frames"
+    )
+    frames_root = Path(capture_root) if capture_root is not None else default_root
+    missing = [name for name in _PRODUCTION_REPLAY_FRAMES if not (frames_root / name).is_file()]
+    if missing:
+        return CampaignProductionReplayResult(
+            status=PRODUCTION_REPLAY_EVIDENCE_REQUIRED,
+            replay_stage=replay_stage.identity,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=True,
+            battle_outcome="unknown",
+            ap_before=None,
+            ap_after=None,
+            ap_cost=20,
+            terminal_screen=CampaignScreen.UNKNOWN.value,
+            event_count=0,
+            reason="retained native mechanics frames are missing: " + ", ".join(missing),
+        )
+
+    config = CampaignAutoBattleConfig(
+        target_stage=replay_stage,
+        ap_cost=20,
+        ap_budget=20,
+        max_runs=1,
+        battle_poll_seconds=1.0,
+        battle_timeout_seconds=180.0,
+        navigation_only=False,
+    )
+    controller = CampaignRuntimeController(config)
+    events: list[dict[str, object]] = []
+    ap_before: int | None = None
+    ap_after: int | None = None
+    for ordinal, frame_name in enumerate(_PRODUCTION_REPLAY_FRAMES, start=1):
+        recognition = read_campaign_frame(frames_root / frame_name, replay_stage)
+        if not recognition.observation.recognized:
+            return CampaignProductionReplayResult(
+                status=PRODUCTION_REPLAY_BLOCKED,
+                replay_stage=replay_stage.identity,
+                transport_count=0,
+                dispatch_authorized=False,
+                evidence_required=False,
+                battle_outcome="unknown",
+                ap_before=ap_before,
+                ap_after=ap_after,
+                ap_cost=20,
+                terminal_screen=recognition.observation.screen.value,
+                event_count=len(events),
+                reason=f"production recognizer rejected retained frame {frame_name}",
+            )
+        if ap_before is None and recognition.observation.ap_current is not None:
+            ap_before = recognition.observation.ap_current
+        if recognition.observation.ap_current is not None:
+            ap_after = recognition.observation.ap_current
+        command = controller.next_command(recognition)
+        event: dict[str, object] = {
+            "ordinal": ordinal,
+            "source_frame": str(frames_root / frame_name),
+            "source_frame_sha256": recognition.frame_sha256,
+            "immediate_before": recognition.observation.screen.value,
+            "action": command.action.value,
+            "kind": command.kind,
+            "target_identity": command.target_identity,
+            "target_roi": command.target_roi,
+            "transport": {"dispatched": False, "boundary": "zero_transport_replay"},
+            "immediate_post": None,
+            "semantic_result": None,
+            "progress": controller.progress,
+        }
+        if command.terminal:
+            event["semantic_result"] = command.action.value
+            events.append(event)
+            if command.action != CampaignAction.COMPLETE:
+                return CampaignProductionReplayResult(
+                    status=PRODUCTION_REPLAY_BLOCKED,
+                    replay_stage=replay_stage.identity,
+                    transport_count=0,
+                    dispatch_authorized=False,
+                    evidence_required=False,
+                    battle_outcome="unknown",
+                    ap_before=ap_before,
+                    ap_after=ap_after,
+                    ap_cost=20,
+                    terminal_screen=recognition.observation.screen.value,
+                    event_count=len(events),
+                    reason=command.reason,
+                )
+            break
+        if command.kind in {"tap", "swipe", "home_atlas_entry"}:
+            # This is the controller's normal persistence transition, not transport authorization.
+            controller.accept_dispatched(command)
+        events.append(event)
+
+    progress = controller.progress
+    if (
+        progress is None
+        or progress.initial_ap != 120
+        or progress.current_ap != 100
+        or progress.ap_spent != 20
+        or progress.completed_runs != 1
+        or progress.ap_regenerated != 0
+        or not events
+        or events[-1].get("immediate_before") != CampaignScreen.HOME_BASE.value
+    ):
+        return CampaignProductionReplayResult(
+            status=PRODUCTION_REPLAY_BLOCKED,
+            replay_stage=replay_stage.identity,
+            transport_count=0,
+            dispatch_authorized=False,
+            evidence_required=False,
+            battle_outcome="victory" if progress and progress.completed_runs else "unknown",
+            ap_before=ap_before,
+            ap_after=ap_after,
+            ap_cost=20,
+            terminal_screen=str(events[-1].get("immediate_before")),
+            event_count=len(events),
+            reason="production replay did not end at Home with an exact AP ledger",
+        )
+
+    result = CampaignProductionReplayResult(
+        status=PRODUCTION_REPLAY_VERIFIED,
+        replay_stage=replay_stage.identity,
+        transport_count=0,
+        dispatch_authorized=False,
+        evidence_required=False,
+        battle_outcome="victory",
+        ap_before=120,
+        ap_after=100,
+        ap_cost=20,
+        terminal_screen=CampaignScreen.HOME_BASE.value,
+        event_count=len(events),
+        reason=(
+            "retained native mechanics frames passed the production recognizer, "
+            "CampaignRuntimeController, exact AP ledger, victory result, and Home terminal "
+            "with the transport boundary sealed at zero"
+        ),
+        evidence_path=str(evidence_dir) if evidence_dir is not None else None,
+    )
+    if evidence_dir is not None:
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        (evidence_dir / "events.jsonl").write_text(
+            "".join(json.dumps(event, sort_keys=True, default=str) + "\n" for event in events),
+            encoding="utf-8",
+        )
+        (evidence_dir / "result.json").write_text(
+            json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    return result

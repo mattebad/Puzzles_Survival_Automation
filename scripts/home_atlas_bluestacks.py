@@ -330,6 +330,7 @@ class BlueStacksHostZoomTransport:
         if sys.platform != "win32":
             raise RuntimeError("BlueStacks host zoom is Windows-only")
         self.user32 = ctypes.windll.user32
+        self.kernel32 = ctypes.windll.kernel32
         self.user32.IsWindowVisible.argtypes = (wintypes.HWND,)
         self.user32.IsWindowVisible.restype = wintypes.BOOL
         self.user32.GetWindowTextLengthW.argtypes = (wintypes.HWND,)
@@ -338,6 +339,22 @@ class BlueStacksHostZoomTransport:
         self.user32.GetWindowTextW.restype = ctypes.c_int
         self.user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
         self.user32.SetForegroundWindow.restype = wintypes.BOOL
+        self.user32.BringWindowToTop.argtypes = (wintypes.HWND,)
+        self.user32.BringWindowToTop.restype = wintypes.BOOL
+        self.user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
+        self.user32.ShowWindow.restype = wintypes.BOOL
+        self.user32.GetWindowThreadProcessId.argtypes = (
+            wintypes.HWND,
+            ctypes.POINTER(wintypes.DWORD),
+        )
+        self.user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+        self.kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+        self.user32.AttachThreadInput.argtypes = (
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.BOOL,
+        )
+        self.user32.AttachThreadInput.restype = wintypes.BOOL
         self.user32.GetForegroundWindow.restype = wintypes.HWND
         self.user32.GetAsyncKeyState.argtypes = (ctypes.c_int,)
         self.user32.GetAsyncKeyState.restype = ctypes.c_short
@@ -373,13 +390,33 @@ class BlueStacksHostZoomTransport:
             raise RuntimeError(f"expected exactly one {self.window_title!r} window; found {len(found)}")
         return found[0]
 
-    def zoom_out_once(self) -> None:
-        hwnd = self._unique_window()
-        if not self.user32.SetForegroundWindow(hwnd):
-            raise RuntimeError("could not foreground the exact BlueStacks window")
+    def _foreground_window(self, hwnd: int) -> None:
+        if int(self.user32.GetForegroundWindow()) == hwnd:
+            return
+        self.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+        foreground = self.user32.GetForegroundWindow()
+        current_thread = self.kernel32.GetCurrentThreadId()
+        foreground_thread = (
+            self.user32.GetWindowThreadProcessId(foreground, None) if foreground else 0
+        )
+        attached = bool(
+            foreground_thread
+            and foreground_thread != current_thread
+            and self.user32.AttachThreadInput(current_thread, foreground_thread, True)
+        )
+        try:
+            self.user32.BringWindowToTop(hwnd)
+            self.user32.SetForegroundWindow(hwnd)
+        finally:
+            if attached:
+                self.user32.AttachThreadInput(current_thread, foreground_thread, False)
         time.sleep(0.1)
         if int(self.user32.GetForegroundWindow()) != hwnd:
-            raise RuntimeError("BlueStacks window is not foreground immediately before zoom")
+            raise RuntimeError("could not foreground the exact BlueStacks window")
+
+    def zoom_out_once(self) -> None:
+        hwnd = self._unique_window()
+        self._foreground_window(hwnd)
         rect = wintypes.RECT()
         if not self.user32.GetClientRect(hwnd, ctypes.byref(rect)):
             raise RuntimeError("could not read BlueStacks client bounds")

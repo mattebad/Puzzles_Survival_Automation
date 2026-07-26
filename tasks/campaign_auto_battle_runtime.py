@@ -179,6 +179,9 @@ class CampaignRuntimeController:
         self._awaiting_atlas_chapter_progress = False
         self._remembered_atlas_chapter_distance: float | None = None
         self._remembered_atlas_localization_support: tuple[str, ...] | None = None
+        self._remembered_atlas_pan_direction: str | None = None
+        self._atlas_lost_localization_continuation_sent = False
+        self._auto_confirmed_for_current_battle = False
 
     def _terminal(self, action: CampaignAction, reason: str) -> CampaignRuntimeCommand:
         return CampaignRuntimeCommand(action, "terminal", reason, terminal=True)
@@ -225,6 +228,8 @@ class CampaignRuntimeController:
                 self._awaiting_atlas_chapter_progress = False
                 self._remembered_atlas_chapter_distance = None
                 self._remembered_atlas_localization_support = None
+                self._remembered_atlas_pan_direction = None
+                self._atlas_lost_localization_continuation_sent = False
             elif (
                 self._remembered_atlas_localization_support is not None
                 and decision.localization_support
@@ -299,11 +304,38 @@ class CampaignRuntimeController:
             if not command.terminal:
                 self._remembered_atlas_chapter_distance = decision.distance_to_screen_center_px
                 self._remembered_atlas_localization_support = decision.localization_support
+                self._remembered_atlas_pan_direction = decision.pan_direction
             return command
+        if (
+            decision.kind == "blocked"
+            and self._remembered_atlas_pan_direction is not None
+            and not self._atlas_lost_localization_continuation_sent
+        ):
+            from tasks.campaign_atlas_vision import (
+                HUD_SAFE_PAN_HALF_TRAVEL_STRONG_PX,
+                hud_safe_pan_gesture,
+            )
+
+            self._atlas_lost_localization_continuation_sent = True
+            return self._checked(
+                CampaignRuntimeCommand(
+                    CampaignAction.NAVIGATE_CHAPTER,
+                    "swipe",
+                    "one bounded continuation of the last atlas-directed pan after localization support dropped",
+                    swipe=hud_safe_pan_gesture(
+                        self._remembered_atlas_pan_direction,
+                        travel_px=HUD_SAFE_PAN_HALF_TRAVEL_STRONG_PX,
+                    ).as_swipe(),
+                )
+            )
         return self._terminal(CampaignAction.BLOCKED, decision.reason)
 
     def _initialize_or_reconcile(self, recognition: CampaignFrameRecognition) -> str | None:
         observation = recognition.observation
+        if observation.screen == CampaignScreen.BATTLE and observation.auto_enabled:
+            self._auto_confirmed_for_current_battle = True
+        elif observation.screen not in {CampaignScreen.BATTLE, CampaignScreen.UNKNOWN}:
+            self._auto_confirmed_for_current_battle = False
         if self.progress is None:
             if observation.ap_current is None:
                 return "initial AP is not readable"
@@ -432,10 +464,18 @@ class CampaignRuntimeController:
                 decision.reason,
                 wait_seconds=self.config.battle_poll_seconds,
             )
+        if decision.action == CampaignAction.ENABLE_AUTO and self._auto_confirmed_for_current_battle:
+            return CampaignRuntimeCommand(
+                CampaignAction.WAIT_FOR_BATTLE_RESULT,
+                "wait",
+                "Auto was positively confirmed for this battle; ignore transient disabled-state recognition",
+                wait_seconds=self.config.battle_poll_seconds,
+            )
 
         target = recognition.target(decision.target_identity) if decision.target_identity else None
-        if decision.action == CampaignAction.OPEN_CAMPAIGN and target is None:
-            # Never cycle HOME_PAN_GESTURES; require Home Atlas Campaign entry seam.
+        if decision.action == CampaignAction.OPEN_CAMPAIGN:
+            # Always use the accepted Home Atlas seam. A legacy direct Campaign ROI may be
+            # visible at some Home camera positions but is not an authorized entry target.
             return self._checked(
                 CampaignRuntimeCommand(
                     decision.action,

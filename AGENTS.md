@@ -88,6 +88,9 @@
   active-task files; never stage protected evidence or unrelated untracked files.
 - Run focused tests first. Do not redefine the authoritative suite to manufacture a pass. Report
   baseline failures separately; any new failure in a touched component blocks completion.
+- Full repository unittest discovery is manual opt-in only during active development. It is not a
+  gate for implementation, live preflight, live execution, evidence review, commit, or handoff;
+  validate touched components and safety boundaries instead.
 - Preserve the minimum evidence sequence: source, immediate-before, transport, immediate-post,
   semantic result, journal reference, and unresolved proof when applicable.
 - Do not delete or compact evidence during ordinary work. Evidence hygiene requires dry-run

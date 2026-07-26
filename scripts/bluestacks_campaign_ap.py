@@ -68,12 +68,21 @@ def write_navigation_only_evidence(session: Path, result: dict[str, object]) -> 
 
     status = str(result.get("status") or "unknown")
     reason = str(result.get("reason") or "")
+    navigation_only = bool(result.get("navigation_only", True))
+    progress = result.get("progress")
+    if hasattr(progress, "__dict__"):
+        progress = dict(progress.__dict__)
     row = {
         "status": status,
         "reason": reason,
-        "navigation_only": True,
+        "navigation_only": navigation_only,
         "session": str(session),
         "destination": result.get("destination"),
+        "ap_before": result.get("ap_before"),
+        "ap_after": result.get("ap_after"),
+        "ap_cost": result.get("ap_cost"),
+        "battle_outcome": result.get("battle_outcome"),
+        "progress": progress,
     }
     for name in ("ledger.jsonl", "journal.jsonl", "capability-audit.jsonl"):
         path = session / name
@@ -88,8 +97,8 @@ def write_navigation_only_evidence(session: Path, result: dict[str, object]) -> 
                             "authority": "CampaignRuntimeController",
                             "authorized": status
                             in {"destination_verified", "navigation_only_complete", "completed"},
-                            "transport_observed": True,
-                            "consequence_class": "navigation_only",
+                            "transport_observed": status == "completed" and not navigation_only,
+                            "consequence_class": "navigation_only" if navigation_only else "campaign_ap_auto_battle",
                         },
                         sort_keys=True,
                         default=str,
@@ -267,7 +276,12 @@ def main(argv: list[str] | None = None) -> int:
     last_relocalization_residual_pixels: float | None = None
 
     for step in range(1, args.max_steps + 1):
-        deadline = time.monotonic() + args.recognition_timeout
+        recognition_window = (
+            max(args.recognition_timeout, args.battle_timeout)
+            if battle_started is not None
+            else args.recognition_timeout
+        )
+        deadline = time.monotonic() + recognition_window
         recognition = None
         while time.monotonic() < deadline:
             ordinal += 1
@@ -314,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
                 "target_roi": command.target_roi,
                 "tap_point": command.tap_point,
                 "swipe": command.swipe,
-                "progress": controller.progress,
+                "progress": controller.progress.__dict__ if controller.progress else None,
             },
         )
         print(f"{step:03d} {recognition.observation.screen.value} -> {command.action.value}: {command.reason}")
@@ -333,7 +347,8 @@ def main(argv: list[str] | None = None) -> int:
                     "terminal": "navigation_only_complete",
                     "reason": command.reason,
                     "session": str(session),
-                    "progress": controller.progress,
+                    "navigation_only": True,
+                    "progress": controller.progress.__dict__ if controller.progress else None,
                     "destination": stage.identity,
                     "destination_verification_latency_seconds": time.monotonic() - started,
                     "navigation_input_count": navigation_inputs,
@@ -349,16 +364,26 @@ def main(argv: list[str] | None = None) -> int:
             if command.action == CampaignAction.COMPLETE:
                 result = {
                     "status": "completed",
+                    "terminal": "completed",
                     "reason": command.reason,
                     "session": str(session),
-                    "progress": controller.progress,
+                    "progress": controller.progress.__dict__ if controller.progress else None,
+                    "navigation_only": False,
+                    "destination": stage.identity,
+                    "ap_before": controller.progress.initial_ap if controller.progress else None,
+                    "ap_after": controller.progress.current_ap if controller.progress else None,
+                    "ap_cost": config.ap_cost,
+                    "battle_outcome": "victory" if controller.progress and controller.progress.completed_runs else "defeat",
                 }
             else:
                 result = {
                     "status": "blocked_fail_closed",
+                    "terminal": "blocked_fail_closed",
                     "reason": command.reason,
                     "session": str(session),
-                    "progress": controller.progress,
+                    "progress": controller.progress.__dict__ if controller.progress else None,
+                    "navigation_only": config.navigation_only,
+                    "destination": stage.identity,
                 }
             (session / "result.json").write_text(
                 json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",

@@ -12,6 +12,8 @@ from tasks.campaign_auto_battle import (
     CampaignRouteObservation,
     CampaignScreen,
     CampaignStage,
+    PRODUCTION_REPLAY_VERIFIED,
+    run_campaign_ap_production_zero_transport_replay,
 )
 from tasks.campaign_auto_battle_runtime import (
     CAMPAIGN_HOME_ATLAS_BUILDING_ID,
@@ -527,6 +529,16 @@ class CampaignVisionReplayTests(unittest.TestCase):
         self.assertEqual(_fraction("120/120"), (120, 120))
         self.assertIsNone(_fraction("720/120"))
         self.assertIsNone(_fraction("0/0"))
+
+    @unittest.skipUnless(capture.is_dir(), "ignored local BlueStacks replay is unavailable")
+    def test_production_controller_zero_transport_replay_clears_gate(self):
+        result = run_campaign_ap_production_zero_transport_replay()
+        self.assertEqual(result.status, PRODUCTION_REPLAY_VERIFIED)
+        self.assertEqual(result.transport_count, 0)
+        self.assertFalse(result.dispatch_authorized)
+        self.assertEqual(result.battle_outcome, "victory")
+        self.assertEqual((result.ap_before, result.ap_after, result.ap_cost), (120, 100, 20))
+        self.assertEqual(result.terminal_screen, CampaignScreen.HOME_BASE.value)
 
     def test_project_templates_exist_and_have_expected_shapes(self):
         assets = Path("tasks/assets/campaign_auto_battle/800x1280")

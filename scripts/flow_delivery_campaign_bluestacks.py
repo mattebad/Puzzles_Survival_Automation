@@ -17,10 +17,14 @@ from scripts.flow_delivery_evidence import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+AUTO_BATTLE_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
 DESTINATIONS = ("1-20-9", "1-15-9", "2-2-9")
 CAMPAIGN_RUNNER_ID = "campaign_navigation_only_runner"
 CAMPAIGN_EVIDENCE_VALIDATOR_ID = "campaign_navigation_only_evidence"
 CAMPAIGN_RECOVERY_HANDLER_ID = "campaign_navigation_only_recovery"
+AUTO_BATTLE_RUNNER_ID = "campaign_auto_battle_live_runner"
+AUTO_BATTLE_EVIDENCE_VALIDATOR_ID = "campaign_auto_battle_live_evidence"
+AUTO_BATTLE_RECOVERY_HANDLER_ID = "campaign_auto_battle_live_recovery"
 
 
 def _utc_stamp() -> str:
@@ -478,6 +482,126 @@ def recover_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[st
     )
 
 
+def run_campaign_auto_battle_live(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
+    """Run the explicitly authorized consequential Campaign AP canary through the checked-in adapter."""
+
+    pnsctl = _pnsctl()
+    flow = next(item for item in queue["flows"] if item["flow_id"] == AUTO_BATTLE_FLOW_ID)
+    destination = "1-15-9"
+    costs = {"1-20-9": 16, "1-15-9": 14, "2-2-9": 20}
+    maximum_ap = 120
+    stamp = _utc_stamp()
+    session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / AUTO_BATTLE_FLOW_ID / f"auto-{destination}-{stamp}"
+    session.mkdir(parents=True, exist_ok=False)
+    # The accepted Home Atlas entry localizes and pans from the fresh native Home frame.
+    # Avoid redundant host zoom preparation here; it can surface Android recents before
+    # the operator captures its authoritative starting frame.
+    _ensure_home_surface_before_prep(session)
+    command = [
+        sys.executable,
+        str(REPO_ROOT / "scripts" / "bluestacks_campaign_ap.py"),
+        "--adb", str(pnsctl.BLUESTACKS_ADB),
+        "--serial", pnsctl.BLUESTACKS_SERIAL,
+        "--stage", destination,
+        "--ap-cost", str(costs[destination]),
+        "--ap-budget", str(costs[destination]),
+        "--max-runs", "1",
+        "--execute", "--yes",
+        "--output-directory", str(session),
+    ]
+    completed_process = subprocess.run(
+        command, cwd=REPO_ROOT, capture_output=True, text=True, check=False
+    )
+    (session / "operator-stdout.log").write_text(completed_process.stdout or "", encoding="utf-8")
+    (session / "operator-stderr.log").write_text(completed_process.stderr or "", encoding="utf-8")
+    campaign_session = _resolve_campaign_operator_session(session, destination)
+    result_path = campaign_session / "result.json"
+    if not result_path.is_file():
+        raise pnsctl.OperatorError("Campaign Auto Battle result.json is missing")
+    campaign_result = json.loads(result_path.read_text(encoding="utf-8"))
+    ok = (
+        completed_process.returncode == 0
+        and campaign_result.get("status") == "completed"
+        and campaign_result.get("terminal") == "completed"
+        and campaign_result.get("navigation_only") is False
+        and campaign_result.get("battle_outcome") == "victory"
+    )
+    delivery = {
+        "schema_version": 1,
+        "flow_id": AUTO_BATTLE_FLOW_ID,
+        "status": "completed" if ok else "failed",
+        "serial": pnsctl.BLUESTACKS_SERIAL,
+        "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
+        "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
+        "runtime_owner": lease["owner"],
+        "terminal_runtime_state": "recognized_home" if ok else "safe_blocked_terminal",
+        "destination": destination,
+        "campaign_result": campaign_result,
+        "actions": [{"action_class": "campaign_ap_auto_battle", "destination": destination, "outcome": campaign_result.get("battle_outcome")}],
+        "events_path": "events.jsonl",
+        "ledger_path": "ledger.jsonl",
+        "journal_path": "journal.jsonl",
+        "capability_audit_path": "capability-audit.jsonl",
+        "frames_directory": "frames",
+        "operator_returncode": completed_process.returncode,
+    }
+    (campaign_session / "flow-delivery-result.json").write_text(
+        json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    if not ok:
+        raise pnsctl.OperatorError(
+            f"Campaign Auto Battle failed for {destination}: "
+            f"{campaign_result.get('reason') or completed_process.stderr or completed_process.stdout or 'unknown'}"
+        )
+    return json.dumps(
+        {"status": "completed", "flow_id": AUTO_BATTLE_FLOW_ID, "destination": destination, "session_directory": str(campaign_session), "dispatch": True, "ap_before": campaign_result.get("ap_before"), "ap_after": campaign_result.get("ap_after"), "battle_outcome": campaign_result.get("battle_outcome")},
+        sort_keys=True,
+    )
+
+
+def verify_campaign_auto_battle_live(
+    structure: Mapping[str, Any], queue: Mapping[str, Any], lease: Mapping[str, Any]
+) -> dict[str, Any]:
+    del queue, lease
+    result = structure["result"]
+    if result.get("flow_id") != AUTO_BATTLE_FLOW_ID:
+        raise _pnsctl().OperatorError("Campaign Auto Battle evidence belongs to another flow")
+    campaign = result.get("campaign_result") or {}
+    if campaign.get("status") != "completed" or campaign.get("terminal") != "completed":
+        raise _pnsctl().OperatorError("Campaign Auto Battle evidence is not a completed terminal")
+    if campaign.get("navigation_only") is not False or campaign.get("battle_outcome") not in {"victory", "defeat"}:
+        raise _pnsctl().OperatorError("Campaign Auto Battle consequence/result contract failed")
+    progress = campaign.get("progress") or {}
+    if progress.get("ap_spent") != campaign.get("ap_cost"):
+        raise _pnsctl().OperatorError("Campaign AP ledger does not equal configured cost")
+    if result.get("terminal_runtime_state") != "recognized_home":
+        raise _pnsctl().OperatorError("Campaign Auto Battle did not return to recognized Home")
+    return {"status": "verified", "flow_id": AUTO_BATTLE_FLOW_ID, "destination": result.get("destination"), "session_directory": structure["session_directory"], "ap_before": campaign.get("ap_before"), "ap_after": campaign.get("ap_after"), "battle_outcome": campaign.get("battle_outcome"), "terminal_runtime_state": result["terminal_runtime_state"]}
+
+
+def recover_campaign_auto_battle_live(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
+    del queue, lease
+    pnsctl = _pnsctl()
+    session = (
+        pnsctl.BLUESTACKS_ARTIFACT_ROOT
+        / AUTO_BATTLE_FLOW_ID
+        / f"recovery-home-{_utc_stamp()}"
+    )
+    session.mkdir(parents=True, exist_ok=False)
+    _prepare_canonical_home(session)
+    return json.dumps(
+        {
+            "status": "recovered",
+            "flow_id": AUTO_BATTLE_FLOW_ID,
+            "terminal_runtime_state": "recognized_home",
+            "session_directory": str(session),
+            "dispatch": True,
+            "recovery": "campaign_safe_exit_then_canonical_home",
+        },
+        sort_keys=True,
+    )
+
+
 def register(
     runners: dict[str, Any],
     validators: dict[str, Any],
@@ -486,3 +610,6 @@ def register(
     runners[CAMPAIGN_RUNNER_ID] = run_campaign_navigation_only
     validators[CAMPAIGN_EVIDENCE_VALIDATOR_ID] = verify_campaign_navigation_only
     handlers[CAMPAIGN_RECOVERY_HANDLER_ID] = recover_campaign_navigation_only
+    runners[AUTO_BATTLE_RUNNER_ID] = run_campaign_auto_battle_live
+    validators[AUTO_BATTLE_EVIDENCE_VALIDATOR_ID] = verify_campaign_auto_battle_live
+    handlers[AUTO_BATTLE_RECOVERY_HANDLER_ID] = recover_campaign_auto_battle_live

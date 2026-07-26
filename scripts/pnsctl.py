@@ -83,6 +83,7 @@ FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
     REPO_ROOT / "tasks" / "flow_delivery_bluestacks_registry.json"
 )
 BLUESTACKS_FLOW_IDS = (
+    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
     "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
@@ -709,6 +710,127 @@ def bluestacks_preflight() -> str:
         },
         sort_keys=True,
     )
+
+
+def bluestacks_reload_game() -> str:
+    queue, lease = _load_flow_delivery_state()
+    if lease.get("runtime_ownership_state") != "held":
+        raise OperatorError("the parent must hold BlueStacks runtime ownership")
+    if lease.get("unresolved_action_state") != "clear":
+        raise OperatorError("unresolved action blocks BlueStacks game reload")
+    state = str(_run_fixed_bluestacks_adb("get-state")).strip()
+    if state != "device":
+        raise OperatorError("approved BlueStacks serial is not in device state")
+    resolved_activity = str(
+        _run_fixed_bluestacks_adb(
+            "shell",
+            "cmd",
+            "package",
+            "resolve-activity",
+            "--brief",
+            "-a",
+            "android.intent.action.MAIN",
+            "-c",
+            "android.intent.category.LAUNCHER",
+            PACKAGE,
+        )
+    ).strip().splitlines()[-1]
+    if not resolved_activity.startswith(f"{PACKAGE}/"):
+        raise OperatorError("installed Puzzles & Survival launcher activity was not resolved")
+    _run_fixed_bluestacks_adb("shell", "am", "force-stop", PACKAGE)
+    _run_fixed_bluestacks_adb(
+        "shell", "am", "start", "-W", "-n", resolved_activity
+    )
+    deadline = time.monotonic() + 30.0
+    focused_package = None
+    while time.monotonic() < deadline:
+        focus = str(_run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
+        try:
+            focused_package = _focused_package(focus)
+        except OperatorError:
+            focused_package = None
+        if focused_package == PACKAGE:
+            break
+        time.sleep(1.0)
+    if focused_package != PACKAGE:
+        raise OperatorError("Puzzles & Survival did not return to foreground after reload")
+    return json.dumps(
+        {
+            "status": "reloaded",
+            "flow_id": queue["active_flow_id"],
+            "serial": BLUESTACKS_SERIAL,
+            "foreground_package": focused_package,
+            "dispatch": True,
+            "action": "force_stop_then_start_checked_in_activity",
+            "resolved_activity": resolved_activity,
+        },
+        sort_keys=True,
+    )
+
+
+def bluestacks_dismiss_reload_overlay(
+    expected_frame_sha256: str, expected_frame: Path
+) -> str:
+    queue, lease = _load_flow_delivery_state()
+    if lease.get("runtime_ownership_state") != "held":
+        raise OperatorError("the parent must hold BlueStacks runtime ownership")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_frame_sha256):
+        raise OperatorError("expected frame SHA-256 is invalid")
+    focus = str(_run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
+    if _focused_package(focus) != PACKAGE:
+        raise OperatorError("Puzzles & Survival is not foreground before overlay dismissal")
+    artifact_root = BLUESTACKS_ARTIFACT_ROOT.resolve()
+    reference_path = expected_frame.resolve()
+    try:
+        reference_path.relative_to(artifact_root)
+    except ValueError as exc:
+        raise OperatorError("expected overlay frame must be retained under the BlueStacks artifact root") from exc
+    reference = reference_path.read_bytes()
+    if hashlib.sha256(reference).hexdigest() != expected_frame_sha256:
+        raise OperatorError("expected overlay frame hash does not match retained evidence")
+    before = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
+    if not isinstance(before, bytes):
+        raise OperatorError("reload overlay immediate-before capture failed")
+    import cv2
+    import numpy as np
+
+    reference_image = cv2.imdecode(np.frombuffer(reference, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+    before_image = cv2.imdecode(np.frombuffer(before, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+    if reference_image is None or before_image is None or reference_image.shape != before_image.shape:
+        raise OperatorError("reload overlay reference geometry is invalid")
+    similarity = float(
+        cv2.matchTemplate(before_image, reference_image, cv2.TM_CCOEFF_NORMED)[0, 0]
+    )
+    if similarity < 0.98:
+        raise OperatorError("reload overlay visual identity changed; Back dispatch is not authorized")
+    session = (
+        BLUESTACKS_ARTIFACT_ROOT
+        / queue["active_flow_id"]
+        / f"reload-overlay-dismiss-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    )
+    session.mkdir(parents=True, exist_ok=False)
+    (session / "immediate-before.png").write_bytes(before)
+    _run_fixed_bluestacks_adb("shell", "input", "keyevent", "4")
+    time.sleep(2.0)
+    after = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
+    if not isinstance(after, bytes):
+        raise OperatorError("reload overlay dismissal did not produce a post frame")
+    (session / "immediate-post.png").write_bytes(after)
+    result = {
+        "status": "dismissed",
+        "flow_id": queue["active_flow_id"],
+        "action": "android_back_on_exact_reload_offer_frame",
+        "before_sha256": expected_frame_sha256,
+        "immediate_before_sha256": hashlib.sha256(before).hexdigest(),
+        "visual_similarity": similarity,
+        "after_sha256": hashlib.sha256(after).hexdigest(),
+        "session_directory": str(session),
+        "dispatch": True,
+    }
+    (session / "result.json").write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return json.dumps(result, sort_keys=True)
 
 
 def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
@@ -2975,6 +3097,10 @@ def parser() -> argparse.ArgumentParser:
     bluestacks = sub.add_parser("bluestacks")
     bluestacks_sub = bluestacks.add_subparsers(dest="bluestacks_command", required=True)
     bluestacks_sub.add_parser("preflight")
+    bluestacks_sub.add_parser("reload-game")
+    dismiss_reload_overlay = bluestacks_sub.add_parser("dismiss-reload-overlay")
+    dismiss_reload_overlay.add_argument("--expected-frame-sha256", required=True)
+    dismiss_reload_overlay.add_argument("--expected-frame", type=Path, required=True)
     run_flow = bluestacks_sub.add_parser("run-flow")
     run_flow.add_argument("flow_id", choices=BLUESTACKS_FLOW_IDS)
     run_flow.add_argument("--live", action="store_true")
@@ -3071,6 +3197,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             if args.bluestacks_command == "preflight":
                 output = bluestacks_preflight()
+            elif args.bluestacks_command == "reload-game":
+                output = bluestacks_reload_game()
+            elif args.bluestacks_command == "dismiss-reload-overlay":
+                output = bluestacks_dismiss_reload_overlay(
+                    args.expected_frame_sha256, args.expected_frame
+                )
             elif args.bluestacks_command == "run-flow":
                 output = bluestacks_run_flow(args.flow_id, live=args.live)
             elif args.bluestacks_command == "verify-flow":

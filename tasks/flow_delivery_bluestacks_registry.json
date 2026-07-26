@@ -3,6 +3,12 @@
   "registry_kind": "flow_delivery_bluestacks",
   "purpose": "Map only implemented flow-delivery routes to fixed runner, evidence-validator, recovery-handler, and consequence contracts.",
   "flows": {
+    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": {
+      "runner": "campaign_auto_battle_live_runner",
+      "evidence_validator": "campaign_auto_battle_live_evidence",
+      "recovery_handler": "campaign_auto_battle_live_recovery",
+      "consequence_class": "consequential"
+    },
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
       "runner": "campaign_navigation_only_runner",
       "evidence_validator": "campaign_navigation_only_evidence",

@@ -24,6 +24,10 @@ class FlowDeliveryQueueTests(unittest.TestCase):
     def test_queue_and_policy_schema_are_valid(self) -> None:
         control.validate_queue(self.queue)
         control.validate_policy(self.policy)
+        self.assertEqual(
+            self.queue["active_development_validation_policy"],
+            "focused_component_profiles_only; full_suite_manual_opt_in",
+        )
         self.assertFalse(self.queue["gameplay_scheduler"])
         self.assertEqual(
             self.queue["status_vocabulary"],
@@ -91,7 +95,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         queue["flows"][1]["status"] = "blocked"
         queue["flows"][1]["product_policy_status"] = "prohibited"
         queue["flows"][1]["blocked_reason"] = "test policy"
-        selected = control.FlowDeliveryController().select_next(queue)
+        selected = control.FlowDeliveryController(
+            lease_path=ROOT / ".local-orchestrator" / "orchestrator-test-no-lease.json"
+        ).select_next(queue)
         expected = min(
             (flow for flow in queue["flows"] if flow["status"] == "ready"),
             key=lambda flow: (flow["priority"], flow["flow_id"]),
@@ -125,6 +131,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
             "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+            "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
             "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
             "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
@@ -154,7 +161,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         # override may move that flow from blocked to ready/active (blocked 9, ready+active 7).
         self.assertIn(counts["ready"] + counts["active"], (6, 7))
         self.assertIn(counts["blocked"], (9, 10, 11))
-        self.assertIn(counts["completed"], (4, 5))
+        self.assertIn(counts["completed"], (4, 5, 6))
         self.assertEqual(counts["needs_product_decision"], 1)
         if by_id := {item["flow_id"]: item for item in self.queue["flows"]}:
             integration = by_id["CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"]
@@ -164,9 +171,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
                 self.assertEqual(counts["blocked"], 9)
                 self.assertEqual(counts["completed"], 5)
             elif integration["status"] == "completed":
-                self.assertEqual(counts["ready"] + counts["active"], 6)
-                self.assertEqual(counts["blocked"], 10)
-                self.assertEqual(counts["completed"], 5)
+                self.assertEqual(counts["ready"] + counts["active"], 7)
+                self.assertEqual(counts["blocked"], 9)
+                self.assertEqual(counts["completed"], 6)
             elif integration["status"] == "active":
                 self.assertEqual(counts["ready"] + counts["active"], 7)
                 self.assertEqual(counts["blocked"], 10)
@@ -297,11 +304,15 @@ class FlowDeliveryControllerTests(unittest.TestCase):
                             "evidence_review",
                         }
                     ),
-                    "implementation_review",
+                    "blocked",
                 )
                 result = controller.record_stage(owner="parent", stage=nxt)
             self.assertNotEqual(controller.queue_path.read_bytes(), before)
             self.assertEqual(result["last_completed_stage"], nxt)
+
+    def test_full_validation_is_historical_not_an_active_development_transition(self) -> None:
+        self.assertNotIn("full_validation", control.TRANSITIONS["focused_validation"])
+        self.assertIn("live_preflight", control.TRANSITIONS["focused_validation"])
 
     def test_local_lease_conflict_is_detected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

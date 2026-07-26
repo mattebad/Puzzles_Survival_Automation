@@ -91,7 +91,7 @@
     },
     {
       "fixture_id": "campaign_ap_product_chapter_landmarks",
-      "status": "available",
+      "status": "required_evidence",
       "path": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION/survey-20260724T021222146973Z/annotations",
       "sha256": null,
       "notes": "Chapters 15 and 20 annotated from retained traversal frames; Chapter 2 already present."

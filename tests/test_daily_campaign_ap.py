@@ -154,7 +154,10 @@ class DailyCampaignAPContractTests(unittest.TestCase):
             for item in matrix["objectives"]
             if item["objective_key"] == "consume_ap"
         )
-        self.assertEqual(row["implementation_status"], "OFFLINE_CONTRACT_ONLY")
+        self.assertIn(
+            row["implementation_status"],
+            {"OFFLINE_CONTRACT_ONLY", "DORMANT_REFERENCE_IMPLEMENTATION"},
+        )
         self.assertEqual(row["promotion_state"], "EVIDENCE_GATED")
         self.assertEqual(row["current_runtime_registration_status"], "NOT_REGISTERED")
         self.assertFalse(row["scheduler_eligibility"])

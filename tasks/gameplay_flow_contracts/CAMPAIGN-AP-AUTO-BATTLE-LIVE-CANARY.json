@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "flow_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+  "product_purpose": "User-authorized Campaign AP Auto Battle canary, separate from navigation-only completion and Ultimate Challenge.",
+  "trigger_cadence_type": "evidence_gated",
+  "reset_scope": "single_bounded_live_canary_with_game_day_accounting",
+  "required_starting_context": ["home_canonical"],
+  "shared_primitive_dependencies": [
+    {"primitive_id": "home_navigation_primitives", "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST", "required": true},
+    {"primitive_id": "campaign_atlas_navigation", "version_digest_field": "CAMPAIGN_ATLAS_DIGEST", "required": true}
+  ],
+  "recognized_states": ["home_canonical", "campaign_story", "configured_stage_verified", "lineup", "auto_battle", "battle_result", "home_returned", "blocked"],
+  "transition_contracts": [
+    {"transition_id": "navigate_and_verify_stage", "from": "home_canonical", "to": "configured_stage_verified", "planner": "CampaignRuntimeController", "permitted_input": "navigate_configured_stage", "postconditions": ["allowlisted destination and static AP cost positively recognized"], "terminal_outcomes": ["blocked"]},
+    {"transition_id": "start_auto_battle", "from": "configured_stage_verified", "to": "auto_battle", "planner": "CampaignRuntimeController", "permitted_input": "start_auto_battle", "postconditions": ["Challenge and Hero Lineup Challenge used", "Auto enabled", "displayed AP covers cost"], "terminal_outcomes": ["action_performed", "blocked"], "evidence_gate_id": "campaign_production_replay"},
+    {"transition_id": "reconcile_battle", "from": "auto_battle", "to": "battle_result", "planner": "CampaignRuntimeController", "permitted_input": "continue_verified_result", "postconditions": ["victory or handled defeat recognized", "AP ledger reconciled exactly", "refill remains unopened"], "terminal_outcomes": ["action_performed", "blocked"]},
+    {"transition_id": "return_home", "from": "battle_result", "to": "home_returned", "planner": "CampaignRuntimeController", "permitted_input": "return_canonical_home", "postconditions": ["canonical Home recognized"], "terminal_outcomes": ["complete_for_reset", "blocked"]}
+  ],
+  "permitted_inputs": ["navigate_configured_stage", "start_auto_battle", "continue_verified_result", "return_canonical_home", "sweep", "blitz", "auto_complete", "ap_refill"],
+  "consequential_action_class": "campaign_ap_auto_battle",
+  "cost_quantity_requirements": {"free_only": false, "maximum_cost": 20, "quantity": 1, "resource_or_currency": "CAMPAIGN_AP", "notes": "First canary is 1-20-9 cost 16; optional 1-15-9 cost 14 and 2-2-9 cost 20 only while the six-attempt budget remains."},
+  "completion_identity": "campaign-ap:auto-battle:live-canary",
+  "terminal_outcomes": ["action_performed", "deferred", "complete_for_reset", "blocked", "manual_required"],
+  "cooldown_deferred_behavior": "Stop before refill when displayed AP is below the configured static cost; calculate natural recovery at one AP per 360 seconds and require a fresh game-day-bound read.",
+  "bounded_recovery_behavior": "After any consequential input, require exact successor recognition; ambiguous result is unresolved and forbids retry. Defeat returns Home without repeating the stage.",
+  "product_policy_refs": [
+    {"policy_id": "campaign-supported-destinations", "source": "tasks/flow_delivery_product_policy.json"},
+    {"policy_id": "campaign-ap-budget", "source": "tasks/flow_delivery_product_policy.json"},
+    {"policy_id": "campaign-rejects-ultimate-challenge", "source": "tasks/flow_delivery_product_policy.json"}
+  ],
+  "evidence_requirements": [
+    "campaign_production_replay satisfied by retained zero-transport production recognizer/controller/policy/persistence replay",
+    "fresh native 800x1280 immediate-before and immediate-post evidence for every consequential input",
+    "exact AP before/after and static-cost ledger plus journal reference",
+    "canonical Home terminal and unresolved-action proof"
+  ],
+  "evidence_gates": [
+    {"gate_id": "campaign_production_replay", "status": "satisfied", "blocks": ["start_auto_battle"], "required_evidence": [".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/production-replay/result.json"], "permitted_inputs": [], "notes": "Zero-transport replay verified with production recognizer/controller and exact AP ledger; live transport remains separately authorized by this flow."},
+    {"gate_id": "campaign_live_canary_evidence", "status": "evidence_required", "blocks": ["campaign_auto_battle_live"], "required_evidence": ["live source/immediate-before/transport/immediate-post/result/journal evidence"], "permitted_inputs": []}
+  ],
+  "replay_fixture_requirements": [
+    {"fixture_id": "retained_native_campaign_mechanics", "status": "required_evidence", "path": null, "notes": "Used only for production-path zero-transport replay; no live authorization."},
+    {"fixture_id": "campaign_negative_policy", "status": "synthetic_policy_ok", "path": null, "notes": "Covers refill, Sweep, Blitz, Auto Complete, Ultimate Challenge, and ambiguous-result fail-closed behavior."}
+  ],
+  "scenarios": [
+    {"scenario_id": "campaign_auto_battle_live", "mode": "consequential_supervised", "start_state": "home_canonical", "terminal_state": "home_returned", "permitted_inputs": ["navigate_configured_stage", "start_auto_battle", "continue_verified_result", "repeat_while_ap_affordable", "return_canonical_home"], "forbidden_inputs": ["sweep", "blitz", "auto_complete", "ap_refill"], "required_transitions": ["navigate_and_verify_stage", "start_auto_battle", "reconcile_battle", "repeat_until_ap_below_cost", "return_home"], "evidence_gate_ids": ["campaign_production_replay", "campaign_live_canary_evidence"], "notes": "Repeat 1-20-9 Auto Battle while displayed AP is at least the static 16 cost; maximum_live_attempts=10."}
+  ],
+  "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "unknown_stage_or_cost", "sweep", "blitz", "auto_complete", "ap_or_resource_refill", "ultimate_challenge"],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "current",
+  "supervised_live_proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false
+}

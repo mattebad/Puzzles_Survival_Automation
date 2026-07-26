@@ -103,6 +103,7 @@ VALIDATION_PROFILES = {
     "detector",
     "consequential",
 }
+VALIDATION_RECEIPT_STAGES = {"focused_validation", "full_validation"}
 READY_FLOW_PACKET_FIELDS = {
     "acceptance_criteria",
     "scope_prohibitions",
@@ -116,14 +117,12 @@ READY_FLOW_PACKET_FIELDS = {
 }
 REQUIRED_RECEIPTS_BY_STAGE = {
     "focused_validation": {"focused_tests", "architecture_tests"},
-    "full_validation": {"full_suite"},
 }
-# Navigation-only flows never issue consequential input, so they validate through a
-# proportionate navigation profile instead of the full discovery suite. Consequential
-# and promotion flows continue to require the full suite unchanged.
+# Navigation-only and consequential flows use proportionate focused validation during active
+# development. Full discovery remains an optional historical/manual receipt, never a progression
+# requirement.
 NAVIGATION_ONLY_RECEIPTS_BY_STAGE = {
     "focused_validation": {"focused_tests"},
-    "full_validation": {"shared_navigation"},
 }
 # Process/governance overhead deferred for navigation-only discovery. Automatic
 # runner evidence (frames, events, terminal result, unresolved proof) stays
@@ -227,7 +226,7 @@ TRANSITIONS = {
     "implementation": {"implementation_review", "focused_validation", "blocked"},
     "implementation_review": {"correction", "focused_validation", "blocked"},
     "correction": {"implementation", "implementation_review", "focused_validation", "blocked"},
-    "focused_validation": {"full_validation", "blocked"},
+    "focused_validation": {"live_preflight", "evidence_review", "commit", "blocked"},
     "full_validation": {"live_preflight", "evidence_review", "commit", "blocked"},
     "live_preflight": {"live_execution", "blocked"},
     "live_execution": {"evidence_review", "blocked"},
@@ -1456,14 +1455,16 @@ class FlowDeliveryController:
                     "full_suite": None,
                 }
             raise FlowDeliveryError("duplicate counted gameplay completion")
-        receipt_status = self.evaluate_full_suite_receipt_for_rollover(
-            flow_id=flow_id,
-            repository_head=resolved,
-            working_tree_fingerprint=fingerprint,
-            receipts=full_suite_receipts,
-            transition_changed_validated_authority=transition_changed_validated_authority,
-        )
-        receipt_digest = receipt_status.get("receipt_digest")
+        # Full discovery is deliberately outside active-development completion and rollover.
+        # Keep the legacy result shape so older consumers can read the record, but never require,
+        # search for, or execute a full-suite receipt here.
+        receipt_status = {
+            "required": False,
+            "reuse": False,
+            "reason": "full_suite_manual_only",
+            "receipt": None,
+        }
+        receipt_digest = None
         try:
             parent_progress.append_counted_completion(
                 entry,
@@ -1943,7 +1944,7 @@ class FlowDeliveryController:
             raise FlowDeliveryError("validation receipt belongs to another HEAD")
         if receipt["working_tree_fingerprint"] != lease["expected_working_tree_fingerprint"]:
             raise FlowDeliveryError("validation receipt belongs to another working tree")
-        if receipt["delivery_stage"] not in REQUIRED_RECEIPTS_BY_STAGE:
+        if receipt["delivery_stage"] not in VALIDATION_RECEIPT_STAGES:
             raise FlowDeliveryError("validation receipt has an unsupported delivery stage")
         if receipt["validation_profile"] not in VALIDATION_PROFILES:
             raise FlowDeliveryError("validation receipt has an unsupported profile")
@@ -2010,6 +2011,13 @@ class FlowDeliveryController:
             raise FlowDeliveryError("queue and lease stages do not match")
         if current not in STAGES or stage not in TRANSITIONS[current]:
             raise FlowDeliveryError(f"invalid stage transition: {current} -> {stage}")
+        if current == "focused_validation":
+            if stage == "live_preflight" and not flow["requires_bluestacks_live"]:
+                raise FlowDeliveryError("non-live flow cannot enter live preflight")
+            if stage in {"evidence_review", "commit"} and flow["requires_bluestacks_live"]:
+                raise FlowDeliveryError(
+                    "live flow must pass live preflight before evidence review or commit"
+                )
         if current == "full_validation" and flow["requires_bluestacks_live"] and stage != "live_preflight":
             raise FlowDeliveryError("live-required flow cannot bypass live preflight")
         # `parent_reviewed` is retained as a compatibility flag for existing

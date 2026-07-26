@@ -1,10 +1,24 @@
 {
   "schema_version": 1,
   "backlog_path": "BACKLOG.md",
-  "backlog_sha256": "a6c8dce7624edc4e23752825c40b2dba1c872f92429d4cd0ce4df6e1e7b03fd1",
-  "generated_from_head": "e6ecb381dfb8f3ebeb4b8d2135632eefe977f52c",
-  "task_count": 22,
+  "backlog_sha256": "78a1d2b1ca7a4fd20444fe676ddcd9e602955dc048c0a810764eb5089f663a07",
+  "generated_from_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+  "task_count": 23,
   "tasks": [
+    {
+      "task_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+      "exact_markdown_heading": "### CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+      "normalized_status": "Completed (2026-07-26; all three destinations passed consequential production-path Auto",
+      "section_start": 575382,
+      "section_end": 586619,
+      "section_digest": "a9bb7acf173358f8c15e8efed07dec58bb3cb07a1f7cf874c530700660c9e678",
+      "direct_dependency_ids": [
+        "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+      ],
+      "queue_flow_ids": [
+        "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
+      ]
+    },
     {
       "task_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
       "exact_markdown_heading": "### CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",

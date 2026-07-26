@@ -2,6 +2,7 @@
   "schema_version": 2,
   "queue_kind": "development_flow_delivery",
   "purpose": "Select and track serial gameplay-flow development work. This is not the gameplay scheduler and never authorizes gameplay input.",
+  "active_development_validation_policy": "focused_component_profiles_only; full_suite_manual_opt_in",
   "gameplay_scheduler": false,
   "status_vocabulary": [
     "ready",
@@ -1261,6 +1262,350 @@
         "initial_live_validation": "one_supervised_free_praise",
         "repeat_praise": "prohibited_without_new_authorization_and_cooldown_eligibility",
         "production": "not_registered_scheduler_disabled"
+      }
+    },
+    {
+      "flow_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+      "title": "Spend Campaign AP through the production Auto Battle controller",
+      "kind": "consequential_auto_battle_canary",
+      "priority": 25,
+      "status": "completed",
+      "backlog_task_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+      "dependencies": [
+        "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+      ],
+      "implementation_entrypoints": [
+        "tasks/campaign_auto_battle.py",
+        "tasks/campaign_auto_battle_runtime.py",
+        "tasks/campaign_auto_battle_vision.py",
+        "tasks/campaign_atlas_chapter_nav.py",
+        "scripts/bluestacks_campaign_ap.py",
+        "scripts/home_atlas_bluestacks.py",
+        "scripts/flow_delivery_campaign_bluestacks.py",
+        "scripts/pnsctl.py",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
+        "BACKLOG.md",
+        "CURRENT_HANDOFF.md"
+      ],
+      "navigation_model": "accepted_home_atlas_plus_campaign_atlas_stage9_then_production_auto_battle",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "User-authorized consequential Campaign Auto Battle validation: completed AP exhaustion at 1-20-9, then one bounded live canary each at 2-2-9 and 1-15-9 after natural AP regeneration, with maximum_live_attempts=15 and one live operator.",
+      "consequence_policy": "Auto Battle only after Challenge and Hero Lineup Challenge; after every verified victory tap through the result, reconcile displayed AP exactly, repeat while AP is at least 16, then stop before refill and return canonical Home.",
+      "product_policy_status": "supervised_consequential_validation",
+      "execution_product_policy_status": "explicitly_approved",
+      "navigation_only": false,
+      "maximum_live_attempts": 15,
+      "live_attempt_count": 15,
+      "live_attempts": [
+        {
+          "ordinal": 1,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T04:49:31.716487Z",
+          "finished_at": "2026-07-26T04:50:14.329536Z",
+          "session_directory": null,
+          "terminal_outcome": "blocked",
+          "diagnosis": "Zero-input pre-dispatch block: canonical Home zoom could not foreground the exact BlueStacks window; no transport occurred and no AP was spent. Retry only after BlueStacks is explicitly foregrounded or foreground binding is corrected."
+        },
+        {
+          "ordinal": 2,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T05:13:17.363276Z",
+          "finished_at": "2026-07-26T05:13:57.976243Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-20-9-20260726T051327426346Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Zero-input pre-dispatch block: exact BlueStacks window binding still found 0 windows ('BlueStacks App Player 4') during canonical Home zoom-out; pnsctl preflight package/native checks passed, but no runtime transport occurred and no AP was spent. Prohibited next retry: identical run until the supported foreground/window binding is corrected."
+        },
+        {
+          "ordinal": 3,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T05:21:22.060575Z",
+          "finished_at": "2026-07-26T05:22:31.336652Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-20-9-20260726T052205907192Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Zero-input pre-dispatch block despite fresh pnsctl preflight and operator report that BlueStacks is open: supported home_atlas foreground binding still found 0 windows titled 'BlueStacks App Player 4' during canonical Home zoom-out. No transport occurred and no AP was spent. Prohibited next retry: identical live run until supported BlueStacks window binding is corrected or a materially different supported runtime condition is established."
+        },
+        {
+          "ordinal": 4,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T05:37:58.506994Z",
+          "finished_at": "2026-07-26T05:38:42.447244Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-20-9-20260726T053815406697Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Zero-input pre-dispatch block under desktop-level project execution: exact BlueStacks App Player 4 window was found, but SetForegroundWindow was denied by the Windows foreground lock. No game transport occurred and no AP was spent. Next attempt requires corrected project foreground activation; identical retry prohibited."
+        },
+        {
+          "ordinal": 5,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T05:39:35.143108Z",
+          "finished_at": "2026-07-26T05:40:06.849885Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-20-9-20260726T053945250229Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Zero-input pre-dispatch implementation block: corrected foreground helper bound GetCurrentThreadId from user32 instead of kernel32 and failed during transport construction. No game transport occurred and no AP was spent. Final attempt permitted only after correcting and directly validating helper initialization."
+        },
+        {
+          "ordinal": 6,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T05:40:42.448005Z",
+          "finished_at": "2026-07-26T05:53:08.887549Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-20-9-20260726T054051474381Z",
+          "terminal_outcome": "completed",
+          "diagnosis": "Completed consequential canary with retained recovery evidence: destination 1-20-9 verified at AP 120 and cost 16; Challenge, lineup confirm, and Auto-enable dispatched; WINNER/Loot/Tap-to-continue verified; resumed production controller reconciled AP 120->104 with ap_spent=16, regeneration=0, completed_runs=1; bounded project recovery returned recognized canonical Home at recovery-home-20260726T055115151171Z. No refill or second run."
+        },
+        {
+          "ordinal": 7,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T06:11:57.961363Z",
+          "finished_at": "2026-07-26T06:13:26.452102Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-20-9-20260726T061210473110Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Zero-AP pre-Campaign block: Home recognizer exposed a legacy direct campaign-entry ROI, the tap produced an identical Home frame, and the controller correctly prohibited retry. No Challenge, lineup, battle, or AP spend occurred. Corrective hypothesis: force all OPEN_CAMPAIGN actions through the accepted Home Atlas home.building.campaign path even when the legacy direct ROI is visible."
+        },
+        {
+          "ordinal": 8,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T06:13:53.580776Z",
+          "finished_at": "2026-07-26T06:15:10.136338Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-20-9-20260726T061403864752Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Zero-AP pre-entry block: canonical Home preparation captured the Android recent-apps surface instead of Puzzles & Survival, so Home localization correctly failed before Campaign input. No Challenge or AP spend occurred. Further automation is prohibited until com.global.ztmslg is positively foreground again."
+        },
+        {
+          "ordinal": 9,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T06:16:22.124879Z",
+          "finished_at": "2026-07-26T06:17:17.401225Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-20-9-20260726T061631863448Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Zero-AP pre-entry block after confirmed freeze/recovery: accepted Home Atlas entry could not localize the current Home frame and failed closed with LOCALIZATION_NOT_RECOGNIZED before Campaign entry. No Challenge or AP spend occurred. User authorizes project-supported game reload on freeze before final attempt."
+        },
+        {
+          "ordinal": 10,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T06:22:51.426380Z",
+          "finished_at": "2026-07-26T06:49:00Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/attempt-10-exhaustion-resume/1-20-9-20260726T064013483035Z",
+          "terminal_outcome": "completed",
+          "diagnosis": "Completed the authorized 1-20-9 AP-exhaustion canary: seven verified Auto Battle victories, AP 111->2, ap_spent=112, natural regeneration=3, stopped below the 16 AP cost, and returned to recognized Home. No refill, paid action, Sweep, Blitz, Auto Complete, or Ultimate Challenge."
+        },
+        {
+          "ordinal": 11,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T18:54:24Z",
+          "finished_at": "2026-07-26T18:56:45Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-2-2-9-20260726T185424401057Z/2-2-9-20260726T185429794931Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Navigation-bearing zero-AP block: undersized local OCR selected an unrelated Chapter 2-like badge and reached Chapter 3; exact chapter-map mismatch stopped before Challenge. Corrected by rejecting undersized chapter digits."
+        },
+        {
+          "ordinal": 12,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T19:01:22Z",
+          "finished_at": "2026-07-26T19:04:45Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-2-2-9-20260726T190122399712Z/2-2-9-20260726T190128367763Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Navigation-bearing zero-AP block: enlarged OCR accepted an oversized text strip instead of the Chapter 2 medallion; unchanged Story map triggered the identical-input guard. Corrected with medallion-sized geometry and a bounded local search."
+        },
+        {
+          "ordinal": 13,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T19:08:16Z",
+          "finished_at": "2026-07-26T19:12:45Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-2-2-9-20260726T190816562624Z/2-2-9-20260726T190821934448Z",
+          "terminal_outcome": "completed",
+          "diagnosis": "Completed 2-2-9: one verified Auto Battle victory, AP 120->100, cost 20, regeneration 0, and recognized Home terminal."
+        },
+        {
+          "ordinal": 14,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T19:13:00Z",
+          "finished_at": "2026-07-26T19:16:35Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-15-9-20260726T191300995213Z/1-15-9-20260726T191306611467Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Navigation-bearing zero-AP block after two atlas-directed pans: localization support dropped with Chapter 15 edge-clipped behind HUD. Added one bounded continuation of the last atlas direction; no OCR-derived residual pan."
+        },
+        {
+          "ordinal": 15,
+          "active_flow": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+          "lease_owner": "cursor-grok-4.5-parent",
+          "lease_session": "pns-flow-delivery-80eb3dd0-3256-4604-afd9-916fe8923af8",
+          "repository_head": "3f3fd3a33a5b38e43e8d5ffce953f3a5f74be991",
+          "started_at": "2026-07-26T19:18:52Z",
+          "finished_at": "2026-07-26T19:24:30Z",
+          "session_directory": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY/auto-1-15-9-20260726T191852393138Z/1-15-9-20260726T191858180172Z",
+          "terminal_outcome": "completed",
+          "diagnosis": "Completed 1-15-9: one verified Auto Battle victory, AP 101->88, cost 14, natural regeneration 1, and recognized Home terminal."
+        }
+      ],
+      "focused_tests": [
+        "tests/test_campaign_auto_battle.py",
+        "tests/test_campaign_auto_battle_runtime.py",
+        "tests/test_campaign_ap.py",
+        "tests/test_daily_campaign_ap.py",
+        "tests/test_campaign_stage9_destination_replay.py",
+        "tests/test_campaign_story_destinations.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_flow_delivery_authority_consistency.py",
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_governance_validation.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "ap_before",
+        "ap_after",
+        "battle_outcome",
+        "home_return_latency_seconds"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "None for this completed flow. Ultimate Challenge requires a separate atomic task/chat and must not reuse Campaign destination authority.",
+      "last_completed_stage": "completed",
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+      "acceptance_criteria": [
+        "production recognizer/controller/policy/persistence zero-transport replay clears campaign_production_replay",
+        "1-20-9 Home to repeated Challenge to lineup to Auto Battle loops until displayed AP is below 16, then Home",
+        "displayed AP delta equals configured cost plus independently observed natural regeneration",
+        "full source/immediate-before/transport/immediate-post/result/journal evidence retained",
+        "no refill, Sweep, Blitz, Auto Complete, Ultimate Challenge, registration, scheduler, or M6"
+      ],
+      "scope_prohibitions": [
+        "no Sweep, Blitz, Auto Complete, or Ultimate Challenge",
+        "no AP refill, Buy Now, premium or paid action",
+        "no identical blind retry after consequential failure",
+        "no production registration or scheduler enablement",
+        "no account/login/tutorial/CAPTCHA automation",
+        "no ad hoc ADB/plink/Docker bypass",
+        "no push"
+      ],
+      "reference_docs": [
+        "docs/campaign-auto-battle.md",
+        "docs/runtime-input-safety-policy.md",
+        "docs/journal-lease-policy.md"
+      ],
+      "direct_dependencies": [
+        "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+      ],
+      "implementation_allowlist_seed": [
+        "AGENTS.md",
+        "tasks/campaign_auto_battle.py",
+        "tasks/campaign_auto_battle_runtime.py",
+        "tasks/campaign_auto_battle_vision.py",
+        "tasks/campaign_atlas_chapter_nav.py",
+        "scripts/bluestacks_campaign_ap.py",
+        "scripts/home_atlas_bluestacks.py",
+        "scripts/flow_delivery_campaign_bluestacks.py",
+        "scripts/pnsctl.py",
+        "scripts/flow_delivery_context.py",
+        "scripts/flow_delivery_control.py",
+        "scripts/run_flow_delivery_validation.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
+        "tests/test_campaign_auto_battle.py",
+        "tests/test_campaign_auto_battle_runtime.py",
+        "tests/test_campaign_ap.py",
+        "tests/test_daily_campaign_ap.py",
+        "tests/test_campaign_stage9_destination_replay.py",
+        "tests/test_campaign_story_destinations.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_flow_delivery_authority_consistency.py",
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_flow_delivery_token_context_hygiene.py",
+        "tests/test_flow_delivery_lean_workflow.py",
+        "tests/test_flow_delivery_parent_conversation_rollover.py",
+        "tests/test_flow_scenario_attempts.py",
+        "tests/test_flow_delivery_validation_profiles.py",
+        "tasks/flow_delivery_validation_profiles.json",
+        "tests/test_governance_validation.py",
+        "BACKLOG.md",
+        "CURRENT_HANDOFF.md",
+        "tasks/backlog_task_index.json",
+        "tasks/flow_delivery_queue.json",
+        "docs/validation/campaign-ap-auto-battle-live-canary-manifest.json"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "campaign-auto-battle-1-20-9",
+          "destination": "1-20-9",
+          "mode": "consequential_auto_battle"
+        },
+        {
+          "id": "campaign-auto-battle-1-15-9",
+          "destination": "1-15-9",
+          "mode": "consequential_auto_battle_optional"
+        },
+        {
+          "id": "campaign-auto-battle-2-2-9",
+          "destination": "2-2-9",
+          "mode": "consequential_auto_battle_optional"
+        }
+      ],
+      "required_terminal_states": [
+        "completed",
+        "blocked_fail_closed",
+        "unresolved_no_retry"
+      ],
+      "completion_tests": [
+        "tests/test_campaign_auto_battle.py",
+        "tests/test_campaign_auto_battle_runtime.py",
+        "tests/test_campaign_ap.py",
+        "tests/test_daily_campaign_ap.py",
+        "tests/test_campaign_stage9_destination_replay.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_governance_validation.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "production_replay_then_1-20-9_canary",
+        "ap_execution": "approved_auto_battle_but_evidence_gated_until_replay_passes",
+        "maximum_live_attempts": "15",
+        "refill": "prohibited",
+        "ultimate_challenge": "not_a_campaign_destination",
+        "registration": "not_registered_scheduler_disabled"
       }
     },
     {

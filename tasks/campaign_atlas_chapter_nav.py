@@ -238,7 +238,7 @@ def pan_direction_toward_screen_point(screen_x: float, screen_y: float) -> str:
 
 ORB_PREFERRED_RESIDUAL_PX = 12.0
 PROJECTION_ON_SCREEN_MARGIN_PX = 40.0
-LOCAL_OCR_PAD_PX = 120
+LOCAL_OCR_PAD_PX = 240
 
 
 def projection_is_on_screen(screen_x: float, screen_y: float) -> bool:
@@ -284,26 +284,32 @@ def ocr_chapter_roi_near_projection(
     best: tuple[float, Box] | None = None
     for gray in variants:
         for image in (gray, 255 - gray):
-            data = pytesseract.image_to_data(
-                image,
-                config="--psm 6 -c tessedit_char_whitelist=0123456789",
-                output_type=pytesseract.Output.DICT,
-            )
-            for index, text in enumerate(data["text"]):
-                token = str(text).strip()
-                if token != needle:
-                    continue
-                left = int(data["left"][index])
-                top = int(data["top"][index])
-                width = int(data["width"][index])
-                height = int(data["height"][index])
-                if width < 8 or height < 8:
-                    continue
-                roi = (x0 + left, y0 + top, x0 + left + width, y0 + top + height)
-                center = _box_center(roi)
-                dist = ((center[0] - cx) ** 2 + (center[1] - cy) ** 2) ** 0.5
-                if best is None or dist < best[0]:
-                    best = (float(dist), roi)
+            enlarged = cv2.resize(image, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+            for processed, scale in ((image, 1.0), (enlarged, 2.0)):
+                for psm in (6, 11):
+                    data = pytesseract.image_to_data(
+                        processed,
+                        config=f"--psm {psm} -c tessedit_char_whitelist=0123456789",
+                        output_type=pytesseract.Output.DICT,
+                    )
+                    for index, text in enumerate(data["text"]):
+                        token = str(text).strip()
+                        if token != needle:
+                            continue
+                        left = int(round(int(data["left"][index]) / scale))
+                        top = int(round(int(data["top"][index]) / scale))
+                        width = int(round(int(data["width"][index]) / scale))
+                        height = int(round(int(data["height"][index]) / scale))
+                        # Native chapter medallion digits are materially larger than HUD/event
+                        # badge counters. Reject tiny isolated digits before proximity ranking so
+                        # a projected Chapter 2 cannot bind the unrelated lower-left "2x3" badge.
+                        if width < 14 or height < 24 or width > 60 or height > 60:
+                            continue
+                        roi = (x0 + left, y0 + top, x0 + left + width, y0 + top + height)
+                        center = _box_center(roi)
+                        dist = ((center[0] - cx) ** 2 + (center[1] - cy) ** 2) ** 0.5
+                        if best is None or dist < best[0]:
+                            best = (float(dist), roi)
     return None if best is None else best[1]
 
 

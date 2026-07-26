@@ -163,10 +163,34 @@ class LeanWorkflowTests(unittest.TestCase):
         )
 
     def test_runtime_safety_remains_independent_of_delegation(self) -> None:
+        self.assertIn("live_preflight", control.TRANSITIONS["focused_validation"])
+        self.assertIn("evidence_review", control.TRANSITIONS["focused_validation"])
+        self.assertIn("commit", control.TRANSITIONS["focused_validation"])
         self.assertIn("live_preflight", control.TRANSITIONS["full_validation"])
         self.assertIn("live_execution", control.TRANSITIONS["live_preflight"])
+        self.assertEqual(
+            control.required_receipts_for("consequential", "full_validation"),
+            set(),
+        )
         self.assertIn("unresolved_action_state", control.REQUIRED_LEASE_FIELDS)
         self.assertIn("runtime_ownership_state", control.REQUIRED_LEASE_FIELDS)
+
+    def test_live_preflight_can_follow_focused_validation_without_full_suite(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            controller = self.make_controller(root)
+            flow_id = self.set_live_execution(controller)
+            queue = json.loads(controller.queue_path.read_text(encoding="utf-8"))
+            flow = next(item for item in queue["flows"] if item["flow_id"] == flow_id)
+            flow["last_completed_stage"] = "focused_validation"
+            controller.queue_path.write_text(json.dumps(queue) + "\n", encoding="utf-8")
+            lease = json.loads(controller.lease_path.read_text(encoding="utf-8"))
+            lease["active_stage"] = "focused_validation"
+            controller.lease_path.write_text(json.dumps(lease) + "\n", encoding="utf-8")
+
+            result = controller.record_stage(owner="parent", stage="live_preflight")
+
+            self.assertEqual(result["last_completed_stage"], "live_preflight")
 
     def test_live_attempt_budget_and_retry_diagnosis_remain_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -273,6 +297,14 @@ class LeanWorkflowTests(unittest.TestCase):
             good_path = root / "good.json"
             good_path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
             controller.record_validation_receipt(owner="parent", receipt_path=good_path)
+            architecture = dict(receipt)
+            architecture["validation_profile"] = "architecture_tests"
+            unsigned_architecture = dict(architecture)
+            unsigned_architecture.pop("receipt_digest")
+            architecture["receipt_digest"] = control._canonical_digest(unsigned_architecture)
+            architecture_path = root / "architecture.json"
+            architecture_path.write_text(json.dumps(architecture) + "\n", encoding="utf-8")
+            controller.record_validation_receipt(owner="parent", receipt_path=architecture_path)
             result = controller.record_stage(owner="parent", stage="focused_validation")
             self.assertEqual(result["last_completed_stage"], "focused_validation")
 
