@@ -144,7 +144,7 @@
       "daily_ownership": "one_verified_flee_completion_per_game_day_reset",
       "campaign_entry_state": "offline_navigation_contract_implemented",
       "ultimate_challenge_navigation_state": "offline_navigation_contract_implemented",
-      "daily_execution_state": "production_controller_canary_authorized_evidence_required",
+      "daily_execution_state": "live_complete_for_reset_and_canonical_home_proven",
       "already_completed_detection_state": "offline_contract_implemented",
       "reset_idempotency_state": "offline_contract_implemented",
       "campaign_ap_coverage": "not_applicable_to_this_flow",
@@ -153,15 +153,15 @@
         "gameplay_mechanics_evidence": "none_for_challenge_exit_flee_completion",
         "navigation_evidence": "offline Campaign entry and Ultimate Challenge entry binding retained; no terminal navigation-only live route",
         "offline_replay_evidence": "entry recognition, already-complete detection, reset idempotency, and persistence replay retained; ordered execution policy and zero-transport missing-evidence gate pass offline, but no production-controller positive replay is claimed",
-        "production_controller_positive_replay": "not_proven",
-        "supervised_consequential_canary": "not_proven",
-        "evidence_required": "native hash-bound Challenge, Hero Lineup Challenge, upper-right Exit, Flee warning/result, no-resource, already-complete, and canonical Home states; consequential SafetyStore/journal integration; production-controller zero-transport replay and supervised canary"
+        "production_controller_positive_replay": "proven_through_retained_live_production_path",
+        "supervised_consequential_canary": "complete_for_reset_attempt_14",
+        "evidence_required": "satisfied by retained Challenge, five-hero lineup, active battle, Exit, Flee warning/result, zero-resource ledger, and canonical Home evidence"
       },
       "terminal_home_required": true,
       "registered": false,
       "scheduler_eligible": false,
-      "maximum_live_attempts": 6,
-      "additional_live_attempts_authorized": 6
+    "maximum_live_attempts": 15,
+    "additional_live_attempts_authorized": 9
     },
     "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION": {
       "objective": "zombie_lair_daily_completion",

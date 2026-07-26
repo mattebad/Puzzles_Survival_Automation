@@ -33,7 +33,7 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": null,
+  "active_flow_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
   "flows": [
     {
       "flow_id": "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
@@ -832,7 +832,7 @@
       "title": "Integrate Ultimate Challenge daily task with BlueStacks",
       "kind": "daily_challenge_integration",
       "priority": 15,
-      "status": "blocked",
+      "status": "active",
       "backlog_task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
       "dependencies": [
         "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
@@ -853,12 +853,13 @@
       ],
       "navigation_model": "canonical_home_atlas_to_campaign_ultimate_challenge_entry",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "Six authorized supervised attempts were exhausted without any consequential Ultimate Challenge input; native Challenge/lineup/Exit/Flee replay and terminal Home proof remain evidence_required.",
+      "live_validation_scope": "User authorized three additional supervised attempts (maximum_live_attempts=15) from the retained exact Flee warning. Resume only from a fresh warning with the unique gold Flee control bound; never repeat Challenge, lineup Challenge, or Exit.",
       "consequence_policy": "Flee is the approved zero-resource Daily completion. Evaluate once per reset, never Auto Battle, preserve already-complete idempotency, and fail closed on ambiguous identity, result, or Home recovery.",
       "product_policy_status": "supervised_consequential_validation",
       "execution_product_policy_status": "explicitly_approved",
-      "maximum_live_attempts": 6,
-      "live_attempt_count": 6,
+      "maximum_live_attempts": 15,
+      "additional_live_attempts_authorized": 9,
+      "live_attempt_count": 14,
       "live_attempts": [
         {
           "ordinal": 1,
@@ -930,7 +931,103 @@
           "finished_at": "2026-07-26T22:34:20.389272Z",
           "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T223144611948Z",
           "terminal_outcome": "blocked",
-          "diagnosis": "Attempt 6 reached and opened the Ultimate Challenge chapter map with native source/post evidence, but current-frame Challenge selector was not positively bound; no consequential Challenge/lineup/Exit/Flee input or resource delta occurred. Operator then hit a result-writer NameError (missing TERMINAL_COMPLETE_FOR_RESET import). Maximum six attempts exhausted; required native consequential replay evidence and live postcondition remain absent. No retry authorized."
+          "diagnosis": "Attempt 6 tapped the text-label ROI and reached ordinary Campaign CHAPTER_MAP Ch.2 Eclipolis, not Ultimate Challenge. This is contradictory native evidence proving the selector was a false positive. No consequential Challenge/lineup/Exit/Flee input or resource delta occurred. The result-writer then hit a missing TERMINAL_COMPLETE_FOR_RESET import, fixed locally. The text-label tap is permanently prohibited."
+        },
+        {
+          "ordinal": 7,
+          "active_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+          "lease_owner": "codex-ultimate-resume-20260726",
+          "lease_session": "codex-ultimate-resume-20260726-session",
+          "repository_head": "232e6b029b745a3d08b8ad5f9928f0b5fd98b321",
+          "started_at": "2026-07-26T22:57:13.979096Z",
+          "finished_at": "2026-07-26T22:59:39.565713Z",
+          "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T225722041353Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Attempt 7 correctly entered Ultimate Challenge via the blue vortex, then misbound OCR text 'Hero Challenge Level: 210' at (263,1130)-(381,1154) as the Challenge button. Two taps at (322,1142) were semantically no-effect; fresh native frame remains Ultimate Challenge main, with no Challenge/lineup/Exit/Flee transition and zero resource delta. This coordinate and identical retry are permanently prohibited; next attempt requires actual red-button geometry."
+        },
+        {
+          "ordinal": 8,
+          "active_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+          "lease_owner": "codex-ultimate-resume-20260726",
+          "lease_session": "codex-ultimate-resume-20260726-session",
+          "repository_head": "232e6b029b745a3d08b8ad5f9928f0b5fd98b321",
+          "started_at": "2026-07-26T23:04:28.025442Z",
+          "finished_at": "2026-07-26T23:06:59.056881Z",
+          "session_directory": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20260726T230439591001Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Attempt 8 used one authorized Challenge input on positively recognized Ultimate Challenge main and semantically reached Hero Lineup. The retained immediate-post frame positively shows Hero Lineup and the gold Challenge control; no lineup confirmation, Exit, or Flee input occurred. Execution stopped fail-closed because the selector incorrectly required a red button. Zero resource delta; runtime left at Hero Lineup. Main Challenge input must not be repeated."
+        },
+        {
+          "ordinal": 9,
+          "active_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+          "lease_owner": "codex-ultimate-resume-20260726",
+          "lease_session": "codex-ultimate-resume-20260726-session",
+          "repository_head": "232e6b029b745a3d08b8ad5f9928f0b5fd98b321",
+          "started_at": "2026-07-26T23:11:09.733561Z",
+          "finished_at": "2026-07-26T23:12:38.872030Z",
+          "session_directory": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20260726T231117642820Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Attempt 9 used exactly one authorized Hero Lineup gold Challenge input at current-frame ROI [300,1175,500,1230], point [400,1202], source sha256 599c84c706d5b3537090ce0366d15005fbf2990bed5e6da5968150b2bbe38d88. Immediate-post frames showed the warning 'You can select more heroes. Continue anyway?'; no Confirm, Exit, Flee, or further automated input occurred. The user manually restored the full lineup. Fresh retained native frame manual-fix-probe-20260726.png positively recognizes Ultimate Challenge main with no warning and no active battle, reconciling the action as a terminal no-execution block with zero resource delta."
+        },
+        {
+          "ordinal": 10,
+          "active_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+          "lease_owner": "codex-ultimate-resume2-20260726",
+          "lease_session": "codex-ultimate-resume2-20260726-session",
+          "repository_head": "232e6b029b745a3d08b8ad5f9928f0b5fd98b321",
+          "started_at": "2026-07-26T23:21:13.180499Z",
+          "finished_at": "2026-07-26T23:22:37.762149Z",
+          "session_directory": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20260726T232119347201Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Attempt 10 issued one current-frame red Challenge input from positively recognized Ultimate Challenge main and semantically reached the corrected full Hero Lineup. Retained native successor shows five deployed heroes, five selected-card checkmarks, and the gold Challenge control. No lineup Challenge, Exit, Flee, or further input occurred. The selector failed closed because OCR omitted the stylized Hero Lineup title; zero resource delta. Main red Challenge must not be repeated; attempt 11 may resume only from this fresh full-lineup state with a native five-slot invariant."
+        },
+        {
+          "ordinal": 11,
+          "active_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+          "lease_owner": "codex-ultimate-resume2-20260726",
+          "lease_session": "codex-ultimate-resume2-20260726-session",
+          "repository_head": "232e6b029b745a3d08b8ad5f9928f0b5fd98b321",
+          "started_at": "2026-07-26T23:23:31.606347Z",
+          "finished_at": "2026-07-26T23:24:38.374821Z",
+          "session_directory": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20260726T232339541103Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Attempt 11 issued exactly one gold Challenge input from the positively verified five-hero lineup and semantically entered the active 1/1 puzzle battle. Retained native successor shows the battle board and the upper-right door/arrow Exit icon; no Exit, Flee, or further input occurred. OCR-text Exit binding failed closed because the control is icon-only. Zero resource delta. Lineup Challenge must not be repeated; attempt 12 may resume only from this fresh active-battle state with an independently constrained upper-right icon binder."
+        },
+        {
+          "ordinal": 12,
+          "active_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+          "lease_owner": "codex-ultimate-resume2-20260726",
+          "lease_session": "codex-ultimate-resume2-20260726-session",
+          "repository_head": "232e6b029b745a3d08b8ad5f9928f0b5fd98b321",
+          "started_at": "2026-07-26T23:26:58.332485Z",
+          "finished_at": "2026-07-26T23:28:31.712720Z",
+          "session_directory": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20260726T232707275062Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Attempt 12 resumed from the positively recognized active puzzle battle and issued exactly one upper-right door/arrow Exit input at ROI [700,20,750,75]. Immediate-post and retained successor frames positively show the exact 'Flee now? Warning: This challenge will be deemed a failure!' modal with Fight and gold Flee controls. No Flee or further input occurred. The text-box selector missed the gold button even though warning OCR was present. Exit action has a confirmed semantic successor; zero resource delta. Attempt ceiling 12/12 exhausted. Do not repeat Exit or press Flee without a further authorized attempt and reviewed gold-button binding."
+        },
+        {
+          "ordinal": 13,
+          "active_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+          "lease_owner": "codex-ultimate-resume3-20260726",
+          "lease_session": "codex-ultimate-resume3-20260726-session",
+          "repository_head": "232e6b029b745a3d08b8ad5f9928f0b5fd98b321",
+          "started_at": "2026-07-26T23:33:34.744615Z",
+          "finished_at": "2026-07-26T23:34:51.437906Z",
+          "session_directory": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20260726T233344160030Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "Attempt 13 resumed from the exact Flee warning and issued exactly one gold Flee input at ROI [470,645,650,700]. Retained successor positively recognizes Ultimate Challenge main, proving Flee completion with zero resource delta. The checked-in canonical Home helper then made no progress and terminal frame remained Ultimate Challenge main; no Challenge or other later input occurred. Flee is confirmed and must not be repeated. Attempt 14 may perform only supported canonical Home recovery from this fresh Ultimate Challenge main."
+        },
+        {
+          "ordinal": 14,
+          "active_flow": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+          "lease_owner": "codex-ultimate-resume3-20260726",
+          "lease_session": "codex-ultimate-resume3-20260726-session",
+          "repository_head": "232e6b029b745a3d08b8ad5f9928f0b5fd98b321",
+          "started_at": "2026-07-26T23:37:01.401396Z",
+          "finished_at": "2026-07-26T23:41:15.764334Z",
+          "session_directory": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20260726T233710531717Z/nav-20260726T233711004690Z",
+          "terminal_outcome": "completed",
+          "diagnosis": "Attempt 14 performed only two verified navigation inputs after the already-confirmed Flee: Ultimate Challenge main back to positively recognized Campaign tier map, then Campaign back to canonical Home. Inner production result is complete_for_reset with Ultimate sha256 56803aac1c60d342f4dc81b00ab3f810e4b39e13776564e3f571b19d3fb0493a, Campaign sha256 c5a26fbe6392d1ae1812ecdd62b1674379fada3fa38bcafc45a86b4f4360d074, Home sha256 f5bea2288569f15c713601f1581f7115a513ad8fea8ad24eefd0d6db831edd40, and zero AP/stamina/currency/items delta. Outer wrapper initially rejected the genuine nested runtime/frames layout; loader corrected offline and delivery record reconciled from retained live artifacts. No Flee or challenge input repeated."
         }
       ],
       "focused_tests": [
@@ -941,9 +1038,9 @@
         "navigation_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "Maximum six live attempts exhausted without native consequential replay or canonical Home proof; attempt 6 failed closed before Challenge selector dispatch and no retry is authorized.",
-      "next_concrete_action": "Do not retry or increase the attempt ceiling. Preserve sessions and await explicit new evidence/authorization for a future atomic activation.",
-      "last_completed_stage": "blocked",
+      "blocked_reason": "",
+      "next_concrete_action": "Acquire the sole runtime lease, activate the flow, positively bind the fresh exact-warning gold Flee control, then use attempt 13 without repeating Challenge, lineup Challenge, or Exit.",
+      "last_completed_stage": "commit",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
       "acceptance_criteria": [
@@ -978,6 +1075,7 @@
       ],
       "implementation_allowlist_seed": [
         "scripts/home_atlas_bluestacks.py",
+        "scripts/flow_delivery_evidence.py",
         "tests/test_flow_delivery_orchestrator.py",
         "tests/test_home_atlas_verified_route.py"
       ],

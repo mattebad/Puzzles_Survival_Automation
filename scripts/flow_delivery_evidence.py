@@ -46,6 +46,9 @@ def require_operator_evidence(
         _require_nonempty_file(session / name, role="operator evidence")
 
     frames_dir = session / "frames"
+    frames = sorted(frames_dir.glob("*.png")) if frames_dir.is_dir() else []
+    if not frames:
+        frames_dir = session / "runtime" / "frames"
     if not frames_dir.is_dir():
         raise FlowEvidenceIntegrityError("required operator frames directory is missing")
     frames = sorted(frames_dir.glob("*.png"))

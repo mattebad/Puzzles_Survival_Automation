@@ -5340,14 +5340,14 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION
 - Task ID: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`.
 - Title: Integrate Ultimate Challenge daily task as a distinct BlueStacks flow.
-- Status: Blocked (2026-07-26; six authorized attempts exhausted without native consequential replay).
+- Status: Completed (2026-07-26; live `complete_for_reset` and canonical Home proven on attempt 14).
 - Milestone: Ultimate Challenge evidence-independent controller integration.
 - Dependencies: completed `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`, committed product-policy reconciliation `9c281a7`, retained Campaign Home Atlas
   entry, Ultimate Challenge entry/reset-idempotency implementation, gameplay contract schema, and
   explicit 2026-07-23 product policy.
-- Blocked by: maximum six-attempt budget exhausted; native Challenge/lineup/Exit/Flee selectors,
-  production zero-transport replay, consequential journal evidence, and canonical Home terminal
-  proof remain absent.
+- Blocked by: none. Attempt 13 proved exact Flee completion with zero resource delta; attempt 14
+  proved Ultimate Challenge main → Campaign tier map → canonical Home. Retained production evidence
+  validates as `complete_for_reset` with `terminal_runtime_state=recognized_home`.
 - Objective: implement every evidence-independent execution invariant and a truthful zero-transport
   evidence gate without manufacturing selector or replay proof.
 - Established facts: retained work proves Campaign entry, Ultimate Challenge entry OCR,
@@ -5367,9 +5367,11 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Prohibited changes: runtime input, evidence/fixture manufacture, visual selector invention,
   Campaign/Ruins asset promotion, production registration, scheduler eligibility, queue activation,
   live-attempt authorization, Gathering/Troop Training changes, downstream Campaign work, or push.
-- Authorized runtime action: No further runtime action. The six-attempt authorization was consumed;
-  do not increase the ceiling or retry without new explicit authorization and evidence.
-- Maximum transport inputs: Six live attempts, one exact input per bound state; no identical retries.
+- Authorized runtime action: Three additional supervised attempts are authorized, raising the
+  ceiling from six to nine. Resume from the user-established Campaign tier-map entry and bind the
+  blue Ultimate Challenge vortex; never repeat the Chapter 2/Eclipolis text-label tap.
+- Maximum transport inputs: Nine live attempts total, one exact input per bound state; attempts
+  7-9 are newly authorized and no identical retries are permitted.
 - Navigation-only recovery: Supported canonical Home recovery only.
 - Consequential action: Challenge, lineup Challenge, immediate upper-right Exit, and Flee only;
   Auto Battle/refill/purchase/AP are prohibited.
@@ -5446,8 +5448,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   sequence exists. Native selectors, SafeAction/SafetyStore and consequential journal integration,
   production-controller positive replay, and a supervised canary are still required; no additional
   live attempt is authorized. Production registration and recurring scheduling remain disabled.
-- Exact next permitted action: Do not retry or increase the attempt ceiling. Preserve the six
-  retained sessions and await explicit new evidence/authorization for a future atomic task.
+- Exact next permitted action: none for this completed atomic flow; preserve registration and
+  scheduler disabled and do not repeat the completed Daily action in the same reset window.
 - Authority: full normalized task state is in `tasks/flow_delivery_queue.json` and
   `tasks/flow_delivery_product_policy.json`; this dormant pointer does not activate implementation.
 

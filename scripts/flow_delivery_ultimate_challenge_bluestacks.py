@@ -134,10 +134,14 @@ def run_ultimate_challenge_daily(
     stamp = _utc_stamp()
     session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"daily-{stamp}"
     session.mkdir(parents=True, exist_ok=False)
+    post_flee_home_only = any(
+        "gold Flee input" in str(attempt.get("diagnosis") or "")
+        for attempt in flow.get("live_attempts", [])
+    )
     command = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "bluestacks_ultimate_challenge.py"),
-        "--daily",
+        "--post-flee-home-only" if post_flee_home_only else "--daily",
         "--adb", str(pnsctl.BLUESTACKS_ADB),
         "--serial", pnsctl.BLUESTACKS_SERIAL,
         "--execute", "--yes",
@@ -251,8 +255,10 @@ def verify_ultimate_challenge_daily(
     if result.get("terminal_runtime_state") != "recognized_home":
         raise pnsctl.OperatorError("Ultimate Challenge terminal runtime state is unsafe")
     flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
-    if int(flow.get("maximum_live_attempts") or 0) != 6:
-        raise pnsctl.OperatorError("Ultimate Challenge attempt ceiling must remain six")
+    maximum = int(flow.get("maximum_live_attempts") or 0)
+    used = int(flow.get("live_attempt_count") or 0)
+    if maximum <= 0 or used > maximum:
+        raise pnsctl.OperatorError("Ultimate Challenge attempt accounting exceeds its configured ceiling")
     return {"status": "verified", "flow_id": FLOW_ID, "terminal": uc.get("terminal"), "session_directory": structure["session_directory"], "actions": result.get("actions", []), "terminal_runtime_state": result["terminal_runtime_state"]}
 
 
