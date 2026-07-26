@@ -2,7 +2,7 @@
 {
   "schema_version": 2,
   "branch": "main",
-  "head": "f2b3386633008fb5db1f8a235f2627facc7b5abb",
+  "head": "8510f5423f19ee8bb7d210fedaec4aa78e45bd96",
   "ahead_behind": {"ahead": 0, "behind": 0},
   "attributable_dirty_paths": [],
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", "evidence/"],
