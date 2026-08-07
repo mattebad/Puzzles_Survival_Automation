@@ -2123,6 +2123,32 @@ class FlowDeliveryController:
         attempt["terminal_outcome"] = outcome
         attempt["diagnosis"] = diagnosis or attempt["diagnosis"]
         attempt["session_directory"] = session_directory
+        zero_input = False
+        if outcome == "blocked" and session_directory:
+            events_path = Path(session_directory) / "events.jsonl"
+            try:
+                event_rows = [
+                    json.loads(line)
+                    for line in events_path.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise FlowDeliveryError("zero-input reconciliation requires a readable event journal") from exc
+            zero_input = bool(event_rows) and not any(
+                row.get("type") == "dispatch" for row in event_rows
+            )
+        if zero_input:
+            observation = {**attempt, "input_count": 0, "consumes_live_attempt": False}
+            flow.setdefault("zero_input_observations", []).append(observation)
+            flow["live_attempts"].pop()
+            flow["live_attempt_count"] = len(flow["live_attempts"])
+            lease["live_terminal_evidence"] = True
+            validate_queue(queue)
+            _atomic_write_json(self.queue_path, queue)
+            self._refresh_expected_worktree(lease)
+            lease["heartbeat_timestamp"] = utc_now()
+            _atomic_write_json(self.lease_path, lease)
+            return deepcopy(observation)
         lease["live_terminal_evidence"] = outcome in TERMINAL_ATTEMPT_OUTCOMES
         if outcome == "unresolved":
             lease["unresolved_action_state"] = "unresolved"

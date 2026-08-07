@@ -1985,7 +1985,7 @@
       "flow_id": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
       "title": "Migrate Ruins Challenge entry and return to the canonical Home Atlas",
       "kind": "navigation_migration",
-      "priority": 20,
+      "priority": 9,
       "status": "blocked",
       "backlog_task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
       "dependencies": [],
@@ -1996,8 +1996,10 @@
         "tasks/ruins_challenge_runtime.py",
         "tasks/ruins_challenge_vision.py",
         "scripts/home_atlas_bluestacks.py",
+        "scripts/flow_delivery_control.py",
         "tasks/flow_delivery_bluestacks_registry.json",
-        "tasks/gameplay_flow_contracts/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION.json"
+        "tasks/gameplay_flow_contracts/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION.json",
+        "CURRENT_HANDOFF.md"
       ],
       "navigation_model": "dedicated_route_to_canonical_home_atlas",
       "requires_bluestacks_live": true,
@@ -2009,15 +2011,16 @@
       "live_attempts": [],
       "focused_tests": [
         "tests/test_ruins_challenge.py",
-        "tests/test_home_atlas_verified_route.py"
+        "tests/test_home_atlas_verified_route.py",
+        "tests/test_campaign_atlas_collector.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "navigation_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "Fresh native Home source is zoomed_in; canonical Home Atlas localization is unavailable and the existing zoom recovery depends on prohibited host-window enumeration/title matching. No transport input was dispatched.",
-      "next_concrete_action": "Replace direct building binding and repeated Back recovery with canonical Home Atlas navigation and safe exit.",
+      "blocked_reason": "Current task process cannot see the active HD-Player desktop window; accepted BlueStacksHostZoomTransport found zero exact windows before wheel dispatch in two fresh native-frame-gated checks. No supported pnsctl action can correct cross-session foreground binding; identical retry prohibited.",
+      "next_concrete_action": "Activate Ruins, automatically normalize Home zoom through the accepted bounded recovery, then bind home.building.ruins from a fresh canonical frame and complete the navigation-only route.",
       "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
@@ -2047,10 +2050,13 @@
         "tasks/ruins_challenge_runtime.py",
         "tasks/ruins_challenge_vision.py",
         "scripts/home_atlas_bluestacks.py",
+        "scripts/flow_delivery_control.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/gameplay_flow_contracts/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION.json",
         "tests/test_ruins_challenge.py",
-        "tests/test_home_atlas_verified_route.py"
+        "tests/test_home_atlas_verified_route.py",
+        "tests/test_campaign_atlas_collector.py",
+        "CURRENT_HANDOFF.md"
       ],
       "live_validation_scenarios": [
         {
@@ -2064,12 +2070,57 @@
       ],
       "completion_tests": [
         "tests/test_ruins_challenge.py",
-        "tests/test_home_atlas_verified_route.py"
+        "tests/test_home_atlas_verified_route.py",
+        "tests/test_campaign_atlas_collector.py"
       ],
       "consequential_stage_policy": {
         "initial_live_validation": "navigation_only",
         "challenge_combat": "prohibited"
-      }
+      },
+      "zero_input_observations": [
+        {
+          "ordinal": 1,
+          "active_flow": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+          "lease_owner": "codex-ruins-home-atlas",
+          "lease_session": "ruins-home-atlas-20260807",
+          "repository_head": "7934bb781563edd362890c1ed0c56dbab429ed7e",
+          "started_at": "2026-08-07T05:06:06.953113Z",
+          "finished_at": "2026-08-07T05:08:26.540218Z",
+          "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\RUINS-CHALLENGE-HOME-ATLAS-MIGRATION\\nav-20260807T050611653643Z\\ruins-challenge-20260807T050612196801Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "zero_input_home_recognizer_gate_corrected_from_native_frame",
+          "input_count": 0,
+          "consumes_live_attempt": false
+        },
+        {
+          "ordinal": 1,
+          "active_flow": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+          "lease_owner": "codex-ruins-home-atlas",
+          "lease_session": "ruins-home-atlas-20260807",
+          "repository_head": "7934bb781563edd362890c1ed0c56dbab429ed7e",
+          "started_at": "2026-08-07T05:10:28.375244Z",
+          "finished_at": "2026-08-07T05:11:51.980064Z",
+          "session_directory": ".local-captures\\flow-delivery\\RUINS-CHALLENGE-HOME-ATLAS-MIGRATION\\nav-20260807T051032576400Z\\ruins-challenge-20260807T051033118317Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "host_zoom_transport_failed_before_dispatch_record_no_wheel_evidence",
+          "input_count": 0,
+          "consumes_live_attempt": false
+        },
+        {
+          "ordinal": 1,
+          "active_flow": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+          "lease_owner": "codex-ruins-home-atlas",
+          "lease_session": "ruins-home-atlas-20260807",
+          "repository_head": "7934bb781563edd362890c1ed0c56dbab429ed7e",
+          "started_at": "2026-08-07T05:12:29.106267Z",
+          "finished_at": "2026-08-07T05:13:22.026892Z",
+          "session_directory": ".local-captures\\flow-delivery\\RUINS-CHALLENGE-HOME-ATLAS-MIGRATION\\nav-20260807T051232931405Z\\ruins-challenge-20260807T051233457119Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "accepted_host_zoom_transport_has_no_visible_windows_in_current_desktop_session",
+          "input_count": 0,
+          "consumes_live_attempt": false
+        }
+      ]
     },
     {
       "flow_id": "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",

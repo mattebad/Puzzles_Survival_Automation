@@ -849,6 +849,13 @@ def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
     if contract is None or contract["runner"] not in _BLUESTACKS_FLOW_RUNNERS:
         raise OperatorError("FLOW_DELIVERY_RUNNER_UNAVAILABLE")
     if not live:
+        if flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
+            queue, lease = _load_flow_delivery_state(require_runtime_held=False)
+            if queue["active_flow_id"] != flow_id:
+                raise OperatorError("only the active development flow may run")
+            if lease.get("active_stage") not in {"focused_validation", "live_preflight"}:
+                raise OperatorError("Ruins zero-transport replay requires focused validation or live preflight")
+            return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](queue, lease, live=False)
         return json.dumps(
             {
                 "status": "dry_run",

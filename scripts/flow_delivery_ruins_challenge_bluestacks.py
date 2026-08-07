@@ -39,7 +39,7 @@ def _operator_result(stdout: str) -> dict[str, Any]:
 
 
 def run_ruins_challenge_home_atlas(
-    queue: Mapping[str, Any], lease: Mapping[str, Any]
+    queue: Mapping[str, Any], lease: Mapping[str, Any], *, live: bool = True
 ) -> str:
     """Run exactly Home -> Ruins Challenge -> verified safe exit -> Home."""
 
@@ -55,9 +55,10 @@ def run_ruins_challenge_home_atlas(
         "--reset-identity", "local-2026-08-06-ruins-home-atlas",
         "--current-day", "Thu",
         "--navigation-only",
-        "--execute", "--yes",
         "--output-directory", str(root),
     ]
+    if live:
+        command.extend(("--execute", "--yes"))
     completed = subprocess.run(command, cwd=REPO_ROOT, text=True, capture_output=True, check=False)
     (root / "operator-stdout.log").write_text(completed.stdout or "", encoding="utf-8")
     (root / "operator-stderr.log").write_text(completed.stderr or "", encoding="utf-8")
@@ -74,6 +75,12 @@ def run_ruins_challenge_home_atlas(
     if not events.is_file():
         raise pnsctl.OperatorError("Ruins route produced no transport/capture event journal")
     terminal = ruins.get("status") == "completed" and ruins.get("reason") == "verified_safe_exit_to_home"
+    event_rows = [
+        json.loads(line)
+        for line in events.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    zero_transport = not live and not any(row.get("type") == "dispatch" for row in event_rows)
     # These are real route-accounting records, not placeholders: the flow-level ledger
     # binds the child event journal and the navigation-only contract to this invocation.
     accounting = {
@@ -89,7 +96,7 @@ def run_ruins_challenge_home_atlas(
     delivery = {
         "schema_version": 1,
         "flow_id": FLOW_ID,
-        "status": "completed" if terminal else "failed",
+        "status": "completed" if terminal else "dry_run" if zero_transport else "failed",
         "serial": pnsctl.BLUESTACKS_SERIAL,
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
@@ -106,6 +113,14 @@ def run_ruins_challenge_home_atlas(
         "resource_delta": 0,
     }
     (session / "flow-delivery-result.json").write_text(json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if zero_transport:
+        return json.dumps({
+            "status": "dry_run",
+            "flow_id": FLOW_ID,
+            "session_directory": str(session),
+            "dispatch": False,
+            "reason": ruins.get("reason"),
+        }, sort_keys=True)
     if not terminal:
         raise pnsctl.OperatorError("Ruins navigation route did not prove safe exit to Home")
     return json.dumps({"status": "completed", "flow_id": FLOW_ID, "session_directory": str(session), "dispatch": True}, sort_keys=True)
