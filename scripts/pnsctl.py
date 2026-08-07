@@ -132,6 +132,10 @@ def _register_checked_in_bluestacks_handlers() -> None:
         from flow_delivery_ultimate_challenge_bluestacks import (
             register as register_ultimate_challenge,
         )
+    try:
+        from scripts.flow_delivery_ruins_challenge_bluestacks import register as register_ruins
+    except ImportError:
+        from flow_delivery_ruins_challenge_bluestacks import register as register_ruins
 
     register_campaign(
         _BLUESTACKS_FLOW_RUNNERS,
@@ -144,6 +148,11 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
     register_ultimate_challenge(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+    register_ruins(
         _BLUESTACKS_FLOW_RUNNERS,
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,

@@ -15,22 +15,32 @@
     }
   ],
   "recognized_states": [
-    "contract_declared",
-    "evidence_required"
+    "home_localized",
+    "ruins_challenge_recognized",
+    "home_returned"
   ],
   "state_transitions": [
     {
-      "from": "contract_declared",
-      "to": "evidence_required",
-      "via": "missing_gameplay_evidence",
-      "notes": "Challenge consequence remains policy-gated."
+      "from": "home_localized",
+      "to": "ruins_challenge_recognized",
+      "via": "current_frame_home_atlas_ruins_binding",
+      "notes": "Navigation only; the Challenge surface is recognized but never entered."
+    },
+    {
+      "from": "ruins_challenge_recognized",
+      "to": "home_returned",
+      "via": "revalidated_safe_exit",
+      "notes": "One safe navigation exit must produce a recognized Home successor."
     }
   ],
   "permitted_inputs": [
-    "none_until_implemented"
+    "navigation_only_home_atlas_ruins_tap",
+    "navigation_only_safe_exit"
   ],
   "local_postconditions": [
-    "evidence_required"
+    "recognized_ruins_challenge",
+    "recognized_home_returned",
+    "resource_delta_zero"
   ],
   "consequential_action_class": "none_declared",
   "cost_quantity_requirements": {
@@ -40,30 +50,32 @@
     "resource_or_currency": null,
     "notes": "Challenge consequence remains policy-gated."
   },
-  "completion_identity": "ruins-challenge-home-atlas-migration:complete",
+  "completion_identity": "ruins-challenge-home-atlas-migration:navigation-only-complete",
   "terminal_outcomes": [
-    "blocked",
-    "manual_required"
+    "navigation_only_complete",
+    "blocked"
   ],
-  "cooldown_deferred_behavior": "evidence_required",
-  "bounded_recovery_behavior": "evidence_required",
+  "cooldown_deferred_behavior": "not_applicable_navigation_only",
+  "bounded_recovery_behavior": "one_revalidated_safe_exit_then_block",
   "evidence_requirements": [
-    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
-    "Challenge consequence remains policy-gated."
+    "fresh native 800x1280 Home source and current-frame home.building.ruins binding",
+    "fresh recognized Ruins Challenge screen",
+    "immediate-before and immediate-post evidence for the one safe exit",
+    "recognized canonical Home successor with zero resource delta"
   ],
   "replay_fixture_requirements": [
     {
       "fixture_id": "flow_entry",
-      "status": "required_evidence",
+      "status": "production_path_required",
       "path": null,
-      "notes": "Not fabricated in this task."
+      "notes": "Live evidence is retained by the approved pnsctl flow runner."
     }
   ],
   "live_validation_scenarios": [
     {
-      "id": "ruins-challenge-home-atlas-migration-pending",
-      "mode": "blocked_until_policy",
-      "notes": "Challenge consequence remains policy-gated."
+      "id": "ruins-challenge-nav-home-roundtrip",
+      "mode": "navigation_only",
+      "notes": "Challenge, combat, chest, Exchange, purchase, reward, and resource actions remain prohibited."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -75,6 +87,6 @@
     "ambiguous_account_or_server_identity",
     "blocking_unknown_modal"
   ],
-  "implementation_status": "contract_only",
-  "proof_state": "evidence_required"
+  "implementation_status": "navigation_only_runner",
+  "proof_state": "live_evidence_pending"
 }

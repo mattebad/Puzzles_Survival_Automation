@@ -15,6 +15,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueStacksRuntime, NativeRuntimePort
+from tasks.home_atlas import load_home_atlas
+from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
 from tasks.ruins_challenge import (
     RuinsAvailability,
     RuinsChestState,
@@ -43,6 +45,7 @@ class RuinsIntegratedRoute:
         claim_chests: bool = False,
         allow_optional_second: bool = False,
         excluded_challenges: set[str] | None = None,
+        navigation_only: bool = False,
         post_input_delay: float = 1.0,
         recognition_timeout: float = 25.0,
     ) -> None:
@@ -51,6 +54,7 @@ class RuinsIntegratedRoute:
         self.current_day = current_day
         self.claim_chests = claim_chests
         self.allow_optional_second = allow_optional_second
+        self.navigation_only = navigation_only
         self.post_input_delay = post_input_delay
         self.recognition_timeout = recognition_timeout
         self.controller = RuinsRuntimeController(
@@ -64,13 +68,48 @@ class RuinsIntegratedRoute:
         return captured, recognize_ruins_frame(captured.frame, reset_identity=self.reset_identity)
 
     def _return_home(self, captured, recognition, actions: int) -> IntegratedRouteResult:
-        for ordinal in range(1, 4):
-            if recognition.observation.home_base_recognized:
-                return IntegratedRouteResult("completed", "returned_home", actions, str(self.runtime.session))
-            self.runtime.back(captured, action_key=f"ruins:return-home:{ordinal}")
-            time.sleep(self.post_input_delay)
-            captured, recognition = self._observe_list(f"return-home-post-{ordinal}")
-        return IntegratedRouteResult("blocked", "home_postcondition_not_recognized", actions, str(self.runtime.session))
+        if recognition.observation.home_base_recognized:
+            return IntegratedRouteResult("completed", "returned_home", actions, str(self.runtime.session))
+        if (
+            not recognition.observation.recognized
+            or recognition.observation.screen_identity != "RUINS_CHALLENGE"
+            or recognition.observation.safe_back_control != RuinsControlState.VISIBLE_ENABLED
+        ):
+            return IntegratedRouteResult("blocked", "safe_exit_source_not_recognized", actions, str(self.runtime.session))
+        immediate_before, rebound = self._observe_list("ruins-safe-exit-immediate-before")
+        if (
+            not rebound.observation.recognized
+            or rebound.observation.screen_identity != "RUINS_CHALLENGE"
+            or rebound.observation.safe_back_control != RuinsControlState.VISIBLE_ENABLED
+        ):
+            return IntegratedRouteResult("blocked", "safe_exit_revalidation_failed", actions, str(self.runtime.session))
+        self.runtime.back(immediate_before, action_key=f"ruins:safe-exit:{immediate_before.sha256}")
+        time.sleep(self.post_input_delay)
+        settled, successor = self._observe_list("ruins-safe-exit-immediate-post")
+        if not successor.observation.home_base_recognized:
+            return IntegratedRouteResult("blocked", "safe_exit_home_successor_not_recognized", actions + 1, str(self.runtime.session))
+        return IntegratedRouteResult("completed", "verified_safe_exit_to_home", actions + 1, str(self.runtime.session))
+
+    def _current_frame_ruins_binding(self, captured):
+        atlas_path = ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+        atlas = load_home_atlas(atlas_path)
+        localization = BlueStacksHomeLocalizer(atlas, atlas_path).localize(captured.frame)
+        if not localization.recognized:
+            return None
+        binding = bind_visible_building(
+            captured.frame,
+            localization,
+            atlas.lookup_building("home.building.ruins"),
+        )
+        if (
+            binding is None
+            or binding.building_id != "home.building.ruins"
+            or binding.frame_sha256 != localization.frame_sha256
+            or binding.overlay_intersects
+            or binding.ambiguous_overlap
+        ):
+            return None
+        return tuple(binding.target_roi)
 
     def _claim_one_chest(self, captured, recognition):
         observation = recognition.observation
@@ -243,18 +282,20 @@ class RuinsIntegratedRoute:
 
     def run(self, *, max_steps: int = 30) -> IntegratedRouteResult:
         if not self.runtime.execute:
-            _, recognition = self._observe_list("dry-run-source")
-            status = "dry-run" if recognition.observation.recognized else "blocked"
-            return IntegratedRouteResult(status, f"transport_disabled:{recognition.observation.screen_identity}", 0, str(self.runtime.session))
+            captured, recognition = self._observe_list("dry-run-source")
+            home_binding = self._current_frame_ruins_binding(captured)
+            status = "dry-run" if home_binding is not None or recognition.observation.recognized else "blocked"
+            reason = "transport_disabled:home_atlas_ruins_bound" if home_binding is not None else f"transport_disabled:{recognition.observation.screen_identity}"
+            return IntegratedRouteResult(status, reason, 0, str(self.runtime.session))
         actions = 0
         captured, recognition = self._observe_list("route-source")
-        if recognition.observation.home_base_recognized:
-            target = recognition.target("ruins-building")
-            if target is None:
-                return IntegratedRouteResult("blocked", "Ruins building target not bound", 0, str(self.runtime.session))
+        target = self._current_frame_ruins_binding(captured)
+        if target is not None:
+            # The building can be off-screen at canonical Home. The Atlas binding is
+            # therefore the entry authority; the Ruins adapter is only used after entry.
             self.runtime.tap(
                 captured,
-                target_identity="ruins-building",
+                target_identity="home.building.ruins",
                 target_roi=target,
                 action_key=f"ruins:open:{captured.sha256}",
             )
@@ -263,6 +304,8 @@ class RuinsIntegratedRoute:
         if not recognition.observation.recognized or recognition.observation.screen_identity != "RUINS_CHALLENGE":
             return IntegratedRouteResult("blocked", "Ruins list not positively recognized", 0, str(self.runtime.session))
         self.controller.observe_list(recognition.observation)
+        if self.navigation_only:
+            return self._return_home(captured, recognition, actions)
         if self.claim_chests:
             for _ in range(max_steps):
                 chest_status, reason, captured, recognition = self._claim_one_chest(captured, recognition)
@@ -306,6 +349,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--current-day", required=True, choices=("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
     parser.add_argument("--claim-chests", action="store_true")
     parser.add_argument("--allow-optional-second", action="store_true")
+    parser.add_argument("--navigation-only", action="store_true", help="permit only Home -> Ruins -> Home navigation")
     parser.add_argument("--exclude-challenge", action="append", default=[])
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--yes", action="store_true", help="confirm the exact local BlueStacks target non-interactively")
@@ -327,6 +371,7 @@ def main(argv: list[str] | None = None) -> int:
         claim_chests=args.claim_chests,
         allow_optional_second=args.allow_optional_second,
         excluded_challenges=set(args.exclude_challenge),
+        navigation_only=args.navigation_only,
     ).run()
     print(json.dumps(result.__dict__, sort_keys=True))
     return 0 if result.status in {"completed", "dry-run"} else 3

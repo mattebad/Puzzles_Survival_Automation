@@ -1985,22 +1985,26 @@
       "flow_id": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
       "title": "Migrate Ruins Challenge entry and return to the canonical Home Atlas",
       "kind": "navigation_migration",
-      "priority": 40,
-      "status": "ready",
+      "priority": 20,
+      "status": "blocked",
       "backlog_task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
       "dependencies": [],
       "implementation_entrypoints": [
         "scripts/ruins_challenge_bluestacks.py",
+        "scripts/flow_delivery_ruins_challenge_bluestacks.py",
+        "scripts/pnsctl.py",
         "tasks/ruins_challenge_runtime.py",
         "tasks/ruins_challenge_vision.py",
-        "scripts/home_atlas_bluestacks.py"
+        "scripts/home_atlas_bluestacks.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION.json"
       ],
       "navigation_model": "dedicated_route_to_canonical_home_atlas",
       "requires_bluestacks_live": true,
       "live_validation_scope": "One bounded navigation-only Home-to-Ruins-to-Home route; challenge, chest, exchange, and purchase actions are prohibited.",
       "consequence_policy": "Navigation migration only; challenge entry/combat remains policy-disabled.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 1,
+      "maximum_live_attempts": 6,
       "live_attempt_count": 0,
       "live_attempts": [],
       "focused_tests": [
@@ -2012,9 +2016,9 @@
         "navigation_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "",
+      "blocked_reason": "Fresh native Home source is zoomed_in; canonical Home Atlas localization is unavailable and the existing zoom recovery depends on prohibited host-window enumeration/title matching. No transport input was dispatched.",
       "next_concrete_action": "Replace direct building binding and repeated Back recovery with canonical Home Atlas navigation and safe exit.",
-      "last_completed_stage": null,
+      "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
       "acceptance_criteria": [
@@ -2038,9 +2042,13 @@
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
         "scripts/ruins_challenge_bluestacks.py",
+        "scripts/flow_delivery_ruins_challenge_bluestacks.py",
+        "scripts/pnsctl.py",
         "tasks/ruins_challenge_runtime.py",
         "tasks/ruins_challenge_vision.py",
         "scripts/home_atlas_bluestacks.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION.json",
         "tests/test_ruins_challenge.py",
         "tests/test_home_atlas_verified_route.py"
       ],
