@@ -778,7 +778,7 @@ def _development_session_directory(invocation_id: str) -> Path:
 def development_session_observe(*, max_inputs: int = 12) -> str:
     """Observe the current runtime under automatic singleton ownership."""
 
-    from scripts.development_session import DevelopmentSession
+    from scripts.navigation_development_boundary import DevelopmentSession
 
     invocation_id = f"observe-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     session_directory = _development_session_directory(invocation_id)
@@ -815,7 +815,7 @@ def development_session_run_flow(
 ) -> str:
     """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
 
-    from scripts.development_session import DevelopmentSession
+    from scripts.navigation_development_boundary import DevelopmentSession
 
     if flow_id not in BLUESTACKS_FLOW_IDS:
         raise OperatorError("flow ID is not in the checked-in runtime allowlist")

@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 import numpy as np
 
-from scripts import development_session as development
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
 from scripts.bluestacks_native_runtime import (
@@ -62,7 +61,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                 "reward",
                 "in_game_currency",
                 "recovery",
-            }.issubset(development.ORDINARY_DEVELOPMENT_ACTIONS)
+            }.issubset(boundary.ORDINARY_DEVELOPMENT_ACTIONS)
         )
 
     def test_session_acquires_releases_and_runs_multiple_actions_without_lifecycle(self):
@@ -73,7 +72,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             captures = iter((frame("a"), frame("b"), frame("c"), frame("d")))
             dispatched = []
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", lock_path):
-                with development.DevelopmentSession(
+                with boundary.DevelopmentSession(
                     owner="test",
                     invocation_id="test-1",
                     session_directory=session_path,
@@ -102,7 +101,7 @@ class DevelopmentSessionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
-                with development.DevelopmentSession(
+                with boundary.DevelopmentSession(
                     owner="observer",
                     invocation_id="observe-1",
                     session_directory=root / "session",
@@ -120,7 +119,7 @@ class DevelopmentSessionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
-                with development.DevelopmentSession(
+                with boundary.DevelopmentSession(
                     owner="zoom",
                     invocation_id="zoom-1",
                     session_directory=root / "session",
@@ -140,7 +139,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             captures = iter((frame("before"), frame("unknown"), frame("recovered")))
             states = iter(("unknown", "HOME_BASE"))
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
-                with development.DevelopmentSession(
+                with boundary.DevelopmentSession(
                     owner="test",
                     invocation_id="recover-1",
                     session_directory=root / "session",
@@ -163,14 +162,14 @@ class DevelopmentSessionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
-                with development.DevelopmentSession(
+                with boundary.DevelopmentSession(
                     owner="test",
                     invocation_id="cash-1",
                     session_directory=root / "session",
                 ) as session:
-                    with self.assertRaisesRegex(development.DevelopmentSessionError, "unsupported"):
+                    with self.assertRaisesRegex(boundary.DevelopmentSessionError, "unsupported"):
                         session.run_action(
-                            action_class=development.REAL_MONEY_CASH_MALL_CONFIRMATION,
+                            action_class=boundary.REAL_MONEY_CASH_MALL_CONFIRMATION,
                             label="cash",
                             capture=lambda _label: frame("cash"),
                             dispatch=lambda source: dispatched.append(source),
