@@ -540,6 +540,29 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
             )
         self.assertEqual(transported["count"], 0)
 
+    def test_zoom_uses_guarded_native_transport_when_not_injected(self) -> None:
+        inner = FakeInnerRuntime()
+        inner.zoom_out = lambda source, *, action_key: inner.calls.append(
+            ("zoom_out", {"source": source, "action_key": action_key})
+        )
+        guarded = NavigationGuardedRuntime(inner, _declaration())
+        source = _frame()
+
+        guarded.dispatch_zoom_out(
+            source,
+            make_source_safety_facts(
+                recognized=True,
+                source_state="HOME_BASE",
+                frame_sha256=source.sha256,
+                captured_monotonic=source.captured_monotonic,
+            ),
+        )
+
+        self.assertEqual(inner.calls[0][0], "zoom_out")
+        self.assertEqual(inner.calls[0][1]["source"], source)
+        self.assertTrue(inner.calls[0][1]["action_key"].startswith("home-zoom-out:"))
+        self.assertTrue(guarded.authorized_gestures[-1]["transport_observed"])
+
     def test_finalizer_preserves_invalid_status_and_exception_paths(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             session = Path(directory) / "session"

@@ -15,8 +15,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueStacksRuntime, NativeRuntimePort
-from scripts.home_atlas_bluestacks import BlueStacksHostZoomTransport, BlueStacksLocalizeFirstHomeDriver, HomeDriverDisposition
+from scripts.home_atlas_bluestacks import BlueStacksLocalizeFirstHomeDriver, HomeDriverDisposition, ScrcpyMotionEventZoomTransport
 from scripts.navigation_development_boundary import NavigationBoundaryError, NavigationGuardedRuntime, NavigationRouteDeclaration, make_source_safety_facts
+from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
+from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from tasks.home_atlas import load_home_atlas
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
 from tasks.home_context import HomeReadyObservation
@@ -31,6 +33,7 @@ from tasks.ruins_challenge_runtime import RuinsRuntimeController
 from tasks.ruins_challenge_vision import (
     recognize_ruins_detail_with_targets,
     recognize_ruins_frame,
+    recognize_navigation_chat_screen,
     recognize_ruins_result_with_targets,
     recognize_ruins_reward_frame,
 )
@@ -39,11 +42,12 @@ from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIden
 
 RUINS_HOME_ATLAS_BUILDING_ID = "home.building.ruins"
 MAXIMUM_HOME_ZOOM_INPUTS = 4
+HOME_RECOGNITION_PROBE_STAGE = CampaignStage(1, 1, 1)
 
 
 def ruins_challenge_navigation_route_declaration() -> NavigationRouteDeclaration:
     return NavigationRouteDeclaration(
-        allowed_source_states=frozenset({"HOME_BASE", "RUINS_CHALLENGE"}),
+        allowed_source_states=frozenset({"HOME_BASE", "RUINS_CHALLENGE", "CHAT"}),
         allowed_target_identities=frozenset(
             {RUINS_HOME_ATLAS_BUILDING_ID, "home-zoom-out", "system-back"}
         ),
@@ -70,6 +74,14 @@ class RuinsIntegratedRoute:
         recognition_timeout: float = 25.0,
     ) -> None:
         declaration = ruins_challenge_navigation_route_declaration()
+        if zoom_transport is None and getattr(runtime, "execute", False):
+            runner = getattr(runtime, "runner", None)
+            if runner is not None:
+                zoom_transport = ScrcpyMotionEventZoomTransport(
+                    adb=runner.executable,
+                    serial=runner.serial,
+                    evidence_directory=getattr(runtime, "session", None),
+                )
         self.runtime: NativeRuntimePort = runtime if isinstance(runtime, NavigationGuardedRuntime) else NavigationGuardedRuntime(runtime, declaration)
         self.reset_identity = reset_identity
         self.current_day = current_day
@@ -110,16 +122,23 @@ class RuinsIntegratedRoute:
 
     def _recover_home_zoom_before_ruins_binding(self) -> tuple[object | None, str | None]:
         """Reuse the accepted LocalizeFirst recovery before the current-frame bind."""
-        if self.zoom_transport is None:
-            self.zoom_transport = BlueStacksHostZoomTransport()
         for ordinal in range(1, MAXIMUM_HOME_ZOOM_INPUTS + 1):
             before = self.runtime.capture(f"ruins-home-zoom-{ordinal:02d}-immediate-before")
             step = self.home_driver.observe(before.frame)
+            independent_home = (
+                recognize_campaign_frame(before.frame, HOME_RECOGNITION_PROBE_STAGE).observation.screen
+                is CampaignScreen.HOME_BASE
+            )
+            independently_authorized_unknown_zoom = bool(
+                independent_home
+                and step.disposition is HomeDriverDisposition.BLOCKED
+                and step.reason == "home_localization_ambiguous:unknown"
+            )
             if step.disposition in {HomeDriverDisposition.COMPLETE, HomeDriverDisposition.BIND, HomeDriverDisposition.PAN}:
                 return before, None
-            if step.disposition is HomeDriverDisposition.BLOCKED:
+            if step.disposition is HomeDriverDisposition.BLOCKED and not independently_authorized_unknown_zoom:
                 return None, f"home_zoom_recovery_blocked:{step.reason}"
-            if step.disposition is not HomeDriverDisposition.RECOVER_ZOOM:
+            if step.disposition is not HomeDriverDisposition.RECOVER_ZOOM and not independently_authorized_unknown_zoom:
                 return None, f"home_zoom_recovery_unsupported:{step.disposition.value}"
             try:
                 self.runtime.dispatch_zoom_out(
@@ -128,20 +147,52 @@ class RuinsIntegratedRoute:
                         recognized=True, source_state="HOME_BASE", frame_sha256=before.sha256,
                         captured_monotonic=before.captured_monotonic,
                     ),
-                    transport=self.zoom_transport.zoom_out_once,
+                    transport=(
+                        self.zoom_transport.zoom_out_once
+                        if self.zoom_transport is not None
+                        else None
+                    ),
                 )
-                self.home_driver.record_zoom_input_dispatched(step.source_frame_sha256)
+                if step.disposition is HomeDriverDisposition.RECOVER_ZOOM:
+                    self.home_driver.record_zoom_input_dispatched(step.source_frame_sha256)
             except NavigationBoundaryError as exc:
                 return None, str(exc)
             except Exception as exc:
-                return None, f"host_zoom_transport_failed:{type(exc).__name__}:{exc}"
+                return None, f"android_zoom_transport_failed:{type(exc).__name__}:{exc}"
             immediate_post = self.runtime.capture(f"ruins-home-zoom-{ordinal:02d}-immediate-post")
             post_step = self.home_driver.observe(immediate_post.frame)
             if post_step.disposition is HomeDriverDisposition.BLOCKED:
+                post_independent_home = (
+                    recognize_campaign_frame(immediate_post.frame, HOME_RECOGNITION_PROBE_STAGE).observation.screen
+                    is CampaignScreen.HOME_BASE
+                )
+                if post_independent_home and post_step.reason == "home_localization_ambiguous:unknown":
+                    continue
                 return None, f"home_zoom_post_reclassification_blocked:{post_step.reason}"
             if post_step.disposition in {HomeDriverDisposition.COMPLETE, HomeDriverDisposition.BIND, HomeDriverDisposition.PAN}:
                 return immediate_post, None
         return None, "home_zoom_recovery_exhausted"
+
+    def _recover_known_chat_to_home(self, source) -> tuple[object | None, str | None, int]:
+        if not recognize_navigation_chat_screen(source.frame):
+            return source, None, 0
+        immediate_before = self.runtime.capture("ruins-chat-safe-exit-immediate-before")
+        if not recognize_navigation_chat_screen(immediate_before.frame):
+            return None, "chat_safe_exit_revalidation_failed", 0
+        try:
+            self._prepare_navigation(immediate_before, source_state="CHAT")
+            self.runtime.back(
+                immediate_before,
+                action_key=f"ruins:chat-safe-exit:{immediate_before.sha256}",
+            )
+        except NavigationBoundaryError as exc:
+            return None, str(exc), 0
+        time.sleep(self.post_input_delay)
+        immediate_post = self.runtime.capture("ruins-chat-safe-exit-immediate-post")
+        home_step = self.home_driver.observe(immediate_post.frame)
+        if home_step.disposition is HomeDriverDisposition.BLOCKED:
+            return None, f"chat_safe_exit_home_not_recognized:{home_step.reason}", 1
+        return immediate_post, None, 1
 
     def _return_home(self, captured, recognition, actions: int) -> IntegratedRouteResult:
         if recognition.observation.home_base_recognized:
@@ -361,6 +412,13 @@ class RuinsIntegratedRoute:
     def run(self, *, max_steps: int = 30) -> IntegratedRouteResult:
         if not self.runtime.execute:
             captured = self.runtime.capture("dry-run-source")
+            if recognize_navigation_chat_screen(captured.frame):
+                return IntegratedRouteResult(
+                    "dry-run",
+                    "transport_disabled:chat_safe_exit_required",
+                    0,
+                    str(self.runtime.session),
+                )
             preparation = self.home_driver.observe(captured.frame)
             if preparation.disposition is HomeDriverDisposition.RECOVER_ZOOM:
                 return IntegratedRouteResult(
@@ -370,6 +428,17 @@ class RuinsIntegratedRoute:
                     str(self.runtime.session),
                 )
             if preparation.disposition is HomeDriverDisposition.BLOCKED:
+                independent_home = (
+                    recognize_campaign_frame(captured.frame, HOME_RECOGNITION_PROBE_STAGE).observation.screen
+                    is CampaignScreen.HOME_BASE
+                )
+                if independent_home and preparation.reason == "home_localization_ambiguous:unknown":
+                    return IntegratedRouteResult(
+                        "dry-run",
+                        "transport_disabled:home_zoom_recovery_required",
+                        0,
+                        str(self.runtime.session),
+                    )
                 return IntegratedRouteResult(
                     "blocked",
                     f"home_zoom_recovery_blocked:{preparation.reason}",
@@ -381,7 +450,11 @@ class RuinsIntegratedRoute:
             reason = "transport_disabled:home_atlas_ruins_bound" if home_binding is not None else "home_atlas_ruins_not_bound"
             return IntegratedRouteResult(status, reason, 0, str(self.runtime.session))
         actions = 0
-        self.runtime.capture("route-source")
+        source = self.runtime.capture("route-source")
+        _home_source, source_error, recovered_actions = self._recover_known_chat_to_home(source)
+        actions += recovered_actions
+        if source_error is not None:
+            return IntegratedRouteResult("blocked", source_error, actions, str(self.runtime.session))
         _prepared, preparation_error = self._recover_home_zoom_before_ruins_binding()
         if preparation_error is not None:
             return IntegratedRouteResult("blocked", preparation_error, actions, str(self.runtime.session))

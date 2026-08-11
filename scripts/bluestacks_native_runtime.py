@@ -132,6 +132,13 @@ class NativeRuntimePort(Protocol):
         action_key: str,
     ) -> None: ...
 
+    def zoom_out(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        action_key: str,
+    ) -> None: ...
+
     def back(
         self,
         source: CapturedNativeFrame,
@@ -480,6 +487,35 @@ class LocalBlueStacksRuntime:
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
         self.runner.dispatch_keyevent("ENTER" if normalized == "ENTER" else "4")
+
+    def zoom_out(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        action_key: str,
+    ) -> None:
+        self._authorize_dispatch(
+            source,
+            action_key=action_key,
+            target_identity="home-zoom-out",
+            target_roi=None,
+            consequential=False,
+            continuation_of=None,
+        )
+        self._event(
+            "dispatch",
+            {
+                "action_key": action_key,
+                "target_identity": "home-zoom-out",
+                "transport": "android-scrcpy-motion-event-pinch",
+                "source_sha256": source.sha256,
+                "consequential": False,
+                "execute": self.execute,
+            },
+        )
+        if not self.execute:
+            raise RuntimeError("runtime is dry-run; input was not dispatched")
+        self.runner.dispatch_zoom_out()
 
     def back(
         self,

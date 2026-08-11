@@ -78,6 +78,20 @@ def _ocr_boxes(frame: np.ndarray) -> list[tuple[str, Box]]:
     return found
 
 
+def recognize_navigation_chat_screen(frame: np.ndarray) -> bool:
+    """Recognize the exact full-screen Chat surface used for one safe Back recovery."""
+
+    if frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
+        raise ValueError("Ruins recognition requires native 800x1280 frame")
+    header = _ocr(frame, (0, 0, 800, 245), psm=11).lower()
+    return (
+        "chat" in header
+        and "alliance" in header
+        and ("whisper" in header or "state" in header)
+        and "alliance bulletin" in header
+    )
+
+
 def _green_ratio(frame: np.ndarray, box: Box) -> float:
     crop = frame[box[1]:box[3], box[0]:box[2]]
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)

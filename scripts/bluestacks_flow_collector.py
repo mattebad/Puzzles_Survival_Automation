@@ -439,10 +439,22 @@ class ADBRunner:
         self.executable = executable
         self.serial = serial
 
-    def run(self, *arguments: str, timeout: float = 30.0) -> subprocess.CompletedProcess[bytes]:
+    def run(
+        self,
+        *arguments: str,
+        timeout: float = 30.0,
+        input_payload: bytes | None = None,
+    ) -> subprocess.CompletedProcess[bytes]:
         command = [self.executable, "-s", self.serial, *arguments]
         try:
-            return subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, check=False)
+            return subprocess.run(
+                command,
+                input=input_payload,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+                check=False,
+            )
         except FileNotFoundError as exc:
             raise ADBError(f"ADB executable was not found: {self.executable}") from exc
         except subprocess.TimeoutExpired as exc:
@@ -515,6 +527,99 @@ class ADBRunner:
         result = self.run("shell", "input", "keyevent", str(key), timeout=15.0)
         if result.returncode:
             raise ADBError(result.stderr.decode("utf-8", "replace").strip() or "ADB keyevent failed")
+
+    def dispatch_zoom_out(self) -> None:
+        """Dispatch a held, paced pinch through the Android virtual touch device."""
+
+        capabilities = self.shell_text("getevent", "-pl", timeout=15.0)
+        touch = next(
+            (
+                block
+                for block in re.split(r"(?=add device \d+: )", capabilities)
+                if "BlueStacks Virtual Touch" in block
+                and "ABS_MT_POSITION_X" in block
+                and "ABS_MT_POSITION_Y" in block
+            ),
+            None,
+        )
+        if touch is None:
+            raise ADBError("Android multi-touch device was not found")
+        path = re.search(r"add device \d+: (?P<value>/dev/input/event\d+)", touch)
+        x_max = re.search(r"ABS_MT_POSITION_X\s+:.*?max (?P<value>\d+)", touch)
+        y_max = re.search(r"ABS_MT_POSITION_Y\s+:.*?max (?P<value>\d+)", touch)
+        if path is None or x_max is None or y_max is None:
+            raise ADBError("Android multi-touch geometry was not recognized")
+        device = path.group("value")
+        maximum_x = int(x_max.group("value"))
+        maximum_y = int(y_max.group("value"))
+        sx = lambda value: round(value * maximum_x / 799)
+        sy = lambda value: round(value * maximum_y / 1279)
+        type_b = "ABS_MT_SLOT" in touch and "ABS_MT_TRACKING_ID" in touch
+
+        def frame_commands(left: int, right: int) -> list[str]:
+            if type_b:
+                return [
+                        f"sendevent {device} 3 47 0",
+                        f"sendevent {device} 3 53 {sx(left)}",
+                        f"sendevent {device} 3 54 {sy(620)}",
+                        f"sendevent {device} 3 47 1",
+                        f"sendevent {device} 3 53 {sx(right)}",
+                        f"sendevent {device} 3 54 {sy(620)}",
+                        f"sendevent {device} 0 0 0",
+                ]
+            return [
+                f"sendevent {device} 3 53 {sx(left)}",
+                f"sendevent {device} 3 54 {sy(620)}",
+                f"sendevent {device} 0 2 0",
+                f"sendevent {device} 3 53 {sx(right)}",
+                f"sendevent {device} 3 54 {sy(620)}",
+                f"sendevent {device} 0 2 0",
+                f"sendevent {device} 0 0 0",
+            ]
+
+        start_commands: list[str] = []
+        if type_b:
+            start_commands.extend(
+                [
+                    f"sendevent {device} 3 47 0",
+                    f"sendevent {device} 3 57 101",
+                    f"sendevent {device} 3 47 1",
+                    f"sendevent {device} 3 57 102",
+                ]
+            )
+        start_commands.extend(frame_commands(120, 680))
+        start_commands.append("sleep 0.30")
+
+        movement_frames: list[list[str]] = []
+        for ordinal in range(1, 21):
+            movement_frames.append(
+                frame_commands(
+                    round(120 + 250 * ordinal / 20),
+                    round(680 - 250 * ordinal / 20),
+                )
+            )
+        release_commands: list[str]
+        if type_b:
+            release_commands = [
+                    f"sendevent {device} 3 47 0",
+                    f"sendevent {device} 3 57 -1",
+                    f"sendevent {device} 3 47 1",
+                    f"sendevent {device} 3 57 -1",
+                    f"sendevent {device} 0 0 0",
+            ]
+        else:
+            # Type-A devices report the complete anonymous contact set in every
+            # SYN_REPORT.  A report with no contact packets releases the set.
+            release_commands = [f"sendevent {device} 0 0 0"]
+
+        commands = ["set -e", *start_commands]
+        for frame in movement_frames:
+            commands.extend((*frame, "sleep 0.05"))
+        commands.extend(release_commands)
+        script = ("\n".join(commands) + "\n").encode("ascii")
+        result = self.run("shell", "sh", timeout=20.0, input_payload=script)
+        if result.returncode:
+            raise ADBError(result.stderr.decode("utf-8", "replace").strip() or "Android zoom transport failed")
 
     def dispatch_swipe(self, start: tuple[int, int], end: tuple[int, int], duration_ms: int = 400) -> None:
         result = self.run("shell", "input", "swipe", str(start[0]), str(start[1]), str(end[0]), str(end[1]), str(duration_ms), timeout=15.0)

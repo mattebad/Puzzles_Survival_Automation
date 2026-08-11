@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import inspect
 import json
+import struct
 import tempfile
 import unittest
 from contextlib import contextmanager
@@ -22,6 +23,7 @@ from scripts.home_atlas_bluestacks import (
     CONFIRMED_NOT_DISPATCHED_STATUS,
     HomeDriverDisposition,
     NAVIGATE_BUILDING_TARGET_IDENTITY,
+    ScrcpyMotionEventZoomTransport,
     attach_navigate_terminal_reports,
     build_navigate_pan_observation,
     build_navigate_pan_policy_request,
@@ -273,6 +275,19 @@ def _ready() -> HomeReadyObservation:
 
 
 class HomeAtlasVerifiedRouteTests(unittest.TestCase):
+    def test_headless_scrcpy_pinch_serializes_two_native_pointer_streams(self) -> None:
+        messages = ScrcpyMotionEventZoomTransport.pinch_messages(steps=8)
+
+        self.assertEqual(len(messages), 20)
+        decoded = [struct.unpack(">BBQiiHHHII", payload) for _label, payload in messages]
+        self.assertTrue(all(len(payload) == 32 for _label, payload in messages))
+        self.assertEqual(decoded[0][:7], (2, 0, 1, 110, 640, 800, 1280))
+        self.assertEqual(decoded[1][:7], (2, 0, 2, 690, 640, 800, 1280))
+        self.assertEqual(decoded[-2][:7], (2, 1, 2, 450, 640, 800, 1280))
+        self.assertEqual(decoded[-1][:7], (2, 1, 1, 350, 640, 800, 1280))
+        self.assertEqual({item[2] for item in decoded}, {1, 2})
+        self.assertEqual({(item[5], item[6]) for item in decoded}, {(800, 1280)})
+
     def test_localize_first_driver_binds_visible_noncanonical_home_without_pan(self) -> None:
         target = _building()
         world = _atlas(target)
@@ -373,6 +388,106 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
         exhausted = driver.observe(second)
         self.assertEqual(exhausted.disposition, HomeDriverDisposition.BLOCKED)
         self.assertEqual(exhausted.reason, "maximum_zoom_recovery_inputs")
+
+    def test_localize_first_driver_accepts_independently_corroborated_zoomed_in_home(self) -> None:
+        target = _building()
+        world = _atlas(target)
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        localization = replace(
+            _localization(),
+            recognized=False,
+            zoom_identity=ZoomIdentity.ZOOMED_IN,
+            screen_to_atlas=None,
+            confidence=0.73,
+            frame_sha256=frame_digest(frame),
+        )
+        localizer = SimpleNamespace(
+            localize=lambda _frame: localization,
+            canonical_reference=frame,
+        )
+        with patch(
+            "scripts.home_atlas_bluestacks.classify_zoom",
+            return_value=SimpleNamespace(
+                identity=ZoomIdentity.ZOOMED_IN,
+                confidence=0.71,
+            ),
+        ):
+            step = BlueStacksLocalizeFirstHomeDriver(
+                world,
+                Path("atlas.json"),
+                _ready(),
+                target.semantic_id,
+                localizer=localizer,
+            ).observe(frame)
+        self.assertEqual(step.disposition, HomeDriverDisposition.RECOVER_ZOOM)
+
+    def test_localize_first_driver_rejects_uncorroborated_low_confidence_zoom(self) -> None:
+        target = _building()
+        world = _atlas(target)
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        localization = replace(
+            _localization(),
+            recognized=False,
+            zoom_identity=ZoomIdentity.ZOOMED_IN,
+            screen_to_atlas=None,
+            confidence=0.73,
+            frame_sha256=frame_digest(frame),
+        )
+        localizer = SimpleNamespace(
+            localize=lambda _frame: localization,
+            canonical_reference=frame,
+        )
+        with patch(
+            "scripts.home_atlas_bluestacks.classify_zoom",
+            return_value=SimpleNamespace(
+                identity=ZoomIdentity.INTERMEDIATE,
+                confidence=0.90,
+            ),
+        ):
+            step = BlueStacksLocalizeFirstHomeDriver(
+                world,
+                Path("atlas.json"),
+                _ready(),
+                target.semantic_id,
+                localizer=localizer,
+            ).observe(frame)
+        self.assertEqual(step.disposition, HomeDriverDisposition.BLOCKED)
+        self.assertEqual(step.reason, "home_localization_ambiguous:zoomed_in")
+
+    def test_localize_first_driver_accepts_low_overlap_zoom_with_strong_geometry(self) -> None:
+        target = _building()
+        world = _atlas(target)
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        localization = replace(
+            _localization(),
+            recognized=False,
+            zoom_identity=ZoomIdentity.UNKNOWN,
+            screen_to_atlas=None,
+            confidence=0.0,
+            frame_sha256=frame_digest(frame),
+        )
+        localizer = SimpleNamespace(
+            localize=lambda _frame: localization,
+            canonical_reference=frame,
+        )
+        with patch(
+            "scripts.home_atlas_bluestacks.classify_zoom",
+            return_value=SimpleNamespace(
+                identity=ZoomIdentity.ZOOMED_IN,
+                confidence=0.01,
+                scale=0.44,
+                residual_px=0.31,
+                supporting_landmarks=tuple(f"landmark-{index}" for index in range(12)),
+            ),
+        ):
+            step = BlueStacksLocalizeFirstHomeDriver(
+                world,
+                Path("atlas.json"),
+                _ready(),
+                target.semantic_id,
+                localizer=localizer,
+            ).observe(frame)
+        self.assertEqual(step.disposition, HomeDriverDisposition.RECOVER_ZOOM)
 
     def test_localize_first_driver_blocks_repeated_or_unknown_recovery_frames(self) -> None:
         target = _building()

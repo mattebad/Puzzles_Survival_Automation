@@ -16,8 +16,12 @@ from enum import Enum
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import shutil
+import socket
+import struct
+import subprocess
 import sys
 import time
 import re
@@ -453,6 +457,204 @@ class BlueStacksHostZoomTransport:
                 raise RuntimeError("BlueStacks left-Ctrl key-up was incomplete")
 
 
+class ScrcpyMotionEventZoomTransport:
+    """Inject a two-pointer pinch through scrcpy's headless Android controller."""
+
+    SERVER_VERSION = "4.0"
+    REMOTE_SERVER = "/data/local/tmp/scrcpy-server.jar"
+    WIDTH = 800
+    HEIGHT = 1280
+    TYPE_INJECT_TOUCH_EVENT = 2
+    ACTION_DOWN = 0
+    ACTION_UP = 1
+    ACTION_MOVE = 2
+
+    def __init__(
+        self,
+        *,
+        adb: str,
+        serial: str,
+        server: str | None = None,
+        evidence_directory: Path | None = None,
+    ) -> None:
+        configured = server or os.environ.get("PNS_SCRCPY_SERVER")
+        scrcpy_executable = os.environ.get("PNS_SCRCPY") or shutil.which("scrcpy")
+        candidates = [
+            Path(configured) if configured else None,
+            ROOT / ".local-tools" / "scrcpy-win64-v4.0" / "scrcpy-server",
+            Path(scrcpy_executable).with_name("scrcpy-server") if scrcpy_executable else None,
+        ]
+        self.server = next((item for item in candidates if item is not None and item.is_file()), None)
+        if self.server is None:
+            raise RuntimeError("official scrcpy-server artifact was not found")
+        self.adb = str(adb)
+        self.serial = serial
+        self.evidence_directory = Path(evidence_directory) if evidence_directory else None
+
+    @classmethod
+    def _touch_message(cls, action: int, pointer_id: int, x: int, y: int, pressure: float) -> bytes:
+        if action not in {cls.ACTION_DOWN, cls.ACTION_UP, cls.ACTION_MOVE}:
+            raise ValueError("unsupported Android touch action")
+        if pointer_id < 0 or not (0 <= x < cls.WIDTH and 0 <= y < cls.HEIGHT):
+            raise ValueError("touch pointer is outside the native display")
+        fixed_pressure = round(max(0.0, min(1.0, pressure)) * 0xFFFF)
+        return struct.pack(
+            ">BBQiiHHHII",
+            cls.TYPE_INJECT_TOUCH_EVENT,
+            action,
+            pointer_id,
+            x,
+            y,
+            cls.WIDTH,
+            cls.HEIGHT,
+            fixed_pressure,
+            0,
+            0,
+        )
+
+    @classmethod
+    def pinch_messages(cls, *, steps: int = 18) -> list[tuple[str, bytes]]:
+        if not 8 <= steps <= 32:
+            raise ValueError("pinch steps must remain between 8 and 32")
+        y = 640
+        left_start, left_end = 110, 350
+        right_start, right_end = 690, 450
+        messages = [
+            ("left-down", cls._touch_message(cls.ACTION_DOWN, 1, left_start, y, 1.0)),
+            ("right-down", cls._touch_message(cls.ACTION_DOWN, 2, right_start, y, 1.0)),
+        ]
+        for ordinal in range(1, steps + 1):
+            left = round(left_start + (left_end - left_start) * ordinal / steps)
+            right = round(right_start + (right_end - right_start) * ordinal / steps)
+            messages.append((f"left-move-{ordinal:02d}", cls._touch_message(cls.ACTION_MOVE, 1, left, y, 1.0)))
+            messages.append((f"right-move-{ordinal:02d}", cls._touch_message(cls.ACTION_MOVE, 2, right, y, 1.0)))
+        messages.extend(
+            [
+                ("right-up", cls._touch_message(cls.ACTION_UP, 2, right_end, y, 0.0)),
+                ("left-up", cls._touch_message(cls.ACTION_UP, 1, left_end, y, 0.0)),
+            ]
+        )
+        return messages
+
+    def _adb(self, *arguments: str, timeout: float = 20.0) -> subprocess.CompletedProcess[bytes]:
+        result = subprocess.run(
+            [self.adb, "-s", self.serial, *arguments],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+        if result.returncode:
+            detail = result.stderr.decode("utf-8", "replace").strip()
+            raise RuntimeError(detail or f"ADB command failed: {' '.join(arguments)}")
+        return result
+
+    def _write_record(self, record: Mapping[str, Any]) -> None:
+        if self.evidence_directory is None:
+            return
+        self.evidence_directory.mkdir(parents=True, exist_ok=True)
+        path = self.evidence_directory / f"scrcpy-headless-pinch-{time.time_ns()}.json"
+        path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+
+    def zoom_out_once(self) -> None:
+        scid = time.time_ns() & 0x7FFFFFFF
+        socket_name = f"scrcpy_{scid:08x}"
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            local_port = reservation.getsockname()[1]
+        endpoint = f"tcp:{local_port}"
+        messages = self.pinch_messages()
+        record: dict[str, Any] = {
+            "transport": "android-scrcpy-headless-control-socket",
+            "server_version": self.SERVER_VERSION,
+            "server_sha256": hashlib.sha256(self.server.read_bytes()).hexdigest(),
+            "serial": self.serial,
+            "native_size": [self.WIDTH, self.HEIGHT],
+            "socket_name": socket_name,
+            "message_count": len(messages),
+            "message_labels": [label for label, _payload in messages],
+            "readiness_probe": "scrcpy_dummy_byte",
+            "status": "prepared",
+        }
+        process: subprocess.Popen[bytes] | None = None
+        control: socket.socket | None = None
+        forwarded = False
+        try:
+            self._adb("push", str(self.server), self.REMOTE_SERVER, timeout=30.0)
+            self._adb("forward", endpoint, f"localabstract:{socket_name}")
+            forwarded = True
+            command = [
+                self.adb,
+                "-s", self.serial,
+                "shell",
+                f"CLASSPATH={self.REMOTE_SERVER}",
+                "app_process", "/", "com.genymobile.scrcpy.Server", self.SERVER_VERSION,
+                f"scid={scid:08x}",
+                "log_level=debug",
+                "video=false",
+                "audio=false",
+                "control=true",
+                "tunnel_forward=true",
+                "cleanup=true",
+                "send_device_meta=false",
+                "send_dummy_byte=true",
+                "clipboard_autosync=false",
+                "power_on=false",
+                "stay_awake=false",
+            ]
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            deadline = time.monotonic() + 12.0
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    stderr = (process.stderr.read() if process.stderr else b"").decode("utf-8", "replace").strip()
+                    raise RuntimeError(f"headless scrcpy server exited before control connection: {stderr}")
+                candidate: socket.socket | None = None
+                try:
+                    candidate = socket.create_connection(("127.0.0.1", local_port), timeout=0.5)
+                    candidate.settimeout(0.5)
+                    if candidate.recv(1) == b"\x00":
+                        control = candidate
+                        break
+                    candidate.close()
+                except OSError:
+                    if candidate is not None:
+                        candidate.close()
+                    time.sleep(0.08)
+            if control is None:
+                raise RuntimeError("headless scrcpy control socket did not become ready")
+            control.settimeout(3.0)
+            for label, payload in messages:
+                control.sendall(payload)
+                if "move" in label:
+                    time.sleep(0.025)
+                else:
+                    time.sleep(0.06)
+            time.sleep(0.45)
+            record["status"] = "transported"
+        except Exception as exc:
+            record["status"] = "failed"
+            record["error"] = f"{type(exc).__name__}:{exc}"
+            raise
+        finally:
+            if control is not None:
+                control.close()
+            if process is not None:
+                try:
+                    stdout, stderr = process.communicate(timeout=4.0)
+                except subprocess.TimeoutExpired:
+                    process.terminate()
+                    stdout, stderr = process.communicate(timeout=4.0)
+                record["server_returncode"] = process.returncode
+                record["server_stdout"] = stdout.decode("utf-8", "replace")[-4000:]
+                record["server_stderr"] = stderr.decode("utf-8", "replace")[-4000:]
+            if forwarded:
+                try:
+                    self._adb("forward", "--remove", endpoint)
+                except Exception as exc:
+                    record["forward_cleanup_error"] = f"{type(exc).__name__}:{exc}"
+            self._write_record(record)
+
+
 class HomeDriverDisposition(str, Enum):
     RECOVER_ZOOM = "recover_zoom"
     BIND = "bind"
@@ -563,13 +765,38 @@ class BlueStacksLocalizeFirstHomeDriver:
 
         zoom_identity = localization.zoom_identity
         zoom_confidence = localization.confidence
-        if zoom_identity not in {ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE}:
+        recoverable_zoom = zoom_identity in {
+            ZoomIdentity.ZOOMED_IN,
+            ZoomIdentity.INTERMEDIATE,
+        }
+        corroborated_zoom = False
+        geometry_confirmed_zoom = False
+        if not recoverable_zoom or zoom_confidence < 0.85:
             zoom = classify_zoom(frame, self.localizer.canonical_reference)
-            zoom_identity = zoom.identity
-            zoom_confidence = zoom.confidence
+            geometry_confirmed_zoom = bool(
+                zoom.identity in {ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE}
+                and getattr(zoom, "scale", None) is not None
+                and 0.20 <= zoom.scale < 0.965
+                and getattr(zoom, "residual_px", None) is not None
+                and zoom.residual_px <= 0.35
+                and len(getattr(zoom, "supporting_landmarks", ())) >= 12
+            )
+            if not recoverable_zoom:
+                zoom_identity = zoom.identity
+                zoom_confidence = zoom.confidence
+                recoverable_zoom = zoom_identity in {
+                    ZoomIdentity.ZOOMED_IN,
+                    ZoomIdentity.INTERMEDIATE,
+                }
+            else:
+                corroborated_zoom = bool(
+                    zoom.identity is zoom_identity
+                    and zoom_confidence >= 0.70
+                    and zoom.confidence >= 0.70
+                )
         if (
-            zoom_identity in {ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE}
-            and zoom_confidence >= 0.85
+            recoverable_zoom
+            and (zoom_confidence >= 0.85 or corroborated_zoom or geometry_confirmed_zoom)
         ):
             if digest in self._seen_recovery_frames:
                 return HomeDriverStep(

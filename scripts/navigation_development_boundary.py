@@ -550,10 +550,10 @@ class NavigationGuardedRuntime:
         source: CapturedNativeFrame,
         facts: SourceStateSafetyFacts,
         *,
-        transport: Callable[[], None],
+        transport: Callable[[], None] | None = None,
         target_identity: str = "home-zoom-out",
     ) -> None:
-        """Authorize then invoke host zoom transport; denial never reaches transport."""
+        """Authorize then invoke native or injected zoom transport."""
 
         self.prepare_source_safety(facts)
         _bound, entry = self._authorize(
@@ -563,7 +563,13 @@ class NavigationGuardedRuntime:
             consequential=False,
         )
         try:
-            transport()
+            if transport is None:
+                self._inner.zoom_out(
+                    source,
+                    action_key=f"home-zoom-out:{source.sha256}",
+                )
+            else:
+                transport()
         except Exception:
             entry["transport_observed"] = False
             raise

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
 
 import numpy as np
+
+from scripts.bluestacks_flow_collector import ADBRunner
 
 from tasks.ruins_challenge import (
     KNOWN_CHALLENGE_IDENTITIES,
@@ -32,6 +36,7 @@ from tasks.ruins_challenge_vision import (
     recognize_ruins_detail_frame,
     recognize_ruins_frame,
     recognize_ruins_result_frame,
+    recognize_navigation_chat_screen,
     parse_points,
     parse_progress,
 )
@@ -67,6 +72,44 @@ def screen(*rows: RuinsChallengeRow, source: str = "e" * 64) -> RuinsScreenObser
 
 
 class RuinsContractTests(unittest.TestCase):
+    def test_navigation_chat_recognition_requires_exact_header_context(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        with patch(
+            "tasks.ruins_challenge_vision._ocr",
+            return_value="Chat State Alliance Whisper Alliance Bulletin",
+        ):
+            self.assertTrue(recognize_navigation_chat_screen(frame))
+        with patch(
+            "tasks.ruins_challenge_vision._ocr",
+            return_value="Alliance message content without navigation header",
+        ):
+            self.assertFalse(recognize_navigation_chat_screen(frame))
+
+    def test_android_zoom_transport_uses_discovered_multitouch_device(self):
+        capabilities = """add device 4: /dev/input/event4
+  name:     \"BlueStacks Virtual Touch\"
+  events:
+    ABS (0003): ABS_MT_POSITION_X     : value 0, min 0, max 32767
+                ABS_MT_POSITION_Y     : value 0, min 0, max 32767
+                ABS_MT_TRACKING_ID    : value 0, min 0, max 65535
+"""
+        runner = ADBRunner("adb", "emulator-5554")
+        with patch.object(runner, "shell_text", return_value=capabilities) as shell, patch.object(
+            runner,
+            "run",
+            return_value=SimpleNamespace(returncode=0, stderr=b""),
+        ) as run:
+            runner.dispatch_zoom_out()
+        self.assertEqual(shell.call_args_list[0].args, ("getevent", "-pl"))
+        self.assertEqual(run.call_args.args, ("shell", "sh"))
+        script = run.call_args.kwargs["input_payload"].decode("ascii")
+        self.assertIn("sendevent /dev/input/event4 3 53", script)
+        self.assertNotIn(" 3 57 ", script)
+        self.assertIn("sleep 0.30", script)
+        self.assertEqual(script.count("sleep 0.05"), 20)
+        self.assertEqual(script.count("sendevent /dev/input/event4 0 2 0"), 42)
+        self.assertTrue(script.endswith("sendevent /dev/input/event4 0 0 0\n"))
+
     def test_all_known_challenge_identities_are_explicit(self):
         self.assertEqual(len(KNOWN_CHALLENGE_IDENTITIES), 12)
         self.assertIn("Hero Challenge", KNOWN_CHALLENGE_IDENTITIES)
