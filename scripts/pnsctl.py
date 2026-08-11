@@ -784,7 +784,7 @@ def _compact_development_action_results(
     pending: dict[str, Any] | None = None
     for event in event_rows:
         kind = event.get("type")
-        if kind == "dispatch":
+        if kind == "dispatch" and event.get("execute") is not False:
             if pending is not None:
                 actions.append(pending)
             pending = {

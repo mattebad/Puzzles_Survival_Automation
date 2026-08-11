@@ -332,9 +332,20 @@ class DevelopmentSessionTests(unittest.TestCase):
                 json.dumps(
                     {
                         "type": "dispatch",
+                        "action_key": "dry-run",
+                        "target_identity": "claim",
+                        "source_sha256": "0" * 64,
+                        "execute": False,
+                    }
+                )
+                + "\n"
+                + json.dumps(
+                    {
+                        "type": "dispatch",
                         "action_key": "claim-1",
                         "target_identity": "claim",
                         "source_sha256": "a" * 64,
+                        "execute": True,
                     }
                 )
                 + "\n"
