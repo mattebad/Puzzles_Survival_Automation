@@ -775,6 +775,39 @@ def _development_session_directory(invocation_id: str) -> Path:
     return DEVELOPMENT_SESSION_ROOT / safe
 
 
+def _compact_development_action_results(
+    event_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Pair each retained dispatch with its next native capture."""
+
+    actions: list[dict[str, Any]] = []
+    pending: dict[str, Any] | None = None
+    for event in event_rows:
+        kind = event.get("type")
+        if kind == "dispatch":
+            if pending is not None:
+                actions.append(pending)
+            pending = {
+                "ordinal": len(actions) + 1,
+                "action_class": "ordinary_development",
+                "action_key": event.get("action_key"),
+                "target_identity": event.get("target_identity"),
+                "before_sha256": event.get("source_sha256"),
+                "after_sha256": None,
+                "after_path": None,
+                "status": "post_capture_missing",
+            }
+        elif kind == "capture" and pending is not None:
+            pending["after_sha256"] = event.get("sha256")
+            pending["after_path"] = event.get("path")
+            pending["status"] = "post_captured"
+            actions.append(pending)
+            pending = None
+    if pending is not None:
+        actions.append(pending)
+    return actions
+
+
 def development_session_observe(*, max_inputs: int = 12) -> str:
     """Observe the current runtime under automatic singleton ownership."""
 
@@ -864,31 +897,34 @@ def development_session_run_flow(
             result = json.loads(raw)
             child_text = str(result.get("session_directory") or "")
             child = Path(child_text) if child_text else None
-            dispatch_count = 0
-            dispatch_rows: list[dict[str, Any]] = []
+            event_rows: list[dict[str, Any]] = []
             if child is not None and child.is_dir():
                 events = child / "events.jsonl"
                 if events.is_file():
                     for line in events.read_text(encoding="utf-8").splitlines():
                         row = json.loads(line) if line.strip() else {}
-                        if row.get("type") == "dispatch":
-                            dispatch_count += 1
-                            dispatch_rows.append(row)
+                        if row:
+                            event_rows.append(row)
+            action_rows = _compact_development_action_results(event_rows)
+            dispatch_count = len(action_rows)
             if dispatch_count > max_inputs:
                 raise OperatorError("development session exceeded its input limit")
             session.input_count = dispatch_count
-            session.actions = dispatch_rows
-            if dispatch_rows:
+            session.actions = action_rows
+            if action_rows:
                 with (session_directory / "actions.jsonl").open(
                     "w", encoding="utf-8", newline="\n"
                 ) as handle:
-                    for row in dispatch_rows:
+                    for row in action_rows:
                         handle.write(json.dumps(row, sort_keys=True) + "\n")
             result_status = str(result.get("status") or "unknown")
             if result_status not in {"completed", "dry_run", "observed"}:
                 session.terminal_status = "blocked"
                 session.blocker = str(result.get("reason") or "development result is not terminal")
-                session.next_action = "repair the development result and rerun materially changed behavior"
+                session.next_action = (
+                    f"inspect {child_text or session_directory} and repair recognition or recovery "
+                    f"for {session.blocker} before rerunning materially changed behavior"
+                )
             if _checkpoint_hashes() != checkpoint_before:
                 raise OperatorError("ordinary development session mutated a checkpoint artifact")
             wrapper = {

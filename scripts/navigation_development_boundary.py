@@ -28,6 +28,7 @@ from scripts.bluestacks_native_runtime import (
     NATIVE_WIDTH,
     NativeBox,
     NativeRuntimePort,
+    reject_real_money_confirmation,
 )
 from safe_action_core import SafetyStore
 
@@ -623,17 +624,28 @@ class NavigationDevelopmentSession:
         self.lock.release()
 
 
-ORDINARY_DEVELOPMENT_ACTIONS = frozenset(
+ORDINARY_DEVELOPMENT_ACTION = "ordinary_development"
+ORDINARY_DEVELOPMENT_CAPABILITIES = frozenset(
     {
         "navigation",
         "combat",
         "claim",
         "reward",
+        "free_action",
         "recruitment",
         "resource_collection",
+        "resource_spending",
+        "zombie_lair",
+        "zombie_attack",
+        "challenge_confirmation",
+        "healing",
+        "training",
+        "upgrade",
+        "research",
         "in_game_currency",
         "maintenance",
         "recovery",
+        "complete_flow",
     }
 )
 REAL_MONEY_CASH_MALL_CONFIRMATION = "real_money_cash_mall_confirmation"
@@ -645,11 +657,15 @@ class DevelopmentSessionError(NavigationBoundaryError):
 
 def validate_development_action(action_class: str) -> str:
     normalized = str(action_class).strip().lower()
+    if not normalized:
+        raise DevelopmentSessionError("development action description is required")
+    try:
+        reject_real_money_confirmation(normalized)
+    except RuntimeError as exc:
+        raise DevelopmentSessionError(str(exc)) from exc
     if normalized == REAL_MONEY_CASH_MALL_CONFIRMATION:
         raise DevelopmentSessionError("real-money Cash Mall confirmation is unsupported")
-    if normalized not in ORDINARY_DEVELOPMENT_ACTIONS:
-        raise DevelopmentSessionError(f"unknown development action class: {action_class}")
-    return normalized
+    return ORDINARY_DEVELOPMENT_ACTION
 
 
 def _validate_development_native_frame(frame: CapturedNativeFrame) -> None:
@@ -770,6 +786,7 @@ class DevelopmentSession:
         row = {
             "ordinal": len(self.actions) + 1,
             "action_class": normalized,
+            "requested_action": str(action_class).strip().lower(),
             "label": label,
             "status": status,
             "reason": reason,

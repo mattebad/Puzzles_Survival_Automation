@@ -34,15 +34,25 @@ NATIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 
 
 def reject_real_money_confirmation(target_identity: str, action_key: str = "") -> None:
-    """Reject only explicit real-money Cash Mall confirmation identities."""
+    """Reject explicit real-money Cash Mall confirmation identities."""
 
     identity = f"{target_identity} {action_key}".strip().lower().replace("_", "-")
-    prohibited = (
+    exact_markers = (
         "cash-mall-real-money-confirm",
         "real-money-cash-mall-confirm",
         "cash-mall-payment-confirm",
     )
-    if any(token in identity for token in prohibited):
+    cash_mall = "cash-mall" in identity or ("cash" in identity and "mall" in identity)
+    payment = any(
+        token in identity
+        for token in ("real-money", "payment", "checkout", "credit-card", "bank-card", "usd", "dollar")
+    )
+    confirmation = any(
+        token in identity for token in ("confirm", "purchase", "buy", "pay", "submit", "order")
+    )
+    if any(token in identity for token in exact_markers) or (
+        cash_mall and payment and confirmation
+    ):
         raise RuntimeError("real-money Cash Mall confirmation is unsupported")
 
 

@@ -92,9 +92,11 @@ def run_ruins_challenge_home_atlas(
         "actions_completed": ruins.get("actions_completed"),
         "child_event_journal": "events.jsonl",
     }
-    evidence_names = ("ledger.jsonl", "capability-audit.jsonl")
-    if not development_mode:
-        evidence_names += ("journal.jsonl",)
+    evidence_names = (
+        ()
+        if development_mode
+        else ("ledger.jsonl", "capability-audit.jsonl", "journal.jsonl")
+    )
     for name in evidence_names:
         (session / name).write_text(json.dumps(accounting, sort_keys=True) + "\n", encoding="utf-8")
     delivery = {
@@ -109,8 +111,8 @@ def run_ruins_challenge_home_atlas(
         "ruins_result": ruins,
         "actions": [{"action_class": "ordinary_development" if development_mode else "navigation_only", "path": "canonical_home_to_ruins_to_safe_exit_home", "outcome": ruins.get("reason")}],
         "events_path": "events.jsonl",
-        "ledger_path": "ledger.jsonl",
-        "capability_audit_path": "capability-audit.jsonl",
+        "ledger_path": None if development_mode else "ledger.jsonl",
+        "capability_audit_path": None if development_mode else "capability-audit.jsonl",
         "journal_path": None if development_mode else "journal.jsonl",
         "frames": frame_names,
         "operator_returncode": completed.returncode,

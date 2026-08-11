@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from subprocess import CompletedProcess
 import tempfile
 import time
 import unittest
@@ -12,6 +13,7 @@ import numpy as np
 
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
+from scripts import flow_delivery_ruins_challenge_bluestacks as ruins_delivery
 from scripts.bluestacks_native_runtime import (
     CapturedNativeFrame,
     LocalBlueStacksRuntime,
@@ -53,15 +55,31 @@ class FakeRunner:
 
 class DevelopmentSessionTests(unittest.TestCase):
     def test_ordinary_action_categories_include_complete_gameplay_classes(self):
-        self.assertTrue(
-            {
-                "navigation",
-                "combat",
-                "claim",
-                "reward",
-                "in_game_currency",
-                "recovery",
-            }.issubset(boundary.ORDINARY_DEVELOPMENT_ACTIONS)
+        capabilities = {
+            "navigation",
+            "combat",
+            "claim",
+            "reward",
+            "free_action",
+            "recruitment",
+            "resource_collection",
+            "resource_spending",
+            "zombie_lair",
+            "zombie_attack",
+            "challenge_confirmation",
+            "healing",
+            "training",
+            "upgrade",
+            "research",
+            "maintenance",
+            "in_game_currency",
+            "recovery",
+            "complete_flow",
+        }
+        self.assertTrue(capabilities.issubset(boundary.ORDINARY_DEVELOPMENT_CAPABILITIES))
+        self.assertEqual(
+            {boundary.validate_development_action(item) for item in capabilities},
+            {boundary.ORDINARY_DEVELOPMENT_ACTION},
         )
 
     def test_session_acquires_releases_and_runs_multiple_actions_without_lifecycle(self):
@@ -96,6 +114,20 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertTrue(summary["ownership_released"])
             self.assertFalse((session_path / "journal.jsonl").exists())
             self.assertEqual(len(dispatched), 2)
+            actions = [
+                json.loads(line)
+                for line in (session_path / "actions.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            self.assertEqual(
+                [row["action_class"] for row in actions],
+                [boundary.ORDINARY_DEVELOPMENT_ACTION] * 2,
+            )
+            self.assertEqual(
+                [row["requested_action"] for row in actions],
+                ["navigation", "combat"],
+            )
 
     def test_observe_only_creates_no_action_or_lifecycle_state(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -208,6 +240,18 @@ class DevelopmentSessionTests(unittest.TestCase):
                     action_key="payment",
                 )
             self.assertEqual(runner.taps, [])
+        with tempfile.TemporaryDirectory() as directory:
+            runner = FakeRunner()
+            runtime = LocalBlueStacksRuntime(runner, Path(directory) / "runtime", execute=True)
+            source = runtime.capture("source")
+            with self.assertRaisesRegex(RuntimeError, "Cash Mall"):
+                runtime.tap(
+                    source,
+                    target_identity="Cash Mall buy with USD",
+                    target_roi=(10, 10, 20, 20),
+                    action_key="submit purchase",
+                )
+            self.assertEqual(runner.taps, [])
 
     def test_external_zoom_transport_is_accounted_and_bounded(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -231,6 +275,51 @@ class DevelopmentSessionTests(unittest.TestCase):
                     transport=lambda: None,
                 )
 
+    def test_ruins_development_mode_omits_legacy_delivery_bookkeeping(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            def fake_run(command, **_kwargs):
+                output = Path(command[command.index("--output-directory") + 1])
+                child = output / "child"
+                frames = child / "frames"
+                frames.mkdir(parents=True)
+                (frames / "0001-source.png").write_bytes(b"png")
+                (child / "events.jsonl").write_text(
+                    json.dumps({"type": "capture", "sha256": "a" * 64}) + "\n",
+                    encoding="utf-8",
+                )
+                stdout = json.dumps(
+                    {
+                        "status": "blocked",
+                        "reason": "recognition_needed",
+                        "actions_completed": 0,
+                    }
+                )
+                return CompletedProcess(command, 3, stdout=stdout, stderr="")
+
+            with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", root), patch.object(
+                ruins_delivery.subprocess, "run", side_effect=fake_run
+            ):
+                result = json.loads(
+                    ruins_delivery.run_ruins_challenge_home_atlas(
+                        {},
+                        {"owner": "test", "development_session": True},
+                        live=True,
+                    )
+                )
+            child = Path(result["session_directory"])
+            self.assertEqual(result["status"], "blocked")
+            self.assertFalse((child / "ledger.jsonl").exists())
+            self.assertFalse((child / "capability-audit.jsonl").exists())
+            self.assertFalse((child / "journal.jsonl").exists())
+            delivery = json.loads(
+                (child / "flow-delivery-result.json").read_text(encoding="utf-8")
+            )
+            self.assertIsNone(delivery["ledger_path"])
+            self.assertIsNone(delivery["capability_audit_path"])
+            self.assertIsNone(delivery["journal_path"])
+
     def test_pnsctl_flow_session_avoids_queue_and_preserves_checkpoint_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -240,7 +329,19 @@ class DevelopmentSessionTests(unittest.TestCase):
             child = root / "child"
             child.mkdir()
             (child / "events.jsonl").write_text(
-                json.dumps({"type": "dispatch"}) + "\n" + json.dumps({"type": "capture"}) + "\n",
+                json.dumps(
+                    {
+                        "type": "dispatch",
+                        "action_key": "claim-1",
+                        "target_identity": "claim",
+                        "source_sha256": "a" * 64,
+                    }
+                )
+                + "\n"
+                + json.dumps(
+                    {"type": "capture", "sha256": "b" * 64, "path": "post.png"}
+                )
+                + "\n",
                 encoding="utf-8",
             )
 
@@ -248,7 +349,12 @@ class DevelopmentSessionTests(unittest.TestCase):
                 self.assertEqual(queue, {"active_flow_id": "FLOW", "development_session": True})
                 self.assertEqual(lease["unresolved_action_state"], "not_applicable")
                 return json.dumps(
-                    {"status": "completed", "session_directory": str(child), "dispatch": live}
+                    {
+                        "status": "blocked",
+                        "reason": "recognition_needed",
+                        "session_directory": str(child),
+                        "dispatch": live,
+                    }
                 )
 
             png = b"png"
@@ -279,6 +385,17 @@ class DevelopmentSessionTests(unittest.TestCase):
                 (Path(result["session_directory"]) / "summary.json").read_text(encoding="utf-8")
             )
             self.assertTrue(summary["ownership_released"])
+            self.assertIn("repair recognition or recovery", summary["next_action"])
+            self.assertIn(str(child), summary["next_action"])
+            action = json.loads(
+                (Path(result["session_directory"]) / "actions.jsonl").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(action["action_class"], "ordinary_development")
+            self.assertEqual(action["before_sha256"], "a" * 64)
+            self.assertEqual(action["after_sha256"], "b" * 64)
+            self.assertEqual(action["status"], "post_captured")
 
 
 if __name__ == "__main__":
