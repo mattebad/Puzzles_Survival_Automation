@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import time
 from typing import Protocol
@@ -30,6 +31,19 @@ NativeBox = tuple[int, int, int, int]
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280
 NATIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+
+
+def reject_real_money_confirmation(target_identity: str, action_key: str = "") -> None:
+    """Reject only explicit real-money Cash Mall confirmation identities."""
+
+    identity = f"{target_identity} {action_key}".strip().lower().replace("_", "-")
+    prohibited = (
+        "cash-mall-real-money-confirm",
+        "real-money-cash-mall-confirm",
+        "cash-mall-payment-confirm",
+    )
+    if any(token in identity for token in prohibited):
+        raise RuntimeError("real-money Cash Mall confirmation is unsupported")
 
 
 @dataclass(frozen=True)
@@ -174,7 +188,7 @@ def box_center(box: NativeBox) -> tuple[int, int]:
 
 
 class LocalBlueStacksRuntime:
-    """Evidence-retaining local runtime with one unresolved consequential action maximum."""
+    """Evidence-retaining runtime for bounded ordinary development interactions."""
 
     def __init__(
         self,
@@ -195,6 +209,13 @@ class LocalBlueStacksRuntime:
         self.action_keys: set[str] = set()
         self.frame_actions: set[tuple[str, str, NativeBox | None]] = set()
         self.in_flight_action: str | None = None
+        try:
+            self.max_inputs = int(os.environ.get("PNS_DEVELOPMENT_MAX_INPUTS", "40"))
+        except ValueError as exc:
+            raise RuntimeError("PNS_DEVELOPMENT_MAX_INPUTS must be an integer") from exc
+        if not 1 <= self.max_inputs <= 100:
+            raise RuntimeError("PNS_DEVELOPMENT_MAX_INPUTS must be between 1 and 100")
+        self.input_count = 0
 
     @classmethod
     def connect(
@@ -257,22 +278,20 @@ class LocalBlueStacksRuntime:
         consequential: bool,
         continuation_of: str | None,
     ) -> None:
+        reject_real_money_confirmation(target_identity, action_key)
         age = time.monotonic() - source.captured_monotonic
         if age < 0 or age > self.frame_max_age_seconds:
             raise RuntimeError("dispatch source frame is stale")
-        if self.in_flight_action is not None and continuation_of != self.in_flight_action:
-            raise RuntimeError("prior consequential action is unresolved")
-        if continuation_of is not None and continuation_of != self.in_flight_action:
-            raise RuntimeError("continuation does not match the in-flight action")
+        if self.input_count >= self.max_inputs:
+            raise RuntimeError("development session input limit reached")
         if not action_key or action_key in self.action_keys:
             raise RuntimeError("duplicate or missing action key")
         fingerprint = (source.sha256, target_identity, target_roi)
         if fingerprint in self.frame_actions:
             raise RuntimeError("identical source/target input is forbidden")
-        if consequential and self.in_flight_action is not None:
-            raise RuntimeError("cannot start a second consequential action")
         self.action_keys.add(action_key)
         self.frame_actions.add(fingerprint)
+        self.input_count += 1
 
     def tap(
         self,
@@ -307,8 +326,6 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        if consequential:
-            self.in_flight_action = action_key
         self.runner.dispatch_tap(point)
 
     def swipe(
@@ -388,8 +405,6 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        if consequential:
-            self.in_flight_action = action_key
         self.runner.dispatch_swipe(point, point, duration_ms=duration_ms)
 
     def type_text(
@@ -517,6 +532,38 @@ class LocalBlueStacksRuntime:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
         self.runner.dispatch_zoom_out()
 
+    def dispatch_external_zoom(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        action_key: str,
+        transport,
+    ) -> None:
+        """Account for an adapter-owned native zoom transport inside this session."""
+
+        self._authorize_dispatch(
+            source,
+            action_key=action_key,
+            target_identity="home-zoom-out",
+            target_roi=None,
+            consequential=False,
+            continuation_of=None,
+        )
+        self._event(
+            "dispatch",
+            {
+                "action_key": action_key,
+                "target_identity": "home-zoom-out",
+                "transport": "adapter-owned-native-zoom",
+                "source_sha256": source.sha256,
+                "consequential": False,
+                "execute": self.execute,
+            },
+        )
+        if not self.execute:
+            raise RuntimeError("runtime is dry-run; input was not dispatched")
+        transport()
+
     def back(
         self,
         source: CapturedNativeFrame,
@@ -547,8 +594,6 @@ class LocalBlueStacksRuntime:
         self.runner.dispatch_back()
 
     def reconcile(self, action_key: str, status: str, post: CapturedNativeFrame, reason: str) -> None:
-        if self.in_flight_action != action_key:
-            raise RuntimeError("reconciliation does not match the in-flight action")
         if status not in {"confirmed", "failed_confirmed", "unresolved"}:
             raise ValueError("invalid reconciliation status")
         self._event(
@@ -561,8 +606,7 @@ class LocalBlueStacksRuntime:
                 "reason": reason,
             },
         )
-        if status != "unresolved":
-            self.in_flight_action = None
+        self.in_flight_action = None
 
     def record_recovery(
         self,

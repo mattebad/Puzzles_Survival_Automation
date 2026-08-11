@@ -1,7 +1,7 @@
 """Flow-agnostic navigation-development boundary for direct BlueStacks work.
 
-Owns the fixed cross-process runtime input lock, the canonical unresolved-action
-gate, route-declaration validation, navigation-only gesture firewall, current-frame
+Owns the fixed cross-process runtime input lock, route-declaration validation,
+navigation-only gesture firewall, current-frame
 safety checks, and shared terminal evidence finalization.
 
 This module is intentionally flow-agnostic: adapters supply route declarations and
@@ -569,7 +569,15 @@ class NavigationGuardedRuntime:
                     action_key=f"home-zoom-out:{source.sha256}",
                 )
             else:
-                transport()
+                accounted = getattr(self._inner, "dispatch_external_zoom", None)
+                if callable(accounted):
+                    accounted(
+                        source,
+                        action_key=f"home-zoom-out:{source.sha256}",
+                        transport=transport,
+                    )
+                else:
+                    transport()
         except Exception:
             entry["transport_observed"] = False
             raise
@@ -595,25 +603,20 @@ class NavigationGuardedRuntime:
 
 
 class NavigationDevelopmentSession:
-    """Acquire shared runtime ownership and clear the canonical unresolved gate."""
+    """Acquire and automatically release shared development runtime ownership.
+
+    Ordinary development sessions deliberately do not consult the legacy canonical
+    action journal.  Singleton ownership is the only session-level admission gate;
+    action-specific safety remains in current-frame validation and bounded transport.
+    """
 
     def __init__(self, *, owner: str, invocation_id: str) -> None:
         self.lock = RuntimeInputLock(owner=owner, invocation_id=invocation_id)
-        self.action_store_path = require_fixed_orchestrator_path(
-            None,
-            CANONICAL_ACTION_STORE_PATH,
-            "canonical action store",
-        )
         self.owner = owner
         self.invocation_id = invocation_id
 
     def __enter__(self) -> "NavigationDevelopmentSession":
         self.lock.acquire()
-        try:
-            require_canonical_unresolved_clear()
-        except Exception:
-            self.lock.release()
-            raise
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

@@ -150,7 +150,7 @@ def noah_observation(state, digest, *, remaining=5, cooldown=False):
 
 
 class IntegratedRouteTests(unittest.TestCase):
-    def test_native_runtime_enforces_fresh_single_flight_transport(self):
+    def test_native_runtime_allows_multiple_ordinary_actions_without_reconcile(self):
         with TemporaryDirectory() as directory:
             runner = FakeADBRunner()
             runtime = LocalBlueStacksRuntime(runner, Path(directory) / "session", execute=True)
@@ -162,11 +162,9 @@ class IntegratedRouteTests(unittest.TestCase):
                 action_key="action-1",
                 consequential=True,
             )
-            with self.assertRaisesRegex(RuntimeError, "unresolved"):
-                runtime.back(source, action_key="back-before-reconcile")
+            runtime.back(source, action_key="back-without-reconcile")
             post = runtime.capture("post")
             runtime.reconcile("action-1", "confirmed", post, "verified")
-            runtime.back(post, action_key="back-after-reconcile")
             self.assertEqual(runner.taps, [(150, 150)])
             self.assertEqual(runner.backs, 1)
 
@@ -199,11 +197,9 @@ class IntegratedRouteTests(unittest.TestCase):
                 consequential=True,
             )
             self.assertEqual(runner.swipes, [((150, 150), (150, 150), 4000)])
-            with self.assertRaisesRegex(RuntimeError, "unresolved"):
-                runtime.back(source, action_key="back-before-hold-reconcile")
+            runtime.back(source, action_key="back-before-hold-reconcile")
             post = runtime.capture("hold-post")
             runtime.reconcile("hold-action-1", "confirmed", post, "hold verified")
-            runtime.back(post, action_key="back-after-hold-reconcile")
             self.assertEqual(runner.backs, 1)
 
     def test_noah_route_uses_controller_transport_result_and_home_postcondition(self):

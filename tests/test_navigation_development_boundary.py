@@ -294,6 +294,11 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(NavigationBoundaryError, "canonical unresolved"):
                     require_canonical_unresolved_clear()
 
+                lock_path = Path(directory) / "runtime-lock.sqlite3"
+                with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", lock_path):
+                    with NavigationDevelopmentSession(owner="development", invocation_id="dev-1"):
+                        self.assertTrue(lock_path.is_file())
+
     def test_missing_delivery_metadata_irrelevant_to_session(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

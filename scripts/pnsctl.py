@@ -12,6 +12,7 @@ import argparse
 import base64
 from datetime import datetime, timezone
 import hashlib
+import inspect
 import json
 import os
 import re
@@ -51,6 +52,12 @@ BLUESTACKS_SERIAL = "emulator-5554"
 BLUESTACKS_NATIVE_WIDTH = 800
 BLUESTACKS_NATIVE_HEIGHT = 1280
 BLUESTACKS_ARTIFACT_ROOT = REPO_ROOT / ".local-captures" / "flow-delivery"
+DEVELOPMENT_SESSION_ROOT = REPO_ROOT / ".local-captures" / "development-sessions"
+DEVELOPMENT_CHECKPOINT_PATHS = (
+    REPO_ROOT / "BACKLOG.md",
+    REPO_ROOT / "tasks" / "flow_delivery_queue.json",
+    REPO_ROOT / "CURRENT_HANDOFF.md",
+)
 NOVA_NAVIGATION_CANARY_OUTPUT_DEFAULT = (
     BLUESTACKS_ARTIFACT_ROOT / "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
 )
@@ -719,6 +726,192 @@ def bluestacks_preflight() -> str:
         },
         sort_keys=True,
     )
+
+
+def _development_runtime_observation() -> tuple[dict[str, Any], bytes]:
+    """Validate the fixed runtime without consulting flow-delivery state."""
+
+    state = str(_run_fixed_bluestacks_adb("get-state")).strip()
+    frame = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
+    if not isinstance(frame, bytes) or frame[:8] != b"\x89PNG\r\n\x1a\n" or len(frame) < 24:
+        raise OperatorError("development observation did not receive a valid PNG frame")
+    width = int.from_bytes(frame[16:20], "big")
+    height = int.from_bytes(frame[20:24], "big")
+    focus = str(_run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
+    focused_package = _focused_package(focus)
+    if state != "device":
+        raise OperatorError("approved runtime serial is not in device state")
+    if (width, height) != (BLUESTACKS_NATIVE_WIDTH, BLUESTACKS_NATIVE_HEIGHT):
+        raise OperatorError("development runtime frame is not native 800x1280")
+    if focused_package != PACKAGE:
+        raise OperatorError("Puzzles & Survival is not the foreground package")
+    return (
+        {
+            "device_state": state,
+            "foreground_package": focused_package,
+            "native_width": width,
+            "native_height": height,
+            "frame_sha256": hashlib.sha256(frame).hexdigest(),
+        },
+        frame,
+    )
+
+
+def _checkpoint_hashes() -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    for path in DEVELOPMENT_CHECKPOINT_PATHS:
+        try:
+            label = str(path.relative_to(REPO_ROOT))
+        except ValueError:
+            label = str(path)
+        hashes[label] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashes
+
+
+def _development_session_directory(invocation_id: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", invocation_id).strip("-")
+    if not safe:
+        raise OperatorError("development session invocation ID is invalid")
+    return DEVELOPMENT_SESSION_ROOT / safe
+
+
+def development_session_observe(*, max_inputs: int = 12) -> str:
+    """Observe the current runtime under automatic singleton ownership."""
+
+    from scripts.development_session import DevelopmentSession
+
+    invocation_id = f"observe-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    session_directory = _development_session_directory(invocation_id)
+    before = _checkpoint_hashes()
+    with DevelopmentSession(
+        owner="pnsctl-development-observe",
+        invocation_id=invocation_id,
+        session_directory=session_directory,
+        max_inputs=max_inputs,
+    ):
+        observation, frame = _development_runtime_observation()
+        (session_directory / "observe.png").write_bytes(frame)
+        if _checkpoint_hashes() != before:
+            raise OperatorError("ordinary observation mutated a persistent checkpoint artifact")
+        result = {
+            "status": "observed",
+            "session_directory": str(session_directory),
+            "observation": observation,
+            "input_count": 0,
+            "lifecycle_state_created": False,
+        }
+        (session_directory / "result.json").write_text(
+            json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    return json.dumps(result, sort_keys=True)
+
+
+def development_session_run_flow(
+    flow_id: str,
+    *,
+    live: bool,
+    yes: bool,
+    max_inputs: int = 12,
+) -> str:
+    """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
+
+    from scripts.development_session import DevelopmentSession
+
+    if flow_id not in BLUESTACKS_FLOW_IDS:
+        raise OperatorError("flow ID is not in the checked-in runtime allowlist")
+    contract = _load_bluestacks_flow_registry().get(flow_id)
+    if contract is None or contract["runner"] not in _BLUESTACKS_FLOW_RUNNERS:
+        raise OperatorError("DEVELOPMENT_FLOW_RUNNER_UNAVAILABLE")
+    if live and not yes:
+        raise OperatorError("live development session requires --yes")
+    invocation_id = f"{flow_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    session_directory = _development_session_directory(invocation_id)
+    owner = f"pnsctl-development-session:{flow_id}"
+    checkpoint_before = _checkpoint_hashes()
+    previous_limit = os.environ.get("PNS_DEVELOPMENT_MAX_INPUTS")
+    try:
+        os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = str(max_inputs)
+        with DevelopmentSession(
+            owner=owner,
+            invocation_id=invocation_id,
+            session_directory=session_directory,
+            max_inputs=max_inputs,
+        ) as session:
+            observation, frame = _development_runtime_observation()
+            (session_directory / "source.png").write_bytes(frame)
+            queue_context = {"active_flow_id": flow_id, "development_session": True}
+            runtime_context = {
+                "owner": owner,
+                "runtime_ownership_state": "held",
+                "unresolved_action_state": "not_applicable",
+                "development_session": True,
+            }
+            runner = _BLUESTACKS_FLOW_RUNNERS[contract["runner"]]
+            if "live" in inspect.signature(runner).parameters:
+                raw = runner(queue_context, runtime_context, live=live)
+            elif live:
+                raw = runner(queue_context, runtime_context)
+            else:
+                raw = json.dumps(
+                    {
+                        "status": "dry_run",
+                        "flow_id": flow_id,
+                        "dispatch": False,
+                        "session_directory": "",
+                    },
+                    sort_keys=True,
+                )
+            result = json.loads(raw)
+            child_text = str(result.get("session_directory") or "")
+            child = Path(child_text) if child_text else None
+            dispatch_count = 0
+            dispatch_rows: list[dict[str, Any]] = []
+            if child is not None and child.is_dir():
+                events = child / "events.jsonl"
+                if events.is_file():
+                    for line in events.read_text(encoding="utf-8").splitlines():
+                        row = json.loads(line) if line.strip() else {}
+                        if row.get("type") == "dispatch":
+                            dispatch_count += 1
+                            dispatch_rows.append(row)
+            if dispatch_count > max_inputs:
+                raise OperatorError("development session exceeded its input limit")
+            session.input_count = dispatch_count
+            session.actions = dispatch_rows
+            if dispatch_rows:
+                with (session_directory / "actions.jsonl").open(
+                    "w", encoding="utf-8", newline="\n"
+                ) as handle:
+                    for row in dispatch_rows:
+                        handle.write(json.dumps(row, sort_keys=True) + "\n")
+            result_status = str(result.get("status") or "unknown")
+            if result_status not in {"completed", "dry_run", "observed"}:
+                session.terminal_status = "blocked"
+                session.blocker = str(result.get("reason") or "development result is not terminal")
+                session.next_action = "repair the development result and rerun materially changed behavior"
+            if _checkpoint_hashes() != checkpoint_before:
+                raise OperatorError("ordinary development session mutated a checkpoint artifact")
+            wrapper = {
+                "status": result.get("status", "unknown"),
+                "flow_id": flow_id,
+                "session_directory": str(session_directory),
+                "runtime_session_directory": child_text,
+                "input_count": dispatch_count,
+                "max_inputs": max_inputs,
+                "runtime_observation": observation,
+                "lifecycle_state_created": False,
+                "persistent_checkpoint_artifacts_unchanged": True,
+                "result": result,
+            }
+            (session_directory / "result.json").write_text(
+                json.dumps(wrapper, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+    finally:
+        if previous_limit is None:
+            os.environ.pop("PNS_DEVELOPMENT_MAX_INPUTS", None)
+        else:
+            os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = previous_limit
+    return json.dumps(wrapper, sort_keys=True)
 
 
 def bluestacks_reload_game() -> str:
@@ -3023,6 +3216,15 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     root.add_argument("--run-id", default="help-all-20260713")
     sub = root.add_subparsers(dest="command", required=True)
+    development = sub.add_parser("development-session")
+    development_sub = development.add_subparsers(dest="development_command", required=True)
+    development_observe = development_sub.add_parser("observe")
+    development_observe.add_argument("--max-inputs", type=int, default=12)
+    development_run = development_sub.add_parser("run-flow")
+    development_run.add_argument("flow_id", choices=BLUESTACKS_FLOW_IDS)
+    development_run.add_argument("--live", action="store_true")
+    development_run.add_argument("--yes", action="store_true")
+    development_run.add_argument("--max-inputs", type=int, default=12)
     for name in ("preflight", "worker-start", "worker-status", "worker-stop", "adb-start", "launch", "capture", "observe", "navigate", "run-task", "test-focused", "test-full", "validate", "preserve-evidence", "evidence-status", "cleanup"):
         sub.add_parser(name)
     sub.choices["capture"].add_argument("--name", default="current")
@@ -3209,6 +3411,34 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "reconcile":
         print(reconcile(args))
         return 0
+    if args.command == "development-session":
+        try:
+            if args.development_command == "observe":
+                output = development_session_observe(max_inputs=args.max_inputs)
+            elif args.development_command == "run-flow":
+                output = development_session_run_flow(
+                    args.flow_id,
+                    live=bool(args.live),
+                    yes=bool(args.yes),
+                    max_inputs=args.max_inputs,
+                )
+            else:
+                raise OperatorError("unknown development-session command")
+            print(output)
+            return 0
+        except (OperatorError, OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "command": f"development-session {args.development_command}",
+                        "error": str(exc),
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 2
     if args.command == "bluestacks":
         try:
             if args.bluestacks_command == "preflight":

@@ -45,6 +45,7 @@ def run_ruins_challenge_home_atlas(
 
     pnsctl = _pnsctl()
     del queue
+    development_mode = bool(lease.get("development_session"))
     root = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"nav-{_stamp()}"
     root.mkdir(parents=True, exist_ok=False)
     command = [
@@ -91,7 +92,10 @@ def run_ruins_challenge_home_atlas(
         "actions_completed": ruins.get("actions_completed"),
         "child_event_journal": "events.jsonl",
     }
-    for name in ("ledger.jsonl", "capability-audit.jsonl", "journal.jsonl"):
+    evidence_names = ("ledger.jsonl", "capability-audit.jsonl")
+    if not development_mode:
+        evidence_names += ("journal.jsonl",)
+    for name in evidence_names:
         (session / name).write_text(json.dumps(accounting, sort_keys=True) + "\n", encoding="utf-8")
     delivery = {
         "schema_version": 1,
@@ -103,11 +107,11 @@ def run_ruins_challenge_home_atlas(
         "runtime_owner": lease["owner"],
         "terminal_runtime_state": "recognized_home" if terminal else "safe_blocked_terminal",
         "ruins_result": ruins,
-        "actions": [{"action_class": "navigation_only", "path": "canonical_home_to_ruins_to_safe_exit_home", "outcome": ruins.get("reason")}],
+        "actions": [{"action_class": "ordinary_development" if development_mode else "navigation_only", "path": "canonical_home_to_ruins_to_safe_exit_home", "outcome": ruins.get("reason")}],
         "events_path": "events.jsonl",
         "ledger_path": "ledger.jsonl",
         "capability_audit_path": "capability-audit.jsonl",
-        "journal_path": "journal.jsonl",
+        "journal_path": None if development_mode else "journal.jsonl",
         "frames": frame_names,
         "operator_returncode": completed.returncode,
         "resource_delta": 0,
@@ -122,6 +126,18 @@ def run_ruins_challenge_home_atlas(
             "reason": ruins.get("reason"),
         }, sort_keys=True)
     if not terminal:
+        if development_mode:
+            return json.dumps(
+                {
+                    "status": "blocked",
+                    "flow_id": FLOW_ID,
+                    "session_directory": str(session),
+                    "dispatch": any(row.get("type") == "dispatch" for row in event_rows),
+                    "reason": ruins.get("reason") or "development_route_not_terminal",
+                    "actions_completed": ruins.get("actions_completed", 0),
+                },
+                sort_keys=True,
+            )
         raise pnsctl.OperatorError("Ruins navigation route did not prove safe exit to Home")
     return json.dumps({"status": "completed", "flow_id": FLOW_ID, "session_directory": str(session), "dispatch": True}, sort_keys=True)
 
