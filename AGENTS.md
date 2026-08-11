@@ -6,10 +6,10 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 
 ## Authority and context discipline
 
-- Repository state, Git history, the working tree, authoritative operational journals, and canonical
-  retained evidence are authoritative.
-- `BACKLOG.md` is authoritative for task status, ordering, dependencies, blockers, authorization,
-  verification, and completion criteria.
+- Repository state, Git history, the working tree, compact development-session records, and
+  canonical retained evidence are authoritative.
+- `BACKLOG.md` is authoritative at meaningful flow checkpoints, not between ordinary development
+  interactions.
 - `CURRENT_HANDOFF.md` is the primary entry point for volatile current state and is not project
   history. Conversation transcripts are historical context only.
 - Do not read `BACKLOG.md` or the canonical plan in full during routine work. Locate only the active
@@ -21,11 +21,9 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 
 - Complete only the active atomic backlog task. Do not begin downstream or unrelated work after
   completion or a valid blocker.
-- Exception: the named development flow-delivery orchestrator may advance from one completed
-  atomic flow to the next only after the prior flow has a terminal runtime state, reconciled
-  evidence, passing required tests, a focused commit, a clean attributable tree, and an atomic
-  queue transition. It may never have two active flows, two writable agents, or concurrent
-  BlueStacks operators.
+- A development session may execute, diagnose, repair, and continue through one complete active
+  flow without queue, backlog, or handoff transitions between inputs. It may never overlap another
+  live runtime operator or begin a second gameplay flow.
 - Preserve passed experiments, valid uncommitted work, retained evidence, and Git history. Do not
   repeat passed experiments without contradictory evidence.
 - Update and stage only files directly attributable to the active task.
@@ -37,6 +35,8 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 - Use `scripts/pnsctl.py` as the sole supported operational interface when a command exists. Do not
   bypass policy with ad hoc ADB, plink, Docker, remote shell, or temporary runtime scripts.
 - ADB must remain private and non-public.
+- This project is in active development. `pnsctl development-session` automatically acquires and
+  releases singleton runtime ownership and writes one compact terminal record.
 
 ## Fixed runtime and manual-only states
 
@@ -53,21 +53,26 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
   revalidate immediately before dispatch, and require full-frame bounds/overlay checks.
 - Rebind a moved target only through a narrow evidence-supported policy; generic rebinding is
   forbidden. Transport success never proves semantic success.
-- Navigation-only and consequential actions are distinct. Consequential actions normally allow one
-  authorized transport input; ambiguous results become unresolved and are never blindly retried.
+- Planned gameplay actions are ordinary development interactions. Navigation, combat, Zombie
+  Lairs, zombie attacks, claims, rewards, recruitment, maintenance, and in-game-currency spending
+  do not use a per-action consequential lifecycle.
 - Do not issue identical retries. Continue diagnosis only with a concrete new hypothesis, corrected
-  logic, or materially different conditions. Disable generic popup cleanup during consequential
-  preparation and dispatch.
+  logic, or materially different conditions. An unknown result is session-local diagnostic state:
+  capture it, recognize or recover, repair, and continue when materially changed.
+- Real-money Cash Mall confirmation is unsupported and must be rejected. Navigating to or closing a
+  payment surface must never confirm payment.
 - See [`docs/runtime-input-safety-policy.md`](docs/runtime-input-safety-policy.md) for the complete
   procedure.
 
-## Journals, leases, and game-day binding
+## Development sessions and game-day binding
 
-- Preserve the established journal lifecycle and lease policy. Check the global active-unresolved
-  gate before consequential dispatch.
-- Keep operational journal authority distinct from immutable historical/source evidence. Reconcile
-  navigation-only records without changing consequential records; historical unresolved snapshots
-  do not permanently block a properly reconciled operational copy.
+- Ordinary development interactions do not acquire per-action leases, create
+  `prepared/input_sent/reconciled` rows, or consult a global unresolved-action gate.
+- One development session owns singleton runtime access, applies bounded per-command and per-session
+  input limits, retains useful before/after evidence, appends compact action results, writes one
+  terminal summary, and releases ownership automatically.
+- Legacy journals remain immutable historical evidence. They do not gate an ordinary development
+  session and must not be rewritten to represent new actions.
 - Bind Daily tasks, state, evidence, and authorization to a positively established game-day/reset
   identity. Unknown or stale cycles do not authorize work.
 - See [`docs/journal-lease-policy.md`](docs/journal-lease-policy.md).
@@ -95,8 +100,8 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 - Full repository unittest discovery is manual opt-in only during active development. It is not a
   gate for implementation, live preflight, live execution, evidence review, commit, or handoff;
   validate touched components and safety boundaries instead.
-- Preserve the minimum evidence sequence: source, immediate-before, transport, immediate-post,
-  semantic result, journal reference, and unresolved proof when applicable.
+- Preserve useful native evidence: source or immediate-before, transport result, immediate-post,
+  and semantic result. One compact session record replaces per-action journal ceremony.
 - Do not delete or compact evidence during ordinary work. Evidence hygiene requires dry-run
   classification, archive-before-removal, and verification through its dedicated workflow. See
   [`docs/evidence-retention-policy.md`](docs/evidence-retention-policy.md).
@@ -122,9 +127,8 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 - For shared files or retained branches, assign behavior and writable ownership to one atomic task
   at symbol or region granularity. Commit and validate foundational interfaces first; integrate
   serially and reject duplicate, reverted, or conflicting ports.
-- Once the next authorized action is clear and its safety gates pass, execute it. Do not interpose
-  redundant test reruns or speculative diagnostics, but never bypass a safety, evidence, lease, or
-  attempt gate because of conversational urgency.
+- Once the next action is clear and its action-specific safety checks pass, execute it. Do not
+  interpose replay, production preflight, queue mutation, or unrelated source gates.
 
 ## Visual ground truth and live-validation discipline
 
@@ -152,30 +156,24 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 - Contradictory visual evidence invalidates passing tests. Surface any asset, label, ROI, geometry,
   or semantic mismatch immediately and prohibit live input until corrected.
 
-## Replay, evidence, and attempt integrity
+## Development evidence and iteration integrity
 
-- Positive replay must execute the same production recognizer, controller, policy, persistence, and
-  postcondition path as live operation. Zero transport replaces only the transport boundary.
+- Replay and production preflight are not routine prerequisites for development execution. Use
+  focused tests and the smallest live session that proves the changed capability.
 - Missing required evidence fails explicitly. Never create empty, zero-byte, fabricated, or
   placeholder evidence to satisfy a validator or completion gate.
-- Separate pre-input blocks from input-bearing execution attempts. Configuration, registration,
-  identity, asset, command, and initial-recognition failures do not consume execution budget unless
-  policy explicitly says otherwise.
-- Persist every live invocation in authoritative scenario accounting, including zero-input blocks,
-  operator-authorized retries, candidate commit, material condition, exact input sequence, evidence,
-  terminal ownership, and unresolved-action state. Conversation authorization alone is not durable
-  attempt accounting.
+- Bounded session input accounting is automatic. Failures and unknown results remain local to the
+  development session and do not create a project-wide unresolved condition.
 - Transport success is intermediate evidence only. Completion requires semantic successor proof and
   the contract's terminal postcondition, including a canonical-start end-to-end run when required.
 
 ## Chat ownership and handoff
 
-- Hand off only after no action is between prepared and terminal state, evidence is flushed and
-  referenced, journal and lease state are recorded, staged/uncommitted ownership is listed, the
-  exact next permitted action and prohibited repeats are in `CURRENT_HANDOFF.md`, and runtime is
-  left recognized and task-authorized.
-- Recovery handoffs record the failed operation, whether transport occurred, action class/id,
-  journal record, current frame, diagnosis, retry eligibility, and prohibited repeated input.
+- Hand off only after the development session has terminated, evidence and its compact summary are
+  flushed, singleton ownership is released, and staged/uncommitted ownership is listed.
+- `BACKLOG.md`, `tasks/flow_delivery_queue.json`, and `CURRENT_HANDOFF.md` change only when selecting,
+  completing, abandoning, externally blocking, or handing off a flow—not after ordinary inputs,
+  tests, recognition failures, repairs, combat, claims, rewards, zoom, or recovery.
 - Parallel live-runtime chats are prohibited. Planning-only work may coexist only when it cannot
   touch the same working tree or runtime. See
   [`docs/chat-execution-ownership-policy.md`](docs/chat-execution-ownership-policy.md).
