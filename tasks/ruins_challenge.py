@@ -326,8 +326,9 @@ def chest_claim_postcondition_verified(before: RuinsChallengeRow, after: RuinsCh
         before.chest_state == RuinsChestState.AVAILABLE
         and after.identity == before.identity
         and after.chest_state == RuinsChestState.CLAIMED
-        and after.progress_current == before.progress_current
-        and after.progress_maximum == before.progress_maximum
+        and after.reset_identity == before.reset_identity
+        and after.source_frame_sha256
+        and after.source_frame_sha256 != before.source_frame_sha256
     )
 
 

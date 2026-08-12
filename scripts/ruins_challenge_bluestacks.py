@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import replace
+import hashlib
 import json
 from pathlib import Path
 import sys
 import time
+
+import cv2
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -23,6 +26,7 @@ from tasks.home_atlas import load_home_atlas
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
 from tasks.home_context import HomeReadyObservation
 from tasks.ruins_challenge import (
+    KNOWN_CHALLENGE_IDENTITIES,
     RuinsAvailability,
     RuinsChestState,
     RuinsControlState,
@@ -36,18 +40,23 @@ from tasks.ruins_challenge_vision import (
     recognize_navigation_chat_screen,
     recognize_ruins_result_with_targets,
     recognize_ruins_reward_frame,
+    recognize_any_ruins_reward_frame,
 )
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
+from scripts.personal_might_praise_live import recognize_reset_popup
 
 
 RUINS_HOME_ATLAS_BUILDING_ID = "home.building.ruins"
 MAXIMUM_HOME_ZOOM_INPUTS = 4
 HOME_RECOGNITION_PROBE_STAGE = CampaignStage(1, 1, 1)
+_ORDINARY_RUINS_TARGETS = frozenset(
+    {"ruins-attack", "ruins-dispatch", "ruins-result-continue", "ruins-reward-claim", "reset-popup-close"}
+)
 
 
 def ruins_challenge_navigation_route_declaration() -> NavigationRouteDeclaration:
     return NavigationRouteDeclaration(
-        allowed_source_states=frozenset({"HOME_BASE", "RUINS_CHALLENGE", "CHAT"}),
+        allowed_source_states=frozenset({"HOME_BASE", "RUINS_CHALLENGE", "RUINS_CHALLENGE_DETAIL", "RUINS_DISPATCH_DETAIL", "CHAT"}),
         allowed_target_identities=frozenset(
             {RUINS_HOME_ATLAS_BUILDING_ID, "home-zoom-out", "system-back"}
         ),
@@ -65,6 +74,7 @@ class RuinsIntegratedRoute:
         reset_identity: str,
         current_day: str,
         claim_chests: bool = False,
+        chests_only: bool = False,
         allow_optional_second: bool = False,
         excluded_challenges: set[str] | None = None,
         navigation_only: bool = False,
@@ -85,11 +95,14 @@ class RuinsIntegratedRoute:
         self.runtime: NativeRuntimePort = runtime if isinstance(runtime, NavigationGuardedRuntime) else NavigationGuardedRuntime(runtime, declaration)
         self.reset_identity = reset_identity
         self.current_day = current_day
-        self.claim_chests = claim_chests
+        self.claim_chests = claim_chests or chests_only
+        self.chests_only = chests_only
         self.allow_optional_second = allow_optional_second
         self.navigation_only = navigation_only
         self.post_input_delay = post_input_delay
         self.recognition_timeout = recognition_timeout
+        self.resource_delta = 0
+        self._points_balance: int | None = None
         self.atlas_path = ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
         self.atlas = load_home_atlas(self.atlas_path)
         identity = VerifiedRuntimeIdentity(
@@ -119,6 +132,69 @@ class RuinsIntegratedRoute:
             recognized=True, source_state=source_state, frame_sha256=captured.sha256,
             captured_monotonic=captured.captured_monotonic, target_roi=target_roi,
         ))
+
+    def _ordinary_tap(
+        self,
+        captured,
+        *,
+        target_identity: str,
+        target_roi,
+        action_key: str,
+        consequential: bool = False,
+        continuation_of: str | None = None,
+    ) -> None:
+        """Dispatch a gameplay tap through the bounded native runtime.
+
+        Home entry and safe Back remain behind the navigation firewall.  Ruins
+        gameplay controls are ordinary development interactions, so they use
+        the underlying runtime's current-frame, bounds, duplicate-input, and
+        Cash Mall guards without the navigation-only target allowlist.
+        """
+        allowed = target_identity in _ORDINARY_RUINS_TARGETS
+        if target_identity.startswith("challenge:"):
+            allowed = target_identity.split(":", 1)[1] in {
+                row_identity for row_identity in self.controller.rows
+            } or target_identity.split(":", 1)[1] in {
+                "Hero Challenge", "Weapon Trial", "Tech Challenge", "Gear Challenge", "Core Challenge",
+                "Nova Challenge", "Module Challenge", "Glory Challenge", "Bioenhancer Challenge",
+                "Ultimate Challenge", "Chip Challenge", "Cube Challenge",
+            }
+        if target_identity.startswith("chest:"):
+            allowed = target_identity.split(":", 1)[1] in {
+                "Hero Challenge", "Weapon Trial", "Tech Challenge", "Gear Challenge", "Core Challenge",
+                "Nova Challenge", "Module Challenge", "Glory Challenge", "Bioenhancer Challenge",
+                "Ultimate Challenge", "Chip Challenge", "Cube Challenge",
+            }
+        if not allowed:
+            raise NavigationBoundaryError(f"undeclared Ruins gameplay target denied: {target_identity}")
+        inner = getattr(self.runtime, "_inner", None)
+        transport = inner if inner is not None else self.runtime
+        transport.tap(
+            captured,
+            target_identity=target_identity,
+            target_roi=target_roi,
+            action_key=action_key,
+            consequential=consequential,
+            continuation_of=continuation_of,
+        )
+
+    def _dismiss_known_vip_popup(self, captured):
+        """Close the retained benign VIP-points modal once when positively recognized."""
+        detail = recognize_reset_popup(captured.frame)
+        if not detail.get("recognized") or not detail.get("target"):
+            return captured, None, 0
+        self._ordinary_tap(
+            captured,
+            target_identity="reset-popup-close",
+            target_roi=tuple(detail["target"]),
+            action_key=f"ruins:vip-popup-close:{captured.sha256}",
+            consequential=False,
+        )
+        time.sleep(self.post_input_delay)
+        settled = self.runtime.capture("ruins-vip-popup-close-immediate-post")
+        if recognize_reset_popup(settled.frame).get("recognized"):
+            return settled, "vip_popup_close_successor_not_recognized", 1
+        return settled, None, 1
 
     def _recover_home_zoom_before_ruins_binding(self) -> tuple[object | None, str | None]:
         """Reuse the accepted LocalizeFirst recovery before the current-frame bind."""
@@ -194,8 +270,100 @@ class RuinsIntegratedRoute:
             return None, f"chat_safe_exit_home_not_recognized:{home_step.reason}", 1
         return immediate_post, None, 1
 
+    def _recover_known_detail_to_list(self, source):
+        """Safely back out of one positively recognized Ruins detail screen."""
+        dispatch_probe = recognize_ruins_detail_with_targets(
+            source.frame, "", reset_identity=self.reset_identity,
+        )
+        dispatch_observation = dispatch_probe.observation
+        if (
+            dispatch_observation.recognized
+            and dispatch_observation.dispatch_control == RuinsControlState.VISIBLE_ENABLED
+            and dispatch_observation.npc_troops_provided
+            and dispatch_observation.npc_troops_current == dispatch_observation.npc_troops_maximum
+            and dispatch_observation.skip_battle_enabled
+        ):
+            dispatch_before = self.runtime.capture("ruins-dispatch-safe-exit-immediate-before")
+            dispatch_rebound = recognize_ruins_detail_with_targets(
+                dispatch_before.frame, "", reset_identity=self.reset_identity,
+            ).observation
+            if not (
+                dispatch_rebound.recognized
+                and dispatch_rebound.dispatch_control == RuinsControlState.VISIBLE_ENABLED
+                and dispatch_rebound.npc_troops_current == dispatch_rebound.npc_troops_maximum
+                and dispatch_rebound.skip_battle_enabled
+            ):
+                return dispatch_before, None, 0, "ruins_dispatch_safe_exit_revalidation_failed", True
+            try:
+                self._prepare_navigation(dispatch_before, source_state="RUINS_DISPATCH_DETAIL")
+                self.runtime.back(
+                    dispatch_before,
+                    action_key=f"ruins:dispatch-safe-exit:{dispatch_before.sha256}",
+                )
+            except NavigationBoundaryError as exc:
+                return dispatch_before, None, 0, str(exc), True
+            time.sleep(self.post_input_delay)
+            detail_after = self.runtime.capture("ruins-dispatch-safe-exit-immediate-post")
+            detail_candidates = []
+            for identity in KNOWN_CHALLENGE_IDENTITIES:
+                detail = recognize_ruins_detail_with_targets(
+                    detail_after.frame, identity, reset_identity=self.reset_identity,
+                )
+                if detail.observation.recognized:
+                    detail_candidates.append(identity)
+            if len(detail_candidates) != 1:
+                return detail_after, None, 1, "ruins_dispatch_safe_exit_detail_not_recognized", True
+            list_capture, list_recognition, detail_actions, detail_error, detail_handled = self._recover_known_detail_to_list(detail_after)
+            if not detail_handled:
+                return detail_after, None, 1, "ruins_dispatch_safe_exit_detail_not_recognized", True
+            if detail_error is not None:
+                return list_capture, list_recognition, detail_actions + 1, detail_error, True
+            return list_capture, list_recognition, detail_actions + 1, None, True
+        if (
+            dispatch_observation.npc_troops_provided
+            or dispatch_observation.npc_troops_current is not None
+            or dispatch_observation.skip_battle_enabled
+        ):
+            return source, None, 0, "ruins_dispatch_context_ambiguous", True
+        candidates = []
+        ambiguous_detail = False
+        for identity in KNOWN_CHALLENGE_IDENTITIES:
+            detail = recognize_ruins_detail_with_targets(
+                source.frame, identity, reset_identity=self.reset_identity,
+            )
+            if detail.observation.recognized:
+                candidates.append((identity, detail))
+            elif detail.observation.floor_maximum > 0:
+                ambiguous_detail = True
+        if len(candidates) > 1:
+            return source, None, 0, "ruins_detail_identity_ambiguous", True
+        if not candidates:
+            if ambiguous_detail:
+                return source, None, 0, "ruins_detail_context_ambiguous", True
+            return source, None, 0, None, False
+        identity, _detail = candidates[0]
+        immediate_before = self.runtime.capture("ruins-detail-safe-exit-immediate-before")
+        rebound = recognize_ruins_detail_with_targets(
+            immediate_before.frame, identity, reset_identity=self.reset_identity,
+        )
+        if not rebound.observation.recognized:
+            return immediate_before, None, 0, "ruins_detail_safe_exit_revalidation_failed", True
+        try:
+            self._prepare_navigation(immediate_before, source_state="RUINS_CHALLENGE_DETAIL")
+            self.runtime.back(
+                immediate_before,
+                action_key=f"ruins:detail-safe-exit:{immediate_before.sha256}",
+            )
+        except NavigationBoundaryError as exc:
+            return immediate_before, None, 0, str(exc), True
+        time.sleep(self.post_input_delay)
+        settled, successor = self._observe_list("ruins-detail-safe-exit-immediate-post")
+        if not successor.observation.recognized or successor.observation.screen_identity != "RUINS_CHALLENGE":
+            return settled, successor, 1, "ruins_detail_safe_exit_successor_not_recognized", True
+        return settled, successor, 1, None, True
+
     def _return_home(self, captured, recognition, actions: int) -> IntegratedRouteResult:
-        if recognition.observation.home_base_recognized:
+        if recognition.observation.home_base_recognized or self._home_atlas_recognized(captured.frame):
             return IntegratedRouteResult("completed", "returned_home", actions, str(self.runtime.session))
         if (
             not recognition.observation.recognized
@@ -217,9 +385,152 @@ class RuinsIntegratedRoute:
         self.runtime.back(immediate_before, action_key=f"ruins:safe-exit:{immediate_before.sha256}")
         time.sleep(self.post_input_delay)
         settled, successor = self._observe_list("ruins-safe-exit-immediate-post")
-        if not successor.observation.home_base_recognized:
-            return IntegratedRouteResult("blocked", "safe_exit_home_successor_not_recognized", actions + 1, str(self.runtime.session))
-        return IntegratedRouteResult("completed", "verified_safe_exit_to_home", actions + 1, str(self.runtime.session))
+        exit_actions = actions + (1 if self.navigation_only else 0)
+        if not successor.observation.home_base_recognized and not self._home_atlas_recognized(settled.frame):
+            return IntegratedRouteResult("blocked", "safe_exit_home_successor_not_recognized", exit_actions, str(self.runtime.session))
+        return IntegratedRouteResult("completed", "verified_safe_exit_to_home", exit_actions, str(self.runtime.session))
+
+    def _home_atlas_recognized(self, frame) -> bool:
+        return bool(BlueStacksHomeLocalizer(self.atlas, self.atlas_path).localize(frame).recognized)
+
+    def recover_only(self, evidence_session: Path) -> IntegratedRouteResult:
+        """Close one evidence-bound post-success detail without repeating combat."""
+        flow_root = (ROOT / ".local-captures" / "flow-delivery" / "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION").resolve()
+        try:
+            evidence_session = evidence_session.resolve()
+            evidence_session.relative_to(flow_root)
+        except (OSError, ValueError):
+            return IntegratedRouteResult("blocked", "recovery_evidence_session_outside_ruins_flow", 0, str(self.runtime.session))
+
+        def evidence_path(row):
+            raw = row.get("path")
+            if not raw:
+                return None
+            try:
+                path = Path(raw).resolve()
+                path.relative_to(evidence_session)
+                path.relative_to(evidence_session / "frames")
+            except (OSError, ValueError):
+                return None
+            return path
+
+        try:
+            delivery = json.loads((evidence_session / "flow-delivery-result.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (evidence_session / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            return IntegratedRouteResult("blocked", f"recovery_evidence_unreadable:{type(exc).__name__}", 0, str(self.runtime.session))
+        for row in events:
+            for field in ("path", "post_path"):
+                if row.get(field) is not None:
+                    try:
+                        referenced = Path(row[field]).resolve()
+                        referenced.relative_to(evidence_session)
+                        referenced.relative_to(evidence_session / "frames")
+                    except (OSError, TypeError, ValueError):
+                        return IntegratedRouteResult("blocked", "recovery_evidence_path_escape", 0, str(self.runtime.session))
+        if delivery.get("status") != "failed" or (delivery.get("ruins_result") or {}).get("reason") != "successful_progress_not_visible":
+            return IntegratedRouteResult("blocked", "recovery_evidence_not_terminal_success_gap", 0, str(self.runtime.session))
+        dispatches = [
+            (index, row) for index, row in enumerate(events)
+            if row.get("type") == "dispatch" and row.get("target_identity") == "ruins-dispatch" and row.get("consequential")
+        ]
+        if len(dispatches) != 1:
+            return IntegratedRouteResult("blocked", "recovery_evidence_missing_consequential_dispatch", 0, str(self.runtime.session))
+        dispatch_index, dispatch = dispatches[0]
+        dispatch_key = dispatch.get("action_key")
+        source_sha = dispatch.get("source_sha256")
+        roi = dispatch.get("target_roi")
+        if not isinstance(dispatch_key, str) or not dispatch_key or not isinstance(source_sha, str) or len(source_sha) != 64:
+            return IntegratedRouteResult("blocked", "recovery_evidence_dispatch_binding_invalid", 0, str(self.runtime.session))
+        if not (isinstance(roi, list) and len(roi) == 4 and all(isinstance(value, int) for value in roi)):
+            return IntegratedRouteResult("blocked", "recovery_evidence_dispatch_target_invalid", 0, str(self.runtime.session))
+        source_captures = []
+        if dispatch_index > 0:
+            source_row = events[dispatch_index - 1]
+            source_path = evidence_path(source_row)
+            if source_row.get("type") == "capture" and source_row.get("sha256") == source_sha and source_path is not None and hashlib.sha256(source_path.read_bytes()).hexdigest() == source_sha:
+                source_captures.append(source_row)
+        if len(source_captures) != 1:
+            return IntegratedRouteResult("blocked", "recovery_evidence_dispatch_source_invalid", 0, str(self.runtime.session))
+        continues = [
+            (index, row) for index, row in enumerate(events)
+            if index > dispatch_index and row.get("type") == "dispatch"
+            and row.get("target_identity") == "ruins-result-continue"
+            and row.get("action_key", "").startswith(dispatch_key + ":")
+        ]
+        if len(continues) != 1:
+            return IntegratedRouteResult("blocked", "recovery_evidence_continue_link_invalid", 0, str(self.runtime.session))
+        continue_index, continue_row = continues[0]
+        successor_rows = [
+            (index, row) for index, row in enumerate(events)
+            if index > continue_index and row.get("type") == "capture" and row.get("label") == "challenge-list-postcondition"
+        ]
+        if len(successor_rows) != 1:
+            return IntegratedRouteResult("blocked", "recovery_evidence_successor_link_invalid", 0, str(self.runtime.session))
+        successor_index, successor_row = successor_rows[0]
+        successor_path = evidence_path(successor_row)
+        successor_sha = successor_row.get("sha256")
+        if successor_path is None or not successor_path.is_file() or not isinstance(successor_sha, str) or len(successor_sha) != 64:
+            return IntegratedRouteResult("blocked", "recovery_evidence_successor_frame_invalid", 0, str(self.runtime.session))
+        if hashlib.sha256(successor_path.read_bytes()).hexdigest() != successor_sha:
+            return IntegratedRouteResult("blocked", "recovery_evidence_successor_hash_mismatch", 0, str(self.runtime.session))
+        reconciles = [
+            (index, row) for index, row in enumerate(events)
+            if index > successor_index and row.get("type") == "reconcile"
+            and row.get("status") == "unresolved" and row.get("reason") == "successful row progress not visible"
+            and row.get("action_key") == dispatch_key
+            and row.get("post_path") and Path(row.get("post_path")).resolve() == successor_path
+            and row.get("post_sha256") == successor_sha
+        ]
+        if len(reconciles) != 1:
+            return IntegratedRouteResult("blocked", "recovery_evidence_reconcile_link_invalid", 0, str(self.runtime.session))
+        detail_rows = [
+            (index, row) for index, row in enumerate(events)
+            if row.get("type") == "capture" and row.get("label") == "challenge-detail-immediate-post" and index < dispatch_index
+        ]
+        if len(detail_rows) != 1:
+            return IntegratedRouteResult("blocked", "recovery_evidence_detail_frame_invalid", 0, str(self.runtime.session))
+        _detail_index, detail_row = detail_rows[0]
+        detail_path = evidence_path(detail_row)
+        if detail_path is None or not detail_path.is_file() or detail_row.get("sha256") != hashlib.sha256(detail_path.read_bytes()).hexdigest():
+            return IntegratedRouteResult("blocked", "recovery_evidence_detail_hash_mismatch", 0, str(self.runtime.session))
+        successor_frame = cv2.imread(str(successor_path))
+        if successor_frame is None or successor_frame.shape[:2] != (1280, 800):
+            return IntegratedRouteResult("blocked", "recovery_evidence_successor_frame_invalid", 0, str(self.runtime.session))
+        detail_frame = cv2.imread(str(detail_path))
+        prior_candidates = []
+        for identity in KNOWN_CHALLENGE_IDENTITIES:
+            detail = recognize_ruins_detail_with_targets(detail_frame, identity, reset_identity=self.reset_identity)
+            if detail.observation.recognized:
+                prior_candidates.append((identity, detail.observation.floor_current, detail.observation.floor_maximum))
+        if len(prior_candidates) != 1:
+            return IntegratedRouteResult("blocked", "recovery_evidence_detail_identity_ambiguous", 0, str(self.runtime.session))
+        prior_identity, prior_floor, prior_maximum = prior_candidates[0]
+        candidates = []
+        detail = recognize_ruins_detail_with_targets(successor_frame, prior_identity, reset_identity=self.reset_identity)
+        if detail.observation.recognized:
+            candidates.append((prior_identity, detail.observation.floor_current, detail.observation.floor_maximum))
+        if len(candidates) != 1 or candidates[0][0] != prior_identity or candidates[0][1] != prior_floor + 1 or candidates[0][2] != prior_maximum:
+            return IntegratedRouteResult("blocked", "recovery_evidence_successor_detail_ambiguous", 0, str(self.runtime.session))
+        identity, successor_floor, successor_maximum = candidates[0]
+        source = self.runtime.capture("ruins-recovery-source")
+        current_candidates = []
+        detail = recognize_ruins_detail_with_targets(source.frame, prior_identity, reset_identity=self.reset_identity)
+        if detail.observation.recognized:
+            current_candidates.append((prior_identity, detail.observation.floor_current, detail.observation.floor_maximum))
+        if current_candidates != [(identity, successor_floor, successor_maximum)]:
+            return IntegratedRouteResult("blocked", "recovery_current_detail_does_not_match_retained_successor", 0, str(self.runtime.session))
+        # Bind this continuation to the already-attempted identity so a recovery
+        # invocation cannot fall through into a fresh challenge selection.
+        self.controller.challenge_identities_attempted.add(identity)
+        captured, recognition, _actions, error, handled = self._recover_known_detail_to_list(source)
+        if not handled or error is not None:
+            return IntegratedRouteResult("blocked", error or "recovery_detail_to_list_failed", 0, str(self.runtime.session))
+        return self._return_home(captured, recognition, 0)
 
     def _current_frame_ruins_binding(self, captured):
         localization = BlueStacksHomeLocalizer(self.atlas, self.atlas_path).localize(captured.frame)
@@ -253,12 +564,12 @@ class RuinsIntegratedRoute:
             command = self.controller.plan_chest_claim(observation, row, action_key=action_key)
             if command.kind != "claim_chest":
                 return "blocked", command.reason, captured, recognition
-            self.runtime.tap(
+            self._ordinary_tap(
                 captured,
                 target_identity=target_identity,
                 target_roi=target,
                 action_key=action_key,
-                consequential=True,
+                consequential=False,
             )
             time.sleep(self.post_input_delay)
             modal_capture = self.runtime.capture("chest-modal-immediate-post")
@@ -267,12 +578,11 @@ class RuinsIntegratedRoute:
             if not modal.recognized or claim_target is None:
                 self.runtime.reconcile(action_key, "unresolved", modal_capture, "Ruins reward modal not positively recognized")
                 return "unresolved", "chest_reward_modal_not_recognized", modal_capture, recognition
-            self.runtime.tap(
+            self._ordinary_tap(
                 modal_capture,
                 target_identity="ruins-reward-claim",
                 target_roi=claim_target,
                 action_key=f"{action_key}:claim",
-                continuation_of=action_key,
             )
             time.sleep(self.post_input_delay)
             post_capture, post_recognition = self._observe_list("chest-claim-immediate-post")
@@ -287,8 +597,36 @@ class RuinsIntegratedRoute:
                 self.runtime.reconcile(action_key, "unresolved", post_capture, reconciled.reason)
                 return "unresolved", reconciled.reason, post_capture, post_recognition
             self.runtime.reconcile(action_key, "confirmed", post_capture, "exact Ruins chest disappeared after Claim")
+            after_points = post_recognition.observation.points_balance
+            before_points = observation.points_balance if observation.points_balance is not None else self._points_balance
+            if before_points is not None and after_points is not None and after_points >= before_points:
+                self.resource_delta += after_points - before_points
+            if after_points is not None:
+                self._points_balance = after_points
             return "claimed", row.identity, post_capture, post_recognition
         return "none", "no_available_chest", captured, recognition
+
+    def _continue_open_reward_modal(self, captured, reward):
+        target = reward.target("ruins-reward-claim")
+        if not reward.recognized or target is None:
+            return captured, None, 0, "ruins_reward_source_not_recognized"
+        self._ordinary_tap(
+            captured,
+            target_identity="ruins-reward-claim",
+            target_roi=target,
+            action_key=f"ruins:reward-continuation:{self.reset_identity}:{reward.identity}:{captured.sha256}",
+        )
+        time.sleep(self.post_input_delay)
+        post_capture, post_recognition = self._observe_list("reward-continuation-immediate-post")
+        if (
+            not post_recognition.observation.recognized
+            or post_recognition.observation.screen_identity != "RUINS_CHALLENGE"
+            or post_recognition.target(f"chest:{reward.identity}") is not None
+        ):
+            return post_capture, post_recognition, 0, "reward_continuation_postcondition_not_proven"
+        if post_recognition.observation.points_balance is not None:
+            self._points_balance = post_recognition.observation.points_balance
+        return post_capture, post_recognition, 1, None
 
     def _choose_challenge(self, recognition):
         candidates = []
@@ -314,7 +652,7 @@ class RuinsIntegratedRoute:
         if planned.kind != "open_detail":
             return IntegratedRouteResult("blocked", planned.reason, 0, str(self.runtime.session))
         target = recognition.target(f"challenge:{row.identity}")
-        self.runtime.tap(
+        self._ordinary_tap(
             captured,
             target_identity=f"challenge:{row.identity}",
             target_roi=target or (0, 0, 0, 0),
@@ -331,7 +669,7 @@ class RuinsIntegratedRoute:
         attack = self.controller.plan_attack(detail.observation, action_key=action_key)
         if attack.kind != "attack" or attack_target is None:
             return IntegratedRouteResult("blocked", "detail or Attack target not positively recognized", 0, str(self.runtime.session))
-        self.runtime.tap(
+        self._ordinary_tap(
             detail_capture,
             target_identity="ruins-attack",
             target_roi=attack_target,
@@ -354,7 +692,7 @@ class RuinsIntegratedRoute:
         dispatch = self.controller.plan_dispatch(dispatch_observation, action_key=action_key)
         if dispatch.kind != "dispatch" or dispatch_target is None:
             return IntegratedRouteResult("blocked", "Dispatch target or zero-cost NPC contract not proven", 0, str(self.runtime.session))
-        self.runtime.tap(
+        self._ordinary_tap(
             dispatch_capture,
             target_identity="ruins-dispatch",
             target_roi=dispatch_target,
@@ -380,7 +718,7 @@ class RuinsIntegratedRoute:
             unresolved = self.runtime.capture("challenge-result-unresolved")
             self.runtime.reconcile(action_key, "unresolved", unresolved, "explicit result and safe continuation not recognized")
             return IntegratedRouteResult("unresolved", "challenge_result_not_recognized", 0, str(self.runtime.session))
-        self.runtime.tap(
+        self._ordinary_tap(
             result_capture,
             target_identity="ruins-result-continue",
             target_roi=result_recognition.target("ruins-result-continue") or (0, 0, 0, 0),
@@ -393,8 +731,28 @@ class RuinsIntegratedRoute:
         if result_observation.result == RuinsResult.SUCCESS:
             after_row = list_recognition.observation.row(row.identity)
             if after_row is None:
-                self.runtime.reconcile(action_key, "unresolved", list_capture, "successful row progress not visible")
-                return IntegratedRouteResult("unresolved", "successful_progress_not_visible", 0, str(self.runtime.session))
+                detail_successor = recognize_ruins_detail_with_targets(
+                    list_capture.frame, row.identity, reset_identity=self.reset_identity,
+                )
+                detail_observation = detail_successor.observation
+                if not (
+                    detail_observation.recognized
+                    and detail_observation.identity == row.identity
+                    and detail_observation.reset_identity == self.reset_identity
+                    and detail_observation.floor_current > row.progress_current
+                    and detail_observation.floor_maximum == row.progress_maximum
+                ):
+                    self.runtime.reconcile(action_key, "unresolved", list_capture, "successful row progress not visible")
+                    return IntegratedRouteResult("unresolved", "successful_progress_not_visible", 0, str(self.runtime.session))
+                recovered_capture, recovered_recognition, _recovery_actions, recovery_error, recovery_handled = self._recover_known_detail_to_list(list_capture)
+                if not recovery_handled or recovery_error is not None:
+                    self.runtime.reconcile(action_key, "unresolved", recovered_capture, recovery_error or "successful detail successor safe exit not recognized")
+                    return IntegratedRouteResult("unresolved", recovery_error or "successful_detail_successor_safe_exit_not_recognized", 0, str(self.runtime.session))
+                list_capture, list_recognition = recovered_capture, recovered_recognition
+                after_row = list_recognition.observation.row(row.identity)
+                if after_row is None:
+                    self.runtime.reconcile(action_key, "unresolved", list_capture, "successful detail successor list progress not visible")
+                    return IntegratedRouteResult("unresolved", "successful_progress_not_visible", 0, str(self.runtime.session))
             result_observation = replace(
                 result_observation,
                 progress_after=after_row.progress_current,
@@ -451,32 +809,74 @@ class RuinsIntegratedRoute:
             return IntegratedRouteResult(status, reason, 0, str(self.runtime.session))
         actions = 0
         source = self.runtime.capture("route-source")
+        if self.chests_only:
+            reward = recognize_any_ruins_reward_frame(source.frame, reset_identity=self.reset_identity)
+            if reward.recognized:
+                captured, recognition, reward_actions, reward_error = self._continue_open_reward_modal(source, reward)
+                actions += reward_actions
+                if reward_error is not None:
+                    return IntegratedRouteResult("blocked", reward_error, actions, str(self.runtime.session))
+                source = captured
+                source_recognition = recognition
+            else:
+                source_recognition = None
+        else:
+            source_recognition = None
         _home_source, source_error, recovered_actions = self._recover_known_chat_to_home(source)
         actions += recovered_actions
         if source_error is not None:
             return IntegratedRouteResult("blocked", source_error, actions, str(self.runtime.session))
-        _prepared, preparation_error = self._recover_home_zoom_before_ruins_binding()
-        if preparation_error is not None:
-            return IntegratedRouteResult("blocked", preparation_error, actions, str(self.runtime.session))
-        captured, recognition = self._observe_list("ruins-home-atlas-immediate-before")
-        target = self._current_frame_ruins_binding(captured)
-        if target is not None:
-            # The building can be off-screen at canonical Home. The Atlas binding is
-            # therefore the entry authority; the Ruins adapter is only used after entry.
-            try:
-                self._prepare_navigation(captured, source_state="HOME_BASE", target_roi=target)
-                self.runtime.tap(
-                    captured, target_identity=RUINS_HOME_ATLAS_BUILDING_ID, target_roi=target,
-                    action_key=f"ruins:open:{captured.sha256}",
-                )
-            except NavigationBoundaryError as exc:
-                return IntegratedRouteResult("blocked", str(exc), actions, str(self.runtime.session))
-            actions += 1
-            time.sleep(self.post_input_delay)
-            captured, recognition = self._observe_list("ruins-list-immediate-post")
+        source, popup_error, popup_actions = self._dismiss_known_vip_popup(source)
+        actions += popup_actions
+        if popup_error is not None:
+            return IntegratedRouteResult("blocked", popup_error, actions, str(self.runtime.session))
+        source_recognition = source_recognition or recognize_ruins_frame(source.frame, reset_identity=self.reset_identity)
+        already_in_ruins = (
+            source_recognition.observation.recognized
+            and source_recognition.observation.screen_identity == "RUINS_CHALLENGE"
+        )
+        if already_in_ruins:
+            # A development session may begin from a positively recognized Ruins
+            # list after an earlier navigation handoff. Continue gameplay directly;
+            # Home zoom/atlas entry is only required for Home-origin sessions.
+            captured, recognition = source, source_recognition
+        else:
+            if source_recognition.observation.home_base_recognized:
+                captured, recognition, detail_actions, detail_error, detail_handled = source, source_recognition, 0, None, False
+            else:
+                captured, recognition, detail_actions, detail_error, detail_handled = self._recover_known_detail_to_list(source)
+            if detail_handled:
+                actions += detail_actions
+                if detail_error is not None:
+                    return IntegratedRouteResult("blocked", detail_error, actions, str(self.runtime.session))
+            else:
+                _prepared, preparation_error = self._recover_home_zoom_before_ruins_binding()
+                if preparation_error is not None:
+                    return IntegratedRouteResult("blocked", preparation_error, actions, str(self.runtime.session))
+                captured, recognition = self._observe_list("ruins-home-atlas-immediate-before")
+                target = self._current_frame_ruins_binding(captured)
+                if target is not None:
+                    # The building can be off-screen at canonical Home. The Atlas binding is
+                    # therefore the entry authority; the Ruins adapter is only used after entry.
+                    try:
+                        self._prepare_navigation(captured, source_state="HOME_BASE", target_roi=target)
+                        self.runtime.tap(
+                            captured, target_identity=RUINS_HOME_ATLAS_BUILDING_ID, target_roi=target,
+                            action_key=f"ruins:open:{captured.sha256}",
+                        )
+                    except NavigationBoundaryError as exc:
+                        return IntegratedRouteResult("blocked", str(exc), actions, str(self.runtime.session))
+                    # Gameplay action accounting reports challenge/chest work; the
+                    # navigation-only route retains its Home-entry input count.
+                    if self.navigation_only:
+                        actions += 1
+                    time.sleep(self.post_input_delay)
+                    captured, recognition = self._observe_list("ruins-list-immediate-post")
         if not recognition.observation.recognized or recognition.observation.screen_identity != "RUINS_CHALLENGE":
             return IntegratedRouteResult("blocked", "Ruins list not positively recognized", 0, str(self.runtime.session))
         self.controller.observe_list(recognition.observation)
+        if recognition.observation.points_balance is not None and self._points_balance is None:
+            self._points_balance = recognition.observation.points_balance
         if self.navigation_only:
             return self._return_home(captured, recognition, actions)
         if self.claim_chests:
@@ -489,6 +889,8 @@ class RuinsIntegratedRoute:
                 if chest_status in {"blocked", "unresolved"}:
                     return IntegratedRouteResult(chest_status, reason, actions, str(self.runtime.session))
                 break
+        if self.chests_only:
+            return self._return_home(captured, recognition, actions)
         row = self._choose_challenge(recognition)
         if row is None:
             return self._return_home(captured, recognition, actions)
@@ -521,8 +923,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reset-identity", required=True)
     parser.add_argument("--current-day", required=True, choices=("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
     parser.add_argument("--claim-chests", action="store_true")
+    parser.add_argument("--chests-only", action="store_true", help="claim visible Ruins chests and return Home without starting combat")
     parser.add_argument("--allow-optional-second", action="store_true")
     parser.add_argument("--navigation-only", action="store_true", help="permit only Home -> Ruins -> Home navigation")
+    parser.add_argument("--recovery-only", action="store_true", help="close one evidence-bound post-success detail without combat")
+    parser.add_argument("--recovery-session", type=Path, default=None, help="retained Ruins session bound to --recovery-only")
     parser.add_argument("--exclude-challenge", action="append", default=[])
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--yes", action="store_true", help="confirm the exact local BlueStacks target non-interactively")
@@ -537,16 +942,23 @@ def main(argv: list[str] | None = None) -> int:
         workflow="ruins-challenge",
         execute=args.execute,
     )
-    result = RuinsIntegratedRoute(
+    route = RuinsIntegratedRoute(
         runtime,
         reset_identity=args.reset_identity,
         current_day=args.current_day,
         claim_chests=args.claim_chests,
+        chests_only=args.chests_only,
         allow_optional_second=args.allow_optional_second,
         excluded_challenges=set(args.exclude_challenge),
         navigation_only=args.navigation_only,
-    ).run()
-    print(json.dumps(result.__dict__, sort_keys=True))
+    )
+    if args.recovery_only:
+        if args.recovery_session is None:
+            parser.error("--recovery-only requires --recovery-session")
+        result = route.recover_only(args.recovery_session)
+    else:
+        result = route.run()
+    print(json.dumps({**result.__dict__, "resource_delta": route.resource_delta}, sort_keys=True))
     return 0 if result.status in {"completed", "dry-run"} else 3
 
 

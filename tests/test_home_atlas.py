@@ -197,6 +197,12 @@ class HomeAtlasVisionTests(unittest.TestCase):
     def test_zoom_classification_distinguishes_canonical_zoomed_and_unknown(self):
         canonical = synthetic_home()
         self.assertEqual(classify_zoom(canonical, canonical).identity, ZoomIdentity.FULLY_ZOOMED_OUT)
+        live_clamp_matrix = cv2.getRotationMatrix2D((400, 640), 0, 1.0 / 0.95)
+        live_clamp = cv2.warpAffine(canonical, live_clamp_matrix, (800, 1280))
+        self.assertEqual(classify_zoom(live_clamp, canonical).identity, ZoomIdentity.FULLY_ZOOMED_OUT)
+        intermediate_matrix = cv2.getRotationMatrix2D((400, 640), 0, 1.0 / 0.925)
+        intermediate = cv2.warpAffine(canonical, intermediate_matrix, (800, 1280))
+        self.assertEqual(classify_zoom(intermediate, canonical).identity, ZoomIdentity.INTERMEDIATE)
         zoom_matrix = cv2.getRotationMatrix2D((400, 640), 0, 1.25)
         zoomed_in = cv2.warpAffine(canonical, zoom_matrix, (800, 1280))
         self.assertEqual(classify_zoom(zoomed_in, canonical).identity, ZoomIdentity.ZOOMED_IN)

@@ -34,8 +34,11 @@ from tasks.ruins_challenge import (
 from tasks.ruins_challenge_runtime import RuinsRuntimeController, RuinsRuntimeState
 from tasks.ruins_challenge_vision import (
     recognize_ruins_detail_frame,
+    recognize_ruins_detail_with_targets,
     recognize_ruins_frame,
     recognize_ruins_result_frame,
+    recognize_any_ruins_reward_frame,
+    recognize_ruins_reward_frame,
     recognize_navigation_chat_screen,
     parse_points,
     parse_progress,
@@ -72,6 +75,125 @@ def screen(*rows: RuinsChallengeRow, source: str = "e" * 64) -> RuinsScreenObser
 
 
 class RuinsContractTests(unittest.TestCase):
+    def test_reward_modal_uses_identity_text_and_native_orange_claim_geometry(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        frame[689:778, 263:537] = (0, 128, 255)
+        text = (
+            "you cleared 60 floors in mon hero challenge reward available "
+            "can claim once a week please claim before the challenge restarts next week"
+        )
+        with patch("tasks.ruins_challenge_vision._ocr", return_value=text), patch(
+            "tasks.ruins_challenge_vision._ocr_boxes", return_value=[],
+        ):
+            reward = recognize_ruins_reward_frame(frame, "Hero Challenge", reset_identity=RESET)
+            any_reward = recognize_any_ruins_reward_frame(frame, reset_identity=RESET)
+            wrong = recognize_ruins_reward_frame(frame, "Weapon Trial", reset_identity=RESET)
+        self.assertTrue(reward.recognized)
+        self.assertEqual(reward.target("ruins-reward-claim"), (255, 681, 545, 786))
+        self.assertTrue(any_reward.recognized)
+        self.assertEqual(any_reward.identity, "Hero Challenge")
+        self.assertFalse(wrong.recognized)
+
+    def test_native_list_binds_only_fully_visible_row_local_chests(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        for top in (230, 430, 630):
+            frame[top + 5:top + 75, 600:780] = (0, 200, 0)
+            for x in range(600, 780, 20):
+                frame[top + 75:top + 150, x:x + 10] = (80, 180, 230)
+        # Nova is deliberately clipped at the native frame edge and cannot bind.
+        frame[1235:1280, 600:780] = (0, 200, 0)
+
+        row_text = {
+            230: "hero challenge mon progress 60/120",
+            430: "weapon trial mon progress 2/200",
+            630: "tech challenge tue progress 33/120",
+            1232: "nova challenge thu progress 18/100",
+        }
+
+        def fake_ocr(_frame, box=None, psm=11):
+            if box is None:
+                return "ruins challenge hero challenge weapon trial tech challenge nova challenge"
+            if box == (0, 0, 800, 120):
+                return "ruins challenge"
+            if box == (40, 120, 175, 180):
+                return "ruins medals 14951"
+            if box == (150, 100, 800, 210):
+                return "exchange progress total rank"
+            if box[0] == 18:
+                return row_text.get(box[1], "")
+            return ""
+
+        ocr_boxes = [
+            ("hero", (227, 254, 297, 278)),
+            ("weapon", (227, 454, 360, 491)),
+            ("tech", (225, 654, 294, 678)),
+            ("nova", (227, 1256, 285, 1277)),
+        ]
+        with patch("tasks.ruins_challenge_vision._ocr", side_effect=fake_ocr), patch(
+            "tasks.ruins_challenge_vision._ocr_boxes", return_value=ocr_boxes,
+        ):
+            recognition = recognize_ruins_frame(frame, reset_identity=RESET)
+
+        self.assertEqual(
+            {identity: roi for identity, roi in recognition.targets if identity.startswith("chest:")},
+            {
+                "chest:Hero Challenge": (600, 235, 780, 380),
+                "chest:Weapon Trial": (600, 435, 780, 580),
+                "chest:Tech Challenge": (600, 635, 780, 780),
+            },
+        )
+        self.assertEqual(recognition.observation.row("Hero Challenge").progress_current, 60)
+        self.assertEqual(recognition.observation.row("Weapon Trial").progress_maximum, 200)
+        self.assertEqual(recognition.observation.row("Tech Challenge").day_label, "Tue")
+        self.assertEqual(recognition.observation.row("Nova Challenge").chest_state, RuinsChestState.UNKNOWN)
+
+    def test_gear_alias_binds_only_current_day_free_challenge_with_narrow_button_roi(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        # Synthetic native orange Challenge control in the Gear row only.
+        frame[410:470, 600:720] = (0, 128, 255)
+
+        def fake_ocr(_frame, box=None, psm=11):
+            if box is None:
+                return "ruins challenge ear chatenge core challenge exchange mall"
+            if box == (0, 0, 800, 120):
+                return "ruins challenge"
+            if box == (40, 120, 175, 180):
+                return "ruins medals 0"
+            if box == (150, 100, 800, 210):
+                return "exchange mall progress total rank"
+            if box[0] == 18:
+                return "ear chatenge 12/100 tue" if box[1] < 500 else "core challenge requires lv 20 thu"
+            return ""
+
+        ocr_boxes = [
+            ("ear chatenge", (40, 320, 200, 350)),
+            ("core challenge", (40, 600, 220, 630)),
+        ]
+        with patch("tasks.ruins_challenge_vision._ocr", side_effect=fake_ocr), patch(
+            "tasks.ruins_challenge_vision._ocr_boxes", return_value=ocr_boxes
+        ):
+            recognition = recognize_ruins_frame(frame, reset_identity=RESET)
+
+        gear = recognition.observation.row("Gear Challenge")
+        core = recognition.observation.row("Core Challenge")
+        self.assertIsNotNone(gear)
+        self.assertEqual(gear.availability, RuinsAvailability.AVAILABLE)
+        self.assertEqual(gear.challenge_control, RuinsControlState.VISIBLE_ENABLED)
+        self.assertTrue(current_day_allowed(gear, "Tue"))
+        self.assertFalse(current_day_allowed(gear, "Wed"))
+        self.assertIsNotNone(core)
+        self.assertEqual(core.availability, RuinsAvailability.LOCKED)
+        challenge_targets = {
+            identity: roi for identity, roi in recognition.targets if identity.startswith("challenge:")
+        }
+        self.assertEqual(set(challenge_targets), {"challenge:Gear Challenge"})
+        x0, y0, x1, y1 = challenge_targets["challenge:Gear Challenge"]
+        self.assertLessEqual(x1 - x0, 150)
+        self.assertLessEqual(y1 - y0, 100)
+        self.assertGreater(y0, 350)
+        self.assertNotIn("mall", {identity for identity, _roi in recognition.targets})
+        self.assertNotEqual(recognition.target("exchange"), challenge_targets["challenge:Gear Challenge"])
+
     def test_navigation_chat_recognition_requires_exact_header_context(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         with patch(
@@ -188,6 +310,96 @@ class RuinsContractTests(unittest.TestCase):
             unknown = recognize_ruins_result_frame(frame, "Nova Challenge", reset_identity=RESET)
         self.assertEqual(unknown.result, RuinsResult.AMBIGUOUS)
 
+    def test_detail_gear_context_binds_narrow_bottom_orange_attack(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        frame[1154:1243, 263:537] = (0, 128, 255)
+        with patch(
+            "tasks.ruins_challenge_vision._ocr",
+            return_value="gear challenge floor 67/190 z-chef",
+        ), patch("tasks.ruins_challenge_vision._ocr_boxes", return_value=[]):
+            recognition = recognize_ruins_detail_with_targets(frame, "Gear Challenge", reset_identity=RESET)
+        self.assertTrue(recognition.observation.recognized)
+        self.assertEqual(recognition.observation.attack_control, RuinsControlState.VISIBLE_ENABLED)
+        target = recognition.target("ruins-attack")
+        self.assertIsNotNone(target)
+        x0, y0, x1, y1 = target
+        self.assertTrue(240 <= x0 < x1 <= 560)
+        self.assertTrue(1130 <= y0 < y1 <= 1270)
+        self.assertLessEqual(x1 - x0, 300)
+        self.assertLessEqual(y1 - y0, 110)
+
+    def test_detail_orange_attack_fallback_rejects_forbidden_unknown_and_clipped_controls(self):
+        def recognize(frame, text):
+            with patch("tasks.ruins_challenge_vision._ocr", return_value=text), patch(
+                "tasks.ruins_challenge_vision._ocr_boxes", return_value=[]
+            ):
+                return recognize_ruins_detail_with_targets(frame, "Gear Challenge", reset_identity=RESET)
+
+        forbidden = np.zeros((1280, 800, 3), dtype=np.uint8)
+        forbidden[1154:1243, 263:537] = (0, 128, 255)
+        forbidden_recognition = recognize(forbidden, "gear challenge floor 67/190 exchange mall")
+        self.assertEqual(forbidden_recognition.observation.attack_control, RuinsControlState.HIDDEN)
+        self.assertIsNone(forbidden_recognition.target("ruins-attack"))
+
+        unknown = np.zeros((1280, 800, 3), dtype=np.uint8)
+        unknown[1154:1243, 263:537] = (0, 128, 255)
+        unknown_recognition = recognize(unknown, "loading unknown modal")
+        self.assertFalse(unknown_recognition.observation.recognized)
+        self.assertIsNone(unknown_recognition.target("ruins-attack"))
+
+        clipped = np.zeros((1280, 800, 3), dtype=np.uint8)
+        clipped[1245:1280, 263:537] = (0, 128, 255)
+        clipped_recognition = recognize(clipped, "gear challenge floor 67/190 z-chef")
+        self.assertEqual(clipped_recognition.observation.attack_control, RuinsControlState.HIDDEN)
+        self.assertIsNone(clipped_recognition.target("ruins-attack"))
+
+    def test_dispatch_context_binds_narrow_button_and_rejects_incomplete_surfaces(self):
+        def recognize(frame, text):
+            with patch("tasks.ruins_challenge_vision._ocr", return_value=text), patch(
+                "tasks.ruins_challenge_vision._ocr_boxes", return_value=[]
+            ):
+                return recognize_ruins_detail_with_targets(frame, "", reset_identity=RESET)
+
+        def dispatch_frame():
+            frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+            frame[1149:1237, 263:537] = (0, 128, 255)
+            return frame
+
+        valid = recognize(
+            dispatch_frame(),
+            "dispatch npc troops 200200/200200 skip battle",
+        )
+        self.assertTrue(valid.observation.recognized)
+        self.assertEqual(valid.observation.dispatch_control, RuinsControlState.VISIBLE_ENABLED)
+        target = valid.target("ruins-dispatch")
+        self.assertIsNotNone(target)
+        x0, y0, x1, y1 = target
+        self.assertTrue(240 <= x0 < x1 <= 560)
+        self.assertTrue(1125 <= y0 < y1 <= 1260)
+        self.assertLessEqual(x1 - x0, 300)
+        self.assertLessEqual(y1 - y0, 110)
+
+        generic_orange = np.zeros((1280, 800, 3), dtype=np.uint8)
+        generic_orange[700:788, 263:537] = (0, 128, 255)
+        generic = recognize(generic_orange, "dispatch npc troops 200200/200200 skip battle")
+        self.assertEqual(generic.observation.dispatch_control, RuinsControlState.HIDDEN)
+        self.assertIsNone(generic.target("ruins-dispatch"))
+
+        for text in (
+            "dispatch npc troops 200200/200200",
+            "dispatch npc troops 199999/200200 skip battle",
+            "dispatch npc troops 200200/200200 skip battle purchase",
+        ):
+            negative = recognize(dispatch_frame(), text)
+            self.assertEqual(negative.observation.dispatch_control, RuinsControlState.HIDDEN)
+            self.assertIsNone(negative.target("ruins-dispatch"))
+
+        clipped = np.zeros((1280, 800, 3), dtype=np.uint8)
+        clipped[1250:1280, 263:537] = (0, 128, 255)
+        clipped_recognition = recognize(clipped, "dispatch npc troops 200200/200200 skip battle")
+        self.assertEqual(clipped_recognition.observation.dispatch_control, RuinsControlState.HIDDEN)
+        self.assertIsNone(clipped_recognition.target("ruins-dispatch"))
+
     def test_home_and_ruins_list_vision_bind_fresh_native_targets(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
 
@@ -209,7 +421,7 @@ class RuinsContractTests(unittest.TestCase):
                 return "nova challenge"
             if box == (0, 0, 800, 120):
                 return "ruins challenge"
-            if box == (0, 100, 180, 210):
+            if box == (40, 120, 175, 180):
                 return "16350"
             if box == (150, 100, 800, 210):
                 return "Exchange Progress Total Rank"
@@ -231,9 +443,10 @@ class RuinsContractTests(unittest.TestCase):
         before = load_row("available_chest")
         observation = screen(before, source=before.source_frame_sha256)
         self.assertTrue(chest_claim_authorized(observation, before, action_key="chest-hero-1"))
-        claimed = replace(before, chest_state=RuinsChestState.CLAIMED)
+        claimed = replace(before, chest_state=RuinsChestState.CLAIMED, source_frame_sha256="f" * 64)
         self.assertTrue(chest_claim_postcondition_verified(before, claimed))
-        self.assertFalse(chest_claim_postcondition_verified(before, replace(claimed, progress_current=61)))
+        self.assertTrue(chest_claim_postcondition_verified(before, replace(claimed, progress_current=61)))
+        self.assertFalse(chest_claim_postcondition_verified(before, replace(claimed, source_frame_sha256=before.source_frame_sha256)))
         controller = RuinsRuntimeController(reset_identity=RESET)
         controller.observe_list(observation)
         command = controller.plan_chest_claim(observation, before, action_key="chest-hero-1")

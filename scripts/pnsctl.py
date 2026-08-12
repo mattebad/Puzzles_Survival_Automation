@@ -845,6 +845,9 @@ def development_session_run_flow(
     live: bool,
     yes: bool,
     max_inputs: int = 12,
+    recovery_only: bool = False,
+    recovery_session: Path | None = None,
+    chests_only: bool = False,
 ) -> str:
     """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
 
@@ -857,6 +860,14 @@ def development_session_run_flow(
         raise OperatorError("DEVELOPMENT_FLOW_RUNNER_UNAVAILABLE")
     if live and not yes:
         raise OperatorError("live development session requires --yes")
+    if recovery_only and recovery_session is None:
+        raise OperatorError("Ruins recovery requires --recovery-session")
+    if recovery_only and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
+        raise OperatorError("recovery-only is supported only for the Ruins Challenge flow")
+    if chests_only and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
+        raise OperatorError("chests-only is supported only for the Ruins Challenge flow")
+    if chests_only and recovery_only:
+        raise OperatorError("Ruins chests-only and recovery-only modes are mutually exclusive")
     invocation_id = f"{flow_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     session_directory = _development_session_directory(invocation_id)
     owner = f"pnsctl-development-session:{flow_id}"
@@ -872,12 +883,18 @@ def development_session_run_flow(
         ) as session:
             observation, frame = _development_runtime_observation()
             (session_directory / "source.png").write_bytes(frame)
-            queue_context = {"active_flow_id": flow_id, "development_session": True}
+            queue_context = {
+                "active_flow_id": flow_id,
+                "development_session": True,
+            }
             runtime_context = {
                 "owner": owner,
                 "runtime_ownership_state": "held",
                 "unresolved_action_state": "not_applicable",
                 "development_session": True,
+                "recovery_only": recovery_only,
+                "recovery_session": str(recovery_session) if recovery_session is not None else None,
+                "chests_only": chests_only,
             }
             runner = _BLUESTACKS_FLOW_RUNNERS[contract["runner"]]
             if "live" in inspect.signature(runner).parameters:
@@ -3261,6 +3278,9 @@ def parser() -> argparse.ArgumentParser:
     development_run.add_argument("--live", action="store_true")
     development_run.add_argument("--yes", action="store_true")
     development_run.add_argument("--max-inputs", type=int, default=12)
+    development_run.add_argument("--recovery-only", action="store_true")
+    development_run.add_argument("--recovery-session", type=Path, default=None)
+    development_run.add_argument("--chests-only", action="store_true")
     for name in ("preflight", "worker-start", "worker-status", "worker-stop", "adb-start", "launch", "capture", "observe", "navigate", "run-task", "test-focused", "test-full", "validate", "preserve-evidence", "evidence-status", "cleanup"):
         sub.add_parser(name)
     sub.choices["capture"].add_argument("--name", default="current")
@@ -3457,6 +3477,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     live=bool(args.live),
                     yes=bool(args.yes),
                     max_inputs=args.max_inputs,
+                    recovery_only=bool(args.recovery_only),
+                    recovery_session=args.recovery_session,
+                    chests_only=bool(args.chests_only),
                 )
             else:
                 raise OperatorError("unknown development-session command")

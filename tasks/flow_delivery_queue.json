@@ -1983,10 +1983,10 @@
     },
     {
       "flow_id": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
-      "title": "Migrate Ruins Challenge entry and return to the canonical Home Atlas",
-      "kind": "navigation_migration",
+      "title": "Complete Ruins Challenge gameplay through the canonical Home Atlas",
+      "kind": "gameplay_flow",
       "priority": 9,
-      "status": "blocked",
+      "status": "completed",
       "backlog_task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -2003,9 +2003,9 @@
       ],
       "navigation_model": "dedicated_route_to_canonical_home_atlas",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "One bounded navigation-only Home-to-Ruins-to-Home route; challenge, chest, exchange, and purchase actions are prohibited.",
-      "consequence_policy": "Navigation migration only; challenge entry/combat remains policy-disabled.",
-      "product_policy_status": "navigation_only_validation",
+      "live_validation_scope": "One current-day zero-cost Ruins challenge through result reconciliation and canonical Home return, plus a separate fully visible chest-only claim pass; Cash Mall, Exchange, and purchases are prohibited.",
+      "consequence_policy": "Only NPC Dispatch is combat/consequential. Challenge selection, Attack setup, Continue, chest Claim, popup dismissal, and navigation are ordinary gameplay actions; Cash Mall purchases remain unsupported.",
+      "product_policy_status": "local_gameplay_validated_not_registered",
       "maximum_live_attempts": 14,
       "live_attempt_count": 10,
       "live_attempts": [
@@ -2132,26 +2132,82 @@
       ],
       "focused_tests": [
         "tests/test_ruins_challenge.py",
+        "tests/test_bluestacks_integrated_routes.py",
+        "tests/test_home_atlas.py",
         "tests/test_home_atlas_verified_route.py",
-        "tests/test_campaign_atlas_collector.py"
+        "tests/test_development_session.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "navigation_input_count",
+        "challenge_input_count",
+        "result_reconciliation_latency_seconds",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "Authorized invocation ceiling 14 is exhausted. Direct headless scrcpy two-pointer MotionEvent transport is now proven: readiness handshake succeeded, four bounded pinch gestures transported cleanly, and the first visibly zoomed Home out. The remaining blocker is canonical atlas reclassification: retained max-zoom Home frames are still classified as zoomed_in/intermediate at measured scale 0.90-0.95, so Ruins binding correctly failed closed before any building tap. Next work must repair/validate canonical Home zoom calibration from retained native evidence before another live input is authorized.",
-      "next_concrete_action": "Using the retained native max-zoom frames from authorized invocation 14, repair and independently validate canonical Home zoom calibration without live input; request a new live-attempt authorization only after the atlas can safely localize that state.",
-      "last_completed_stage": "blocked",
+      "blocked_reason": "",
+      "next_concrete_action": "None for this completed atomic flow; Noah's Tavern is the first ready flow and remains unstarted.",
+      "last_completed_stage": "completed",
       "last_commit": null,
+      "completion_session": {
+        "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013704091274Z",
+        "runtime_session": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260812T013704442316Z/ruins-challenge-20260812T013704970001Z",
+        "challenge_session": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260812T010702461275Z/ruins-challenge-20260812T010702967475Z",
+        "terminal_observation": ".local-captures/development-sessions/observe-20260812T013902166670Z",
+        "terminal_outcome": "completed",
+        "input_count": 2,
+        "lifecycle_state_created": false,
+        "postcondition": "Gear Floor 67 advanced to 68 after one zero-cost NPC Dispatch; evidence-bound safe exit then reached canonical Home without repeating combat"
+      },
+      "gameplay_validation": {
+        "reset_identity": "local-2026-08-12-ruins-home-atlas",
+        "challenge_identity": "Gear Challenge",
+        "progress_before": "67/190",
+        "progress_after": "68/190",
+        "consequential_inputs": 1,
+        "consequential_target": "ruins-dispatch",
+        "resource_delta": 0,
+        "global_unresolved_state": "clear",
+        "development_invocation_count": 12,
+        "input_bearing_invocation_count": 7,
+        "invocations": [
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T001307592114Z", "input_count": 0, "outcome": "blocked", "material_condition": "initial Home localization ambiguity"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T001442504600Z", "input_count": 3, "outcome": "completed_navigation_only", "material_condition": "known VIP popup dismissed; Gear OCR alias missing"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T001937421464Z", "input_count": 2, "outcome": "completed_navigation_only", "material_condition": "second observed Gear OCR alias missing"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T002150994593Z", "input_count": 2, "outcome": "blocked", "material_condition": "Gear target bound above orange Challenge control"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T003917413177Z", "input_count": 0, "outcome": "blocked", "material_condition": "current Ruins-list source attempted Home recovery"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T004705185506Z", "input_count": 1, "outcome": "blocked", "material_condition": "Gear opened; Attack contour not yet bound"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T005854776061Z", "input_count": 3, "outcome": "blocked", "material_condition": "Attack opened zero-cost NPC screen; Dispatch contour not yet bound"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T010702164273Z", "input_count": 6, "outcome": "combat_succeeded_reconciliation_pending", "material_condition": "one Dispatch and Continue advanced Gear 67 to 68; next-floor detail was initially mistaken for list"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013038868912Z", "input_count": 0, "outcome": "failed_preflight", "material_condition": "overstrict retained source binding"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013144107941Z", "input_count": 0, "outcome": "timed_out", "material_condition": "all-identity recovery OCR exceeded wrapper timeout"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013444288293Z", "input_count": 0, "outcome": "operator_terminated", "material_condition": "unauthorized extra start stopped immediately"},
+          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013704091274Z", "input_count": 2, "outcome": "completed", "material_condition": "evidence-bound Detail-to-list-to-canonical-Home recovery; no combat repeat"}
+        ]
+      },
+      "chest_validation": {
+        "mode": "ordinary_gameplay_chests_only",
+        "claimed": [
+          {"identity": "Hero Challenge", "ruins_medals": 432},
+          {"identity": "Weapon Trial", "ruins_medals": 5},
+          {"identity": "Tech Challenge", "ruins_medals": 324}
+        ],
+        "points_before": 14951,
+        "points_after": 15712,
+        "reward_delta": 761,
+        "remaining_fully_visible_chest_targets": [],
+        "rejected_clipped_targets": ["Nova Challenge"],
+        "terminal_development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T045416299611Z",
+        "terminal_runtime_session": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260812T045416729521Z/ruins-challenge-20260812T045417285968Z",
+        "terminal_state": "recognized_home"
+      },
       "artifact_root": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
       "acceptance_criteria": [
         "replace direct building binding and repeated Back recovery with canonical Home Atlas navigation and safe exit",
-        "one bounded navigation-only Home-to-Ruins-to-Home route"
+        "one current-day zero-cost challenge with explicit result/progress reconciliation and canonical Home return"
       ],
       "scope_prohibitions": [
-        "challenge, chest, exchange, and purchase actions are prohibited",
-        "challenge entry/combat remains policy-disabled",
+        "chest validation remains a separate ordinary-gameplay pass from combat",
+        "Exchange, Mall, Cash Mall, and purchase actions are prohibited",
         "no production registration change",
         "no gameplay scheduler mutation",
         "no composition activation",
@@ -2185,22 +2241,28 @@
       ],
       "live_validation_scenarios": [
         {
-          "id": "ruins-challenge-nav-home-roundtrip",
-          "mode": "navigation_only"
+          "id": "ruins-current-day-zero-cost-challenge-home-roundtrip",
+          "mode": "gameplay"
         }
       ],
       "required_terminal_states": [
-        "navigation_only_complete",
+        "challenge_progress_reconciled_home",
         "blocked_fail_closed"
       ],
       "completion_tests": [
         "tests/test_ruins_challenge.py",
+        "tests/test_bluestacks_integrated_routes.py",
+        "tests/test_home_atlas.py",
         "tests/test_home_atlas_verified_route.py",
-        "tests/test_campaign_atlas_collector.py"
+        "tests/test_development_session.py"
       ],
       "consequential_stage_policy": {
-        "initial_live_validation": "navigation_only",
-        "challenge_combat": "prohibited"
+        "challenge_selection": "ordinary",
+        "attack_setup": "ordinary",
+        "npc_dispatch": "consequential_combat",
+        "result_continue": "ordinary",
+        "chest_claim": "ordinary_separate_validation",
+        "cash_mall_purchase": "unsupported"
       },
       "zero_input_observations": [
         {

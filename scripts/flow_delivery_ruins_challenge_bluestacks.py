@@ -1,4 +1,4 @@
-"""Checked-in navigation-only Ruins Challenge delivery binding."""
+"""Checked-in Ruins Challenge development-flow delivery binding."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def _operator_result(stdout: str) -> dict[str, Any]:
 def run_ruins_challenge_home_atlas(
     queue: Mapping[str, Any], lease: Mapping[str, Any], *, live: bool = True
 ) -> str:
-    """Run exactly Home -> Ruins Challenge -> verified safe exit -> Home."""
+    """Run Home -> Ruins -> one free challenge -> verified safe exit -> Home."""
 
     pnsctl = _pnsctl()
     del queue
@@ -53,11 +53,17 @@ def run_ruins_challenge_home_atlas(
         str(REPO_ROOT / "scripts" / "ruins_challenge_bluestacks.py"),
         "--adb", str(pnsctl.BLUESTACKS_ADB),
         "--serial", pnsctl.BLUESTACKS_SERIAL,
-        "--reset-identity", "local-2026-08-06-ruins-home-atlas",
-        "--current-day", "Thu",
-        "--navigation-only",
+        "--reset-identity", f"local-{datetime.now(timezone.utc).date().isoformat()}-ruins-home-atlas",
+        "--current-day", datetime.now().strftime("%a"),
         "--output-directory", str(root),
     ]
+    if lease.get("recovery_only"):
+        recovery_session = lease.get("recovery_session")
+        if not recovery_session:
+            raise pnsctl.OperatorError("Ruins recovery requires a retained session binding")
+        command.extend(("--recovery-only", "--recovery-session", str(recovery_session)))
+    elif lease.get("chests_only"):
+        command.append("--chests-only")
     if live:
         command.extend(("--execute", "--yes"))
     completed = subprocess.run(command, cwd=REPO_ROOT, text=True, capture_output=True, check=False)
@@ -116,7 +122,7 @@ def run_ruins_challenge_home_atlas(
         "journal_path": None if development_mode else "journal.jsonl",
         "frames": frame_names,
         "operator_returncode": completed.returncode,
-        "resource_delta": 0,
+        "resource_delta": ruins.get("resource_delta"),
     }
     (session / "flow-delivery-result.json").write_text(json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if zero_transport:
@@ -152,13 +158,14 @@ def verify_ruins_challenge_home_atlas(
     result = structure["result"]
     ruins = result.get("ruins_result") or {}
     flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
-    if result.get("flow_id") != FLOW_ID or result.get("resource_delta") != 0:
-        raise pnsctl.OperatorError("Ruins evidence identity or zero-resource invariant failed")
+    resource_delta = result.get("resource_delta")
+    if result.get("flow_id") != FLOW_ID or not isinstance(resource_delta, int) or resource_delta < 0:
+        raise pnsctl.OperatorError("Ruins evidence identity or nonnegative reward invariant failed")
     if ruins.get("status") != "completed" or ruins.get("reason") != "verified_safe_exit_to_home":
         raise pnsctl.OperatorError("Ruins evidence lacks Home -> Ruins -> Home proof")
     if int(flow.get("live_attempt_count") or 0) > int(flow.get("maximum_live_attempts") or 0):
         raise pnsctl.OperatorError("Ruins attempt accounting exceeds authorization")
-    return {"status": "verified", "flow_id": FLOW_ID, "terminal": "navigation_only_complete", "session_directory": structure["session_directory"], "actions": structure["actions"], "terminal_runtime_state": result["terminal_runtime_state"], "resource_delta": 0}
+    return {"status": "verified", "flow_id": FLOW_ID, "terminal": "recognized_home", "session_directory": structure["session_directory"], "actions": structure["actions"], "terminal_runtime_state": result["terminal_runtime_state"], "resource_delta": resource_delta}
 
 
 def recover_ruins_challenge_home_atlas(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:

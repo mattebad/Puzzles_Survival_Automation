@@ -281,6 +281,30 @@ def _matrix_scale(matrix: np.ndarray) -> float:
     return float((np.linalg.norm(matrix[:2, 0]) + np.linalg.norm(matrix[:2, 1])) / 2.0)
 
 
+_FULLY_ZOOMED_OUT_SCALE_MINIMUM = 0.94
+_FULLY_ZOOMED_OUT_SCALE_MAXIMUM = 1.035
+_ZOOMED_IN_SCALE_MAXIMUM = 0.91
+
+
+def _zoom_identity_from_scale(scale: float) -> ZoomIdentity:
+    """Classify live BlueStacks scale against the retained fully-out atlas.
+
+    The game clamps a real two-pointer zoom-out at about 0.95 relative to the
+    retained atlas captures. Repeated gestures leave that scale unchanged, so
+    the fully-out band must include the measured clamp while remaining
+    separated from the next observed zoom step.
+    """
+
+    if _FULLY_ZOOMED_OUT_SCALE_MINIMUM <= scale <= _FULLY_ZOOMED_OUT_SCALE_MAXIMUM:
+        return ZoomIdentity.FULLY_ZOOMED_OUT
+    if scale < _ZOOMED_IN_SCALE_MAXIMUM:
+        # A larger candidate scene object maps down into the canonical fully-out reference.
+        return ZoomIdentity.ZOOMED_IN
+    if _ZOOMED_IN_SCALE_MAXIMUM <= scale < _FULLY_ZOOMED_OUT_SCALE_MINIMUM:
+        return ZoomIdentity.INTERMEDIATE
+    return ZoomIdentity.UNKNOWN
+
+
 def classify_zoom(
     frame: np.ndarray,
     canonical_reference: np.ndarray,
@@ -301,15 +325,7 @@ def classify_zoom(
     if not result.accepted or result.transform_candidate_to_reference is None:
         return ZoomClassification(ZoomIdentity.UNKNOWN, result.confidence, None, result.residual_px, (), result.reason)
     scale = _matrix_scale(result.transform_candidate_to_reference)
-    if 0.965 <= scale <= 1.035:
-        identity = ZoomIdentity.FULLY_ZOOMED_OUT
-    elif scale < 0.91:
-        # A larger candidate scene object maps down into the canonical fully-out reference.
-        identity = ZoomIdentity.ZOOMED_IN
-    elif 0.91 <= scale < 0.965:
-        identity = ZoomIdentity.INTERMEDIATE
-    else:
-        identity = ZoomIdentity.UNKNOWN
+    identity = _zoom_identity_from_scale(scale)
     landmarks = tuple(f"sift-inlier-{index + 1}" for index in range(min(result.inliers, 12)))
     return ZoomClassification(identity, result.confidence, scale, result.residual_px, landmarks, "feature_geometry")
 
@@ -370,14 +386,7 @@ class BlueStacksHomeLocalizer:
             result = register_home_frame(frame, reference)
             if result.accepted and result.transform_candidate_to_reference is not None:
                 scale = _matrix_scale(result.transform_candidate_to_reference)
-                if 0.965 <= scale <= 1.035:
-                    zoom_identity = ZoomIdentity.FULLY_ZOOMED_OUT
-                elif scale < 0.91:
-                    zoom_identity = ZoomIdentity.ZOOMED_IN
-                elif scale < 0.965:
-                    zoom_identity = ZoomIdentity.INTERMEDIATE
-                else:
-                    zoom_identity = ZoomIdentity.UNKNOWN
+                zoom_identity = _zoom_identity_from_scale(scale)
                 if zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT:
                     wrong_zoom_matches.append((result.confidence, result.residual_px, zoom_identity))
                     continue

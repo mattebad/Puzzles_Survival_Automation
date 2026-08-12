@@ -280,6 +280,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             root = Path(directory)
 
             def fake_run(command, **_kwargs):
+                self.assertIn("--chests-only", command)
                 output = Path(command[command.index("--output-directory") + 1])
                 child = output / "child"
                 frames = child / "frames"
@@ -304,7 +305,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                 result = json.loads(
                     ruins_delivery.run_ruins_challenge_home_atlas(
                         {},
-                        {"owner": "test", "development_session": True},
+                        {"owner": "test", "development_session": True, "chests_only": True},
                         live=True,
                     )
                 )

@@ -45,7 +45,9 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 - Never derive coordinates from scaled previews, stale captures, untranslated crops, or vendor
   coordinates.
 - Login, tutorial, CAPTCHA, account selection/switching, credential entry, and other explicitly
-  manual-only account states must never be automated.
+  manual-only account states are not routine preconditions and must not be checked before normal
+  development work. If one unexpectedly becomes the current screen, stop there rather than
+  automating it.
 
 ## Live target and action safety
 
@@ -53,9 +55,11 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
   revalidate immediately before dispatch, and require full-frame bounds/overlay checks.
 - Rebind a moved target only through a narrow evidence-supported policy; generic rebinding is
   forbidden. Transport success never proves semantic success.
-- Planned gameplay actions are ordinary development interactions. Navigation, combat, Zombie
-  Lairs, zombie attacks, claims, rewards, recruitment, maintenance, and in-game-currency spending
-  do not use a per-action consequential lifecycle.
+- Actual combat dispatch and real-money Cash Mall purchase confirmation are the only consequential
+  action classes. Navigation, entering Zombie Lairs, targeting zombies, challenge setup, claims,
+  rewards, recruitment, maintenance, and in-game-currency spending are ordinary development
+  interactions and do not use a per-action consequential lifecycle. Cash Mall confirmation remains
+  unsupported.
 - Do not issue identical retries. Continue diagnosis only with a concrete new hypothesis, corrected
   logic, or materially different conditions. An unknown result is session-local diagnostic state:
   capture it, recognize or recover, repair, and continue when materially changed.
@@ -73,8 +77,9 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
   terminal summary, and releases ownership automatically.
 - Legacy journals remain immutable historical evidence. They do not gate an ordinary development
   session and must not be rewritten to represent new actions.
-- Bind Daily tasks, state, evidence, and authorization to a positively established game-day/reset
-  identity. Unknown or stale cycles do not authorize work.
+- Establish the game-day/reset identity automatically once per development session and reuse it for
+  that session. Do not re-gate every action on repeated identity checks. An initially unknown or
+  stale cycle blocks only reset-bound Daily work until the session identity is established.
 - See [`docs/journal-lease-policy.md`](docs/journal-lease-policy.md).
 
 ## Registration and scheduler promotion

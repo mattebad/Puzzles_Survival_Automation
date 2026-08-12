@@ -7174,12 +7174,12 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS
 - Task ID: `DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS`
 - Title: Separate Ruins Challenge Daily workflow — local BlueStacks validation
-- Status: Passed (2026-07-16; dormant implementation and supervised local validation)
+- Status: Passed (2026-08-11; current-day zero-cost challenge completed, progress reconciled, and canonical Home restored)
 - Milestone: Ruins Challenge recognition, bounded challenge state machine, chest separation
 - Dependencies: native 800x1280 frame contract, current reset identity, Computer Use local BlueStacks access
 - Blocked by: none for local validation; production promotion remains separately gated
 - Objective: recognize Home/Base and Ruins, identify current-day stages, challenge authorized zero-cost stages, reconcile results, claim Ruins chests, and return Home/Base
-- Established facts: live flow was row Challenge → detail Attack → NPC Dispatch → explicit result → Tap to continue; current validation exposed Nova and Module timer-bound stages
+- Established facts: the live controller flow completed Gear Challenge Floor 67 → 68 through row Challenge → detail Attack → zero-cost NPC Dispatch → explicit result → Continue; an evidence-bound recovery then returned through the Ruins list to canonical Home
 - Direct implementation files: `tasks/ruins_challenge.py`, `tasks/ruins_challenge_runtime.py`, `tasks/ruins_challenge_vision.py`, `tests/test_ruins_challenge.py`, `scripts/ruins_challenge_inspect.py`
 - Shared dependencies: `tasks/contracts.py`, `tasks/profile.py`, existing scheduler and governance validators are read-only dependencies
 - Transitive regression set: Noah’s Tavern recruits, Nova Praise, Bioenhancer, Personal Might Praise, and existing recruit flows
@@ -7188,13 +7188,13 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Authorized runtime action: Computer Use inspection and local BlueStacks input only; one fresh-bound consequential input per challenge or chest
 - Maximum transport inputs: one row initiation per distinct authorized stage and one Claim per distinct available Ruins chest; no identical retries
 - Navigation-only recovery: fresh source recognition, safe close/back, return to Ruins list, and final Home/Base only
-- Consequential action: challenge initiation, Dispatch, and Ruins chest Claim are independently journaled/reconciled actions
+- Consequential action: NPC Dispatch is the combat action. Challenge selection, Attack setup, Continue, chest Claim, and navigation are ordinary gameplay actions; Cash Mall purchases remain unsupported.
 - Registration changes: none; `ruins_challenge` matrix row remains `NOT_REGISTERED`
 - Scheduler changes: none; scheduler eligibility remains `false`
 - Actions that must not be repeated: Nova or Module after explicit failure; any ambiguous result; any claimed chest; Exchange/Mall/purchase/ticket control
 - Required source: fresh native BlueStacks Home/Base and Ruins Challenge frames, with supplied screenshots reference-only
 - Exact target semantics: positively recognized challenge identity, current reset/day state, enabled Challenge/Attack/Dispatch or available chest Claim control
-- Required local association: reset identity `local-2026-07-16-ruins`, frame hash, action key, challenge/chest identity, immediate-before and immediate-post evidence
+- Required local association: current reset identity, frame hash, action key, challenge/chest identity, immediate-before and immediate-post evidence; the completed Gear run is bound to `local-2026-08-12-ruins-home-atlas`
 - Negative controls: locked Core/Cube, wrong-day rows, unknown rows/results, overlays, clipped/stale targets, premium/paid/ticketed/currency controls, Exchange, Mall
 - Coordinate space: raw native 800x1280 only
 - Accepted signals: explicit title, identity, row day/progress, enabled zero-cost control, NPC troop provision, explicit WIN/LOSE result, positive progress/chest postcondition
@@ -7220,6 +7220,9 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Commit policy: do not stage, commit, push, or register; no push
 - Expected focused commits: none
 - Completion criteria: implementation compiled, focused/regression/governance validation passed or baseline-separated, evidence retained, final Home/Base recognized, no unresolved action, production registration/scheduler unchanged
+- Home Atlas migration completion: `RUINS-CHALLENGE-HOME-ATLAS-MIGRATION` completed through `pnsctl development-session` with two ordinary-development inputs (current-frame Ruins binding and safe Back), verified canonical Home terminal recognition, no lifecycle state, and retained session `.local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260811T231102459326Z`.
+- Gameplay completion: the linked retained sessions `.local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260812T010702461275Z/ruins-challenge-20260812T010702967475Z` and `.local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260812T013704442316Z/ruins-challenge-20260812T013704970001Z` prove Gear Floor 67 → 68 after one zero-cost NPC Dispatch, explicit result/Continue, and two navigation-only Back inputs to canonical Home. A zero-input terminal observation confirms Home; no chest, Exchange, Mall, purchase, registration, scheduler, composition, M6, or Bliss change occurred.
+- Chest completion: current-frame row-local recognition claimed the fully visible Hero, Weapon, and Tech chests exactly once as ordinary gameplay. The linked sessions under `nav-20260812T044907878217Z`, `nav-20260812T045243640295Z`, and terminal `nav-20260812T045416729521Z` prove the three chest/modal/Claim chains, exact target disappearance, Ruins medals `14951 → 15712` (`+761`), no remaining fully visible chest target, and canonical Home. Clipped Nova was rejected; no combat, Exchange, Mall, purchase, registration, scheduler, composition, M6, or Bliss change occurred.
 
 ### DQ-FLOW-HERO-DUEL
 - Status: Passed (2026-07-14; disabled Hero Duel event contract and 5 focused tests).

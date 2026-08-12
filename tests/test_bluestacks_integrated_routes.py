@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
+import hashlib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+import time
 from unittest.mock import patch
 import unittest
 
 import cv2
 import numpy as np
 
-from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
+from scripts.bluestacks_native_runtime import CapturedNativeFrame, IntegratedRouteResult, LocalBlueStacksRuntime
+from scripts.navigation_development_boundary import NavigationBoundaryError
 from scripts.noahs_tavern_recruit_bluestacks import NoahTavernIntegratedRoute
 from scripts.nova_praise_bluestacks import NovaPraiseIntegratedRoute
 from scripts.ruins_challenge_bluestacks import RuinsIntegratedRoute
@@ -37,7 +41,7 @@ from tasks.ruins_challenge import (
     RuinsResultObservation,
     RuinsScreenObservation,
 )
-from tasks.ruins_challenge_vision import RuinsDetailRecognition, RuinsFrameRecognition, RuinsResultRecognition
+from tasks.ruins_challenge_vision import RuinsDetailRecognition, RuinsFrameRecognition, RuinsResultRecognition, RuinsRewardRecognition
 
 
 RESET = "integration-reset"
@@ -51,7 +55,7 @@ class FakeRuntime:
         self.frames = []
         for ordinal in range(count):
             frame = np.full((1280, 800, 3), ordinal, dtype=np.uint8)
-            self.frames.append(CapturedNativeFrame(frame, b"png", f"{ordinal:064x}", float(ordinal + 1), Path(f"{ordinal}.png")))
+            self.frames.append(CapturedNativeFrame(frame, b"png", f"{ordinal:064x}", time.monotonic(), Path(f"{ordinal}.png")))
         self.index = 0
         self.taps = []
         self.backs = []
@@ -79,6 +83,12 @@ class FakeRuntime:
     def assert_in_flight(self, action_key):
         if self.in_flight_action != action_key:
             raise RuntimeError("continuation mismatch")
+
+    def measure_device_state(self):
+        return "device"
+
+    def measure_foreground_package(self):
+        return "com.global.ztmslg"
 
     def reconcile(self, action_key, status, post, reason):
         self.assert_in_flight(action_key)
@@ -150,6 +160,127 @@ def noah_observation(state, digest, *, remaining=5, cooldown=False):
 
 
 class IntegratedRouteTests(unittest.TestCase):
+    def test_ruins_chest_claim_is_ordinary_gameplay_not_consequential(self):
+        runtime = FakeRuntime()
+        runtime.reconcile = lambda *args: runtime.reconciliations.append(args)
+        row = RuinsChallengeRow(
+            "Hero Challenge", "Mon", RuinsAvailability.AVAILABLE, 60, 120, 60,
+            RuinsControlState.VISIBLE_ENABLED, RuinsChestState.AVAILABLE,
+            (600, 250, 770, 390), source_frame_sha256="a" * 64, reset_identity=RESET,
+        )
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 14951,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED, (row,), "none", "a" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        recognition = RuinsFrameRecognition(
+            listed, "a" * 64, (("chest:Hero Challenge", (600, 250, 770, 390)),), {},
+        )
+        claimed = replace(
+            listed,
+            rows=(replace(row, chest_state=RuinsChestState.CLAIMED, source_frame_sha256="b" * 64),),
+            source_frame_sha256="b" * 64,
+        )
+        post_recognition = RuinsFrameRecognition(claimed, "b" * 64, (), {})
+        reward = RuinsRewardRecognition(
+            True, "Hero Challenge", 100, "c" * 64, RESET,
+            (("ruins-reward-claim", (250, 900, 550, 1040)),), {},
+        )
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Mon", post_input_delay=0)
+        route.controller.observe_list(listed)
+        with patch("scripts.ruins_challenge_bluestacks.recognize_ruins_reward_frame", return_value=reward), patch.object(
+            route, "_observe_list", return_value=(runtime.frames[1], post_recognition),
+        ):
+            status, _reason, _captured, _recognition = route._claim_one_chest(runtime.frames[0], recognition)
+        self.assertEqual(status, "claimed")
+        self.assertEqual(
+            [item[1]["target_identity"] for item in runtime.taps],
+            ["chest:Hero Challenge", "ruins-reward-claim"],
+        )
+        self.assertFalse(any(item[1].get("consequential") for item in runtime.taps))
+        self.assertIsNone(runtime.in_flight_action)
+
+    def test_ruins_chests_only_returns_home_without_selecting_challenge(self):
+        runtime = FakeRuntime()
+        row = RuinsChallengeRow(
+            "Gear Challenge", "Tue", RuinsAvailability.AVAILABLE, 67, 190, 67,
+            RuinsControlState.VISIBLE_ENABLED, RuinsChestState.UNKNOWN,
+            (18, 830, 780, 1020), source_frame_sha256="0" * 64, reset_identity=RESET,
+        )
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 14951,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED, (row,), "none", "0" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        recognition = RuinsFrameRecognition(listed, "0" * 64, (), {})
+        expected = IntegratedRouteResult("completed", "verified_safe_exit_to_home", 0, "fake-session")
+        route = RuinsIntegratedRoute(
+            runtime, reset_identity=RESET, current_day="Tue", chests_only=True, post_input_delay=0,
+        )
+        with patch.object(route, "_dismiss_known_vip_popup", return_value=(runtime.frames[0], None, 0)), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_frame", return_value=recognition,
+        ), patch.object(route, "_claim_one_chest", return_value=("none", "no_available_chest", runtime.frames[0], recognition)), patch.object(
+            route, "_choose_challenge", side_effect=AssertionError("chests-only must not select combat"),
+        ), patch.object(route, "_return_home", return_value=expected) as return_home:
+            outcome = route.run()
+        self.assertEqual(outcome, expected)
+        return_home.assert_called_once()
+
+    def test_ruins_chests_only_continues_open_reward_without_combat(self):
+        runtime = FakeRuntime()
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 15451,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED, (), "none", "1" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        recognition = RuinsFrameRecognition(listed, "1" * 64, (), {})
+        reward = RuinsRewardRecognition(
+            True, "Hero Challenge", 432, "0" * 64, RESET,
+            (("ruins-reward-claim", (255, 681, 545, 794)),), {},
+        )
+        expected = IntegratedRouteResult("completed", "verified_safe_exit_to_home", 1, "fake-session")
+        route = RuinsIntegratedRoute(
+            runtime, reset_identity=RESET, current_day="Tue", chests_only=True, post_input_delay=0,
+        )
+        with patch("scripts.ruins_challenge_bluestacks.recognize_any_ruins_reward_frame", return_value=reward), patch.object(
+            route, "_observe_list", return_value=(runtime.frames[1], recognition),
+        ), patch.object(route, "_recover_known_chat_to_home", side_effect=lambda source: (source, None, 0)), patch.object(
+            route, "_dismiss_known_vip_popup", side_effect=lambda source: (source, None, 0),
+        ), patch.object(route, "_claim_one_chest", return_value=("none", "no_available_chest", runtime.frames[1], recognition)), patch.object(
+            route, "_choose_challenge", side_effect=AssertionError("reward continuation must not select combat"),
+        ), patch.object(route, "_return_home", return_value=expected):
+            outcome = route.run()
+        self.assertEqual(outcome, expected)
+        self.assertEqual([item[1]["target_identity"] for item in runtime.taps], ["ruins-reward-claim"])
+        self.assertFalse(runtime.taps[0][1].get("consequential"))
+
+    def test_ruins_known_vip_popup_closes_once_and_requires_absent_successor(self):
+        runtime = FakeRuntime()
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Tue", post_input_delay=0)
+        detail = {"recognized": True, "target": (260, 760, 540, 870)}
+        with patch("scripts.ruins_challenge_bluestacks.recognize_reset_popup", side_effect=(detail, {"recognized": False})):
+            settled, reason, actions = route._dismiss_known_vip_popup(runtime.frames[0])
+        self.assertIsNotNone(settled)
+        self.assertIsNone(reason)
+        self.assertEqual(actions, 1)
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(runtime.taps[0][1]["target_identity"], "reset-popup-close")
+
+    def test_ruins_unknown_popup_is_not_dismissed_and_gameplay_allowlist_rejects_controls(self):
+        runtime = FakeRuntime()
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Tue", post_input_delay=0)
+        with patch("scripts.ruins_challenge_bluestacks.recognize_reset_popup", return_value={"recognized": False}):
+            _settled, reason, actions = route._dismiss_known_vip_popup(runtime.frames[0])
+        self.assertIsNone(reason)
+        self.assertEqual(actions, 0)
+        self.assertEqual(runtime.taps, [])
+        for target in ("exchange", "purchase", "unknown-control"):
+            with self.assertRaisesRegex(NavigationBoundaryError, "undeclared Ruins gameplay target"):
+                route._ordinary_tap(runtime.frames[0], target_identity=target, target_roi=(10, 10, 20, 20), action_key=f"reject:{target}")
+
     def test_native_runtime_allows_multiple_ordinary_actions_without_reconcile(self):
         with TemporaryDirectory() as directory:
             runner = FakeADBRunner()
@@ -222,7 +353,7 @@ class IntegratedRouteTests(unittest.TestCase):
 
         route = NoahTavernIntegratedRoute(runtime, recognizer=recognize, post_input_delay=0, result_timeout=1)
         outcome = route.run()
-        self.assertEqual(outcome.status, "completed")
+        self.assertEqual(outcome.status, "completed", outcome.reason)
         self.assertEqual(outcome.actions_completed, 1)
         self.assertEqual(len(runtime.reconciliations), 1)
         self.assertEqual(runtime.reconciliations[0][1], "confirmed")
@@ -266,15 +397,16 @@ class IntegratedRouteTests(unittest.TestCase):
             (560, 900, 780, 1080), source_frame_sha256="b" * 64, reset_identity=RESET,
         )
         home_obs = RuinsScreenObservation(True, "HOME_BASE", False, None, RuinsControlState.HIDDEN, RuinsControlState.HIDDEN, RuinsControlState.HIDDEN, (), "none", "a" * 64, RESET, True, True)
-        list_obs = RuinsScreenObservation(True, "RUINS_CHALLENGE", True, 100, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, (row,), "none", "b" * 64, RESET)
+        list_obs = RuinsScreenObservation(True, "RUINS_CHALLENGE", True, 100, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, (row,), "none", "b" * 64, RESET, safe_back_control=RuinsControlState.VISIBLE_ENABLED)
         home_rec = RuinsFrameRecognition(home_obs, "a" * 64, (("ruins-building", (50, 800, 220, 1030)),), {})
         list_rec = RuinsFrameRecognition(list_obs, "b" * 64, (("challenge:Nova Challenge", (560, 900, 780, 1080)),), {})
         post_list_rec = RuinsFrameRecognition(replace(list_obs, source_frame_sha256="f" * 64), "f" * 64, (), {})
+        safe_before = RuinsFrameRecognition(replace(list_obs, source_frame_sha256="g" * 64), "g" * 64, (), {})
         final_home = RuinsFrameRecognition(replace(home_obs, source_frame_sha256="1" * 64), "1" * 64, (("ruins-building", (50, 800, 220, 1030)),), {})
         detail_obs = RuinsDetailObservation("Nova Challenge", True, 19, 100, RuinsControlState.VISIBLE_ENABLED, source_frame_sha256="c" * 64, reset_identity=RESET)
         dispatch_obs = RuinsDetailObservation("Nova Challenge", True, 0, 0, RuinsControlState.HIDDEN, RuinsControlState.VISIBLE_ENABLED, True, 200200, 200200, True, 0, source_frame_sha256="d" * 64, reset_identity=RESET)
         result_obs = RuinsResultObservation("Nova Challenge", RuinsResult.FAILURE, None, None, None, "e" * 64, RESET, False, True, True)
-        list_queue = iter((home_rec, list_rec, post_list_rec, final_home))
+        list_queue = iter((home_rec, home_rec, list_rec, post_list_rec, safe_before, final_home))
         detail_queue = iter((
             RuinsDetailRecognition(detail_obs, "c" * 64, (("ruins-attack", (250, 950, 550, 1080)),), {}),
             RuinsDetailRecognition(dispatch_obs, "d" * 64, (("ruins-dispatch", (250, 1050, 550, 1180)),), {}),
@@ -284,12 +416,607 @@ class IntegratedRouteTests(unittest.TestCase):
             "scripts.ruins_challenge_bluestacks.recognize_ruins_detail_with_targets", side_effect=lambda *_args, **_kwargs: next(detail_queue)
         ), patch("scripts.ruins_challenge_bluestacks.recognize_ruins_result_with_targets", return_value=result_rec):
             route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Wed", post_input_delay=0, recognition_timeout=1)
-            outcome = route.run()
+            with patch.object(route, "_recover_home_zoom_before_ruins_binding", return_value=(runtime.frames[0], None)), patch.object(
+                route, "_current_frame_ruins_binding", return_value=(50, 800, 220, 1030)
+            ):
+                outcome = route.run()
         self.assertEqual(outcome.status, "completed")
         self.assertEqual(outcome.actions_completed, 1)
         self.assertEqual(runtime.reconciliations[0][1], "failed_confirmed")
         self.assertEqual(len([item for item in runtime.taps if item[1].get("consequential")]), 1)
         self.assertTrue(runtime.backs)
+
+    def test_ruins_success_detail_successor_advances_same_identity_then_backs_to_list(self):
+        runtime = FakeRuntime()
+        row = RuinsChallengeRow(
+            "Nova Challenge", None, RuinsAvailability.AVAILABLE, 18, 100, None,
+            RuinsControlState.VISIBLE_ENABLED, RuinsChestState.UNKNOWN,
+            (560, 900, 780, 1080), source_frame_sha256="b" * 64, reset_identity=RESET,
+        )
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 100,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED, (row,), "none", "b" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        list_rec = RuinsFrameRecognition(listed, "b" * 64, (("challenge:Nova Challenge", row.target_roi),), {})
+        advanced_list = RuinsFrameRecognition(
+            replace(listed, rows=(replace(row, progress_current=19, source_frame_sha256="3" * 64),), source_frame_sha256="3" * 64),
+            "3" * 64, (), {},
+        )
+        post_detail_rec = RuinsFrameRecognition(
+            RuinsScreenObservation(False, "UNKNOWN", False, None, RuinsControlState.UNKNOWN,
+                                   RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, (), "unknown", "d" * 64, RESET),
+            "d" * 64, (), {},
+        )
+        attack = RuinsDetailRecognition(
+            RuinsDetailObservation("Nova Challenge", True, 19, 100, RuinsControlState.VISIBLE_ENABLED,
+                                   source_frame_sha256="e" * 64, reset_identity=RESET),
+            "e" * 64, (("ruins-attack", (255, 1146, 545, 1251)),), {},
+        )
+        dispatch = RuinsDetailRecognition(
+            RuinsDetailObservation("Nova Challenge", True, 0, 0, RuinsControlState.HIDDEN,
+                                   RuinsControlState.VISIBLE_ENABLED, True, 200200, 200200, True, 0,
+                                   source_frame_sha256="f" * 64, reset_identity=RESET),
+            "f" * 64, (("ruins-dispatch", (255, 1140, 545, 1245)),), {},
+        )
+        successor = RuinsDetailRecognition(
+            RuinsDetailObservation("Nova Challenge", True, 19, 100, RuinsControlState.VISIBLE_ENABLED,
+                                   source_frame_sha256="1" * 64, reset_identity=RESET),
+            "1" * 64, (), {},
+        )
+        unknown_detail = RuinsDetailRecognition(
+            RuinsDetailObservation("unknown", False, 0, 0, RuinsControlState.HIDDEN,
+                                   source_frame_sha256="0" * 64, reset_identity=RESET),
+            "0" * 64, (), {},
+        )
+        details = iter((attack, dispatch, successor, successor, successor))
+        result_rec = RuinsResultRecognition(
+            RuinsResultObservation("Nova Challenge", RuinsResult.SUCCESS, None, None, None,
+                                   "2" * 64, RESET, True, False, True),
+            "2" * 64, (("ruins-result-continue", (200, 1080, 600, 1240)),), {},
+        )
+        with patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_detail_with_targets",
+            side_effect=lambda _frame, identity, **_kwargs: next(details) if identity == "Nova Challenge" else unknown_detail,
+        ), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_result_with_targets",
+            return_value=result_rec,
+        ), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_frame",
+            side_effect=(post_detail_rec, advanced_list),
+        ):
+            route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Wed", post_input_delay=0, recognition_timeout=1)
+            route.controller.observe_list(list_rec.observation)
+            outcome = route._run_challenge(runtime.frames[0], list_rec, row)
+        self.assertIsInstance(outcome, tuple)
+        _captured, _recognition, result = outcome
+        self.assertEqual(result, RuinsResult.SUCCESS)
+        self.assertEqual(runtime.reconciliations[0][1], "confirmed")
+        self.assertEqual(len(runtime.backs), 1)
+        self.assertEqual(runtime.backs[0][1]["action_key"].split(":")[1], "detail-safe-exit")
+
+    def test_ruins_success_detail_successor_rejects_same_decreased_wrong_and_ambiguous(self):
+        variants = (
+            ("same", RuinsDetailObservation("Nova Challenge", True, 18, 100, RuinsControlState.VISIBLE_ENABLED, reset_identity=RESET)),
+            ("decreased", RuinsDetailObservation("Nova Challenge", True, 17, 100, RuinsControlState.VISIBLE_ENABLED, reset_identity=RESET)),
+            ("wrong_identity", RuinsDetailObservation("Gear Challenge", True, 19, 100, RuinsControlState.VISIBLE_ENABLED, reset_identity=RESET)),
+            ("ambiguous", RuinsDetailObservation("Nova Challenge", False, 19, 100, RuinsControlState.HIDDEN, reset_identity=RESET)),
+        )
+        for label, successor_observation in variants:
+            with self.subTest(label=label):
+                runtime = FakeRuntime()
+                row = RuinsChallengeRow(
+                    "Nova Challenge", None, RuinsAvailability.AVAILABLE, 18, 100, None,
+                    RuinsControlState.VISIBLE_ENABLED, RuinsChestState.UNKNOWN,
+                    (560, 900, 780, 1080), source_frame_sha256="b" * 64, reset_identity=RESET,
+                )
+                listed = RuinsScreenObservation(
+                    True, "RUINS_CHALLENGE", True, 100,
+                    RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+                    RuinsControlState.VISIBLE_ENABLED, (row,), "none", "b" * 64, RESET,
+                    safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+                )
+                list_rec = RuinsFrameRecognition(listed, "b" * 64, (("challenge:Nova Challenge", row.target_roi),), {})
+                post_detail_rec = RuinsFrameRecognition(
+                    RuinsScreenObservation(False, "UNKNOWN", False, None, RuinsControlState.UNKNOWN,
+                                           RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, (), "unknown", "d" * 64, RESET),
+                    "d" * 64, (), {},
+                )
+                attack = RuinsDetailRecognition(
+                    RuinsDetailObservation("Nova Challenge", True, 19, 100, RuinsControlState.VISIBLE_ENABLED, reset_identity=RESET),
+                    "e" * 64, (("ruins-attack", (255, 1146, 545, 1251)),), {},
+                )
+                dispatch = RuinsDetailRecognition(
+                    RuinsDetailObservation("Nova Challenge", True, 0, 0, RuinsControlState.HIDDEN,
+                                           RuinsControlState.VISIBLE_ENABLED, True, 200200, 200200, True, 0, reset_identity=RESET),
+                    "f" * 64, (("ruins-dispatch", (255, 1140, 545, 1245)),), {},
+                )
+                successor = RuinsDetailRecognition(successor_observation, "1" * 64, (), {})
+                details = iter((attack, dispatch, successor))
+                unknown_detail = RuinsDetailRecognition(
+                    RuinsDetailObservation("unknown", False, 0, 0, RuinsControlState.HIDDEN, reset_identity=RESET),
+                    "0" * 64, (), {},
+                )
+                result_rec = RuinsResultRecognition(
+                    RuinsResultObservation("Nova Challenge", RuinsResult.SUCCESS, None, None, None,
+                                           "2" * 64, RESET, True, False, True),
+                    "2" * 64, (("ruins-result-continue", (200, 1080, 600, 1240)),), {},
+                )
+                with patch(
+                    "scripts.ruins_challenge_bluestacks.recognize_ruins_detail_with_targets",
+                    side_effect=lambda _frame, identity, **_kwargs: next(details) if identity == "Nova Challenge" else unknown_detail,
+                ), patch(
+                    "scripts.ruins_challenge_bluestacks.recognize_ruins_result_with_targets",
+                    return_value=result_rec,
+                ), patch(
+                    "scripts.ruins_challenge_bluestacks.recognize_ruins_frame",
+                    return_value=post_detail_rec,
+                ):
+                    route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Wed", post_input_delay=0, recognition_timeout=1)
+                    route.controller.observe_list(list_rec.observation)
+                    outcome = route._run_challenge(runtime.frames[0], list_rec, row)
+                self.assertEqual(outcome.status, "unresolved")
+                self.assertEqual(outcome.reason, "successful_progress_not_visible")
+                self.assertEqual(len(runtime.backs), 0)
+                self.assertEqual(runtime.reconciliations[0][1], "unresolved")
+
+    def test_ruins_evidence_bound_recovery_closes_detail_without_repeating_combat(self):
+        runtime = FakeRuntime()
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Wed", post_input_delay=0)
+        row = RuinsChallengeRow(
+            "Gear Challenge", None, RuinsAvailability.AVAILABLE, 68, 190, None,
+            RuinsControlState.VISIBLE_ENABLED, RuinsChestState.UNKNOWN,
+            (560, 900, 780, 1080), source_frame_sha256="b" * 64, reset_identity=RESET,
+        )
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 100,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED, (row,), "none", "b" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        list_rec = RuinsFrameRecognition(listed, "b" * 64, (), {})
+        safe_rec = RuinsFrameRecognition(replace(listed, source_frame_sha256="c" * 64), "c" * 64, (), {})
+        home_rec = RuinsFrameRecognition(
+            RuinsScreenObservation(True, "HOME_BASE", False, None, RuinsControlState.HIDDEN,
+                                   RuinsControlState.HIDDEN, RuinsControlState.HIDDEN, (), "none", "d" * 64, RESET,
+                                   home_base_recognized=True, ruins_building_recognized=True),
+            "d" * 64, (), {},
+        )
+        successor = RuinsDetailRecognition(
+            RuinsDetailObservation("Gear Challenge", True, 68, 190, RuinsControlState.VISIBLE_ENABLED, reset_identity=RESET),
+            "e" * 64, (), {},
+        )
+        evidence_root = Path(".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION")
+        evidence_root.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(dir=evidence_root) as directory:
+            evidence = Path(directory)
+            frames = evidence / "frames"
+            frames.mkdir()
+            detail_path = frames / "detail.png"
+            successor_path = frames / "successor.png"
+            self.assertTrue(cv2.imwrite(str(detail_path), np.full((1280, 800, 3), 1, dtype=np.uint8)))
+            self.assertTrue(cv2.imwrite(str(successor_path), np.zeros((1280, 800, 3), dtype=np.uint8)))
+            detail_sha = hashlib.sha256(detail_path.read_bytes()).hexdigest()
+            successor_sha = hashlib.sha256(successor_path.read_bytes()).hexdigest()
+            action_key = "ruins:challenge:reset:Gear Challenge:action"
+            (evidence / "flow-delivery-result.json").write_text(json.dumps({
+                "status": "failed", "ruins_result": {"reason": "successful_progress_not_visible"},
+            }), encoding="utf-8")
+            (evidence / "events.jsonl").write_text("\n".join((
+                json.dumps({"type": "capture", "label": "challenge-detail-immediate-post", "path": str(detail_path), "sha256": detail_sha}),
+                json.dumps({"type": "dispatch", "action_key": action_key, "target_identity": "ruins-dispatch", "target_roi": [255, 1140, 545, 1245], "source_sha256": detail_sha, "consequential": True}),
+                json.dumps({"type": "dispatch", "action_key": action_key + ":continue", "target_identity": "ruins-result-continue", "target_roi": [249, 1033, 643, 1154], "source_sha256": detail_sha, "consequential": False}),
+                json.dumps({"type": "capture", "label": "challenge-list-postcondition", "path": str(successor_path), "sha256": successor_sha}),
+                json.dumps({"type": "reconcile", "action_key": action_key, "post_path": str(successor_path), "post_sha256": successor_sha, "status": "unresolved", "reason": "successful row progress not visible"}),
+            )) + "\n", encoding="utf-8")
+            with patch(
+                "scripts.ruins_challenge_bluestacks.recognize_ruins_detail_with_targets",
+                side_effect=lambda frame, identity, **_kwargs: (replace(successor, observation=replace(successor.observation, floor_current=67)) if int(frame[0, 0, 0]) == 1 else successor) if identity == "Gear Challenge" else RuinsDetailRecognition(
+                    RuinsDetailObservation("unknown", False, 0, 0, RuinsControlState.HIDDEN, reset_identity=RESET),
+                    "0" * 64, (), {},
+                ),
+            ), patch(
+                "scripts.ruins_challenge_bluestacks.recognize_ruins_frame",
+                side_effect=(safe_rec, home_rec),
+            ), patch.object(route, "_recover_known_detail_to_list", return_value=(runtime.frames[1], list_rec, 1, None, True)), patch.object(
+                route, "_home_atlas_recognized", return_value=False,
+            ):
+                outcome = route.recover_only(evidence)
+        self.assertEqual(outcome.status, "completed", outcome.reason)
+        self.assertEqual(outcome.reason, "verified_safe_exit_to_home")
+        self.assertEqual(runtime.taps, [])
+        self.assertEqual(len(runtime.backs), 1)
+        self.assertIn("Gear Challenge", route.controller.challenge_identities_attempted)
+
+    def test_ruins_recovery_rejects_path_escape_wrong_hash_and_wrong_key(self):
+        route = RuinsIntegratedRoute(FakeRuntime(), reset_identity=RESET, current_day="Wed", post_input_delay=0)
+        artifact_root = Path(".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION")
+        artifact_root.mkdir(parents=True, exist_ok=True)
+        for tamper, expected in (("path", "recovery_evidence_path_escape"), ("hash", "recovery_evidence_successor_hash_mismatch"), ("key", "recovery_evidence_reconcile_link_invalid")):
+            with self.subTest(tamper=tamper), TemporaryDirectory(dir=artifact_root) as directory:
+                evidence = Path(directory)
+                frames = evidence / "frames"
+                frames.mkdir()
+                frame_path = frames / "frame.png"
+                self.assertTrue(cv2.imwrite(str(frame_path), np.zeros((1280, 800, 3), dtype=np.uint8)))
+                frame_sha = hashlib.sha256(frame_path.read_bytes()).hexdigest()
+                action_key = "ruins:challenge:reset:Gear Challenge:action"
+                successor_path = frame_path if tamper != "path" else evidence / "outside.png"
+                successor_sha = "0" * 64 if tamper == "hash" else frame_sha
+                reconcile_key = action_key + ":wrong" if tamper == "key" else action_key
+                (evidence / "flow-delivery-result.json").write_text(json.dumps({"status": "failed", "ruins_result": {"reason": "successful_progress_not_visible"}}), encoding="utf-8")
+                (evidence / "events.jsonl").write_text("\n".join((
+                    json.dumps({"type": "capture", "label": "challenge-detail-immediate-post", "path": str(frame_path), "sha256": frame_sha}),
+                    json.dumps({"type": "dispatch", "action_key": action_key, "target_identity": "ruins-dispatch", "target_roi": [255, 1140, 545, 1245], "source_sha256": frame_sha, "consequential": True}),
+                    json.dumps({"type": "dispatch", "action_key": action_key + ":continue", "target_identity": "ruins-result-continue"}),
+                    json.dumps({"type": "capture", "label": "challenge-list-postcondition", "path": str(successor_path), "sha256": successor_sha}),
+                    json.dumps({"type": "reconcile", "action_key": reconcile_key, "post_path": str(successor_path), "post_sha256": successor_sha, "status": "unresolved", "reason": "successful row progress not visible"}),
+                )) + "\n", encoding="utf-8")
+                outcome = route.recover_only(evidence)
+                self.assertEqual(outcome.status, "blocked")
+                self.assertEqual(outcome.reason, expected)
+
+    def test_ruins_route_continues_from_current_ruins_list_without_home_entry(self):
+        runtime = FakeRuntime()
+        row = RuinsChallengeRow(
+            "Nova Challenge", None, RuinsAvailability.AVAILABLE, 18, 100, None,
+            RuinsControlState.VISIBLE_ENABLED, RuinsChestState.UNKNOWN,
+            (560, 900, 780, 1000), source_frame_sha256="a" * 64, reset_identity=RESET,
+        )
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 100,
+            RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED,
+            (row,), "none", "a" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        source_rec = RuinsFrameRecognition(listed, "a" * 64, (("challenge:Nova Challenge", row.target_roi),), {})
+        after = replace(
+            listed,
+            rows=(replace(row, progress_current=19, source_frame_sha256="d" * 64),),
+            source_frame_sha256="d" * 64,
+        )
+        after_rec = RuinsFrameRecognition(after, "d" * 64, (), {})
+        safe_rec = RuinsFrameRecognition(replace(listed, source_frame_sha256="e" * 64), "e" * 64, (), {})
+        home = RuinsScreenObservation(
+            True, "HOME_BASE", False, None,
+            RuinsControlState.HIDDEN, RuinsControlState.HIDDEN, RuinsControlState.HIDDEN,
+            (), "none", "f" * 64, RESET, True, True,
+        )
+        home_rec = RuinsFrameRecognition(home, "f" * 64, (("ruins-building", (50, 800, 220, 1030)),), {})
+        detail_queue = iter((
+            RuinsDetailRecognition(
+                RuinsDetailObservation(
+                    "Nova Challenge", True, 19, 100, RuinsControlState.VISIBLE_ENABLED,
+                    source_frame_sha256="b" * 64, reset_identity=RESET,
+                ),
+                "b" * 64, (("ruins-attack", (250, 950, 550, 1080)),), {},
+            ),
+            RuinsDetailRecognition(
+                RuinsDetailObservation(
+                    "Nova Challenge", True, 0, 0, RuinsControlState.HIDDEN,
+                    RuinsControlState.VISIBLE_ENABLED, True, 200200, 200200, True, 0,
+                    source_frame_sha256="c" * 64, reset_identity=RESET,
+                ),
+                "c" * 64, (("ruins-dispatch", (250, 1050, 550, 1180)),), {},
+            ),
+        ))
+        with patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_frame",
+            side_effect=(source_rec, after_rec, safe_rec, home_rec),
+        ), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_detail_with_targets",
+            side_effect=lambda *_args, **_kwargs: next(detail_queue),
+        ), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_result_with_targets",
+            return_value=RuinsResultRecognition(
+                RuinsResultObservation(
+                    "Nova Challenge", RuinsResult.SUCCESS, None, None, None,
+                    "x" * 64, RESET, True, False, True,
+                ),
+                "x" * 64, (("ruins-result-continue", (200, 1080, 600, 1240)),), {},
+            ),
+        ):
+            route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Wed", post_input_delay=0, recognition_timeout=1)
+            with patch.object(route, "_dismiss_known_vip_popup", return_value=(runtime.frames[0], None, 0)), patch.object(
+                route, "_recover_home_zoom_before_ruins_binding", side_effect=AssertionError("Home zoom must be skipped")
+            ), patch.object(
+                route, "_current_frame_ruins_binding", side_effect=AssertionError("Home atlas binding must be skipped")
+            ), patch.object(route, "_home_atlas_recognized", return_value=False):
+                outcome = route.run()
+        self.assertEqual(outcome.status, "completed")
+        self.assertEqual(outcome.reason, "verified_safe_exit_to_home")
+        self.assertEqual(outcome.actions_completed, 1)
+        self.assertEqual(runtime.reconciliations[0][1], "confirmed")
+        self.assertEqual(
+            [item[1]["target_identity"] for item in runtime.taps],
+            ["challenge:Nova Challenge", "ruins-attack", "ruins-dispatch", "ruins-result-continue"],
+        )
+        self.assertTrue(runtime.backs)
+
+    def test_ruins_unknown_source_still_requires_home_recovery(self):
+        runtime = FakeRuntime()
+        unknown = RuinsScreenObservation(
+            False, "UNKNOWN", False, None,
+            RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN,
+            (), "unknown", "a" * 64, RESET,
+        )
+        unknown_rec = RuinsFrameRecognition(unknown, "a" * 64, (), {})
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Wed", post_input_delay=0)
+        with patch("scripts.ruins_challenge_bluestacks.recognize_ruins_frame", return_value=unknown_rec), patch.object(
+            route, "_dismiss_known_vip_popup", return_value=(runtime.frames[0], None, 0)
+        ), patch.object(
+            route, "_recover_home_zoom_before_ruins_binding", return_value=(None, "home_zoom_recovery_blocked:unknown")
+        ) as recover:
+            outcome = route.run()
+        self.assertEqual(outcome.status, "blocked")
+        self.assertEqual(outcome.reason, "home_zoom_recovery_blocked:unknown")
+        recover.assert_called_once()
+        self.assertEqual(runtime.taps, [])
+        self.assertEqual(runtime.backs, [])
+
+    def test_ruins_detail_source_backs_to_list_then_runs_full_controller_chain(self):
+        runtime = FakeRuntime()
+        row = RuinsChallengeRow(
+            "Nova Challenge", None, RuinsAvailability.AVAILABLE, 18, 100, None,
+            RuinsControlState.VISIBLE_ENABLED, RuinsChestState.UNKNOWN,
+            (560, 900, 780, 1000), source_frame_sha256="a" * 64, reset_identity=RESET,
+        )
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 100,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED, (row,), "none", "a" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        list_rec = RuinsFrameRecognition(listed, "a" * 64, (("challenge:Nova Challenge", row.target_roi),), {})
+        after = replace(listed, rows=(replace(row, progress_current=19, source_frame_sha256="d" * 64),), source_frame_sha256="d" * 64)
+        after_rec = RuinsFrameRecognition(after, "d" * 64, (), {})
+        safe_rec = RuinsFrameRecognition(replace(listed, source_frame_sha256="e" * 64), "e" * 64, (), {})
+        home = RuinsScreenObservation(
+            True, "HOME_BASE", False, None,
+            RuinsControlState.HIDDEN, RuinsControlState.HIDDEN, RuinsControlState.HIDDEN,
+            (), "none", "f" * 64, RESET, True, True,
+        )
+        home_rec = RuinsFrameRecognition(home, "f" * 64, (("ruins-building", (50, 800, 220, 1030)),), {})
+        detail_source = RuinsDetailRecognition(
+            RuinsDetailObservation(
+                "Gear Challenge", True, 67, 190, RuinsControlState.VISIBLE_ENABLED,
+                source_frame_sha256="0" * 64, reset_identity=RESET,
+            ),
+            "0" * 64, (("ruins-attack", (255, 1146, 545, 1251)),), {},
+        )
+        unknown_detail = RuinsDetailRecognition(
+            RuinsDetailObservation(
+                "unknown", False, 0, 0, RuinsControlState.HIDDEN,
+                source_frame_sha256="0" * 64, reset_identity=RESET,
+            ),
+            "0" * 64, (), {},
+        )
+        challenge_details = iter((
+            RuinsDetailRecognition(
+                RuinsDetailObservation("Nova Challenge", True, 19, 100, RuinsControlState.VISIBLE_ENABLED, source_frame_sha256="b" * 64, reset_identity=RESET),
+                "b" * 64, (("ruins-attack", (250, 950, 550, 1080)),), {},
+            ),
+            RuinsDetailRecognition(
+                RuinsDetailObservation("Nova Challenge", True, 0, 0, RuinsControlState.HIDDEN, RuinsControlState.VISIBLE_ENABLED, True, 200200, 200200, True, 0, source_frame_sha256="c" * 64, reset_identity=RESET),
+                "c" * 64, (("ruins-dispatch", (250, 1050, 550, 1180)),), {},
+            ),
+        ))
+
+        def detail_recognizer(_frame, identity, **_kwargs):
+            if identity == "Gear Challenge":
+                return detail_source
+            if identity == "Nova Challenge" and int(_frame[0, 0, 0]) >= 3:
+                return next(challenge_details)
+            return unknown_detail
+
+        result_rec = RuinsResultRecognition(
+            RuinsResultObservation("Nova Challenge", RuinsResult.SUCCESS, None, None, None, "x" * 64, RESET, True, False, True),
+            "x" * 64, (("ruins-result-continue", (200, 1080, 600, 1240)),), {},
+        )
+        with patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_frame",
+            side_effect=(RuinsFrameRecognition(RuinsScreenObservation(False, "UNKNOWN", False, None, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, (), "unknown", "0" * 64, RESET), "0" * 64, (), {}), list_rec, after_rec, safe_rec, home_rec),
+        ), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_detail_with_targets",
+            side_effect=detail_recognizer,
+        ), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_result_with_targets",
+            return_value=result_rec,
+        ):
+            route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Wed", post_input_delay=0, recognition_timeout=1)
+            with patch.object(route, "_dismiss_known_vip_popup", return_value=(runtime.frames[0], None, 0)), patch.object(
+                route, "_recover_home_zoom_before_ruins_binding", side_effect=AssertionError("detail source must not enter Home recovery")
+            ), patch.object(route, "_current_frame_ruins_binding", side_effect=AssertionError("detail source must not bind Home atlas")), patch.object(
+                route, "_home_atlas_recognized", return_value=False
+            ):
+                outcome = route.run()
+        self.assertEqual(outcome.status, "completed")
+        self.assertEqual(outcome.reason, "verified_safe_exit_to_home")
+        self.assertEqual(outcome.actions_completed, 2)
+        self.assertEqual(runtime.reconciliations[0][1], "confirmed")
+        self.assertEqual([item[1]["target_identity"] for item in runtime.taps], ["challenge:Nova Challenge", "ruins-attack", "ruins-dispatch", "ruins-result-continue"])
+        self.assertEqual(len(runtime.backs), 2)
+        self.assertEqual(runtime.backs[0][1]["action_key"].split(":")[1], "detail-safe-exit")
+
+    def test_ruins_ambiguous_detail_source_blocks_without_input(self):
+        runtime = FakeRuntime()
+        unknown = RuinsFrameRecognition(
+            RuinsScreenObservation(False, "UNKNOWN", False, None, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, (), "unknown", "0" * 64, RESET),
+            "0" * 64, (), {},
+        )
+        ambiguous = RuinsDetailRecognition(
+            RuinsDetailObservation("unknown", False, 67, 190, RuinsControlState.HIDDEN, source_frame_sha256="0" * 64, reset_identity=RESET),
+            "0" * 64, (), {},
+        )
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Wed", post_input_delay=0)
+        with patch("scripts.ruins_challenge_bluestacks.recognize_ruins_frame", return_value=unknown), patch.object(
+            route, "_dismiss_known_vip_popup", return_value=(runtime.frames[0], None, 0)
+        ), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_detail_with_targets", return_value=ambiguous
+        ), patch.object(route, "_recover_home_zoom_before_ruins_binding", side_effect=AssertionError("ambiguous detail must not recover Home")):
+            outcome = route.run()
+        self.assertEqual(outcome.status, "blocked")
+        self.assertEqual(outcome.reason, "ruins_detail_context_ambiguous")
+        self.assertEqual(runtime.taps, [])
+        self.assertEqual(runtime.backs, [])
+
+    def test_ruins_dispatch_source_backs_to_detail_then_list_and_runs_full_chain(self):
+        runtime = FakeRuntime()
+        row = RuinsChallengeRow(
+            "Nova Challenge", None, RuinsAvailability.AVAILABLE, 18, 100, None,
+            RuinsControlState.VISIBLE_ENABLED, RuinsChestState.UNKNOWN,
+            (560, 900, 780, 1000), source_frame_sha256="a" * 64, reset_identity=RESET,
+        )
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 100,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED, (row,), "none", "a" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        list_rec = RuinsFrameRecognition(listed, "a" * 64, (("challenge:Nova Challenge", row.target_roi),), {})
+        after = replace(listed, rows=(replace(row, progress_current=19, source_frame_sha256="d" * 64),), source_frame_sha256="d" * 64)
+        after_rec = RuinsFrameRecognition(after, "d" * 64, (), {})
+        safe_rec = RuinsFrameRecognition(replace(listed, source_frame_sha256="e" * 64), "e" * 64, (), {})
+        home = RuinsScreenObservation(
+            True, "HOME_BASE", False, None,
+            RuinsControlState.HIDDEN, RuinsControlState.HIDDEN, RuinsControlState.HIDDEN,
+            (), "none", "f" * 64, RESET, True, True,
+        )
+        home_rec = RuinsFrameRecognition(home, "f" * 64, (("ruins-building", (50, 800, 220, 1030)),), {})
+        dispatch_source = RuinsDetailRecognition(
+            RuinsDetailObservation(
+                "", True, 0, 0, RuinsControlState.HIDDEN, RuinsControlState.VISIBLE_ENABLED,
+                True, 200200, 200200, True, 0, source_frame_sha256="0" * 64, reset_identity=RESET,
+            ),
+            "0" * 64, (("ruins-dispatch", (255, 1140, 545, 1245)),), {},
+        )
+        gear_detail = RuinsDetailRecognition(
+            RuinsDetailObservation(
+                "Gear Challenge", True, 67, 190, RuinsControlState.VISIBLE_ENABLED,
+                source_frame_sha256="0" * 64, reset_identity=RESET,
+            ),
+            "0" * 64, (("ruins-attack", (255, 1146, 545, 1251)),), {},
+        )
+        unknown_detail = RuinsDetailRecognition(
+            RuinsDetailObservation("unknown", False, 0, 0, RuinsControlState.HIDDEN, source_frame_sha256="0" * 64, reset_identity=RESET),
+            "0" * 64, (), {},
+        )
+        challenge_details = iter((
+            RuinsDetailRecognition(
+                RuinsDetailObservation("Nova Challenge", True, 19, 100, RuinsControlState.VISIBLE_ENABLED, source_frame_sha256="b" * 64, reset_identity=RESET),
+                "b" * 64, (("ruins-attack", (250, 950, 550, 1080)),), {},
+            ),
+            RuinsDetailRecognition(
+                RuinsDetailObservation("Nova Challenge", True, 0, 0, RuinsControlState.HIDDEN, RuinsControlState.VISIBLE_ENABLED, True, 200200, 200200, True, 0, source_frame_sha256="c" * 64, reset_identity=RESET),
+                "c" * 64, (("ruins-dispatch", (250, 1050, 550, 1180)),), {},
+            ),
+        ))
+
+        def detail_recognizer(frame, identity, **_kwargs):
+            ordinal = int(frame[0, 0, 0])
+            if identity == "" and ordinal < 2:
+                return dispatch_source
+            if ordinal in (2, 3) and identity == "Gear Challenge":
+                return gear_detail
+            if ordinal >= 5 and identity == "Nova Challenge":
+                return next(challenge_details)
+            return unknown_detail
+
+        result_rec = RuinsResultRecognition(
+            RuinsResultObservation("Nova Challenge", RuinsResult.SUCCESS, None, None, None, "x" * 64, RESET, True, False, True),
+            "x" * 64, (("ruins-result-continue", (200, 1080, 600, 1240)),), {},
+        )
+        unknown_list = RuinsFrameRecognition(
+            RuinsScreenObservation(False, "UNKNOWN", False, None, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, (), "unknown", "0" * 64, RESET),
+            "0" * 64, (), {},
+        )
+        with patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_frame",
+            side_effect=(unknown_list, list_rec, after_rec, safe_rec, home_rec),
+        ), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_detail_with_targets",
+            side_effect=detail_recognizer,
+        ), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_result_with_targets",
+            return_value=result_rec,
+        ):
+            route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Wed", post_input_delay=0, recognition_timeout=1)
+            with patch.object(route, "_dismiss_known_vip_popup", return_value=(runtime.frames[0], None, 0)), patch.object(
+                route, "_recover_home_zoom_before_ruins_binding", side_effect=AssertionError("Dispatch source must not enter Home recovery")
+            ), patch.object(route, "_current_frame_ruins_binding", side_effect=AssertionError("Dispatch source must not bind Home atlas")), patch.object(
+                route, "_home_atlas_recognized", return_value=False
+            ):
+                outcome = route.run()
+        self.assertEqual(outcome.status, "completed")
+        self.assertEqual(outcome.reason, "verified_safe_exit_to_home")
+        self.assertEqual(outcome.actions_completed, 3)
+        self.assertEqual(runtime.reconciliations[0][1], "confirmed")
+        self.assertEqual([item[1]["target_identity"] for item in runtime.taps], ["challenge:Nova Challenge", "ruins-attack", "ruins-dispatch", "ruins-result-continue"])
+        self.assertEqual(len(runtime.backs), 3)
+
+    def test_ruins_invalid_dispatch_source_blocks_without_input(self):
+        runtime = FakeRuntime()
+        unknown = RuinsFrameRecognition(
+            RuinsScreenObservation(False, "UNKNOWN", False, None, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN, (), "unknown", "0" * 64, RESET),
+            "0" * 64, (), {},
+        )
+        invalid_dispatch = RuinsDetailRecognition(
+            RuinsDetailObservation("", False, 0, 0, RuinsControlState.HIDDEN, RuinsControlState.HIDDEN, True, 199999, 200200, False, 0, source_frame_sha256="0" * 64, reset_identity=RESET),
+            "0" * 64, (), {},
+        )
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Wed", post_input_delay=0)
+        with patch("scripts.ruins_challenge_bluestacks.recognize_ruins_frame", return_value=unknown), patch.object(
+            route, "_dismiss_known_vip_popup", return_value=(runtime.frames[0], None, 0)
+        ), patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_detail_with_targets", return_value=invalid_dispatch
+        ), patch.object(route, "_recover_home_zoom_before_ruins_binding", side_effect=AssertionError("invalid Dispatch must not recover Home")):
+            outcome = route.run()
+        self.assertEqual(outcome.status, "blocked")
+        self.assertEqual(outcome.reason, "ruins_dispatch_context_ambiguous")
+        self.assertEqual(runtime.taps, [])
+        self.assertEqual(runtime.backs, [])
+
+    def test_ruins_safe_exit_accepts_atlas_home_when_legacy_ocr_is_truncated(self):
+        runtime = FakeRuntime()
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 100,
+            RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED,
+            (), "none", "a" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        unknown = RuinsScreenObservation(
+            False, "UNKNOWN", False, None,
+            RuinsControlState.UNKNOWN,
+            RuinsControlState.UNKNOWN,
+            RuinsControlState.UNKNOWN,
+            (), "unknown", "b" * 64, RESET,
+        )
+        listed_recognition = RuinsFrameRecognition(listed, "a" * 64, (), {})
+        unknown_recognition = RuinsFrameRecognition(unknown, "b" * 64, (), {})
+        route = RuinsIntegratedRoute(
+            runtime,
+            reset_identity=RESET,
+            current_day="Wed",
+            navigation_only=True,
+            post_input_delay=0,
+            recognition_timeout=1,
+        )
+        with patch(
+            "scripts.ruins_challenge_bluestacks.recognize_ruins_frame",
+            side_effect=(listed_recognition, unknown_recognition),
+        ), patch.object(
+            route, "_home_atlas_recognized", side_effect=(False, True)
+        ), patch.object(route.runtime, "back") as back:
+            outcome = route._return_home(runtime.frames[0], listed_recognition, 1)
+        self.assertEqual(outcome.status, "completed")
+        self.assertEqual(outcome.reason, "verified_safe_exit_to_home")
+        self.assertEqual(outcome.actions_completed, 2)
+        back.assert_called_once()
 
     def test_ruins_route_optionally_tries_distinct_second_stage_after_failure(self):
         runtime = FakeRuntime()
@@ -300,7 +1027,7 @@ class IntegratedRouteTests(unittest.TestCase):
         )
         second = replace(first, identity="Module Challenge", progress_current=12, target_roi=(560, 900, 780, 1080))
         home = RuinsScreenObservation(True, "HOME_BASE", False, None, RuinsControlState.HIDDEN, RuinsControlState.HIDDEN, RuinsControlState.HIDDEN, (), "none", "a" * 64, RESET, True, True)
-        listed = RuinsScreenObservation(True, "RUINS_CHALLENGE", True, 100, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, (first, second), "none", "b" * 64, RESET)
+        listed = RuinsScreenObservation(True, "RUINS_CHALLENGE", True, 100, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, (first, second), "none", "b" * 64, RESET, safe_back_control=RuinsControlState.VISIBLE_ENABLED)
         after_first_rows = (replace(first, source_frame_sha256="f" * 64), replace(second, source_frame_sha256="f" * 64))
         after_first = replace(listed, rows=after_first_rows, source_frame_sha256="f" * 64)
         after_second_rows = (
@@ -308,12 +1035,15 @@ class IntegratedRouteTests(unittest.TestCase):
             replace(second, progress_current=13, source_frame_sha256="1" * 64),
         )
         after_second = replace(listed, rows=after_second_rows, source_frame_sha256="1" * 64)
+        safe_before = replace(listed, source_frame_sha256="2" * 64)
         list_queue = iter((
+            RuinsFrameRecognition(home, "a" * 64, (("ruins-building", (50, 800, 220, 1030)),), {}),
             RuinsFrameRecognition(home, "a" * 64, (("ruins-building", (50, 800, 220, 1030)),), {}),
             RuinsFrameRecognition(listed, "b" * 64, (("challenge:Nova Challenge", first.target_roi), ("challenge:Module Challenge", second.target_roi)), {}),
             RuinsFrameRecognition(after_first, "f" * 64, (("challenge:Module Challenge", second.target_roi),), {}),
             RuinsFrameRecognition(after_second, "1" * 64, (), {}),
-            RuinsFrameRecognition(replace(home, source_frame_sha256="2" * 64), "2" * 64, (("ruins-building", (50, 800, 220, 1030)),), {}),
+            RuinsFrameRecognition(safe_before, "2" * 64, (), {}),
+            RuinsFrameRecognition(replace(home, source_frame_sha256="3" * 64), "3" * 64, (("ruins-building", (50, 800, 220, 1030)),), {}),
         ))
         detail_queue = iter((
             RuinsDetailRecognition(RuinsDetailObservation("Nova Challenge", True, 19, 100, RuinsControlState.VISIBLE_ENABLED, source_frame_sha256="c" * 64, reset_identity=RESET), "c" * 64, (("ruins-attack", (250, 950, 550, 1080)),), {}),
@@ -328,14 +1058,18 @@ class IntegratedRouteTests(unittest.TestCase):
         with patch("scripts.ruins_challenge_bluestacks.recognize_ruins_frame", side_effect=lambda *_args, **_kwargs: next(list_queue)), patch(
             "scripts.ruins_challenge_bluestacks.recognize_ruins_detail_with_targets", side_effect=lambda *_args, **_kwargs: next(detail_queue)
         ), patch("scripts.ruins_challenge_bluestacks.recognize_ruins_result_with_targets", side_effect=lambda *_args, **_kwargs: next(result_queue)):
-            outcome = RuinsIntegratedRoute(
+            route = RuinsIntegratedRoute(
                 runtime,
                 reset_identity=RESET,
                 current_day="Wed",
                 allow_optional_second=True,
                 post_input_delay=0,
                 recognition_timeout=1,
-            ).run()
+            )
+            with patch.object(route, "_recover_home_zoom_before_ruins_binding", return_value=(runtime.frames[0], None)), patch.object(
+                route, "_current_frame_ruins_binding", return_value=(50, 800, 220, 1030)
+            ):
+                outcome = route.run()
         self.assertEqual(outcome.status, "completed")
         self.assertEqual(outcome.actions_completed, 2)
         self.assertEqual([item[1] for item in runtime.reconciliations], ["failed_confirmed", "confirmed"])
