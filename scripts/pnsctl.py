@@ -3221,6 +3221,81 @@ def noahs_tavern_navigation(args: argparse.Namespace) -> str:
         text=True,
         check=True,
     ).stdout.strip()
+    if getattr(args, "preflight_capture", False) and args.preflight_only:
+        raise OperatorError("--preflight-capture and --preflight-only are mutually exclusive")
+    if getattr(args, "recovery_continuation", False) and (
+        getattr(args, "preflight_capture", False) or getattr(args, "preflight_only", False)
+    ):
+        raise OperatorError("recovery continuation and preflight modes are mutually exclusive")
+    if getattr(args, "recovery_continuation", False):
+        if not args.live or not args.yes or not args.supervised_live_opt_in:
+            raise OperatorError("recovery continuation requires --live --yes --supervised-live-opt-in")
+        from scripts import noahs_tavern_recruit_bluestacks as route_module
+        from scripts.navigation_development_boundary import NavigationDevelopmentSession
+        owner = f"pnsctl-noahs-tavern-recovery:{candidate_commit[:12]}"
+        invocation_id = f"noahs-tavern-recovery-{candidate_commit[:12]}-{int(time.time())}"
+        with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
+            return route_module.run_noahs_tavern_recovery_continuation(args, None)
+    if getattr(args, "preflight_capture", False):
+        if args.live:
+            raise OperatorError("--preflight-capture cannot be combined with --live")
+        from scripts.noahs_tavern_recruit_bluestacks import (
+            NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID,
+            NOAHS_TAVERN_NAV_FLOW_ID,
+            NoahTavernNavigationCanaryRoute,
+        )
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+        import cv2
+        import hashlib
+
+        from scripts.navigation_development_boundary import NavigationDevelopmentSession
+
+        def _run_preflight_capture() -> str:
+            runtime = LocalBlueStacksRuntime.connect(
+                adb=str(args.adb),
+                serial=args.serial,
+                output_directory=args.output_directory,
+                workflow="noahs-tavern-atlas-preflight",
+                execute=False,
+            )
+            route = NoahTavernNavigationCanaryRoute(runtime, settle_seconds=0.0)
+            source = runtime.capture("home-atlas-entry-preflight-source")
+            localization = route.home_localizer.localize(source.frame)
+            binding = route._atlas_binding(source)
+            annotated_path = runtime.session / "home-atlas-entry-preflight-annotated.png"
+            annotated = source.frame.copy()
+            if binding is not None:
+                x0, y0, x1, y1 = binding
+                cv2.rectangle(annotated, (x0, y0), (x1, y1), (0, 255, 0), 4)
+                cv2.putText(annotated, NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID, (x0, max(30, y0 - 12)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.imwrite(str(annotated_path), annotated)
+            atlas_bytes = route.atlas_path.read_bytes()
+            payload = {
+                "schema_version": 1,
+                "flow_id": NOAHS_TAVERN_NAV_FLOW_ID,
+                "status": "preflight_capture_passed" if binding is not None else "blocked",
+                "reason": "current_frame_atlas_binding" if binding is not None else "home_atlas_tavern_target_not_current_frame_bound",
+                "transport_calls": 0,
+                "source_frame": str(source.path),
+                "source_frame_sha256": source.sha256,
+                "source_frame_semantic_sha256": localization.frame_sha256,
+                "annotated_frame": str(annotated_path),
+                "atlas_path": str(route.atlas_path),
+                "atlas_sha256": hashlib.sha256(atlas_bytes).hexdigest(),
+                "building_id": NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID,
+                "target_roi": list(binding) if binding is not None else None,
+                "localization": localization.__dict__,
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+                "session_directory": str(runtime.session),
+            }
+            (runtime.session / "home-atlas-entry-preflight-result.json").write_text(json.dumps(payload, sort_keys=True, default=str, indent=2) + "\n", encoding="utf-8")
+            return json.dumps(payload, sort_keys=True, default=str)
+
+        owner = f"pnsctl-noahs-tavern-atlas-preflight:{candidate_commit[:12]}"
+        invocation_id = f"noahs-tavern-atlas-preflight-{candidate_commit[:12]}-{int(time.time())}"
+        with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
+            return _run_preflight_capture()
     if args.preflight_only:
         return json.dumps(
             {
@@ -3263,6 +3338,70 @@ def noahs_tavern_navigation(args: argparse.Namespace) -> str:
     invocation_id = f"noahs-tavern-nav-{candidate_commit[:12]}-{int(time.time())}"
     with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
         return runner(args, None)
+
+
+def noahs_tavern_recruit(args: argparse.Namespace) -> str:
+    """Run one bounded ordinary unified Noah's Tavern recruitment pass through pnsctl."""
+
+    candidate_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    if args.preflight_only and args.live:
+        raise OperatorError("--preflight-only and --live are mutually exclusive")
+    if args.reconcile_session is not None:
+        if args.live or args.preflight_only:
+            raise OperatorError("retained reconciliation is zero-input and cannot use --live or --preflight-only")
+        if args.state_session is None or args.terminal_home_session is None:
+            raise OperatorError("retained reconciliation requires --state-session and --terminal-home-session")
+        from scripts import noahs_tavern_recruit_bluestacks as route_module
+        from tasks.scheduler_task_result import SchedulerIdentity
+        from tasks.noahs_tavern_recruit_maintenance import MAINTENANCE_TASK_ID
+        identity = SchedulerIdentity(
+            args.account_id or "local-bluestacks-account",
+            args.server_id or "local-bluestacks-server",
+            args.reset_id or f"game-day-{datetime.now(timezone.utc).date().isoformat()}",
+            MAINTENANCE_TASK_ID,
+        )
+        return route_module.reconcile_noahs_tavern_retained_recruit(args, identity)
+    if args.preflight_only:
+        from scripts.navigation_development_boundary import NavigationDevelopmentSession
+        from scripts import noahs_tavern_recruit_bluestacks as route_module
+
+        owner = f"pnsctl-noahs-tavern-recruit-preflight:{candidate_commit[:12]}"
+        invocation_id = f"noahs-tavern-recruit-preflight-{candidate_commit[:12]}-{int(time.time())}"
+        with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
+            return route_module.run_noahs_tavern_recruitment_preflight(args)
+    if not args.live:
+        raise OperatorError("noahs-tavern-recruit requires --live or --preflight-only")
+    if not args.yes:
+        raise OperatorError("live unified recruitment requires --yes")
+    if not args.supervised_live_opt_in:
+        raise OperatorError("live unified recruitment requires --supervised-live-opt-in")
+    continuation = getattr(args, "continuation_session", None) is not None
+    required_cap = 4 if continuation else 12
+    if args.max_inputs != required_cap:
+        raise OperatorError(f"unified recruitment live pass requires exact {required_cap}-input cap")
+    from scripts.navigation_development_boundary import NavigationDevelopmentSession
+    from scripts import noahs_tavern_recruit_bluestacks as route_module
+    from tasks.scheduler_task_result import SchedulerIdentity
+    from tasks.noahs_tavern_recruit_maintenance import MAINTENANCE_TASK_ID
+
+    identity = SchedulerIdentity(
+        args.account_id or "local-bluestacks-account",
+        args.server_id or "local-bluestacks-server",
+        args.reset_id or f"game-day-{datetime.now(timezone.utc).date().isoformat()}",
+        MAINTENANCE_TASK_ID,
+    )
+    owner = f"pnsctl-noahs-tavern-recruit:{candidate_commit[:12]}"
+    invocation_id = f"noahs-tavern-recruit-{candidate_commit[:12]}-{int(time.time())}"
+    with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
+        if continuation:
+            return route_module.run_noahs_tavern_recruitment_continuation(args, identity)
+        return route_module.run_noahs_tavern_unified_recruitment(args, identity)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -3346,6 +3485,9 @@ def parser() -> argparse.ArgumentParser:
     tavern_nav.add_argument("--preflight-only", action="store_true")
     tavern_nav.add_argument("--yes", action="store_true")
     tavern_nav.add_argument("--supervised-live-opt-in", action="store_true")
+    tavern_nav.add_argument("--preflight-capture", action="store_true", help="capture and annotate a zero-input canonical Home Atlas binding")
+    tavern_nav.add_argument("--recovery-continuation", action="store_true", help="one retained Tavern safe-exit prelude, then fresh canonical round trip")
+    tavern_nav.add_argument("--safe-exit-only", action="store_true", help="one positively recognized Tavern exit to canonical Home")
     tavern_nav.add_argument("--adb", type=Path, default=BLUESTACKS_ADB)
     tavern_nav.add_argument("--serial", default=BLUESTACKS_SERIAL)
     tavern_nav.add_argument("--settle-seconds", type=float, default=1.0)
@@ -3353,6 +3495,27 @@ def parser() -> argparse.ArgumentParser:
         "--output-directory",
         type=Path,
         default=NOAHS_TAVERN_NAV_OUTPUT_DEFAULT,
+    )
+    tavern_recruit = sub.add_parser("noahs-tavern-recruit")
+    tavern_recruit.add_argument("--live", action="store_true")
+    tavern_recruit.add_argument("--preflight-only", action="store_true")
+    tavern_recruit.add_argument("--yes", action="store_true")
+    tavern_recruit.add_argument("--supervised-live-opt-in", action="store_true")
+    tavern_recruit.add_argument("--account-id")
+    tavern_recruit.add_argument("--server-id")
+    tavern_recruit.add_argument("--reset-id")
+    tavern_recruit.add_argument("--continuation-session", type=Path)
+    tavern_recruit.add_argument("--state-session", type=Path)
+    tavern_recruit.add_argument("--reconcile-session", type=Path)
+    tavern_recruit.add_argument("--terminal-home-session", type=Path)
+    tavern_recruit.add_argument("--max-inputs", type=int, default=12)
+    tavern_recruit.add_argument("--adb", type=Path, default=BLUESTACKS_ADB)
+    tavern_recruit.add_argument("--serial", default=BLUESTACKS_SERIAL)
+    tavern_recruit.add_argument("--settle-seconds", type=float, default=1.0)
+    tavern_recruit.add_argument(
+        "--output-directory",
+        type=Path,
+        default=BLUESTACKS_ARTIFACT_ROOT / "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
     )
     nova_guard = sub.add_parser("nova-praise-supervised-guard")
     nova_guard_sub = nova_guard.add_subparsers(dest="nova_guard_command", required=True)
@@ -3428,6 +3591,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     {
                         "status": "failed",
                         "command": "noahs-tavern-nav",
+                        "error": str(exc),
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+    if args.command == "noahs-tavern-recruit":
+        try:
+            output = noahs_tavern_recruit(args)
+            print(output)
+            return 0
+        except (OperatorError, OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "command": "noahs-tavern-recruit",
                         "error": str(exc),
                     },
                     sort_keys=True,

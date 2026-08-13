@@ -346,18 +346,28 @@ class IntegratedRouteTests(unittest.TestCase):
         )
         # The live Tavern hides Daily free attempts while the cooldown is active.
         after = noah_observation(NOAHS_TAVERN_SCREEN, "d" * 64, remaining=None, cooldown=True)
-        observations = iter((home, before, result, result, after, home))
+        # Safe exit performs a fresh Tavern immediate-before revalidation.
+        observations = iter((home, before, result, result, after, after, home))
 
         def recognize(_frame, **_kwargs):
             return next(observations)
 
-        route = NoahTavernIntegratedRoute(runtime, recognizer=recognize, post_input_delay=0, result_timeout=1)
+        bound_rois = []
+        route = NoahTavernIntegratedRoute(
+            runtime,
+            max_recruits=1,
+            recognizer=recognize,
+            post_input_delay=0,
+            result_timeout=1,
+            atlas_binding=lambda captured: (bound_rois.append(captured.sha256) or (10, 10, 20, 20)),
+        )
         outcome = route.run()
         self.assertEqual(outcome.status, "completed", outcome.reason)
         self.assertEqual(outcome.actions_completed, 1)
-        self.assertEqual(len(runtime.reconciliations), 1)
-        self.assertEqual(runtime.reconciliations[0][1], "confirmed")
-        self.assertEqual(len([item for item in runtime.taps if item[1].get("consequential")]), 1)
+        self.assertEqual(runtime.reconciliations, [])
+        self.assertEqual(len([item for item in runtime.taps if item[1].get("consequential")]), 0)
+        self.assertEqual(runtime.taps[0][1]["target_roi"], (10, 10, 20, 20))
+        self.assertEqual(bound_rois, [runtime.frames[0].sha256])
         self.assertTrue(runtime.backs)
 
     def test_nova_route_cannot_bypass_centralized_action_boundary(self):

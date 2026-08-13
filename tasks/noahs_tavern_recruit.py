@@ -230,6 +230,7 @@ def noah_result_postcondition_verified(
     *,
     require_daily_progress: bool = True,
     require_attempt_decrement: bool = True,
+    cooldown_tolerance_seconds: int = 0,
 ) -> bool:
     """Require positive result, safe close, exact decrement, and cooldown."""
 
@@ -272,7 +273,9 @@ def noah_result_postcondition_verified(
         attempt_decrement_valid
         and after_tier.cooldown_active
         and parsed is not None
-        and after_tier.cooldown_duration_seconds == parsed
+        and after_tier.cooldown_duration_seconds is not None
+        and parsed is not None
+        and abs(after_tier.cooldown_duration_seconds - parsed) <= cooldown_tolerance_seconds
         and after_tier.next_eligible_timestamp is not None
         and daily_progress_valid
     )

@@ -35,6 +35,7 @@ from scripts.home_atlas_bluestacks import (
     identity_from_captured,
     reject_direct_navigate_building_transport,
 )
+from scripts.noahs_tavern_recruit_bluestacks import record_home_zoom_recovery_input
 from safe_action_core import (
     ActionStatus,
     CentralPolicy,
@@ -388,6 +389,30 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
         exhausted = driver.observe(second)
         self.assertEqual(exhausted.disposition, HomeDriverDisposition.BLOCKED)
         self.assertEqual(exhausted.reason, "maximum_zoom_recovery_inputs")
+
+    def test_zoom_plan_uses_semantic_digest_not_png_transport_digest(self) -> None:
+        target = _building()
+        world = _atlas(target)
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        localization = replace(
+            _localization(),
+            recognized=False,
+            zoom_identity=ZoomIdentity.ZOOMED_IN,
+            screen_to_atlas=None,
+            confidence=0.92,
+            frame_sha256=frame_digest(frame),
+        )
+        localizer = SimpleNamespace(localize=lambda _frame: localization, canonical_reference=frame)
+        driver = BlueStacksLocalizeFirstHomeDriver(
+            world, Path("atlas.json"), _ready(), target.semantic_id, localizer=localizer, maximum_zoom_inputs=1
+        )
+        planned = driver.observe(frame)
+        self.assertEqual(planned.disposition, HomeDriverDisposition.RECOVER_ZOOM)
+        # Runtime PNG-byte hashes differ from semantic pixel digests; planner identity remains
+        # the semantic frame digest produced by the Home localizer.
+        with self.assertRaises(ValueError):
+            driver.record_zoom_input_dispatched("png-byte-hash")
+        record_home_zoom_recovery_input(driver, planned)
 
     def test_localize_first_driver_accepts_independently_corroborated_zoomed_in_home(self) -> None:
         target = _building()

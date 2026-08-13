@@ -127,6 +127,10 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 - Prefer the smallest real vertical slice that proves product behavior. Do not place generalized
   infrastructure, bulk migration, or scale-out before the representative replay and live canary
   that justify it. Enforce checked-in review hard stops.
+- Do not overengineer. Implement the simplest complete solution that satisfies the current task and
+  its safety boundaries; avoid speculative abstractions, exhaustive ceremony, and framework work
+  that the acceptance criteria do not require. Do not let pursuit of a theoretically perfect design
+  delay a clear, testable, maintainable result that genuinely solves the problem.
 - Extend accepted implementations and retained proof instead of rebuilding them. Missing knowledge
   remains `evidence_required`; synthetic fixtures do not substitute for absent live evidence.
 - For shared files or retained branches, assign behavior and writable ownership to one atomic task

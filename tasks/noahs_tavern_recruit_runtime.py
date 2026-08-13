@@ -19,6 +19,13 @@ from .noahs_tavern_recruit import (
     update_progress,
 )
 from .noahs_tavern_recruit_vision import TAVERN_FREE_ROI, TAVERN_CARDS_ROI
+from .noahs_tavern_recruit_maintenance import (
+    NoahMaintenanceState,
+    NoahMaintenancePassResult,
+    NoahTavernMaintenanceController,
+    TierPassEvidence,
+)
+from .scheduler_task_result import SchedulerAwareTaskResult, SchedulerIdentity
 
 
 class NoahAction(str, Enum):
@@ -61,9 +68,56 @@ class NoahRecruitProgress:
 class NoahTavernRecruitRuntimeController:
     """One-command-at-a-time state machine with no Claim or scheduler promotion path."""
 
-    def __init__(self, *, now: float = 0.0) -> None:
+    def __init__(self, *, now: float = 0.0, maintenance_state: NoahMaintenanceState | None = None, repository=None, scheduler_identity: SchedulerIdentity | None = None) -> None:
         self.now = now
         self.progress = NoahRecruitProgress()
+        self.maintenance_controller = NoahTavernMaintenanceController(
+            maintenance_state or NoahMaintenanceState("offline-account", "offline-server", "offline-reset"),
+            now=now,
+        )
+        self.repository = repository
+        self.scheduler_identity = scheduler_identity
+
+    def persist_maintenance_state(self, *, now: float | None = None) -> None:
+        """Persist current verified maintenance progress through the existing repository seam."""
+
+        if self.repository is None or self.scheduler_identity is None:
+            return
+        state = self.maintenance_controller.state
+        progress = {
+            "basic_daily_count": state.basic_daily_count,
+            "tiers": {
+                tier.value: {
+                    "attempts_remaining": state.tiers[tier].attempts_remaining,
+                    "next_eligible_at": state.tiers[tier].next_eligible_at,
+                    "cooldown_seconds": state.tiers[tier].cooldown_seconds,
+                    "last_outcome": state.tiers[tier].last_outcome,
+                }
+                for tier in RecruitTier
+            },
+            "terminal_home_verified": False,
+        }
+        self.repository.apply_result(
+            SchedulerAwareTaskResult.deferred(
+                self.scheduler_identity,
+                "verified_transition_persisted",
+                min((item.next_eligible_at for item in state.tiers.values() if item.next_eligible_at is not None), default=now or self.now),
+                observed_progress=progress,
+            ),
+            now or self.now,
+        )
+
+    def run_maintenance_pass(
+        self,
+        evidence: dict[RecruitTier, TierPassEvidence],
+        terminal_home: NoahTavernObservation | None,
+        *,
+        identity: SchedulerIdentity | None = None,
+        now: float | None = None,
+    ) -> NoahMaintenancePassResult:
+        """Delegate the integrated route's maintenance decision to the shared policy engine."""
+
+        return self.maintenance_controller.run_pass(evidence, terminal_home, identity=identity, now=now)
 
     def _stop(self, reason: str) -> NoahCommand:
         return NoahCommand(NoahAction.STOP, terminal=True, reason=reason)
@@ -114,11 +168,35 @@ class NoahTavernRecruitRuntimeController:
             return self._stop("awaiting_fresh_recruit_postcondition")
         if obs.screen_state != NOAHS_TAVERN_SCREEN or obs.overlay_state not in {"none", "none_observed"}:
             return self._stop("unknown_or_overlaid_noahs_tavern_screen")
-        if self.progress.daily_quest.ready_to_claim:
-            return NoahCommand(NoahAction.RETURN_HOME, reason="daily_quest_ready_claim_dormant")
+        # Daily-row Claim readiness is deliberately separate from this maintenance pass.
+        # It must never terminate tier inspection: Basic owns the reset-scoped five count,
+        # while independently eligible Int./Advanced singles remain actionable.
         if not obs.selected_tier:
             return self._stop("missing_selected_tier")
         self._remember_tier(obs, obs.selected_tier)
+        # Shared persisted policy is authoritative for executable decisions. A stale frame cannot
+        # bypass Basic's five-count cap or an Int./Advanced cooldown.
+        if not self.maintenance_controller.current_tier_eligible(obs, obs.selected_tier, now=self.now):
+            for tier in RecruitTier:
+                legacy = self.progress.tiers.get(tier)
+                if legacy and (legacy.cooldown_active or (legacy.next_eligible_timestamp is not None and legacy.next_eligible_timestamp > self.now) or not legacy.attempts_remaining):
+                    continue
+                if tier != obs.selected_tier and self.maintenance_controller.tier_selectable(obs, tier, now=self.now):
+                    item = obs.tier(tier)
+                    return NoahCommand(NoahAction.SELECT_TIER, item.target_identity, item.target_roi, tier=tier, reason="select_next_shared_policy_eligible_tier")
+            cooldowns = [
+                item.next_eligible_timestamp
+                for item in obs.tiers
+                if item.cooldown_active and item.next_eligible_timestamp is not None and item.next_eligible_timestamp > self.now
+            ]
+            cooldowns.extend(
+                state.next_eligible_timestamp
+                for state in self.progress.tiers.values()
+                if state.cooldown_active and state.next_eligible_timestamp is not None and state.next_eligible_timestamp > self.now
+            )
+            if cooldowns:
+                return NoahCommand(NoahAction.WAIT_COOLDOWN, scheduler_ready=True, next_eligible_timestamp=min(cooldowns), reason="all_shared_policy_tiers_deferred")
+            return self._stop("no_shared_policy_eligible_free_tier")
         current = self.progress.tiers.get(obs.selected_tier)
         if current and current.attempts_remaining and not current.cooldown_active:
             if recognition.frame_sha256 in self.progress.seen_frame_hashes:
@@ -139,7 +217,7 @@ class NoahTavernRecruitRuntimeController:
                 "noahs-tavern-daily-free",
                 TAVERN_FREE_ROI,
                 tier=obs.selected_tier,
-                reason="one_zero_cost_consequential_recruit",
+                reason="one_zero_cost_free_recruit",
                 action_key=action_key,
             )
         known_uninspected = [tier for tier in RecruitTier if tier not in self.progress.inspected_tiers and obs.tier(tier).recognized]
@@ -203,6 +281,8 @@ class NoahTavernRecruitRuntimeController:
             last_dispatch_state="completed",
             last_postcondition_state="verified",
         )
+        self.maintenance_controller.record_verified_transition(tier, normalized_after, now=after_close.captured_monotonic or self.now)
+        self.persist_maintenance_state(now=after_close.captured_monotonic or self.now)
         self.progress.awaiting_postcondition = False
         self.progress.awaiting_tier = None
         self.progress.awaiting_before = None

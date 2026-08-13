@@ -42,8 +42,8 @@ RESULT_REWARD_ROI: Box = (250, 450, 560, 790)
 RESULT_CLOSE_ROI: Box = (90, 975, 350, 1100)
 RESULT_PAID_ROI: Box = (420, 975, 720, 1100)
 
-_ATTEMPTS_RE = re.compile(r"daily\s+free\s+attempts?\s*[:.]?\s*(\d+)", re.IGNORECASE)
-_ATTEMPTS_FALLBACK_RE = re.compile(r"attempts?\s*[:.]?\s*(\d+)", re.IGNORECASE)
+_ATTEMPTS_RE = re.compile(r"daily\s+free\s+atte\w{0,6}\s*[:.]?\s*(\d+)", re.IGNORECASE)
+_ATTEMPTS_FALLBACK_RE = re.compile(r"atte\w{0,6}\s*[:.]?\s*(\d+)", re.IGNORECASE)
 _FREE_RE = re.compile(r"free\s+recruit\s*1x", re.IGNORECASE)
 _PAID_RE = re.compile(r"recruit\s*10x|recruit\s*1x", re.IGNORECASE)
 _CARD_ROIS = {
@@ -56,6 +56,12 @@ _CARD_ROIS = {
 def _crop(frame: np.ndarray, box: Box) -> np.ndarray:
     x0, y0, x1, y1 = box
     return frame[y0:y1, x0:x1]
+
+
+def _normalize_cooldown_ocr(text: str) -> str:
+    normalized = text.casefold()
+    # On the native gold timer, Tesseract can merge "in 1d" into "i@id".
+    return re.sub(r"\bi@id\b", "in 1d", normalized)
 
 
 def _normalize(text: str) -> str:
@@ -99,11 +105,15 @@ def _red_ratio(frame: np.ndarray, box: Box) -> float:
 
 
 def _tier_from_text(text: str) -> RecruitTier | None:
-    if "basic" in text:
+    # The native Tavern title occasionally OCRs ``Adv.`` as ``AQV.``.  This
+    # correction is intentionally scoped to the title classifier and is only
+    # called after the Noah's Tavern header has been positively recognized.
+    normalized = text.replace("aqv", "adv")
+    if "basic" in normalized:
         return RecruitTier.BASIC
-    if "int" in text:
+    if "int" in normalized:
         return RecruitTier.INT
-    if "adv" in text:
+    if "adv" in normalized:
         return RecruitTier.ADV
     return None
 
@@ -124,7 +134,7 @@ def recognize_noahs_tavern_frame(
     title = _text(frame, TAVERN_TITLE_ROI, ocr=ocr)
     full = _text(frame, TAVERN_OVERLAY_ROI, psm=11, ocr=ocr)
     diagnostics = {"header_text": header, "title_text": title, "full_text": full}
-    if "noah" in header and "tavern" in header and _tier_from_text(title) is not None:
+    if "noah" in header and "taver" in header and _tier_from_text(title) is not None:
         selected = _tier_from_text(title)
         cards = _text(frame, TAVERN_CARDS_ROI, psm=11, ocr=ocr)
         visible_tiers = tuple(tier for tier in RecruitTier if tier.value.casefold().replace(".", "")[:4] in cards.replace(".", ""))
@@ -134,10 +144,19 @@ def recognize_noahs_tavern_frame(
         attempts_match = _ATTEMPTS_RE.search(attempts_text) or _ATTEMPTS_FALLBACK_RE.search(attempts_text)
         attempts = int(attempts_match.group(1)) if attempts_match else None
         cooldown_text = attempts_text if parse_cooldown_seconds(attempts_text) else _text(frame, TAVERN_FREE_ROI, ocr=ocr)
+        if parse_cooldown_seconds(cooldown_text) is None:
+            alternate_timer = _normalize_cooldown_ocr(_text(frame, TAVERN_ATTEMPTS_ROI, psm=11, ocr=ocr))
+            if parse_cooldown_seconds(alternate_timer) is not None:
+                cooldown_text = alternate_timer
         cooldown = parse_cooldown_seconds(cooldown_text)
         free_text = _text(frame, TAVERN_FREE_ROI, ocr=ocr)
         paid_text = _text(frame, TAVERN_PAID_ROI, ocr=ocr)
         free_visible = bool(_FREE_RE.search(free_text)) or ("free" in free_text and "recruit 1x" in free_text)
+        # The native 800x1280 counter occasionally OCRs its lone digit as ``|``.
+        # For the one-attempt tiers only, the independently recognized enabled
+        # Free Recruit 1x control is sufficient to establish that one remains.
+        if attempts is None and free_visible and TIER_ATTEMPT_MAXIMUMS[selected or RecruitTier.BASIC] == 1:
+            attempts = 1
         cooldown_active = not free_visible and bool(cooldown and cooldown > 0)
         # A cooldown frame shows the same Daily Free slot as disabled "Recruit 1x".
         free_slot_visible = free_visible or cooldown_active

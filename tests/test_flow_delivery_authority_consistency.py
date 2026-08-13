@@ -78,8 +78,6 @@ class AuthorityConsistencyTests(unittest.TestCase):
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "NANOWEAPON-BLUESTACKS-INTEGRATION",
             "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
-            "RECRUITMENT-BLUESTACKS-INTEGRATION",
-            "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
             "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
             "ZOMBIE-LAIR-HOME-MAINTENANCE",
         }
@@ -88,6 +86,13 @@ class AuthorityConsistencyTests(unittest.TestCase):
             self.assertEqual(by_id[flow_id]["status"], "blocked")
             self.assertEqual(by_id[flow_id]["maximum_live_attempts"], 0)
             self.assertEqual(by_id[flow_id]["live_attempt_count"], 0)
+        for flow_id in (
+            "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+        ):
+            self.assertEqual(by_id[flow_id]["status"], "completed")
+            self.assertEqual(by_id[flow_id]["live_attempt_count"], 5)
+            self.assertFalse(queue["gameplay_scheduler"])
         campaign = by_id[CAMPAIGN_FLOW_ID]
         self.assertEqual(campaign["status"], "completed")
         self.assertEqual(campaign["additional_live_attempts_authorized"], 14)
@@ -268,7 +273,7 @@ class AuthorityConsistencyTests(unittest.TestCase):
             "blocked",
         )
 
-    def test_recruitment_retained_evidence_is_not_mislabeled_or_promoted(self) -> None:
+    def test_recruitment_native_evidence_is_complete_without_registration_promotion(self) -> None:
         coverage = _read(COVERAGE)["flows"]
         for flow_id in (
             "RECRUITMENT-BLUESTACKS-INTEGRATION",
@@ -276,8 +281,11 @@ class AuthorityConsistencyTests(unittest.TestCase):
         ):
             payload = json.dumps(coverage[flow_id]).casefold()
             self.assertIn("gameplay", payload)
-            self.assertIn("20260716-noahs-tavern-daily-free", payload)
-            self.assertIn("evidence_required", payload)
+            self.assertIn("noahs-tavern-unified-recruitment-20260812t205031174713z", payload)
+            self.assertIn("proven_through_retained_native_production_path", payload)
+            self.assertIn("evidence_satisfied", payload)
+            self.assertNotIn("evidence_required", payload)
+            self.assertEqual(coverage[flow_id]["maximum_live_attempts"], 6)
             self.assertFalse(coverage[flow_id]["registered"])
             self.assertFalse(coverage[flow_id]["scheduler_eligible"])
 

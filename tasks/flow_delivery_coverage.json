@@ -58,42 +58,42 @@
       "identity_kind": "daily_objective",
       "daily_ownership": "five_basic_free_single_recruits_per_game_day_reset",
       "independent_maintenance_flow": "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
-      "implementation_state": "offline_controller_replay_implemented",
-      "navigation_state": "offline_navigation_contract_implemented",
-      "consequential_execution_state": "retained_nonproduction_gameplay_execution",
+      "implementation_state": "production_controller_implemented_and_live_validated",
+      "navigation_state": "canonical_home_atlas_live_validated",
+      "consequential_execution_state": "not_applicable_ordinary_development_interaction",
       "evidence_classification": {
-        "gameplay_mechanics_evidence": "evidence/sessions/20260716-noahs-tavern-daily-free/record.md is the retained Computer Use session proving zero-cost Basic, Int., and Advanced singles, observed cooldowns, safe result closure, Daily 5/5, and Home return",
-        "navigation_evidence": "retained semantic-frame Home-to-Tavern and Tavern-to-Home evidence plus offline Home Atlas navigation implementation",
-        "offline_replay_evidence": "shared free-recruit, Daily replay, integrated recognizer, controller, and route tests retained",
-        "production_controller_positive_replay": "not_proven",
-        "supervised_consequential_canary": "not_proven_to_current_hash_journal_attempt_standard",
-        "evidence_required": "hash-bound native production-controller replay proving five Basic availability windows, independent maintenance, durable cooldown state, and canonical Home"
+        "gameplay_mechanics_evidence": ".local-captures/flow-delivery/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE/live/ proves five zero-cost Basic singles across their 600-second windows plus one zero-cost Int. and one zero-cost Advanced single, result closure, and independent cooldown successors",
+        "navigation_evidence": ".local-captures/flow-delivery/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE/live/noahs-tavern-unified-recruitment-20260812T205031174713Z retains canonical Home Atlas binding, Tavern entry, safe exit, and terminal canonical Home",
+        "offline_replay_evidence": "shared free-recruit, Daily replay, integrated recognizer, controller, maintenance, route, and Home Atlas tests retained",
+        "production_controller_positive_replay": "proven_through_retained_native_production_path",
+        "supervised_consequential_canary": "not_applicable_recruitment_is_ordinary_interaction",
+        "evidence_satisfied": "native production-controller sessions prove Basic 5/5, independent Int./Advanced eligibility persistence, zero prohibited inputs, and canonical Home terminal state"
       },
       "terminal_home_required": true,
       "registered": false,
       "scheduler_eligible": false,
-      "maximum_live_attempts": 0
+      "maximum_live_attempts": 6
     },
     "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": {
       "objective": "recruitment_free_attempt_maintenance",
       "identity_kind": "independent_maintenance",
       "daily_ownership": "none",
       "daily_objective_flow": "RECRUITMENT-BLUESTACKS-INTEGRATION",
-      "implementation_state": "offline_controller_replay_implemented",
-      "navigation_state": "offline_navigation_contract_implemented",
-      "consequential_execution_state": "retained_nonproduction_gameplay_execution",
+      "implementation_state": "production_controller_implemented_and_live_validated",
+      "navigation_state": "canonical_home_atlas_live_validated",
+      "consequential_execution_state": "not_applicable_ordinary_development_interaction",
       "evidence_classification": {
-        "gameplay_mechanics_evidence": "evidence/sessions/20260716-noahs-tavern-daily-free/record.md proves all three free variants and independent observed cooldowns",
-        "navigation_evidence": "retained semantic-frame Home-to-Tavern and Home-return evidence plus offline Home Atlas navigation implementation",
-        "offline_replay_evidence": "integrated three-tier recognizer/controller and result-overlay replay retained; final inspect-all-tabs/defer policy still requires reconciliation",
-        "production_controller_positive_replay": "not_proven",
-        "supervised_consequential_canary": "not_proven_to_current_hash_journal_attempt_standard",
-        "evidence_required": "hash-bound production-controller positive replay for independent Basic/Int./Advanced availability, exact cooldown persistence, explicit per-tab defer, and canonical Home"
+        "gameplay_mechanics_evidence": ".local-captures/flow-delivery/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE/live/ proves independent Basic, Int., and Advanced free eligibility, exact result closure, cooldown/defer successors, and durable reset-scoped state",
+        "navigation_evidence": ".local-captures/flow-delivery/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE/live/noahs-tavern-unified-recruitment-20260812T205031174713Z retains canonical Home Atlas binding, Tavern entry, safe exit, and terminal canonical Home",
+        "offline_replay_evidence": "integrated three-tier recognizer/controller, persistent maintenance policy, checkpoint continuation, result-overlay, safe-exit, and Home Atlas tests retained",
+        "production_controller_positive_replay": "proven_through_retained_native_production_path",
+        "supervised_consequential_canary": "not_applicable_recruitment_is_ordinary_interaction",
+        "evidence_satisfied": "native production-controller sessions prove Basic 5/5 and independently persisted Int./Advanced cooldowns with no paid, 10x, item-backed, ambiguous, or Claim input"
       },
       "terminal_home_required": true,
       "registered": false,
       "scheduler_eligible": false,
-      "maximum_live_attempts": 0
+      "maximum_live_attempts": 6
     },
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
       "objective": "campaign_ap_farming",

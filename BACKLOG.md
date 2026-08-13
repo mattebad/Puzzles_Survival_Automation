@@ -3669,11 +3669,21 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### NOAHS-TAVERN-HOME-ATLAS-MIGRATION
 - Task ID: NOAHS-TAVERN-HOME-ATLAS-MIGRATION.
 - Title: Migrate Noah's Tavern entry and return to the canonical Home Atlas.
-- Status: Ready; development-queue flow; not activated.
-- Scope: adopt canonical Home Atlas entry and safe-exit contracts; navigation-only
-  Home-to-Tavern-to-Home validation; recruitment dispatch remains prohibited.
+- Status: Completed; development-queue flow; activated and validated.
+- Scope: canonical Home Atlas entry and positively recognized safe-exit contracts;
+  one bounded navigation-only Home-to-Tavern-to-canonical-Home round trip proved;
+  recruitment dispatch remained prohibited (0 recruitment taps).
+- Evidence: `.local-captures/flow-delivery/NOAHS-TAVERN-HOME-ATLAS-MIGRATION/noahs-tavern-recovery-continuation-20260812T055400333254Z/`;
+  3 navigation inputs (recovery safe exit, Atlas Tavern entry, safe exit), terminal
+  canonical Home verified, runtime ownership released.
+- Validation: `tests.test_noahs_tavern_navigation` (16),
+  `tests.test_noahs_tavern_recruit` (15), and
+  `tests.test_home_atlas_verified_route` (35) passed; OCR correction and false
+  canonical-Home regression covered.
+- Next ready flow: TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE.
 - Authority: full normalized task state is in 	asks/flow_delivery_queue.json; this dormant pointer
-  does not activate implementation, runtime input, registration, or scheduling.
+  records completion but does not change registration or scheduling; NOT_REGISTERED and
+  scheduler-disabled states remain unchanged.
 
 ### TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE
 - Task ID: TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE.
@@ -6656,9 +6666,10 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Next: `M6-DQ-TRANSITION-CORPUS`.
 
 ### DQ-FLOW-RECRUITMENT
-- Status: Passed (2026-07-14; Daily five-count adapter plus 5 focused tests).
-- Covered: retained generic free-single replay; final Daily ownership is five Basic free singles in
-  the reset, one per exact 600-second availability window.
+- Status: Passed (2026-08-12); unified executable route and supervised native recruitment evidence
+  are complete.
+- Covered: Basic alone owns five reset-scoped free singles, one per 600-second window; Int. and
+  Advanced never own Daily completion; ordinary interaction has no consequential lifecycle.
 - Exclusions: 10x, premium, unknown confirmation, vendor selector.
 - Dependencies/routes: inventory → Noah's Tavern.
 - Source/target/policy: explicit FREE mode/banner, quantity one, zero cost.
@@ -6666,25 +6677,32 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   `tests/test_daily_recruitment.py` cover selected-row ownership, exact five one-pulse
   successors, dispatch cardinality, Main/ambiguous negatives, and Claim separation; the shared
   free contract remains covered by `tests/test_free_recruitment.py`.
-- Evidence: `evidence/sessions/20260716-noahs-tavern-daily-free/record.md` is valid retained
-  gameplay/mechanics plus semantic navigation evidence for three Basic, one Int., one Advanced,
-  observed cooldowns, result closure, 5/5, no Claim, and Home return. It is not hash-bound,
-  journal-backed, or a production-controller positive replay and does not prove five-Basic replay.
-- Gap: the Daily adapter is not Basic-only or window-aware and already-complete is not yet the final
-  idempotent no-op. Production replay remains evidence-gated; no registration/input.
+- Evidence: native 800x1280 production-controller sessions under
+  `.local-captures/flow-delivery/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE/live/` prove five Basic free
+  singles across 600-second windows plus one Int. and one Advanced free single, explicit result
+  closure/cooldown successors, durable reset-scoped state, and final canonical Home. The terminal
+  checkpoint is `noahs-tavern-unified-recruitment-20260812T205031174713Z`; no Claim, paid, 10x, or
+  item-backed input occurred.
 - Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
-- Promotion/unlocks: `EVIDENCE_GATED`; unlocks after native pair.
+- Promotion/unlocks: evidence gate satisfied; production registration and scheduler remain separate
+  and unchanged.
 
 ### RECRUITMENT-FREE-ATTEMPT-MAINTENANCE
-- Status: Blocked; approved policy and retained three-tab implementation/mechanics evidence, but
-  Daily and maintenance ownership remain conflated and production-controller replay is absent.
-- Policy: inspect Basic, Int., and Advanced on every pass; use each available free single; track
-  independent exact cooldowns 600, 86400, and 172800 seconds; explicitly defer cooling/exhausted
-  tabs; never use paid, premium, item-backed, 10x, or ambiguous recruitment; return canonical Home.
-- Existing work: reuse `tasks/noahs_tavern_recruit*.py` and the integrated route; do not rebuild it.
-- Registration/scheduler/live attempts: not registered; disabled/ineligible; zero.
-- Next: extend the shared controller for separated ownership and production-grade zero-transport
-  replay in the third future atomic task.
+- Status: Completed (2026-08-12); unified three-tab executable policy, durable SQLite state seam,
+  supervised native canary, and five-window Basic evidence are complete.
+- Policy: inspect Basic, Int., and Advanced independently; use at most one currently eligible
+  zero-cost single per tab; Basic owns reset-scoped five-count/600-second windows while Int./Adv.
+  persist independent 86400/172800-second eligibility; defer cooling/exhausted tabs and return
+  canonical Home; never use paid, premium, item-backed, 10x, ambiguous recruitment, or Claim.
+- Existing work: shared controller is integrated into `tasks/noahs_tavern_recruit_runtime.py` and
+  `scripts/noahs_tavern_recruit_bluestacks.py`; current deadline floats use the existing SQLite
+  scheduler invocation seam. Restart-safe absolute wall-clock deadline modernization remains future
+  scheduler architecture work; do not rebuild it here.
+- Live result: Basic reached 5/5; Int. and Advanced each completed one independently eligible free
+  single and persisted their own cooldown. All successful passes returned to canonical Home; the
+  final state checkpoint is `noahs-tavern-unified-recruitment-20260812T205031174713Z`.
+- Registration/scheduler: not registered; disabled/ineligible; unchanged. Claim remains separate.
+- Next ready flow: `TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE`.
 
 ### DQ-FLOW-NANOWEAPON
 - Status: Passed (2026-07-14; Daily row adapter plus 5 focused tests).
