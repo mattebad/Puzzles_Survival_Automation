@@ -52,3 +52,6 @@ tests/fixtures/_tmp_*
 /evidence/**/*.sqlite3-shm
 /artifacts/evidence-audit*.json
 /artifacts/evidence-audit*.md
+agent_docs/
+.codex_workflow_hidden_resources/
+AGENTS.md
