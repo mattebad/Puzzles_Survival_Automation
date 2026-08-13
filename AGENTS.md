@@ -105,6 +105,17 @@ P&S project workflow constraints:
 - For cross-cutting changes involving state recognition, navigation, recovery or retry behavior, ADB contracts, or multiple interacting production packages, the parent must trigger a dedicated `executor_sol` integration review before acceptance. Sol reviews the integration boundaries and reports to the parent; the parent owns the final integration decision.
 - Never use `git add .`. Never automatically commit unrelated working-tree changes. Stage only explicitly enumerated active-task paths and preserve all pre-existing user modifications; this overrides automatic closure Git defaults.
 - Unless the user explicitly selects a route, the main agent must automatically choose the proportionate route for each new task and may change routes between tasks: Light for trivial or leaf work, Medium for localized substantive changes handled primarily by the main agent, and Heavy only for genuinely multi-module or independently parallelizable work. Briefly state an automatic Medium or Heavy selection before substantive execution. An explicit user route selection overrides automatic selection and remains active until the user changes it or the session ends.
+- Route the work using this project-local matrix (an explicit user route still wins):
+
+  | Scope | Default route and owner | Promotion rule |
+  | --- | --- | --- |
+  | Trivial or leaf | Light direct fast path | No delegation required |
+  | Localized/offline, including one-file fixes | Medium; main-agent owned | Promote when a trigger in the Heavy row appears |
+  | Substantive live gameplay-flow development | Heavy; parent orchestration with `executor_luna` bounded production ownership | Promote Medium to Heavy for cross-cutting recognizer, navigation, recovery, retry, or ADB behavior, multiple interacting production packages, or a second materially distinct live failure |
+
+  One initial live failure alone does not require promotion or an extra review.
+- The parent owns architecture and schedules exactly one coherent pre-canary `executor_sol` integration gate after the Luna executor self-check and the named tester package are complete. Do not request incremental patch reviews unless a new cross-contract decision appears; Sol reviews the integration boundary and reports to the parent, who makes the acceptance decision.
+- Use the compact ladder in [`docs/flow-delivery-validation-policy.md`](docs/flow-delivery-validation-policy.md): exact regression during repair; each affected package suite once; the focused profile once before canary; shared-navigation only when navigation is touched; one Sol gate; zero-input `pnsctl development-session observe`; live execution; semantic verification. Full repository discovery is manual-only (`full --manual`). Reuse the checked-in runner's compact output and receipts; do not create a second validation framework.
 <!-- codex-workflow-project-personalization-end -->
 
 <!-- codex-workflow-project-local-instructions-start -->

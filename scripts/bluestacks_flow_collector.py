@@ -26,6 +26,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
+try:
+    from scripts.bluestacks_adb_readiness import (
+        ADBReadinessError,
+        ensure_adb_ready,
+    )
+except ImportError:  # direct ``python scripts/bluestacks_flow_collector.py``
+    from bluestacks_adb_readiness import ADBReadinessError, ensure_adb_ready
+
 
 RAW_WIDTH = 800
 RAW_HEIGHT = 1280
@@ -439,12 +447,22 @@ class ADBRunner:
         self.executable = executable
         self.serial = serial
 
+    def _ensure_ready(self) -> None:
+        try:
+            # Serial-less discovery starts the private server but must list
+            # devices before an exact target is selected.
+            target_serial = None if self.serial == "__selection__" else self.serial
+            ensure_adb_ready(self.executable, target_serial)
+        except ADBReadinessError as exc:
+            raise ADBError(str(exc)) from exc
+
     def run(
         self,
         *arguments: str,
         timeout: float = 30.0,
         input_payload: bytes | None = None,
     ) -> subprocess.CompletedProcess[bytes]:
+        self._ensure_ready()
         command = [self.executable, "-s", self.serial, *arguments]
         try:
             return subprocess.run(
@@ -461,6 +479,7 @@ class ADBRunner:
             raise ADBError(f"ADB command timed out: {' '.join(command[:5])}") from exc
 
     def list_devices(self) -> list[ADBDevice]:
+        self._ensure_ready()
         try:
             result = subprocess.run([self.executable, "devices", "-l"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15, check=False)
         except FileNotFoundError as exc:

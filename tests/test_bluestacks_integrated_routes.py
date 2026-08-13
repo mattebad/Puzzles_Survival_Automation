@@ -32,6 +32,7 @@ from tasks.noahs_tavern_recruit import (
 from tasks.nova_praise import NOVA_HOME, NOVA_LAB_MENU, NOVA_PRAISE_TARGET, NOVA_SCREEN, NovaPraiseObservation
 from tasks.nova_praise_vision import NOVA_MENU_ROI, NOVA_PRAISE_ROI, RESEARCH_LAB_ROI, NovaFrameRecognition
 from tasks.ruins_challenge import (
+    KNOWN_CHALLENGE_IDENTITIES,
     RuinsAvailability,
     RuinsChallengeRow,
     RuinsChestState,
@@ -58,6 +59,7 @@ class FakeRuntime:
             self.frames.append(CapturedNativeFrame(frame, b"png", f"{ordinal:064x}", time.monotonic(), Path(f"{ordinal}.png")))
         self.index = 0
         self.taps = []
+        self.swipes = []
         self.backs = []
         self.reconciliations = []
 
@@ -79,6 +81,9 @@ class FakeRuntime:
         if continuation is not None:
             self.assert_in_flight(continuation)
         self.backs.append((source.sha256, kwargs))
+
+    def swipe(self, source, **kwargs):
+        self.swipes.append((source.sha256, kwargs))
 
     def assert_in_flight(self, action_key):
         if self.in_flight_action != action_key:
@@ -201,8 +206,133 @@ class IntegratedRouteTests(unittest.TestCase):
         self.assertFalse(any(item[1].get("consequential") for item in runtime.taps))
         self.assertIsNone(runtime.in_flight_action)
 
+        overlap = RuinsFrameRecognition(
+            replace(listed, source_frame_sha256="d" * 64),
+            "d" * 64,
+            (("chest:Hero Challenge", (600, 250, 770, 390)),),
+            {},
+        )
+        status, reason, _captured, _recognition = route._claim_one_chest(runtime.frames[3], overlap)
+        self.assertEqual((status, reason), ("none", "no_available_chest"))
+        self.assertEqual(len(runtime.taps), 2)
+
+    def test_ruins_chest_missing_medal_delta_reconciles_unresolved_only(self):
+        runtime = FakeRuntime()
+        runtime.reconcile = lambda *args: runtime.reconciliations.append(args)
+        row = RuinsChallengeRow(
+            "Hero Challenge", "Mon", RuinsAvailability.AVAILABLE, 60, 120, 60,
+            RuinsControlState.VISIBLE_ENABLED, RuinsChestState.AVAILABLE,
+            (600, 250, 770, 390), source_frame_sha256="a" * 64, reset_identity=RESET,
+        )
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, None,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED, (row,), "none", "a" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        recognition = RuinsFrameRecognition(listed, "a" * 64, (("chest:Hero Challenge", (600, 250, 770, 390)),), {})
+        after = replace(
+            listed,
+            rows=(replace(row, chest_state=RuinsChestState.UNKNOWN, source_frame_sha256="b" * 64),),
+            source_frame_sha256="b" * 64,
+        )
+        post = RuinsFrameRecognition(after, "b" * 64, (), {})
+        reward = RuinsRewardRecognition(True, "Hero Challenge", 432, "c" * 64, RESET, (("ruins-reward-claim", (250, 900, 550, 1040)),), {})
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Mon", post_input_delay=0)
+        route.controller.observe_list(listed)
+        with patch("scripts.ruins_challenge_bluestacks.recognize_ruins_reward_frame", return_value=reward), patch.object(
+            route, "_observe_list", return_value=(runtime.frames[1], post),
+        ):
+            status, reason, _captured, _recognition = route._claim_one_chest(runtime.frames[0], recognition)
+        self.assertEqual((status, reason), ("unresolved", "chest_medal_delta_not_proven"))
+        self.assertEqual([item[1] for item in runtime.reconciliations], ["unresolved"])
+
+    def test_ruins_chest_row_ocr_miss_reconciles_from_target_absence_and_medal_delta(self):
+        runtime = FakeRuntime()
+        runtime.reconcile = lambda *args: runtime.reconciliations.append(args)
+        row = RuinsChallengeRow(
+            "Glory Challenge", "Fri", RuinsAvailability.AVAILABLE, 57, 130, 57,
+            RuinsControlState.HIDDEN, RuinsChestState.AVAILABLE,
+            (18, 505, 780, 695), source_frame_sha256="a" * 64, reset_identity=RESET,
+        )
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 14958,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED, (row,), "none", "a" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        recognition = RuinsFrameRecognition(
+            listed, "a" * 64, (("chest:Glory Challenge", (600, 510, 780, 655)),), {},
+        )
+        post_observation = replace(
+            listed,
+            points_balance=15366,
+            rows=(),
+            source_frame_sha256="b" * 64,
+        )
+        post = RuinsFrameRecognition(post_observation, "b" * 64, (), {})
+        reward = RuinsRewardRecognition(
+            True, "Glory Challenge", 408, "c" * 64, RESET,
+            (("ruins-reward-claim", (255, 681, 545, 786)),), {},
+        )
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Fri", post_input_delay=0)
+        route.controller.observe_list(listed)
+        with patch("scripts.ruins_challenge_bluestacks.recognize_ruins_reward_frame", return_value=reward), patch.object(
+            route, "_observe_list", return_value=(runtime.frames[1], post),
+        ):
+            status, reason, _captured, _recognition = route._claim_one_chest(runtime.frames[0], recognition)
+        self.assertEqual((status, reason), ("claimed", "Glory Challenge"))
+        self.assertEqual([item[1] for item in runtime.reconciliations], ["confirmed"])
+        self.assertEqual(route.resource_delta, 408)
+        self.assertEqual(route.chest_coverage["Glory Challenge"], "newly claimed")
+        self.assertEqual(route.newly_claimed_chests, [{"identity": "Glory Challenge", "ruins_medals": 408}])
+
+    def test_ruins_chest_row_ocr_miss_requires_matching_positive_modal_delta(self):
+        row = RuinsChallengeRow(
+            "Glory Challenge", "Fri", RuinsAvailability.AVAILABLE, 57, 130, 57,
+            RuinsControlState.HIDDEN, RuinsChestState.AVAILABLE,
+            (18, 505, 780, 695), source_frame_sha256="a" * 64, reset_identity=RESET,
+        )
+        listed = RuinsScreenObservation(
+            True, "RUINS_CHALLENGE", True, 14958,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            RuinsControlState.VISIBLE_ENABLED, (row,), "none", "a" * 64, RESET,
+            safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+        )
+        recognition = RuinsFrameRecognition(
+            listed, "a" * 64, (("chest:Glory Challenge", (600, 510, 780, 655)),), {},
+        )
+        for points_after, modal_amount in ((14958, 408), (15366, 400)):
+            with self.subTest(points_after=points_after, modal_amount=modal_amount):
+                runtime = FakeRuntime()
+                runtime.reconcile = lambda *args: runtime.reconciliations.append(args)
+                post_observation = replace(
+                    listed, points_balance=points_after, rows=(), source_frame_sha256="b" * 64,
+                )
+                post = RuinsFrameRecognition(post_observation, "b" * 64, (), {})
+                reward = RuinsRewardRecognition(
+                    True, "Glory Challenge", modal_amount, "c" * 64, RESET,
+                    (("ruins-reward-claim", (255, 681, 545, 786)),), {},
+                )
+                route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Fri", post_input_delay=0)
+                route.controller.observe_list(listed)
+                with patch("scripts.ruins_challenge_bluestacks.recognize_ruins_reward_frame", return_value=reward), patch.object(
+                    route, "_observe_list", return_value=(runtime.frames[1], post),
+                ):
+                    status, reason, _captured, _recognition = route._claim_one_chest(
+                        runtime.frames[0], recognition,
+                    )
+                self.assertEqual((status, reason), ("unresolved", "chest_reward_delta_mismatch"))
+                self.assertEqual([item[1] for item in runtime.reconciliations], ["unresolved"])
+                self.assertEqual(route.chest_coverage["Glory Challenge"], "unresolved")
+
     def test_ruins_chests_only_returns_home_without_selecting_challenge(self):
         runtime = FakeRuntime()
+        hero = RuinsChallengeRow(
+            "Hero Challenge", "Mon", RuinsAvailability.UNAVAILABLE, 60, 120, 60,
+            RuinsControlState.HIDDEN, RuinsChestState.UNKNOWN,
+            (18, 230, 780, 420), source_frame_sha256="0" * 64, reset_identity=RESET,
+        )
         row = RuinsChallengeRow(
             "Gear Challenge", "Tue", RuinsAvailability.AVAILABLE, 67, 190, 67,
             RuinsControlState.VISIBLE_ENABLED, RuinsChestState.UNKNOWN,
@@ -211,7 +341,7 @@ class IntegratedRouteTests(unittest.TestCase):
         listed = RuinsScreenObservation(
             True, "RUINS_CHALLENGE", True, 14951,
             RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
-            RuinsControlState.VISIBLE_ENABLED, (row,), "none", "0" * 64, RESET,
+            RuinsControlState.VISIBLE_ENABLED, (hero, row), "none", "0" * 64, RESET,
             safe_back_control=RuinsControlState.VISIBLE_ENABLED,
         )
         recognition = RuinsFrameRecognition(listed, "0" * 64, (), {})
@@ -219,6 +349,7 @@ class IntegratedRouteTests(unittest.TestCase):
         route = RuinsIntegratedRoute(
             runtime, reset_identity=RESET, current_day="Tue", chests_only=True, post_input_delay=0,
         )
+        route.chest_coverage = {identity: "already claimed" for identity in KNOWN_CHALLENGE_IDENTITIES}
         with patch.object(route, "_dismiss_known_vip_popup", return_value=(runtime.frames[0], None, 0)), patch(
             "scripts.ruins_challenge_bluestacks.recognize_ruins_frame", return_value=recognition,
         ), patch.object(route, "_claim_one_chest", return_value=("none", "no_available_chest", runtime.frames[0], recognition)), patch.object(
@@ -230,10 +361,15 @@ class IntegratedRouteTests(unittest.TestCase):
 
     def test_ruins_chests_only_continues_open_reward_without_combat(self):
         runtime = FakeRuntime()
+        hero = RuinsChallengeRow(
+            "Hero Challenge", "Mon", RuinsAvailability.UNAVAILABLE, 60, 120, 60,
+            RuinsControlState.HIDDEN, RuinsChestState.UNKNOWN,
+            (18, 230, 780, 420), source_frame_sha256="1" * 64, reset_identity=RESET,
+        )
         listed = RuinsScreenObservation(
             True, "RUINS_CHALLENGE", True, 15451,
             RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
-            RuinsControlState.VISIBLE_ENABLED, (), "none", "1" * 64, RESET,
+            RuinsControlState.VISIBLE_ENABLED, (hero,), "none", "1" * 64, RESET,
             safe_back_control=RuinsControlState.VISIBLE_ENABLED,
         )
         recognition = RuinsFrameRecognition(listed, "1" * 64, (), {})
@@ -245,6 +381,7 @@ class IntegratedRouteTests(unittest.TestCase):
         route = RuinsIntegratedRoute(
             runtime, reset_identity=RESET, current_day="Tue", chests_only=True, post_input_delay=0,
         )
+        route.chest_coverage = {identity: "already claimed" for identity in KNOWN_CHALLENGE_IDENTITIES}
         with patch("scripts.ruins_challenge_bluestacks.recognize_any_ruins_reward_frame", return_value=reward), patch.object(
             route, "_observe_list", return_value=(runtime.frames[1], recognition),
         ), patch.object(route, "_recover_known_chat_to_home", side_effect=lambda source: (source, None, 0)), patch.object(
@@ -256,6 +393,166 @@ class IntegratedRouteTests(unittest.TestCase):
         self.assertEqual(outcome, expected)
         self.assertEqual([item[1]["target_identity"] for item in runtime.taps], ["ruins-reward-claim"])
         self.assertFalse(runtime.taps[0][1].get("consequential"))
+        self.assertEqual(route.resource_delta, 432)
+        self.assertEqual(route.chest_coverage["Hero Challenge"], "newly claimed")
+        self.assertEqual(route.newly_claimed_chests, [{"identity": "Hero Challenge", "ruins_medals": 432}])
+
+    def test_ruins_chests_only_scrolls_until_every_canonical_identity_is_audited(self):
+        runtime = FakeRuntime()
+
+        def row(identity, top, *, locked=False, challenge=False):
+            return RuinsChallengeRow(
+                identity,
+                None,
+                RuinsAvailability.LOCKED if locked else RuinsAvailability.AVAILABLE if challenge else RuinsAvailability.UNAVAILABLE,
+                1,
+                100,
+                None,
+                RuinsControlState.VISIBLE_ENABLED if challenge else RuinsControlState.HIDDEN,
+                RuinsChestState.UNKNOWN,
+                (18, top, 780, top + 190),
+                source_frame_sha256="a" * 64,
+                reset_identity=RESET,
+            )
+
+        identities = [
+            "Hero Challenge",
+            "Weapon Trial",
+            "Tech Challenge",
+            "Gear Challenge",
+            "Core Challenge",
+            "Nova Challenge",
+            "Module Challenge",
+            "Glory Challenge",
+            "Bioenhancer Challenge",
+            "Ultimate Challenge",
+            "Chip Challenge",
+            "Cube Challenge",
+        ]
+        pages = []
+        for ordinal, page_ids in enumerate((identities[:5], identities[4:9], identities[8:])):
+            rows = tuple(
+                row(identity, 230 + index * 190, locked=identity == "Core Challenge", challenge=identity == "Gear Challenge")
+                for index, identity in enumerate(page_ids)
+            )
+            observation = RuinsScreenObservation(
+                True,
+                "RUINS_CHALLENGE",
+                True,
+                15712,
+                RuinsControlState.VISIBLE_ENABLED,
+                RuinsControlState.VISIBLE_ENABLED,
+                RuinsControlState.VISIBLE_ENABLED,
+                rows,
+                "none",
+                f"{ordinal + 1:064x}",
+                RESET,
+                safe_back_control=RuinsControlState.VISIBLE_ENABLED,
+            )
+            pages.append(RuinsFrameRecognition(observation, observation.source_frame_sha256, (), {}))
+
+        expected = IntegratedRouteResult("completed", "verified_safe_exit_to_home", 2, "fake-session")
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Thu", chests_only=True, post_input_delay=0)
+        scrolled_pages = iter((pages[1], pages[2]))
+
+        def scroll(captured, recognition, *, ordinal):
+            page = next(scrolled_pages)
+            return "scrolled", "ruins_list_scroll_progress", runtime.frames[ordinal], page
+
+        with patch.object(route, "_recover_known_chat_to_home", side_effect=lambda source: (source, None, 0)), patch.object(
+            route, "_dismiss_known_vip_popup", side_effect=lambda source: (source, None, 0),
+        ), patch("scripts.ruins_challenge_bluestacks.recognize_ruins_frame", return_value=pages[0]), patch.object(
+            route, "_scroll_chest_list", side_effect=scroll,
+        ), patch.object(route, "_choose_challenge", side_effect=AssertionError("chests-only must not select combat")), patch.object(
+            route, "_return_home", return_value=expected,
+        ):
+            outcome = route.run()
+
+        self.assertEqual(outcome, expected)
+        self.assertEqual(set(route.chest_coverage), set(identities))
+        self.assertNotIn("unresolved", route.chest_coverage.values())
+        self.assertEqual(route.chest_coverage["Core Challenge"], "locked")
+        self.assertEqual(route.chest_coverage["Gear Challenge"], "unavailable/no reward")
+        self.assertEqual(route.chest_coverage["Hero Challenge"], "already claimed")
+
+    def test_ruins_chest_scroll_uses_current_list_frame_and_requires_semantic_progress(self):
+        runtime = FakeRuntime()
+        first = RuinsChallengeRow(
+            "Hero Challenge", None, RuinsAvailability.UNAVAILABLE, 60, 120, None,
+            RuinsControlState.HIDDEN, RuinsChestState.UNKNOWN, (18, 230, 780, 420),
+            source_frame_sha256="a" * 64, reset_identity=RESET,
+        )
+        second = replace(first, identity="Nova Challenge", target_roi=(18, 300, 780, 490), source_frame_sha256="b" * 64)
+        before = RuinsFrameRecognition(
+            RuinsScreenObservation(True, "RUINS_CHALLENGE", True, 15712, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, (first,), "none", "a" * 64, RESET, safe_back_control=RuinsControlState.VISIBLE_ENABLED),
+            "a" * 64, (), {},
+        )
+        after = RuinsFrameRecognition(
+            replace(before.observation, rows=(second,), source_frame_sha256="b" * 64),
+            "b" * 64, (), {},
+        )
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Thu", chests_only=True, post_input_delay=0)
+        with patch.object(route, "_observe_list", return_value=(runtime.frames[1], after)):
+            status, reason, _captured, _recognition = route._scroll_chest_list(runtime.frames[0], before, ordinal=1)
+        self.assertEqual((status, reason), ("scrolled", "ruins_list_scroll_progress"))
+        self.assertEqual(runtime.swipes[0][1]["target_identity"], "ruins-list-scroll")
+        self.assertEqual(runtime.swipes[0][1]["start"][0], 400)
+        self.assertLess(runtime.swipes[0][1]["end"][1], runtime.swipes[0][1]["start"][1])
+
+        stalled_runtime = FakeRuntime()
+        stalled_route = RuinsIntegratedRoute(stalled_runtime, reset_identity=RESET, current_day="Thu", chests_only=True, post_input_delay=0)
+        with patch.object(stalled_route, "_observe_list", return_value=(stalled_runtime.frames[1], before)):
+            status, reason, _captured, _recognition = stalled_route._scroll_chest_list(
+                stalled_runtime.frames[0], before, ordinal=1,
+            )
+        self.assertEqual((status, reason), ("blocked", "ruins_list_scroll_no_semantic_progress"))
+
+    def test_ruins_chest_mid_list_continuation_restores_canonical_top(self):
+        runtime = FakeRuntime()
+        glory = RuinsChallengeRow(
+            "Glory Challenge", "Fri", RuinsAvailability.UNAVAILABLE, 57, 130, 57,
+            RuinsControlState.HIDDEN, RuinsChestState.UNKNOWN, (18, 505, 780, 695),
+            source_frame_sha256="a" * 64, reset_identity=RESET,
+        )
+        hero = replace(
+            glory,
+            identity="Hero Challenge",
+            day_label="Mon",
+            target_roi=(18, 230, 780, 420),
+            source_frame_sha256="c" * 64,
+        )
+        nova = replace(
+            glory,
+            identity="Nova Challenge",
+            day_label="Thu",
+            availability=RuinsAvailability.AVAILABLE,
+            challenge_control=RuinsControlState.VISIBLE_ENABLED,
+            target_roi=(18, 938, 780, 1128),
+            source_frame_sha256="b" * 64,
+        )
+        before = RuinsFrameRecognition(
+            RuinsScreenObservation(True, "RUINS_CHALLENGE", True, 15366, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, (glory,), "none", "a" * 64, RESET, safe_back_control=RuinsControlState.VISIBLE_ENABLED),
+            "a" * 64, (), {},
+        )
+        intermediate = RuinsFrameRecognition(
+            replace(before.observation, rows=(nova,), source_frame_sha256="b" * 64),
+            "b" * 64, (), {},
+        )
+        after = RuinsFrameRecognition(
+            replace(before.observation, rows=(hero,), source_frame_sha256="c" * 64),
+            "c" * 64, (), {},
+        )
+        route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Fri", chests_only=True, post_input_delay=0)
+        with patch.object(route, "_observe_list", side_effect=((runtime.frames[1], intermediate), (runtime.frames[2], after))):
+            status, reason, _captured, recognition, actions = route._restore_chest_list_top(
+                runtime.frames[0], before,
+            )
+        self.assertEqual((status, reason, actions), ("restored", "ruins_chest_list_top_restored", 2))
+        self.assertIsNotNone(recognition.observation.row("Hero Challenge"))
+        self.assertEqual(route.chest_coverage["Nova Challenge"], "unavailable/no reward")
+        self.assertEqual(len(runtime.swipes), 2)
+        self.assertEqual(runtime.swipes[0][1]["start"], (400, 400))
+        self.assertEqual(runtime.swipes[0][1]["end"], (400, 1100))
 
     def test_ruins_known_vip_popup_closes_once_and_requires_absent_successor(self):
         runtime = FakeRuntime()

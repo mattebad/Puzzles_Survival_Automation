@@ -54,6 +54,74 @@ class FakeRunner:
 
 
 class DevelopmentSessionTests(unittest.TestCase):
+    def test_malformed_ruins_continuation_is_rejected_before_runtime_acquisition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            checkpoint.write_text("{not-json", encoding="utf-8")
+            with patch.object(pnsctl, "BLUESTACKS_FLOW_IDS", (ruins_delivery.FLOW_ID,)), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={ruins_delivery.FLOW_ID: {"runner": ruins_delivery.RUNNER_ID}},
+            ), patch.object(pnsctl, "_development_runtime_observation") as observe, patch.object(
+                boundary, "DevelopmentSession"
+            ) as session:
+                with self.assertRaisesRegex(pnsctl.OperatorError, "continuation rejected"):
+                    pnsctl.development_session_run_flow(
+                        ruins_delivery.FLOW_ID,
+                        live=False,
+                        yes=False,
+                        chests_only=True,
+                        chest_continuation=checkpoint,
+                    )
+            observe.assert_not_called()
+            session.assert_not_called()
+
+    def test_valid_ruins_continuation_is_forwarded_with_bound_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint = root / "checkpoint.json"
+            checkpoint.write_text("{}", encoding="utf-8")
+            observed_lease = {}
+
+            def runner(queue, lease, *, live=True):
+                observed_lease.update(lease)
+                return json.dumps({"status": "dry_run", "flow_id": ruins_delivery.FLOW_ID, "dispatch": False})
+
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": "0" * 64,
+            }
+            with patch.object(pnsctl, "BLUESTACKS_FLOW_IDS", (ruins_delivery.FLOW_ID,)), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={ruins_delivery.FLOW_ID: {"runner": ruins_delivery.RUNNER_ID}},
+            ), patch.dict(pnsctl._BLUESTACKS_FLOW_RUNNERS, {ruins_delivery.RUNNER_ID: runner}), patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()), patch.object(
+                pnsctl, "_development_runtime_observation", return_value=(observation, b"png")
+            ), patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"), patch(
+                "tasks.ruins_challenge_continuation.load_continuation", return_value={"claims": []}
+            ) as load:
+                result = pnsctl.development_session_run_flow(
+                    ruins_delivery.FLOW_ID,
+                    live=False,
+                    yes=False,
+                    chests_only=True,
+                    chest_continuation=checkpoint,
+                )
+            self.assertEqual(json.loads(result)["chest_continuation"], str(checkpoint))
+            self.assertEqual(observed_lease["chest_continuation"], str(checkpoint))
+            self.assertTrue(observed_lease["ruins_reset_identity"].startswith("local-"))
+            self.assertIn(observed_lease["ruins_current_day"], {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"})
+            load.assert_called_once()
+            self.assertEqual(load.call_args.kwargs["expected_reset_identity"], observed_lease["ruins_reset_identity"])
+            self.assertEqual(load.call_args.kwargs["expected_current_day"], observed_lease["ruins_current_day"])
+            self.assertEqual(load.call_args.kwargs["expected_package_id"], observed_lease["ruins_package_id"])
+            self.assertEqual(load.call_args.kwargs["expected_runtime_profile_id"], observed_lease["ruins_runtime_profile_id"])
+
     def test_ordinary_action_categories_include_complete_gameplay_classes(self):
         capabilities = {
             "navigation",
@@ -320,6 +388,50 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertIsNone(delivery["ledger_path"])
             self.assertIsNone(delivery["capability_audit_path"])
             self.assertIsNone(delivery["journal_path"])
+
+    def test_ruins_chest_evidence_validator_requires_exact_states_and_consistent_claims(self):
+        identities = [
+            "Hero Challenge", "Weapon Trial", "Tech Challenge", "Gear Challenge",
+            "Core Challenge", "Nova Challenge", "Module Challenge", "Glory Challenge",
+            "Bioenhancer Challenge", "Ultimate Challenge", "Chip Challenge", "Cube Challenge",
+        ]
+        coverage = {identity: "already claimed" for identity in identities}
+        coverage["Nova Challenge"] = "newly claimed"
+        structure = {
+            "session_directory": "session",
+            "actions": [],
+            "result": {
+                "flow_id": ruins_delivery.FLOW_ID,
+                "terminal_runtime_state": "recognized_home",
+                "resource_delta": 25,
+                "ruins_result": {
+                    "status": "completed",
+                    "reason": "verified_safe_exit_to_home",
+                    "chests_only": True,
+                    "chest_coverage": coverage,
+                    "newly_claimed_chests": [{"identity": "Nova Challenge", "ruins_medals": 25}],
+                },
+            },
+        }
+        queue = {"flows": [{"flow_id": ruins_delivery.FLOW_ID, "live_attempt_count": 0, "maximum_live_attempts": 14}]}
+        verified = ruins_delivery.verify_ruins_challenge_home_atlas(structure, queue, {})
+        self.assertEqual(verified["terminal"], "recognized_home")
+
+        malformed = json.loads(json.dumps(structure))
+        malformed["result"]["ruins_result"]["chest_coverage"]["Cube Challenge"] = None
+        with self.assertRaisesRegex(pnsctl.OperatorError, "complete canonical identity coverage"):
+            ruins_delivery.verify_ruins_challenge_home_atlas(malformed, queue, {})
+
+        inconsistent = json.loads(json.dumps(structure))
+        inconsistent["result"]["ruins_result"]["newly_claimed_chests"][0]["ruins_medals"] = 24
+        with self.assertRaisesRegex(pnsctl.OperatorError, "malformed or inconsistent"):
+            ruins_delivery.verify_ruins_challenge_home_atlas(inconsistent, queue, {})
+
+        missing_claim = json.loads(json.dumps(structure))
+        missing_claim["result"]["resource_delta"] = 0
+        missing_claim["result"]["ruins_result"]["newly_claimed_chests"] = []
+        with self.assertRaisesRegex(pnsctl.OperatorError, "malformed or inconsistent"):
+            ruins_delivery.verify_ruins_challenge_home_atlas(missing_claim, queue, {})
 
     def test_pnsctl_flow_session_avoids_queue_and_preserves_checkpoint_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:

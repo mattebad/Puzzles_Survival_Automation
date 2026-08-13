@@ -154,6 +154,24 @@ class MinimalPanPlannerTests(unittest.TestCase):
         binding = bind_visible_building(frame, loc, target, ocr=lambda image, psm: "Bank")
         self.assertIsNotNone(binding)
         self.assertIn("current-frame OCR", binding.semantic_evidence[0])
+        focused = bind_visible_building(
+            frame,
+            loc,
+            target,
+            ocr=lambda image, psm: "Bank" if psm in (8, 13) else "unknown",
+        )
+        self.assertIsNotNone(focused)
+
+        pit = replace(
+            target,
+            semantic_id="home.building.pit",
+            display_identity="Pit",
+            recognition={"bluestacks": {"label": "Pit"}},
+            platform_binding_policy={"bluestacks": {"label": "Pit"}},
+        )
+        self.assertIsNone(
+            bind_visible_building(frame, loc, pit, ocr=lambda image, psm: "Hospital")
+        )
 
     def test_project_owned_route_dry_run_issues_no_input(self):
         class Runtime:

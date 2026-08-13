@@ -86,6 +86,12 @@ def _normalized_label(value: str) -> str:
     return " ".join("".join(character if character.isalnum() else " " for character in value.lower()).split())
 
 
+def _contains_label(text: str, label: str) -> bool:
+    """Match a normalized label on token boundaries, including multiword labels."""
+
+    return bool(label) and f" {label} " in f" {text} "
+
+
 def _project_building(localization: LocalizationResult, building: SemanticBuilding) -> np.ndarray:
     if not localization.recognized or localization.screen_to_atlas is None:
         raise ValueError("building binding requires a recognized current localization")
@@ -137,7 +143,28 @@ def bind_visible_building(
         enlarged = cv2.resize(variant, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
         readings.extend(reader(enlarged, psm) for psm in (6, 7, 11, 12))
     text = _normalized_label(" ".join(readings))
-    if not any(label in text for label in accepted_labels):
+    if not any(_contains_label(text, label) for label in accepted_labels):
+        # Small renderer labels can disappear inside the broader projected
+        # building crop.  Re-read only the independently projected label band;
+        # this remains current-frame semantic proof, never geometry-only authority.
+        center_x = (px0 + px1) // 2
+        focused = (
+            max(0, center_x - 46),
+            max(0, py1 - 34),
+            min(800, center_x + 34),
+            min(1280, py1 + 2),
+        )
+        if focused[0] < focused[2] and focused[1] < focused[3]:
+            focused_color = frame[focused[1]:focused[3], focused[0]:focused[2]]
+            focused_gray = cv2.cvtColor(focused_color, cv2.COLOR_BGR2GRAY)
+            focused_threshold = cv2.threshold(
+                focused_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+            )[1]
+            for variant in (focused_color, focused_gray, focused_threshold):
+                enlarged = cv2.resize(variant, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
+                readings.extend(reader(enlarged, psm) for psm in (8, 13))
+            text = _normalized_label(" ".join(readings))
+    if not any(_contains_label(text, label) for label in accepted_labels):
         return None
     sx0, sy0, sx1, sy1 = BLUESTACKS_SAFE_INTERACTION_BOX
     ax0, ay0, ax1, ay1 = max(px0, sx0), max(py0, sy0), min(px1, sx1), min(py1, sy1)

@@ -30,6 +30,10 @@ from typing import Any, Iterable, Mapping, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+from scripts.bluestacks_adb_readiness import (
+    ADBReadinessError,
+    ensure_adb_ready,
+)
 HOST = "nas.local"
 HOST_KEY = "ssh-ed25519 255 f0:b5:ee:95:fb:d2:6c:e5:f5:bf:d2:86:67:9b:21:55"
 PACKAGE = "com.global.ztmslg"
@@ -683,6 +687,10 @@ def _focused_package(dumpsys_output: str) -> str:
 def _run_fixed_bluestacks_adb(*arguments: str, binary: bool = False) -> bytes | str:
     if not BLUESTACKS_ADB.is_file():
         raise OperatorError("approved BlueStacks HD-Adb executable is unavailable")
+    try:
+        ensure_adb_ready(str(BLUESTACKS_ADB), BLUESTACKS_SERIAL)
+    except ADBReadinessError as exc:
+        raise OperatorError(str(exc)) from exc
     result = subprocess.run(
         [str(BLUESTACKS_ADB), "-s", BLUESTACKS_SERIAL, *arguments],
         check=False,
@@ -848,10 +856,18 @@ def development_session_run_flow(
     recovery_only: bool = False,
     recovery_session: Path | None = None,
     chests_only: bool = False,
+    chest_continuation: Path | str | None = None,
 ) -> str:
     """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
 
     from scripts.navigation_development_boundary import DevelopmentSession
+    ruins_reset_identity: str | None = None
+    ruins_current_day: str | None = None
+    ruins_package_id: str | None = None
+    ruins_runtime_profile_id: str | None = None
+
+    if chest_continuation is not None:
+        chest_continuation = Path(chest_continuation)
 
     if flow_id not in BLUESTACKS_FLOW_IDS:
         raise OperatorError("flow ID is not in the checked-in runtime allowlist")
@@ -868,6 +884,44 @@ def development_session_run_flow(
         raise OperatorError("chests-only is supported only for the Ruins Challenge flow")
     if chests_only and recovery_only:
         raise OperatorError("Ruins chests-only and recovery-only modes are mutually exclusive")
+    if chest_continuation is not None and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
+        raise OperatorError("--chest-continuation is supported only for the Ruins Challenge flow")
+    if chest_continuation is not None and not chests_only:
+        raise OperatorError("--chest-continuation requires --chests-only")
+    if chest_continuation is not None and not chest_continuation.is_file():
+        raise OperatorError("Ruins chest continuation file is unavailable")
+    if flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
+        # Bind the child route's reset/day identity once, before singleton
+        # ownership or runtime observation, so a midnight boundary cannot make
+        # a previously validated continuation mismatch during execution.
+        from tasks.ruins_challenge_continuation import (
+            PACKAGE_ID as CONTINUATION_PACKAGE_ID,
+            RUNTIME_PROFILE_ID as CONTINUATION_RUNTIME_PROFILE_ID,
+        )
+
+        identity_now = datetime.now(timezone.utc)
+        ruins_reset_identity = f"local-{identity_now.date().isoformat()}-ruins-home-atlas"
+        ruins_current_day = identity_now.astimezone().strftime("%a")
+        ruins_package_id = CONTINUATION_PACKAGE_ID
+        ruins_runtime_profile_id = CONTINUATION_RUNTIME_PROFILE_ID
+    if chest_continuation is not None:
+        from tasks.ruins_challenge_continuation import (
+            FLOW_ID as CONTINUATION_FLOW_ID,
+            RuinsContinuationError,
+            load_continuation,
+        )
+
+        try:
+            load_continuation(
+                chest_continuation,
+                expected_flow_id=CONTINUATION_FLOW_ID,
+                expected_reset_identity=ruins_reset_identity,
+                expected_current_day=ruins_current_day,
+                expected_runtime_profile_id=CONTINUATION_RUNTIME_PROFILE_ID,
+                expected_package_id=CONTINUATION_PACKAGE_ID,
+            )
+        except RuinsContinuationError as exc:
+            raise OperatorError(f"Ruins chest continuation rejected: {exc.reason}") from exc
     invocation_id = f"{flow_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     session_directory = _development_session_directory(invocation_id)
     owner = f"pnsctl-development-session:{flow_id}"
@@ -895,6 +949,11 @@ def development_session_run_flow(
                 "recovery_only": recovery_only,
                 "recovery_session": str(recovery_session) if recovery_session is not None else None,
                 "chests_only": chests_only,
+                "chest_continuation": str(chest_continuation) if chest_continuation is not None else None,
+                "ruins_reset_identity": ruins_reset_identity,
+                "ruins_current_day": ruins_current_day,
+                "ruins_package_id": ruins_package_id,
+                "ruins_runtime_profile_id": ruins_runtime_profile_id,
             }
             runner = _BLUESTACKS_FLOW_RUNNERS[contract["runner"]]
             if "live" in inspect.signature(runner).parameters:
@@ -951,6 +1010,7 @@ def development_session_run_flow(
                 "runtime_session_directory": child_text,
                 "input_count": dispatch_count,
                 "max_inputs": max_inputs,
+                "chest_continuation": str(chest_continuation) if chest_continuation is not None else None,
                 "runtime_observation": observation,
                 "lifecycle_state_created": False,
                 "persistent_checkpoint_artifacts_unchanged": True,
@@ -3420,6 +3480,7 @@ def parser() -> argparse.ArgumentParser:
     development_run.add_argument("--recovery-only", action="store_true")
     development_run.add_argument("--recovery-session", type=Path, default=None)
     development_run.add_argument("--chests-only", action="store_true")
+    development_run.add_argument("--chest-continuation", type=Path, default=None)
     for name in ("preflight", "worker-start", "worker-status", "worker-stop", "adb-start", "launch", "capture", "observe", "navigate", "run-task", "test-focused", "test-full", "validate", "preserve-evidence", "evidence-status", "cleanup"):
         sub.add_parser(name)
     sub.choices["capture"].add_argument("--name", default="current")
@@ -3661,6 +3722,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     recovery_only=bool(args.recovery_only),
                     recovery_session=args.recovery_session,
                     chests_only=bool(args.chests_only),
+                    chest_continuation=args.chest_continuation,
                 )
             else:
                 raise OperatorError("unknown development-session command")

@@ -2237,7 +2237,45 @@
         "rejected_clipped_targets": ["Nova Challenge"],
         "terminal_development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T045416299611Z",
         "terminal_runtime_session": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260812T045416729521Z/ruins-challenge-20260812T045417285968Z",
-        "terminal_state": "recognized_home"
+        "terminal_state": "recognized_home",
+        "full_list_followup": {
+          "completed_at": "2026-08-13T06:30:45.483457Z",
+          "coverage": {
+            "Hero Challenge": "already claimed",
+            "Weapon Trial": "already claimed",
+            "Tech Challenge": "already claimed",
+            "Gear Challenge": "already claimed",
+            "Core Challenge": "locked",
+            "Nova Challenge": "already claimed",
+            "Module Challenge": "already claimed",
+            "Glory Challenge": "already claimed",
+            "Bioenhancer Challenge": "already claimed",
+            "Ultimate Challenge": "already claimed",
+            "Chip Challenge": "already claimed",
+            "Cube Challenge": "locked"
+          },
+          "newly_claimed": [
+            {"identity": "Gear Challenge", "ruins_medals": 496},
+            {"identity": "Glory Challenge", "ruins_medals": 408},
+            {"identity": "Bioenhancer Challenge", "ruins_medals": 11},
+            {"identity": "Ultimate Challenge", "ruins_medals": 784},
+            {"identity": "Chip Challenge", "ruins_medals": 488}
+          ],
+          "points_before": 14462,
+          "points_after": 16649,
+          "reward_delta": 2187,
+          "unresolved_identities": [],
+          "terminal_development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260813T062938293481Z",
+          "terminal_runtime_session": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260813T062938638407Z/ruins-challenge-20260813T062939116724Z",
+          "claim_runtime_sessions": [
+            ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260813T055939375022Z/ruins-challenge-20260813T055939909705Z",
+            ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260813T061151633857Z/ruins-challenge-20260813T061152140102Z",
+            ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260813T062244588104Z/ruins-challenge-20260813T062245098692Z"
+          ],
+          "terminal_state": "recognized_home",
+          "runtime_ownership": "released",
+          "focused_tests_passed": 147
+        }
       },
       "artifact_root": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
       "acceptance_criteria": [

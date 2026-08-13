@@ -39,7 +39,12 @@ _DAY_RE = re.compile(r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b", re.IGNORECASE)
 # The retained native Gear row is consistently OCR'd as "bear challenge" by
 # the stylized G.  Keep this as a narrow, identity-specific alias rather than
 # loosening row recognition globally.
-_IDENTITY_OCR_ALIASES = {"gear challenge": ("bear challenge", "ear challenge", "ear chatenge")}
+_IDENTITY_OCR_ALIASES = {
+    "gear challenge": ("bear challenge", "ear challenge", "ear chatenge"),
+    # The retained top-page Core label's decorative leading C is emitted as
+    # "sgore". Keep this identity-specific and inside the list-anchor gate.
+    "core challenge": ("sgore challenge",),
+}
 
 
 def _normalized(text: str) -> str:
@@ -66,9 +71,9 @@ def _ocr(frame: np.ndarray, box: Box | None = None, *, psm: int = 11) -> str:
     return _normalized(pytesseract.image_to_string(enlarged, config=f"--psm {psm}"))
 
 
-def _ocr_boxes(frame: np.ndarray) -> list[tuple[str, Box]]:
+def _ocr_boxes(frame: np.ndarray, *, psm: int = 11) -> list[tuple[str, Box]]:
     enlarged = cv2.resize(frame, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    data = pytesseract.image_to_data(enlarged, config="--psm 11", output_type=Output.DICT)
+    data = pytesseract.image_to_data(enlarged, config=f"--psm {psm}", output_type=Output.DICT)
     found: list[tuple[str, Box]] = []
     for index, raw in enumerate(data["text"]):
         text = _normalized(raw)
@@ -129,14 +134,16 @@ _RUINS_ROW_ANCHOR_TOP_OFFSET = 24
 def _row_box_from_identity_anchor(anchor: Box) -> Box:
     """Bind one native list row from its current-frame identity text anchor."""
 
-    top = max(210, anchor[1] - _RUINS_ROW_ANCHOR_TOP_OFFSET)
+    # Preserve the true current-frame geometry.  Clamping a partly hidden row to
+    # the list header made it look fully visible to chest auditing.
+    top = max(0, anchor[1] - _RUINS_ROW_ANCHOR_TOP_OFFSET)
     return (18, top, 780, min(1280, top + _RUINS_ROW_HEIGHT))
 
 
 def _available_chest_target(frame: np.ndarray, row_box: Box) -> Box | None:
     """Bind a fully visible native green-and-gold Ruins chest in one exact row."""
 
-    if row_box[3] - row_box[1] < _RUINS_ROW_HEIGHT:
+    if row_box[1] < 210 or row_box[3] - row_box[1] < _RUINS_ROW_HEIGHT:
         return None
     candidate = (600, row_box[1] + 5, 780, row_box[1] + 150)
     crop = frame[candidate[1]:candidate[3], candidate[0]:candidate[2]]
@@ -236,6 +243,12 @@ def _identity_matches(identity: str, text: str) -> bool:
     return needle in text or any(alias in text for alias in _IDENTITY_OCR_ALIASES.get(needle, ()))
 
 
+def _ruins_identity_anchor(box: Box) -> bool:
+    """Require identity OCR to originate in the native list body/label columns."""
+
+    return box[1] >= 210 and box[0] >= 18 and box[2] <= 560
+
+
 def recognize_ruins_frame(frame: np.ndarray, *, reset_identity: str | None = None) -> "RuinsFrameRecognition":
     if frame is None or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
         raise ValueError("Ruins frame must be a native 800x1280 image")
@@ -271,6 +284,7 @@ def recognize_ruins_frame(frame: np.ndarray, *, reset_identity: str | None = Non
         if label in control_text:
             targets.append((identity, (150, 100, 800, 210)))
     boxes = _ocr_boxes(frame)
+    dense_boxes: list[tuple[str, Box]] | None = None
     rows: list[RuinsChallengeRow] = []
     lower_text = full_text
     for identity in KNOWN_CHALLENGE_IDENTITIES:
@@ -279,17 +293,38 @@ def recognize_ruins_frame(frame: np.ndarray, *, reset_identity: str | None = Non
         matches = [
             (text, box)
             for text, box in boxes
-            if any(alias.split()[0] in text or alias in text for alias in aliases)
+            if _ruins_identity_anchor(box)
+            and any(alias.split()[0] in text or alias in text for alias in aliases)
         ]
-        if not matches and not _identity_matches(identity, lower_text):
-            continue
-        _, anchor = matches[0] if matches else (identity, (18, 220, 780, 420))
+        if not matches:
+            # Sparse OCR can miss a lower-page identity even when the row is
+            # fully visible.  Retry identity anchoring with one dense layout
+            # pass; row/chest state still comes from the independently bound
+            # current-frame row ROI.
+            if dense_boxes is None:
+                dense_boxes = _ocr_boxes(frame, psm=6)
+            matches = [
+                (text, box)
+                for text, box in dense_boxes
+                if _ruins_identity_anchor(box)
+                and any(alias.split()[0] in text or alias in text for alias in aliases)
+            ]
+            if not matches:
+                continue
+        _, anchor = matches[0]
         row_box = _row_box_from_identity_anchor(anchor)
         row_text = _ocr(frame, row_box, psm=6)
+        restriction_text = _ocr(frame, (560, row_box[1], 780, row_box[3]), psm=6)
         progress = parse_progress(row_text) or (0, 1)
         day_match = _DAY_RE.search(row_text)
         day = day_match.group(1).title() if day_match else None
-        locked = "requires lv" in row_text or "headquarters" in row_text and "requires" in row_text
+        locked_text = f"{row_text} {restriction_text}"
+        locked = (
+            "requires lv" in locked_text
+            or "headquarters" in locked_text
+            and "lv" in locked_text
+            and ("requires" in locked_text or "req" in locked_text)
+        )
         button_box = (560, max(0, row_box[3] - 120), 780, min(1280, row_box[3]))
         button_text = _ocr(frame, button_box, psm=7)
         challenge_visible = ("challenge" in button_text or _orange_button_present(frame, button_box)) and not locked
@@ -537,6 +572,7 @@ def recognize_ruins_reward_frame(
                 max(0, region[0] + x - 8), max(0, region[1] + y - 8),
                 min(800, region[0] + x + width + 8), min(1280, region[1] + y + height + 8),
             )
+    medal_amount = parse_points(_ocr(frame, (330, 400, 475, 475), psm=7))
     recognized = bool(
         _normalized(identity) in text
         and "reward available" in text
@@ -548,7 +584,7 @@ def recognize_ruins_reward_frame(
     return RuinsRewardRecognition(
         recognized,
         identity,
-        parse_points(text),
+        medal_amount,
         digest,
         reset_identity,
         targets,

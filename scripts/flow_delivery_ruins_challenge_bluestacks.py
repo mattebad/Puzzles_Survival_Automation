@@ -3,11 +3,29 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from typing import Any, Mapping
+
+from tasks.ruins_challenge_continuation import (
+    CANONICAL_IDENTITIES,
+    FLOW_ID as CONTINUATION_FLOW_ID,
+    PACKAGE_ID as CONTINUATION_PACKAGE_ID,
+    RUNTIME_PROFILE_ID as CONTINUATION_RUNTIME_PROFILE_ID,
+    RuinsContinuationError,
+    load_continuation,
+    validate_claim_record,
+    write_continuation,
+)
+
+# Compatibility export for existing adapter callers; the continuation contract
+# itself owns the literal identity tuple.
+KNOWN_CHALLENGE_IDENTITIES = CANONICAL_IDENTITIES
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +33,12 @@ FLOW_ID = "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
 RUNNER_ID = "ruins_challenge_home_atlas_runner"
 VALIDATOR_ID = "ruins_challenge_home_atlas_evidence"
 RECOVERY_ID = "ruins_challenge_home_atlas_recovery"
+CHEST_COVERAGE_STATES = frozenset({
+    "newly claimed",
+    "already claimed",
+    "locked",
+    "unavailable/no reward",
+})
 
 
 def _pnsctl():
@@ -38,8 +62,61 @@ def _operator_result(stdout: str) -> dict[str, Any]:
     raise ValueError("Ruins operator did not emit a JSON result")
 
 
+def _flow_root_for_checkpoint(path: Path) -> Path:
+    for ancestor in (path.resolve().parent, *path.resolve().parents):
+        if ancestor.name == FLOW_ID:
+            return ancestor
+    raise ValueError("Ruins continuation checkpoint is outside its flow root")
+
+
+def _rebase_prior_records(
+    records: list[dict[str, Any]], *, prior_checkpoint: Path, new_flow_root: Path,
+    destination_session: Path,
+) -> list[dict[str, Any]]:
+    """Copy validated prior evidence into the new flow root before merging."""
+
+    prior_root = _flow_root_for_checkpoint(prior_checkpoint)
+    checkpoint_digest = hashlib.sha256(prior_checkpoint.resolve().read_bytes()).hexdigest()[:24]
+    destination_root = destination_session / "prior-evidence" / checkpoint_digest
+    if destination_root.exists():
+        raise ValueError("prior continuation evidence destination collision")
+    temporary_root = destination_session / f".prior-evidence-{checkpoint_digest}.tmp"
+    if temporary_root.exists():
+        raise ValueError("prior continuation evidence temporary collision")
+    rebased: list[dict[str, Any]] = []
+    try:
+        for ordinal, record in enumerate(records):
+            updated = dict(record)
+            for prefix in ("source", "post", "terminal"):
+                key = f"{prefix}_frame_path"
+                raw_path = updated.get(key)
+                if raw_path is None:
+                    continue
+                source = (prior_root / str(raw_path)).resolve()
+                try:
+                    source.relative_to(prior_root)
+                except ValueError as exc:
+                    raise ValueError("prior continuation evidence path escaped flow root") from exc
+                target = temporary_root / f"{ordinal:03d}-{prefix}-{source.name}"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, target)
+                expected_hash = updated.get(f"{prefix}_frame_sha256")
+                if hashlib.sha256(target.read_bytes()).hexdigest() != expected_hash:
+                    raise ValueError("prior continuation evidence copy hash mismatch")
+                updated[key] = (destination_root / target.relative_to(temporary_root)).relative_to(new_flow_root).as_posix()
+            rebased.append(updated)
+        destination_root.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(temporary_root, destination_root)
+    except Exception:
+        if temporary_root.exists():
+            shutil.rmtree(temporary_root)
+        raise
+    return rebased
+
+
 def run_ruins_challenge_home_atlas(
-    queue: Mapping[str, Any], lease: Mapping[str, Any], *, live: bool = True
+    queue: Mapping[str, Any], lease: Mapping[str, Any], *, live: bool = True,
+    chest_continuation: Path | str | None = None,
 ) -> str:
     """Run Home -> Ruins -> one free challenge -> verified safe exit -> Home."""
 
@@ -48,13 +125,26 @@ def run_ruins_challenge_home_atlas(
     development_mode = bool(lease.get("development_session"))
     root = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"nav-{_stamp()}"
     root.mkdir(parents=True, exist_ok=False)
+    identity_now = datetime.now(timezone.utc)
+    reset_identity = str(
+        lease.get("ruins_reset_identity")
+        or f"local-{identity_now.date().isoformat()}-ruins-home-atlas"
+    )
+    current_day = str(
+        lease.get("ruins_current_day") or identity_now.astimezone().strftime("%a")
+    )
+    if lease.get("ruins_package_id", CONTINUATION_PACKAGE_ID) != CONTINUATION_PACKAGE_ID:
+        raise pnsctl.OperatorError("Ruins continuation package identity is invalid")
+    if lease.get("ruins_runtime_profile_id", CONTINUATION_RUNTIME_PROFILE_ID) != CONTINUATION_RUNTIME_PROFILE_ID:
+        raise pnsctl.OperatorError("Ruins continuation runtime profile is invalid")
+    continuation_input = chest_continuation or lease.get("chest_continuation")
     command = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "ruins_challenge_bluestacks.py"),
         "--adb", str(pnsctl.BLUESTACKS_ADB),
         "--serial", pnsctl.BLUESTACKS_SERIAL,
-        "--reset-identity", f"local-{datetime.now(timezone.utc).date().isoformat()}-ruins-home-atlas",
-        "--current-day", datetime.now().strftime("%a"),
+        "--reset-identity", reset_identity,
+        "--current-day", current_day,
         "--output-directory", str(root),
     ]
     if lease.get("recovery_only"):
@@ -64,6 +154,8 @@ def run_ruins_challenge_home_atlas(
         command.extend(("--recovery-only", "--recovery-session", str(recovery_session)))
     elif lease.get("chests_only"):
         command.append("--chests-only")
+    if continuation_input:
+        command.extend(("--chest-continuation", str(continuation_input)))
     if live:
         command.extend(("--execute", "--yes"))
     completed = subprocess.run(command, cwd=REPO_ROOT, text=True, capture_output=True, check=False)
@@ -87,6 +179,28 @@ def run_ruins_challenge_home_atlas(
         for line in events.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+    confirmed_event_actions = {
+        str(row.get("action_key"))
+        for row in event_rows
+        if row.get("type") == "reconcile" and row.get("status") == "confirmed" and row.get("action_key")
+    }
+    prior_confirmed_actions: set[str] = set()
+    prior_claim_records: list[dict[str, Any]] = []
+    if continuation_input:
+        try:
+            prior_checkpoint = load_continuation(
+                Path(continuation_input),
+                expected_reset_identity=reset_identity,
+                expected_current_day=current_day,
+            )
+            prior_confirmed_actions = {
+                str(record["action_key"])
+                for record in prior_checkpoint.get("claims", ())
+                if record.get("status") == "confirmed"
+            }
+            prior_claim_records = [dict(record) for record in prior_checkpoint.get("claims", ())]
+        except RuinsContinuationError as exc:
+            raise pnsctl.OperatorError(f"Ruins continuation input rejected: {exc.reason}") from exc
     zero_transport = not live and not any(row.get("type") == "dispatch" for row in event_rows)
     # These are real route-accounting records, not placeholders: the flow-level ledger
     # binds the child event journal and the navigation-only contract to this invocation.
@@ -123,7 +237,55 @@ def run_ruins_challenge_home_atlas(
         "frames": frame_names,
         "operator_returncode": completed.returncode,
         "resource_delta": ruins.get("resource_delta"),
+        "chest_coverage": ruins.get("chest_coverage"),
+        "newly_claimed_chests": ruins.get("newly_claimed_chests"),
+        "confirmed_claim_records": ruins.get("confirmed_claim_records"),
+        "prior_confirmed_claim_records": prior_claim_records,
+        "continuation_reference": None,
+        "prior_continuation_reference": str(continuation_input) if continuation_input else None,
+        "reset_identity": reset_identity,
+        "current_day": current_day,
+        "runtime_profile_id": CONTINUATION_RUNTIME_PROFILE_ID,
+        "package_id": CONTINUATION_PACKAGE_ID,
     }
+    continuation_reference: str | None = None
+    # Only a terminal chest-only run with route-owned, status=confirmed records
+    # may mint/update a checkpoint.  In particular, blocked runs' resource_delta
+    # and newly_claimed_chests fields are intentionally ignored here.
+    if terminal and ruins.get("chests_only") and isinstance(ruins.get("confirmed_claim_records"), list):
+        records = ruins.get("confirmed_claim_records") or []
+        merged_records = [*prior_claim_records, *records]
+        if merged_records:
+            if any(
+                not isinstance(record, dict)
+                or record.get("status") != "confirmed"
+                or record.get("action_key") not in confirmed_event_actions | prior_confirmed_actions
+                for record in records
+            ):
+                raise pnsctl.OperatorError("Ruins continuation requires event-reconciled confirmed claims")
+            continuation_path = session / "ruins-chest-continuation.json"
+            try:
+                if prior_claim_records and continuation_input:
+                    rebased_prior = _rebase_prior_records(
+                        prior_claim_records,
+                        prior_checkpoint=Path(continuation_input),
+                        new_flow_root=root.parent,
+                        destination_session=session,
+                    )
+                    merged_records = [*rebased_prior, *records]
+                write_continuation(
+                    continuation_path,
+                    reset_identity=reset_identity,
+                    current_day=current_day,
+                    claims=merged_records,
+                    evidence_root=root.parent,
+                    flow_id=CONTINUATION_FLOW_ID,
+                    runtime_profile_id=CONTINUATION_RUNTIME_PROFILE_ID,
+                )
+            except RuinsContinuationError as exc:
+                raise pnsctl.OperatorError(f"Ruins continuation evidence rejected: {exc.reason}") from exc
+            continuation_reference = str(continuation_path)
+            delivery["continuation_reference"] = "ruins-chest-continuation.json"
     (session / "flow-delivery-result.json").write_text(json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if zero_transport:
         return json.dumps({
@@ -147,7 +309,14 @@ def run_ruins_challenge_home_atlas(
                 sort_keys=True,
             )
         raise pnsctl.OperatorError("Ruins navigation route did not prove safe exit to Home")
-    return json.dumps({"status": "completed", "flow_id": FLOW_ID, "session_directory": str(session), "dispatch": True}, sort_keys=True)
+    return json.dumps({
+        "status": "completed", "flow_id": FLOW_ID, "session_directory": str(session),
+        "dispatch": True, "continuation_reference": continuation_reference,
+        "prior_continuation_reference": str(continuation_input) if continuation_input else None,
+        "reset_identity": reset_identity, "current_day": current_day,
+        "runtime_profile_id": CONTINUATION_RUNTIME_PROFILE_ID,
+        "package_id": CONTINUATION_PACKAGE_ID,
+    }, sort_keys=True)
 
 
 def verify_ruins_challenge_home_atlas(
@@ -163,6 +332,68 @@ def verify_ruins_challenge_home_atlas(
         raise pnsctl.OperatorError("Ruins evidence identity or nonnegative reward invariant failed")
     if ruins.get("status") != "completed" or ruins.get("reason") != "verified_safe_exit_to_home":
         raise pnsctl.OperatorError("Ruins evidence lacks Home -> Ruins -> Home proof")
+    if ruins.get("chests_only"):
+        prior_reference = result.get("prior_continuation_reference")
+        if prior_reference:
+            try:
+                load_continuation(
+                    Path(prior_reference),
+                    expected_reset_identity=result.get("reset_identity"),
+                    expected_current_day=result.get("current_day"),
+                )
+            except RuinsContinuationError as exc:
+                raise pnsctl.OperatorError(
+                    f"Ruins prior continuation evidence rejected: {exc.reason}"
+                ) from exc
+        coverage = ruins.get("chest_coverage") or {}
+        claimed = ruins.get("newly_claimed_chests")
+        if (
+            set(coverage) != set(KNOWN_CHALLENGE_IDENTITIES)
+            or not all(status in CHEST_COVERAGE_STATES for status in coverage.values())
+            or not isinstance(claimed, list)
+        ):
+            raise pnsctl.OperatorError("Ruins chest evidence lacks complete canonical identity coverage")
+        claimed_identities = [item.get("identity") for item in claimed if isinstance(item, dict)]
+        claimed_medals = [item.get("ruins_medals") for item in claimed if isinstance(item, dict)]
+        coverage_claimed_identities = {
+            identity for identity, status in coverage.items() if status == "newly claimed"
+        }
+        if (
+            len(claimed_identities) != len(claimed)
+            or len(set(claimed_identities)) != len(claimed_identities)
+            or any(identity not in KNOWN_CHALLENGE_IDENTITIES for identity in claimed_identities)
+            or any(coverage.get(identity) != "newly claimed" for identity in claimed_identities)
+            or set(claimed_identities) != coverage_claimed_identities
+            or any(not isinstance(medals, int) or medals < 0 for medals in claimed_medals)
+            or sum(claimed_medals) != resource_delta
+        ):
+            raise pnsctl.OperatorError("Ruins newly claimed chest evidence is malformed or inconsistent")
+        confirmed_records = ruins.get("confirmed_claim_records")
+        if confirmed_records is not None:
+            if not isinstance(confirmed_records, list):
+                raise pnsctl.OperatorError("Ruins confirmed claim records are malformed")
+            expected_reset = result.get("reset_identity") or ruins.get("reset_identity")
+            if not isinstance(expected_reset, str) or not expected_reset:
+                raise pnsctl.OperatorError("Ruins continuation is missing reset identity binding")
+            evidence_root = Path(structure.get("session_directory", "")).resolve()
+            seen_confirmed: set[str] = set()
+            for record in confirmed_records:
+                if not isinstance(record, dict) or record.get("reset_identity") != expected_reset:
+                    raise pnsctl.OperatorError("Ruins continuation contains unresolved or identity-unbound claim facts")
+                try:
+                    normalized = validate_claim_record(
+                        record,
+                        evidence_root=evidence_root,
+                        expected_reset_identity=expected_reset,
+                    )
+                except RuinsContinuationError as exc:
+                    raise pnsctl.OperatorError(
+                        f"Ruins continuation claim evidence rejected: {exc.reason}"
+                    ) from exc
+                identity = normalized["identity"]
+                if identity not in KNOWN_CHALLENGE_IDENTITIES or identity in seen_confirmed:
+                    raise pnsctl.OperatorError("Ruins continuation contains duplicate or unknown claims")
+                seen_confirmed.add(identity)
     if int(flow.get("live_attempt_count") or 0) > int(flow.get("maximum_live_attempts") or 0):
         raise pnsctl.OperatorError("Ruins attempt accounting exceeds authorization")
     return {"status": "verified", "flow_id": FLOW_ID, "terminal": "recognized_home", "session_directory": structure["session_directory"], "actions": structure["actions"], "terminal_runtime_state": result["terminal_runtime_state"], "resource_delta": resource_delta}

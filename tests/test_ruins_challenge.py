@@ -94,6 +94,17 @@ class RuinsContractTests(unittest.TestCase):
         self.assertEqual(any_reward.identity, "Hero Challenge")
         self.assertFalse(wrong.recognized)
 
+        def spatial_ocr(_frame, box=None, psm=11):
+            if box == (330, 400, 475, 475):
+                return "432"
+            return text
+
+        with patch("tasks.ruins_challenge_vision._ocr", side_effect=spatial_ocr), patch(
+            "tasks.ruins_challenge_vision._ocr_boxes", return_value=[],
+        ):
+            spatial = recognize_ruins_reward_frame(frame, "Hero Challenge", reset_identity=RESET)
+        self.assertEqual(spatial.medal_amount, 432)
+
     def test_native_list_binds_only_fully_visible_row_local_chests(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         for top in (230, 430, 630):
@@ -146,6 +157,114 @@ class RuinsContractTests(unittest.TestCase):
         self.assertEqual(recognition.observation.row("Weapon Trial").progress_maximum, 200)
         self.assertEqual(recognition.observation.row("Tech Challenge").day_label, "Tue")
         self.assertEqual(recognition.observation.row("Nova Challenge").chest_state, RuinsChestState.UNKNOWN)
+
+    def test_header_band_identity_does_not_bind_row_or_chest(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        frame[55:180, 600:780] = (0, 200, 0)
+
+        def fake_ocr(_frame, box=None, psm=11):
+            if box is None:
+                return "ruins challenge hero challenge"
+            if box == (0, 0, 800, 120):
+                return "ruins challenge"
+            if box == (150, 100, 800, 210):
+                return "exchange progress total rank"
+            if box[0] == 18:
+                return "hero challenge mon progress 60/120"
+            return ""
+
+        with patch("tasks.ruins_challenge_vision._ocr", side_effect=fake_ocr), patch(
+            "tasks.ruins_challenge_vision._ocr_boxes", return_value=[("hero", (227, 105, 297, 130))],
+        ):
+            recognition = recognize_ruins_frame(frame, reset_identity=RESET)
+
+        hero = recognition.observation.row("Hero Challenge")
+        self.assertIsNone(hero)
+        self.assertIsNone(recognition.target("chest:Hero Challenge"))
+
+    def test_dense_identity_pass_recovers_fully_visible_bottom_cube_row(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+
+        def fake_ocr(_frame, box=None, psm=11):
+            if box is None:
+                return "ruins challenge cube challenge"
+            if box == (0, 0, 800, 120):
+                return "ruins challenge"
+            if box == (150, 100, 800, 210):
+                return "exchange progress total rank"
+            if box[0] == 18 and box[1] > 1000:
+                return "cube challenge sun requires lv.25 headquarters"
+            return ""
+
+        def fake_boxes(_frame, *, psm=11):
+            return [("cube", (270, 1112, 298, 1123))] if psm == 6 else []
+
+        with patch("tasks.ruins_challenge_vision._ocr", side_effect=fake_ocr), patch(
+            "tasks.ruins_challenge_vision._ocr_boxes", side_effect=fake_boxes,
+        ):
+            recognition = recognize_ruins_frame(frame, reset_identity=RESET)
+
+        cube = recognition.observation.row("Cube Challenge")
+        self.assertIsNotNone(cube)
+        self.assertEqual(cube.availability, RuinsAvailability.LOCKED)
+        self.assertGreaterEqual(cube.target_roi[1], 1080)
+        self.assertEqual(cube.target_roi[3] - cube.target_roi[1], 190)
+        self.assertLessEqual(cube.target_roi[3], 1280)
+
+    def test_dense_identity_pass_rejects_header_and_action_column_anchors(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+
+        def fake_ocr(_frame, box=None, psm=11):
+            if box is None:
+                return "ruins challenge cube"
+            if box == (0, 0, 800, 120):
+                return "ruins challenge"
+            if box == (150, 100, 800, 210):
+                return "exchange progress total rank"
+            return ""
+
+        def fake_boxes(_frame, *, psm=11):
+            if psm == 6:
+                return [
+                    ("cube", (270, 90, 320, 115)),
+                    ("cube", (650, 1110, 710, 1140)),
+                ]
+            return []
+
+        with patch("tasks.ruins_challenge_vision._ocr", side_effect=fake_ocr), patch(
+            "tasks.ruins_challenge_vision._ocr_boxes", side_effect=fake_boxes,
+        ):
+            recognition = recognize_ruins_frame(frame, reset_identity=RESET)
+
+        self.assertIsNone(recognition.observation.row("Cube Challenge"))
+        self.assertIsNone(recognition.target("chest:Cube Challenge"))
+
+    def test_core_retained_ocr_alias_is_identity_specific_and_spatially_locked(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+
+        def fake_ocr(_frame, box=None, psm=11):
+            if box is None:
+                return "ruins challenge sgore challenge"
+            if box == (0, 0, 800, 120):
+                return "ruins challenge"
+            if box == (150, 100, 800, 210):
+                return "exchange progress total rank"
+            if box[0] == 18:
+                return "sgore challenge wed req lo lv.31 headquarters"
+            if box[0] == 560:
+                return "wed req lo lv.31 headquarters"
+            return ""
+
+        with patch("tasks.ruins_challenge_vision._ocr", side_effect=fake_ocr), patch(
+            "tasks.ruins_challenge_vision._ocr_boxes",
+            return_value=[("sgore", (212, 1052, 324, 1082))],
+        ):
+            recognition = recognize_ruins_frame(frame, reset_identity=RESET)
+
+        core = recognition.observation.row("Core Challenge")
+        self.assertIsNotNone(core)
+        self.assertEqual(core.availability, RuinsAvailability.LOCKED)
+        self.assertIsNone(recognition.target("chest:Core Challenge"))
 
     def test_gear_alias_binds_only_current_day_free_challenge_with_narrow_button_roi(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
