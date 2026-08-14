@@ -201,9 +201,13 @@
     {
       "policy_id": "troop-training-resource-policy",
       "scope": "troop_training.resource_tier_quantity",
-      "status": "unresolved_user_decision",
-      "decision": "Tier, quantity, resource budget, and resource-box behavior are not approved for automated Train dispatch.",
-      "source": "execution_matrix_and_explicit_user_direction"
+      "status": "explicitly_approved",
+      "decision": "The named overrideable profile is approved for supervised development validation: Fighter enabled T8 current numeric maximum with boxes allowed and continuous policy; Vehicle enabled T1 current numeric maximum with boxes allowed and continuous policy; Shooter enabled T8 fixed 250 with boxes prohibited and once_daily policy; Rider enabled T1 fixed 250 with boxes prohibited and once_daily policy. Every type remains independently configurable; no silent tier, quantity, or policy substitution is allowed.",
+      "source": "explicit_user_direction_2026-08-13",
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligibility": false,
+      "daily_quest_inheritance": "prohibited",
+      "resource_box_restriction": "Fighter and Vehicle only; Shooter and Rider are structurally prohibited"
     },
     {
       "policy_id": "recruitment-quantity-and-resource-policy",

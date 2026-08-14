@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
+from pathlib import Path
 
 from .troop_training import (
     TROOP_TYPES,
@@ -41,8 +42,8 @@ class TrainingDecision:
 class TroopTrainingRuntimeController:
     """State machine that never supplies transport or chooses a fallback tier."""
 
-    def __init__(self, config: TroopTrainingConfig, *, reset_identity: str):
-        self.semantic = TrainingController(config, reset_identity=reset_identity)
+    def __init__(self, config: TroopTrainingConfig, *, reset_identity: str, persistence_path: Path | None = None):
+        self.semantic = TrainingController(config, reset_identity=reset_identity, persistence_path=persistence_path)
         self.phase = TrainingPhase.HOME
         self.unresolved_action: str | None = None
 
@@ -64,6 +65,13 @@ class TroopTrainingRuntimeController:
         if self.unresolved_action is not None:
             self.phase = TrainingPhase.UNRESOLVED
             return TrainingDecision(self.phase, "stop", "prior consequential action unresolved", troop_type, self.unresolved_action)
+        if observation.queue_active:
+            queue_plan = self.semantic.reconcile_active_queue(observation, troop_type)
+            if queue_plan == "active_queue_reconciled":
+                self.phase = TrainingPhase.TRAINING_ACTIVE
+                return TrainingDecision(self.phase, "reconcile_queue", "matching active queue reconciled read-only; no dispatch", troop_type)
+            self.phase = TrainingPhase.BLOCKED
+            return TrainingDecision(self.phase, "stop", queue_plan, troop_type)
         tier_plan = self.semantic.plan_tier(observation, troop_type)
         if tier_plan == "reject_locked_tier":
             self.phase = TrainingPhase.BLOCKED
@@ -75,9 +83,10 @@ class TroopTrainingRuntimeController:
             self.phase = TrainingPhase.TIER_SELECTION
             return TrainingDecision(self.phase, "select_tier", "configured tier is not selected", troop_type)
         quantity_plan = self.semantic.plan_quantity(observation, troop_type)
-        if quantity_plan == "enter_exact_quantity":
+        if quantity_plan in {"enter_exact_quantity", "enter_current_max"}:
             self.phase = TrainingPhase.QUANTITY_ENTRY
-            return TrainingDecision(self.phase, "enter_quantity", "configured quantity is not displayed exactly", troop_type)
+            reason = "current numeric maximum is not displayed exactly" if quantity_plan == "enter_current_max" else "configured quantity is not displayed exactly"
+            return TrainingDecision(self.phase, "enter_quantity", reason, troop_type)
         if quantity_plan != "quantity_verified":
             self.phase = TrainingPhase.BLOCKED
             return TrainingDecision(self.phase, "stop", quantity_plan, troop_type)

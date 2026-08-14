@@ -54,8 +54,8 @@ def ensure_adb_ready(
     run: Callable[..., Any] | None = None,
     monotonic: Callable[[], float] | None = None,
     sleep: Callable[[float], None] | None = None,
-    deadline_seconds: float = 3.0,
-    command_timeout_seconds: float = 1.5,
+    deadline_seconds: float = 8.0,
+    command_timeout_seconds: float = 5.0,
     backoff: Sequence[float] = _DEFAULT_BACKOFF,
     cache: MutableSet[tuple[str, str]] | None = None,
 ) -> None:
@@ -81,6 +81,8 @@ def ensure_adb_ready(
 
     started = clock()
     deadline = started + deadline_seconds
+    start_context = ""
+    server = None
     # Starting the approved server is deliberately unqualified: no serial and
     # no network connect are permitted on this path.
     try:
@@ -93,12 +95,14 @@ def ensure_adb_ready(
             check=False,
         )
     except subprocess.TimeoutExpired:
-        raise ADBReadinessError("ADB readiness failed: start-server timed out") from None
+        if serial is None:
+            raise ADBReadinessError("ADB readiness failed: start-server timed out") from None
+        start_context = "start-server timed out; "
     except OSError as exc:
         raise ADBReadinessError(
             f"ADB readiness failed: start-server unavailable ({_bounded(str(exc))})"
         ) from exc
-    if getattr(server, "returncode", 1):
+    if server is not None and getattr(server, "returncode", 1):
         detail = _diagnostic(server)
         raise ADBReadinessError(
             "ADB readiness failed: start-server returned "
@@ -147,5 +151,5 @@ def ensure_adb_ready(
 
     raise ADBReadinessError(
         "ADB readiness timed out for private serial "
-        f"{serial}: attempts={attempts}, last={_bounded(last_detail)}"
+        f"{serial}: attempts={attempts}, last={_bounded(start_context + last_detail)}"
     )

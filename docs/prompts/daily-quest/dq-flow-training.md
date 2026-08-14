@@ -19,3 +19,7 @@ and Claim separation. Bliss/GnBots evidence
 cannot override policy. Future navigation read-only only. Prohibit runtime registration, scheduler
 eligibility, ADB, live input/evidence, worker/VM, leases, journal migration. Update docs/matrix/status.
 Commit: `docs(tasks): map every Daily objective to an execution task`. Continue offline.
+
+The separately tracked TROOP-TRAINING-END-TO-END-CONSOLIDATION flow is supervised development
+validation only. It does not change these four Daily rows' DISABLED_POLICY, NOT_REGISTERED, or
+scheduler-disabled states and cannot inherit Daily Quest authority.

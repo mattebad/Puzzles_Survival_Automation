@@ -1,0 +1,15 @@
+{
+  "notes": "Native live Fighter radial; icon and spatially associated Train label.",
+  "profile": "800x1280",
+  "roi": [
+    480,
+    420,
+    600,
+    525
+  ],
+  "schema_version": 1,
+  "semantic_identity": "radial normal Train control",
+  "source_path": ".local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION/run-20260814T004543174335Z/troop-training-20260814T004543725826Z/frames/0004-facility-radial-menu-recognition-retry-1.png",
+  "source_sha256": "5a6ced9f31bd4e89567e319945eb37958cbf10bc3cb7cff1b7317fa9095b2e41",
+  "template_sha256": "3e733d4466f295edf9fc552a7462764cc4128a9efb572c4ba5f88846df8003cb"
+}

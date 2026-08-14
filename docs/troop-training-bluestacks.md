@@ -1,20 +1,22 @@
 # Daily troop training — local BlueStacks route
 
-This workflow owns four independent configurations: `fighter`, `shooter`, `rider`, and
-`vehicle`. Each configuration has `enabled`, an explicit `target_tier` (T1–T13), `quantity`, and
-`training_policy` (`once_daily`, `continuous`, or `disabled`), and `allow_resource_boxes`. The
-resource-box toggle is independent per troop type and defaults to `false`. The default quantity is
-250 and a tier is never substituted when it is locked or ambiguous. Daily Quest Claim is not part
-of this route; registration and scheduler eligibility remain disabled.
+This workflow owns four per-type configurations: `fighter`, `shooter`, `rider`, and
+`vehicle`. Each configuration has `enabled`, an explicit `target_tier` (T1–T13), `quantity` or
+`quantity_mode` (`fixed` or `current_max`), `training_policy` (`once_daily`, `continuous`, or
+`disabled`), and resource-box policy. The named default is Fighter T8/current maximum/continuous
+with boxes, Vehicle T1/current maximum/continuous with boxes, Shooter T8/fixed 250/once_daily
+without boxes, and Rider T1/fixed 250/once_daily without boxes. Every override is retained exactly;
+locked tiers, unresolved maxima, and mismatched queues fail closed. Daily Quest Claim remains
+separate; registration and scheduler eligibility remain disabled.
 
 Example configuration:
 
 ```json
 {
-  "fighter": {"enabled": true, "target_tier": 8, "quantity": 250, "training_policy": "continuous", "allow_resource_boxes": false},
-  "shooter": {"enabled": true, "target_tier": 8, "quantity": 250, "training_policy": "continuous", "allow_resource_boxes": false},
-  "rider": {"enabled": true, "target_tier": 8, "quantity": 250, "training_policy": "continuous", "allow_resource_boxes": true},
-  "vehicle": {"enabled": true, "target_tier": 8, "quantity": 250, "training_policy": "continuous", "allow_resource_boxes": false}
+  "fighter": {"enabled": true, "target_tier": 8, "quantity_mode": "current_max", "training_policy": "continuous", "allow_resource_boxes": true},
+  "shooter": {"enabled": true, "target_tier": 8, "quantity_mode": "fixed", "quantity": 250, "training_policy": "once_daily", "allow_resource_boxes": false},
+  "rider": {"enabled": true, "target_tier": 1, "quantity_mode": "fixed", "quantity": 250, "training_policy": "once_daily", "allow_resource_boxes": false},
+  "vehicle": {"enabled": true, "target_tier": 1, "quantity_mode": "current_max", "training_policy": "continuous", "allow_resource_boxes": true}
 }
 ```
 
@@ -31,23 +33,23 @@ python scripts\troop_training_bluestacks.py `
   --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" `
   --serial emulator-5554 `
   --reset-identity <recognized-reset> `
-  --fighter-tier 8 --shooter-tier 8 --rider-tier 8 --vehicle-tier 8 `
+  --fighter-tier 8 --fighter-quantity-mode current_max `
+  --shooter-tier 8 --shooter-quantity-mode fixed --shooter-quantity 250 `
+  --rider-tier 1 --rider-quantity-mode fixed --rider-quantity 250 `
+  --vehicle-tier 1 --vehicle-quantity-mode current_max `
   --execute --yes
 ```
 
-The normal route recognizes Home/Base, opens one configured facility, enters its training view,
-and processes the enabled types by the four in-view tabs. It does not return Home or reopen a
-facility between troop types. Every Train dispatch is one consequential action with an immediate
-postcondition capture; the normal timed Train is the only training control authorized.
+The canonical consolidation route recognizes canonical Home Atlas state, opens one configured
+training facility, and uses the four verified top tabs to process each enabled troop type. Each tab
+freshly proves troop identity, tier, quantity, resources, and queue state. The route returns to
+canonical Home once after the configured tab pass. Every dispatch has
+fresh source/immediate-before/immediate-post evidence and an exact successor queue label/tier/
+quantity/timer; no Train Now or premium control is authorized.
 
 `--reconcile-unresolved-session <session>` is a recovery-only route. It requires the prior
 immediate-post evidence and a fresh live queue matching troop type, tier, quantity, and timer. It
 records the reconciliation and may navigate Home, but it has no consequential dispatch path.
-
-`--continue-from-training --training-troop-type <type>` is a bounded continuation for a live
-training view already reached by the route. It uses tabs only. `--continue-from-radial` is the
-corresponding navigation recovery for a positively recognized radial menu; neither mode opens
-another facility.
 
 ## Live BlueStacks observations
 
@@ -58,9 +60,9 @@ behavior, so an unproven completed pre-state is never silently accepted as a cla
 
 The live account displayed T1–T8 as trainable and T9+ as question-mark locked tiers. Quantity is
 edited through the numeric control and verified after entry. Normal Train displayed a live duration;
-Train Now displayed a premium-currency cost and was never targeted. The validated default live
-quantity was 250 at T8 for all four types. No warehouse continuation was required in the validated
-run.
+Train Now displayed a premium-currency cost and was never targeted. The default profile uses
+current maximums for Fighter/Vehicle and fixed 250 for Shooter/Rider at their configured tiers.
+No warehouse continuation was required in the validated run.
 
 ## Safety boundary
 

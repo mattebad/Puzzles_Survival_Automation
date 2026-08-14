@@ -2489,7 +2489,7 @@
       "title": "Converge Troop Training entry and return on verified navigation",
       "kind": "navigation_convergence",
       "priority": 50,
-      "status": "ready",
+      "status": "completed",
       "backlog_task_id": "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -2518,8 +2518,8 @@
         "home_recovery_latency_seconds"
       ],
       "blocked_reason": "",
-      "next_concrete_action": "Route all four entry-only facility paths through shared verified navigation while preserving the Train prohibition.",
-      "last_completed_stage": null,
+      "next_concrete_action": "Historical navigation-only flow is superseded by completed TROOP-TRAINING-END-TO-END-CONSOLIDATION.",
+      "last_completed_stage": "superseded",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
       "acceptance_criteria": [
@@ -2570,6 +2570,93 @@
         "initial_live_validation": "navigation_only",
         "train_action": "prohibited"
       }
+    },
+    {
+      "flow_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+      "title": "Consolidate configurable four-type Troop Training end to end",
+      "kind": "supervised_consequential_validation",
+      "priority": 45,
+      "status": "completed",
+      "backlog_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+      "dependencies": [],
+      "superseded_provenance": ["TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE"],
+      "implementation_entrypoints": [
+        "tasks/troop_training.py",
+        "tasks/troop_training_runtime.py",
+        "tasks/troop_training_entry.py",
+        "tasks/troop_training_vision.py",
+        "scripts/troop_training_bluestacks.py",
+        "scripts/flow_delivery_troop_training_bluestacks.py"
+      ],
+      "navigation_model": "canonical_home_atlas_single_facility_entry_verified_four_tab_pass_terminal_home",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "One bounded supervised development canary may exercise the named user-configurable profile through one canonical facility entry, verified top-tab transitions, and one terminal Home return.",
+      "consequence_policy": "supervised consequential validation; normal timed Train only; no Train Now, premium, speedup, registration, scheduler, or unsupported resource transaction.",
+      "product_policy_status": "supervised_consequential_validation",
+      "maximum_live_attempts": 1,
+      "development_session_max_inputs": 32,
+      "canary_admission": "durable handler guard rejects any prior dispatch-bearing artifact under this flow root; dry-run and observe-only recovery remain allowed",
+      "live_attempt_count": 1,
+      "live_attempts": [
+        {
+          "ordinal": 1,
+          "started_at": "2026-08-13T17:29:28Z",
+          "finished_at": "2026-08-14T05:51:01Z",
+          "session_directory": ".local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+          "terminal_outcome": "completed",
+          "diagnosis": "One bounded evidence-linked development canary and its materially changed repair continuations used canonical camp entry and verified top tabs. The terminal session freshly reconciled exact Fighter T8 x1000, Shooter T8 x250, and Rider T1 x250 queues, proved Vehicle current maximum 1000 before normal timed Train, verified exact Vehicle T1 x1000, and returned to canonical Home with ownership released.",
+          "input_count": 26,
+          "input_count_scope": "initial canary sequence; bounded repair-session inputs are retained in compact development-session summaries",
+          "terminal_verification_session": ".local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION/run-20260814T054246158698Z/troop-training-20260814T054246675094Z",
+          "terminal_verification_input_count": 10,
+          "consumes_live_attempt": true
+        }
+      ],
+      "focused_tests": [
+        "tests/test_troop_training.py",
+        "tests/test_troop_training_entry.py",
+        "tests/test_bluestacks_integrated_routes.py",
+        "tests/test_flow_delivery_troop_training.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": ["navigation_input_count", "per_type_training_records", "terminal_home_localization"],
+      "blocked_reason": "",
+      "next_concrete_action": "Begin SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT; Troop Training remains NOT_REGISTERED and scheduler-disabled.",
+      "last_completed_stage": "completed",
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+      "acceptance_criteria": [
+        "named default profile and all per-type overrides are retained exactly in route results",
+        "current_max resolves from current screen and proves selected equals maximum",
+        "exact queue label/type/tier/quantity and positive timer are reconciled",
+        "one canonical Home Atlas facility entry, exact per-type top-tab successors, and terminal Home evidence",
+        "one bounded canary retains native source/immediate-before/post/result evidence",
+        "development-session artifact contract requires native frames and events.jsonl; legacy bookkeeping is not fabricated"
+      ],
+      "scope_prohibitions": [
+        "no production registration or scheduler eligibility",
+        "no Daily Quest authority inheritance or promotion",
+        "no Train Now, premium, speedup, Cash Mall, or arbitrary ADB",
+        "no modification of Bliss, GnBots, or historical navigation flow"
+      ],
+      "reference_docs": ["docs/troop-training-bluestacks.md", "docs/prompts/daily-quest/dq-flow-training.md"],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "tasks/troop_training.py",
+        "tasks/troop_training_runtime.py",
+        "tasks/troop_training_entry.py",
+        "tasks/troop_training_vision.py",
+        "scripts/troop_training_bluestacks.py",
+        "scripts/flow_delivery_troop_training_bluestacks.py",
+        "tests/test_troop_training.py",
+        "tests/test_troop_training_entry.py",
+        "tests/test_bluestacks_integrated_routes.py",
+        "tests/test_flow_delivery_troop_training.py"
+      ],
+      "live_validation_scenarios": [{"id": "troop-training-consolidation-supervised-canary", "mode": "supervised_consequential_validation"}],
+      "required_terminal_states": ["recognized_home", "blocked", "unresolved", "manual_required"],
+      "completion_tests": ["tests/test_troop_training.py", "tests/test_troop_training_entry.py", "tests/test_bluestacks_integrated_routes.py", "tests/test_flow_delivery_troop_training.py"],
+      "consequential_stage_policy": {"initial_live_validation": "supervised_consequential_validation", "maximum_canaries": 1, "train_action": "normal_timed_train_only"}
     },
     {
       "flow_id": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",

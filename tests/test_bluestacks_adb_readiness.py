@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from subprocess import CompletedProcess
+from subprocess import CompletedProcess, TimeoutExpired
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -21,6 +21,22 @@ class BlueStacksADBReadinessTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         reset_adb_readiness_cache()
+
+    def test_default_start_timeout_probes_fixed_serial_unqualified(self) -> None:
+        calls: list[list[str]] = []
+
+        def run(command, **kwargs):
+            calls.append(command)
+            if len(calls) == 1:
+                self.assertEqual(kwargs["timeout"], 5.0)
+                raise TimeoutExpired(command, kwargs["timeout"])
+            return CompletedProcess([], 0, "device\n", "")
+
+        ensure_adb_ready("HD-Adb.exe", "emulator-5554", run=run)
+        self.assertEqual(calls, [
+            ["HD-Adb.exe", "start-server"],
+            ["HD-Adb.exe", "-s", "emulator-5554", "get-state"],
+        ])
 
     def test_server_starts_before_probe_and_success_is_cached(self) -> None:
         calls: list[list[str]] = []
@@ -69,14 +85,21 @@ class BlueStacksADBReadinessTests(unittest.TestCase):
         calls: list[list[str]] = []
         responses = iter(
             (
-                CompletedProcess([], 0, "", ""),
-                CompletedProcess([], 1, "offline\n", "offline"),
+                TimeoutExpired(["adb", "start-server"], 5.0),
                 CompletedProcess([], 1, "offline\n", "offline"),
             )
         )
-        run = lambda command, **kwargs: (calls.append(command) or next(responses))
+        def run(command, **kwargs):
+            calls.append(command)
+            response = next(responses)
+            if isinstance(response, Exception):
+                raise response
+            return response
+
         clock = iter((0.0, 0.0, 0.0, 1.0, 2.0, 3.0)).__next__
-        with self.assertRaisesRegex(ADBReadinessError, r"ADB readiness timed out.*attempts="):
+        with self.assertRaisesRegex(
+            ADBReadinessError, r"ADB readiness timed out.*start-server timed out; offline"
+        ):
             ensure_adb_ready(
                 "adb",
                 "emulator-5554",

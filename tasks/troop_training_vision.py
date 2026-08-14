@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import hashlib
+from pathlib import Path
 import re
 import unicodedata
 from typing import Mapping
@@ -37,6 +38,10 @@ from .troop_training import (
 PROFILE_SIZE = (800, 1280)
 Box = tuple[int, int, int, int]
 Target = tuple[str, Box]
+RADIAL_TRAIN_TEMPLATE_PATH = Path(__file__).resolve().parent / "assets" / "troop_training" / "800x1280" / "radial-train-icon.png"
+RADIAL_TRAIN_TEMPLATE_SHA256 = "3e733d4466f295edf9fc552a7462764cc4128a9efb572c4ba5f88846df8003cb"
+RADIAL_TRAIN_MATCH_MINIMUM = 0.78
+RADIAL_TRAIN_AMBIGUITY_MAXIMUM = 0.80
 
 FACILITY_BY_NORMALIZED = {"fighter camp": "fighter", "shooter camp": "shooter", "rider camp": "rider", "vehicle depot": "vehicle"}
 FACILITY_BY_COMPACT = {key.replace(" ", ""): value for key, value in FACILITY_BY_NORMALIZED.items()}
@@ -53,8 +58,24 @@ TAB_ROIS: Mapping[str, Box] = {
     "vehicle": (495, 65, 615, 185),
 }
 TIER_BAND: Box = (40, 790, 760, 990)
+# Canonical native training cards occupy these bounded slots.  The slots are
+# used only to recover small T-label OCR that ``image_to_data`` can miss; the
+# tier identity still comes from text inside each current-frame slot, never
+# from slot ordinal or swipe count.
+TIER_CARD_SLOTS: tuple[Box, ...] = (
+    (50, 835, 195, 955),
+    (185, 835, 330, 955),
+    (325, 835, 475, 955),
+    (460, 835, 610, 955),
+    (595, 835, 755, 955),
+)
 QUANTITY_BAND: Box = (500, 1010, 780, 1150)
 TRAIN_BAND: Box = (80, 1120, 760, 1270)
+# Native 800x1280 training screens render the active queue label and countdown
+# immediately above the normal Train/Speedup control (roughly y=1050..1150).
+# Keep this ROI spatially bound to that row; full-frame OCR is non-authorizing.
+QUEUE_BAND: Box = (90, 1040, 710, 1160)
+QUEUE_TIMER_BAND: Box = (180, 1095, 520, 1160)
 
 
 def _normalized(text: str) -> str:
@@ -66,6 +87,97 @@ def _ocr(frame: np.ndarray, box: Box | None = None, *, psm: int = 11) -> str:
     image = frame if box is None else frame[box[1]:box[3], box[0]:box[2]]
     enlarged = cv2.resize(image, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     return _normalized(pytesseract.image_to_string(enlarged, config=f"--psm {psm}"))
+
+
+def _queue_timer_text(frame: np.ndarray) -> str | None:
+    """Read a positive countdown only from the queue label's native timer row."""
+    image = frame[QUEUE_TIMER_BAND[1]:QUEUE_TIMER_BAND[3], QUEUE_TIMER_BAND[0]:QUEUE_TIMER_BAND[2]]
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    thresholded = cv2.threshold(gray, 160, 255, cv2.THRESH_BINARY)[1]
+    enlarged = cv2.resize(thresholded, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+    for psm in (6, 7, 11):
+        raw = pytesseract.image_to_string(
+            enlarged,
+            config=f"--psm {psm} -c tessedit_char_whitelist=0123456789:",
+        )
+        match = re.search(r"(?<!\d)(?:\d{1,3}):\d{2}:\d{2}(?!\d)", raw)
+        if match is None:
+            continue
+        candidate = match.group(0)
+        duration = parse_duration_seconds(candidate)
+        if duration is not None and duration > 0:
+            return candidate
+    return None
+
+
+def _tier_slot_text(frame: np.ndarray, slot: Box) -> str:
+    """Read one tier card's own label with bounded native variants.
+
+    The carousel labels are outlined gold/white text over artwork.  The
+    default grayscale OCR can lose the leading ``T`` (or the whole label) on
+    the low-contrast leftmost card.  Retry only within that same card using
+    color channels and a small y expansion; this keeps tier identity tied to
+    the current card rather than its ordinal position or swipe history.
+    """
+
+    initial = " ".join((_ocr(frame, slot, psm=6), _ocr(frame, slot, psm=11)))
+    # Do not accept an isolated OCR digit embedded in card artwork (for
+    # example ``2) gare`` on the T1 card).  An explicit T token is preferred;
+    # a pure numeric label remains compatible with stylized ``18`` -> T8
+    # fixtures.
+    explicit = re.search(r"(?:^|[^0-9])t\s*(1[0-3]|[1-9])(?=\D|$)", initial)
+    pure_numeric = re.fullmatch(r"1[0-3]|[1-9]", initial.strip())
+    if explicit is not None or pure_numeric is not None:
+        return initial
+    recovered: list[str] = [initial]
+    # Read the lower label strip first.  On a camera-shifted carousel the
+    # first card can be offset substantially, but its own T-label remains in
+    # this card-local lower band (and is not recoverable from the slot's
+    # ordinal).
+    center = (slot[0] + slot[2]) // 2
+    bands = (
+        (slot[0], max(0, slot[1] + 45), slot[2], min(1280, slot[3] + 15)),
+        # A centered sub-band avoids neighboring card artwork after a
+        # carousel translation while retaining the card-local T-label.
+        (max(0, center - 45), max(0, slot[1] + 45), min(800, center + 45), min(1280, slot[3] + 15)),
+        (slot[0], max(0, slot[1] + 60), slot[2], slot[3]),
+        (_expanded(slot, x_pad=0, y_pad=15)),
+    )
+    for bounded in bands:
+        crop = frame[bounded[1]:bounded[3], bounded[0]:bounded[2]]
+        if crop.size == 0:
+            continue
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        # Blue/gray retain the bright outlined card labels on the native Rider
+        # frame while remaining bounded to this card's ROI.
+        variants = (
+            (gray, (11, 6)),
+            (crop[:, :, 0], (11, 6)),
+            (crop[:, :, 2], (11, 6)),
+            # Gold/white outlined numerals separate more reliably after a
+            # bounded threshold on the native card label band.
+            (cv2.threshold(gray, 160, 255, cv2.THRESH_BINARY)[1], (11, 6)),
+            (cv2.threshold(crop[:, :, 0], 160, 255, cv2.THRESH_BINARY)[1], (11, 6)),
+            (cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)[1], (11,)),
+            (cv2.threshold(gray, 120, 255, cv2.THRESH_BINARY)[1], (11,)),
+            (cv2.threshold(crop[:, :, 0], 80, 255, cv2.THRESH_BINARY)[1], (11,)),
+            (cv2.threshold(crop[:, :, 0], 120, 255, cv2.THRESH_BINARY)[1], (11,)),
+        )
+        for variant, psms in variants:
+            enlarged = cv2.resize(variant, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+            for psm in psms:
+                text = _normalized(pytesseract.image_to_string(enlarged, config=f"--psm {psm}"))
+                if text:
+                    explicit = re.search(r"(?:^|[^0-9])t\s*(1[0-3]|[1-9])(?=\D|$)", text)
+                    pure_numeric = re.fullmatch(r"1[0-3]|[1-9]", text.strip())
+                    parsed = int(explicit.group(1)) if explicit is not None else (int(pure_numeric.group(0)) if pure_numeric else None)
+                    # Supplemental variants are only needed for the
+                    # low-contrast T1 label.  Do not let broad artwork OCR
+                    # invent another tier (e.g. T3 on a T6 card).
+                    if parsed == 1:
+                        recovered.append(text)
+                        return " ".join(recovered)
+    return " ".join(recovered)
 
 
 def _ocr_boxes(frame: np.ndarray, box: Box | None = None) -> list[tuple[str, Box]]:
@@ -180,6 +292,36 @@ def _selected_tier(frame: np.ndarray, full_text: str) -> int | None:
     return int(matches[0]) if matches else None
 
 
+def _bounded_tier_label(text: str) -> int | None:
+    """Parse a tier numeral from one current card's bounded OCR text.
+
+    Stylized card labels are often read as ``17``/``18`` rather than ``T7``/
+    ``T8`` because the leading T resembles ``1``.  Accept that narrowly
+    bounded OCR artifact while rejecting arbitrary frame numbers.
+    """
+
+    direct = re.search(r"\bt\s*(1[0-3]|[1-9])\b", text)
+    if direct is not None:
+        return int(direct.group(1))
+    # Card-local OCR may glue a preceding artwork character to the stylized
+    # T (for example ``aT3``).  The bounded slot already proves spatial
+    # association, so accept the suffix while still requiring a complete
+    # 1..13 tier token.
+    glued = re.search(r"t\s*(1[0-3]|[1-9])(?=\D|$)", text)
+    if glued is not None:
+        return int(glued.group(1))
+    malformed = re.search(r"(?<!\d)1(1[0-3]|[1-9])(?:\D|$)", text)
+    if malformed is not None:
+        return int(malformed.group(1))
+    # On the dark unlocked T7 card Tesseract can drop the stylized T and
+    # leave only a repeated standalone ``7``.  Accept it only when every
+    # bounded numeric token agrees, avoiding arbitrary card-art numbers.
+    numerals = re.findall(r"(?<!\d)(1[0-3]|[1-9])(?!\d)", text)
+    if numerals and len(set(numerals)) == 1:
+        return int(numerals[0])
+    return None
+
+
 def _tier_observations(frame: np.ndarray, full_text: str, selected: int | None) -> tuple[TierObservation, ...]:
     observations: dict[int, TierObservation] = {}
     for raw_text, box in _ocr_boxes(frame, TIER_BAND):
@@ -189,7 +331,19 @@ def _tier_observations(frame: np.ndarray, full_text: str, selected: int | None) 
         tier = int(match.group(1))
         card = _expanded(box, x_pad=45, y_pad=45)
         card_text = _ocr(frame, card, psm=6)
-        locked_marker = "?" in card_text or "locked" in card_text or "requires" in card_text
+        card_crop = frame[card[1]:card[3], card[0]:card[2]]
+        card_hsv = cv2.cvtColor(card_crop, cv2.COLOR_BGR2HSV) if card_crop.size else None
+        # Locked/question-mark cards are rendered as dark, desaturated tiles in
+        # the native carousel even when OCR misses the question glyph.  This
+        # visual marker is advisory only and is combined with the exact card
+        # label; it never infers a tier from position.
+        locked_visual = bool(
+            card_hsv is not None
+            and float(card_hsv[:, :, 1].mean()) < 25.0
+            and float(card_hsv[:, :, 2].mean()) < 55.0
+            and (selected is None or tier > selected)
+        )
+        locked_marker = "?" in card_text or "locked" in card_text or "requires" in card_text or locked_visual
         is_selected = tier == selected
         unlocked = is_selected and "train" in _ocr(frame, TRAIN_BAND, psm=6) and "required" not in full_text and not locked_marker
         if not is_selected and not locked_marker:
@@ -201,6 +355,34 @@ def _tier_observations(frame: np.ndarray, full_text: str, selected: int | None) 
             visible=True,
             unlocked=unlocked,
             selected=is_selected,
+            question_mark="?" in card_text,
+            lock_reason=card_text if locked_marker else "",
+            target_roi=card,
+        )
+    # Recover labels that image_to_data misses on the low-contrast unlocked
+    # cards (notably T6/T7 in the Rider screen).  Each candidate is parsed from
+    # its own bounded native slot; no tier is inferred from position.
+    for slot in TIER_CARD_SLOTS:
+        slot_text = _tier_slot_text(frame, slot)
+        tier = _bounded_tier_label(slot_text)
+        if tier is None or tier in observations:
+            continue
+        card = _expanded(slot, x_pad=0, y_pad=0)
+        card_text = _ocr(frame, card, psm=6)
+        card_crop = frame[card[1]:card[3], card[0]:card[2]]
+        card_hsv = cv2.cvtColor(card_crop, cv2.COLOR_BGR2HSV) if card_crop.size else None
+        locked_visual = bool(
+            card_hsv is not None
+            and float(card_hsv[:, :, 1].mean()) < 25.0
+            and float(card_hsv[:, :, 2].mean()) < 55.0
+            and (selected is None or tier > selected)
+        )
+        locked_marker = "?" in card_text or "locked" in card_text or "requires" in card_text or locked_visual
+        observations[tier] = TierObservation(
+            tier=tier,
+            visible=True,
+            unlocked=not locked_marker,
+            selected=tier == selected,
             question_mark="?" in card_text,
             lock_reason=card_text if locked_marker else "",
             target_roi=card,
@@ -247,6 +429,23 @@ def recognize_home(frame: np.ndarray, *, reset_identity: str | None = None) -> H
     boxes += _ocr_boxes(frame, (520, 710, 690, 830))
     for label_roi in ((80, 680, 380, 810), (350, 620, 540, 710), (500, 700, 710, 830), (340, 820, 500, 900)):
         boxes += _ocr_variant_boxes(frame, label_roi)
+    # This recovery frame is a fully zoomed Home layout whose facility labels
+    # sit above the older broad OCR bands.  Keep each read spatially bounded to
+    # the expected building-label neighborhood; these are identity evidence,
+    # not free-form full-frame text.
+    for label_roi in (
+        (260, 470, 470, 560),   # Fighter Camp
+        (450, 365, 640, 440),   # Shooter Camp
+        (620, 440, 800, 530),   # Rider Camp
+        (430, 520, 650, 640),   # Vehicle Depot
+    ):
+        boxes += _ocr_variant_boxes(frame, label_roi)
+    home_hud_band = (0, 0, 800, 70)
+    home_hud_text = " ".join(
+        (_ocr(frame, home_hud_band, psm=6), _ocr(frame, home_hud_band, psm=11))
+    )
+    home_hud_values = re.findall(r"\b\d+(?:\.\d+)?\s*[kmb]\b", home_hud_text)
+    home_hud_signal = len(home_hud_values) >= 3 and "+" in home_hud_text
     headquarters_band = " ".join(
         (
             _ocr(frame, (350, 480, 560, 570), psm=6),
@@ -257,44 +456,13 @@ def recognize_home(frame: np.ndarray, *, reset_identity: str | None = None) -> H
             _ocr(frame, (250, 400, 520, 550), psm=11),
         )
     )
-
-
-def forbidden_atlas_entry_surface(frame: np.ndarray) -> str | None:
-    """Reject consequential or modal surfaces before Home-atlas localization.
-
-    This is deliberately a semantic negative gate, not a Home recognizer.  The
-    atlas localizer remains the positive Home authority and therefore does not
-    inherit the legacy requirement that all four troop facilities be visible.
-    """
-
-    if frame is None or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
-        return "non_native_frame"
-    text = _ocr(frame)
-    phrases = (
-        ("train now", "unexpected_training_surface"),
-        ("auto use", "unexpected_resource_box_surface"),
-        ("resource boxes", "unexpected_resource_box_surface"),
-        ("daily free attempts", "unexpected_resource_surface"),
-        ("premium", "unexpected_premium_surface"),
-        ("purchase", "unexpected_purchase_surface"),
-    )
-    for phrase, reason in phrases:
-        if phrase in text:
-            return reason
-    if "quantity" in text and ("train now" in text or "select tier" in text):
-        return "unexpected_quantity_surface"
-    if "warehouse" in text and ("confirm" in text or "use resources" in text or "insufficient" in text):
-        return "unexpected_warehouse_surface"
-    if "confirm" in text and "cancel" in text:
-        return "unexpected_confirmation_overlay"
-    return None
     facilities: dict[str, Box] = {}
     label_y_hint = {"fighter": 775, "shooter": 675, "rider": 765, "vehicle": 865}
     for troop_type in TROOP_TYPES:
         candidates = [
             (box, abs(box[1] - label_y_hint[troop_type]))
             for text, box in boxes
-            if any(alias in text for alias in FACILITY_OCR_ALIASES[troop_type]) and 500 <= box[1] <= 950
+            if any(alias in text for alias in FACILITY_OCR_ALIASES[troop_type]) and 350 <= box[1] <= 950
         ]
         label_box = min(candidates, key=lambda item: item[1])[0] if candidates else None
         if label_box is None and troop_type == "fighter":
@@ -308,6 +476,19 @@ def forbidden_atlas_entry_surface(frame: np.ndarray) -> str | None:
             )
             if "fighter camp" in fighter_label_text:
                 label_box = fighter_label_band
+        if label_box is None and troop_type == "rider":
+            # On a retained Home frame the right-side Rider Camp label can be
+            # partially occluded, and OCR may return ``ridengay``/``ridenca``.
+            # Accept only that bounded label neighborhood; a free-form
+            # full-frame ``rid`` token is not facility evidence.
+            rider_label_band = (620, 440, 800, 530)
+            rider_candidates = [
+                box
+                for text, box in boxes
+                if 440 <= box[1] <= 530 and (text.startswith("rider") or text.startswith("rid"))
+            ]
+            if rider_candidates:
+                label_box = min(rider_candidates, key=lambda box: abs(box[1] - 490))
         if label_box is not None:
             if troop_type == "fighter":
                 # OCR commonly clips the leftmost F in the live label.  Bind the current
@@ -344,10 +525,12 @@ def forbidden_atlas_entry_surface(frame: np.ndarray) -> str | None:
             else:
                 facilities[troop_type] = _expanded(label_box, x_pad=100, y_pad=165)
     recognized = (
-        "headquarters" in full_text
+        ("headquarters" in full_text
         or "headquarter" in full_text
         or "headquarter" in headquarters_band
-    ) and len(facilities) == len(TROOP_TYPES)
+        or home_hud_signal)
+        and len(facilities) == len(TROOP_TYPES)
+    )
     ready_text = "training completed" in full_text or "ready to claim" in full_text
     completed_ready = {troop_type: bool(ready_text and troop_type in full_text) for troop_type in TROOP_TYPES}
     return HomeObservation(
@@ -358,8 +541,51 @@ def forbidden_atlas_entry_surface(frame: np.ndarray) -> str | None:
         overlay_state="unknown" if any(word in full_text for word in ("loading", "confirm", "purchase")) else "none",
         reset_identity=reset_identity,
         frame_sha256=digest,
-        diagnostics={"full_text": full_text, "headquarters_band": headquarters_band, "ocr_boxes": boxes},
+        diagnostics={
+            "full_text": full_text,
+            "headquarters_band": headquarters_band,
+            "home_hud_band": home_hud_band,
+            "home_hud_text": home_hud_text,
+            "home_hud_values": home_hud_values,
+            # Keep the bounded resource-HUD predicate available to recovery.
+            # Facility OCR is intentionally not folded into this signal: a
+            # camera pan may clip one or more labels while the native Home HUD
+            # remains fully visible.
+            "home_hud_signal": home_hud_signal,
+            "ocr_boxes": boxes,
+        },
     )
+
+
+def forbidden_atlas_entry_surface(frame: np.ndarray) -> str | None:
+    """Reject consequential or modal surfaces before Home-atlas localization.
+
+    This is deliberately a semantic negative gate, not a Home recognizer.  The
+    atlas localizer remains the positive Home authority and therefore does not
+    inherit the legacy requirement that all four troop facilities be visible.
+    """
+
+    if frame is None or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
+        return "non_native_frame"
+    text = _ocr(frame)
+    phrases = (
+        ("train now", "unexpected_training_surface"),
+        ("auto use", "unexpected_resource_box_surface"),
+        ("resource boxes", "unexpected_resource_box_surface"),
+        ("daily free attempts", "unexpected_resource_surface"),
+        ("premium", "unexpected_premium_surface"),
+        ("purchase", "unexpected_purchase_surface"),
+    )
+    for phrase, reason in phrases:
+        if phrase in text:
+            return reason
+    if "quantity" in text and ("train now" in text or "select tier" in text):
+        return "unexpected_quantity_surface"
+    if "warehouse" in text and ("confirm" in text or "use resources" in text or "insufficient" in text):
+        return "unexpected_warehouse_surface"
+    if "confirm" in text and "cancel" in text:
+        return "unexpected_confirmation_overlay"
+    return None
 
 
 def recognize_exit_dialog(frame: np.ndarray) -> tuple[bool, Box | None]:
@@ -372,6 +598,15 @@ def recognize_exit_dialog(frame: np.ndarray) -> tuple[bool, Box | None]:
     confirm_text = _ocr(frame, (400, 650, 740, 780), psm=7)
     recognized = "exit" in modal_text and "game" in modal_text and "cancel" in cancel_text and "confirm" in confirm_text
     return recognized, (60, 650, 380, 780) if recognized else None
+
+
+def recognize_training_speedup(frame: np.ndarray) -> bool:
+    """Recognize only Training Speedup; this authorizes Back, never Use."""
+
+    if not isinstance(frame, np.ndarray) or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
+        return False
+    title = " ".join((_ocr(frame, (150, 0, 650, 85), psm=6), _ocr(frame, (150, 0, 650, 85), psm=11)))
+    return "training speedup" in title
 
 
 def recognize_auto_use_resource_popup(frame: np.ndarray) -> AutoUseResourcePopupObservation:
@@ -417,44 +652,83 @@ def recognize_auto_use_resource_popup(frame: np.ndarray) -> AutoUseResourcePopup
     )
 
 
-def recognize_radial_menu(frame: np.ndarray, *, troop_type: str | None = None) -> RadialMenuObservation:
+def _radial_train_sector(facility_target: Box) -> Box | None:
+    """Return the tight Train sector relative to the freshly tapped facility."""
+
+    x0, y0, x1, y1 = (int(value) for value in facility_target)
+    if not (0 <= x0 < x1 <= PROFILE_SIZE[0] and 0 <= y0 < y1 <= PROFILE_SIZE[1]):
+        return None
+    center_x = (x0 + x1) // 2
+    center_y = (y0 + y1) // 2
+    sector = (
+        max(0, center_x + 50),
+        max(0, center_y),
+        min(PROFILE_SIZE[0], center_x + 205),
+        min(PROFILE_SIZE[1], center_y + 165),
+    )
+    return sector if sector[2] - sector[0] >= 80 and sector[3] - sector[1] >= 80 else None
+
+
+def _radial_train_target(frame: np.ndarray, sector: Box) -> Box | None:
+    """Match the retained native Train icon template inside one bounded sector."""
+
+    try:
+        encoded = RADIAL_TRAIN_TEMPLATE_PATH.read_bytes()
+    except OSError:
+        return None
+    if hashlib.sha256(encoded).hexdigest() != RADIAL_TRAIN_TEMPLATE_SHA256:
+        return None
+    template = cv2.imdecode(np.frombuffer(encoded, dtype=np.uint8), cv2.IMREAD_COLOR)
+    search = frame[sector[1]:sector[3], sector[0]:sector[2]]
+    if template is None or search.shape[0] < template.shape[0] or search.shape[1] < template.shape[1]:
+        return None
+    response = cv2.matchTemplate(search, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, location = cv2.minMaxLoc(response)
+    if score < RADIAL_TRAIN_MATCH_MINIMUM:
+        return None
+    suppressed = response.copy()
+    tx, ty = location
+    height, width = template.shape[:2]
+    suppressed[
+        max(0, ty - height // 2):min(suppressed.shape[0], ty + height // 2 + 1),
+        max(0, tx - width // 2):min(suppressed.shape[1], tx + width // 2 + 1),
+    ] = -1.0
+    if suppressed.size and cv2.minMaxLoc(suppressed)[1] >= RADIAL_TRAIN_AMBIGUITY_MAXIMUM:
+        return None
+    x0, y0 = sector[0] + tx, sector[1] + ty
+    return (x0, y0, x0 + width, y0 + height)
+
+
+def recognize_radial_menu(
+    frame: np.ndarray,
+    *,
+    troop_type: str | None = None,
+    facility_target: Box | None = None,
+) -> RadialMenuObservation:
     if frame is None or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
         raise ValueError("radial-menu frame must be a native 800x1280 image")
     digest = _digest(frame)
     text = _ocr(frame)
-    details_band = " ".join((_ocr(frame, (70, 760, 205, 880), psm=6), _ocr(frame, (70, 760, 205, 880), psm=11)))
-    upgrade_band = " ".join((_ocr(frame, (195, 770, 310, 890), psm=6), _ocr(frame, (195, 770, 310, 890), psm=11)))
-    train_band = " ".join((_ocr(frame, (300, 760, 430, 890), psm=6), _ocr(frame, (300, 760, 430, 890), psm=11)))
     detected_type, facility = _training_title(text)
     if troop_type is not None:
         # Several other facility labels remain visible behind the radial.  The
         # menu itself has no facility title, so identity comes only from the
         # exact current-frame facility binding that the caller just tapped.
         detected_type, facility = troop_type, FACILITY_BY_TYPE[troop_type]
-    boxes = _ocr_boxes(frame)
-    # The radial menu follows the building's current screen position.  Bind from the current
-    # menu text across the lower-center band instead of assuming Fighter Camp's fixed menu ROI.
-    # The radial follows the freshly bound facility and can occupy the lower
-    # canonical scene (Fighter/Vehicle) as well as the historical middle band.
-    # This remains current-frame OCR; no fixed action coordinate is inferred.
-    menu_boxes = _ocr_variant_boxes(frame, (60, 680, 680, 1100))
-    menu_text = " ".join(label for label, _ in menu_boxes)
-    train_box = next(
-        (box for label, box in boxes + menu_boxes if label.strip(".,:;!?") in {"train", "rain"}),
-        None,
-    )
-    if train_box is None and ("train" in train_band or "rain" in train_band):
-        train_box = (300, 760, 430, 890)
-    radial = (
-        ("details" in text or "details" in details_band or "details" in menu_text or "petals" in menu_text)
-        and ("upgrade" in text or "upgra" in upgrade_band or "upgrade" in menu_text)
-        and ("train" in text or "rain" in text or "train" in train_band or "rain" in train_band or "train" in menu_text)
-        and facility is not None
-    )
+    if facility_target is not None:
+        train_sector = _radial_train_sector(facility_target)
+        train_target = _radial_train_target(frame, train_sector) if train_sector is not None else None
+        radial = train_target is not None and facility is not None
+    else:
+        # Recovery has no retained facility binding, so search the bounded
+        # center scene for the same exact template. It can only authorize a
+        # radial close; canonical Train entry uses the tighter sector above.
+        train_target = _radial_train_target(frame, (200, 250, 650, 650))
+        radial = train_target is not None and facility is not None
     return RadialMenuObservation(
         recognized=radial,
         facility_identity=facility or "",
-        train_target=_expanded(train_box, x_pad=75, y_pad=55) if train_box is not None else None,
+        train_target=train_target,
         completed_banner=next((line for line in ("fighter", "shooter", "rider", "vehicle") if "training completed" in text and line in text), ""),
         overlay_state="unknown" if "confirm" in text else "none",
         frame_sha256=digest,
@@ -471,6 +745,7 @@ def recognize_training(frame: np.ndarray) -> TrainingScreenObservation:
     master_band = " ".join((_ocr(frame, (600, 250, 790, 420), psm=6), _ocr(frame, (600, 250, 790, 420), psm=11)))
     troop_type, facility = _training_title(title_context)
     bottom_text = _ocr(frame, TRAIN_BAND, psm=6)
+    queue_text = " ".join((_ocr(frame, QUEUE_BAND, psm=6), _ocr(frame, QUEUE_BAND, psm=11)))
     quantity_text = _ocr(frame, QUANTITY_BAND, psm=7)
     quantity_values = re.findall(r"[0-9][0-9,]*", quantity_text)
     selected_quantity = parse_quantity(quantity_values[0]) if quantity_values else None
@@ -516,17 +791,37 @@ def recognize_training(frame: np.ndarray) -> TrainingScreenObservation:
     # An active queue renders its label and countdown above the normal control band.  The
     # bottom-band OCR therefore often misses the timer even though the full native frame contains
     # the positive queue successor (for example: `Train T8 Veteran x250 02:55:32`).
-    duration_match = re.search(r"(?:\d+d)?(?:\d{1,3}:)?\d{1,3}:\d{2}:\d{2}", bottom_text)
-    if duration_match is None:
-        duration_match = re.search(r"(?:\d+d)?(?:\d{1,3}:)?\d{1,3}:\d{2}:\d{2}", full_text)
-    if duration_match is None:
-        duration_match = re.search(r"(?:\d+d)?(?:\d{1,3}:)?\d{1,3}:\d{2}:\d{2}", normal_button_text)
-    duration = parse_duration_seconds(duration_match.group(0)) if duration_match else None
     queue_match = re.search(
         r"\btrain\s+t\s*(1[0-3]|[1-9])\b.*?\bx\s*([0-9][0-9,]*)",
-        full_text,
+        queue_text,
     )
     queue_quantity = parse_quantity(queue_match.group(2)) if queue_match else None
+    duration_match = None
+    duration = None
+    duration_source = "none"
+    duration_ocr_source = "none"
+    queue_timer_text = None
+    if queue_match is not None:
+        duration_match = re.search(r"(?:\d+d)?(?:\d{1,3}:)?\d{1,3}:\d{2}:\d{2}", queue_text)
+        duration = parse_duration_seconds(duration_match.group(0)) if duration_match else None
+        if duration is not None and duration > 0:
+            duration_source = "queue_band"
+            duration_ocr_source = "queue_band"
+        else:
+            queue_timer_text = _queue_timer_text(frame)
+            fallback_duration = parse_duration_seconds(queue_timer_text) if queue_timer_text is not None else None
+            if fallback_duration is not None and fallback_duration > 0:
+                duration = fallback_duration
+                duration_source = "queue_band"
+                duration_ocr_source = "queue_timer_band"
+            else:
+                duration = None
+    else:
+        duration_match = re.search(r"(?:\d+d)?(?:\d{1,3}:)?\d{1,3}:\d{2}:\d{2}", normal_button_text)
+        duration = parse_duration_seconds(duration_match.group(0)) if duration_match else None
+        if duration is not None and duration > 0:
+            duration_source = "normal_train_band"
+            duration_ocr_source = "normal_train_band"
     if queue_quantity is not None:
         # Quantity OCR in the hidden/disabled editor is not a reliable queue value.  The live
         # queue label is the exact semantic successor and is bound to the selected troop type.
@@ -569,7 +864,15 @@ def recognize_training(frame: np.ndarray) -> TrainingScreenObservation:
     queue_active = bool(
         not completion_banner
         and duration is not None
-        and (queue_match is not None or normal_box is None or "remaining" in full_text or "queue active" in full_text)
+        and duration > 0
+        and queue_match is not None
+    )
+    active_queue_companion = bool(
+        queue_active
+        and troop_type
+        and facility
+        and selected is not None
+        and any(tier.selected and tier.tier == selected for tier in tiers)
     )
     recognized = bool(
         troop_type
@@ -578,7 +881,7 @@ def recognize_training(frame: np.ndarray) -> TrainingScreenObservation:
         # The live Master Trainer label is sometimes OCR'd as the clipped
         # `mas ... rainery`; require the companion training-time label too so
         # this remains a positive screen-recognition signal.
-        and master_trainer_signal
+        and (master_trainer_signal or active_queue_companion)
     )
     return TrainingScreenObservation(
         recognized=recognized,
@@ -593,6 +896,10 @@ def recognize_training(frame: np.ndarray) -> TrainingScreenObservation:
         train_now_target=train_now_target,
         training_duration_seconds=duration,
         queue_active=queue_active,
+        queue_label=queue_match.group(0) if queue_match is not None else None,
+        queue_troop_type=troop_type if queue_match is not None else None,
+        queue_tier=int(queue_match.group(1)) if queue_match is not None else None,
+        queue_quantity=queue_quantity,
         completion_ready=completion_banner,
         completion_batch_id=f"{troop_type}:{digest}" if completion_banner and troop_type else None,
         completion_banner=full_text if completion_banner else "",
@@ -603,7 +910,7 @@ def recognize_training(frame: np.ndarray) -> TrainingScreenObservation:
         forbidden_controls=forbidden,
         overlay_state="unknown" if "loading" in full_text else "popup" if popup else "none",
         frame_sha256=digest,
-        diagnostics={"full_text": full_text, "title_band": title_band, "master_band": master_band, "bottom_text": bottom_text, "normal_button_text": normal_button_text, "quantity_text": quantity_text, "ocr_boxes": boxes},
+        diagnostics={"full_text": full_text, "title_band": title_band, "master_band": master_band, "bottom_text": bottom_text, "queue_band": QUEUE_BAND, "queue_timer_band": QUEUE_TIMER_BAND, "queue_text": queue_text, "queue_timer_text": queue_timer_text, "normal_button_text": normal_button_text, "duration_source": duration_source, "duration_ocr_source": duration_ocr_source, "quantity_text": quantity_text, "ocr_boxes": boxes, "queue_label": queue_match.group(0) if queue_match is not None else None, "queue_tier": int(queue_match.group(1)) if queue_match is not None else None, "queue_quantity": queue_quantity, "queue_spatially_associated": queue_match is not None and duration_source in {"queue_band", "queue_timer_band"}},
     )
 
 

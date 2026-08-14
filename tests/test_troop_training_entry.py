@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import time
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import numpy as np
 
@@ -86,6 +87,14 @@ def loc(x: float = 0, y: float = 0, digest: str = "a" * 64, *, recognized: bool 
     )
 
 
+def zoomed_loc(digest: str = "z" * 64) -> LocalizationResult:
+    return replace(
+        loc(digest=digest, recognized=False),
+        zoom_identity=ZoomIdentity.ZOOMED_IN,
+        confidence=0.86,
+    )
+
+
 def semantic_binding(target, localization: LocalizationResult) -> BuildingBinding:
     return BuildingBinding(target.building_id, (300, 400, 440, 540), localization.frame_sha256, 0.95, (f"current-frame OCR: {target.facility_identity}",))
 
@@ -95,11 +104,12 @@ class Runtime:
         self.execute = execute
         self.in_flight_action = None
         self.session = Path("fake-entry-session")
-        self.frames = [CapturedNativeFrame(np.full((1280, 800, 3), index, np.uint8), b"png", f"{index:064x}", float(index + 1), Path(f"{index}.png")) for index in range(count)]
+        self.frames = [CapturedNativeFrame(np.full((1280, 800, 3), index, np.uint8), b"png", f"{index:064x}", time.monotonic(), Path(f"{index}.png")) for index in range(count)]
         self.index = 0
         self.taps = []
         self.swipes = []
         self.backs = []
+        self.zoom_calls = []
 
     def capture(self, _label):
         frame = self.frames[self.index]
@@ -114,6 +124,26 @@ class Runtime:
 
     def back(self, source, **kwargs):
         self.backs.append((source.sha256, kwargs))
+
+    def measure_device_state(self):
+        return "device"
+
+    def measure_foreground_package(self):
+        return "com.global.ztmslg"
+
+    def dispatch_external_zoom(self, source, *, action_key, transport):
+        self.zoom_calls.append((source.sha256, action_key))
+        transport()
+
+
+class ZoomTransport:
+    def __init__(self, *, fail=False):
+        self.calls, self.fail = 0, fail
+
+    def zoom_out_once(self):
+        self.calls += 1
+        if self.fail:
+            raise RuntimeError("transport failed")
 
 
 class TroopTrainingEntryContractTests(unittest.TestCase):
@@ -196,7 +226,7 @@ class TroopTrainingEntryContractTests(unittest.TestCase):
 
 
 class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
-    def _route(self, runtime: Runtime, *, entry_only=False, atlas=None):
+    def _route(self, runtime: Runtime, *, entry_only=False, atlas=None, zoom_transport=None):
         return TroopTrainingIntegratedRoute(
             runtime,
             config=config(),
@@ -206,7 +236,44 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
             atlas_path=Path("atlas.json"),
             maximum_home_pans=2,
             home_pan_settle_seconds=0,
+            zoom_transport=zoom_transport,
         )
+
+    def _run_zoom_case(
+        self,
+        target,
+        localizations,
+        *,
+        home,
+        transport,
+        bind=None,
+        unchanged=False,
+        immediate_home=None,
+    ):
+        runtime = Runtime()
+        localizations = iter(localizations)
+        if unchanged:
+            runtime.frames[3] = runtime.frames[1]
+        route = self._route(runtime, zoom_transport=transport)
+        binding_patch = (
+            patch("scripts.troop_training_bluestacks.bind_visible_building", side_effect=bind)
+            if bind is not None
+            else patch("scripts.troop_training_bluestacks.bind_visible_building", return_value=None)
+        )
+        with patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=world()), patch(
+            "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer",
+            return_value=SimpleNamespace(
+                localize=lambda _frame: next(localizations),
+                canonical_reference=np.zeros((1280, 800, 3), dtype=np.uint8),
+            ),
+        ), patch(
+            "scripts.troop_training_bluestacks.recognize_home",
+            side_effect=(home, immediate_home if immediate_home is not None else home),
+        ), patch(
+            "scripts.troop_training_bluestacks.forbidden_atlas_entry_surface", return_value=None
+        ), binding_patch:
+            result = route._navigate_selected_facility(target)
+        return route, runtime, result
 
     def test_project_route_zero_pan_and_one_calculated_pan_relocalize(self):
         target = first_enabled_entry_target(config())
@@ -264,6 +331,112 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         self.assertEqual(dry_runtime.swipes, [])
         self.assertEqual(dry_runtime.taps, [])
 
+    def test_zoomed_home_recovers_once_then_binds_only_canonical_successor(self):
+        transport = ZoomTransport()
+        target = first_enabled_entry_target(config())
+        bind_calls = []
+
+        def bind(_frame, localization, _building):
+            bind_calls.append(localization)
+            return semantic_binding(target, localization)
+
+        route, runtime, result = self._run_zoom_case(
+            target,
+            iter((zoomed_loc("source"), zoomed_loc("before"), loc(digest="settled"), loc(digest="facility"))),
+            home=SimpleNamespace(overlay_state="none", diagnostics={"home_hud_signal": True}),
+            transport=transport,
+            bind=bind,
+        )
+        captured, binding, _planner, error = result
+
+        self.assertIsNone(error)
+        self.assertIsNotNone(binding)
+        self.assertEqual(transport.calls, 1)
+        self.assertEqual(len(runtime.zoom_calls), 1)
+        self.assertFalse(runtime.taps or runtime.swipes)
+        self.assertTrue(
+            all(item.zoom_identity is ZoomIdentity.FULLY_ZOOMED_OUT for item in bind_calls)
+        )
+        self.assertIs(
+            route.entry_navigation["source_localization"]["zoom_identity"],
+            ZoomIdentity.FULLY_ZOOMED_OUT,
+        )
+        self.assertEqual(
+            set(route.entry_navigation["home_zoom_recovery"]),
+            {
+                "immediate_before_sha256",
+                "driver_digest",
+                "driver_disposition",
+                "driver_reason",
+                "immediate_post_sha256",
+                "settled_sha256",
+                "settled_driver_digest",
+                "settled_driver_reason",
+            },
+        )
+
+    def test_zoom_recovery_gates_and_stops_without_facility_input(self):
+        target = first_enabled_entry_target(config())
+        cases = (
+            ("hud", SimpleNamespace(overlay_state="none", diagnostics={"home_hud_signal": False})),
+            ("overlay", SimpleNamespace(overlay_state="unknown", diagnostics={"home_hud_signal": True})),
+        )
+        for _name, home in cases:
+            with self.subTest(_name):
+                transport = ZoomTransport()
+                _route, runtime, result = self._run_zoom_case(
+                    target, iter((zoomed_loc("source"),)), home=home, transport=transport
+                )
+                _captured, binding, _planner, error = result
+                self.assertEqual(error, "home_zoom_recovery_home_hud_not_positive")
+                self.assertIsNone(binding)
+                self.assertEqual(transport.calls, 0)
+                self.assertFalse(runtime.zoom_calls or runtime.taps or runtime.swipes)
+
+    def test_zoom_recovery_revalidates_immediate_before_home_before_dispatch(self):
+        target = first_enabled_entry_target(config())
+        initial_home = SimpleNamespace(overlay_state="none", diagnostics={"home_hud_signal": True})
+        cases = (
+            ("hud", SimpleNamespace(overlay_state="none", diagnostics={"home_hud_signal": False})),
+            ("overlay", SimpleNamespace(overlay_state="unknown", diagnostics={"home_hud_signal": True})),
+        )
+        for name, immediate_home in cases:
+            with self.subTest(name):
+                transport = ZoomTransport()
+                _route, runtime, result = self._run_zoom_case(
+                    target,
+                    iter((zoomed_loc("source"),)),
+                    home=initial_home,
+                    immediate_home=immediate_home,
+                    transport=transport,
+                )
+                _captured, binding, _planner, error = result
+                self.assertEqual(error, "home_zoom_recovery_home_hud_not_positive")
+                self.assertIsNone(binding)
+                self.assertEqual(transport.calls, 0)
+                self.assertFalse(runtime.zoom_calls or runtime.taps or runtime.swipes)
+
+    def test_zoom_recovery_stops_on_unknown_unchanged_or_transport_failure(self):
+        target = first_enabled_entry_target(config())
+        for name, settled, transport, reuse_before, expected in (
+            ("unknown", loc(digest="unknown", recognized=False), ZoomTransport(), False, "home_zoom_successor_not_canonical"),
+            ("unchanged", loc(digest="settled"), ZoomTransport(), True, "home_zoom_successor_unchanged"),
+            ("transport", loc(digest="settled"), ZoomTransport(fail=True), False, "home_zoom_transport_failed"),
+        ):
+            with self.subTest(name):
+                _route, runtime, result = self._run_zoom_case(
+                    target,
+                    iter((zoomed_loc("source"), zoomed_loc("before"), settled)),
+                    home=SimpleNamespace(overlay_state="none", diagnostics={"home_hud_signal": True}),
+                    transport=transport,
+                    unchanged=reuse_before,
+                )
+                _captured, binding, _planner, error = result
+                self.assertIsNone(binding)
+                self.assertIn(expected, error)
+                self.assertEqual(transport.calls, 1)
+                self.assertFalse(runtime.taps or runtime.swipes)
+
     def test_entry_only_opens_facility_but_never_taps_train_and_recovers_home(self):
         runtime = Runtime()
         route = self._route(runtime, entry_only=True)
@@ -299,15 +472,36 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         target = first_enabled_entry_target(config())
         facility_capture = runtime.capture("bound")
         binding = semantic_binding(target, loc())
-        planner = SimpleNamespace(radial_is_exact=lambda item: True)
-        radial_capture = runtime.capture("radial")
-        radial = RadialMenuObservation(True, target.facility_identity, (300, 760, 430, 890), frame_sha256="b" * 64)
+        planner = SimpleNamespace(
+            radial_is_exact=lambda item: (
+                item.recognized
+                and item.facility_identity == target.facility_identity
+                and item.train_target is not None
+                and item.overlay_state == "none"
+            )
+        )
+        initial_radial_capture = runtime.capture("radial")
+        initial_radial = RadialMenuObservation(
+            True,
+            target.facility_identity,
+            (300, 760, 430, 890),
+            frame_sha256=initial_radial_capture.sha256,
+        )
+        fresh_radial_capture = runtime.capture("fresh-radial")
+        fresh_radial = RadialMenuObservation(
+            True,
+            target.facility_identity,
+            (410, 700, 540, 830),
+            frame_sha256=fresh_radial_capture.sha256,
+        )
         training_capture = runtime.capture("training")
         training = SimpleNamespace(recognized=True, troop_type="fighter")
         sentinel = route._result("completed", "downstream-sentinel")
         with patch.object(route, "_navigate_selected_facility", return_value=(facility_capture, binding, planner, None)), patch.object(
-            route, "_capture_radial", return_value=(radial_capture, radial)
-        ), patch.object(route, "_capture_training", return_value=(training_capture, training)), patch.object(
+            route,
+            "_capture_radial",
+            side_effect=((initial_radial_capture, initial_radial), (fresh_radial_capture, fresh_radial)),
+        ) as radial_capture, patch.object(route, "_capture_training", return_value=(training_capture, training)), patch.object(
             route, "_run_training_tabs", return_value=sentinel
         ) as downstream, patch("scripts.troop_training_bluestacks.recognize_auto_use_resource_popup", return_value=SimpleNamespace(recognized=False)), patch(
             "scripts.troop_training_bluestacks.recognize_training", return_value=SimpleNamespace(recognized=False)
@@ -315,7 +509,112 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
             result = route.run()
         self.assertIs(result, sentinel)
         downstream.assert_called_once_with(training_capture, training, ["fighter"], "fighter")
+        self.assertEqual(
+            radial_capture.call_args_list,
+            [
+                call("facility-radial-menu", "fighter", binding.target_roi),
+                call("facility-radial-immediate-before-train-menu", "fighter", binding.target_roi),
+            ],
+        )
         self.assertEqual([item[1]["target_identity"] for item in runtime.taps], ["facility:fighter", "train-menu:fighter"])
+        self.assertEqual(runtime.taps[1][0], fresh_radial_capture.sha256)
+        self.assertEqual(runtime.taps[1][1]["target_roi"], fresh_radial.train_target)
+
+    def test_normal_route_blocks_without_train_tap_when_fresh_radial_rebind_fails(self):
+        runtime = Runtime()
+        route = self._route(runtime)
+        target = first_enabled_entry_target(config())
+        facility_capture = runtime.capture("bound")
+        binding = semantic_binding(target, loc())
+        planner = SimpleNamespace(
+            radial_is_exact=lambda item: (
+                item.recognized
+                and item.facility_identity == target.facility_identity
+                and item.train_target is not None
+                and item.overlay_state == "none"
+            )
+        )
+        initial_radial_capture = runtime.capture("radial")
+        initial_radial = RadialMenuObservation(
+            True,
+            target.facility_identity,
+            (300, 760, 430, 890),
+            frame_sha256=initial_radial_capture.sha256,
+        )
+        fresh_radial_capture = runtime.capture("fresh-radial")
+        fresh_radial = RadialMenuObservation(
+            True,
+            FACILITY_BY_TYPE["shooter"],
+            (410, 700, 540, 830),
+            frame_sha256=fresh_radial_capture.sha256,
+        )
+        with patch.object(route, "_navigate_selected_facility", return_value=(facility_capture, binding, planner, None)), patch.object(
+            route,
+            "_capture_radial",
+            side_effect=((initial_radial_capture, initial_radial), (fresh_radial_capture, fresh_radial)),
+        ) as radial_capture, patch("scripts.troop_training_bluestacks.recognize_auto_use_resource_popup", return_value=SimpleNamespace(recognized=False)), patch(
+            "scripts.troop_training_bluestacks.recognize_training", return_value=SimpleNamespace(recognized=False)
+        ):
+            result = route.run()
+        self.assertEqual(result.status, "blocked")
+        self.assertIn("fresh fighter radial immediate-before rebind failed", result.reason)
+        self.assertEqual([item[1]["target_identity"] for item in runtime.taps], ["facility:fighter"])
+        self.assertEqual(radial_capture.call_count, 2)
+
+    def test_retained_radial_dispatches_fresh_source_and_target(self):
+        runtime = Runtime()
+        route = self._route(runtime)
+        target = first_enabled_entry_target(config())
+        current_radial = RadialMenuObservation(
+            True,
+            target.facility_identity,
+            (300, 760, 430, 890),
+            frame_sha256=runtime.frames[0].sha256,
+        )
+        fresh_radial_capture = runtime.frames[1]
+        fresh_radial = RadialMenuObservation(
+            True,
+            target.facility_identity,
+            (410, 700, 540, 830),
+            frame_sha256=fresh_radial_capture.sha256,
+        )
+        training_capture = runtime.frames[2]
+        training = SimpleNamespace(recognized=True, troop_type="fighter")
+        sentinel = route._result("completed", "downstream-sentinel")
+        with patch("scripts.troop_training_bluestacks.recognize_radial_menu", return_value=current_radial), patch.object(
+            route, "_capture_radial", return_value=(fresh_radial_capture, fresh_radial)
+        ) as radial_capture, patch.object(
+            route, "_capture_training", return_value=(training_capture, training)
+        ), patch.object(route, "_run_training_tabs", return_value=sentinel) as downstream:
+            result = route.run()
+        self.assertIs(result, sentinel)
+        radial_capture.assert_called_once_with("retained-radial-immediate-before-train-menu", "fighter", None)
+        downstream.assert_called_once_with(training_capture, training, ["fighter"], "fighter")
+        self.assertEqual([item[1]["target_identity"] for item in runtime.taps], ["train-menu:fighter"])
+        self.assertEqual(runtime.taps[0][0], fresh_radial_capture.sha256)
+        self.assertEqual(runtime.taps[0][1]["target_roi"], fresh_radial.train_target)
+
+    def test_retained_radial_blocks_without_train_tap_when_fresh_rebind_changes(self):
+        target = first_enabled_entry_target(config())
+        current_radial = RadialMenuObservation(True, target.facility_identity, (300, 760, 430, 890))
+        valid_fresh = RadialMenuObservation(True, target.facility_identity, (410, 700, 540, 830))
+        cases = (
+            ("wrong-facility", replace(valid_fresh, facility_identity=FACILITY_BY_TYPE["shooter"])),
+            ("missing-train", replace(valid_fresh, train_target=None)),
+            ("overlay", replace(valid_fresh, overlay_state="unknown")),
+            ("absent", None),
+        )
+        for name, fresh_radial in cases:
+            with self.subTest(name):
+                runtime = Runtime()
+                route = self._route(runtime)
+                with patch("scripts.troop_training_bluestacks.recognize_radial_menu", return_value=current_radial), patch.object(
+                    route, "_capture_radial", return_value=(runtime.frames[1], fresh_radial)
+                ):
+                    result = route.run()
+                self.assertEqual(result.status, "blocked")
+                self.assertIn("retained fighter radial immediate-before rebind failed", result.reason)
+                self.assertEqual(runtime.taps, [])
 
 
 if __name__ == "__main__":

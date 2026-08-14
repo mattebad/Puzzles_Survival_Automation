@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "flow_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+  "product_purpose": "Supervised development validation of one configurable four-type Troop Training route using one canonical Home Atlas entry and verified top-tab transitions.",
+  "trigger_cadence_type": "evidence_gated",
+  "reset_scope": "reset_identity",
+  "required_starting_context": ["home_canonical"],
+  "shared_primitive_dependencies": [{"primitive_id": "home_navigation_primitives", "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST", "required": true}],
+  "recognized_states": ["home_canonical", "facility_radial_exact", "training_screen_exact", "active_queue_reconciled", "training_started", "home_returned", "blocked", "unknown_fail_closed"],
+  "per_type_contract": {
+    "fighter": {"enabled": true, "target_tier": 8, "quantity_mode": "current_max", "training_policy": "continuous", "allow_resource_boxes": true},
+    "vehicle": {"enabled": true, "target_tier": 1, "quantity_mode": "current_max", "training_policy": "continuous", "allow_resource_boxes": true},
+    "shooter": {"enabled": true, "target_tier": 8, "quantity": 250, "quantity_mode": "fixed", "training_policy": "once_daily", "allow_resource_boxes": false},
+    "rider": {"enabled": true, "target_tier": 1, "quantity": 250, "quantity_mode": "fixed", "training_policy": "once_daily", "allow_resource_boxes": false}
+  },
+  "required_postconditions": [
+    "current_max selected quantity equals positively recognized current numeric maximum",
+    "fixed selected quantity equals configured numeric quantity",
+    "queue label identifies same troop type and configured tier and exact numeric quantity",
+    "positive timer is spatially associated with queue label for active queues",
+    "known resources and resource-box policy are retained",
+    "one canonical facility entry and one terminal fresh canonical Home Atlas localization bound the verified tab pass",
+    "once_daily initiation persists by reset identity and troop type"
+  ],
+  "permitted_inputs": ["home_to_facility_navigation", "radial_train_navigation", "verified_top_tab_navigation", "tier_selection", "quantity_entry", "normal_timed_train", "Fighter_or_Vehicle_resource_box_confirmation", "safe_home_return"],
+  "prohibited_inputs": ["Train Now", "premium", "speedup", "Cash Mall", "Shooter_or_Rider_resource_boxes", "registration", "scheduler_promotion", "arbitrary_adb"],
+  "consequential_action_class": "supervised_consequential_validation",
+  "cost_quantity_requirements": {"free_only": false, "maximum_cost": null, "quantity": "configured_fixed_or_current_max", "resource_or_currency": "known_resources_only", "notes": "No premium or real-money action is supported."},
+  "completion_identity": "troop-training-end-to-end-consolidation:complete",
+  "terminal_outcomes": ["action_performed", "deferred", "blocked", "manual_required"],
+  "cooldown_deferred_behavior": "once_daily_or_continuous_policy_reconciled_read_only",
+  "bounded_recovery_behavior": "observe_only_or_safe_home_return",
+  "replay_fixture_requirements": [{"fixture_id": "four_type_config_and_queue_successors", "status": "required_evidence", "path": "tests/test_troop_training.py", "notes": "Independent contract fixtures; native evidence remains required."}],
+  "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "unknown_modal"],
+  "state_transitions": [
+    {"from": "home_canonical", "to": "facility_radial_exact", "via": "fresh_atlas_facility_binding", "notes": "Single canonical facility entry for the configured tab pass."},
+    {"from": "facility_radial_exact", "to": "training_screen_exact", "via": "normal_train_navigation", "notes": "Exact facility identity."},
+    {"from": "training_screen_exact", "to": "training_screen_exact", "via": "freshly_bound_top_tab", "notes": "Exact troop identity must be re-recognized after every tab transition."},
+    {"from": "training_screen_exact", "to": "training_started", "via": "normal_timed_train", "notes": "Exact queue successor required."},
+    {"from": "training_started", "to": "home_returned", "via": "safe_home_return", "notes": "Fresh canonical Home proof required."}
+  ],
+  "local_postconditions": ["exact configured tier and quantity", "exact queue label/timer successor", "terminal canonical Home"],
+  "live_validation_scenarios": [{"id": "troop-training-consolidation-supervised-canary", "mode": "consequential_supervised", "notes": "At most one bounded canary."}],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "production_eligible": false,
+  "registration_status": "NOT_REGISTERED",
+  "scheduler_eligibility": false,
+  "evidence_requirements": ["native source/immediate-before/post frames", "resolved config", "queue label/tier/quantity/timer", "resource readings/delta", "one canonical Home entry localization", "shared-tab transitions", "terminal result and hashes"],
+  "recovery_behavior": "observe-only or safe canonical Home return; never retry unresolved Train",
+  "daily_quest_authority": "DISABLED_POLICY and NOT_REGISTERED; this contract cannot promote or inherit DQ authority"
+}

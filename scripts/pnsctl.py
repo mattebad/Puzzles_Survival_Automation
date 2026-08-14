@@ -103,6 +103,7 @@ BLUESTACKS_FLOW_IDS = (
     "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
     "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
     "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
+    "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
     "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
     "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
     "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
@@ -147,6 +148,10 @@ def _register_checked_in_bluestacks_handlers() -> None:
         from scripts.flow_delivery_ruins_challenge_bluestacks import register as register_ruins
     except ImportError:
         from flow_delivery_ruins_challenge_bluestacks import register as register_ruins
+    try:
+        from scripts.flow_delivery_troop_training_bluestacks import register as register_troop_training
+    except ImportError:
+        from flow_delivery_troop_training_bluestacks import register as register_troop_training
 
     register_campaign(
         _BLUESTACKS_FLOW_RUNNERS,
@@ -164,6 +169,11 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
     register_ruins(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+    register_troop_training(
         _BLUESTACKS_FLOW_RUNNERS,
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
@@ -637,6 +647,88 @@ def _load_flow_delivery_state(
     return queue, lease
 
 
+def _retained_troop_training_state(session_directory: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build evidence-only context for a released Troop Training session.
+
+    This deliberately does not recreate a queue lease or runtime ownership.  It
+    only lets the registered validator inspect native artifacts retained by a
+    completed development session.
+    """
+
+    session = Path(session_directory).resolve()
+    allowed_root = (REPO_ROOT / ".local-captures").resolve()
+    try:
+        session.relative_to(allowed_root)
+    except ValueError as exc:
+        raise OperatorError("retained Troop Training session is outside .local-captures") from exc
+    result_path = session / "flow-delivery-result.json"
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("retained Troop Training result is unavailable") from exc
+    if (
+        not isinstance(result, dict)
+        or result.get("flow_id") != "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
+    ):
+        raise OperatorError("retained session is not Troop Training evidence")
+    return (
+        {
+            "queue_kind": "development_flow_delivery",
+            "active_flow_id": result["flow_id"],
+            "retained_evidence": True,
+        },
+        {
+            "workflow": "pns-flow-delivery",
+            "active_flow": result["flow_id"],
+            "active_stage": "evidence_review",
+            "runtime_ownership_state": "released",
+            "unresolved_action_state": "clear",
+            "retained_evidence": True,
+        },
+    )
+
+
+def _latest_troop_training_recovery_candidate() -> Path | None:
+    """Find a retained unresolved dispatch that permits safe Home recovery."""
+
+    root = (BLUESTACKS_ARTIFACT_ROOT / "TROOP-TRAINING-END-TO-END-CONSOLIDATION").resolve()
+    if not root.is_dir() or root.is_symlink():
+        return None
+    for result_path in sorted(root.rglob("flow-delivery-result.json"), reverse=True):
+        if result_path.is_symlink() or not result_path.is_file():
+            raise OperatorError("Troop Training recovery result path is unsafe")
+        try:
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise OperatorError("Troop Training recovery result is unreadable") from exc
+        if not isinstance(result, dict) or result.get("flow_id") != root.name:
+            continue
+        if result.get("status") not in {"blocked", "unresolved", "manual_required"}:
+            continue
+        session = result_path.parent.resolve()
+        try:
+            session.relative_to(root)
+        except ValueError as exc:
+            raise OperatorError("Troop Training recovery session escaped the flow root") from exc
+        events = session / str(result.get("events_path") or "events.jsonl")
+        if events.is_symlink() or not events.is_file():
+            continue
+        try:
+            rows = [json.loads(line) for line in events.read_text(encoding="utf-8").splitlines() if line.strip()]
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise OperatorError("Troop Training recovery events are unreadable") from exc
+        if any(
+            isinstance(row, dict)
+            and row.get("type") == "reconcile"
+            and row.get("status") == "unresolved"
+            and isinstance(row.get("action_key"), str)
+            and row["action_key"].startswith("training:")
+            for row in rows
+        ):
+            return session
+    return None
+
+
 def _load_bluestacks_flow_registry() -> dict[str, dict[str, str]]:
     try:
         registry = json.loads(
@@ -865,6 +957,7 @@ def development_session_run_flow(
     ruins_current_day: str | None = None
     ruins_package_id: str | None = None
     ruins_runtime_profile_id: str | None = None
+    troop_training_reset_identity: str | None = None
 
     if chest_continuation is not None:
         chest_continuation = Path(chest_continuation)
@@ -876,10 +969,14 @@ def development_session_run_flow(
         raise OperatorError("DEVELOPMENT_FLOW_RUNNER_UNAVAILABLE")
     if live and not yes:
         raise OperatorError("live development session requires --yes")
-    if recovery_only and recovery_session is None:
-        raise OperatorError("Ruins recovery requires --recovery-session")
-    if recovery_only and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
-        raise OperatorError("recovery-only is supported only for the Ruins Challenge flow")
+    if recovery_only:
+        if flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION" and recovery_session is None:
+            raise OperatorError("Ruins recovery requires --recovery-session")
+        if flow_id not in {
+            "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+        }:
+            raise OperatorError("recovery-only is supported only for Ruins or Troop Training")
     if chests_only and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
         raise OperatorError("chests-only is supported only for the Ruins Challenge flow")
     if chests_only and recovery_only:
@@ -904,6 +1001,14 @@ def development_session_run_flow(
         ruins_current_day = identity_now.astimezone().strftime("%a")
         ruins_package_id = CONTINUATION_PACKAGE_ID
         ruins_runtime_profile_id = CONTINUATION_RUNTIME_PROFILE_ID
+    elif flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION":
+        # Reset-scoped training state is bound once for this development session.
+        # The child route receives this exact value; it must not derive a second
+        # identity after runtime ownership or observation begins.
+        identity_now = datetime.now(timezone.utc)
+        troop_training_reset_identity = (
+            f"local-{identity_now.date().isoformat()}-troop-training-consolidation"
+        )
     if chest_continuation is not None:
         from tasks.ruins_challenge_continuation import (
             FLOW_ID as CONTINUATION_FLOW_ID,
@@ -954,6 +1059,12 @@ def development_session_run_flow(
                 "ruins_current_day": ruins_current_day,
                 "ruins_package_id": ruins_package_id,
                 "ruins_runtime_profile_id": ruins_runtime_profile_id,
+                "troop_training_reset_identity": troop_training_reset_identity,
+                "troop_training_recovery_only": (
+                    recovery_only
+                    and flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
+                ),
+                "max_inputs": max_inputs,
             }
             runner = _BLUESTACKS_FLOW_RUNNERS[contract["runner"]]
             if "live" in inspect.signature(runner).parameters:
@@ -2550,8 +2661,14 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
         raise OperatorError("flow-delivery-result.json is required") from exc
     if result.get("schema_version") != 1 or result.get("flow_id") not in BLUESTACKS_FLOW_IDS:
         raise OperatorError("unsupported flow-delivery result identity")
-    if result.get("status") != "completed":
-        raise OperatorError("flow result is not terminally completed")
+    result_status = result.get("status")
+    if result_status != "completed":
+        if result.get("flow_id") != "TROOP-TRAINING-END-TO-END-CONSOLIDATION" or result_status not in {
+            "blocked",
+            "unresolved",
+            "manual_required",
+        }:
+            raise OperatorError("flow result is not terminally completed")
     if result.get("serial") != BLUESTACKS_SERIAL:
         raise OperatorError("flow result used an unapproved serial")
     if (result.get("native_width"), result.get("native_height")) != (
@@ -2561,21 +2678,33 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
         raise OperatorError("flow result is not native 800x1280")
     if not isinstance(result.get("runtime_owner"), str) or not result["runtime_owner"].strip():
         raise OperatorError("flow result does not identify the runtime owner")
-    if result.get("terminal_runtime_state") not in {"recognized_home", "safe_blocked_terminal"}:
+    allowed_terminal_states = {"recognized_home", "safe_blocked_terminal"}
+    if result.get("flow_id") == "TROOP-TRAINING-END-TO-END-CONSOLIDATION":
+        allowed_terminal_states |= {"blocked", "unresolved", "manual_required"}
+    if result.get("terminal_runtime_state") not in allowed_terminal_states:
         raise OperatorError("terminal runtime state is missing or unsafe")
     actions = result.get("actions")
     if not isinstance(actions, list):
         raise OperatorError("flow result actions must be a list")
-    required_paths = {
-        "events_path": result.get("events_path"),
-        "ledger_path": result.get("ledger_path"),
-        "capability_audit_path": result.get("capability_audit_path"),
-        "journal_path": result.get("journal_path"),
-    }
-    verified_paths = {
-        field: str(_session_relative_path(session, value, field).relative_to(session))
-        for field, value in required_paths.items()
-    }
+    declared_required = result.get("required_artifacts")
+    required_fields = (
+        set(declared_required)
+        if isinstance(declared_required, list) and all(isinstance(item, str) for item in declared_required)
+        else {"events_path", "ledger_path", "capability_audit_path", "journal_path"}
+    )
+    artifact_fields = ("events_path", "ledger_path", "capability_audit_path", "journal_path")
+    if not required_fields.issubset(set(artifact_fields)):
+        raise OperatorError("flow result required artifact contract is invalid")
+    verified_paths: dict[str, str] = {}
+    for field in artifact_fields:
+        value = result.get(field)
+        if value is None:
+            if field in required_fields:
+                raise OperatorError(f"flow result required artifact is missing: {field}")
+            continue
+        verified_paths[field] = str(_session_relative_path(session, value, field).relative_to(session))
+        if not (session / verified_paths[field]).is_file():
+            raise OperatorError(f"flow result artifact is missing: {field}")
     frames = result.get("frames")
     if not isinstance(frames, list) or not frames:
         raise OperatorError("flow result requires frame evidence")
@@ -2583,6 +2712,8 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
         str(_session_relative_path(session, value, "frames").relative_to(session))
         for value in frames
     ]
+    if any(not (session / value).is_file() or (session / value).stat().st_size == 0 for value in verified_frames):
+        raise OperatorError("flow result frame evidence is missing")
     return {
         "result": result,
         "session_directory": str(session),
@@ -2594,7 +2725,10 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
 
 
 def bluestacks_verify_flow(session_directory: Path) -> str:
-    queue, lease = _load_flow_delivery_state(require_runtime_held=False)
+    try:
+        queue, lease = _load_flow_delivery_state(require_runtime_held=False)
+    except OperatorError:
+        queue, lease = _retained_troop_training_state(session_directory)
     if lease.get("active_stage") != "evidence_review":
         raise OperatorError("verify-flow requires the active evidence_review stage")
     flow_id = queue["active_flow_id"]
@@ -2633,13 +2767,28 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
         queue,
         lease,
     )
-    if not isinstance(verdict, dict) or verdict.get("status") != "verified":
-        raise OperatorError("route-specific evidence validator did not return a verified verdict")
+    if not isinstance(verdict, dict) or verdict.get("status") not in {"verified", "evidence_required"}:
+        raise OperatorError("route-specific evidence validator did not return an accepted verdict")
     return json.dumps(verdict, sort_keys=True)
 
 
 def bluestacks_recover_home() -> str:
-    queue, lease = _load_flow_delivery_state()
+    try:
+        queue, lease = _load_flow_delivery_state()
+    except OperatorError:
+        if _latest_troop_training_recovery_candidate() is None:
+            raise
+        # A released ordinary session cannot use the old lease-bound recovery
+        # handler.  Reacquire singleton ownership through the same development
+        # session path, and let the existing route perform only safe Back/Home
+        # recovery from a positively recognized active queue.
+        return development_session_run_flow(
+            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+            live=True,
+            yes=True,
+            max_inputs=4,
+            recovery_only=True,
+        )
     if lease.get("active_stage") not in {"live_preflight", "live_execution", "evidence_review"}:
         raise OperatorError("recover-home is available only during an admitted live delivery stage")
     contract = _load_bluestacks_flow_registry().get(queue["active_flow_id"])

@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
 import time
+from typing import Mapping
 
 import cv2
 import numpy as np
@@ -19,10 +20,23 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueStacksRuntime, NativeRuntimePort
-from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract
-from tasks.home_atlas import load_home_atlas
+from scripts.home_atlas_bluestacks import (
+    BlueStacksLocalizeFirstHomeDriver,
+    HomeDriverDisposition,
+    ScrcpyMotionEventZoomTransport,
+    bluestacks_direct_pan_contract,
+)
+from scripts.navigation_development_boundary import (
+    NavigationBoundaryError,
+    NavigationGuardedRuntime,
+    NavigationRouteDeclaration,
+    make_source_safety_facts,
+)
+from tasks.home_atlas import ZoomIdentity, load_home_atlas
 from tasks.home_atlas_planner import PlanDisposition, camera_origin
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, BlueStacksHomeLocalizer, bind_visible_building, frame_digest
+from tasks.home_context import HomeReadyObservation
+from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 from tasks.troop_training import (
     FACILITY_BY_TYPE,
     RESOURCE_NAMES,
@@ -31,6 +45,7 @@ from tasks.troop_training import (
     TrainingController,
     TroopTrainingConfig,
     TrainingScreenObservation,
+    default_troop_training_config,
     expected_completion_timestamp,
     make_action_key,
 )
@@ -44,6 +59,7 @@ from tasks.troop_training_vision import (
     recognize_home,
     recognize_exit_dialog,
     recognize_radial_menu,
+    recognize_training_speedup,
     recognize_training,
     recognize_training_with_targets,
 )
@@ -51,6 +67,72 @@ from tasks.troop_training_vision import (
 
 RESOURCE_BOXES_APPLIED_REAPPLY_TRAINING = "resource boxes applied; reapply exact quantity and authorize a new Train transaction"
 DEFAULT_HOME_ATLAS = ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+TROOP_TRAINING_FRAME_MAX_AGE_SECONDS = 45.0
+
+
+def _is_canonical_entry_localization(localization) -> bool:
+    return bool(
+        localization.recognized
+        and localization.zoom_identity is ZoomIdentity.FULLY_ZOOMED_OUT
+        and localization.screen_to_atlas is not None
+        and not getattr(localization, "stale", False)
+        and not getattr(localization, "overlay", False)
+    )
+
+
+def _canonical_home_proof(
+    frame: np.ndarray,
+    home,
+    atlas_path: Path,
+    *,
+    training=None,
+) -> bool:
+    """Prove a safe canonical Home surface without requiring four labels.
+
+    Facility OCR is useful for binding a specific building, but it is not a
+    stable Home predicate: panning can clip a label at the screen edge.  The
+    recovery contract instead requires the native HUD semantic, no recognized
+    training/modal surface, and a same-frame fully-zoomed-out Atlas match.
+    Non-array frames are accepted only for unit-test doubles that already
+    provide a positive Home observation; native runtime frames always take the
+    strict HUD/negative-surface path below.
+    """
+
+    if training is None:
+        training = recognize_training(frame) if isinstance(frame, np.ndarray) else None
+    if getattr(training, "recognized", False):
+        return False
+    if getattr(home, "overlay_state", "none") != "none":
+        return False
+    diagnostics = getattr(home, "diagnostics", {})
+    hud_signal = diagnostics.get("home_hud_signal") if isinstance(diagnostics, Mapping) else None
+    if isinstance(frame, np.ndarray):
+        # Real HomeObservation instances always expose ``home_hud_signal``.
+        # Retain compatibility with existing recognizer test doubles that
+        # explicitly report recognized Home but predate that diagnostic key.
+        if hud_signal is not True and not (
+            getattr(home, "recognized", False)
+            and isinstance(diagnostics, Mapping)
+            and "home_hud_signal" not in diagnostics
+        ):
+            return False
+        # A Home-looking OCR frame must not be a resource-box/confirmation
+        # surface.  This negative gate is bounded to the current native frame.
+        if forbidden_atlas_entry_surface(frame) is not None:
+            return False
+    elif not getattr(home, "recognized", False):
+        return False
+    if not atlas_path.is_file():
+        return False
+    try:
+        atlas = load_home_atlas(atlas_path)
+        localization = BlueStacksHomeLocalizer(atlas, atlas_path).localize(frame)
+    except (OSError, ValueError, TypeError):
+        return False
+    return bool(
+        localization.recognized
+        and localization.zoom_identity == ZoomIdentity.FULLY_ZOOMED_OUT
+    )
 
 
 @dataclass(frozen=True)
@@ -126,6 +208,7 @@ class TroopTrainingRouteResult:
     final_home_recognized: bool
     entry_navigation: dict[str, object]
     session: str
+    resolved_config: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -162,16 +245,64 @@ class TroopTrainingReturnHomeRoute:
         post_input_delay: float = 1.0,
         radial_troop_type: str | None = None,
         atlas_path: Path = DEFAULT_HOME_ATLAS,
+        require_active_queue: bool = False,
+        allow_queue_empty_training: bool = False,
     ) -> None:
         self.runtime = runtime
         self.post_input_delay = post_input_delay
         self.radial_troop_type = radial_troop_type
         self.atlas_path = atlas_path
+        self.require_active_queue = require_active_queue
+        self.allow_queue_empty_training = allow_queue_empty_training
 
     def run(self) -> TroopTrainingReturnHomeResult:
         source = self.runtime.capture("return-home-source")
+        recovered_speedup = False
+        if recognize_training_speedup(source.frame):
+            self.runtime.press_key(
+                source,
+                key="BACK",
+                action_key=f"training:navigation:return-home-speedup-back:{source.sha256}",
+            )
+            recovered_speedup = True
+            time.sleep(self.post_input_delay)
+            source = self.runtime.capture("return-home-after-speedup-back")
+            recovered_home = recognize_home(source.frame, reset_identity="return-home")
+            if _canonical_home_proof(source.frame, recovered_home, self.atlas_path):
+                return TroopTrainingReturnHomeResult(
+                    "completed",
+                    "Training Speedup closed with Back and canonical Home positively localized",
+                    1,
+                    True,
+                    str(self.runtime.session),
+                )
         exit_dialog, cancel_target = recognize_exit_dialog(source.frame)
         if exit_dialog and cancel_target is not None:
+            if self.require_active_queue:
+                # Recovery is authorized only from a fresh, exact queue
+                # successor.  An exit dialog obscures that proof; do not tap
+                # Cancel and then infer Home from a generic recognizer.
+                training = recognize_training(source.frame)
+                if not (
+                    training.recognized
+                    and training.queue_active
+                    and training.queue_label
+                    and training.queue_troop_type is not None
+                    and isinstance(training.queue_tier, int)
+                    and isinstance(training.queue_quantity, int)
+                    and training.queue_quantity > 0
+                    and isinstance(training.training_duration_seconds, int)
+                    and training.training_duration_seconds > 0
+                    and training.diagnostics.get("duration_source") == "queue_band"
+                    and training.diagnostics.get("queue_spatially_associated") is True
+                ):
+                    return TroopTrainingReturnHomeResult(
+                        "blocked",
+                        "recovery exit dialog obscures the exact active queue; no input dispatched",
+                        0,
+                        False,
+                        str(self.runtime.session),
+                    )
             self.runtime.tap(
                 source,
                 target_identity="exit-dialog-cancel",
@@ -180,6 +311,29 @@ class TroopTrainingReturnHomeRoute:
             )
             time.sleep(self.post_input_delay)
             final = self.runtime.capture("return-home-final-after-cancel")
+            if self.require_active_queue:
+                final_home = recognize_home(final.frame, reset_identity="return-home")
+                final_training = recognize_training(final.frame)
+                if not _canonical_home_proof(
+                    final.frame,
+                    final_home,
+                    self.atlas_path,
+                    training=final_training,
+                ):
+                    return TroopTrainingReturnHomeResult(
+                        "blocked",
+                        "recovery exit dialog canceled without canonical Home Atlas proof",
+                        1,
+                        False,
+                        str(self.runtime.session),
+                    )
+                return TroopTrainingReturnHomeResult(
+                    "completed",
+                    "recovery exit dialog canceled and canonical Home Atlas positively localized",
+                    1,
+                    True,
+                    str(self.runtime.session),
+                )
             if self.radial_troop_type is not None:
                 remaining_radial = recognize_radial_menu(final.frame, troop_type=self.radial_troop_type)
                 if remaining_radial.recognized and remaining_radial.train_target is not None:
@@ -214,38 +368,81 @@ class TroopTrainingReturnHomeRoute:
                     and fresh_radial.overlay_state == "none"
                 ):
                     return TroopTrainingReturnHomeResult("blocked", "radial could not be freshly rebound before toggle close", 0, False, str(self.runtime.session))
-                atlas = load_home_atlas(self.atlas_path)
-                localizer = BlueStacksHomeLocalizer(atlas, self.atlas_path)
-                localization = localizer.localize(fresh.frame)
-                binding = bind_radial_exterior_close(
-                    fresh.frame,
-                    localization,
-                    atlas,
-                    fresh_radial,
-                    troop_type=self.radial_troop_type,
-                )
-                if binding is None:
-                    return TroopTrainingReturnHomeResult("blocked", "safe radial exterior close target could not be bound", 0, False, str(self.runtime.session))
-                self.runtime.tap(
+                localizer = BlueStacksHomeLocalizer(load_home_atlas(self.atlas_path), self.atlas_path)
+                self.runtime.press_key(
                     fresh,
-                    target_identity=f"radial-exterior-close:{self.radial_troop_type}",
-                    target_roi=binding.target_roi,
-                    action_key=f"training:navigation:return-home-radial-exterior:{self.radial_troop_type}:{fresh.sha256}",
+                    key="BACK",
+                    action_key=f"training:navigation:return-home-radial-back:{self.radial_troop_type}:{fresh.sha256}",
                 )
                 time.sleep(self.post_input_delay)
                 final = self.runtime.capture("return-home-radial-final")
                 remaining_radial = recognize_radial_menu(final.frame, troop_type=self.radial_troop_type)
                 if remaining_radial.recognized and remaining_radial.train_target is not None:
-                    return TroopTrainingReturnHomeResult("blocked", "exterior tap did not close the recognized radial", 1, False, str(self.runtime.session))
+                    return TroopTrainingReturnHomeResult("blocked", "Back did not close the recognized radial", 1 + int(recovered_speedup), False, str(self.runtime.session))
                 if forbidden_atlas_entry_surface(final.frame) is not None:
-                    return TroopTrainingReturnHomeResult("blocked", "radial Back reached a forbidden or modal surface", 1, False, str(self.runtime.session))
+                    return TroopTrainingReturnHomeResult("blocked", "radial Back reached a forbidden or modal surface", 1 + int(recovered_speedup), False, str(self.runtime.session))
                 final_localization = localizer.localize(final.frame)
                 if not final_localization.recognized:
-                    return TroopTrainingReturnHomeResult("blocked", "radial exterior close did not prove canonical Home", 1, False, str(self.runtime.session))
-                return TroopTrainingReturnHomeResult("completed", "recognized radial exterior-closed and canonical Home positively localized", 1, True, str(self.runtime.session))
-            return TroopTrainingReturnHomeResult("blocked", "configured facility radial was not positively recognized; no Back dispatched", 0, False, str(self.runtime.session))
+                    return TroopTrainingReturnHomeResult("blocked", "radial Back did not prove canonical Home", 1 + int(recovered_speedup), False, str(self.runtime.session))
+                return TroopTrainingReturnHomeResult("completed", "recognized radial closed with Back and canonical Home positively localized", 1 + int(recovered_speedup), True, str(self.runtime.session))
         home = recognize_home(source.frame, reset_identity="return-home")
         training = recognize_training(source.frame)
+        if self.require_active_queue and not training.recognized:
+            # Recovery can begin after the runtime has already returned to
+            # canonical Home.  Facility labels may be clipped by the current
+            # camera position, so use the bounded HUD + Atlas proof instead of
+            # requiring all four OCR labels before returning zero-input.
+            if not _canonical_home_proof(
+                source.frame,
+                home,
+                self.atlas_path,
+                training=training,
+            ):
+                return TroopTrainingReturnHomeResult(
+                    "blocked",
+                    "already-Home recovery lacks canonical Home Atlas proof",
+                    0,
+                    False,
+                    str(self.runtime.session),
+                )
+            return TroopTrainingReturnHomeResult(
+                "completed",
+                "already at canonical Home Atlas; no recovery input required",
+                0,
+                True,
+                str(self.runtime.session),
+            )
+        queue_identity_valid = bool(
+            training.recognized
+            and training.queue_active
+            and training.queue_label
+            and training.queue_troop_type is not None
+            and isinstance(training.queue_tier, int)
+            and isinstance(training.queue_quantity, int)
+            and training.queue_quantity > 0
+            and isinstance(training.training_duration_seconds, int)
+            and training.training_duration_seconds > 0
+            and training.diagnostics.get("duration_source") == "queue_band"
+            and training.diagnostics.get("queue_spatially_associated") is True
+        )
+        queue_empty_training_valid = bool(
+            self.allow_queue_empty_training
+            and training.recognized
+            and not training.queue_active
+            and not training.queue_label
+            and training.overlay_state == "none"
+            and isinstance(training.training_duration_seconds, int)
+            and training.training_duration_seconds > 0
+            and training.diagnostics.get("duration_source") == "normal_train_band"
+        )
+        if self.require_active_queue and not (queue_identity_valid or queue_empty_training_valid):
+            return TroopTrainingReturnHomeResult(
+                "blocked",
+                "fresh current frame did not positively recognize an exact queue or queue-empty training screen for recovery",
+                0,
+                False,
+                str(self.runtime.session),
+            )
         if not home.recognized and not training:
             return TroopTrainingReturnHomeResult("blocked", "current surface is not positively recognized", 0, False, str(self.runtime.session))
         if home.recognized and not training.recognized:
@@ -253,9 +450,50 @@ class TroopTrainingReturnHomeRoute:
         # OCR can consume enough time to age the source frame. Rebind the navigation action on a
         # fresh frame and refuse to Back from a radial overlay or any other unknown surface.
         fresh = self.runtime.capture("return-home-fresh-before-back")
-        fresh_home = recognize_home(fresh.frame, reset_identity="return-home")
         fresh_training = recognize_training(fresh.frame)
-        if fresh_home.recognized and not fresh_training.recognized:
+        fresh_home = None
+        if not fresh_training.recognized:
+            fresh_home = recognize_home(fresh.frame, reset_identity="return-home")
+        fresh_queue_identity_valid = bool(
+            fresh_training.recognized
+            and fresh_training.queue_active
+            and fresh_training.queue_label
+            and fresh_training.queue_troop_type == training.queue_troop_type
+            and fresh_training.queue_tier == training.queue_tier
+            and fresh_training.queue_quantity == training.queue_quantity
+            and fresh_training.training_duration_seconds is not None
+            and fresh_training.training_duration_seconds > 0
+            and fresh_training.diagnostics.get("duration_source") == "queue_band"
+            and fresh_training.diagnostics.get("queue_spatially_associated") is True
+        )
+        fresh_queue_empty_valid = bool(
+            self.allow_queue_empty_training
+            and fresh_training.recognized
+            and not fresh_training.queue_active
+            and not fresh_training.queue_label
+            and fresh_training.overlay_state == "none"
+            and fresh_training.training_duration_seconds is not None
+            and fresh_training.training_duration_seconds > 0
+            and fresh_training.diagnostics.get("duration_source") == "normal_train_band"
+        )
+        if not fresh_training.recognized and self.require_active_queue:
+            if _canonical_home_proof(
+                fresh.frame,
+                fresh_home,
+                self.atlas_path,
+                training=fresh_training,
+            ):
+                return TroopTrainingReturnHomeResult("completed", "fresh frame is already at canonical Home Atlas", 0, True, str(self.runtime.session))
+            return TroopTrainingReturnHomeResult("blocked", "fresh Home frame lacks canonical Atlas proof", 0, False, str(self.runtime.session))
+        if self.require_active_queue and not (fresh_queue_identity_valid or fresh_queue_empty_valid):
+            return TroopTrainingReturnHomeResult(
+                "blocked",
+                "fresh recovery frame did not preserve the exact queue or queue-empty training identity",
+                0,
+                False,
+                str(self.runtime.session),
+            )
+        if fresh_home is not None and fresh_home.recognized and not fresh_training.recognized:
             return TroopTrainingReturnHomeResult("completed", "fresh frame is already at recognized Home/Base", 0, True, str(self.runtime.session))
         if not fresh_training.recognized:
             return TroopTrainingReturnHomeResult("blocked", "fresh frame is not a recognized training surface; no Back dispatched", 0, False, str(self.runtime.session))
@@ -263,8 +501,33 @@ class TroopTrainingReturnHomeRoute:
         time.sleep(self.post_input_delay)
         final = self.runtime.capture("return-home-final")
         final_home = recognize_home(final.frame, reset_identity="return-home")
-        if not final_home.recognized:
+        final_training = recognize_training(final.frame) if isinstance(final.frame, np.ndarray) else None
+        if self.require_active_queue and not _canonical_home_proof(
+            final.frame,
+            final_home,
+            self.atlas_path,
+            training=final_training,
+        ):
+            return TroopTrainingReturnHomeResult(
+                "blocked",
+                "native navigation did not prove canonical Home Atlas localization",
+                1,
+                False,
+                str(self.runtime.session),
+            )
+        if not final_home.recognized and not self.require_active_queue:
             return TroopTrainingReturnHomeResult("blocked", "native navigation did not prove Home/Base", 1, False, str(self.runtime.session))
+        if not self.require_active_queue:
+            atlas = load_home_atlas(self.atlas_path)
+            terminal_localization = BlueStacksHomeLocalizer(atlas, self.atlas_path).localize(final.frame)
+            if not terminal_localization.recognized or terminal_localization.zoom_identity != ZoomIdentity.FULLY_ZOOMED_OUT:
+                return TroopTrainingReturnHomeResult(
+                    "blocked",
+                    "native navigation did not prove canonical Home Atlas localization",
+                    1,
+                    False,
+                    str(self.runtime.session),
+                )
         return TroopTrainingReturnHomeResult("completed", "recognized surface closed and Home/Base positively recognized", 1, True, str(self.runtime.session))
 
 
@@ -604,6 +867,8 @@ class TroopTrainingIntegratedRoute:
         atlas_path: Path = DEFAULT_HOME_ATLAS,
         maximum_home_pans: int = 4,
         home_pan_settle_seconds: float = 1.0,
+        persistence_path: Path | None = None,
+        zoom_transport=None,
     ) -> None:
         self.runtime = runtime
         self.config = config
@@ -614,7 +879,11 @@ class TroopTrainingIntegratedRoute:
         self.atlas_path = atlas_path
         self.maximum_home_pans = maximum_home_pans
         self.home_pan_settle_seconds = home_pan_settle_seconds
-        self.controller = TroopTrainingRuntimeController(config, reset_identity=reset_identity)
+        self.zoom_transport = zoom_transport
+        # Session folders are ephemeral; reset-scoped initiation state must survive
+        # controller/process recreation in the stable local capture root.
+        persistence_path = persistence_path or (Path.cwd() / ".local-captures" / "troop-training-state.json")
+        self.controller = TroopTrainingRuntimeController(config, reset_identity=reset_identity, persistence_path=persistence_path)
         self.actions_completed = 0
         self.completed_claims: list[dict[str, object]] = []
         self.warehouse_approvals: list[dict[str, object]] = []
@@ -623,6 +892,12 @@ class TroopTrainingIntegratedRoute:
         self.entry_navigation: dict[str, object] = {}
 
     def _result(self, status: str, reason: str, *, final_home: bool = False) -> TroopTrainingRouteResult:
+        resolved_config = self.config.resolved_profile()
+        for troop_type in TROOP_TYPES:
+            state = self.controller.semantic.states[troop_type]
+            resolved_config[troop_type]["resolved_quantity"] = state.resolved_quantity
+            resolved_config[troop_type]["daily_initiation_state"] = state.daily_initiation_state
+            resolved_config[troop_type]["queue_state"] = state.queue_state
         return TroopTrainingRouteResult(
             status=status,
             reason=reason,
@@ -635,6 +910,7 @@ class TroopTrainingIntegratedRoute:
             final_home_recognized=final_home,
             entry_navigation=self.entry_navigation,
             session=str(self.runtime.session),
+            resolved_config=resolved_config,
         )
 
     def _navigate_selected_facility(self, target):
@@ -665,16 +941,159 @@ class TroopTrainingIntegratedRoute:
             }
             return None, None, planner, source_rejection
         source_localization = localizer.localize(source.frame)
+        canonical_source = _is_canonical_entry_localization(source_localization)
         self.entry_navigation = {
             "mode": "entry_only" if self.entry_only else "full_training",
             "troop_type": target.troop_type,
             "building_id": target.building_id,
-            "source_localization": asdict(source_localization),
             "safe_interaction_region_id": safe_region.region_id,
             "gesture_adapter_platform": calibration.platform,
             "records": records,
             "train_dispatched": False,
         }
+        if canonical_source:
+            self.entry_navigation["source_localization"] = asdict(source_localization)
+        else:
+            self.entry_navigation["initial_localization"] = asdict(source_localization)
+            try:
+                home = recognize_home(source.frame, reset_identity=self.reset_identity)
+            except Exception as exc:
+                return None, None, planner, f"home_zoom_recovery_home_hud_failed:{type(exc).__name__}"
+            diagnostics = getattr(home, "diagnostics", {})
+            if (
+                getattr(home, "overlay_state", "none") != "none"
+                or not isinstance(diagnostics, Mapping)
+                or diagnostics.get("home_hud_signal") is not True
+            ):
+                return None, None, planner, "home_zoom_recovery_home_hud_not_positive"
+            home_driver = BlueStacksLocalizeFirstHomeDriver(
+                atlas,
+                self.atlas_path,
+                HomeReadyObservation(
+                    True,
+                    True,
+                    VerifiedRuntimeIdentity(
+                        "bluestacks-troop-training",
+                        "supervised-troop-training",
+                        "supervised-troop-training-server",
+                        self.reset_identity,
+                        RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
+                        (f"reset:{self.reset_identity}", f"session:{self.runtime.session}"),
+                    ),
+                    False,
+                    False,
+                ),
+                target.building_id,
+                localizer=localizer,
+                maximum_pans=self.maximum_home_pans,
+                maximum_zoom_inputs=1,
+            )
+            immediate_before = self.runtime.capture("entry-home-zoom-01-immediate-before")
+            immediate_surface_rejection = forbidden_atlas_entry_surface(immediate_before.frame)
+            if immediate_surface_rejection is not None:
+                return None, None, planner, immediate_surface_rejection
+            try:
+                immediate_home = recognize_home(
+                    immediate_before.frame,
+                    reset_identity=self.reset_identity,
+                )
+            except Exception as exc:
+                return None, None, planner, f"home_zoom_recovery_home_hud_failed:{type(exc).__name__}"
+            immediate_diagnostics = getattr(immediate_home, "diagnostics", None)
+            immediate_overlay_state = getattr(immediate_home, "overlay_state", None)
+            immediate_home_proof = bool(
+                isinstance(immediate_diagnostics, Mapping)
+                and immediate_diagnostics.get("home_hud_signal") is True
+                and immediate_overlay_state == "none"
+            )
+            if not immediate_home_proof:
+                return None, None, planner, "home_zoom_recovery_home_hud_not_positive"
+            step = home_driver.observe(immediate_before.frame)
+            recovery_record: dict[str, object] = {
+                "immediate_before_sha256": immediate_before.sha256,
+                "driver_digest": step.source_frame_sha256,
+                "driver_disposition": step.disposition.value,
+                "driver_reason": step.reason,
+            }
+            records.append({"zoom_recovery": recovery_record})
+            if step.disposition is not HomeDriverDisposition.RECOVER_ZOOM:
+                reason = (
+                    f"home_zoom_recovery_blocked:{step.reason}"
+                    if step.disposition is HomeDriverDisposition.BLOCKED
+                    else f"home_zoom_recovery_unsupported:{step.disposition.value}"
+                )
+                return None, None, planner, reason
+            if not self.runtime.execute:
+                return None, None, planner, "dry-run-home-zoom-recovery-required"
+            zoom_transport = self.zoom_transport
+            if zoom_transport is None:
+                runner = getattr(self.runtime, "runner", None)
+                if runner is not None:
+                    try:
+                        zoom_transport = ScrcpyMotionEventZoomTransport(
+                            adb=runner.executable,
+                            serial=runner.serial,
+                            evidence_directory=getattr(self.runtime, "session", None),
+                        )
+                    except Exception as exc:
+                        return None, None, planner, f"home_zoom_transport_unavailable:{type(exc).__name__}"
+            if zoom_transport is None:
+                return None, None, planner, "home_zoom_transport_unavailable"
+            declaration = NavigationRouteDeclaration(
+                allowed_source_states=frozenset({"HOME_BASE"}),
+                allowed_target_identities=frozenset({"home-zoom-out"}),
+                allowed_gesture_classes=frozenset({"zoom_out"}),
+            )
+            guarded_runtime = (
+                self.runtime
+                if isinstance(self.runtime, NavigationGuardedRuntime)
+                else NavigationGuardedRuntime(self.runtime, declaration)
+            )
+            try:
+                guarded_runtime.dispatch_zoom_out(
+                    immediate_before,
+                    make_source_safety_facts(
+                        recognized=immediate_home_proof,
+                        source_state="HOME_BASE",
+                        overlay_state=immediate_overlay_state,
+                        frame_sha256=immediate_before.sha256,
+                        captured_monotonic=immediate_before.captured_monotonic,
+                    ),
+                    transport=zoom_transport.zoom_out_once,
+                )
+                home_driver.record_zoom_input_dispatched(step.source_frame_sha256)
+            except NavigationBoundaryError as exc:
+                return None, None, planner, f"home_zoom_dispatch_blocked:{exc}"
+            except Exception as exc:
+                return None, None, planner, f"home_zoom_transport_failed:{type(exc).__name__}"
+            self.actions_completed += 1
+            immediate_post = self.runtime.capture("entry-home-zoom-01-immediate-post")
+            if self.home_pan_settle_seconds > 0:
+                time.sleep(self.home_pan_settle_seconds)
+            settled = self.runtime.capture("entry-home-zoom-01-settled")
+            recovery_record.update(
+                {
+                    "immediate_post_sha256": immediate_post.sha256,
+                    "settled_sha256": settled.sha256,
+                }
+            )
+            settled_surface_rejection = forbidden_atlas_entry_surface(settled.frame)
+            if settled_surface_rejection is not None:
+                return None, None, planner, settled_surface_rejection
+            settled_step = home_driver.observe(settled.frame)
+            recovery_record.update(
+                {
+                    "settled_driver_digest": settled_step.source_frame_sha256,
+                    "settled_driver_reason": settled_step.reason,
+                }
+            )
+            if frame_digest(immediate_before.frame) == frame_digest(settled.frame):
+                return None, None, planner, "home_zoom_successor_unchanged"
+            if not _is_canonical_entry_localization(settled_step.localization):
+                return None, None, planner, f"home_zoom_successor_not_canonical:{settled_step.reason}"
+            source_localization = settled_step.localization
+            self.entry_navigation["source_localization"] = asdict(settled_step.localization)
+            self.entry_navigation["home_zoom_recovery"] = recovery_record
         if not source_localization.recognized:
             return None, None, planner, "source_home_localization_failed"
 
@@ -761,17 +1180,54 @@ class TroopTrainingIntegratedRoute:
                 return captured, observation
         return last_captured, last_observation
 
-    def _capture_radial(self, label: str, troop_type: str):
+    def _capture_radial(self, label: str, troop_type: str, facility_target):
         last_captured = None
         last_observation = None
         for attempt in range(2):
             capture_label = label if attempt == 0 else f"{label}-recognition-retry-{attempt}"
             captured = self.runtime.capture(capture_label)
-            observation = recognize_radial_menu(captured.frame, troop_type=troop_type)
+            observation = recognize_radial_menu(
+                captured.frame,
+                troop_type=troop_type,
+                facility_target=facility_target,
+            )
             last_captured, last_observation = captured, observation
             if observation.recognized:
                 return captured, observation
         return last_captured, last_observation
+
+    def _record_reconciled_queue(self, captured, observation: TrainingScreenObservation, troop_type: str) -> None:
+        state = self.controller.semantic.states[troop_type]
+        self.training.append(
+            {
+                "troop_type": troop_type,
+                "facility_identity": state.facility_identity,
+                "selected_tier": observation.queue_tier,
+                "quantity": observation.queue_quantity,
+                "configured_quantity": state.configured_quantity,
+                "quantity_mode": state.quantity_mode,
+                "quantity_maximum": observation.quantity_maximum,
+                "maximum_equality_proven": state.quantity_mode != "current_max" or observation.selected_quantity == observation.quantity_maximum,
+                "queue_label": observation.queue_label,
+                "queue_troop_type": observation.queue_troop_type,
+                "queue_tier": observation.queue_tier,
+                "queue_quantity": observation.queue_quantity,
+                "displayed_training_duration_seconds": observation.training_duration_seconds,
+                "duration_source": observation.diagnostics.get("duration_source"),
+                "queue_spatially_associated": observation.diagnostics.get("queue_spatially_associated") is True,
+                "queue_roi": observation.diagnostics.get("queue_band"),
+                "expected_completion_timestamp": state.expected_completion_timestamp.isoformat() if state.expected_completion_timestamp else None,
+                "queue_state": state.queue_state,
+                "completion_policy": "read_only_existing_queue",
+                "reset_identity": state.reset_identity,
+                "training_policy": state.training_policy,
+                "source_frame_hash": captured.sha256,
+                "immediate_before_frame_hash": captured.sha256,
+                "immediate_post_frame_hash": captured.sha256,
+                "resources_before": [asdict(resource) for resource in observation.resources],
+                "resources_after": [asdict(resource) for resource in observation.resources],
+            }
+        )
 
     def _wait(self) -> None:
         if self.post_input_delay > 0:
@@ -796,7 +1252,7 @@ class TroopTrainingIntegratedRoute:
             target_identity=f"tab:{troop_type}:claim-completed",
             target_roi=target,
             action_key=action_key,
-            consequential=True,
+            consequential=False,
         )
         self.actions_completed += 1
         self._wait()
@@ -814,6 +1270,40 @@ class TroopTrainingIntegratedRoute:
                 "batch_identity": observation.completion_batch_id,
             }
         )
+        state = self.controller.semantic.states[troop_type]
+        self.training.append(
+            {
+                "troop_type": troop_type,
+                "facility_identity": state.facility_identity,
+                "selected_tier": observation.selected_tier,
+                "quantity": observation.selected_quantity,
+                "configured_quantity": state.configured_quantity,
+                "quantity_mode": state.quantity_mode,
+                "quantity_maximum": observation.quantity_maximum,
+                "maximum_equality_proven": state.quantity_mode != "current_max" or observation.selected_quantity == observation.quantity_maximum,
+                "queue_label": None,
+                "queue_troop_type": None,
+                "queue_tier": None,
+                "queue_quantity": None,
+                "displayed_training_duration_seconds": None,
+                "duration_source": None,
+                "queue_spatially_associated": False,
+                "queue_roi": observation.diagnostics.get("queue_band"),
+                "expected_completion_timestamp": None,
+                "queue_state": state.queue_state,
+                "completion_policy": "completed_batch_claim_reconciled",
+                "batch_identity": observation.completion_batch_id,
+                "action_key": action_key,
+                "daily_initiation_state": state.daily_initiation_state,
+                "reset_identity": state.reset_identity,
+                "training_policy": state.training_policy,
+                "source_frame_hash": captured.sha256,
+                "immediate_before_frame_hash": captured.sha256,
+                "immediate_post_frame_hash": post_capture.sha256,
+                "resources_before": [asdict(resource) for resource in observation.resources],
+                "resources_after": [asdict(resource) for resource in post.resources],
+            }
+        )
         return post_capture, post, None
 
     def _switch_tab(self, captured, observation: TrainingScreenObservation, troop_type: str):
@@ -822,7 +1312,11 @@ class TroopTrainingIntegratedRoute:
         captured, observation, error = self._claim_completed_tab(captured, observation)
         if error:
             return None, None, error
+        captured = self.runtime.capture(f"tab-{troop_type}-immediate-before")
         recognition = recognize_training_with_targets(captured.frame)
+        observation = recognition.observation
+        if not observation.recognized or observation.overlay_state != "none":
+            return None, None, f"tab source could not be freshly recognized for {troop_type}"
         target = recognition.target(f"tab:{troop_type}")
         if target is None:
             return None, None, f"tab target not bound for {troop_type}"
@@ -862,28 +1356,89 @@ class TroopTrainingIntegratedRoute:
             if candidate is not None:
                 if candidate.locked or candidate.target_roi is None:
                     return None, None, "visible configured tier is locked or ambiguous"
+                # Full-screen OCR used to discover a newly visible low tier can
+                # consume most of the runtime's source-frame age budget.  Take
+                # a fresh native authorization frame and rebind the exact card
+                # before dispatch; never tap from the discovery frame.
+                fresh_capture, fresh_observation = self._capture_training(
+                    f"tier-{troop_type}-immediate-before"
+                )
+                fresh_candidate = fresh_observation.tier(config.target_tier)
+                if (
+                    not fresh_observation.recognized
+                    or fresh_observation.troop_type != troop_type
+                    or fresh_observation.queue_active
+                    or fresh_observation.overlay_state != "none"
+                    or fresh_candidate is None
+                    or fresh_candidate.locked
+                    or fresh_candidate.target_roi is None
+                ):
+                    return None, None, "configured tier could not be freshly rebound before selection"
                 self._navigation_tap(
-                    captured,
+                    fresh_capture,
                     identity=f"tier:{config.target_tier}",
-                    roi=candidate.target_roi,
-                    action_key=f"training:navigation:tier:{troop_type}:{config.target_tier}:{captured.sha256}",
+                    roi=fresh_candidate.target_roi,
+                    action_key=f"training:navigation:tier:{troop_type}:{config.target_tier}:{fresh_capture.sha256}",
                 )
                 post_capture, post = self._capture_training(f"tier-{troop_type}-post")
                 selected = post.tier(config.target_tier)
                 if not post.recognized or post.selected_tier != config.target_tier or selected is None or selected.locked:
                     return None, None, "configured tier selection was not positively verified"
                 return post_capture, post, None
-            window = tuple(item.tier for item in observation.visible_tiers)
+            visible = sorted(
+                (item for item in observation.visible_tiers if item.visible),
+                key=lambda item: item.tier,
+            )
+            unlocked = [
+                item
+                for item in visible
+                if not item.locked and not item.question_mark and item.target_roi is not None
+            ]
+            window = tuple(item.tier for item in unlocked)
             if not window or window in seen_windows or ordinal == self.max_tier_swipes:
                 return None, None, "tier carousel repeated, had no progress, or exceeded bound"
             seen_windows.add(window)
+            lower_target = config.target_tier < window[0]
+            upper_target = config.target_tier > window[-1]
+            blocking_locked = (
+                any(item.locked and item.tier < window[0] for item in visible)
+                if lower_target
+                else any(item.locked and item.tier > window[-1] for item in visible)
+                if upper_target
+                else True
+            )
+            if (
+                len(unlocked) < 2
+                or not (lower_target or upper_target)
+                or blocking_locked
+                or any(right - left != 1 for left, right in zip(window, window[1:]))
+            ):
+                return None, None, "visible tier strip is locked, gapped, or spatially ambiguous"
             minimum, maximum = min(window), max(window)
             if config.target_tier > maximum:
-                start, end = (650, 900), (150, 900)
+                direction = -1
             elif config.target_tier < minimum:
-                start, end = (150, 900), (650, 900)
+                direction = 1
             else:
                 return None, None, "configured tier lies in an unrecognized carousel gap"
+            rois = [item.target_roi for item in unlocked if item.target_roi is not None]
+            centers_x = [int((roi[0] + roi[2]) / 2) for roi in rois]
+            centers_y = [int((roi[1] + roi[3]) / 2) for roi in rois]
+            # Keep the gesture inside the tier-card image band.  The prior
+            # edge-clamped start (e.g. x=62) can be ignored by BlueStacks as
+            # an OS-edge gesture; use card centers and a bounded interior end.
+            strip_y = max(840, min(960, int(sum(centers_y) / len(centers_y))))
+            left_x, right_x = min(centers_x), max(centers_x)
+            if direction < 0:
+                start_x = min(700, max(100, right_x))
+                end_x = max(100, min(680, left_x - 240))
+            else:
+                start_x = max(100, min(700, left_x))
+                end_x = min(680, max(start_x + 200, right_x + 280))
+            if abs(end_x - start_x) < 160:
+                return None, None, "tier carousel gesture had insufficient bounded travel"
+            start = (start_x, strip_y)
+            end = (end_x, strip_y)
             self.runtime.swipe(
                 captured,
                 start=start,
@@ -895,10 +1450,69 @@ class TroopTrainingIntegratedRoute:
             captured, observation = self._capture_training(f"tier-swipe-{troop_type}-{ordinal}-post")
             if not observation.recognized:
                 return None, None, "tier swipe successor is not a recognized training screen"
+            # Rebind the configured card immediately after every swipe.  A
+            # target can enter the visible window on the swipe successor; do
+            # not issue another gesture before tapping/revalidating that
+            # current-frame card.
+            post_candidate = observation.tier(config.target_tier)
+            if post_candidate is not None:
+                if post_candidate.locked or post_candidate.target_roi is None:
+                    return None, None, "visible configured tier is locked or ambiguous"
+                if observation.selected_tier == config.target_tier:
+                    return captured, observation, None
+                self._navigation_tap(
+                    captured,
+                    identity=f"tier:{config.target_tier}",
+                    roi=post_candidate.target_roi,
+                    action_key=f"training:navigation:tier:{troop_type}:{config.target_tier}:{captured.sha256}",
+                )
+                selected_capture, selected_observation = self._capture_training(
+                    f"tier-{troop_type}-post"
+                )
+                selected = selected_observation.tier(config.target_tier)
+                if (
+                    not selected_observation.recognized
+                    or selected_observation.selected_tier != config.target_tier
+                    or selected is None
+                    or selected.locked
+                ):
+                    return None, None, "configured tier selection was not positively verified"
+                return selected_capture, selected_observation, None
+            post_window = tuple(
+                item.tier
+                for item in sorted(observation.visible_tiers, key=lambda item: item.tier)
+                if item.visible and not item.locked and not item.question_mark and item.target_roi is not None
+            )
+            if post_window == window:
+                return None, None, "tier swipe produced no bounded carousel progress"
         return None, None, "tier selection stopped safely"
 
     def _set_quantity(self, captured, observation: TrainingScreenObservation, troop_type: str):
-        quantity = self.config.for_type(troop_type).quantity
+        config = self.config.for_type(troop_type)
+        if config.quantity_mode == "current_max":
+            if observation.quantity_maximum is None or observation.quantity_maximum <= 0:
+                return None, None, "current numeric maximum is unresolved"
+            quantity = observation.quantity_maximum
+        else:
+            quantity = config.quantity
+        if quantity is None:
+            return None, None, "configured quantity is unresolved"
+        if observation.selected_quantity == quantity:
+            return captured, observation, None
+        captured, observation = self._capture_training(f"quantity-{troop_type}-immediate-before")
+        if (
+            not observation.recognized
+            or observation.troop_type != troop_type
+            or observation.queue_active
+            or observation.overlay_state != "none"
+            or observation.selected_tier != config.target_tier
+            or observation.normal_train_target is None
+        ):
+            return None, None, "quantity editor could not be freshly authorized"
+        if config.quantity_mode == "current_max":
+            if observation.quantity_maximum is None or observation.quantity_maximum <= 0:
+                return None, None, "current numeric maximum is unresolved on immediate-before"
+            quantity = observation.quantity_maximum
         if observation.selected_quantity == quantity:
             return captured, observation, None
         self._navigation_tap(
@@ -910,7 +1524,7 @@ class TroopTrainingIntegratedRoute:
         editor_capture = self.runtime.capture("quantity-editor-before-text")
         # The editor can display a one-digit resource-limited value while retaining a previous
         # four-digit buffer. Clear the contract maximum width every time before exact entry.
-        max_digits = len(str(observation.quantity_maximum or 1000))
+        max_digits = len(str(observation.quantity_maximum or quantity or 1000))
         self.runtime.clear_numeric_text(
             editor_capture,
             max_digits=max_digits,
@@ -939,10 +1553,16 @@ class TroopTrainingIntegratedRoute:
         return post_capture, post, None
 
     def _train(self, captured, observation: TrainingScreenObservation, troop_type: str):
-        # Fresh immediate-before capture is mandatory even when the previous navigation produced
-        # a visually identical frame.
-        captured = self.runtime.capture(f"{troop_type}-train-immediate-before")
-        observation = recognize_training(captured.frame)
+        # Full-frame OCR can consume the native runtime's complete source-age budget.  Re-run
+        # the training recognizer on one fresh native frame, then use that exact observation for
+        # every semantic gate and the consequential dispatch binding.
+        captured, observation = self._capture_training(
+            f"{troop_type}-train-immediate-before"
+        )
+        if not observation.recognized:
+            return None, None, "fresh Train frame was not recognized"
+        if observation.troop_type != troop_type:
+            return None, None, f"fresh Train frame troop type mismatch: expected {troop_type}"
         plan = self.controller.semantic.plan_training(observation, troop_type)
         if plan not in {"authorize_normal_train", "authorize_normal_train_expected_warehouse"}:
             return None, None, plan
@@ -967,15 +1587,23 @@ class TroopTrainingIntegratedRoute:
         post_capture, post = self._capture_training(f"{troop_type}-train-immediate-post")
         resource_popup = recognize_auto_use_resource_popup(post_capture.frame)
         if resource_popup.recognized:
+            # Shooter and Rider never authorize resource-box use, even if a caller
+            # supplied a permissive legacy config.  Their exact popup is canceled.
+            if troop_type not in {"fighter", "vehicle"}:
+                resource_popup = replace(resource_popup, recognized=True)
             # Rebind both buttons and every resource amount from a fresh native frame before the
             # one permitted continuation input.  Confirm is never inferred from the stale
             # immediate-post frame.
             popup_capture = self.runtime.capture(f"{troop_type}-resource-box-popup-immediate-before")
             resource_popup = recognize_auto_use_resource_popup(popup_capture.frame)
-            popup_plan = self.controller.semantic.plan_resource_box_continuation(
+            popup_plan = (
+                "reject_resource_boxes_disabled"
+                if troop_type not in {"fighter", "vehicle"}
+                else self.controller.semantic.plan_resource_box_continuation(
                 observation,
                 resource_popup,
                 troop_type,
+                )
             )
             if popup_plan == "authorize_resource_box_confirmation":
                 if resource_popup.confirm_target is None:
@@ -994,7 +1622,8 @@ class TroopTrainingIntegratedRoute:
                 approval = {
                     "troop_type": troop_type,
                     "action_key": action_key,
-                    "configured_quantity": self.config.for_type(troop_type).quantity,
+                    "configured_quantity": self.controller.semantic.resolved_quantity(observation, troop_type),
+                    "quantity_mode": self.config.for_type(troop_type).quantity_mode,
                     "popup_frame_hash": popup_capture.sha256,
                     "post_frame_hash": confirmed_capture.sha256,
                     "resources_after_use": [asdict(resource) for resource in resource_popup.resources_after_use],
@@ -1004,7 +1633,7 @@ class TroopTrainingIntegratedRoute:
                     and confirmed.queue_active
                     and confirmed.troop_type == troop_type
                     and confirmed.selected_tier == observation.selected_tier
-                    and confirmed.selected_quantity == self.config.for_type(troop_type).quantity
+                    and confirmed.selected_quantity == self.controller.semantic.resolved_quantity(observation, troop_type)
                 ):
                     self.resource_box_approvals.append({**approval, "successor": "active_queue"})
                     post_capture, post = confirmed_capture, confirmed
@@ -1109,10 +1738,27 @@ class TroopTrainingIntegratedRoute:
                 "troop_type": troop_type,
                 "facility_identity": state.facility_identity,
                 "selected_tier": state.target_tier,
-                "quantity": state.configured_quantity,
+                "quantity": state.resolved_quantity,
+                "configured_quantity": state.configured_quantity,
+                "quantity_mode": state.quantity_mode,
+                "quantity_maximum": observation.quantity_maximum,
+                "maximum_equality_proven": self.config.for_type(troop_type).quantity_mode != "current_max" or (
+                    observation.quantity_maximum is not None
+                    and observation.selected_quantity == observation.quantity_maximum
+                ),
+                "queue_label": post.queue_label,
+                "queue_troop_type": post.queue_troop_type,
+                "queue_tier": post.queue_tier,
+                "queue_quantity": post.queue_quantity,
+                "duration_source": post.diagnostics.get("duration_source"),
+                "queue_spatially_associated": post.diagnostics.get("queue_spatially_associated") is True,
+                "queue_roi": post.diagnostics.get("queue_band"),
+                "resources_before": [asdict(resource) for resource in observation.resources],
+                "resources_after": [asdict(resource) for resource in post.resources],
                 "reset_identity": state.reset_identity,
                 "action_key": action_key,
                 "source_frame_hash": captured.sha256,
+                "immediate_before_frame_hash": captured.sha256,
                 "immediate_post_frame_hash": post_capture.sha256,
                 "displayed_training_duration_seconds": state.training_duration_seconds,
                 "dispatch_timestamp": dispatched_at.isoformat(),
@@ -1131,12 +1777,43 @@ class TroopTrainingIntegratedRoute:
         status: str = "completed",
         reason: str = "all enabled troop workflows reconciled and returned Home/Base",
     ) -> TroopTrainingRouteResult:
-        self.runtime.back(captured, action_key=f"training:navigation:return-home:{captured.sha256}")
+        fresh = self.runtime.capture("return-home-immediate-before")
+        stable_bands = (
+            (180, 0, 620, 70),
+            (180, 65, 615, 185),
+            (40, 740, 760, 970),
+            (90, 1040, 710, 1100),
+        )
+        if not all(
+            np.array_equal(captured.frame[y1:y2, x1:x2], fresh.frame[y1:y2, x1:x2])
+            for x1, y1, x2, y2 in stable_bands
+        ):
+            return self._result("blocked", "fresh return-Home frame changed in a bound training identity region")
+        self.runtime.back(fresh, action_key=f"training:navigation:return-home:{fresh.sha256}")
         self.actions_completed += 1
         self._wait()
         final_capture, final_home = self._capture_home("final-home")
-        if not final_home.recognized:
-            return self._result("blocked", "final Home/Base postcondition not recognized")
+        final_training = (
+            recognize_training(final_capture.frame)
+            if isinstance(final_capture.frame, np.ndarray)
+            else None
+        )
+        if not _canonical_home_proof(
+            final_capture.frame,
+            final_home,
+            self.atlas_path,
+            training=final_training,
+        ):
+            return self._result("blocked", "final Home/Base canonical Atlas postcondition not recognized")
+        atlas = load_home_atlas(self.atlas_path)
+        terminal_localization = BlueStacksHomeLocalizer(atlas, self.atlas_path).localize(final_capture.frame)
+        self.entry_navigation["terminal_home_localization"] = asdict(terminal_localization)
+        self.entry_navigation["terminal_home_frame_hash"] = final_capture.sha256
+        if not terminal_localization.recognized or terminal_localization.zoom_identity != ZoomIdentity.FULLY_ZOOMED_OUT:
+            return self._result("blocked", "terminal Home atlas localization/canonical zoom not recognized")
+        if self.training:
+            self.training[-1]["terminal_home_frame_hash"] = final_capture.sha256
+            self.training[-1]["terminal_home_recognized"] = True
         self.controller.final_home()
         return self._result(status, reason, final_home=True)
 
@@ -1146,6 +1823,19 @@ class TroopTrainingIntegratedRoute:
             captured, observation, error = self._switch_tab(captured, observation, troop_type)
             if error:
                 return self._result("unresolved" if self.runtime.in_flight_action else "blocked", error)
+            self.controller.begin_facility(troop_type, captured.sha256)
+            if observation.completion_ready:
+                captured, observation, error = self._claim_completed_tab(captured, observation)
+                if error:
+                    return self._result("blocked", f"{troop_type}: {error}")
+                if self.config.for_type(troop_type).training_policy == "once_daily":
+                    continue
+            if observation.queue_active:
+                queue_plan = self.controller.semantic.reconcile_active_queue(observation, troop_type)
+                if queue_plan != "active_queue_reconciled":
+                    return self._result("blocked", f"{troop_type}: {queue_plan}")
+                self._record_reconciled_queue(captured, observation, troop_type)
+                continue
             captured, observation, error = self._select_tier(captured, observation, troop_type)
             if error:
                 return self._result("blocked", f"{troop_type}: {error}")
@@ -1164,56 +1854,6 @@ class TroopTrainingIntegratedRoute:
                 return self._result("unresolved" if self.runtime.in_flight_action else "blocked", f"{troop_type}: {error}")
         return self._return_home(captured)
 
-    def run_from_current_radial(self, first: str) -> TroopTrainingRouteResult:
-        """Continue a recognized current radial into one training view, then use tabs only."""
-
-        self.config.validate()
-        if not self.runtime.execute:
-            return self._result("dry-run", "dry-run-no-input; native runtime issued no input")
-        enabled_types = [
-            troop_type
-            for troop_type in TROOP_TYPES
-            if self.config.for_type(troop_type).enabled and self.config.for_type(troop_type).training_policy != "disabled"
-        ]
-        if first not in enabled_types:
-            return self._result("blocked", f"radial continuation type {first!r} is not enabled")
-        try:
-            menu_capture, menu = self._capture_radial("continuation-radial", first)
-            if not menu.recognized or menu.train_target is None:
-                return self._result("blocked", f"{first} radial menu or Train control not recognized")
-            self._navigation_tap(
-                menu_capture,
-                identity=f"train-menu:{first}",
-                roi=menu.train_target,
-                action_key=f"training:navigation:train-menu:{first}:{menu_capture.sha256}",
-            )
-            captured, observation = self._capture_training("continuation-training-screen-source")
-            if not observation.recognized or observation.troop_type != first:
-                return self._result("blocked", "complete training screen not recognized after radial continuation")
-            return self._run_training_tabs(captured, observation, enabled_types, first)
-        except Exception as exc:
-            if self.runtime.in_flight_action is not None:
-                return self._result("unresolved", f"runtime failure after consequential action: {exc}")
-            return self._result("blocked", f"safe radial continuation stop: {exc}")
-
-    def run_from_current_training(self, first: str) -> TroopTrainingRouteResult:
-        """Continue a recognized current training view using its four troop tabs only."""
-
-        self.config.validate()
-        if not self.runtime.execute:
-            return self._result("dry-run", "dry-run-no-input; native runtime issued no input")
-        enabled_types = [
-            troop_type
-            for troop_type in TROOP_TYPES
-            if self.config.for_type(troop_type).enabled and self.config.for_type(troop_type).training_policy != "disabled"
-        ]
-        if first not in enabled_types:
-            return self._result("blocked", f"training continuation type {first!r} is not enabled")
-        captured, observation = self._capture_training("continuation-current-training")
-        if not observation.recognized or observation.troop_type != first:
-            return self._result("blocked", "current training view did not positively recognize the configured troop type")
-        return self._run_training_tabs(captured, observation, enabled_types, first)
-
     def run(self) -> TroopTrainingRouteResult:
         self.config.validate()
         target = first_enabled_entry_target(self.config)
@@ -1222,6 +1862,48 @@ class TroopTrainingIntegratedRoute:
         enabled_types = [troop_type for troop_type in TROOP_TYPES if self.config.for_type(troop_type).enabled and self.config.for_type(troop_type).training_policy != "disabled"]
         first = target.troop_type
         try:
+            current = self.runtime.capture("training-route-current-source")
+            current_radial = recognize_radial_menu(current.frame, troop_type=first)
+            if (
+                current_radial.recognized
+                and current_radial.facility_identity == FACILITY_BY_TYPE[first]
+                and current_radial.train_target is not None
+                and current_radial.overlay_state == "none"
+            ):
+                self.entry_navigation.update(
+                    {
+                        "mode": "retained_radial_continuation",
+                        "initial_radial_binding": asdict(current_radial),
+                    }
+                )
+                fresh_radial_capture, fresh_radial = self._capture_radial(
+                    "retained-radial-immediate-before-train-menu",
+                    first,
+                    None,
+                )
+                if (
+                    fresh_radial_capture is None
+                    or fresh_radial is None
+                    or not fresh_radial.recognized
+                    or fresh_radial.facility_identity != FACILITY_BY_TYPE[first]
+                    or fresh_radial.train_target is None
+                    or fresh_radial.overlay_state != "none"
+                ):
+                    return self._result(
+                        "blocked",
+                        f"retained {first} radial immediate-before rebind failed: expected {FACILITY_BY_TYPE[first]} with Train",
+                    )
+                self.entry_navigation["radial_binding"] = asdict(fresh_radial)
+                self._navigation_tap(
+                    fresh_radial_capture,
+                    identity=f"train-menu:{first}",
+                    roi=fresh_radial.train_target,
+                    action_key=f"training:navigation:train-menu:{first}:{fresh_radial_capture.sha256}",
+                )
+                captured, observation = self._capture_training("training-screen-source")
+                if not observation.recognized or observation.troop_type != first:
+                    return self._result("blocked", "complete training screen not recognized")
+                return self._run_training_tabs(captured, observation, enabled_types, first)
             facility_capture, facility_binding, entry_planner, error = self._navigate_selected_facility(target)
             if error is not None:
                 status = "dry-run" if error.startswith("dry-run-") else "blocked"
@@ -1234,14 +1916,18 @@ class TroopTrainingIntegratedRoute:
                 roi=facility_binding.target_roi,
                 action_key=f"training:navigation:facility:{first}:{facility_capture.sha256}",
             )
-            menu_capture, menu = self._capture_radial("facility-radial-menu", first)
+            menu_capture, menu = self._capture_radial("facility-radial-menu", first, facility_binding.target_roi)
             if recognize_auto_use_resource_popup(menu_capture.frame).recognized or recognize_training(menu_capture.frame).recognized:
                 return self._result("blocked", "unexpected consequential training or resource surface after facility entry")
             if not entry_planner.radial_is_exact(menu):
                 return self._result("blocked", f"{first} radial menu or Train control not recognized")
-            self.entry_navigation["radial_binding"] = asdict(menu)
             if self.entry_only:
-                fresh_menu_capture, fresh_menu = self._capture_radial("entry-only-radial-immediate-before-toggle-close", first)
+                self.entry_navigation["radial_binding"] = asdict(menu)
+                fresh_menu_capture, fresh_menu = self._capture_radial(
+                    "entry-only-radial-immediate-before-toggle-close",
+                    first,
+                    facility_binding.target_roi,
+                )
                 if not entry_planner.radial_is_exact(fresh_menu):
                     return self._result("blocked", "entry-only radial could not be freshly rebound before safe toggle close")
                 atlas = load_home_atlas(self.atlas_path)
@@ -1266,7 +1952,11 @@ class TroopTrainingIntegratedRoute:
                 self.actions_completed += 1
                 self._wait()
                 final = self.runtime.capture("entry-only-final-home")
-                remaining_radial = recognize_radial_menu(final.frame, troop_type=first)
+                remaining_radial = recognize_radial_menu(
+                    final.frame,
+                    troop_type=first,
+                    facility_target=facility_binding.target_roi,
+                )
                 if remaining_radial.recognized and remaining_radial.train_target is not None:
                     return self._result("blocked", "entry-only exterior tap did not close the radial")
                 final_surface_rejection = forbidden_atlas_entry_surface(final.frame)
@@ -1282,11 +1972,22 @@ class TroopTrainingIntegratedRoute:
                     "entry-only facility radial and Train control recognized; Train not dispatched; canonical Home recovered",
                     final_home=True,
                 )
+            fresh_menu_capture, fresh_menu = self._capture_radial(
+                "facility-radial-immediate-before-train-menu",
+                first,
+                facility_binding.target_roi,
+            )
+            if fresh_menu_capture is None or fresh_menu is None or not entry_planner.radial_is_exact(fresh_menu):
+                return self._result(
+                    "blocked",
+                    f"fresh {first} radial immediate-before rebind failed: expected {FACILITY_BY_TYPE[first]} with Train",
+                )
+            self.entry_navigation["radial_binding"] = asdict(fresh_menu)
             self._navigation_tap(
-                menu_capture,
+                fresh_menu_capture,
                 identity=f"train-menu:{first}",
-                roi=menu.train_target,
-                action_key=f"training:navigation:train-menu:{first}:{menu_capture.sha256}",
+                roi=fresh_menu.train_target,
+                action_key=f"training:navigation:train-menu:{first}:{fresh_menu_capture.sha256}",
             )
             captured, observation = self._capture_training("training-screen-source")
             if not observation.recognized or observation.troop_type != first:
@@ -1301,23 +2002,46 @@ class TroopTrainingIntegratedRoute:
 def _load_config(args: argparse.Namespace) -> TroopTrainingConfig:
     if args.config:
         payload = json.loads(Path(args.config).read_text(encoding="utf-8"))
+        defaults = default_troop_training_config()
         values = {}
         for troop_type in TROOP_TYPES:
             item = payload.get(troop_type, {})
+            fallback = defaults.for_type(troop_type)
+            quantity_mode = str(item.get("quantity_mode", fallback.quantity_mode))
+            if quantity_mode == "current_max" and item.get("quantity") is not None:
+                raise ValueError(f"{troop_type}: current_max cannot include a fixed quantity")
             values[troop_type] = TrainingConfig(
-                enabled=item.get("enabled", True),
-                target_tier=item.get("target_tier"),
-                quantity=int(item.get("quantity", 250)),
-                training_policy=str(item.get("training_policy", "once_daily")),
-                allow_resource_boxes=item.get("allow_resource_boxes", False),
+                enabled=item.get("enabled", fallback.enabled),
+                target_tier=item.get("target_tier", fallback.target_tier),
+                quantity=(None if quantity_mode == "current_max" else (int(item["quantity"]) if "quantity" in item and item["quantity"] is not None else fallback.quantity)),
+                quantity_mode=quantity_mode,
+                training_policy=str(item.get("training_policy", fallback.training_policy)),
+                allow_resource_boxes=item.get("allow_resource_boxes", fallback.allow_resource_boxes),
             )
         return TroopTrainingConfig(**values)
-    return TroopTrainingConfig(
-        fighter=TrainingConfig(target_tier=args.fighter_tier, quantity=args.fighter_quantity, training_policy=args.fighter_policy, allow_resource_boxes=args.fighter_allow_resource_boxes),
-        shooter=TrainingConfig(target_tier=args.shooter_tier, quantity=args.shooter_quantity, training_policy=args.shooter_policy, allow_resource_boxes=args.shooter_allow_resource_boxes),
-        rider=TrainingConfig(target_tier=args.rider_tier, quantity=args.rider_quantity, training_policy=args.rider_policy, allow_resource_boxes=args.rider_allow_resource_boxes),
-        vehicle=TrainingConfig(target_tier=args.vehicle_tier, quantity=args.vehicle_quantity, training_policy=args.vehicle_policy, allow_resource_boxes=args.vehicle_allow_resource_boxes),
-    )
+    defaults = default_troop_training_config()
+    values = {}
+    for troop_type in TROOP_TYPES:
+        fallback = defaults.for_type(troop_type)
+        tier = getattr(args, f"{troop_type}_tier")
+        quantity = getattr(args, f"{troop_type}_quantity")
+        mode = getattr(args, f"{troop_type}_quantity_mode")
+        policy = getattr(args, f"{troop_type}_policy")
+        boxes = getattr(args, f"{troop_type}_allow_resource_boxes")
+        enabled = getattr(args, f"{troop_type}_enabled")
+        if quantity is not None and (mode == "current_max" or (mode is None and fallback.quantity_mode == "current_max")):
+            raise ValueError(f"{troop_type}: current_max cannot include a fixed quantity")
+        resolved_mode = fallback.quantity_mode if mode is None else mode
+        resolved_quantity = None if resolved_mode == "current_max" else (fallback.quantity if quantity is None else quantity)
+        values[troop_type] = TrainingConfig(
+            enabled=fallback.enabled if enabled is None else enabled,
+            target_tier=fallback.target_tier if tier is None else tier,
+            quantity=resolved_quantity,
+            quantity_mode=resolved_mode,
+            training_policy=fallback.training_policy if policy is None else policy,
+            allow_resource_boxes=fallback.allow_resource_boxes if boxes is None else boxes,
+        )
+    return TroopTrainingConfig(**values)
 
 
 def _retain_route_result(runtime: NativeRuntimePort, result: object) -> None:
@@ -1327,6 +2051,7 @@ def _retain_route_result(runtime: NativeRuntimePort, result: object) -> None:
     path.write_text(json.dumps(asdict(result), indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
 
 
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adb", required=True)
@@ -1334,13 +2059,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reset-identity", required=True)
     parser.add_argument("--config", type=Path)
     for troop_type in TROOP_TYPES:
+        parser.add_argument(f"--{troop_type}-enabled", action=argparse.BooleanOptionalAction, default=None)
         parser.add_argument(f"--{troop_type}-tier", type=int)
-        parser.add_argument(f"--{troop_type}-quantity", type=int, default=250)
-        parser.add_argument(f"--{troop_type}-policy", choices=("once_daily", "continuous", "disabled"), default="once_daily")
+        parser.add_argument(f"--{troop_type}-quantity", type=int, default=None)
+        parser.add_argument(f"--{troop_type}-quantity-mode", choices=("fixed", "current_max"), default=None)
+        parser.add_argument(f"--{troop_type}-policy", choices=("once_daily", "continuous", "disabled"), default=None)
         parser.add_argument(
             f"--{troop_type}-allow-resource-boxes",
             action=argparse.BooleanOptionalAction,
-            default=False,
+            default=None,
             help=f"allow exact Auto Use resource-box confirmation for {troop_type} only (default: false)",
         )
     parser.add_argument("--execute", action="store_true")
@@ -1376,16 +2103,15 @@ def main(argv: list[str] | None = None) -> int:
         help="close a positively recognized training/radial surface with native Back and verify Home/Base",
     )
     parser.add_argument(
-        "--continue-from-radial",
+        "--recovery-active-queue",
         action="store_true",
-        help="continue one positively recognized current radial into a single training view, then use tabs only",
+        help="for pnsctl recovery only: require a fresh exact active queue before safe Home return",
     )
     parser.add_argument(
-        "--continue-from-training",
+        "--recovery-training-screen",
         action="store_true",
-        help="continue a positively recognized current training view using tabs only",
+        help="for pnsctl recovery only: permit a fresh recognized queue-empty training screen before safe Home return",
     )
-    parser.add_argument("--training-troop-type", choices=TROOP_TYPES, default="shooter")
     parser.add_argument("--radial-troop-type", choices=TROOP_TYPES, default="shooter")
     parser.add_argument("--post-input-delay", type=float, default=1.0)
     parser.add_argument("--output-directory", type=Path, default=Path(".local-captures/troop-training-integrated"))
@@ -1399,107 +2125,21 @@ def main(argv: list[str] | None = None) -> int:
         workflow="troop-training",
         execute=args.execute,
     )
-    if args.reconcile_resource_box_acquisition_session is not None:
-        if not args.execute:
-            result = TroopTrainingRecoveryResult(
-                status="dry-run",
-                reason="dry-run-no-input; resource-box acquisition recovery issued no input",
-                actions_completed=0,
-                recovered_action_key=None,
-                troop_type=None,
-                selected_tier=None,
-                quantity=None,
-                displayed_training_duration_seconds=None,
-                expected_completion_timestamp=None,
-                final_home_recognized=False,
-                session=str(runtime.session),
-            )
-        else:
-            result = TroopTrainingResourceBoxAcquisitionRecoveryRoute(
-                runtime,
-                previous_session=args.reconcile_resource_box_acquisition_session,
-                post_input_delay=args.post_input_delay,
-            ).run()
-        print(json.dumps(asdict(result), sort_keys=True, default=str))
-        return 0 if result.status in {"completed", "dry-run"} else 3
-    if args.reconcile_forbidden_resource_popup_session is not None:
-        if not args.execute:
-            result = TroopTrainingRecoveryResult(
-                status="dry-run",
-                reason="dry-run-no-input; forbidden-popup recovery issued no input",
-                actions_completed=0,
-                recovered_action_key=None,
-                troop_type=None,
-                selected_tier=None,
-                quantity=None,
-                displayed_training_duration_seconds=None,
-                expected_completion_timestamp=None,
-                final_home_recognized=False,
-                session=str(runtime.session),
-            )
-        else:
-            result = TroopTrainingForbiddenPopupRecoveryRoute(
-                runtime,
-                previous_session=args.reconcile_forbidden_resource_popup_session,
-                post_input_delay=args.post_input_delay,
-            ).run()
-        print(json.dumps(asdict(result), sort_keys=True, default=str))
-        return 0 if result.status in {"completed", "dry-run"} else 3
-    if args.reconcile_unresolved_session is not None:
-        if not args.execute:
-            result = TroopTrainingRecoveryResult(
-                status="dry-run",
-                reason="dry-run-no-input; recovery route issued no input",
-                actions_completed=0,
-                recovered_action_key=None,
-                troop_type=None,
-                selected_tier=None,
-                quantity=None,
-                displayed_training_duration_seconds=None,
-                expected_completion_timestamp=None,
-                final_home_recognized=False,
-                session=str(runtime.session),
-            )
-        else:
-            result = TroopTrainingUnresolvedRecoveryRoute(
-                runtime,
-                previous_session=args.reconcile_unresolved_session,
-                post_input_delay=args.post_input_delay,
-            ).run()
-        print(json.dumps(asdict(result), sort_keys=True, default=str))
-        return 0 if result.status in {"completed", "dry-run"} else 3
-    if args.return_home_only:
-        if not args.execute:
-            result = TroopTrainingReturnHomeResult("dry-run", "dry-run-no-input; return-home route issued no input", 0, False, str(runtime.session))
-        else:
-            result = TroopTrainingReturnHomeRoute(
-                runtime,
-                post_input_delay=args.post_input_delay,
-                radial_troop_type=args.radial_troop_type,
-                atlas_path=args.home_atlas,
-            ).run()
-        print(json.dumps(asdict(result), sort_keys=True, default=str))
-        return 0 if result.status in {"completed", "dry-run"} else 3
+    runtime.frame_max_age_seconds = TROOP_TRAINING_FRAME_MAX_AGE_SECONDS
     config = _load_config(args)
     config.validate()
-    if args.continue_from_radial:
-        result = TroopTrainingIntegratedRoute(
+    if args.return_home_only:
+        result = TroopTrainingReturnHomeRoute(
             runtime,
-            config=config,
-            reset_identity=args.reset_identity,
             post_input_delay=args.post_input_delay,
-        ).run_from_current_radial(args.radial_troop_type)
+            radial_troop_type=args.radial_troop_type,
+            atlas_path=args.home_atlas,
+            require_active_queue=args.recovery_active_queue,
+            allow_queue_empty_training=args.recovery_training_screen,
+        ).run()
+        _retain_route_result(runtime, result)
         print(json.dumps(asdict(result), sort_keys=True, default=str))
-        return 0 if result.status in {"completed", "dry-run"} else 3
-    if args.continue_from_training:
-        result = TroopTrainingIntegratedRoute(
-            runtime,
-            config=config,
-            reset_identity=args.reset_identity,
-            post_input_delay=args.post_input_delay,
-        ).run_from_current_training(args.training_troop_type)
-        print(json.dumps(asdict(result), sort_keys=True, default=str))
-        return 0 if result.status in {"completed", "dry-run"} else 3
+        return 0 if result.status == "completed" else 3
     result = TroopTrainingIntegratedRoute(
         runtime,
         config=config,

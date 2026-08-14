@@ -25,6 +25,15 @@
     ]
   },
   "flow_profiles": {
+    "TROOP-TRAINING-END-TO-END-CONSOLIDATION": {
+      "focused_tests": [
+        "tests.test_flow_delivery_troop_training"
+      ],
+      "shared_navigation": [
+        "tests.test_navigation_development_boundary",
+        "tests.test_flow_delivery_troop_training"
+      ]
+    },
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
       "architecture_tests": [
         "tests.test_ultimate_challenge_daily"

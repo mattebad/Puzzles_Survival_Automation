@@ -3680,7 +3680,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   `tests.test_noahs_tavern_recruit` (15), and
   `tests.test_home_atlas_verified_route` (35) passed; OCR correction and false
   canonical-Home regression covered.
-- Next ready flow: TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE.
+- Next ready flow: SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT.
 - Authority: full normalized task state is in 	asks/flow_delivery_queue.json; this dormant pointer
   records completion but does not change registration or scheduling; NOT_REGISTERED and
   scheduler-disabled states remain unchanged.
@@ -3688,11 +3688,36 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE
 - Task ID: TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE.
 - Title: Converge Troop Training entry and return on verified navigation.
-- Status: Ready; development-queue flow; not activated.
-- Scope: route all four entry-only facility paths through shared verified navigation; never tap
-  Train during navigation validation.
+- Status: Superseded by completed `TROOP-TRAINING-END-TO-END-CONSOLIDATION`; historical
+  navigation-only scope retained for provenance.
+- Scope: its proposed four independent facility entries are replaced by one canonical Home Atlas
+  camp entry followed by verified troop tabs; its Train prohibition remains historical only.
 - Authority: full normalized task state is in 	asks/flow_delivery_queue.json; this dormant pointer
   does not activate implementation, runtime input, registration, or scheduling.
+
+### TROOP-TRAINING-END-TO-END-CONSOLIDATION
+- Task ID: TROOP-TRAINING-END-TO-END-CONSOLIDATION.
+- Status: Completed (2026-08-14); supervised development validation; not registered and
+  scheduler-disabled.
+- Scope: extend the existing configurable Fighter, Shooter, Rider, and Vehicle route with one
+  canonical Home Atlas facility entry, verified top-tab transitions for all enabled troop types,
+  exact queue/timer reconciliation, reset-scoped policy persistence, and one bounded development
+  canary.
+- Authority: named user-approved profile is overrideable and retained in route evidence. Daily
+  Quest training remains DISABLED_POLICY/NOT_REGISTERED and cannot inherit this flow's authority.
+- Prohibitions: no Train Now, premium, speedup, Cash Mall, registration, scheduler promotion,
+  arbitrary ADB, or modification of the historical navigation flow.
+- Live result: one canonical facility entry plus verified top tabs produced exact active queues for
+  Fighter T8 x1000, Shooter T8 x250, Rider T1 x250, and Vehicle T1 x1000. Numeric current maximum
+  1000 was proven before Fighter and Vehicle Train. The final Vehicle queue and canonical Atlas
+  Home were verified through linked native evidence; no resource boxes, premium, Train Now, or
+  speedups were used.
+- Evidence: `.local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION/`; terminal
+  session `run-20260814T054246158698Z/troop-training-20260814T054246675094Z` proves all four
+  exact active queues and canonical Home. Its linked development-session summary
+  `TROOP-TRAINING-END-TO-END-CONSOLIDATION-20260814T054244780021Z` completed with 10 bounded
+  inputs and released runtime ownership.
+- Next ready flow: `SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT`.
 
 ### ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION
 - Task ID: ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION.
@@ -6702,7 +6727,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   single and persisted their own cooldown. All successful passes returned to canonical Home; the
   final state checkpoint is `noahs-tavern-unified-recruitment-20260812T205031174713Z`.
 - Registration/scheduler: not registered; disabled/ineligible; unchanged. Claim remains separate.
-- Next ready flow: `TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE`.
+- Next ready flow: `SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT`.
 
 ### DQ-FLOW-NANOWEAPON
 - Status: Passed (2026-07-14; Daily row adapter plus 5 focused tests).
