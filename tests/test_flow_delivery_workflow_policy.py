@@ -17,16 +17,28 @@ class FlowDeliveryWorkflowPolicyTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-    def test_route_and_review_guardrails_are_project_local(self) -> None:
+    def test_route_and_parent_integration_guardrails_are_project_local(self) -> None:
         for marker in (
             "| Substantive live gameplay-flow development | Heavy; parent orchestration with `executor_luna`",
             "Promote Medium to Heavy",
             "second materially distinct live failure",
             "One initial live failure alone",
-            "exactly one coherent pre-canary `executor_sol` integration gate",
+            "the parent performs the integration review and owns the final integration decision",
+            "one coherent pre-canary integration acceptance",
+            "one parent integration gate",
+            "do not automatically spawn a child `executor_sol`",
+            "no child Sol review is automatic",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.agents)
+        self.assertNotIn(
+            "exactly one coherent pre-canary `executor_sol` integration gate",
+            self.agents,
+        )
+        self.assertNotIn(
+            "must trigger a dedicated `executor_sol` integration review",
+            self.agents,
+        )
 
     def test_compact_ladder_and_manual_full_rule_are_explicit(self) -> None:
         for marker in (
@@ -34,6 +46,7 @@ class FlowDeliveryWorkflowPolicyTests(unittest.TestCase):
             "each affected package suite once",
             "focused flow profile once before canary",
             "shared-navigation",
+            "parent-owned integration gate",
             "zero-input observation",
             "semantic result",
             "manual-only",
@@ -43,6 +56,7 @@ class FlowDeliveryWorkflowPolicyTests(unittest.TestCase):
                 self.assertIn(marker, self.policy)
         self.assertIn("python scripts/run_flow_delivery_validation.py full", self.policy)
         self.assertIn("--manual", self.policy)
+        self.assertNotIn("Sol gate", self.policy)
         self.assertIn("do not create a second validation framework", self.agents.lower())
 
 

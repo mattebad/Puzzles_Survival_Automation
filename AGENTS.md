@@ -20,10 +20,8 @@ higher-level instructions.
 
 ## Working State
 
-- `deployment state`: planning or executing a broad, possibly multi-session
-  deployment plan.
-- `leaf state`: work outside that plan, including general questions and small,
-  bounded edits or operations.
+- `leaf state`: questions and small bounded work.
+- `deployment state`: a substantive Medium or Heavy task.
 
 ## Project Documentation
 
@@ -37,11 +35,8 @@ The durable project documents are under `agent_docs/`:
 - `latest_session_work.md`: detailed handoff evidence and continuation point.
 - Module-specific documents, when present.
 
-`project_progress.md` and `latest_session_work.md` may be edited only in
-`deployment state` or when the user explicitly requests it. The main agent owns
-them during normal execution. During automatic deployment closure, the single
-`end_of_session` worker owns reconciliation of the complete documentation
-framework; no other worker participates in that closure update.
+The parent owns official status and decides which durable facts are recorded.
+Workers may edit only explicitly assigned paths.
 
 Keep raw logs, temporary reasoning, and short-lived checkpoints out of durable
 documents. Never delete a main project document without warning the user and
@@ -49,49 +44,48 @@ receiving a second explicit confirmation.
 
 ## Route Selection
 
-There are three routes:
+The parent selects the proportionate route unless the user selects one:
 
-- **Light**: leaf-state work. The main agent works directly; no subagents.
-- **Medium**: deployment-state work performed by the main agent. Explorer and
-  the dedicated End-of-Session worker are the only subagent exceptions. Read
-  `~/.codex/codex_workflow/medium_route.md`.
-- **Heavy**: deployment-state work orchestrated through specialized workers.
-  Read `~/.codex/codex_workflow/heavy_route.md`.
+- **Light**: direct parent execution for leaf work; no workers.
+- **Medium**: parent plans, implements, verifies, and closes localized work.
+- **Heavy**: the parent defines one atomic manifest and assigns exactly one
+  bounded mutable production turn to Luna. A read-only tester then reports
+  findings to the parent. After classifying those findings, the parent may
+  authorize at most one consolidated Luna repair turn. The parent may finally
+  provide verified terminal facts to one documentation-only End-of-Session
+  pass.
 
-The user selects the route for the session. If unspecified, use Light; do not
-infer Medium or Heavy. Light implies `leaf state`; Medium and Heavy imply
-`deployment state` only for substantive work. Their direct fast path remains
-`leaf state`. Keep the selected route until the user changes it or the session
-ends.
+Legacy route guides are inactive compatibility assets. This file is the active
+route contract.
 
-## Context Loading
+## Parent Authority
 
-- In Light, inspect only material needed for the current task.
-- Before initializing deployment state, classify the request. Questions and
-  small or odd bounded tasks use the direct main-agent fast path even when
-  Medium or Heavy is selected: call no worker, including Explorer and
-  `end_of_session`, and produce no worker statistics.
-- For every substantive Medium or Heavy deployment, read the selected route and
-  `explorer_companion.md`, then initialize or reuse the single persistent
-  Explorer.
-- Give Explorer the session goal, known constraints, investigation questions,
-  and boundaries. It reads the foundational project documents and relevant
-  repository context, then returns the planning brief defined in its contract.
-- In Medium, the main agent uses that brief to narrow its direct implementation
-  inspection. In Heavy, Explorer is the default gateway for repository,
-  architecture, dependency, and external research; the main agent normally
-  consumes the brief rather than repeating discovery.
-- The main agent may inspect any critical source or evidence, but should do so
-  only when it materially affects a decision, resolves uncertainty or
-  contradiction, or validates a high-risk integration boundary.
-- Resolve stale or conflicting project status with targeted evidence. Load only
-  relevant module documentation and avoid replaying raw logs, large diffs,
-  directory listings, or complete source files into the main context.
-- Before the final response that completes, pauses, or blocks each substantive
-  Medium or Heavy deployment, run the automatic handoff defined in
-  `end_of_session.md` exactly once. Its worker inherits recent main-agent
-  context and performs the complete documentation-framework update. The
-  handoff is not a user command.
+The parent alone owns architecture, integration acceptance, defect
+classification, live-runtime ownership, official task status, and termination.
+Workers cannot expand scope, alter the manifest, admit live work, communicate
+around the parent, or claim completion. The parent preserves unrelated work,
+keeps mutable workers serial, and treats test and transport success as evidence
+rather than acceptance.
+
+For Heavy work the parent must:
+
+1. Lock a task ID, architecture statement, exact safe allowlist,
+   production/test/documentation classifications, one mutable worker, and
+   optional file and line budgets.
+2. Give Luna only assigned paths and acceptance checks. Luna self-checks and
+   reports; it does not decide architecture or integration.
+3. Give the tester a read-only verification package. The tester reports defects
+   only to the parent and cannot initiate repair.
+4. Classify findings and either reject, accept, or authorize one consolidated
+   repair batch. Re-freeze changed production and require fresh receipts.
+5. Accept integration explicitly before any live admission. One live attempt is
+   allowed per iteration; ambiguous evidence remains `evidence_required`.
+6. After termination, optionally assign one documentation-only pass using only
+   parent-provided terminal facts and exact durable-document paths.
+
+At 60 elapsed minutes the parent warns the user. At 90 minutes further live
+admission requires an explicit parent checkpoint. Shared-worktree parallel
+mutation is forbidden.
 
 ## Platform Paths
 
@@ -102,20 +96,18 @@ the current operating system and shell when running filesystem commands.
 <!-- codex-workflow-project-personalization-start -->
 P&S project workflow constraints:
 - For substantive behavior changes, run the existing deterministic validation hierarchy—focused and flow-specific checks followed by any required architecture or integration gate—before any live emulator canary. Use the Bliss OS / P&S emulator only when actual runtime behavior requires live verification.
-- For cross-cutting changes involving state recognition, navigation, recovery or retry behavior, ADB contracts, or multiple interacting production packages, the parent must trigger a dedicated `executor_sol` integration review before acceptance. Sol reviews the integration boundaries and reports to the parent; the parent owns the final integration decision.
+- For cross-cutting changes involving state recognition, navigation, recovery or retry behavior, ADB contracts, or multiple interacting production packages, the parent performs the integration review and owns the final integration decision; do not automatically spawn a child `executor_sol`.
 - Never use `git add .`. Never automatically commit unrelated working-tree changes. Stage only explicitly enumerated active-task paths and preserve all pre-existing user modifications; this overrides automatic closure Git defaults.
 - Unless the user explicitly selects a route, the main agent must automatically choose the proportionate route for each new task and may change routes between tasks: Light for trivial or leaf work, Medium for localized substantive changes handled primarily by the main agent, and Heavy only for genuinely multi-module or independently parallelizable work. Briefly state an automatic Medium or Heavy selection before substantive execution. An explicit user route selection overrides automatic selection and remains active until the user changes it or the session ends.
 - Route the work using this project-local matrix (an explicit user route still wins):
-
-  | Scope | Default route and owner | Promotion rule |
-  | --- | --- | --- |
-  | Trivial or leaf | Light direct fast path | No delegation required |
-  | Localized/offline, including one-file fixes | Medium; main-agent owned | Promote when a trigger in the Heavy row appears |
-  | Substantive live gameplay-flow development | Heavy; parent orchestration with `executor_luna` bounded production ownership | Promote Medium to Heavy for cross-cutting recognizer, navigation, recovery, retry, or ADB behavior, multiple interacting production packages, or a second materially distinct live failure |
-
-  One initial live failure alone does not require promotion or an extra review.
-- The parent owns architecture and schedules exactly one coherent pre-canary `executor_sol` integration gate after the Luna executor self-check and the named tester package are complete. Do not request incremental patch reviews unless a new cross-contract decision appears; Sol reviews the integration boundary and reports to the parent, who makes the acceptance decision.
-- Use the compact ladder in [`docs/flow-delivery-validation-policy.md`](docs/flow-delivery-validation-policy.md): exact regression during repair; each affected package suite once; the focused profile once before canary; shared-navigation only when navigation is touched; one Sol gate; zero-input `pnsctl development-session observe`; live execution; semantic verification. Full repository discovery is manual-only (`full --manual`). Reuse the checked-in runner's compact output and receipts; do not create a second validation framework.
+| Scope | Default route and owner | Promotion rule |
+| --- | --- | --- |
+| Trivial or leaf | Light direct fast path | No delegation required |
+| Localized/offline, including one-file fixes | Medium; main-agent owned | Promote when a trigger in the Heavy row appears |
+| Substantive live gameplay-flow development | Heavy; parent orchestration with `executor_luna` bounded production ownership | Promote Medium to Heavy for cross-cutting recognizer, navigation, recovery, retry, or ADB behavior, multiple interacting production packages, or a second materially distinct live failure |
+One initial live failure alone does not require promotion or an extra review.
+- The parent owns architecture and one coherent pre-canary integration acceptance after the Luna executor self-check and the named tester package are complete. Do not request incremental patch reviews unless a new cross-contract decision appears; no child Sol review is automatic.
+- Use the compact ladder in [`docs/flow-delivery-validation-policy.md`](docs/flow-delivery-validation-policy.md): exact regression during repair; each affected package suite once; the focused profile once before canary; shared-navigation only when navigation is touched; one parent integration gate; zero-input `pnsctl development-session observe`; live execution; semantic verification. Full repository discovery is manual-only (`full --manual`). Reuse the checked-in runner's compact output and receipts; do not create a second validation framework.
 <!-- codex-workflow-project-personalization-end -->
 
 <!-- codex-workflow-project-local-instructions-start -->

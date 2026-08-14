@@ -23,7 +23,7 @@ rung merely for ceremony.
    `python scripts/run_flow_delivery_validation.py focused --flow-id FLOW-ID`.
 4. If shared navigation changed, run the boundary profile once:
    `python scripts/run_flow_delivery_validation.py shared-navigation --flow-id FLOW-ID`.
-5. Complete the one parent-owned Sol gate after the executor self-check and tester package.
+5. Complete the one parent-owned integration gate after the executor self-check and tester package.
 6. Perform a zero-input observation through the supported interface:
    `python scripts/pnsctl.py development-session observe`.
 7. Execute the authorized live flow through its existing `pnsctl` development-session interface.
