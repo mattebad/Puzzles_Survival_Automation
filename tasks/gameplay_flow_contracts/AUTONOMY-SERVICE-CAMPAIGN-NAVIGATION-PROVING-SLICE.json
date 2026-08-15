@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "flow_id": "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
+  "product_purpose": "Supervised BlueStacks navigation-only reliability slice for the automation-service Campaign handler boundary.",
+  "trigger_cadence_type": "evidence_gated",
+  "reset_scope": "none_navigation_only",
+  "required_starting_context": [
+    "home_canonical"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "configured_stage_verified",
+    "safe_terminal",
+    "blocked"
+  ],
+  "state_transitions": [
+    {
+      "from": "home_canonical",
+      "to": "configured_stage_verified",
+      "via": "automation_service_campaign_navigation_handler",
+      "notes": "The handler must identify the navigation-only Campaign flow and one supported destination before the existing current-frame route binds any input."
+    },
+    {
+      "from": "configured_stage_verified",
+      "to": "safe_terminal",
+      "via": "navigation_only_successor",
+      "notes": "No Challenge, Auto Battle, AP spend, refill, Sweep, Blitz, or Auto Complete input is permitted."
+    }
+  ],
+  "permitted_inputs": [
+    "campaign_home_navigation",
+    "campaign_story_navigation",
+    "campaign_difficulty_navigation",
+    "campaign_chapter_navigation",
+    "campaign_stage_navigation",
+    "safe_campaign_exit_or_home_prep"
+  ],
+  "local_postconditions": [
+    "supported configured destination positively verified",
+    "transport remains navigation-only",
+    "no AP or other resource consequence",
+    "recognized safe terminal"
+  ],
+  "consequential_action_class": "none_declared",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": null,
+    "resource_or_currency": null,
+    "notes": "Every AP-consuming, combat, refill, purchase, or premium path is prohibited."
+  },
+  "completion_identity": "automation-service-campaign-navigation:ten-cycle-proving-slice",
+  "terminal_outcomes": [
+    "complete_for_reset",
+    "blocked"
+  ],
+  "cooldown_deferred_behavior": "not_applicable_navigation_only",
+  "bounded_recovery_behavior": "recognized Campaign exit or canonical Home preparation only; otherwise block",
+  "evidence_requirements": [
+    "ten independently retained supervised BlueStacks navigation-only results",
+    "supported destinations rotated across 1-20-9, 1-15-9, and 2-2-9",
+    "native source, immediate-before, post, terminal, events, ledger, capability audit, and journal evidence",
+    "zero AP, premium, refill, combat, purchase, registration, or scheduler input"
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "campaign_navigation_handler_offline_plan",
+      "status": "synthetic_policy_ok",
+      "path": "tests/test_automation_service_campaign.py",
+      "notes": "Zero-transport handler and pnsctl delegation coverage."
+    }
+  ],
+  "live_validation_scenarios": [
+    {
+      "id": "ten-supervised-campaign-navigation-cycles",
+      "mode": "navigation_only",
+      "notes": "Exactly ten supervised cycles; each cycle is independently retained and no gameplay execution is authorized."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "unknown_stage_or_cost",
+    "challenge",
+    "auto_battle",
+    "sweep",
+    "blitz",
+    "auto_complete",
+    "ap_or_resource_refill",
+    "ultimate_challenge"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false,
+  "scheduler_eligibility": false
+}
