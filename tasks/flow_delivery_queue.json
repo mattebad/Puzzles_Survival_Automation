@@ -57,7 +57,7 @@
       "live_validation_scope": "Exactly ten supervised navigation-only Campaign cycles rotating 1-20-9, 1-15-9, and 2-2-9; no AP, Challenge, Auto Battle, refill, Sweep, Blitz, Auto Complete, purchase, registration, or scheduling input.",
       "consequence_policy": "Navigation-only ordinary development interaction with zero AP or resource consequence.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 15,
+      "maximum_live_attempts": 25,
       "live_attempt_count": 0,
       "live_attempts": [],
       "focused_tests": [
@@ -133,7 +133,7 @@
       ],
       "consequential_stage_policy": {
         "initial_live_validation": "navigation_only",
-        "maximum_canaries": "15",
+        "maximum_canaries": "25",
         "required_consecutive_successes": "10",
         "campaign_execution": "prohibited"
       }

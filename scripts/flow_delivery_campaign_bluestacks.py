@@ -20,7 +20,7 @@ FLOW_ID = "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
 PROVING_FLOW_ID = "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE"
 AUTO_BATTLE_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
 DESTINATIONS = ("1-20-9", "1-15-9", "2-2-9")
-MAX_PROVING_ATTEMPTS = 15
+MAX_PROVING_ATTEMPTS = 25
 REQUIRED_CONSECUTIVE_PROVING_CYCLES = 10
 CAMPAIGN_RUNNER_ID = "campaign_navigation_only_runner"
 CAMPAIGN_EVIDENCE_VALIDATOR_ID = "campaign_navigation_only_evidence"
@@ -457,15 +457,33 @@ def run_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, A
 
 def _proving_result_summary(root: Path) -> tuple[int, int, dict[str, int]]:
     records: list[tuple[str, Mapping[str, Any]]] = []
-    paths = root.rglob("flow-delivery-result.json") if root.is_dir() else ()
-    for path in paths:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            continue
-        if payload.get("flow_id") == PROVING_FLOW_ID:
-            records.append((str(path), payload))
-    records.sort(key=lambda item: item[0])
+    attempt_directories = (
+        sorted(
+            (
+                path
+                for path in root.iterdir()
+                if path.is_dir() and path.name.startswith("nav-")
+            ),
+            key=lambda path: path.name.rsplit("-", 1)[-1],
+        )
+        if root.is_dir()
+        else ()
+    )
+    for attempt in attempt_directories:
+        result_paths = sorted(attempt.rglob("flow-delivery-result.json"))
+        payload: Mapping[str, Any] = {
+            "flow_id": PROVING_FLOW_ID,
+            "status": "failed",
+        }
+        for path in reversed(result_paths):
+            try:
+                candidate = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                continue
+            if candidate.get("flow_id") == PROVING_FLOW_ID:
+                payload = candidate
+                break
+        records.append((attempt.name, payload))
     successful_by_destination = {destination: 0 for destination in DESTINATIONS}
     for _path, payload in records:
         if (

@@ -67,6 +67,8 @@ from tasks.home_atlas_vision import (
     native_frame_guard,
     register_home_frame,
 )
+
+CANONICAL_ZOOM_CONFIDENCE_MINIMUM = 0.50
 from tasks.home_context import (
     HomeContextLevel,
     HomeReadyObservation,
@@ -3771,7 +3773,7 @@ def command_zoom(args) -> int:
     source_class = classify_zoom(source.frame, canonical)
     if (
         source_class.identity is ZoomIdentity.FULLY_ZOOMED_OUT
-        and source_class.confidence >= 0.80
+        and source_class.confidence >= CANONICAL_ZOOM_CONFIDENCE_MINIMUM
     ):
         result = {
             "status": "completed",
@@ -3816,7 +3818,7 @@ def command_zoom(args) -> int:
         canonical_class = classify_zoom(settled.frame, canonical)
         if (
             canonical_class.identity is ZoomIdentity.FULLY_ZOOMED_OUT
-            and canonical_class.confidence >= 0.80
+            and canonical_class.confidence >= CANONICAL_ZOOM_CONFIDENCE_MINIMUM
         ):
             result = {
                 "status": "completed",

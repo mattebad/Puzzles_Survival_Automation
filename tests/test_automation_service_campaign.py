@@ -124,7 +124,7 @@ class AutomationServiceCampaignTests(unittest.TestCase):
                     result = (
                         root
                         / PROVING_FLOW_ID
-                        / f"run-{ordinal}"
+                        / f"nav-test-{ordinal:02d}"
                         / "flow-delivery-result.json"
                     )
                     result.parent.mkdir(parents=True, exist_ok=True)
@@ -146,7 +146,7 @@ class AutomationServiceCampaignTests(unittest.TestCase):
             root = Path(folder)
             flow_root = root / PROVING_FLOW_ID
             for ordinal in range(REQUIRED_CONSECUTIVE_PROVING_CYCLES):
-                result = flow_root / f"run-{ordinal:02d}" / "flow-delivery-result.json"
+                result = flow_root / f"nav-test-{ordinal:02d}" / "flow-delivery-result.json"
                 result.parent.mkdir(parents=True, exist_ok=True)
                 result.write_text(
                     json.dumps(
