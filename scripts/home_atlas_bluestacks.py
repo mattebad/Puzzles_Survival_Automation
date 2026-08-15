@@ -343,6 +343,10 @@ class BlueStacksHostZoomTransport:
         self.user32.GetWindowTextW.restype = ctypes.c_int
         self.user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
         self.user32.SetForegroundWindow.restype = wintypes.BOOL
+        self.user32.SetActiveWindow.argtypes = (wintypes.HWND,)
+        self.user32.SetActiveWindow.restype = wintypes.HWND
+        self.user32.SetFocus.argtypes = (wintypes.HWND,)
+        self.user32.SetFocus.restype = wintypes.HWND
         self.user32.BringWindowToTop.argtypes = (wintypes.HWND,)
         self.user32.BringWindowToTop.restype = wintypes.BOOL
         self.user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
@@ -398,25 +402,35 @@ class BlueStacksHostZoomTransport:
         if int(self.user32.GetForegroundWindow()) == hwnd:
             return
         self.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-        foreground = self.user32.GetForegroundWindow()
         current_thread = self.kernel32.GetCurrentThreadId()
-        foreground_thread = (
-            self.user32.GetWindowThreadProcessId(foreground, None) if foreground else 0
-        )
-        attached = bool(
-            foreground_thread
-            and foreground_thread != current_thread
-            and self.user32.AttachThreadInput(current_thread, foreground_thread, True)
-        )
-        try:
-            self.user32.BringWindowToTop(hwnd)
-            self.user32.SetForegroundWindow(hwnd)
-        finally:
-            if attached:
-                self.user32.AttachThreadInput(current_thread, foreground_thread, False)
-        time.sleep(0.1)
-        if int(self.user32.GetForegroundWindow()) != hwnd:
-            raise RuntimeError("could not foreground the exact BlueStacks window")
+        target_thread = self.user32.GetWindowThreadProcessId(hwnd, None)
+        for attempt in range(3):
+            foreground = self.user32.GetForegroundWindow()
+            foreground_thread = (
+                self.user32.GetWindowThreadProcessId(foreground, None) if foreground else 0
+            )
+            attached_threads: list[int] = []
+            for thread_id in (foreground_thread, target_thread):
+                if (
+                    thread_id
+                    and thread_id != current_thread
+                    and thread_id not in attached_threads
+                    and self.user32.AttachThreadInput(current_thread, thread_id, True)
+                ):
+                    attached_threads.append(thread_id)
+            try:
+                self.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                self.user32.BringWindowToTop(hwnd)
+                self.user32.SetActiveWindow(hwnd)
+                self.user32.SetForegroundWindow(hwnd)
+                self.user32.SetFocus(hwnd)
+            finally:
+                for thread_id in reversed(attached_threads):
+                    self.user32.AttachThreadInput(current_thread, thread_id, False)
+            time.sleep(0.1 * (attempt + 1))
+            if int(self.user32.GetForegroundWindow()) == hwnd:
+                return
+        raise RuntimeError("could not foreground the exact BlueStacks window")
 
     def zoom_out_once(self) -> None:
         hwnd = self._unique_window()
