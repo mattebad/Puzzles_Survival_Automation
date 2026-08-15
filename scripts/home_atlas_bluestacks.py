@@ -3768,6 +3768,25 @@ def command_zoom(args) -> int:
         evidence_directory=runtime.session,
     )
     source = runtime.capture("zoom-00-source")
+    source_class = classify_zoom(source.frame, canonical)
+    if (
+        source_class.identity is ZoomIdentity.FULLY_ZOOMED_OUT
+        and source_class.confidence >= 0.80
+    ):
+        result = {
+            "status": "completed",
+            "reason": "source_already_fully_zoomed_out",
+            "inputs": 0,
+            "canonical_reference_classification": {
+                **source_class.__dict__,
+                "identity": source_class.identity.value,
+            },
+            "session": str(runtime.session),
+        }
+        _json(runtime.session / "zoom-result.json", result)
+        print(json.dumps(result, sort_keys=True, default=str))
+        return 0
+    previous_canonical_scale = source_class.scale
     for ordinal in range(1, args.max_inputs + 1):
         immediate_before = runtime.capture(f"zoom-{ordinal:02d}-immediate-before")
         transport.zoom_out_once()
@@ -3813,6 +3832,18 @@ def command_zoom(args) -> int:
             _json(runtime.session / "zoom-result.json", result)
             print(json.dumps(result, sort_keys=True, default=str))
             return 0
+        if (
+            canonical_class.identity
+            in {ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE}
+            and canonical_class.scale is not None
+            and (
+                previous_canonical_scale is None
+                or canonical_class.scale > previous_canonical_scale + 0.005
+            )
+        ):
+            previous_canonical_scale = canonical_class.scale
+            source = settled
+            continue
         if not step.accepted or scale is None or translation is None:
             print(json.dumps({"status": "blocked", "reason": "ambiguous_zoom_step", "record": record, "session": str(runtime.session)}, sort_keys=True, default=str))
             return 3
