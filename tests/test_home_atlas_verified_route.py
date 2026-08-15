@@ -282,10 +282,10 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
         self.assertEqual(len(messages), 20)
         decoded = [struct.unpack(">BBQiiHHHII", payload) for _label, payload in messages]
         self.assertTrue(all(len(payload) == 32 for _label, payload in messages))
-        self.assertEqual(decoded[0][:7], (2, 0, 1, 110, 640, 800, 1280))
-        self.assertEqual(decoded[1][:7], (2, 0, 2, 690, 640, 800, 1280))
-        self.assertEqual(decoded[-2][:7], (2, 1, 2, 450, 640, 800, 1280))
-        self.assertEqual(decoded[-1][:7], (2, 1, 1, 350, 640, 800, 1280))
+        self.assertEqual(decoded[0][:7], (2, 0, 1, 350, 640, 800, 1280))
+        self.assertEqual(decoded[1][:7], (2, 0, 2, 450, 640, 800, 1280))
+        self.assertEqual(decoded[-2][:7], (2, 1, 2, 690, 640, 800, 1280))
+        self.assertEqual(decoded[-1][:7], (2, 1, 1, 110, 640, 800, 1280))
         self.assertEqual({item[2] for item in decoded}, {1, 2})
         self.assertEqual({(item[5], item[6]) for item in decoded}, {(800, 1280)})
 

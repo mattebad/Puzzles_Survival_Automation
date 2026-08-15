@@ -339,8 +339,10 @@ class ScrcpyMotionEventZoomTransport:
         if not 8 <= steps <= 32:
             raise ValueError("pinch steps must remain between 8 and 32")
         y = 640
-        left_start, left_end = 110, 350
-        right_start, right_end = 690, 450
+        # P&S interprets an outward two-pointer spread as zoom-out.  The prior
+        # inward trajectory was retained live at scale < 1.0 and zoomed in.
+        left_start, left_end = 350, 110
+        right_start, right_end = 450, 690
         messages = [
             ("left-down", cls._touch_message(cls.ACTION_DOWN, 1, left_start, y, 1.0)),
             ("right-down", cls._touch_message(cls.ACTION_DOWN, 2, right_start, y, 1.0)),
