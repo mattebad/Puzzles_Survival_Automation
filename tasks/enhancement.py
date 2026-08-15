@@ -8,6 +8,7 @@ capture.  It fails closed on ambiguous items, unsafe materials, premium actions,
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 import re
 from typing import Optional
 
@@ -18,6 +19,8 @@ from .profile import PROFILE_ID
 ENHANCEMENT_SCREEN = "COMMANDER_INFO"
 ENHANCEMENT_TARGET = "enhancement-confirm"
 BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
+BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
+BLUESTACKS_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 SUPPORTED_VARIANTS = frozenset({"gear", "chip", "module"})
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -58,6 +61,7 @@ class EnhancementObservation:
     reset_guard_active: bool = False
     runtime_profile_id: str = PROFILE_ID
     recognized: bool = True
+    result_spatially_associated: bool = False
 
 
 def _variant_identity(variant: str) -> str:
@@ -88,12 +92,37 @@ def _has_bliss_native_source(observation: EnhancementObservation) -> bool:
     )
 
 
-def enhancement_authorizeable(
+def _has_bluestacks_native_source(observation: EnhancementObservation) -> bool:
+    """Require independently retained native BlueStacks frame provenance.
+
+    Synthetic fixture references intentionally remain valid for the Bliss-only
+    contract, but can never authorize the BlueStacks adapter.
+    """
+
+    refs = tuple(str(ref).strip() for ref in observation.evidence_refs)
+    source_hash = str(observation.source_frame_sha256 or "")
+    return bool(
+        observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
+        and observation.runtime_profile_id == BLUESTACKS_RUNTIME_PROFILE_ID
+        and _SHA256_RE.fullmatch(source_hash)
+        and source_hash != "0" * 64
+        and refs
+        and all(
+            ref
+            and "local-reference" not in ref.lower()
+            and not ref.lower().startswith("synthetic:")
+            and Path(ref).suffix.lower() in {".png", ".jpg", ".jpeg"}
+            for ref in refs
+        )
+    )
+
+
+def _enhancement_semantics_authorizeable(
     observation: EnhancementObservation,
     *,
     variant: str = "gear",
 ) -> bool:
-    """Require exact variant ownership and one-star material enhancement semantics."""
+    """Require exact variant ownership and one-star material semantics."""
 
     expected_kind = _variant_identity(variant)
     return bool(
@@ -114,13 +143,48 @@ def enhancement_authorizeable(
         and observation.material_quantity == 1
         and not observation.auto_select_enabled
         and observation.cost_type == "material"
+        and observation.cost_amount in (None, 0, 0.0)
         and observation.quantity == 1
         and _target_inside_panel(observation)
         and observation.overlay_state in {"none", "none_observed"}
         and bool(observation.game_day_id)
         and not observation.reset_guard_active
         and observation.recognized
+    )
+
+
+def enhancement_authorizeable(
+    observation: EnhancementObservation,
+    *,
+    variant: str = "gear",
+) -> bool:
+    """Authorize the existing Bliss-native offline contract only."""
+
+    return bool(
+        _enhancement_semantics_authorizeable(observation, variant=variant)
         and _has_bliss_native_source(observation)
+    )
+
+
+def enhancement_bluestacks_authorizeable(
+    observation: EnhancementObservation,
+    *,
+    variant: str = "gear",
+) -> bool:
+    """Authorize one exact native BlueStacks enhancement target.
+
+    This separate entry point prevents BlueStacks provenance from weakening
+    Bliss behavior or making synthetic fixture observations dispatchable.
+    """
+
+    expected_kind = _variant_identity(variant)
+    material = observation.material_identity.strip().lower()
+    return bool(
+        _enhancement_semantics_authorizeable(observation, variant=variant)
+        and _has_bluestacks_native_source(observation)
+        and material == f"{variant.lower()}-material-one-star"
+        and observation.selected_tab == expected_kind
+        and observation.selected_item_kind == expected_kind
     )
 
 
@@ -131,6 +195,31 @@ def enhancement_transaction_spec(
 ) -> ActionTransactionSpec:
     if not enhancement_authorizeable(observation, variant=variant):
         raise ValueError("enhancement preconditions are not positively recognized")
+    return _enhancement_transaction_spec(
+        observation, variant=variant, provenance="bliss"
+    )
+
+
+def enhancement_bluestacks_transaction_spec(
+    observation: EnhancementObservation,
+    *,
+    variant: str = "gear",
+) -> ActionTransactionSpec:
+    if not enhancement_bluestacks_authorizeable(observation, variant=variant):
+        raise ValueError(
+            "native BlueStacks enhancement preconditions are not positively recognized"
+        )
+    return _enhancement_transaction_spec(
+        observation, variant=variant, provenance="bluestacks"
+    )
+
+
+def _enhancement_transaction_spec(
+    observation: EnhancementObservation,
+    *,
+    variant: str,
+    provenance: str,
+) -> ActionTransactionSpec:
     expected_kind = _variant_identity(variant)
     return ActionTransactionSpec(
         action_kind=f"ENHANCE_{expected_kind}",
@@ -148,7 +237,7 @@ def enhancement_transaction_spec(
             "exact_enhance_control",
             "one_star_material_quantity_one",
             "no_auto_select",
-            "bliss_native_target_evidence",
+            f"{provenance}_native_target_evidence",
         ),
         semantic_postconditions=(f"{variant}_level_or_material_delta",),
     )
@@ -163,6 +252,19 @@ def enhancement_postcondition_verified(
     """Require a same-day positive change for the same selected enhancement variant."""
 
     if not enhancement_authorizeable(before, variant=variant) or after is None:
+        return False
+    return _enhancement_postcondition_verified(before, after, variant=variant)
+
+
+def _enhancement_postcondition_verified(
+    before: EnhancementObservation,
+    after: EnhancementObservation,
+    *,
+    variant: str,
+) -> bool:
+    """Compare a recognized successor without imposing its pre-dispatch target."""
+
+    if after is None:
         return False
     expected_kind = _variant_identity(variant)
     if (
@@ -181,9 +283,29 @@ def enhancement_postcondition_verified(
         and after.material_inventory_count < before.material_inventory_count
     )
     result_confirmed = (
-        after.enhancement_result_visible and bool(after.result_identity.strip())
+        after.enhancement_result_visible
+        and after.result_identity.strip() == before.selected_item_identity.strip()
+        and after.result_spatially_associated
     )
     return bool(level_changed or material_changed or result_confirmed)
+
+
+def enhancement_bluestacks_postcondition_verified(
+    before: EnhancementObservation,
+    after: EnhancementObservation | None,
+    *,
+    variant: str = "gear",
+) -> bool:
+    """Verify a same-category BlueStacks successor after one dispatch."""
+
+    if (
+        not enhancement_bluestacks_authorizeable(before, variant=variant)
+        or after is None
+        or after.target_provenance != BLUESTACKS_NATIVE_TARGET_PROVENANCE
+        or after.runtime_profile_id != BLUESTACKS_RUNTIME_PROFILE_ID
+    ):
+        return False
+    return _enhancement_postcondition_verified(before, after, variant=variant)
 
 
 def enhancement_perform_one_pulse(

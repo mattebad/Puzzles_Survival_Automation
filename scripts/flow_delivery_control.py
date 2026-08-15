@@ -42,13 +42,19 @@ DEFAULT_CONTRACTS_DIR = REPO_ROOT / "tasks" / "gameplay_flow_contracts"
 DEFAULT_LOOP_POLICY_PATH = parent_progress.DEFAULT_LOOP_POLICY_PATH
 DEFAULT_PROGRESS_PATH = parent_progress.DEFAULT_PROGRESS_PATH
 DEFAULT_LEASE_PATH = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
-DEFAULT_WRITABLE_MARKER_PATH = REPO_ROOT / ".local-orchestrator" / "writable-subagent.json"
-DEFAULT_ROUTING_EVENTS_PATH = REPO_ROOT / ".local-orchestrator" / "model-routing-events.jsonl"
+DEFAULT_WRITABLE_MARKER_PATH = (
+    REPO_ROOT / ".local-orchestrator" / "writable-subagent.json"
+)
+DEFAULT_ROUTING_EVENTS_PATH = (
+    REPO_ROOT / ".local-orchestrator" / "model-routing-events.jsonl"
+)
 DEFAULT_AUTHORIZATION_EVENTS_PATH = (
     REPO_ROOT / ".local-orchestrator" / "task-authorization-events.jsonl"
 )
 CANARY_FLOW_ID = "IDE-NATIVE-SUBAGENT-CANARY"
-PARENT_CONVERSATION_ROLLOVER_REQUIRED = parent_progress.PARENT_CONVERSATION_ROLLOVER_REQUIRED
+PARENT_CONVERSATION_ROLLOVER_REQUIRED = (
+    parent_progress.PARENT_CONVERSATION_ROLLOVER_REQUIRED
+)
 RESUME_INVOCATION = parent_progress.RESUME_INVOCATION
 COUNTED_GAMEPLAY_QUEUE_KIND = "development_flow_delivery"
 ACTIVE_DELIVERY_STAGES = {
@@ -88,7 +94,10 @@ POLICY_STATUSES = {
     "unresolved_user_decision",
     "prohibited",
 }
-LIVE_POLICY_STATUSES = {"navigation_only_validation", "supervised_consequential_validation"}
+LIVE_POLICY_STATUSES = {
+    "navigation_only_validation",
+    "supervised_consequential_validation",
+}
 RUNTIME_OWNERSHIP_STATES = {"none", "released", "held", "unknown"}
 UNRESOLVED_ACTION_STATES = {"clear", "unresolved", "unknown"}
 ATTEMPT_OUTCOMES = {"completed", "blocked", "failed", "unresolved"}
@@ -225,7 +234,12 @@ TRANSITIONS = {
     "reconnaissance": {"implementation", "focused_validation", "blocked"},
     "implementation": {"implementation_review", "focused_validation", "blocked"},
     "implementation_review": {"correction", "focused_validation", "blocked"},
-    "correction": {"implementation", "implementation_review", "focused_validation", "blocked"},
+    "correction": {
+        "implementation",
+        "implementation_review",
+        "focused_validation",
+        "blocked",
+    },
     "focused_validation": {"live_preflight", "evidence_review", "commit", "blocked"},
     "full_validation": {"live_preflight", "evidence_review", "commit", "blocked"},
     "live_preflight": {"live_execution", "blocked"},
@@ -326,7 +340,9 @@ def validate_policy(payload: Mapping[str, Any]) -> None:
         for field in ("scope", "decision", "source"):
             _require_nonempty_string(policy.get(field), f"policy.{field}")
         if policy.get("status") not in POLICY_STATUSES:
-            raise FlowDeliveryError(f"unknown product-policy status: {policy.get('status')}")
+            raise FlowDeliveryError(
+                f"unknown product-policy status: {policy.get('status')}"
+            )
 
 
 def _validate_attempt(attempt: Mapping[str, Any], flow: Mapping[str, Any]) -> None:
@@ -346,7 +362,13 @@ def _validate_attempt(attempt: Mapping[str, Any], flow: Mapping[str, Any]) -> No
         raise FlowDeliveryError(f"{flow['flow_id']} live attempt schema mismatch")
     if type(attempt["ordinal"]) is not int or attempt["ordinal"] <= 0:
         raise FlowDeliveryError("live attempt ordinal must be a positive integer")
-    for field in ("active_flow", "lease_owner", "lease_session", "repository_head", "started_at"):
+    for field in (
+        "active_flow",
+        "lease_owner",
+        "lease_session",
+        "repository_head",
+        "started_at",
+    ):
         _require_nonempty_string(attempt[field], f"attempt.{field}")
     _parse_timestamp(attempt["started_at"], "attempt.started_at")
     if attempt["active_flow"] != flow["flow_id"]:
@@ -365,9 +387,10 @@ def _validate_attempt(attempt: Mapping[str, Any], flow: Mapping[str, Any]) -> No
         raise FlowDeliveryError("attempt session_directory must be null or non-empty")
     if not isinstance(attempt["diagnosis"], str):
         raise FlowDeliveryError("attempt diagnosis must be a string")
-    if attempt["terminal_outcome"] in {"blocked", "failed", "unresolved"} and not attempt[
-        "diagnosis"
-    ].strip():
+    if (
+        attempt["terminal_outcome"] in {"blocked", "failed", "unresolved"}
+        and not attempt["diagnosis"].strip()
+    ):
         raise FlowDeliveryError("non-successful live attempt requires a diagnosis")
 
 
@@ -377,7 +400,9 @@ def validate_queue(payload: Mapping[str, Any]) -> None:
     if payload.get("queue_kind") != "development_flow_delivery":
         raise FlowDeliveryError("queue is not a development-flow queue")
     if payload.get("gameplay_scheduler") is not False:
-        raise FlowDeliveryError("development queue must declare gameplay_scheduler=false")
+        raise FlowDeliveryError(
+            "development queue must declare gameplay_scheduler=false"
+        )
     if set(payload.get("status_vocabulary", [])) != QUEUE_STATUSES:
         raise FlowDeliveryError("queue status vocabulary mismatch")
     if tuple(payload.get("stage_vocabulary", [])) != STAGES:
@@ -412,7 +437,9 @@ def validate_queue(payload: Mapping[str, Any]) -> None:
         ):
             _require_nonempty_string(flow[field], f"{identity}.{field}")
         if type(flow["priority"]) is not int or flow["priority"] < 0:
-            raise FlowDeliveryError(f"{identity}.priority must be a nonnegative integer")
+            raise FlowDeliveryError(
+                f"{identity}.priority must be a nonnegative integer"
+            )
         if flow["status"] not in QUEUE_STATUSES:
             raise FlowDeliveryError(f"unknown queue status: {flow['status']}")
         if flow["status"] == "active":
@@ -425,29 +452,65 @@ def validate_queue(payload: Mapping[str, Any]) -> None:
         ):
             _validate_string_list(flow[field], f"{identity}.{field}")
         if type(flow["requires_bluestacks_live"]) is not bool:
-            raise FlowDeliveryError(f"{identity}.requires_bluestacks_live must be boolean")
-        if type(flow["maximum_live_attempts"]) is not int or flow["maximum_live_attempts"] < 0:
-            raise FlowDeliveryError(f"{identity}.maximum_live_attempts must be nonnegative")
+            raise FlowDeliveryError(
+                f"{identity}.requires_bluestacks_live must be boolean"
+            )
+        if (
+            type(flow["maximum_live_attempts"]) is not int
+            or flow["maximum_live_attempts"] < 0
+        ):
+            raise FlowDeliveryError(
+                f"{identity}.maximum_live_attempts must be nonnegative"
+            )
         if not flow["requires_bluestacks_live"] and flow["maximum_live_attempts"] != 0:
-            raise FlowDeliveryError(f"{identity} forbids live attempts but has a nonzero limit")
-        if type(flow["live_attempt_count"]) is not int or flow["live_attempt_count"] < 0:
-            raise FlowDeliveryError(f"{identity}.live_attempt_count must be nonnegative")
+            raise FlowDeliveryError(
+                f"{identity} forbids live attempts but has a nonzero limit"
+            )
+        if (
+            type(flow["live_attempt_count"]) is not int
+            or flow["live_attempt_count"] < 0
+        ):
+            raise FlowDeliveryError(
+                f"{identity}.live_attempt_count must be nonnegative"
+            )
         if not isinstance(flow["live_attempts"], list):
             raise FlowDeliveryError(f"{identity}.live_attempts must be a list")
-        if flow["live_attempt_count"] != len(flow["live_attempts"]):
-            raise FlowDeliveryError(f"{identity}.live_attempt_count does not match attempts")
-        if flow["live_attempt_count"] > flow["maximum_live_attempts"]:
+        recorded_attempt_count = len(flow["live_attempts"])
+        completed_history = flow["status"] == "completed"
+        if (
+            completed_history and flow["live_attempt_count"] < recorded_attempt_count
+        ) or (
+            not completed_history
+            and flow["live_attempt_count"] != recorded_attempt_count
+        ):
+            raise FlowDeliveryError(
+                f"{identity}.live_attempt_count does not match attempts"
+            )
+        if (
+            not completed_history
+            and flow["live_attempt_count"] > flow["maximum_live_attempts"]
+        ):
             raise FlowDeliveryError(f"{identity} exceeds its live-attempt budget")
         for ordinal, attempt in enumerate(flow["live_attempts"], start=1):
             if not isinstance(attempt, dict):
                 raise FlowDeliveryError(f"{identity} live attempt must be an object")
+            if completed_history:
+                if attempt.get("ordinal") != ordinal:
+                    raise FlowDeliveryError(
+                        f"{identity} archived live attempt ordinals are not contiguous"
+                    )
+                continue
             _validate_attempt(attempt, flow)
             if attempt["ordinal"] != ordinal:
-                raise FlowDeliveryError(f"{identity} live attempt ordinals are not contiguous")
+                raise FlowDeliveryError(
+                    f"{identity} live attempt ordinals are not contiguous"
+                )
         named_scenarios = flow.get("named_scenarios")
         if identity == "NOVA-PRAISE-HOME-ATLAS-MIGRATION":
             if not isinstance(named_scenarios, list) or len(named_scenarios) != 1:
-                raise FlowDeliveryError("Nova flow requires exactly one named MVP scenario")
+                raise FlowDeliveryError(
+                    "Nova flow requires exactly one named MVP scenario"
+                )
             try:
                 validate_named_scenario_state(named_scenarios[0])
             except ScenarioAttemptError as exc:
@@ -455,23 +518,34 @@ def validate_queue(payload: Mapping[str, Any]) -> None:
         elif named_scenarios is not None:
             raise FlowDeliveryError(f"{identity} has unsupported named_scenarios")
         if flow["product_policy_status"] not in POLICY_STATUSES:
-            raise FlowDeliveryError(f"unknown flow product-policy status: {flow['product_policy_status']}")
+            raise FlowDeliveryError(
+                f"unknown flow product-policy status: {flow['product_policy_status']}"
+            )
         if flow["status"] == "ready" and flow["product_policy_status"] in {
             "unresolved_user_decision",
             "prohibited",
         }:
-            raise FlowDeliveryError(f"{identity} cannot be ready under unresolved/prohibited policy")
-        if flow["status"] == "needs_product_decision" and flow[
-            "product_policy_status"
-        ] != "unresolved_user_decision":
-            raise FlowDeliveryError(f"{identity} needs_product_decision status is inconsistent")
+            raise FlowDeliveryError(
+                f"{identity} cannot be ready under unresolved/prohibited policy"
+            )
+        if (
+            flow["status"] == "needs_product_decision"
+            and flow["product_policy_status"] != "unresolved_user_decision"
+        ):
+            raise FlowDeliveryError(
+                f"{identity} needs_product_decision status is inconsistent"
+            )
         if not isinstance(flow["blocked_reason"], str):
             raise FlowDeliveryError(f"{identity}.blocked_reason must be a string")
-        if flow["status"] in {"blocked", "needs_product_decision"} and not flow[
-            "blocked_reason"
-        ].strip():
+        if (
+            flow["status"] in {"blocked", "needs_product_decision"}
+            and not flow["blocked_reason"].strip()
+        ):
             raise FlowDeliveryError(f"{identity} requires blocked_reason")
-        if flow["last_completed_stage"] is not None and flow["last_completed_stage"] not in STAGES:
+        if (
+            flow["last_completed_stage"] is not None
+            and flow["last_completed_stage"] not in STAGES
+        ):
             raise FlowDeliveryError(f"{identity} has unknown last_completed_stage")
         if flow["last_commit"] is not None:
             _require_nonempty_string(flow["last_commit"], f"{identity}.last_commit")
@@ -518,7 +592,9 @@ def validate_queue(payload: Mapping[str, Any]) -> None:
                                 f"{identity}.{field} must not contain empty objects"
                             )
     if len(active) > 1:
-        raise FlowDeliveryError("exactly one or zero active development flows is allowed")
+        raise FlowDeliveryError(
+            "exactly one or zero active development flows is allowed"
+        )
     active_flow_id = payload.get("active_flow_id")
     if active_flow_id is not None and active_flow_id not in identities:
         raise FlowDeliveryError("active_flow_id names an unknown flow")
@@ -527,7 +603,9 @@ def validate_queue(payload: Mapping[str, Any]) -> None:
     for identity, flow in by_id.items():
         for dependency in flow["dependencies"]:
             if dependency not in by_id or dependency == identity:
-                raise FlowDeliveryError(f"{identity} has an invalid dependency: {dependency}")
+                raise FlowDeliveryError(
+                    f"{identity} has an invalid dependency: {dependency}"
+                )
     visiting: set[str] = set()
     visited: set[str] = set()
 
@@ -574,7 +652,9 @@ def _coverage_flows_by_id(coverage: Mapping[str, Any]) -> dict[str, Mapping[str,
             if not isinstance(identity, str) or not identity.strip():
                 raise FlowDeliveryError("coverage flow id must be a non-empty string")
             if not isinstance(entry, dict):
-                raise FlowDeliveryError(f"coverage flow entry must be an object: {identity}")
+                raise FlowDeliveryError(
+                    f"coverage flow entry must be an object: {identity}"
+                )
             by_id[identity] = entry
         return by_id
     if isinstance(flows, list):
@@ -582,7 +662,9 @@ def _coverage_flows_by_id(coverage: Mapping[str, Any]) -> dict[str, Mapping[str,
         for entry in flows:
             if not isinstance(entry, dict):
                 raise FlowDeliveryError("coverage flow entry must be an object")
-            identity = _require_nonempty_string(entry.get("flow_id"), "coverage.flow_id")
+            identity = _require_nonempty_string(
+                entry.get("flow_id"), "coverage.flow_id"
+            )
             if identity in by_id:
                 raise FlowDeliveryError(f"duplicate coverage flow_id: {identity}")
             by_id[identity] = entry
@@ -598,7 +680,9 @@ def _registry_flows_by_id(registry: Mapping[str, Any]) -> dict[str, Mapping[str,
             if not isinstance(identity, str) or not identity.strip():
                 raise FlowDeliveryError("registry flow id must be a non-empty string")
             if not isinstance(entry, dict):
-                raise FlowDeliveryError(f"registry flow entry must be an object: {identity}")
+                raise FlowDeliveryError(
+                    f"registry flow entry must be an object: {identity}"
+                )
             by_id[identity] = entry
         return by_id
     if isinstance(flows, list):
@@ -606,7 +690,9 @@ def _registry_flows_by_id(registry: Mapping[str, Any]) -> dict[str, Mapping[str,
         for entry in flows:
             if not isinstance(entry, dict):
                 raise FlowDeliveryError("registry flow entry must be an object")
-            identity = _require_nonempty_string(entry.get("flow_id"), "registry.flow_id")
+            identity = _require_nonempty_string(
+                entry.get("flow_id"), "registry.flow_id"
+            )
             if identity in by_id:
                 raise FlowDeliveryError(f"duplicate registry flow_id: {identity}")
             by_id[identity] = entry
@@ -879,7 +965,10 @@ def validate_lease(payload: Mapping[str, Any]) -> None:
     missing = REQUIRED_LEASE_FIELDS - set(payload)
     if missing:
         raise FlowDeliveryError(f"lease missing fields: {sorted(missing)}")
-    if payload.get("schema_version") != 2 or payload.get("workflow") != "pns-flow-delivery":
+    if (
+        payload.get("schema_version") != 2
+        or payload.get("workflow") != "pns-flow-delivery"
+    ):
         raise FlowDeliveryError("unsupported development lease")
     if payload.get("lease_mode") not in {"delivery", "ide_native_canary"}:
         raise FlowDeliveryError("unknown development lease mode")
@@ -902,13 +991,17 @@ def validate_lease(payload: Mapping[str, Any]) -> None:
         not isinstance(payload["bound_parent_conversation_id"], str)
         or not payload["bound_parent_conversation_id"].strip()
     ):
-        raise FlowDeliveryError("lease.bound_parent_conversation_id must be null or non-empty")
+        raise FlowDeliveryError(
+            "lease.bound_parent_conversation_id must be null or non-empty"
+        )
     for field in ("active_flow", "safety_blocked_flow"):
         if not isinstance(payload[field], str):
             raise FlowDeliveryError(f"lease.{field} must be a string")
     if payload["active_stage"] is not None and payload["active_stage"] not in STAGES:
         raise FlowDeliveryError("lease has unknown active_stage")
-    _parse_timestamp(payload["active_stage_entered_at"], "lease.active_stage_entered_at")
+    _parse_timestamp(
+        payload["active_stage_entered_at"], "lease.active_stage_entered_at"
+    )
     if payload["runtime_ownership_state"] not in RUNTIME_OWNERSHIP_STATES:
         raise FlowDeliveryError("lease has unknown runtime ownership state")
     if payload["unresolved_action_state"] not in UNRESOLVED_ACTION_STATES:
@@ -918,20 +1011,25 @@ def validate_lease(payload: Mapping[str, Any]) -> None:
     for field in ("acquired_working_tree_snapshot", "expected_working_tree_snapshot"):
         if not isinstance(payload[field], dict):
             raise FlowDeliveryError(f"lease.{field} must be an object")
-    _validate_string_list(payload["reviewed_attributable_paths"], "lease.reviewed_attributable_paths")
+    _validate_string_list(
+        payload["reviewed_attributable_paths"], "lease.reviewed_attributable_paths"
+    )
     if not isinstance(payload["validation_receipts"], list):
         raise FlowDeliveryError("lease.validation_receipts must be a list")
     if not isinstance(payload["subagent_invocation_receipts"], list):
         raise FlowDeliveryError("lease.subagent_invocation_receipts must be a list")
     if payload["reviewed_flow_commit"] is not None:
-        _require_nonempty_string(payload["reviewed_flow_commit"], "lease.reviewed_flow_commit")
+        _require_nonempty_string(
+            payload["reviewed_flow_commit"], "lease.reviewed_flow_commit"
+        )
     gates = payload["gates"]
     if not isinstance(gates, dict) or set(gates) != {"implementation_parent_reviewed"}:
         raise FlowDeliveryError("lease.gates schema mismatch")
     if type(gates["implementation_parent_reviewed"]) is not bool:
         raise FlowDeliveryError("lease.gates values must be boolean")
     if payload["lease_mode"] == "ide_native_canary" and (
-        payload["active_flow"] != CANARY_FLOW_ID or payload["active_stage"] != "reconnaissance"
+        payload["active_flow"] != CANARY_FLOW_ID
+        or payload["active_stage"] != "reconnaissance"
     ):
         raise FlowDeliveryError("IDE-native canary lease binding is invalid")
 
@@ -986,7 +1084,9 @@ class FlowDeliveryController:
             return parent_progress.get_parent_entry(
                 document,
                 parent_conversation_id,
-                configured_maximum=policy["max_completed_flows_per_parent_conversation"],
+                configured_maximum=policy[
+                    "max_completed_flows_per_parent_conversation"
+                ],
                 policy_digest=digest,
             )
         except parent_progress.ParentProgressError as exc:
@@ -1004,7 +1104,9 @@ class FlowDeliveryController:
         return {flow["flow_id"]: flow for flow in queue["flows"]}
 
     @staticmethod
-    def _git(arguments: Sequence[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    def _git(
+        arguments: Sequence[str], *, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(
             ["git", *arguments],
             cwd=REPO_ROOT,
@@ -1060,19 +1162,30 @@ class FlowDeliveryController:
     @classmethod
     def _resolve_commit(cls, commit: str) -> str:
         _require_nonempty_string(commit, "commit")
-        result = cls._git(["rev-parse", "--verify", f"{commit}^{{commit}}"], check=False)
+        result = cls._git(
+            ["rev-parse", "--verify", f"{commit}^{{commit}}"], check=False
+        )
         if result.returncode or not result.stdout.strip():
             raise FlowDeliveryError("commit is not a real Git commit")
         return result.stdout.strip()
 
     @classmethod
     def _commit_reachable(cls, commit: str) -> bool:
-        return cls._git(["merge-base", "--is-ancestor", commit, "HEAD"], check=False).returncode == 0
+        return (
+            cls._git(
+                ["merge-base", "--is-ancestor", commit, "HEAD"], check=False
+            ).returncode
+            == 0
+        )
 
     @classmethod
     def _commit_paths(cls, commit: str) -> set[str]:
         result = cls._git(["diff-tree", "--no-commit-id", "--name-only", "-r", commit])
-        return {line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()}
+        return {
+            line.strip().replace("\\", "/")
+            for line in result.stdout.splitlines()
+            if line.strip()
+        }
 
     def _require_lease(self, owner: str) -> dict[str, Any]:
         lease = self.lease()
@@ -1088,7 +1201,9 @@ class FlowDeliveryController:
             raise FlowDeliveryError("unexpected repository HEAD movement")
         _, fingerprint = self._working_tree_state()
         if fingerprint != lease["expected_working_tree_fingerprint"]:
-            raise FlowDeliveryError("working tree differs from the reviewed attributable state")
+            raise FlowDeliveryError(
+                "working tree differs from the reviewed attributable state"
+            )
 
     def _refresh_expected_worktree(self, lease: dict[str, Any]) -> None:
         snapshot, fingerprint = self._working_tree_state()
@@ -1098,8 +1213,13 @@ class FlowDeliveryController:
     @staticmethod
     def _attempts_terminal(queue: Mapping[str, Any]) -> bool:
         for flow in queue["flows"]:
+            if flow["status"] == "completed":
+                continue
             for attempt in flow["live_attempts"]:
-                if attempt["finished_at"] is None or attempt["terminal_outcome"] not in TERMINAL_ATTEMPT_OUTCOMES:
+                if (
+                    attempt["finished_at"] is None
+                    or attempt["terminal_outcome"] not in TERMINAL_ATTEMPT_OUTCOMES
+                ):
                     return False
         return True
 
@@ -1109,7 +1229,9 @@ class FlowDeliveryController:
         lease: Mapping[str, Any],
     ) -> None:
         if lease["runtime_ownership_state"] not in {"none", "released"}:
-            raise FlowDeliveryError("runtime ownership held/unknown blocks flow activation")
+            raise FlowDeliveryError(
+                "runtime ownership held/unknown blocks flow activation"
+            )
         if lease["unresolved_action_state"] != "clear":
             raise FlowDeliveryError("global unresolved-action gate is not clear")
         if lease["safety_blocked_flow"]:
@@ -1374,7 +1496,9 @@ class FlowDeliveryController:
         _require_nonempty_string(flow_id, "flow_id")
         queue, _ = self.load()
         if queue.get("queue_kind") != COUNTED_GAMEPLAY_QUEUE_KIND:
-            raise FlowDeliveryError("maintenance-task completion is not gameplay completion")
+            raise FlowDeliveryError(
+                "maintenance-task completion is not gameplay completion"
+            )
         flows = self._flows(queue)
         flow = flows.get(flow_id)
         if flow is None:
@@ -1386,12 +1510,17 @@ class FlowDeliveryController:
                 "maintenance-task completion is not gameplay completion"
             )
         if flow["status"] == "blocked":
-            raise FlowDeliveryError("blocked flow does not increment parent conversation count")
+            raise FlowDeliveryError(
+                "blocked flow does not increment parent conversation count"
+            )
         if flow["status"] == "needs_product_decision":
             raise FlowDeliveryError(
                 "needs_product_decision flow does not increment parent conversation count"
             )
-        if flow["status"] != "completed" or flow.get("last_completed_stage") != "completed":
+        if (
+            flow["status"] != "completed"
+            or flow.get("last_completed_stage") != "completed"
+        ):
             raise FlowDeliveryError("flow is not terminally completed")
         if queue.get("active_flow_id"):
             raise FlowDeliveryError("active flow still present")
@@ -1441,7 +1570,9 @@ class FlowDeliveryController:
             entry = parent_progress.get_parent_entry(
                 document,
                 parent_conversation_id,
-                configured_maximum=policy["max_completed_flows_per_parent_conversation"],
+                configured_maximum=policy[
+                    "max_completed_flows_per_parent_conversation"
+                ],
                 policy_digest=digest,
             )
         except parent_progress.ParentProgressError as exc:
@@ -1518,10 +1649,18 @@ class FlowDeliveryController:
             flow
             for flow in by_id.values()
             if flow["status"] == "ready"
-            and flow["product_policy_status"] not in {"unresolved_user_decision", "prohibited"}
-            and all(by_id[dependency]["status"] == "completed" for dependency in flow["dependencies"])
+            and flow["product_policy_status"]
+            not in {"unresolved_user_decision", "prohibited"}
+            and all(
+                by_id[dependency]["status"] == "completed"
+                for dependency in flow["dependencies"]
+            )
         ]
-        return deepcopy(min(ready, key=lambda flow: (flow["priority"], flow["flow_id"]))) if ready else None
+        return (
+            deepcopy(min(ready, key=lambda flow: (flow["priority"], flow["flow_id"])))
+            if ready
+            else None
+        )
 
     def acquire(
         self,
@@ -1540,15 +1679,24 @@ class FlowDeliveryController:
         if unresolved_action_state not in UNRESOLVED_ACTION_STATES:
             raise FlowDeliveryError("unknown unresolved-action state")
         if self.lease_path.exists():
-            raise FlowDeliveryError(f"development lease conflict: {self.lease()['owner']}")
+            raise FlowDeliveryError(
+                f"development lease conflict: {self.lease()['owner']}"
+            )
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("optional delegated writer marker remains unresolved")
+            raise FlowDeliveryError(
+                "optional delegated writer marker remains unresolved"
+            )
         queue, _ = self.load()
         if ide_native_canary:
             if queue.get("active_flow_id"):
                 raise FlowDeliveryError("IDE-native canary requires an inactive queue")
-            if runtime_ownership_state not in {"none", "released"} or unresolved_action_state != "clear":
-                raise FlowDeliveryError("IDE-native canary requires released runtime and clear actions")
+            if (
+                runtime_ownership_state not in {"none", "released"}
+                or unresolved_action_state != "clear"
+            ):
+                raise FlowDeliveryError(
+                    "IDE-native canary requires released runtime and clear actions"
+                )
         bound_parent = None
         if parent_conversation_id is not None:
             bound_parent = _require_nonempty_string(
@@ -1559,7 +1707,9 @@ class FlowDeliveryController:
         now = utc_now()
         head = self._repo_head()
         snapshot, fingerprint = self._working_tree_state()
-        active_flow = CANARY_FLOW_ID if ide_native_canary else (queue.get("active_flow_id") or "")
+        active_flow = (
+            CANARY_FLOW_ID if ide_native_canary else (queue.get("active_flow_id") or "")
+        )
         active_stage = (
             "reconnaissance"
             if ide_native_canary
@@ -1677,7 +1827,10 @@ class FlowDeliveryController:
         unresolved_action_state: str | None = None,
     ) -> dict[str, Any]:
         lease = self._require_lease(owner)
-        if session_identity is not None and lease["process_or_session_identity"] != session_identity:
+        if (
+            session_identity is not None
+            and lease["process_or_session_identity"] != session_identity
+        ):
             raise FlowDeliveryError("lease session identity mismatch")
         self._assert_repository_state(lease)
         if runtime_ownership_state is not None:
@@ -1703,9 +1856,13 @@ class FlowDeliveryController:
     def review_worktree(self, *, owner: str, paths: Sequence[str]) -> dict[str, Any]:
         lease = self._require_lease(owner)
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("cannot review worktree while delegated writer is active")
+            raise FlowDeliveryError(
+                "cannot review worktree while delegated writer is active"
+            )
         if lease["lease_mode"] != "delivery" or not lease["active_flow"]:
-            raise FlowDeliveryError("reviewed worktree requires an active delivery flow")
+            raise FlowDeliveryError(
+                "reviewed worktree requires an active delivery flow"
+            )
         if self._repo_head() != lease["expected_repository_head"]:
             raise FlowDeliveryError("unexpected repository HEAD movement")
         queue, _ = self.load()
@@ -1714,13 +1871,18 @@ class FlowDeliveryController:
             raise FlowDeliveryError("active flow is unavailable")
         allowed = {
             *(path.replace("\\", "/") for path in flow["implementation_entrypoints"]),
-            *(path.replace("\\", "/") for path in flow.get("implementation_allowlist_seed", [])),
+            *(
+                path.replace("\\", "/")
+                for path in flow.get("implementation_allowlist_seed", [])
+            ),
             *(path.replace("\\", "/") for path in flow["focused_tests"]),
             "tasks/flow_delivery_queue.json",
         }
         reviewed = {path.replace("\\", "/") for path in paths}
         if not reviewed or not reviewed <= allowed:
-            raise FlowDeliveryError("reviewed worktree contains paths outside the flow allowlist")
+            raise FlowDeliveryError(
+                "reviewed worktree contains paths outside the flow allowlist"
+            )
         current_snapshot, fingerprint = self._working_tree_state()
         acquired_snapshot = lease["acquired_working_tree_snapshot"]
         changed_since_acquisition = {
@@ -1729,7 +1891,9 @@ class FlowDeliveryController:
             if acquired_snapshot.get(path) != current_snapshot.get(path)
         }
         if not changed_since_acquisition <= reviewed:
-            raise FlowDeliveryError("unrelated working-tree mutation is not attributable")
+            raise FlowDeliveryError(
+                "unrelated working-tree mutation is not attributable"
+            )
         lease["reviewed_attributable_paths"] = sorted(reviewed)
         lease["expected_working_tree_snapshot"] = current_snapshot
         lease["expected_working_tree_fingerprint"] = fingerprint
@@ -1755,11 +1919,17 @@ class FlowDeliveryController:
         if not lease["active_flow"]:
             raise FlowDeliveryError("optional delegation requires an active flow")
         if lease["runtime_ownership_state"] not in {"none", "released"}:
-            raise FlowDeliveryError("optional delegation cannot overlap runtime ownership")
+            raise FlowDeliveryError(
+                "optional delegation cannot overlap runtime ownership"
+            )
         if lease["unresolved_action_state"] != "clear":
-            raise FlowDeliveryError("optional delegation requires clear unresolved-action state")
+            raise FlowDeliveryError(
+                "optional delegation requires clear unresolved-action state"
+            )
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("another optional delegated writer is already active")
+            raise FlowDeliveryError(
+                "another optional delegated writer is already active"
+            )
         marker = {
             "schema_version": 1,
             "delegation_id": delegation_id,
@@ -1856,7 +2026,9 @@ class FlowDeliveryController:
         if terminal_outcome not in {"completed", "blocked", "failed"}:
             raise FlowDeliveryError("native invocation outcome is not terminal")
         if lease["process_or_session_identity"] != lease_session:
-            raise FlowDeliveryError("native invocation belongs to another lease session")
+            raise FlowDeliveryError(
+                "native invocation belongs to another lease session"
+            )
         if lease["active_flow"] != active_flow:
             raise FlowDeliveryError("native invocation belongs to another flow")
         if lease["active_stage"] != active_stage:
@@ -1875,10 +2047,14 @@ class FlowDeliveryController:
             ),
         )
         if receipt_at < earliest or receipt_at > datetime.now(timezone.utc):
-            raise FlowDeliveryError("native invocation timestamp is outside the active stage")
+            raise FlowDeliveryError(
+                "native invocation timestamp is outside the active stage"
+            )
         bound_parent = lease["bound_parent_conversation_id"]
         if bound_parent is not None and bound_parent != parent_conversation_id:
-            raise FlowDeliveryError("native invocation belongs to another parent conversation")
+            raise FlowDeliveryError(
+                "native invocation belongs to another parent conversation"
+            )
         if any(
             item.get("subagent_id") == subagent_id
             for item in lease["subagent_invocation_receipts"]
@@ -1916,10 +2092,14 @@ class FlowDeliveryController:
         # serial pipeline. Delegation is optional and never gates progress.
         return
 
-    def record_validation_receipt(self, *, owner: str, receipt_path: Path) -> dict[str, Any]:
+    def record_validation_receipt(
+        self, *, owner: str, receipt_path: Path
+    ) -> dict[str, Any]:
         lease = self._require_lease(owner)
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("cannot record validation while delegated writer is active")
+            raise FlowDeliveryError(
+                "cannot record validation while delegated writer is active"
+            )
         self._assert_repository_state(lease)
         receipt = _read_json(receipt_path)
         required = {
@@ -1942,13 +2122,22 @@ class FlowDeliveryController:
             raise FlowDeliveryError("validation receipt belongs to another flow")
         if receipt["repository_head"] != lease["expected_repository_head"]:
             raise FlowDeliveryError("validation receipt belongs to another HEAD")
-        if receipt["working_tree_fingerprint"] != lease["expected_working_tree_fingerprint"]:
-            raise FlowDeliveryError("validation receipt belongs to another working tree")
+        if (
+            receipt["working_tree_fingerprint"]
+            != lease["expected_working_tree_fingerprint"]
+        ):
+            raise FlowDeliveryError(
+                "validation receipt belongs to another working tree"
+            )
         if receipt["delivery_stage"] not in VALIDATION_RECEIPT_STAGES:
-            raise FlowDeliveryError("validation receipt has an unsupported delivery stage")
+            raise FlowDeliveryError(
+                "validation receipt has an unsupported delivery stage"
+            )
         if receipt["validation_profile"] not in VALIDATION_PROFILES:
             raise FlowDeliveryError("validation receipt has an unsupported profile")
-        _require_nonempty_string(receipt["command_or_profile"], "receipt.command_or_profile")
+        _require_nonempty_string(
+            receipt["command_or_profile"], "receipt.command_or_profile"
+        )
         if type(receipt["exit_code"]) is not int or receipt["exit_code"] != 0:
             raise FlowDeliveryError("validation receipt does not prove success")
         receipt_at = _parse_timestamp(receipt["timestamp"], "receipt.timestamp")
@@ -1956,7 +2145,9 @@ class FlowDeliveryController:
             lease["acquisition_timestamp"],
             "lease.acquisition_timestamp",
         ) or receipt_at > datetime.now(timezone.utc):
-            raise FlowDeliveryError("validation receipt timestamp is outside the active lease")
+            raise FlowDeliveryError(
+                "validation receipt timestamp is outside the active lease"
+            )
         if receipt["test_count"] is not None and (
             type(receipt["test_count"]) is not int or receipt["test_count"] < 0
         ):
@@ -1966,7 +2157,9 @@ class FlowDeliveryController:
         digest = unsigned.pop("receipt_digest")
         if digest != _canonical_digest(unsigned):
             raise FlowDeliveryError("validation receipt digest mismatch")
-        if digest not in {item["receipt_digest"] for item in lease["validation_receipts"]}:
+        if digest not in {
+            item["receipt_digest"] for item in lease["validation_receipts"]
+        }:
             lease["validation_receipts"].append(receipt)
         lease["heartbeat_timestamp"] = utc_now()
         _atomic_write_json(self.lease_path, lease)
@@ -1983,7 +2176,8 @@ class FlowDeliveryController:
             if receipt["delivery_stage"] == stage
             and receipt["active_flow"] == lease["active_flow"]
             and receipt["repository_head"] == lease["expected_repository_head"]
-            and receipt["working_tree_fingerprint"] == lease["expected_working_tree_fingerprint"]
+            and receipt["working_tree_fingerprint"]
+            == lease["expected_working_tree_fingerprint"]
         }
         if not required <= present:
             raise FlowDeliveryError(f"{stage} lacks bound validation receipts")
@@ -2000,11 +2194,15 @@ class FlowDeliveryController:
         lease = self._require_lease(owner)
         self._assert_repository_state(lease)
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("parent stage changes cannot overlap an optional delegated writer")
+            raise FlowDeliveryError(
+                "parent stage changes cannot overlap an optional delegated writer"
+            )
         queue, _ = self.load()
         active_id = queue.get("active_flow_id")
         if not active_id or lease["active_flow"] != active_id:
-            raise FlowDeliveryError("queue and lease do not identify the same active flow")
+            raise FlowDeliveryError(
+                "queue and lease do not identify the same active flow"
+            )
         flow = self._flows(queue)[active_id]
         current = flow["last_completed_stage"]
         if lease["active_stage"] != current:
@@ -2014,11 +2212,18 @@ class FlowDeliveryController:
         if current == "focused_validation":
             if stage == "live_preflight" and not flow["requires_bluestacks_live"]:
                 raise FlowDeliveryError("non-live flow cannot enter live preflight")
-            if stage in {"evidence_review", "commit"} and flow["requires_bluestacks_live"]:
+            if (
+                stage in {"evidence_review", "commit"}
+                and flow["requires_bluestacks_live"]
+            ):
                 raise FlowDeliveryError(
                     "live flow must pass live preflight before evidence review or commit"
                 )
-        if current == "full_validation" and flow["requires_bluestacks_live"] and stage != "live_preflight":
+        if (
+            current == "full_validation"
+            and flow["requires_bluestacks_live"]
+            and stage != "live_preflight"
+        ):
             raise FlowDeliveryError("live-required flow cannot bypass live preflight")
         # `parent_reviewed` is retained as a compatibility flag for existing
         # lease records, but review is a proportional parent decision rather
@@ -2027,14 +2232,21 @@ class FlowDeliveryController:
             lease["gates"]["implementation_parent_reviewed"] = True
         self._require_receipts(lease, stage, _flow_consequence_class(flow))
         if stage in {"live_preflight", "live_execution"}:
-            if not flow["requires_bluestacks_live"] or flow["maximum_live_attempts"] <= 0:
+            if (
+                not flow["requires_bluestacks_live"]
+                or flow["maximum_live_attempts"] <= 0
+            ):
                 raise FlowDeliveryError("flow has no live validation authority")
             if lease["runtime_ownership_state"] != "held":
-                raise FlowDeliveryError("live stages require parent-held runtime ownership")
+                raise FlowDeliveryError(
+                    "live stages require parent-held runtime ownership"
+                )
             if lease["unresolved_action_state"] != "clear":
                 raise FlowDeliveryError("global unresolved-action gate is not clear")
             if self.writable_marker_path.exists():
-                raise FlowDeliveryError("live stages cannot overlap an optional delegated writer")
+                raise FlowDeliveryError(
+                    "live stages cannot overlap an optional delegated writer"
+                )
             if flow["product_policy_status"] not in LIVE_POLICY_STATUSES:
                 raise FlowDeliveryError("live policy is not explicit")
             _require_nonempty_string(flow["evidence_validator"], "evidence_validator")
@@ -2059,20 +2271,29 @@ class FlowDeliveryController:
             or lease["active_flow"] != active_id
             or lease["active_stage"] != "live_execution"
         ):
-            raise FlowDeliveryError("live attempt requires the active live_execution flow")
+            raise FlowDeliveryError(
+                "live attempt requires the active live_execution flow"
+            )
         if lease["runtime_ownership_state"] != "held":
-            raise FlowDeliveryError("live attempt requires parent-held runtime ownership")
+            raise FlowDeliveryError(
+                "live attempt requires parent-held runtime ownership"
+            )
         if lease["unresolved_action_state"] != "clear":
             raise FlowDeliveryError("global unresolved-action gate is not clear")
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("live attempt cannot overlap an optional delegated writer")
+            raise FlowDeliveryError(
+                "live attempt cannot overlap an optional delegated writer"
+            )
         flow = self._flows(queue)[active_id]
         attempts = flow["live_attempts"]
         if flow["live_attempt_count"] >= flow["maximum_live_attempts"]:
             raise FlowDeliveryError("maximum live attempts exhausted")
         if attempts:
             previous = attempts[-1]
-            if previous["finished_at"] is None or previous["terminal_outcome"] not in TERMINAL_ATTEMPT_OUTCOMES:
+            if (
+                previous["finished_at"] is None
+                or previous["terminal_outcome"] not in TERMINAL_ATTEMPT_OUTCOMES
+            ):
                 raise FlowDeliveryError("previous live attempt is not terminal")
             if not diagnosis.strip():
                 raise FlowDeliveryError("live retry requires a concrete diagnosis")
@@ -2114,7 +2335,10 @@ class FlowDeliveryController:
         if not active_id or lease["active_flow"] != active_id:
             raise FlowDeliveryError("no active flow owns the live attempt")
         flow = self._flows(queue)[active_id]
-        if not flow["live_attempts"] or flow["live_attempts"][-1]["finished_at"] is not None:
+        if (
+            not flow["live_attempts"]
+            or flow["live_attempts"][-1]["finished_at"] is not None
+        ):
             raise FlowDeliveryError("no unfinished live attempt exists")
         if outcome != "completed" and not diagnosis.strip():
             raise FlowDeliveryError("non-successful live attempt requires a diagnosis")
@@ -2133,7 +2357,9 @@ class FlowDeliveryController:
                     if line.strip()
                 ]
             except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-                raise FlowDeliveryError("zero-input reconciliation requires a readable event journal") from exc
+                raise FlowDeliveryError(
+                    "zero-input reconciliation requires a readable event journal"
+                ) from exc
             zero_input = bool(event_rows) and not any(
                 row.get("type") == "dispatch" for row in event_rows
             )
@@ -2162,27 +2388,45 @@ class FlowDeliveryController:
     def record_commit(self, *, owner: str, commit: str) -> dict[str, Any]:
         lease = self._require_lease(owner)
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("cannot record commit while delegated writer is active")
+            raise FlowDeliveryError(
+                "cannot record commit while delegated writer is active"
+            )
         queue, _ = self.load()
         active_id = queue.get("active_flow_id")
-        if not active_id or lease["active_flow"] != active_id or lease["active_stage"] != "commit":
-            raise FlowDeliveryError("reviewed commit transition requires the active commit stage")
+        if (
+            not active_id
+            or lease["active_flow"] != active_id
+            or lease["active_stage"] != "commit"
+        ):
+            raise FlowDeliveryError(
+                "reviewed commit transition requires the active commit stage"
+            )
         resolved = self._resolve_commit(commit)
         current_head = self._repo_head()
         if current_head != resolved:
             raise FlowDeliveryError("reviewed flow commit must be current HEAD")
         parent = self._git(["rev-parse", f"{resolved}^"]).stdout.strip()
         if parent != lease["expected_repository_head"]:
-            raise FlowDeliveryError("reviewed flow commit does not descend from the expected HEAD")
+            raise FlowDeliveryError(
+                "reviewed flow commit does not descend from the expected HEAD"
+            )
         if not self._commit_reachable(resolved):
-            raise FlowDeliveryError("reviewed flow commit is not reachable from the current branch")
-        allowed = set(lease["reviewed_attributable_paths"]) | {"tasks/flow_delivery_queue.json"}
+            raise FlowDeliveryError(
+                "reviewed flow commit is not reachable from the current branch"
+            )
+        allowed = set(lease["reviewed_attributable_paths"]) | {
+            "tasks/flow_delivery_queue.json"
+        }
         paths = self._commit_paths(resolved)
         if not paths or not paths <= allowed:
             raise FlowDeliveryError("reviewed flow commit contains unrelated paths")
         flow = self._flows(queue)[active_id]
-        if not paths.intersection(set(flow["implementation_entrypoints"]) | set(flow["focused_tests"])):
-            raise FlowDeliveryError("commit does not contain the reviewed flow implementation")
+        if not paths.intersection(
+            set(flow["implementation_entrypoints"]) | set(flow["focused_tests"])
+        ):
+            raise FlowDeliveryError(
+                "commit does not contain the reviewed flow implementation"
+            )
         lease["reviewed_flow_commit"] = resolved
         lease["expected_repository_head"] = resolved
         lease["observed_repository_head"] = resolved
@@ -2200,21 +2444,33 @@ class FlowDeliveryController:
             raise FlowDeliveryError("no matching active flow to complete")
         flow = self._flows(queue)[active_id]
         resolved = self._resolve_commit(commit)
-        if flow["last_completed_stage"] != "commit" or lease["active_stage"] != "commit":
+        if (
+            flow["last_completed_stage"] != "commit"
+            or lease["active_stage"] != "commit"
+        ):
             raise FlowDeliveryError("flow must reach the commit stage first")
         if lease["reviewed_flow_commit"] != resolved or self._repo_head() != resolved:
             raise FlowDeliveryError("commit is not the dedicated reviewed flow commit")
         if not self._commit_reachable(resolved):
-            raise FlowDeliveryError("reviewed flow commit is not reachable from the current branch")
+            raise FlowDeliveryError(
+                "reviewed flow commit is not reachable from the current branch"
+            )
         if lease["runtime_ownership_state"] not in {"none", "released"}:
-            raise FlowDeliveryError("runtime ownership must be released before completion")
+            raise FlowDeliveryError(
+                "runtime ownership must be released before completion"
+            )
         if lease["unresolved_action_state"] != "clear":
-            raise FlowDeliveryError("unresolved-action gate must be clear before completion")
+            raise FlowDeliveryError(
+                "unresolved-action gate must be clear before completion"
+            )
         if self.writable_marker_path.exists():
             raise FlowDeliveryError("optional delegated writer remains active")
         if flow["live_attempts"]:
             last = flow["live_attempts"][-1]
-            if last["finished_at"] is None or last["terminal_outcome"] not in TERMINAL_ATTEMPT_OUTCOMES:
+            if (
+                last["finished_at"] is None
+                or last["terminal_outcome"] not in TERMINAL_ATTEMPT_OUTCOMES
+            ):
                 raise FlowDeliveryError("live attempt is not terminal")
         flow["status"] = "completed"
         flow["last_completed_stage"] = "completed"
@@ -2237,7 +2493,9 @@ class FlowDeliveryController:
         lease = self._require_lease(owner)
         self._assert_repository_state(lease)
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("cannot block flow while delegated writer is active")
+            raise FlowDeliveryError(
+                "cannot block flow while delegated writer is active"
+            )
         queue, _ = self.load()
         active_id = queue.get("active_flow_id")
         if not active_id or lease["active_flow"] != active_id:
@@ -2277,17 +2535,25 @@ class FlowDeliveryController:
         queue, _ = self.load()
         self._assert_repository_state(lease)
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("cannot release with an active optional delegated writer")
+            raise FlowDeliveryError(
+                "cannot release with an active optional delegated writer"
+            )
         if lease["runtime_ownership_state"] not in {"none", "released"}:
-            raise FlowDeliveryError("cannot release while runtime ownership is held or unknown")
+            raise FlowDeliveryError(
+                "cannot release while runtime ownership is held or unknown"
+            )
         if lease["unresolved_action_state"] != "clear":
-            raise FlowDeliveryError("cannot release while unresolved-action state is not clear")
+            raise FlowDeliveryError(
+                "cannot release while unresolved-action state is not clear"
+            )
         if lease["lease_mode"] == "delivery" and (
             queue.get("active_flow_id")
             or lease["active_flow"]
             or lease["safety_blocked_flow"]
         ):
-            raise FlowDeliveryError("cannot release the development lease with active/blocked work")
+            raise FlowDeliveryError(
+                "cannot release the development lease with active/blocked work"
+            )
         self.lease_path.unlink()
         return {"released": True, "owner": owner}
 
@@ -2303,15 +2569,25 @@ class FlowDeliveryController:
         if lease is None:
             return {"reconciled": False, "reason": "no_lease"}
         if self.writable_marker_path.exists():
-            raise FlowDeliveryError("cannot reconcile with an active optional delegated writer")
+            raise FlowDeliveryError(
+                "cannot reconcile with an active optional delegated writer"
+            )
         if runtime_state != "released":
-            raise FlowDeliveryError("stale lease cannot clear while runtime ownership is unknown/held")
+            raise FlowDeliveryError(
+                "stale lease cannot clear while runtime ownership is unknown/held"
+            )
         if journal_state != "resolved":
-            raise FlowDeliveryError("stale lease cannot clear while journal state is unresolved")
+            raise FlowDeliveryError(
+                "stale lease cannot clear while journal state is unresolved"
+            )
         if consequential_state != "terminal":
-            raise FlowDeliveryError("stale lease cannot clear with a possibly nonterminal action")
+            raise FlowDeliveryError(
+                "stale lease cannot clear with a possibly nonterminal action"
+            )
         if not terminal_evidence:
-            raise FlowDeliveryError("stale lease reconciliation requires terminal evidence")
+            raise FlowDeliveryError(
+                "stale lease reconciliation requires terminal evidence"
+            )
         self.lease_path.unlink()
         return {"reconciled": True, "prior_owner": lease["owner"]}
 
@@ -2321,7 +2597,9 @@ class FlowDeliveryController:
         for flow in queue["flows"]:
             counts[flow["status"]] += 1
         lease = self.lease()
-        resolved_parent = self._resolve_parent_conversation_id(parent_conversation_id, lease)
+        resolved_parent = self._resolve_parent_conversation_id(
+            parent_conversation_id, lease
+        )
         selected = None
         rollover = None
         try:
@@ -2383,8 +2661,12 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--loop-policy", type=Path, default=DEFAULT_LOOP_POLICY_PATH)
     root.add_argument("--progress", type=Path, default=DEFAULT_PROGRESS_PATH)
     root.add_argument("--lease", type=Path, default=DEFAULT_LEASE_PATH)
-    root.add_argument("--writable-marker", type=Path, default=DEFAULT_WRITABLE_MARKER_PATH)
-    root.add_argument("--routing-events", type=Path, default=DEFAULT_ROUTING_EVENTS_PATH)
+    root.add_argument(
+        "--writable-marker", type=Path, default=DEFAULT_WRITABLE_MARKER_PATH
+    )
+    root.add_argument(
+        "--routing-events", type=Path, default=DEFAULT_ROUTING_EVENTS_PATH
+    )
     root.add_argument(
         "--authorization-events",
         type=Path,
@@ -2479,7 +2761,9 @@ def parser() -> argparse.ArgumentParser:
     counted.add_argument("--parent-conversation-id", required=True)
     counted.add_argument("--flow-id", required=True)
     counted.add_argument("--commit", required=True)
-    counted.add_argument("--transition-changed-validated-authority", action="store_true")
+    counted.add_argument(
+        "--transition-changed-validated-authority", action="store_true"
+    )
     rollover = sub.add_parser("emit-rollover")
     rollover.add_argument("--parent-conversation-id", required=True)
     rollover.add_argument("--allow-lease-present", action="store_true")
@@ -2522,7 +2806,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     try:
         if args.command == "status":
-            result = controller.status(parent_conversation_id=args.parent_conversation_id)
+            result = controller.status(
+                parent_conversation_id=args.parent_conversation_id
+            )
         elif args.command == "validate":
             controller.load()
             controller.lease()
@@ -2607,7 +2893,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 parent_reviewed=args.parent_reviewed,
             )
         elif args.command == "begin-live-attempt":
-            result = controller.begin_live_attempt(owner=args.owner, diagnosis=args.diagnosis)
+            result = controller.begin_live_attempt(
+                owner=args.owner, diagnosis=args.diagnosis
+            )
         elif args.command == "finish-live-attempt":
             result = controller.finish_live_attempt(
                 owner=args.owner,

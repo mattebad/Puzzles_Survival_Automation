@@ -44,6 +44,12 @@
       "evidence_validator": "troop_training_consolidation_evidence",
       "recovery_handler": "troop_training_consolidation_recovery",
       "consequence_class": "consequential"
+    },
+    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": {
+      "runner": "enhancement_family_bluestacks_runner",
+      "evidence_validator": "enhancement_family_bluestacks_evidence",
+      "recovery_handler": "enhancement_family_bluestacks_recovery",
+      "consequence_class": "consequential"
     }
   }
 }

@@ -49,10 +49,42 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             self.assertEqual(self.queue["active_flow_id"], active[0]["flow_id"])
         broken = deepcopy(self.queue)
         broken["flows"][0]["status"] = "active"
+        broken["flows"][0]["live_attempt_count"] = len(
+            broken["flows"][0]["live_attempts"]
+        )
         broken["flows"][1]["status"] = "active"
         broken["active_flow_id"] = broken["flows"][0]["flow_id"]
         with self.assertRaisesRegex(control.FlowDeliveryError, "exactly one or zero"):
             control.validate_queue(broken)
+
+    def test_completed_history_may_retain_compacted_attempt_count(self) -> None:
+        completed = deepcopy(self.queue)
+        campaign = next(
+            flow
+            for flow in completed["flows"]
+            if flow["flow_id"] == "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE"
+        )
+        self.assertEqual(campaign["status"], "completed")
+        self.assertGreater(
+            campaign["live_attempt_count"], len(campaign["live_attempts"])
+        )
+        control.validate_queue(completed)
+
+        active = deepcopy(completed)
+        enhancement = next(
+            flow
+            for flow in active["flows"]
+            if flow["flow_id"] == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+        )
+        enhancement["status"] = "active"
+        enhancement["last_completed_stage"] = "selected"
+        enhancement["live_attempt_count"] = 1
+        active["active_flow_id"] = enhancement["flow_id"]
+        with self.assertRaisesRegex(
+            control.FlowDeliveryError,
+            "live_attempt_count does not match attempts",
+        ):
+            control.validate_queue(active)
 
     def test_deterministic_selection_and_active_resume(self) -> None:
         controller = control.FlowDeliveryController()
@@ -90,11 +122,13 @@ class FlowDeliveryQueueTests(unittest.TestCase):
                 flow["status"] = "completed"
                 flow["last_completed_stage"] = "completed"
         queue["active_flow_id"] = None
-        queue["flows"][0]["status"] = "blocked"
-        queue["flows"][0]["blocked_reason"] = "test blocker"
-        queue["flows"][1]["status"] = "blocked"
-        queue["flows"][1]["product_policy_status"] = "prohibited"
-        queue["flows"][1]["blocked_reason"] = "test policy"
+        enhancement = next(
+            flow
+            for flow in queue["flows"]
+            if flow["flow_id"] == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+        )
+        enhancement["status"] = "blocked"
+        enhancement["blocked_reason"] = "test blocker"
         selected = control.FlowDeliveryController(
             lease_path=ROOT / ".local-orchestrator" / "orchestrator-test-no-lease.json"
         ).select_next(queue)
@@ -103,15 +137,8 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             key=lambda flow: (flow["priority"], flow["flow_id"]),
         )
         self.assertEqual(selected["flow_id"], expected["flow_id"])
-        # With Campaign AP temporarily ready under an explicit queue override, the first
-        # ready flow is whichever ready entry has the lowest priority.
-        self.assertIn(
-            expected["flow_id"],
-            {
-                "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-                "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
-            },
-        )
+        self.assertEqual(expected["flow_id"], "WORLD-MAP-NAVIGATION-FOUNDATION")
+
     def test_composition_bliss_and_gameplay_scheduler_are_excluded(self) -> None:
         identities = {item["flow_id"] for item in self.queue["flows"]}
         joined = json.dumps(self.queue).lower()
@@ -124,6 +151,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
 
     def test_initial_order_and_normalized_counts(self) -> None:
         expected = [
+            "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
             "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
             "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
             "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
@@ -155,30 +183,10 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             for status in control.QUEUE_STATUSES
         }
         self.assertIn(counts["active"], (0, 1))
-        # Approved but evidence-gated flows remain blocked; Gathering alone still needs a decision.
-        # Both Nova flows and the completed Campaign survey/prep flows are terminal.
-        # Campaign atlas integration may be active during delivery; ready+active stays six after it
-        # completes (or seven while it is the sole active flow). An explicit Campaign AP queue
-        # override may move that flow from blocked to ready/active (blocked 9, ready+active 7).
-        self.assertIn(counts["ready"] + counts["active"], (6, 7))
-        self.assertIn(counts["blocked"], (9, 10, 11))
-        self.assertIn(counts["completed"], (4, 5, 6))
+        self.assertEqual(counts["ready"] + counts["active"], 1)
+        self.assertEqual(counts["blocked"], 7)
+        self.assertEqual(counts["completed"], 16)
         self.assertEqual(counts["needs_product_decision"], 1)
-        if by_id := {item["flow_id"]: item for item in self.queue["flows"]}:
-            integration = by_id["CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"]
-            campaign_ap = by_id["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]
-            if campaign_ap["status"] in {"ready", "active"} and integration["status"] == "completed":
-                self.assertEqual(counts["ready"] + counts["active"], 7)
-                self.assertEqual(counts["blocked"], 9)
-                self.assertEqual(counts["completed"], 5)
-            elif integration["status"] == "completed":
-                self.assertEqual(counts["ready"] + counts["active"], 7)
-                self.assertEqual(counts["blocked"], 9)
-                self.assertEqual(counts["completed"], 6)
-            elif integration["status"] == "active":
-                self.assertEqual(counts["ready"] + counts["active"], 7)
-                self.assertEqual(counts["blocked"], 10)
-                self.assertEqual(counts["completed"], 4)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
         campaign = next(
@@ -192,7 +200,9 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             if item["policy_id"] == "campaign-supported-destinations"
         )
         scope = campaign["live_validation_scope"]
-        self.assertEqual(campaign["destination_policy_id"], "campaign-supported-destinations")
+        self.assertEqual(
+            campaign["destination_policy_id"], "campaign-supported-destinations"
+        )
         self.assertNotIn("supported_story_destinations", campaign)
         self.assertNotIn("rejected_destinations", campaign)
         for destination in campaign_policy["supported_story_destinations"]:
@@ -207,12 +217,12 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         )
         self.assertIn("--stage", campaign_source)
         self.assertIn("parse_supported_campaign_story_destination", campaign_source)
-        runtime_source = (
-            ROOT / "tasks" / "campaign_auto_battle_runtime.py"
-        ).read_text(encoding="utf-8")
+        runtime_source = (ROOT / "tasks" / "campaign_auto_battle_runtime.py").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("HOME_PAN_GESTURES", runtime_source)
 
-    def test_ultimate_challenge_blocked_metadata_is_retained(self) -> None:
+    def test_ultimate_challenge_completed_metadata_is_retained(self) -> None:
         ultimate = next(
             flow
             for flow in self.queue["flows"]
@@ -222,12 +232,17 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             ultimate["flow_id"],
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
         )
-        self.assertEqual(ultimate["status"], "blocked")
-        self.assertEqual(ultimate["last_completed_stage"], "blocked")
-        self.assertTrue(ultimate["blocked_reason"])
+        self.assertEqual(ultimate["status"], "completed")
+        self.assertEqual(ultimate["last_completed_stage"], "completed")
+        self.assertFalse(ultimate["blocked_reason"])
         self.assertEqual(ultimate["priority"], 15)
-        self.assertEqual(ultimate["product_policy_status"], "navigation_only_validation")
-        self.assertEqual(ultimate["execution_product_policy_status"], "explicitly_approved")
+        self.assertEqual(
+            ultimate["product_policy_status"],
+            "supervised_consequential_validation",
+        )
+        self.assertEqual(
+            ultimate["execution_product_policy_status"], "explicitly_approved"
+        )
         policy_ids = {item["policy_id"] for item in self.policy["policies"]}
         self.assertIn("ultimate-challenge-flow-separation", policy_ids)
         registry = json.loads(
@@ -235,16 +250,18 @@ class FlowDeliveryQueueTests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        uc_registry = registry["flows"]["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]
-        self.assertEqual(uc_registry["consequence_class"], "navigation_only")
-        self.assertEqual(
-            uc_registry["runner"], "ultimate_challenge_navigation_only_runner"
-        )
+        uc_registry = registry["flows"][
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+        ]
+        self.assertEqual(uc_registry["consequence_class"], "consequential")
+        self.assertEqual(uc_registry["runner"], "ultimate_challenge_daily_runner")
         self.assertTrue(
             (ROOT / "scripts" / "bluestacks_ultimate_challenge.py").is_file()
         )
         self.assertTrue(
-            (ROOT / "scripts" / "flow_delivery_ultimate_challenge_bluestacks.py").is_file()
+            (
+                ROOT / "scripts" / "flow_delivery_ultimate_challenge_bluestacks.py"
+            ).is_file()
         )
         self.assertTrue((ROOT / "tasks" / "ultimate_challenge_daily.py").is_file())
         operator = (ROOT / "scripts" / "bluestacks_ultimate_challenge.py").read_text(
@@ -286,7 +303,9 @@ class FlowDeliveryControllerTests(unittest.TestCase):
                 before = controller.queue_path.read_bytes()
                 # Advance past whatever stage the copied queue already recorded.
                 queue = json.loads(before.decode("utf-8"))
-                active = next(item for item in queue["flows"] if item["status"] == "active")
+                active = next(
+                    item for item in queue["flows"] if item["status"] == "active"
+                )
                 current = str(active.get("last_completed_stage") or "selected")
                 allowed = sorted(control.TRANSITIONS.get(current, set()))
                 nxt = next(
@@ -311,7 +330,9 @@ class FlowDeliveryControllerTests(unittest.TestCase):
             self.assertNotEqual(controller.queue_path.read_bytes(), before)
             self.assertEqual(result["last_completed_stage"], nxt)
 
-    def test_full_validation_is_historical_not_an_active_development_transition(self) -> None:
+    def test_full_validation_is_historical_not_an_active_development_transition(
+        self,
+    ) -> None:
         self.assertNotIn("full_validation", control.TRANSITIONS["focused_validation"])
         self.assertIn("live_preflight", control.TRANSITIONS["focused_validation"])
 
@@ -325,7 +346,9 @@ class FlowDeliveryControllerTests(unittest.TestCase):
                     runtime_ownership_state="none",
                     unresolved_action_state="clear",
                 )
-                with self.assertRaisesRegex(control.FlowDeliveryError, "lease conflict"):
+                with self.assertRaisesRegex(
+                    control.FlowDeliveryError, "lease conflict"
+                ):
                     controller.acquire(
                         owner="two",
                         session_identity="session-two",
@@ -384,7 +407,9 @@ class FlowDeliveryControllerTests(unittest.TestCase):
         self.assertEqual(scheduler.read_bytes(), before)
 
     def test_controller_source_has_no_live_transport(self) -> None:
-        source = (ROOT / "scripts" / "flow_delivery_control.py").read_text(encoding="utf-8")
+        source = (ROOT / "scripts" / "flow_delivery_control.py").read_text(
+            encoding="utf-8"
+        )
         self.assertNotIn("runtime.tap", source)
         self.assertNotIn("runtime.swipe", source)
         self.assertNotIn("HD-Adb", source)
@@ -406,7 +431,9 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         skill = (
             ROOT / ".cursor" / "skills" / "pns-flow-delivery" / "SKILL.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("The selected high-intelligence parent is the orchestrator", skill)
+        self.assertIn(
+            "The selected high-intelligence parent is the orchestrator", skill
+        )
         self.assertIn("The parent may edit directly", skill)
         self.assertIn("optional `pns-flow-implementer`", skill)
         self.assertIn("Do not restart the whole workflow", skill)
@@ -477,9 +504,10 @@ class BlueStacksOperatorContractTests(unittest.TestCase):
             self.assertFalse(hasattr(parsed, "swipe"))
 
     def test_run_flow_dry_run_never_touches_runtime(self) -> None:
-        with patch("scripts.pnsctl._load_flow_delivery_state") as state, patch(
-            "scripts.pnsctl.subprocess.run"
-        ) as run:
+        with (
+            patch("scripts.pnsctl._load_flow_delivery_state") as state,
+            patch("scripts.pnsctl.subprocess.run") as run,
+        ):
             payload = json.loads(
                 pnsctl.bluestacks_run_flow(
                     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
@@ -502,9 +530,9 @@ class BlueStacksOperatorContractTests(unittest.TestCase):
             ROOT / ".local-captures" / "flow-delivery",
         )
         source = (ROOT / "scripts" / "pnsctl.py").read_text(encoding="utf-8")
-        self.assertNotIn("add_argument(\"--coordinate", source)
-        self.assertNotIn("add_argument(\"--tap", source)
-        self.assertNotIn("add_argument(\"--swipe", source)
+        self.assertNotIn('add_argument("--coordinate', source)
+        self.assertNotIn('add_argument("--tap', source)
+        self.assertNotIn('add_argument("--swipe', source)
 
 
 if __name__ == "__main__":

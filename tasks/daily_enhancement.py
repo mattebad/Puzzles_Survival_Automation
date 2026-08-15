@@ -9,6 +9,9 @@ from .enhancement import (
     ENHANCEMENT_SCREEN,
     EnhancementObservation,
     enhancement_authorizeable,
+    enhancement_bluestacks_authorizeable,
+    enhancement_bluestacks_postcondition_verified,
+    enhancement_bluestacks_transaction_spec,
     enhancement_postcondition_verified,
     enhancement_transaction_spec,
 )
@@ -56,8 +59,43 @@ def daily_enhancement_transaction_spec(
     variant: str = "gear",
 ) -> ActionTransactionSpec:
     if not daily_enhancement_authorizeable(observation, variant=variant):
-        raise ValueError("Daily enhancement preconditions are not positively recognized")
+        raise ValueError(
+            "Daily enhancement preconditions are not positively recognized"
+        )
     return enhancement_transaction_spec(observation.enhancement, variant=variant)
+
+
+def daily_enhancement_bluestacks_authorizeable(
+    observation: DailyEnhancementObservation,
+    *,
+    variant: str = "gear",
+) -> bool:
+    """Apply Daily ownership to the strict native BlueStacks contract."""
+
+    expected_objective = DAILY_ENHANCEMENT_OBJECTIVES.get(str(variant).lower())
+    return bool(
+        expected_objective
+        and observation.selected_daily_row
+        and observation.objective_key == expected_objective
+        and observation.daily_progress_before == 0
+        and enhancement_bluestacks_authorizeable(
+            observation.enhancement, variant=variant
+        )
+    )
+
+
+def daily_enhancement_bluestacks_transaction_spec(
+    observation: DailyEnhancementObservation,
+    *,
+    variant: str = "gear",
+) -> ActionTransactionSpec:
+    if not daily_enhancement_bluestacks_authorizeable(observation, variant=variant):
+        raise ValueError(
+            "native BlueStacks Daily enhancement preconditions are not positively recognized"
+        )
+    return enhancement_bluestacks_transaction_spec(
+        observation.enhancement, variant=variant
+    )
 
 
 def daily_enhancement_postcondition_verified(
@@ -72,9 +110,11 @@ def daily_enhancement_postcondition_verified(
         daily_enhancement_authorizeable(before, variant=variant)
         and after is not None
         and after.selected_daily_row
-        and after.objective_key == DAILY_ENHANCEMENT_OBJECTIVES.get(str(variant).lower())
+        and after.objective_key
+        == DAILY_ENHANCEMENT_OBJECTIVES.get(str(variant).lower())
         and after.daily_progress_after == 1
-        and after.successor_state == f"DAILY_{str(variant).upper()}_ENHANCEMENT_COMPLETE"
+        and after.successor_state
+        == f"DAILY_{str(variant).upper()}_ENHANCEMENT_COMPLETE"
         and enhancement_authorizeable(after.enhancement, variant=variant)
         and after.enhancement.game_day_id == before.enhancement.game_day_id
         and enhancement_postcondition_verified(
@@ -82,6 +122,32 @@ def daily_enhancement_postcondition_verified(
             after.enhancement,
             variant=variant,
         )
+    )
+
+
+def daily_enhancement_bluestacks_postcondition_verified(
+    before: DailyEnhancementObservation,
+    after: DailyEnhancementObservation | None,
+    *,
+    variant: str = "gear",
+) -> bool:
+    """Verify a Daily successor using native BlueStacks provenance."""
+
+    return bool(
+        daily_enhancement_bluestacks_authorizeable(before, variant=variant)
+        and after is not None
+        and after.selected_daily_row
+        and after.objective_key
+        == DAILY_ENHANCEMENT_OBJECTIVES.get(str(variant).lower())
+        and after.daily_progress_after == 1
+        and after.successor_state
+        == f"DAILY_{str(variant).upper()}_ENHANCEMENT_COMPLETE"
+        and enhancement_bluestacks_postcondition_verified(
+            before.enhancement,
+            after.enhancement,
+            variant=variant,
+        )
+        and after.enhancement.game_day_id == before.enhancement.game_day_id
     )
 
 

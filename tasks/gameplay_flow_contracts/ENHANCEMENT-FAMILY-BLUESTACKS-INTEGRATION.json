@@ -1,80 +1,205 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
-  "product_purpose": "Enhancement family BlueStacks integration.",
+  "product_purpose": "Supervised development-session native BlueStacks Daily enhancement for Gear, Chip, or Module.",
   "trigger_cadence_type": "eligibility_pulse",
   "reset_scope": "daily_reset",
-  "required_starting_context": [
-    "home_localized"
-  ],
+  "required_starting_context": ["unknown_requires_evidence"],
   "shared_primitive_dependencies": [
     {
-      "primitive_id": "home_navigation_primitives",
-      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "primitive_id": "native_bluestacks_capture_and_session_boundary",
+      "version_digest_field": "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
       "required": true
     }
   ],
   "recognized_states": [
-    "contract_declared",
+    "unknown_requires_evidence",
+    "DAILY_ROW_SELECTED",
+    "COMMANDER_INFO_RECOGNIZED",
+    "CATEGORY_SELECTED",
+    "ENHANCE_PANEL_OPENED",
+    "MATERIAL_SELECTED",
+    "QUANTITY_ONE_RECOGNIZED",
+    "FINAL_CONFIRM_DISPATCHED",
+    "SETTLED_SUCCESSOR_RECONCILED",
+    "DAILY_ZERO_TO_ONE_RECONCILED",
+    "SAFE_TERMINAL_RECOGNIZED",
+    "blocked",
     "evidence_required"
   ],
-  "state_transitions": [
+  "transition_contracts": [
     {
-      "from": "contract_declared",
-      "to": "evidence_required",
-      "via": "missing_gameplay_evidence",
-      "notes": "Enhancement spend remains policy-gated."
+      "transition_id": "recognize-daily-row",
+      "from": "unknown_requires_evidence",
+      "to": "DAILY_ROW_SELECTED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": ["native_800x1280_frame", "selected_row_local_objective", "objective_progress_0_of_1", "row_local_go_target"],
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "native-enhancement-semantics"
+    },
+    {
+      "transition_id": "enter-commander-info",
+      "from": "DAILY_ROW_SELECTED",
+      "to": "COMMANDER_INFO_RECOGNIZED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": "fresh_daily_row_go",
+      "postconditions": ["positive_commander_info_recognition", "no_manual_prepositioned_start"],
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "native-enhancement-semantics"
+    },
+    {
+      "transition_id": "select-category-and-item",
+      "from": "COMMANDER_INFO_RECOGNIZED",
+      "to": "CATEGORY_SELECTED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": "fresh_category_or_item_setup",
+      "postconditions": ["selected_category_marker_is_spatially_associated", "equipped_item_identity_is_unique"],
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "native-enhancement-semantics"
+    },
+    {
+      "transition_id": "open-enhance-panel",
+      "from": "CATEGORY_SELECTED",
+      "to": "ENHANCE_PANEL_OPENED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": "fresh_open_enhance_setup",
+      "postconditions": ["local_open_enhance_target"],
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "native-enhancement-semantics"
+    },
+    {
+      "transition_id": "select-material",
+      "from": "ENHANCE_PANEL_OPENED",
+      "to": "MATERIAL_SELECTED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": "fresh_category_material_setup",
+      "postconditions": ["category_material_spatial_association", "exact_one_star", "inventory_available"],
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "native-enhancement-semantics"
+    },
+    {
+      "transition_id": "recognize-quantity-one",
+      "from": "MATERIAL_SELECTED",
+      "to": "QUANTITY_ONE_RECOGNIZED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": ["fresh_local_quantity_control", "quantity_exactly_one"],
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "native-enhancement-semantics"
+    },
+    {
+      "transition_id": "resource-affecting-confirm",
+      "from": "QUANTITY_ONE_RECOGNIZED",
+      "to": "FINAL_CONFIRM_DISPATCHED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": "one_resource_affecting_confirmation",
+      "postconditions": ["fresh_immediate_before", "same_item_category_and_provenance", "one_final_confirmation_only"],
+      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "evidence_gate_id": "native-enhancement-semantics"
+    },
+    {
+      "transition_id": "settle-successor",
+      "from": "FINAL_CONFIRM_DISPATCHED",
+      "to": "SETTLED_SUCCESSOR_RECONCILED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": ["immediate_post_retained", "bounded_non_input_polling", "same_item_result_or_delta"],
+      "terminal_outcomes": ["complete_for_reset", "blocked", "manual_required"],
+      "evidence_gate_id": "native-enhancement-successor"
+    },
+    {
+      "transition_id": "prove-daily-completion",
+      "from": "SETTLED_SUCCESSOR_RECONCILED",
+      "to": "DAILY_ZERO_TO_ONE_RECONCILED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": ["same_daily_objective", "daily_progress_0_to_1", "same_game_day"],
+      "terminal_outcomes": ["complete_for_reset", "blocked", "manual_required"],
+      "evidence_gate_id": "native-enhancement-successor"
+    },
+    {
+      "transition_id": "recognize-safe-terminal",
+      "from": "DAILY_ZERO_TO_ONE_RECONCILED",
+      "to": "SAFE_TERMINAL_RECOGNIZED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": ["fresh_native_terminal", "source_frame_not_terminal", "no_unknown_overlay"],
+      "terminal_outcomes": ["complete_for_reset", "blocked", "manual_required"],
+      "evidence_gate_id": "native-enhancement-successor"
     }
   ],
   "permitted_inputs": [
-    "none_until_implemented"
+    "fresh_daily_row_go",
+    "fresh_category_or_item_setup",
+    "fresh_open_enhance_setup",
+    "fresh_category_material_setup",
+    "one_resource_affecting_confirmation",
+    "observe_only_safe_recovery"
   ],
-  "local_postconditions": [
-    "evidence_required"
-  ],
-  "consequential_action_class": "none_declared",
+  "consequential_action_class": "ordinary_development_resource_affecting_confirmation",
   "cost_quantity_requirements": {
-    "free_only": true,
-    "maximum_cost": null,
-    "quantity": null,
-    "resource_or_currency": null,
-    "notes": "Enhancement spend remains policy-gated."
+    "free_only": false,
+    "maximum_cost": 0,
+    "quantity": 1,
+    "resource_or_currency": "category-specific one-star material",
+    "notes": "Enhancement is an ordinary supervised development interaction; only its final confirmation affects material resources."
   },
   "completion_identity": "enhancement-family-bluestacks-integration:complete",
-  "terminal_outcomes": [
-    "blocked",
-    "manual_required"
-  ],
-  "cooldown_deferred_behavior": "evidence_required",
-  "bounded_recovery_behavior": "evidence_required",
+  "terminal_outcomes": ["action_performed", "complete_for_reset", "blocked", "manual_required"],
+  "cooldown_deferred_behavior": "No retry; retain evidence_required until materially changed native evidence is available.",
+  "bounded_recovery_behavior": "Capture and classify native state; perform only freshly recognized safe recovery or return evidence_required.",
   "evidence_requirements": [
-    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
-    "Enhancement spend remains policy-gated."
+    "fresh native 800x1280 PNG source and every stage frame",
+    "selected Daily row with exact objective 0/1 and row-local Go",
+    "local category, item, material, quantity-one, and final-confirm geometry",
+    "one final resource-affecting dispatch with ordinary-development event classification",
+    "immediate-post, bounded settled polling, same-item successor, and Daily 0-to-1 proof",
+    "real PNG decoding, recomputed hashes, ordered events, and independent semantic rerecognition"
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "native-enhancement-semantics",
+      "status": "evidence_required",
+      "blocks": ["recognize-daily-row", "enter-commander-info", "select-category-and-item", "open-enhance-panel", "select-material", "recognize-quantity-one", "resource-affecting-confirm"],
+      "required_evidence": ["current native Daily and Commander Info semantics", "fresh local target geometry", "BlueStacks provenance"],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "native-enhancement-successor",
+      "status": "evidence_required",
+      "blocks": ["settle-successor", "prove-daily-completion", "recognize-safe-terminal"],
+      "required_evidence": ["same-item settled successor", "Daily objective 0-to-1", "fresh terminal frame"],
+      "permitted_inputs": []
+    }
+  ],
+  "product_policy_refs": [
+    {"policy_id": "development-session-only", "source": "pnsctl development-session run-flow"},
+    {"policy_id": "ordinary-enhancement-resource-boundary", "source": "AGENTS.md live target and action safety"},
+    {"policy_id": "forbidden-enhancement-actions", "source": "native recognizer rejects Auto Select, higher-star, unknown, premium, Promote, Modify, Replace, Unequip, and identical retry"}
   ],
   "replay_fixture_requirements": [
+    {"fixture_id": "bliss_enhancement_family", "status": "synthetic_policy_ok", "path": "tests/fixtures/phase_e_enhancement_observations.json", "notes": "Synthetic fixtures cannot authorize BlueStacks."},
+    {"fixture_id": "bluestacks_native_enhancement", "status": "required_evidence", "path": null, "notes": "No native evidence is fabricated."}
+  ],
+  "scenarios": [
     {
-      "fixture_id": "flow_entry",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Not fabricated in this task."
+      "scenario_id": "enhancement-family-development-session",
+      "mode": "consequential_supervised",
+      "start_state": "unknown_requires_evidence",
+      "terminal_state": "SAFE_TERMINAL_RECOGNIZED",
+      "permitted_inputs": ["fresh_daily_row_go", "fresh_category_or_item_setup", "fresh_open_enhance_setup", "fresh_category_material_setup", "one_resource_affecting_confirmation"],
+      "forbidden_inputs": [],
+      "required_transitions": ["recognize-daily-row", "enter-commander-info", "select-category-and-item", "open-enhance-panel", "select-material", "recognize-quantity-one", "resource-affecting-confirm", "settle-successor", "prove-daily-completion", "recognize-safe-terminal"],
+      "evidence_gate_ids": ["native-enhancement-semantics", "native-enhancement-successor"]
     }
   ],
-  "live_validation_scenarios": [
-    {
-      "id": "enhancement-family-bluestacks-integration-pending",
-      "mode": "blocked_until_policy",
-      "notes": "Enhancement spend remains policy-gated."
-    }
-  ],
-  "unsupported_or_manual_only_states": [
-    "login",
-    "captcha",
-    "tutorial",
-    "account_selection_or_switching",
-    "credential_entry",
-    "ambiguous_account_or_server_identity",
-    "blocking_unknown_modal"
-  ],
-  "implementation_status": "contract_only",
-  "proof_state": "evidence_required"
+  "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "blocking_unknown_modal", "cash_mall_real_money_confirmation", "auto_select", "higher_star_material", "unknown_material", "premium_currency", "promote_modify_replace_unequip", "identical_retry"],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "current",
+  "supervised_live_proof_state": "evidence_required",
+  "production_eligible": false,
+  "registration_state": "disabled"
 }

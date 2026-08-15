@@ -34,6 +34,7 @@ from scripts.bluestacks_adb_readiness import (
     ADBReadinessError,
     ensure_adb_ready,
 )
+
 HOST = "nas.local"
 HOST_KEY = "ssh-ed25519 255 f0:b5:ee:95:fb:d2:6c:e5:f5:bf:d2:86:67:9b:21:55"
 PACKAGE = "com.global.ztmslg"
@@ -126,7 +127,9 @@ def _register_checked_in_bluestacks_handlers() -> None:
     # Prefer same-directory import so `python scripts/pnsctl.py` and
     # `python -m scripts.pnsctl` register into this module's handler maps.
     try:
-        from scripts.flow_delivery_campaign_bluestacks import register as register_campaign
+        from scripts.flow_delivery_campaign_bluestacks import (
+            register as register_campaign,
+        )
     except ImportError:
         from flow_delivery_campaign_bluestacks import register as register_campaign
     try:
@@ -146,13 +149,27 @@ def _register_checked_in_bluestacks_handlers() -> None:
             register as register_ultimate_challenge,
         )
     try:
-        from scripts.flow_delivery_ruins_challenge_bluestacks import register as register_ruins
+        from scripts.flow_delivery_ruins_challenge_bluestacks import (
+            register as register_ruins,
+        )
     except ImportError:
         from flow_delivery_ruins_challenge_bluestacks import register as register_ruins
     try:
-        from scripts.flow_delivery_troop_training_bluestacks import register as register_troop_training
+        from scripts.flow_delivery_troop_training_bluestacks import (
+            register as register_troop_training,
+        )
     except ImportError:
-        from flow_delivery_troop_training_bluestacks import register as register_troop_training
+        from flow_delivery_troop_training_bluestacks import (
+            register as register_troop_training,
+        )
+    try:
+        from scripts.flow_delivery_enhancement_bluestacks import (
+            register as register_enhancement,
+        )
+    except ImportError:
+        from flow_delivery_enhancement_bluestacks import (
+            register as register_enhancement,
+        )
 
     register_campaign(
         _BLUESTACKS_FLOW_RUNNERS,
@@ -175,6 +192,11 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
     register_troop_training(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+    register_enhancement(
         _BLUESTACKS_FLOW_RUNNERS,
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
@@ -218,10 +240,16 @@ def load_credentials(env_path: Path | None = None) -> tuple[str, str]:
             name, value = line.split("=", 1)
             if name in {"UNRAID_TEMP_USERNAME", "UNRAID_TEMP_PASSWORD"}:
                 values[name] = value.strip().strip('"').strip("'")
-    values.setdefault("UNRAID_TEMP_USERNAME", os.environ.get("UNRAID_TEMP_USERNAME", ""))
-    values.setdefault("UNRAID_TEMP_PASSWORD", os.environ.get("UNRAID_TEMP_PASSWORD", ""))
+    values.setdefault(
+        "UNRAID_TEMP_USERNAME", os.environ.get("UNRAID_TEMP_USERNAME", "")
+    )
+    values.setdefault(
+        "UNRAID_TEMP_PASSWORD", os.environ.get("UNRAID_TEMP_PASSWORD", "")
+    )
     if not values["UNRAID_TEMP_USERNAME"] or not values["UNRAID_TEMP_PASSWORD"]:
-        raise OperatorError("approved Unraid credentials are not available in the process environment")
+        raise OperatorError(
+            "approved Unraid credentials are not available in the process environment"
+        )
     return values["UNRAID_TEMP_USERNAME"], values["UNRAID_TEMP_PASSWORD"]
 
 
@@ -236,15 +264,25 @@ def redact_argv(argv: Sequence[str]) -> list[str]:
 def _plink_argv(cfg: OperatorConfig, command: str) -> list[str]:
     username, password = load_credentials()
     return [
-        str(Path("/mnt/c/Program Files/PuTTY/plink.exe")), "-batch", "-hostkey", cfg.host_key,
-        "-pw", password, f"{username}@{cfg.host}", command,
+        str(Path("/mnt/c/Program Files/PuTTY/plink.exe")),
+        "-batch",
+        "-hostkey",
+        cfg.host_key,
+        "-pw",
+        password,
+        f"{username}@{cfg.host}",
+        command,
     ]
 
 
 def run_remote(cfg: OperatorConfig, command: str) -> str:
-    result = subprocess.run(_plink_argv(cfg, command), check=False, capture_output=True, text=True)
+    result = subprocess.run(
+        _plink_argv(cfg, command), check=False, capture_output=True, text=True
+    )
     if result.returncode:
-        detail = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
+        detail = "\n".join(
+            part for part in (result.stdout.strip(), result.stderr.strip()) if part
+        )
         raise OperatorError("remote command failed:\n" + detail)
     return result.stdout
 
@@ -256,12 +294,30 @@ def _windows_path(value: str) -> str:
     return value
 
 
-def _pscp_argv(cfg: OperatorConfig, sources: Iterable[str], destination: str, recursive: bool = False, *, local_sources: bool = True, local_destination: bool = False) -> list[str]:
+def _pscp_argv(
+    cfg: OperatorConfig,
+    sources: Iterable[str],
+    destination: str,
+    recursive: bool = False,
+    *,
+    local_sources: bool = True,
+    local_destination: bool = False,
+) -> list[str]:
     username, password = load_credentials()
-    args = [str(Path("/mnt/c/Program Files/PuTTY/pscp.exe")), "-batch", "-hostkey", cfg.host_key, "-pw", password]
+    args = [
+        str(Path("/mnt/c/Program Files/PuTTY/pscp.exe")),
+        "-batch",
+        "-hostkey",
+        cfg.host_key,
+        "-pw",
+        password,
+    ]
     if recursive:
         args.append("-r")
-    args.extend(_windows_path(source) if local_sources else f"{username}@{cfg.host}:{source}" for source in sources)
+    args.extend(
+        _windows_path(source) if local_sources else f"{username}@{cfg.host}:{source}"
+        for source in sources
+    )
     if local_destination:
         args.append(_windows_path(destination))
     else:
@@ -269,17 +325,39 @@ def _pscp_argv(cfg: OperatorConfig, sources: Iterable[str], destination: str, re
     return args
 
 
-def run_pscp(cfg: OperatorConfig, sources: Iterable[str], destination: str, recursive: bool = False, *, local_sources: bool = True, local_destination: bool = False) -> None:
-    result = subprocess.run(_pscp_argv(cfg, sources, destination, recursive, local_sources=local_sources, local_destination=local_destination), check=False, capture_output=True, text=True)
+def run_pscp(
+    cfg: OperatorConfig,
+    sources: Iterable[str],
+    destination: str,
+    recursive: bool = False,
+    *,
+    local_sources: bool = True,
+    local_destination: bool = False,
+) -> None:
+    result = subprocess.run(
+        _pscp_argv(
+            cfg,
+            sources,
+            destination,
+            recursive,
+            local_sources=local_sources,
+            local_destination=local_destination,
+        ),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
     if result.returncode:
-        raise OperatorError("evidence/workspace synchronization failed: " + result.stderr.strip())
+        raise OperatorError(
+            "evidence/workspace synchronization failed: " + result.stderr.strip()
+        )
 
 
 def _adb_shell(cfg: OperatorConfig, command: str) -> str:
     script = (
         "if test -x /opt/adb; then adb_bin=/opt/adb; else adb_bin=$(command -v adb); fi; "
         "export HOME=/tmp; export ADB_SERVER_PORT=5042; unset ADB_SERVER_SOCKET; "
-        f"exec \"$adb_bin\" -s {quote(cfg.serial)} {command}"
+        f'exec "$adb_bin" -s {quote(cfg.serial)} {command}'
     )
     return (
         f"docker exec -e ADB_SERVER_SOCKET={quote(cfg.adb_socket)} {quote(cfg.container)} "
@@ -289,7 +367,9 @@ def _adb_shell(cfg: OperatorConfig, command: str) -> str:
 
 def _safe_name(value: str) -> str:
     if not NAME_RE.fullmatch(value):
-        raise OperatorError("operation name must contain only letters, numbers, dot, dash, or underscore")
+        raise OperatorError(
+            "operation name must contain only letters, numbers, dot, dash, or underscore"
+        )
     return value
 
 
@@ -300,7 +380,9 @@ def sync_workspace(cfg: OperatorConfig) -> None:
     )
     sources = ["scripts", "tasks", "safe_action_core", "runtime-profile", "tests"]
     for source in sources:
-        run_pscp(cfg, [str(cfg.repo_root / source)], cfg.remote_workspace, recursive=True)
+        run_pscp(
+            cfg, [str(cfg.repo_root / source)], cfg.remote_workspace, recursive=True
+        )
     run_pscp(
         cfg,
         [str(cfg.repo_root / M6_ASSET_ROOT)],
@@ -331,7 +413,10 @@ docker run -d --name {quote(cfg.container)} --network host --user 65534:65534 --
 
 
 def worker_status(cfg: OperatorConfig) -> str:
-    return run_remote(cfg, f"docker ps -a --filter name=^{re.escape(cfg.container)}$ --format '{{{{.Names}}}} {{{{.Status}}}}'")
+    return run_remote(
+        cfg,
+        f"docker ps -a --filter name=^{re.escape(cfg.container)}$ --format '{{{{.Names}}}} {{{{.Status}}}}'",
+    )
 
 
 def worker_stop(cfg: OperatorConfig) -> str:
@@ -342,27 +427,36 @@ def adb_start(cfg: OperatorConfig) -> str:
     command = (
         f"docker exec -e ADB_SERVER_SOCKET={quote(cfg.adb_socket)} {quote(cfg.container)} "
         "sh -lc 'if test -x /opt/adb; then adb_bin=/opt/adb; else adb_bin=$(command -v adb); fi; "
-        "export HOME=/tmp; export ADB_SERVER_PORT=5042; unset ADB_SERVER_SOCKET; \"$adb_bin\" start-server; "
-        f"\"$adb_bin\" -s {quote(cfg.serial)} connect {quote(cfg.serial)}; \"$adb_bin\" devices'"
+        'export HOME=/tmp; export ADB_SERVER_PORT=5042; unset ADB_SERVER_SOCKET; "$adb_bin" start-server; '
+        f'"$adb_bin" -s {quote(cfg.serial)} connect {quote(cfg.serial)}; "$adb_bin" devices\''
     )
     return run_remote(cfg, command)
 
 
 def launch(cfg: OperatorConfig) -> str:
-    return run_remote(cfg, _adb_shell(cfg, f"shell am start -W -n {quote(cfg.activity)}"))
+    return run_remote(
+        cfg, _adb_shell(cfg, f"shell am start -W -n {quote(cfg.activity)}")
+    )
 
 
 def capture(cfg: OperatorConfig, name: str) -> str:
     name = _safe_name(name)
     remote_path = f"{cfg.remote_evidence}/{name}.png"
-    return run_remote(cfg, f"{_adb_shell(cfg, 'exec-out screencap -p')} > {quote(remote_path)}")
+    return run_remote(
+        cfg, f"{_adb_shell(cfg, 'exec-out screencap -p')} > {quote(remote_path)}"
+    )
 
 
 def observe(cfg: OperatorConfig, name: str) -> str:
     capture_started = time.time()
     capture(cfg, name)
     capture_completed = time.time()
-    status = run_remote(cfg, _adb_shell(cfg, "shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' | head -2"))
+    status = run_remote(
+        cfg,
+        _adb_shell(
+            cfg, "shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' | head -2"
+        ),
+    )
     return json.dumps(
         {
             "capture": name,
@@ -378,69 +472,192 @@ def observe(cfg: OperatorConfig, name: str) -> str:
 
 
 NAVIGATION_STEPS = {
-    "cash-home": ("cash", "home", "HOME_BASE", "CASH_MALL_BACK", "standard-game-back-arrow", (45, 5, 130, 60), "tap", None),
-    "home-quest": ("home", "quest", "QUEST", "HOME_TO_QUEST", "home-quest-entry", (250, 1130, 410, 1280), "tap", None),
-    "quest-daily": ("quest", "daily", "DAILY_QUEST", "QUEST_TO_DAILY", "quest-daily-tab", (300, 70, 500, 140), "tap", None),
+    "cash-home": (
+        "cash",
+        "home",
+        "HOME_BASE",
+        "CASH_MALL_BACK",
+        "standard-game-back-arrow",
+        (45, 5, 130, 60),
+        "tap",
+        None,
+    ),
+    "home-quest": (
+        "home",
+        "quest",
+        "QUEST",
+        "HOME_TO_QUEST",
+        "home-quest-entry",
+        (250, 1130, 410, 1280),
+        "tap",
+        None,
+    ),
+    "quest-daily": (
+        "quest",
+        "daily",
+        "DAILY_QUEST",
+        "QUEST_TO_DAILY",
+        "quest-daily-tab",
+        (300, 70, 500, 140),
+        "tap",
+        None,
+    ),
     "daily-scroll-up": (
-        "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST", "daily-scroll-viewport",
-        (100, 520, 700, 1120), "swipe", (400, 1000, 400, 500, 350),
+        "daily",
+        "daily",
+        "DAILY_QUEST",
+        "SCROLL_DAILY_QUEST",
+        "daily-scroll-viewport",
+        (100, 520, 700, 1120),
+        "swipe",
+        (400, 1000, 400, 500, 350),
     ),
     "daily-scroll-up-fine": (
-        "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST_FINE", "daily-scroll-viewport",
-        (100, 520, 700, 1120), "swipe", (400, 800, 400, 700, 250),
+        "daily",
+        "daily",
+        "DAILY_QUEST",
+        "SCROLL_DAILY_QUEST_FINE",
+        "daily-scroll-viewport",
+        (100, 520, 700, 1120),
+        "swipe",
+        (400, 800, 400, 700, 250),
     ),
     "daily-scroll-up-micro": (
-        "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST_MICRO", "daily-scroll-viewport",
-        (100, 520, 700, 1120), "swipe", (400, 760, 400, 710, 200),
+        "daily",
+        "daily",
+        "DAILY_QUEST",
+        "SCROLL_DAILY_QUEST_MICRO",
+        "daily-scroll-viewport",
+        (100, 520, 700, 1120),
+        "swipe",
+        (400, 760, 400, 710, 200),
     ),
     "daily-scroll-down": (
-        "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST", "daily-scroll-viewport",
-        (100, 160, 700, 760), "swipe", (400, 500, 400, 1000, 350),
+        "daily",
+        "daily",
+        "DAILY_QUEST",
+        "SCROLL_DAILY_QUEST",
+        "daily-scroll-viewport",
+        (100, 160, 700, 760),
+        "swipe",
+        (400, 500, 400, 1000, 350),
     ),
     "daily-scroll-down-fine": (
-        "daily", "daily", "DAILY_QUEST", "SCROLL_DAILY_QUEST_FINE", "daily-scroll-viewport",
-        (100, 160, 700, 760), "swipe", (400, 700, 400, 800, 250),
+        "daily",
+        "daily",
+        "DAILY_QUEST",
+        "SCROLL_DAILY_QUEST_FINE",
+        "daily-scroll-viewport",
+        (100, 160, 700, 760),
+        "swipe",
+        (400, 700, 400, 800, 250),
     ),
     "daily-bioenhancer-go": (
-        "daily_bioenhancer", "bioenhancer", "BIOENHANCER", "DAILY_BIOENHANCER_GO", "daily-bioenhancer-go",
-        (554, 870, 731, 933), "tap", None,
+        "daily_bioenhancer",
+        "bioenhancer",
+        "BIOENHANCER",
+        "DAILY_BIOENHANCER_GO",
+        "daily-bioenhancer-go",
+        (554, 870, 731, 933),
+        "tap",
+        None,
     ),
     "bioenhancer-daily-back": (
-        "bioenhancer", "home", "HOME_BASE", "BIOENHANCER_TO_HOME", "bioenhancer-daily-back",
-        (31, 1, 138, 55), "tap", None,
+        "bioenhancer",
+        "home",
+        "HOME_BASE",
+        "BIOENHANCER_TO_HOME",
+        "bioenhancer-daily-back",
+        (31, 1, 138, 55),
+        "tap",
+        None,
     ),
     "daily-supply-depot-go": (
-        "daily", "supply_depot", "SUPPLY_DEPOT", "DAILY_SUPPLY_DEPOT_GO", "daily-supply-depot-go",
-        (554, 786, 731, 878), "tap", None,
+        "daily",
+        "supply_depot",
+        "SUPPLY_DEPOT",
+        "DAILY_SUPPLY_DEPOT_GO",
+        "daily-supply-depot-go",
+        (554, 786, 731, 878),
+        "tap",
+        None,
     ),
     "supply-depot-daily-back": (
-        "supply_depot", "home", "HOME_BASE", "SUPPLY_DEPOT_TO_HOME", "supply-depot-daily-back",
-        (31, 1, 138, 55), "tap", None,
+        "supply_depot",
+        "home",
+        "HOME_BASE",
+        "SUPPLY_DEPOT_TO_HOME",
+        "supply-depot-daily-back",
+        (31, 1, 138, 55),
+        "tap",
+        None,
     ),
     "alliance-fort-dismiss": (
-        "alliance_fort", "home", "ALLIANCE_FORT_DISMISSED",
-        "DISMISS_ALLIANCE_FORT_WAVE", "alliance-fort-wave-dismiss-x",
-        (620, 360, 735, 455), "tap", None,
+        "alliance_fort",
+        "home",
+        "ALLIANCE_FORT_DISMISSED",
+        "DISMISS_ALLIANCE_FORT_WAVE",
+        "alliance-fort-wave-dismiss-x",
+        (620, 360, 735, 455),
+        "tap",
+        None,
     ),
 }
 
 
 def navigate(cfg: OperatorConfig, step: str) -> str:
     if step not in NAVIGATION_STEPS:
-        raise OperatorError("navigate accepts only the checked-in route names: " + ", ".join(sorted(NAVIGATION_STEPS)))
-    source_mode, expected_mode, expected_state, semantic, target, roi, input_kind, swipe = NAVIGATION_STEPS[step]
+        raise OperatorError(
+            "navigate accepts only the checked-in route names: "
+            + ", ".join(sorted(NAVIGATION_STEPS))
+        )
+    (
+        source_mode,
+        expected_mode,
+        expected_state,
+        semantic,
+        target,
+        roi,
+        input_kind,
+        swipe,
+    ) = NAVIGATION_STEPS[step]
     stamp = str(int(time.time()))
     args = [
-        "python3", "scripts/mvp_quest_to_claim.py", "--cash-reference", f"/workspace/{CASH_REFERENCE}",
-        "--home-reference", "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png",
-        "--quest-reference", "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
-        "--daily-reference", "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png",
-        "--main-quest-reference", "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
-        "execute", "--database", f"/evidence/actions-nav-{step}-{stamp}.sqlite3", "--evidence", "/evidence",
-        "--owner", "pnsctl-" + stamp, "--action-id", "nav-" + step + "-" + stamp,
-        "--action-key", "nav-" + step + "-" + stamp, "--source-mode", source_mode,
-        "--expected-mode", expected_mode, "--expected-state", expected_state, "--target", target,
-        "--roi", *map(str, roi), "--semantic-action", semantic,
+        "python3",
+        "scripts/mvp_quest_to_claim.py",
+        "--cash-reference",
+        f"/workspace/{CASH_REFERENCE}",
+        "--home-reference",
+        "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png",
+        "--quest-reference",
+        "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
+        "--daily-reference",
+        "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png",
+        "--main-quest-reference",
+        "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
+        "execute",
+        "--database",
+        f"/evidence/actions-nav-{step}-{stamp}.sqlite3",
+        "--evidence",
+        "/evidence",
+        "--owner",
+        "pnsctl-" + stamp,
+        "--action-id",
+        "nav-" + step + "-" + stamp,
+        "--action-key",
+        "nav-" + step + "-" + stamp,
+        "--source-mode",
+        source_mode,
+        "--expected-mode",
+        expected_mode,
+        "--expected-state",
+        expected_state,
+        "--target",
+        target,
+        "--roi",
+        *map(str, roi),
+        "--semantic-action",
+        semantic,
     ]
     if input_kind == "swipe":
         if swipe is None:
@@ -461,7 +678,9 @@ def run_task(cfg: OperatorConfig, task: str, game_day: str = "") -> str:
     stamp = str(int(time.time()))
     if task == "daily-claim":
         if not game_day:
-            raise OperatorError("Daily Claim requires an explicit current game-day identity")
+            raise OperatorError(
+                "Daily Claim requires an explicit current game-day identity"
+            )
         command = (
             f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 -e PYTHONPATH=/workspace -w /workspace {quote(cfg.container)} "
             f"python3 scripts/mvp_quest_to_claim.py "
@@ -479,7 +698,9 @@ def run_task(cfg: OperatorConfig, task: str, game_day: str = "") -> str:
         )
     elif task == "bioenhancer-free-research":
         if not game_day:
-            raise OperatorError("Bioenhancer research requires an explicit current game-day identity")
+            raise OperatorError(
+                "Bioenhancer research requires an explicit current game-day identity"
+            )
         command = (
             f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 -e PYTHONPATH=/workspace -w /workspace {quote(cfg.container)} "
             f"python3 scripts/mvp_quest_to_claim.py "
@@ -503,12 +724,21 @@ def run_task(cfg: OperatorConfig, task: str, game_day: str = "") -> str:
             f"--action-id alliance-help-{stamp} --action-key alliance-help-{stamp}"
         )
     elif task in {
-        "vip-popup", "praise", "praise-route-evidence", "praise-leaderboard-evidence",
+        "vip-popup",
+        "praise",
+        "praise-route-evidence",
+        "praise-leaderboard-evidence",
         "personal-might-claim",
     }:
         popup_only = " --popup-only" if task == "vip-popup" else ""
-        navigation_only = " --navigation-evidence-only" if task == "praise-route-evidence" else ""
-        leaderboard_only = " --leaderboard-evidence-only" if task == "praise-leaderboard-evidence" else ""
+        navigation_only = (
+            " --navigation-evidence-only" if task == "praise-route-evidence" else ""
+        )
+        leaderboard_only = (
+            " --leaderboard-evidence-only"
+            if task == "praise-leaderboard-evidence"
+            else ""
+        )
         claim_only = " --claim-only" if task == "personal-might-claim" else ""
         command = (
             f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 {quote(cfg.container)} python3 scripts/personal_might_praise_live.py "
@@ -524,7 +754,9 @@ def run_task(cfg: OperatorConfig, task: str, game_day: str = "") -> str:
             + claim_only
         )
     else:
-        raise OperatorError("requested task is not in the checked-in supervised task allowlist")
+        raise OperatorError(
+            "requested task is not in the checked-in supervised task allowlist"
+        )
     return run_remote(cfg, command)
 
 
@@ -552,13 +784,17 @@ def validate(cfg: OperatorConfig) -> str:
     return run_remote(cfg, command)
 
 
-def preserve_evidence(cfg: OperatorConfig, destination: Path, names: Sequence[str] = ()) -> str:
+def preserve_evidence(
+    cfg: OperatorConfig, destination: Path, names: Sequence[str] = ()
+) -> str:
     if not names:
         raise OperatorError(
             "preserve-evidence requires at least one exact --name; cumulative remote evidence "
             "downloads are intentionally disabled"
         )
-    destination = destination if destination.is_absolute() else (cfg.repo_root / destination)
+    destination = (
+        destination if destination.is_absolute() else (cfg.repo_root / destination)
+    )
     destination = destination.resolve()
     destination.mkdir(parents=True, exist_ok=True)
     for name in names:
@@ -584,29 +820,49 @@ def reconcile(args: argparse.Namespace) -> str:
     output.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, output)
     from safe_action_core import SafetyStore
+
     store = SafetyStore(output)
     try:
         row = store.get_action(args.action_id)
         if row["final_status"] != "unresolved":
-            raise OperatorError("the retained action is not unresolved; refusing reinterpretation")
+            raise OperatorError(
+                "the retained action is not unresolved; refusing reinterpretation"
+            )
         if args.outcome == "positive_postcondition":
             reconciliation = {
-                "confirmed": True, "reason": args.reason,
-                "evidence": args.evidence, "source_database": str(source),
+                "confirmed": True,
+                "reason": args.reason,
+                "evidence": args.evidence,
+                "source_database": str(source),
                 "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
             }
             store.mark_confirmed(args.action_id, time.time(), reconciliation)
             status, reason = "confirmed", args.reason
         else:
-            store.mark_cancelled(args.action_id, time.time(), "proven_no_effect_mistarget")
+            store.mark_cancelled(
+                args.action_id, time.time(), "proven_no_effect_mistarget"
+            )
             status, reason = "cancelled", "proven_no_effect_mistarget"
         store.audit(
-            "MVP-QUEST-TO-CLAIM", "manual_reconciliation", time.time(),
-            {"action_id": args.action_id, "result": status, "evidence": args.evidence,
-             "source_database": str(source), "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest()},
+            "MVP-QUEST-TO-CLAIM",
+            "manual_reconciliation",
+            time.time(),
+            {
+                "action_id": args.action_id,
+                "result": status,
+                "evidence": args.evidence,
+                "source_database": str(source),
+                "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            },
             args.action_id,
         )
-        result = {"source": str(source), "output": str(output), "action_id": args.action_id, "status": status, "reason": reason}
+        result = {
+            "source": str(source),
+            "output": str(output),
+            "action_id": args.action_id,
+            "status": status,
+            "reason": reason,
+        }
     finally:
         store.close()
     return json.dumps(result, sort_keys=True)
@@ -625,7 +881,9 @@ def _load_flow_delivery_state(
         queue = json.loads(FLOW_DELIVERY_QUEUE.read_text(encoding="utf-8"))
         lease = json.loads(FLOW_DELIVERY_LEASE.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise OperatorError("a valid local flow-delivery queue and lease are required") from exc
+        raise OperatorError(
+            "a valid local flow-delivery queue and lease are required"
+        ) from exc
     if queue.get("queue_kind") != "development_flow_delivery":
         raise OperatorError("invalid flow-delivery queue authority")
     if lease.get("workflow") != "pns-flow-delivery":
@@ -648,7 +906,9 @@ def _load_flow_delivery_state(
     return queue, lease
 
 
-def _retained_troop_training_state(session_directory: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+def _retained_troop_training_state(
+    session_directory: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Build evidence-only context for a released Troop Training session.
 
     This deliberately does not recreate a queue lease or runtime ownership.  It
@@ -661,7 +921,9 @@ def _retained_troop_training_state(session_directory: Path) -> tuple[dict[str, A
     try:
         session.relative_to(allowed_root)
     except ValueError as exc:
-        raise OperatorError("retained Troop Training session is outside .local-captures") from exc
+        raise OperatorError(
+            "retained Troop Training session is outside .local-captures"
+        ) from exc
     result_path = session / "flow-delivery-result.json"
     try:
         result = json.loads(result_path.read_text(encoding="utf-8"))
@@ -689,10 +951,52 @@ def _retained_troop_training_state(session_directory: Path) -> tuple[dict[str, A
     )
 
 
+def _retained_enhancement_state(
+    session_directory: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build evidence-only context for a released Enhancement session."""
+
+    session = Path(session_directory).resolve()
+    allowed_root = (REPO_ROOT / ".local-captures").resolve()
+    try:
+        session.relative_to(allowed_root)
+    except ValueError as exc:
+        raise OperatorError(
+            "retained Enhancement session is outside .local-captures"
+        ) from exc
+    result_path = session / "flow-delivery-result.json"
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("retained Enhancement result is unavailable") from exc
+    if (
+        not isinstance(result, dict)
+        or result.get("flow_id") != "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+    ):
+        raise OperatorError("retained session is not Enhancement evidence")
+    return (
+        {
+            "queue_kind": "development_flow_delivery",
+            "active_flow_id": result["flow_id"],
+            "retained_evidence": True,
+        },
+        {
+            "workflow": "pns-flow-delivery",
+            "active_flow": result["flow_id"],
+            "active_stage": "evidence_review",
+            "runtime_ownership_state": "released",
+            "unresolved_action_state": "clear",
+            "retained_evidence": True,
+        },
+    )
+
+
 def _latest_troop_training_recovery_candidate() -> Path | None:
     """Find a retained unresolved dispatch that permits safe Home recovery."""
 
-    root = (BLUESTACKS_ARTIFACT_ROOT / "TROOP-TRAINING-END-TO-END-CONSOLIDATION").resolve()
+    root = (
+        BLUESTACKS_ARTIFACT_ROOT / "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
+    ).resolve()
     if not root.is_dir() or root.is_symlink():
         return None
     for result_path in sorted(root.rglob("flow-delivery-result.json"), reverse=True):
@@ -710,14 +1014,22 @@ def _latest_troop_training_recovery_candidate() -> Path | None:
         try:
             session.relative_to(root)
         except ValueError as exc:
-            raise OperatorError("Troop Training recovery session escaped the flow root") from exc
+            raise OperatorError(
+                "Troop Training recovery session escaped the flow root"
+            ) from exc
         events = session / str(result.get("events_path") or "events.jsonl")
         if events.is_symlink() or not events.is_file():
             continue
         try:
-            rows = [json.loads(line) for line in events.read_text(encoding="utf-8").splitlines() if line.strip()]
+            rows = [
+                json.loads(line)
+                for line in events.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise OperatorError("Troop Training recovery events are unreadable") from exc
+            raise OperatorError(
+                "Troop Training recovery events are unreadable"
+            ) from exc
         if any(
             isinstance(row, dict)
             and row.get("type") == "reconcile"
@@ -791,7 +1103,11 @@ def _run_fixed_bluestacks_adb(*arguments: str, binary: bool = False) -> bytes | 
         text=not binary,
     )
     if result.returncode:
-        stderr = result.stderr if isinstance(result.stderr, str) else result.stderr.decode(errors="replace")
+        stderr = (
+            result.stderr
+            if isinstance(result.stderr, str)
+            else result.stderr.decode(errors="replace")
+        )
         raise OperatorError("fixed BlueStacks ADB operation failed: " + stderr.strip())
     return result.stdout
 
@@ -800,7 +1116,11 @@ def bluestacks_preflight() -> str:
     queue, lease = _load_flow_delivery_state()
     state = str(_run_fixed_bluestacks_adb("get-state")).strip()
     frame = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
-    if not isinstance(frame, bytes) or frame[:8] != b"\x89PNG\r\n\x1a\n" or len(frame) < 24:
+    if (
+        not isinstance(frame, bytes)
+        or frame[:8] != b"\x89PNG\r\n\x1a\n"
+        or len(frame) < 24
+    ):
         raise OperatorError("BlueStacks preflight did not receive a valid PNG frame")
     width = int.from_bytes(frame[16:20], "big")
     height = int.from_bytes(frame[20:24], "big")
@@ -834,7 +1154,11 @@ def _development_runtime_observation() -> tuple[dict[str, Any], bytes]:
 
     state = str(_run_fixed_bluestacks_adb("get-state")).strip()
     frame = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
-    if not isinstance(frame, bytes) or frame[:8] != b"\x89PNG\r\n\x1a\n" or len(frame) < 24:
+    if (
+        not isinstance(frame, bytes)
+        or frame[:8] != b"\x89PNG\r\n\x1a\n"
+        or len(frame) < 24
+    ):
         raise OperatorError("development observation did not receive a valid PNG frame")
     width = int.from_bytes(frame[16:20], "big")
     height = int.from_bytes(frame[20:24], "big")
@@ -926,7 +1250,9 @@ def development_session_observe(*, max_inputs: int = 12) -> str:
         observation, frame = _development_runtime_observation()
         (session_directory / "observe.png").write_bytes(frame)
         if _checkpoint_hashes() != before:
-            raise OperatorError("ordinary observation mutated a persistent checkpoint artifact")
+            raise OperatorError(
+                "ordinary observation mutated a persistent checkpoint artifact"
+            )
         result = {
             "status": "observed",
             "session_directory": str(session_directory),
@@ -950,15 +1276,18 @@ def development_session_run_flow(
     recovery_session: Path | None = None,
     chests_only: bool = False,
     chest_continuation: Path | str | None = None,
+    enhancement_variant: str = "gear",
 ) -> str:
     """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
 
     from scripts.navigation_development_boundary import DevelopmentSession
+
     ruins_reset_identity: str | None = None
     ruins_current_day: str | None = None
     ruins_package_id: str | None = None
     ruins_runtime_profile_id: str | None = None
     troop_training_reset_identity: str | None = None
+    enhancement_reset_identity: str | None = None
 
     if chest_continuation is not None:
         chest_continuation = Path(chest_continuation)
@@ -971,19 +1300,34 @@ def development_session_run_flow(
     if live and not yes:
         raise OperatorError("live development session requires --yes")
     if recovery_only:
-        if flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION" and recovery_session is None:
+        if (
+            flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+            and recovery_session is None
+        ):
             raise OperatorError("Ruins recovery requires --recovery-session")
         if flow_id not in {
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
             "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
         }:
-            raise OperatorError("recovery-only is supported only for Ruins or Troop Training")
+            raise OperatorError(
+                "recovery-only is supported only for Ruins, Troop Training, or Enhancement"
+            )
     if chests_only and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
-        raise OperatorError("chests-only is supported only for the Ruins Challenge flow")
+        raise OperatorError(
+            "chests-only is supported only for the Ruins Challenge flow"
+        )
     if chests_only and recovery_only:
-        raise OperatorError("Ruins chests-only and recovery-only modes are mutually exclusive")
-    if chest_continuation is not None and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
-        raise OperatorError("--chest-continuation is supported only for the Ruins Challenge flow")
+        raise OperatorError(
+            "Ruins chests-only and recovery-only modes are mutually exclusive"
+        )
+    if (
+        chest_continuation is not None
+        and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+    ):
+        raise OperatorError(
+            "--chest-continuation is supported only for the Ruins Challenge flow"
+        )
     if chest_continuation is not None and not chests_only:
         raise OperatorError("--chest-continuation requires --chests-only")
     if chest_continuation is not None and not chest_continuation.is_file():
@@ -998,7 +1342,9 @@ def development_session_run_flow(
         )
 
         identity_now = datetime.now(timezone.utc)
-        ruins_reset_identity = f"local-{identity_now.date().isoformat()}-ruins-home-atlas"
+        ruins_reset_identity = (
+            f"local-{identity_now.date().isoformat()}-ruins-home-atlas"
+        )
         ruins_current_day = identity_now.astimezone().strftime("%a")
         ruins_package_id = CONTINUATION_PACKAGE_ID
         ruins_runtime_profile_id = CONTINUATION_RUNTIME_PROFILE_ID
@@ -1009,6 +1355,16 @@ def development_session_run_flow(
         identity_now = datetime.now(timezone.utc)
         troop_training_reset_identity = (
             f"local-{identity_now.date().isoformat()}-troop-training-consolidation"
+        )
+    elif flow_id == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION":
+        enhancement_variant = str(enhancement_variant).strip().lower()
+        if enhancement_variant not in {"gear", "chip", "module"}:
+            raise OperatorError(
+                "Enhancement development-session variant is unsupported"
+            )
+        identity_now = datetime.now(timezone.utc)
+        enhancement_reset_identity = (
+            f"local-{identity_now.date().isoformat()}-enhancement-{enhancement_variant}"
         )
     if chest_continuation is not None:
         from tasks.ruins_challenge_continuation import (
@@ -1027,8 +1383,12 @@ def development_session_run_flow(
                 expected_package_id=CONTINUATION_PACKAGE_ID,
             )
         except RuinsContinuationError as exc:
-            raise OperatorError(f"Ruins chest continuation rejected: {exc.reason}") from exc
-    invocation_id = f"{flow_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+            raise OperatorError(
+                f"Ruins chest continuation rejected: {exc.reason}"
+            ) from exc
+    invocation_id = (
+        f"{flow_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    )
     session_directory = _development_session_directory(invocation_id)
     owner = f"pnsctl-development-session:{flow_id}"
     checkpoint_before = _checkpoint_hashes()
@@ -1053,9 +1413,13 @@ def development_session_run_flow(
                 "unresolved_action_state": "not_applicable",
                 "development_session": True,
                 "recovery_only": recovery_only,
-                "recovery_session": str(recovery_session) if recovery_session is not None else None,
+                "recovery_session": str(recovery_session)
+                if recovery_session is not None
+                else None,
                 "chests_only": chests_only,
-                "chest_continuation": str(chest_continuation) if chest_continuation is not None else None,
+                "chest_continuation": str(chest_continuation)
+                if chest_continuation is not None
+                else None,
                 "ruins_reset_identity": ruins_reset_identity,
                 "ruins_current_day": ruins_current_day,
                 "ruins_package_id": ruins_package_id,
@@ -1064,6 +1428,12 @@ def development_session_run_flow(
                 "troop_training_recovery_only": (
                     recovery_only
                     and flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
+                ),
+                "enhancement_variant": enhancement_variant,
+                "enhancement_reset_identity": enhancement_reset_identity,
+                "enhancement_recovery_only": (
+                    recovery_only
+                    and flow_id == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
                 ),
                 "max_inputs": max_inputs,
             }
@@ -1108,13 +1478,17 @@ def development_session_run_flow(
             result_status = str(result.get("status") or "unknown")
             if result_status not in {"completed", "dry_run", "observed"}:
                 session.terminal_status = "blocked"
-                session.blocker = str(result.get("reason") or "development result is not terminal")
+                session.blocker = str(
+                    result.get("reason") or "development result is not terminal"
+                )
                 session.next_action = (
                     f"inspect {child_text or session_directory} and repair recognition or recovery "
                     f"for {session.blocker} before rerunning materially changed behavior"
                 )
             if _checkpoint_hashes() != checkpoint_before:
-                raise OperatorError("ordinary development session mutated a checkpoint artifact")
+                raise OperatorError(
+                    "ordinary development session mutated a checkpoint artifact"
+                )
             wrapper = {
                 "status": result.get("status", "unknown"),
                 "flow_id": flow_id,
@@ -1122,7 +1496,9 @@ def development_session_run_flow(
                 "runtime_session_directory": child_text,
                 "input_count": dispatch_count,
                 "max_inputs": max_inputs,
-                "chest_continuation": str(chest_continuation) if chest_continuation is not None else None,
+                "chest_continuation": str(chest_continuation)
+                if chest_continuation is not None
+                else None,
                 "runtime_observation": observation,
                 "lifecycle_state_created": False,
                 "persistent_checkpoint_artifacts_unchanged": True,
@@ -1148,26 +1524,30 @@ def bluestacks_reload_game() -> str:
     state = str(_run_fixed_bluestacks_adb("get-state")).strip()
     if state != "device":
         raise OperatorError("approved BlueStacks serial is not in device state")
-    resolved_activity = str(
-        _run_fixed_bluestacks_adb(
-            "shell",
-            "cmd",
-            "package",
-            "resolve-activity",
-            "--brief",
-            "-a",
-            "android.intent.action.MAIN",
-            "-c",
-            "android.intent.category.LAUNCHER",
-            PACKAGE,
+    resolved_activity = (
+        str(
+            _run_fixed_bluestacks_adb(
+                "shell",
+                "cmd",
+                "package",
+                "resolve-activity",
+                "--brief",
+                "-a",
+                "android.intent.action.MAIN",
+                "-c",
+                "android.intent.category.LAUNCHER",
+                PACKAGE,
+            )
         )
-    ).strip().splitlines()[-1]
-    if not resolved_activity.startswith(f"{PACKAGE}/"):
-        raise OperatorError("installed Puzzles & Survival launcher activity was not resolved")
-    _run_fixed_bluestacks_adb("shell", "am", "force-stop", PACKAGE)
-    _run_fixed_bluestacks_adb(
-        "shell", "am", "start", "-W", "-n", resolved_activity
+        .strip()
+        .splitlines()[-1]
     )
+    if not resolved_activity.startswith(f"{PACKAGE}/"):
+        raise OperatorError(
+            "installed Puzzles & Survival launcher activity was not resolved"
+        )
+    _run_fixed_bluestacks_adb("shell", "am", "force-stop", PACKAGE)
+    _run_fixed_bluestacks_adb("shell", "am", "start", "-W", "-n", resolved_activity)
     deadline = time.monotonic() + 30.0
     focused_package = None
     while time.monotonic() < deadline:
@@ -1180,7 +1560,9 @@ def bluestacks_reload_game() -> str:
             break
         time.sleep(1.0)
     if focused_package != PACKAGE:
-        raise OperatorError("Puzzles & Survival did not return to foreground after reload")
+        raise OperatorError(
+            "Puzzles & Survival did not return to foreground after reload"
+        )
     return json.dumps(
         {
             "status": "reloaded",
@@ -1205,31 +1587,47 @@ def bluestacks_dismiss_reload_overlay(
         raise OperatorError("expected frame SHA-256 is invalid")
     focus = str(_run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
     if _focused_package(focus) != PACKAGE:
-        raise OperatorError("Puzzles & Survival is not foreground before overlay dismissal")
+        raise OperatorError(
+            "Puzzles & Survival is not foreground before overlay dismissal"
+        )
     artifact_root = BLUESTACKS_ARTIFACT_ROOT.resolve()
     reference_path = expected_frame.resolve()
     try:
         reference_path.relative_to(artifact_root)
     except ValueError as exc:
-        raise OperatorError("expected overlay frame must be retained under the BlueStacks artifact root") from exc
+        raise OperatorError(
+            "expected overlay frame must be retained under the BlueStacks artifact root"
+        ) from exc
     reference = reference_path.read_bytes()
     if hashlib.sha256(reference).hexdigest() != expected_frame_sha256:
-        raise OperatorError("expected overlay frame hash does not match retained evidence")
+        raise OperatorError(
+            "expected overlay frame hash does not match retained evidence"
+        )
     before = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
     if not isinstance(before, bytes):
         raise OperatorError("reload overlay immediate-before capture failed")
     import cv2
     import numpy as np
 
-    reference_image = cv2.imdecode(np.frombuffer(reference, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
-    before_image = cv2.imdecode(np.frombuffer(before, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
-    if reference_image is None or before_image is None or reference_image.shape != before_image.shape:
+    reference_image = cv2.imdecode(
+        np.frombuffer(reference, dtype=np.uint8), cv2.IMREAD_GRAYSCALE
+    )
+    before_image = cv2.imdecode(
+        np.frombuffer(before, dtype=np.uint8), cv2.IMREAD_GRAYSCALE
+    )
+    if (
+        reference_image is None
+        or before_image is None
+        or reference_image.shape != before_image.shape
+    ):
         raise OperatorError("reload overlay reference geometry is invalid")
     similarity = float(
         cv2.matchTemplate(before_image, reference_image, cv2.TM_CCOEFF_NORMED)[0, 0]
     )
     if similarity < 0.98:
-        raise OperatorError("reload overlay visual identity changed; Back dispatch is not authorized")
+        raise OperatorError(
+            "reload overlay visual identity changed; Back dispatch is not authorized"
+        )
     session = (
         BLUESTACKS_ARTIFACT_ROOT
         / queue["active_flow_id"]
@@ -1271,9 +1669,16 @@ def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
             queue, lease = _load_flow_delivery_state(require_runtime_held=False)
             if queue["active_flow_id"] != flow_id:
                 raise OperatorError("only the active development flow may run")
-            if lease.get("active_stage") not in {"focused_validation", "live_preflight"}:
-                raise OperatorError("Ruins zero-transport replay requires focused validation or live preflight")
-            return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](queue, lease, live=False)
+            if lease.get("active_stage") not in {
+                "focused_validation",
+                "live_preflight",
+            }:
+                raise OperatorError(
+                    "Ruins zero-transport replay requires focused validation or live preflight"
+                )
+            return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](
+                queue, lease, live=False
+            )
         return json.dumps(
             {
                 "status": "dry_run",
@@ -1286,14 +1691,18 @@ def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
     from scripts.navigation_development_boundary import NavigationDevelopmentSession
 
     owner = f"pnsctl-bluestacks-run-flow:{flow_id}"
-    invocation_id = f"{flow_id}:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    invocation_id = (
+        f"{flow_id}:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    )
     with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
         queue, lease = _load_flow_delivery_state()
         if queue["active_flow_id"] != flow_id:
             raise OperatorError("only the active development flow may run")
         flow = next(item for item in queue["flows"] if item["flow_id"] == flow_id)
         if flow.get("last_completed_stage") != "live_execution":
-            raise OperatorError("controller has not admitted the flow to live_execution")
+            raise OperatorError(
+                "controller has not admitted the flow to live_execution"
+            )
         return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](queue, lease)
 
 
@@ -1349,7 +1758,9 @@ def _read_nonempty_jsonl(path: Path, field: str) -> list[dict[str, Any]]:
     return rows
 
 
-def _session_evidence_file(session: Path, ref: Any, *, field: str = "evidence_refs") -> Path:
+def _session_evidence_file(
+    session: Path, ref: Any, *, field: str = "evidence_refs"
+) -> Path:
     if not isinstance(ref, str) or not ref.strip():
         raise OperatorError(f"{field} entries must be non-empty paths")
     candidate = Path(ref)
@@ -1362,7 +1773,9 @@ def _session_evidence_file(session: Path, ref: Any, *, field: str = "evidence_re
     except ValueError as exc:
         raise OperatorError(f"{field} escapes the session directory") from exc
     if os.path.islink(resolved) or not resolved.is_file():
-        raise OperatorError(f"{field} must resolve to a regular non-symlink file under the session")
+        raise OperatorError(
+            f"{field} must resolve to a regular non-symlink file under the session"
+        )
     return resolved
 
 
@@ -1380,7 +1793,9 @@ def _persist_nova_session_result(
         resolved_session = session.resolve()
         resolved_session.relative_to(allowed_root)
     except (OSError, ValueError) as exc:
-        raise OperatorError("session directory must resolve under .local-captures") from exc
+        raise OperatorError(
+            "session directory must resolve under .local-captures"
+        ) from exc
     if os.path.islink(session) or os.path.islink(resolved_session):
         raise OperatorError("session directory must not be a symlink")
     if not resolved_session.is_dir():
@@ -1391,17 +1806,25 @@ def _persist_nova_session_result(
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise OperatorError("session result.json is required before accounting persistence") from exc
+        raise OperatorError(
+            "session result.json is required before accounting persistence"
+        ) from exc
     if not isinstance(payload, dict):
         raise OperatorError("session result.json must be an object")
     payload.update(dict(updates))
     # Future-proof identity: every persisted supervised result binds session + commit.
     payload["session_directory"] = str(resolved_session)
-    commit = candidate_commit if candidate_commit is not None else payload.get("candidate_commit")
+    commit = (
+        candidate_commit
+        if candidate_commit is not None
+        else payload.get("candidate_commit")
+    )
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise OperatorError("persisted result requires exact 40-char candidate_commit")
     payload["candidate_commit"] = commit
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return payload
 
 
@@ -1427,7 +1850,9 @@ def _supervised_pulse_completed_facts_ok(route_result: Mapping[str, Any]) -> boo
         and type(after) is int
         and after == before - 1
         and type(cooldown) is int
-        and NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS <= cooldown <= NOVA_POLICY_COOLDOWN_SECONDS
+        and NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS
+        <= cooldown
+        <= NOVA_POLICY_COOLDOWN_SECONDS
         and praise == 1
         and type(navigation) is int
         and navigation >= 1
@@ -1508,8 +1933,12 @@ def _finalize_nova_supervised_invocation_guard(
         payload["session_directory"] = str(Path(session_directory).resolve())
     elif payload.get("session_directory") in (None, ""):
         payload["session_directory"] = session_directory
-    payload["finished_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    payload["finished_at"] = (
+        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def _bind_nova_supervised_invocation_guard_session(session_directory: str) -> None:
@@ -1527,7 +1956,13 @@ def _bind_nova_supervised_invocation_guard_session(session_directory: str) -> No
         raise OperatorError("supervised invocation guard is unreadable") from exc
     if not isinstance(payload, dict):
         raise OperatorError("supervised invocation guard must be an object")
-    for key in ("schema_version", "flow_id", "scenario_id", "reset_id", "candidate_commit"):
+    for key in (
+        "schema_version",
+        "flow_id",
+        "scenario_id",
+        "reset_id",
+        "candidate_commit",
+    ):
         if key not in payload:
             raise OperatorError(f"guard missing identity field {key}")
     if payload.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID:
@@ -1545,7 +1980,9 @@ def _bind_nova_supervised_invocation_guard_session(session_directory: str) -> No
     try:
         bound.relative_to(allowed_root)
     except ValueError as exc:
-        raise OperatorError("session directory must remain under supervised output root") from exc
+        raise OperatorError(
+            "session directory must remain under supervised output root"
+        ) from exc
     if not bound.is_dir() or os.path.islink(bound):
         raise OperatorError("session directory is unavailable or unsafe")
     existing = payload.get("session_directory")
@@ -1554,7 +1991,9 @@ def _bind_nova_supervised_invocation_guard_session(session_directory: str) -> No
             raise OperatorError("guard already bound to a different session_directory")
         return
     payload["session_directory"] = str(bound)
-    payload["session_bound_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    payload["session_bound_at"] = (
+        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
     tmp = path.with_suffix(path.suffix + ".tmp")
     encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     flags = os.O_CREAT | os.O_TRUNC | os.O_WRONLY
@@ -1619,7 +2058,9 @@ def _parse_supervised_session_stamp(session_name: str) -> datetime:
         raise OperatorError(
             "session directory name must be nova-praise-one-free-pulse-<UTC-stamp>Z"
         )
-    base = datetime.strptime(match.group(1), "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+    base = datetime.strptime(match.group(1), "%Y%m%dT%H%M%S").replace(
+        tzinfo=timezone.utc
+    )
     frac = match.group(2) or ""
     if frac:
         micro = int((frac + "000000")[:6])
@@ -1678,7 +2119,11 @@ def _verify_nova_supervised_proven_no_effect_session(
         raise OperatorError(
             "session directory must remain under the supervised pulse output root"
         ) from exc
-    if os.path.islink(session_directory) or os.path.islink(session) or not session.is_dir():
+    if (
+        os.path.islink(session_directory)
+        or os.path.islink(session)
+        or not session.is_dir()
+    ):
         raise OperatorError("session directory is unavailable or unsafe")
     session_stamp = _parse_supervised_session_stamp(session.name)
 
@@ -1702,17 +2147,23 @@ def _verify_nova_supervised_proven_no_effect_session(
     if result.get("scenario_id") != guard.get("scenario_id"):
         raise OperatorError("result scenario_id does not match guard")
     if result.get("status") not in {"failed", "blocked", "unresolved"}:
-        raise OperatorError("proven_no_effect requires a non-completed supervised status")
+        raise OperatorError(
+            "proven_no_effect requires a non-completed supervised status"
+        )
 
     result_session = result.get("session_directory")
     if not isinstance(result_session, str) or not result_session.strip():
         raise OperatorError("result session_directory is required for guard binding")
     if not _paths_exactly_equal(Path(result_session), session):
-        raise OperatorError("result session_directory does not bind the supplied session")
+        raise OperatorError(
+            "result session_directory does not bind the supplied session"
+        )
 
     candidate = guard.get("candidate_commit")
     if not isinstance(candidate, str) or not re.fullmatch(r"[0-9a-f]{40}", candidate):
-        raise OperatorError("guard candidate_commit must be a 40-char lowercase git SHA")
+        raise OperatorError(
+            "guard candidate_commit must be a 40-char lowercase git SHA"
+        )
     result_candidate = result.get("candidate_commit")
     guard_session = guard.get("session_directory")
     guard_session_missing = guard_session is None or (
@@ -1723,9 +2174,13 @@ def _verify_nova_supervised_proven_no_effect_session(
     )
     if isinstance(result_candidate, str) and result_candidate.strip():
         if not re.fullmatch(r"[0-9a-f]{40}", result_candidate):
-            raise OperatorError("result candidate_commit must be a 40-char lowercase git SHA")
+            raise OperatorError(
+                "result candidate_commit must be a 40-char lowercase git SHA"
+            )
         if result_candidate != candidate:
-            raise OperatorError("result candidate_commit does not match the active guard")
+            raise OperatorError(
+                "result candidate_commit does not match the active guard"
+            )
 
     legacy_recovery_used = False
     current_head: str | None = None
@@ -1742,7 +2197,9 @@ def _verify_nova_supervised_proven_no_effect_session(
                 "legacy recovery requires --expected-candidate-commit as a 40-char git SHA"
             )
         if expected_candidate_commit != candidate:
-            raise OperatorError("expected candidate commit does not match guard.candidate_commit")
+            raise OperatorError(
+                "expected candidate commit does not match guard.candidate_commit"
+            )
         current_head = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=REPO_ROOT,
@@ -1758,9 +2215,13 @@ def _verify_nova_supervised_proven_no_effect_session(
         finished = _parse_iso_z(guard.get("finished_at"), "guard finished_at")
         if finished < started:
             raise OperatorError("guard finished_at precedes started_at")
-        in_window = _list_in_window_supervised_sessions(started=started, finished=finished)
+        in_window = _list_in_window_supervised_sessions(
+            started=started, finished=finished
+        )
         if len(in_window) == 0:
-            raise OperatorError("no supervised session stamp falls within the guard window")
+            raise OperatorError(
+                "no supervised session stamp falls within the guard window"
+            )
         if len(in_window) > 1:
             raise OperatorError(
                 "multiple supervised sessions fall within the guard window; legacy recovery blocked"
@@ -1770,7 +2231,9 @@ def _verify_nova_supervised_proven_no_effect_session(
                 "supplied session is not the unique in-window supervised session"
             )
         if session_stamp < started or session_stamp > finished:
-            raise OperatorError("session stamp is outside the guard started_at/finished_at window")
+            raise OperatorError(
+                "session stamp is outside the guard started_at/finished_at window"
+            )
         legacy_recovery_used = True
     else:
         if result_commit_missing:
@@ -1778,7 +2241,9 @@ def _verify_nova_supervised_proven_no_effect_session(
                 "result candidate_commit is required; use --legacy-null-session-recovery only for the audited legacy guard"
             )
         if result_candidate != candidate:
-            raise OperatorError("result candidate_commit does not match the active guard")
+            raise OperatorError(
+                "result candidate_commit does not match the active guard"
+            )
         if guard_session_missing:
             raise OperatorError(
                 "guard session_directory is required for normal reconciliation"
@@ -1786,7 +2251,9 @@ def _verify_nova_supervised_proven_no_effect_session(
         if not isinstance(guard_session, str):
             raise OperatorError("guard session_directory must be a string")
         if not _paths_exactly_equal(Path(guard_session), session):
-            raise OperatorError("guard session_directory does not bind the supplied session")
+            raise OperatorError(
+                "guard session_directory does not bind the supplied session"
+            )
 
     action_database = result.get("action_database")
     if not isinstance(action_database, str) or not action_database.strip():
@@ -1797,14 +2264,19 @@ def _verify_nova_supervised_proven_no_effect_session(
         "action_database",
     )
     if not db_path.is_file() or os.path.islink(db_path):
-        raise OperatorError("action_database must exist as a regular non-symlink SQLite file")
+        raise OperatorError(
+            "action_database must exist as a regular non-symlink SQLite file"
+        )
 
     journal_rows = _read_jsonl_objects(session / "journal.jsonl", "journal.jsonl")
     if not journal_rows:
         raise OperatorError("journal.jsonl must be nonempty")
     journal = journal_rows[-1]
     # Production supervised journals do not emit flow_id; bind strongest fields present.
-    if "flow_id" in journal and journal.get("flow_id") not in (None, NOVA_SUPERVISED_PULSE_FLOW_ID):
+    if "flow_id" in journal and journal.get("flow_id") not in (
+        None,
+        NOVA_SUPERVISED_PULSE_FLOW_ID,
+    ):
         raise OperatorError("journal flow_id mismatch")
     if journal.get("scenario_id") != NOVA_SUPERVISED_PULSE_SCENARIO_ID:
         raise OperatorError("journal scenario_id mismatch")
@@ -1822,10 +2294,19 @@ def _verify_nova_supervised_proven_no_effect_session(
     if "praise_transport_calls" in journal:
         journal_praise = journal.get("praise_transport_calls")
         if type(journal_praise) is not int or journal_praise < 0:
-            raise OperatorError("journal praise_transport_calls must be a non-negative int")
-        if "praise_transport_calls" in result and result.get("praise_transport_calls") != journal_praise:
+            raise OperatorError(
+                "journal praise_transport_calls must be a non-negative int"
+            )
+        if (
+            "praise_transport_calls" in result
+            and result.get("praise_transport_calls") != journal_praise
+        ):
             raise OperatorError("journal praise_transport_calls does not match result")
-    if "reason" in journal and journal.get("reason") not in (None, "", result.get("reason")):
+    if "reason" in journal and journal.get("reason") not in (
+        None,
+        "",
+        result.get("reason"),
+    ):
         raise OperatorError("journal reason does not match result")
     for key in ("action_id", "action_key"):
         if key not in journal:
@@ -1850,7 +2331,9 @@ def _verify_nova_supervised_proven_no_effect_session(
         raise OperatorError("capability-audit.jsonl must be nonempty")
 
     praise_transport_field_present = "praise_transport_calls" in result
-    praise = result.get("praise_transport_calls") if praise_transport_field_present else None
+    praise = (
+        result.get("praise_transport_calls") if praise_transport_field_present else None
+    )
     if praise_transport_field_present:
         if type(praise) is not int or praise != 0:
             raise OperatorError("proven_no_effect requires praise_transport_calls == 0")
@@ -1861,7 +2344,9 @@ def _verify_nova_supervised_proven_no_effect_session(
         if event.get("type") == "dispatch" and event.get("consequential") is True
     ]
     if consequential_dispatches:
-        raise OperatorError("events.jsonl records consequential transport; not proven_no_effect")
+        raise OperatorError(
+            "events.jsonl records consequential transport; not proven_no_effect"
+        )
     praise_dispatches = [
         event
         for event in events
@@ -1872,7 +2357,9 @@ def _verify_nova_supervised_proven_no_effect_session(
         )
     ]
     if praise_dispatches:
-        raise OperatorError("events.jsonl records Praise dispatch; not proven_no_effect")
+        raise OperatorError(
+            "events.jsonl records Praise dispatch; not proven_no_effect"
+        )
 
     praise_captures = [
         event
@@ -1882,12 +2369,12 @@ def _verify_nova_supervised_proven_no_effect_session(
         and str(event["label"]).startswith("praise-central-")
     ]
     post_praise_frames = [
-        event
-        for event in praise_captures
-        if "post" in str(event.get("label"))
+        event for event in praise_captures if "post" in str(event.get("label"))
     ]
     if post_praise_frames:
-        raise OperatorError("events.jsonl has praise post-dispatch frames; not proven_no_effect")
+        raise OperatorError(
+            "events.jsonl has praise post-dispatch frames; not proven_no_effect"
+        )
 
     scenario = result.get("scenario_record")
     result_action_id = result.get("action_id")
@@ -1913,11 +2400,17 @@ def _verify_nova_supervised_proven_no_effect_session(
             )
         reason = result.get("reason")
         if not isinstance(reason, str) or not reason.strip():
-            raise OperatorError("pre-Praise blocked proven_no_effect requires result.reason")
+            raise OperatorError(
+                "pre-Praise blocked proven_no_effect requires result.reason"
+            )
         if not isinstance(scenario, Mapping):
-            raise OperatorError("pre-Praise blocked proven_no_effect requires scenario_record")
+            raise OperatorError(
+                "pre-Praise blocked proven_no_effect requires scenario_record"
+            )
         if scenario.get("outcome") != "blocked":
-            raise OperatorError("pre-Praise blocked scenario_record.outcome must be blocked")
+            raise OperatorError(
+                "pre-Praise blocked scenario_record.outcome must be blocked"
+            )
         if scenario.get("reason") != reason:
             raise OperatorError("pre-Praise blocked scenario reason mismatch")
         if scenario.get("unresolved_action") is not False:
@@ -1939,9 +2432,13 @@ def _verify_nova_supervised_proven_no_effect_session(
             )
         scenario_nav = scenario.get("navigation_input_count")
         if scenario_nav is not None and scenario_nav != nav:
-            raise OperatorError("pre-Praise blocked scenario navigation_input_count mismatch")
+            raise OperatorError(
+                "pre-Praise blocked scenario navigation_input_count mismatch"
+            )
         if input_class == "none" and nav != 0:
-            raise OperatorError("pre-Praise blocked none input_class requires zero navigation")
+            raise OperatorError(
+                "pre-Praise blocked none input_class requires zero navigation"
+            )
         if input_class == "navigation_only" and nav < 1:
             raise OperatorError(
                 "pre-Praise blocked navigation_only requires navigation_input_count >= 1"
@@ -1954,7 +2451,8 @@ def _verify_nova_supervised_proven_no_effect_session(
         praise_transport_audit = [
             row
             for row in capability_audit
-            if row.get("consequential") is True and row.get("transport_observed") is True
+            if row.get("consequential") is True
+            and row.get("transport_observed") is True
         ]
         if praise_transport_audit:
             raise OperatorError(
@@ -1962,13 +2460,20 @@ def _verify_nova_supervised_proven_no_effect_session(
             )
         for row in capability_audit:
             if "transport_calls" in row and row.get("transport_calls") not in (0, None):
-                if type(row.get("transport_calls")) is not int or int(row["transport_calls"]) != 0:
+                if (
+                    type(row.get("transport_calls")) is not int
+                    or int(row["transport_calls"]) != 0
+                ):
                     raise OperatorError("capability-audit transport_calls must be zero")
             action_id = row.get("action_id")
             if isinstance(action_id, str) and action_id.startswith("nova-praise-"):
-                raise OperatorError("pre-Praise blocked capability-audit must not list Nova Praise")
+                raise OperatorError(
+                    "pre-Praise blocked capability-audit must not list Nova Praise"
+                )
             if row.get("target_identity") == NOVA_PRAISE_TARGET:
-                raise OperatorError("pre-Praise blocked capability-audit must not target Praise")
+                raise OperatorError(
+                    "pre-Praise blocked capability-audit must not target Praise"
+                )
     elif praise_reached_with_action:
         if not praise_transport_field_present or praise != 0:
             raise OperatorError(
@@ -1976,9 +2481,13 @@ def _verify_nova_supervised_proven_no_effect_session(
             )
         reason = result.get("reason")
         if not isinstance(reason, str) or not reason.strip():
-            raise OperatorError("Praise-reached cancelled proven_no_effect requires result.reason")
+            raise OperatorError(
+                "Praise-reached cancelled proven_no_effect requires result.reason"
+            )
         if not isinstance(scenario, Mapping):
-            raise OperatorError("Praise-reached cancelled proven_no_effect requires scenario_record")
+            raise OperatorError(
+                "Praise-reached cancelled proven_no_effect requires scenario_record"
+            )
         if scenario.get("reason") != reason:
             raise OperatorError("Praise-reached cancelled scenario reason mismatch")
         if scenario.get("unresolved_action") is not False:
@@ -2000,7 +2509,9 @@ def _verify_nova_supervised_proven_no_effect_session(
         if "reason" in journal and journal.get("reason") not in (None, "", reason):
             raise OperatorError("Praise-reached cancelled journal reason mismatch")
 
-        last_praise_capture_ts = max(str(event.get("timestamp") or "") for event in praise_captures)
+        last_praise_capture_ts = max(
+            str(event.get("timestamp") or "") for event in praise_captures
+        )
         if not last_praise_capture_ts:
             raise OperatorError("praise-central captures lack timestamps")
         dispatch_after_praise = [
@@ -2010,12 +2521,17 @@ def _verify_nova_supervised_proven_no_effect_session(
             and str(event.get("timestamp") or "") > last_praise_capture_ts
         ]
         if dispatch_after_praise:
-            raise OperatorError("dispatch occurred after praise-central captures; not proven_no_effect")
+            raise OperatorError(
+                "dispatch occurred after praise-central captures; not proven_no_effect"
+            )
 
         # Navigation capability-audit.jsonl is not Praise transport proof; only reject
         # explicit consequential Praise signals if present.
         for row in capability_audit:
-            if row.get("consequential") is True and row.get("transport_observed") is True:
+            if (
+                row.get("consequential") is True
+                and row.get("transport_observed") is True
+            ):
                 if (
                     str(row.get("action_id") or "").startswith("nova-praise-")
                     or row.get("target_identity") == NOVA_PRAISE_TARGET
@@ -2032,7 +2548,9 @@ def _verify_nova_supervised_proven_no_effect_session(
             try:
                 action_row = store.get_action(str(result_action_id))
             except StoreError as exc:
-                raise OperatorError("bound Praise action_id is missing from SafetyStore") from exc
+                raise OperatorError(
+                    "bound Praise action_id is missing from SafetyStore"
+                ) from exc
             if action_row.get("action_key") != result_action_key:
                 raise OperatorError("SafetyStore action_key does not match result")
             if action_row.get("action_id") != result_action_id:
@@ -2043,16 +2561,22 @@ def _verify_nova_supervised_proven_no_effect_session(
                     f"Praise action final_status={final_status} is not cancelled-before-transport"
                 )
             if final_status != "cancelled":
-                raise OperatorError("Praise-reached proven_no_effect requires cancelled action row")
+                raise OperatorError(
+                    "Praise-reached proven_no_effect requires cancelled action row"
+                )
             final_reason = action_row.get("final_reason")
             if not isinstance(final_reason, str) or not final_reason.strip():
                 raise OperatorError("cancelled Praise action lacks final_reason")
             if final_reason != reason and not final_reason.endswith(":" + reason):
-                raise OperatorError("cancelled Praise final_reason does not match result.reason")
+                raise OperatorError(
+                    "cancelled Praise final_reason does not match result.reason"
+                )
             if action_row.get("input_attempt_at") not in (None, ""):
                 raise OperatorError("cancelled Praise action recorded input_attempt_at")
             if action_row.get("transport_result_json") not in (None, "", "null"):
-                raise OperatorError("cancelled Praise action recorded transport_result_json")
+                raise OperatorError(
+                    "cancelled Praise action recorded transport_result_json"
+                )
 
             audit_rows = store.audit_events(str(result_action_id))
             if not audit_rows:
@@ -2071,23 +2595,32 @@ def _verify_nova_supervised_proven_no_effect_session(
                     "transport_dispatched",
                     "dispatched",
                 }:
-                    raise OperatorError("Praise audit chain records dispatch/transport success")
+                    raise OperatorError(
+                        "Praise audit chain records dispatch/transport success"
+                    )
                 payload_raw = audit.get("payload_json")
                 payload: Any
                 if isinstance(payload_raw, str) and payload_raw.strip():
                     try:
                         payload = json.loads(payload_raw)
                     except json.JSONDecodeError as exc:
-                        raise OperatorError("Praise audit payload_json is invalid JSON") from exc
+                        raise OperatorError(
+                            "Praise audit payload_json is invalid JSON"
+                        ) from exc
                 elif isinstance(payload_raw, Mapping):
                     payload = payload_raw
                 else:
                     payload = {}
                 if not isinstance(payload, Mapping):
                     raise OperatorError("Praise audit payload must be an object")
-                if payload.get("transport_observed") is True or payload.get("transport_occurred") is True:
+                if (
+                    payload.get("transport_observed") is True
+                    or payload.get("transport_occurred") is True
+                ):
                     raise OperatorError("Praise audit records transport observed")
-                if "transport_calls" in payload and payload.get("transport_calls") not in (0, None):
+                if "transport_calls" in payload and payload.get(
+                    "transport_calls"
+                ) not in (0, None):
                     if (
                         type(payload.get("transport_calls")) is not int
                         or int(payload["transport_calls"]) != 0
@@ -2100,10 +2633,14 @@ def _verify_nova_supervised_proven_no_effect_session(
                     cancel_reason = None
                     if isinstance(payload.get("reason"), str):
                         cancel_reason = payload["reason"]
-                    if cancel_reason and cancel_reason != reason and not cancel_reason.endswith(
-                        ":" + reason
+                    if (
+                        cancel_reason
+                        and cancel_reason != reason
+                        and not cancel_reason.endswith(":" + reason)
                     ):
-                        raise OperatorError("Praise cancel audit reason does not match result")
+                        raise OperatorError(
+                            "Praise cancel audit reason does not match result"
+                        )
             if not saw_cancel_transition:
                 raise OperatorError("Praise audit chain lacks cancelled transition")
 
@@ -2112,7 +2649,9 @@ def _verify_nova_supervised_proven_no_effect_session(
             if store.list_nonterminal_actions():
                 raise OperatorError("SafetyStore has nonterminal action rows")
             if store.has_action_block():
-                raise OperatorError("SafetyStore has an action block; not proven_no_effect")
+                raise OperatorError(
+                    "SafetyStore has an action block; not proven_no_effect"
+                )
             has_action_block = False
             action_rows = len(store.list_actions_for_task(NOVA_TASK_ID))
             if action_rows < 1:
@@ -2124,8 +2663,12 @@ def _verify_nova_supervised_proven_no_effect_session(
             store.close()
     else:
         if not praise_captures:
-            raise OperatorError("events.jsonl lacks praise-central captures required for audit proof")
-        last_praise_capture_ts = max(str(event.get("timestamp") or "") for event in praise_captures)
+            raise OperatorError(
+                "events.jsonl lacks praise-central captures required for audit proof"
+            )
+        last_praise_capture_ts = max(
+            str(event.get("timestamp") or "") for event in praise_captures
+        )
         if not last_praise_capture_ts:
             raise OperatorError("praise-central captures lack timestamps")
         dispatch_after_praise = [
@@ -2135,12 +2678,15 @@ def _verify_nova_supervised_proven_no_effect_session(
             and str(event.get("timestamp") or "") > last_praise_capture_ts
         ]
         if dispatch_after_praise:
-            raise OperatorError("dispatch occurred after praise-central captures; not proven_no_effect")
+            raise OperatorError(
+                "dispatch occurred after praise-central captures; not proven_no_effect"
+            )
 
         praise_transport_audit = [
             row
             for row in capability_audit
-            if row.get("consequential") is True and row.get("transport_observed") is True
+            if row.get("consequential") is True
+            and row.get("transport_observed") is True
         ]
         if praise_transport_audit:
             raise OperatorError(
@@ -2148,17 +2694,24 @@ def _verify_nova_supervised_proven_no_effect_session(
             )
         for row in capability_audit:
             if "transport_calls" in row and row.get("transport_calls") not in (0, None):
-                if type(row.get("transport_calls")) is not int or int(row["transport_calls"]) != 0:
+                if (
+                    type(row.get("transport_calls")) is not int
+                    or int(row["transport_calls"]) != 0
+                ):
                     raise OperatorError("capability-audit transport_calls must be zero")
             action_id = row.get("action_id")
             if isinstance(action_id, str) and action_id.startswith("nova-praise-"):
                 if row.get("transport_observed") is True:
                     raise OperatorError("capability-audit shows Nova Praise transport")
                 if row.get("transport_calls") not in (0, None):
-                    raise OperatorError("capability-audit Nova Praise transport_calls must be zero")
+                    raise OperatorError(
+                        "capability-audit Nova Praise transport_calls must be zero"
+                    )
         terminal_audit = capability_audit[-1]
         if terminal_audit.get("transport_observed") is not False:
-            raise OperatorError("capability-audit terminal row must show transport_observed=false")
+            raise OperatorError(
+                "capability-audit terminal row must show transport_observed=false"
+            )
         if terminal_audit.get("authorized") is not False:
             raise OperatorError("capability-audit terminal row must be unauthorized")
 
@@ -2179,7 +2732,9 @@ def _verify_nova_supervised_proven_no_effect_session(
         try:
             connection = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
         except sqlite3.Error as exc:
-            raise OperatorError("action_database could not be opened read-only") from exc
+            raise OperatorError(
+                "action_database could not be opened read-only"
+            ) from exc
         try:
             connection.row_factory = sqlite3.Row
             no_effect_clause = (
@@ -2204,14 +2759,18 @@ def _verify_nova_supervised_proven_no_effect_session(
         store = SafetyStore(db_path)
         try:
             if store.has_action_block():
-                raise OperatorError("SafetyStore has an action block; not proven_no_effect")
+                raise OperatorError(
+                    "SafetyStore has an action block; not proven_no_effect"
+                )
             remaining_nova_actions = [
                 row
                 for row in store.list_actions_for_task(NOVA_TASK_ID)
                 if not is_no_effect_cancelled(row)
             ]
             if remaining_nova_actions:
-                raise OperatorError("SafetyStore lists Nova actions; not proven_no_effect")
+                raise OperatorError(
+                    "SafetyStore lists Nova actions; not proven_no_effect"
+                )
             has_action_block = False
             action_rows = 0
         finally:
@@ -2236,14 +2795,18 @@ def _verify_nova_supervised_proven_no_effect_session(
         "action_rows": action_rows,
         "has_action_block": has_action_block,
         "praise_cancelled_before_transport": praise_cancelled_before_transport,
-        "bound_action_id": result_action_id if praise_cancelled_before_transport else None,
+        "bound_action_id": result_action_id
+        if praise_cancelled_before_transport
+        else None,
         "bound_action_final_status": bound_action_final_status,
         "bound_action_final_reason": bound_action_final_reason,
         "guard_session_directory": guard_session,
         "candidate_commit": candidate,
         "session_stamp": session_stamp.isoformat().replace("+00:00", "Z"),
         "legacy_null_session_recovery": legacy_recovery_used,
-        "expected_candidate_commit": expected_candidate_commit if legacy_recovery_used else None,
+        "expected_candidate_commit": expected_candidate_commit
+        if legacy_recovery_used
+        else None,
         "current_head": current_head if legacy_recovery_used else None,
         "in_window_session_count": len(in_window) if legacy_recovery_used else None,
         "evidence_hashes": evidence_hashes,
@@ -2278,15 +2841,16 @@ def reconcile_nova_supervised_invocation_guard_proven_no_effect(
     terminal = guard.get("terminal_status") or guard.get("status")
     guard_result_status = guard.get("result_status")
     # Historical blocked finals wrote terminal_status=failed while result_status=blocked.
-    historical_blocked_guard = (
-        terminal == "failed" and guard_result_status == "blocked"
-    )
+    historical_blocked_guard = terminal == "failed" and guard_result_status == "blocked"
     blocked_guard = terminal == "blocked" or historical_blocked_guard
     if terminal != "unresolved" and not blocked_guard:
         raise OperatorError(
             "only an unresolved or blocked supervised guard may be reconciled as proven_no_effect"
         )
-    if not isinstance(guard.get("candidate_commit"), str) or not str(guard["candidate_commit"]).strip():
+    if (
+        not isinstance(guard.get("candidate_commit"), str)
+        or not str(guard["candidate_commit"]).strip()
+    ):
         raise OperatorError("guard candidate_commit is required")
 
     proof = _verify_nova_supervised_proven_no_effect_session(
@@ -2298,23 +2862,35 @@ def reconcile_nova_supervised_invocation_guard_proven_no_effect(
     result = proof["result"]
     if blocked_guard:
         if result.get("status") != "blocked":
-            raise OperatorError("blocked-guard reconcile requires result.status == blocked")
+            raise OperatorError(
+                "blocked-guard reconcile requires result.status == blocked"
+            )
         if guard_result_status != "blocked":
-            raise OperatorError("blocked-guard reconcile requires guard.result_status == blocked")
+            raise OperatorError(
+                "blocked-guard reconcile requires guard.result_status == blocked"
+            )
         reason = result.get("reason")
         if not isinstance(reason, str) or not reason.strip():
-            raise OperatorError("blocked-guard reconcile requires a nonempty result.reason")
+            raise OperatorError(
+                "blocked-guard reconcile requires a nonempty result.reason"
+            )
         scenario = result.get("scenario_record")
         if not isinstance(scenario, Mapping):
-            raise OperatorError("blocked-guard reconcile requires result.scenario_record")
+            raise OperatorError(
+                "blocked-guard reconcile requires result.scenario_record"
+            )
         if scenario.get("outcome") != "blocked":
-            raise OperatorError("blocked-guard reconcile requires scenario_record.outcome == blocked")
+            raise OperatorError(
+                "blocked-guard reconcile requires scenario_record.outcome == blocked"
+            )
         if scenario.get("unresolved_action") is not False:
             raise OperatorError(
                 "blocked-guard reconcile requires scenario_record.unresolved_action == false"
             )
         if scenario.get("reason") != reason:
-            raise OperatorError("blocked-guard reconcile requires matching blocked reason")
+            raise OperatorError(
+                "blocked-guard reconcile requires matching blocked reason"
+            )
         if scenario.get("praise_transport_calls") not in (0, None):
             if (
                 type(scenario.get("praise_transport_calls")) is not int
@@ -2324,10 +2900,14 @@ def reconcile_nova_supervised_invocation_guard_proven_no_effect(
                     "blocked-guard reconcile requires scenario praise_transport_calls == 0"
                 )
         if proof["praise_transport_calls"] != 0:
-            raise OperatorError("blocked-guard reconcile requires praise_transport_calls == 0")
+            raise OperatorError(
+                "blocked-guard reconcile requires praise_transport_calls == 0"
+            )
         if proof.get("praise_cancelled_before_transport"):
             if proof["has_action_block"] is not False:
-                raise OperatorError("blocked-guard reconcile requires no SafetyStore action block")
+                raise OperatorError(
+                    "blocked-guard reconcile requires no SafetyStore action block"
+                )
             if proof.get("bound_action_final_status") != "cancelled":
                 raise OperatorError(
                     "blocked-guard cancelled Praise path requires preserved cancelled action row"
@@ -2340,7 +2920,9 @@ def reconcile_nova_supervised_invocation_guard_proven_no_effect(
         )
         journal = journal_rows[-1]
         if journal.get("status") != "blocked":
-            raise OperatorError("blocked-guard reconcile requires journal.status == blocked")
+            raise OperatorError(
+                "blocked-guard reconcile requires journal.status == blocked"
+            )
         if "reason" in journal and journal.get("reason") not in (None, reason):
             raise OperatorError("blocked-guard reconcile journal reason mismatch")
         if "reason" in guard and guard.get("reason") not in (None, "", reason):
@@ -2481,8 +3063,14 @@ def _verify_nova_supervised_one_free_pulse_session(
     try:
         session.relative_to(allowed_root)
     except ValueError as exc:
-        raise OperatorError("session directory must remain under .local-captures") from exc
-    if os.path.islink(session_directory) or os.path.islink(session) or not session.is_dir():
+        raise OperatorError(
+            "session directory must remain under .local-captures"
+        ) from exc
+    if (
+        os.path.islink(session_directory)
+        or os.path.islink(session)
+        or not session.is_dir()
+    ):
         raise OperatorError("session directory is unavailable or unsafe")
     result_path = session / "result.json"
     if os.path.islink(result_path) or not result_path.is_file():
@@ -2504,12 +3092,19 @@ def _verify_nova_supervised_one_free_pulse_session(
     navigation = result.get("navigation_input_count")
     praise = result.get("praise_transport_calls")
     if type(navigation) is not int or navigation < 1:
-        raise OperatorError("completed supervised pulse requires navigation_input_count >= 1")
+        raise OperatorError(
+            "completed supervised pulse requires navigation_input_count >= 1"
+        )
     if praise != 1:
         raise OperatorError("completed supervised pulse requires exactly one Praise")
     before = result.get("attempts_before")
     after = result.get("attempts_after")
-    if type(before) is not int or type(after) is not int or after != before - 1 or before <= 0:
+    if (
+        type(before) is not int
+        or type(after) is not int
+        or after != before - 1
+        or before <= 0
+    ):
         raise OperatorError("attempts must prove exact X->X-1")
     cooldown = result.get("cooldown_seconds")
     if (
@@ -2563,7 +3158,9 @@ def _verify_nova_supervised_one_free_pulse_session(
         "action_database",
     )
     if not db_path.is_file() or os.path.islink(db_path):
-        raise OperatorError("action_database must exist as a regular non-symlink SQLite file")
+        raise OperatorError(
+            "action_database must exist as a regular non-symlink SQLite file"
+        )
     evidence_refs = result.get("evidence_refs")
     if not isinstance(evidence_refs, list) or not evidence_refs:
         raise OperatorError("evidence_refs are required")
@@ -2580,8 +3177,12 @@ def _verify_nova_supervised_one_free_pulse_session(
         field: str(_session_relative_path(session, value, field).relative_to(session))
         for field, value in required_files.items()
     }
-    events = _read_nonempty_jsonl(session / verified_paths["events_path"], "events.jsonl")
-    ledger = _read_nonempty_jsonl(session / verified_paths["ledger_path"], "ledger.jsonl")
+    events = _read_nonempty_jsonl(
+        session / verified_paths["events_path"], "events.jsonl"
+    )
+    ledger = _read_nonempty_jsonl(
+        session / verified_paths["ledger_path"], "ledger.jsonl"
+    )
     journal_rows = _read_nonempty_jsonl(
         session / verified_paths["journal_path"],
         "journal.jsonl",
@@ -2594,7 +3195,9 @@ def _verify_nova_supervised_one_free_pulse_session(
         if event.get("type") == "dispatch" and event.get("consequential") is True
     ]
     if len(consequential) != 1:
-        raise OperatorError("events.jsonl must contain exactly one consequential dispatch")
+        raise OperatorError(
+            "events.jsonl must contain exactly one consequential dispatch"
+        )
     if consequential[0].get("action_key") != action_key:
         raise OperatorError("consequential dispatch action_key mismatch")
     journal = journal_rows[-1]
@@ -2602,7 +3205,10 @@ def _verify_nova_supervised_one_free_pulse_session(
         raise OperatorError("journal.jsonl action identity mismatch")
     if journal.get("journal_status") != "confirmed":
         raise OperatorError("journal.jsonl status must be confirmed")
-    if journal.get("attempts_before") != before or journal.get("attempts_after") != after:
+    if (
+        journal.get("attempts_before") != before
+        or journal.get("attempts_after") != after
+    ):
         raise OperatorError("journal.jsonl attempt counts mismatch")
     if journal.get("cooldown_seconds") != cooldown:
         raise OperatorError("journal.jsonl cooldown mismatch")
@@ -2652,7 +3258,9 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     try:
         session.relative_to(allowed_root)
     except ValueError as exc:
-        raise OperatorError("session directory must remain under .local-captures") from exc
+        raise OperatorError(
+            "session directory must remain under .local-captures"
+        ) from exc
     if not session.is_dir() or session.is_symlink():
         raise OperatorError("session directory is unavailable or unsafe")
     result_path = session / "flow-delivery-result.json"
@@ -2660,11 +3268,17 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
         result = json.loads(result_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise OperatorError("flow-delivery-result.json is required") from exc
-    if result.get("schema_version") != 1 or result.get("flow_id") not in BLUESTACKS_FLOW_IDS:
+    if (
+        result.get("schema_version") != 1
+        or result.get("flow_id") not in BLUESTACKS_FLOW_IDS
+    ):
         raise OperatorError("unsupported flow-delivery result identity")
     result_status = result.get("status")
     if result_status != "completed":
-        if result.get("flow_id") != "TROOP-TRAINING-END-TO-END-CONSOLIDATION" or result_status not in {
+        if result.get("flow_id") not in {
+            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+        } or result_status not in {
             "blocked",
             "unresolved",
             "manual_required",
@@ -2677,11 +3291,16 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
         BLUESTACKS_NATIVE_HEIGHT,
     ):
         raise OperatorError("flow result is not native 800x1280")
-    if not isinstance(result.get("runtime_owner"), str) or not result["runtime_owner"].strip():
+    if (
+        not isinstance(result.get("runtime_owner"), str)
+        or not result["runtime_owner"].strip()
+    ):
         raise OperatorError("flow result does not identify the runtime owner")
     allowed_terminal_states = {"recognized_home", "safe_blocked_terminal"}
     if result.get("flow_id") == "TROOP-TRAINING-END-TO-END-CONSOLIDATION":
         allowed_terminal_states |= {"blocked", "unresolved", "manual_required"}
+    elif result.get("flow_id") == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION":
+        allowed_terminal_states |= {"recognized_safe_terminal"}
     if result.get("terminal_runtime_state") not in allowed_terminal_states:
         raise OperatorError("terminal runtime state is missing or unsafe")
     actions = result.get("actions")
@@ -2690,10 +3309,16 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     declared_required = result.get("required_artifacts")
     required_fields = (
         set(declared_required)
-        if isinstance(declared_required, list) and all(isinstance(item, str) for item in declared_required)
+        if isinstance(declared_required, list)
+        and all(isinstance(item, str) for item in declared_required)
         else {"events_path", "ledger_path", "capability_audit_path", "journal_path"}
     )
-    artifact_fields = ("events_path", "ledger_path", "capability_audit_path", "journal_path")
+    artifact_fields = (
+        "events_path",
+        "ledger_path",
+        "capability_audit_path",
+        "journal_path",
+    )
     if not required_fields.issubset(set(artifact_fields)):
         raise OperatorError("flow result required artifact contract is invalid")
     verified_paths: dict[str, str] = {}
@@ -2701,9 +3326,13 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
         value = result.get(field)
         if value is None:
             if field in required_fields:
-                raise OperatorError(f"flow result required artifact is missing: {field}")
+                raise OperatorError(
+                    f"flow result required artifact is missing: {field}"
+                )
             continue
-        verified_paths[field] = str(_session_relative_path(session, value, field).relative_to(session))
+        verified_paths[field] = str(
+            _session_relative_path(session, value, field).relative_to(session)
+        )
         if not (session / verified_paths[field]).is_file():
             raise OperatorError(f"flow result artifact is missing: {field}")
     frames = result.get("frames")
@@ -2713,7 +3342,10 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
         str(_session_relative_path(session, value, "frames").relative_to(session))
         for value in frames
     ]
-    if any(not (session / value).is_file() or (session / value).stat().st_size == 0 for value in verified_frames):
+    if any(
+        not (session / value).is_file() or (session / value).stat().st_size == 0
+        for value in verified_frames
+    ):
         raise OperatorError("flow result frame evidence is missing")
     return {
         "result": result,
@@ -2739,6 +3371,8 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
                 "runtime_ownership_state": "released",
                 "unresolved_action_state": "clear",
             }
+        elif retained_flow_id == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION":
+            queue, lease = _retained_enhancement_state(session_directory)
         else:
             queue, lease = _retained_troop_training_state(session_directory)
     if lease.get("active_stage") != "evidence_review":
@@ -2780,8 +3414,13 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
         queue,
         lease,
     )
-    if not isinstance(verdict, dict) or verdict.get("status") not in {"verified", "evidence_required"}:
-        raise OperatorError("route-specific evidence validator did not return an accepted verdict")
+    if not isinstance(verdict, dict) or verdict.get("status") not in {
+        "verified",
+        "evidence_required",
+    }:
+        raise OperatorError(
+            "route-specific evidence validator did not return an accepted verdict"
+        )
     return json.dumps(verdict, sort_keys=True)
 
 
@@ -2802,10 +3441,19 @@ def bluestacks_recover_home() -> str:
             max_inputs=4,
             recovery_only=True,
         )
-    if lease.get("active_stage") not in {"live_preflight", "live_execution", "evidence_review"}:
-        raise OperatorError("recover-home is available only during an admitted live delivery stage")
+    if lease.get("active_stage") not in {
+        "live_preflight",
+        "live_execution",
+        "evidence_review",
+    }:
+        raise OperatorError(
+            "recover-home is available only during an admitted live delivery stage"
+        )
     contract = _load_bluestacks_flow_registry().get(queue["active_flow_id"])
-    if contract is None or contract["recovery_handler"] not in _BLUESTACKS_RECOVERY_HANDLERS:
+    if (
+        contract is None
+        or contract["recovery_handler"] not in _BLUESTACKS_RECOVERY_HANDLERS
+    ):
         raise OperatorError("FLOW_RECOVERY_HANDLER_UNAVAILABLE")
     return _BLUESTACKS_RECOVERY_HANDLERS[contract["recovery_handler"]](queue, lease)
 
@@ -2840,7 +3488,9 @@ def bluestacks_reconcile_campaign_atlas_survey_action(
             expected_flow_id=FLOW_ID,
         )
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
-        raise OperatorError(f"Campaign atlas survey offline reconciliation failed: {exc}") from exc
+        raise OperatorError(
+            f"Campaign atlas survey offline reconciliation failed: {exc}"
+        ) from exc
     if result.get("zero_input") is not True:
         raise OperatorError("offline reconciliation must remain zero-input")
     return json.dumps(result, sort_keys=True)
@@ -2851,13 +3501,18 @@ def nova_praise_pulse_replay(args: argparse.Namespace) -> str:
 
     from safe_action_core import SafetyStore
     from scripts.nova_praise_centralized import NovaPraiseActionBoundary
-    from tasks.gameplay_flow_replay import ReplayNativeRuntime, load_retained_native_frame
+    from tasks.gameplay_flow_replay import (
+        ReplayNativeRuntime,
+        load_retained_native_frame,
+    )
     from tasks.home_atlas import load_home_atlas
     from tasks.nova_praise_pulse import NOVA_TASK_ID, NovaPulseController
     from tasks.flow_scenario_attempts import replay_validated_record
     from tasks.scheduler_task_result import SchedulerIdentity
 
-    manifest_path = REPO_ROOT / "tests" / "fixtures" / "nova_praise_replay" / "manifest.json"
+    manifest_path = (
+        REPO_ROOT / "tests" / "fixtures" / "nova_praise_replay" / "manifest.json"
+    )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     cases = {item["fixture_id"]: item for item in manifest["cases"]}
     before_case = cases["praise_attempts_available"]
@@ -3113,7 +3768,9 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                 try:
                     from scripts import nova_praise_bluestacks as route_module
                 except ImportError as exc:
-                    raise OperatorError("Nova praise route module is unavailable") from exc
+                    raise OperatorError(
+                        "Nova praise route module is unavailable"
+                    ) from exc
                 runner = getattr(route_module, "run_nova_praise_one_free_pulse", None)
                 if not callable(runner):
                     record = SupervisedNovaPulseScenarioAttemptRecord(
@@ -3213,7 +3870,9 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                         result_status = "unresolved"
                     guard_terminal = "unresolved"
                 else:
-                    reason = str(route_result.get("reason") or "supervised_pulse_blocked")
+                    reason = str(
+                        route_result.get("reason") or "supervised_pulse_blocked"
+                    )
                     if status == "completed" and not completed_facts:
                         reason = "supervised_pulse_missing_terminal_facts"
                         route_result["status"] = "blocked"
@@ -3309,7 +3968,9 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
         except BaseException:
             # Never finalize as completed when the CLI path fails after the runner.
             if runner_returned:
-                facts_uncertain = pending_completed_guard or result_status == "completed"
+                facts_uncertain = (
+                    pending_completed_guard or result_status == "completed"
+                )
                 if praise_calls >= 1 or facts_uncertain:
                     guard_terminal = "unresolved"
                 else:
@@ -3376,7 +4037,9 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
         )
     canary_owner = f"pnsctl-nova-canary:{candidate_commit[:12]}"
     canary_invocation = f"nova-canary-{candidate_commit[:12]}-{int(time.time())}"
-    with NavigationDevelopmentSession(owner=canary_owner, invocation_id=canary_invocation):
+    with NavigationDevelopmentSession(
+        owner=canary_owner, invocation_id=canary_invocation
+    ):
         route_result = json.loads(runner(args, identity))
     input_count = int(route_result.get("navigation_input_count", 0))
     status = str(route_result.get("status") or "blocked")
@@ -3444,18 +4107,28 @@ def noahs_tavern_navigation(args: argparse.Namespace) -> str:
         check=True,
     ).stdout.strip()
     if getattr(args, "preflight_capture", False) and args.preflight_only:
-        raise OperatorError("--preflight-capture and --preflight-only are mutually exclusive")
+        raise OperatorError(
+            "--preflight-capture and --preflight-only are mutually exclusive"
+        )
     if getattr(args, "recovery_continuation", False) and (
-        getattr(args, "preflight_capture", False) or getattr(args, "preflight_only", False)
+        getattr(args, "preflight_capture", False)
+        or getattr(args, "preflight_only", False)
     ):
-        raise OperatorError("recovery continuation and preflight modes are mutually exclusive")
+        raise OperatorError(
+            "recovery continuation and preflight modes are mutually exclusive"
+        )
     if getattr(args, "recovery_continuation", False):
         if not args.live or not args.yes or not args.supervised_live_opt_in:
-            raise OperatorError("recovery continuation requires --live --yes --supervised-live-opt-in")
+            raise OperatorError(
+                "recovery continuation requires --live --yes --supervised-live-opt-in"
+            )
         from scripts import noahs_tavern_recruit_bluestacks as route_module
         from scripts.navigation_development_boundary import NavigationDevelopmentSession
+
         owner = f"pnsctl-noahs-tavern-recovery:{candidate_commit[:12]}"
-        invocation_id = f"noahs-tavern-recovery-{candidate_commit[:12]}-{int(time.time())}"
+        invocation_id = (
+            f"noahs-tavern-recovery-{candidate_commit[:12]}-{int(time.time())}"
+        )
         with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
             return route_module.run_noahs_tavern_recovery_continuation(args, None)
     if getattr(args, "preflight_capture", False):
@@ -3484,19 +4157,34 @@ def noahs_tavern_navigation(args: argparse.Namespace) -> str:
             source = runtime.capture("home-atlas-entry-preflight-source")
             localization = route.home_localizer.localize(source.frame)
             binding = route._atlas_binding(source)
-            annotated_path = runtime.session / "home-atlas-entry-preflight-annotated.png"
+            annotated_path = (
+                runtime.session / "home-atlas-entry-preflight-annotated.png"
+            )
             annotated = source.frame.copy()
             if binding is not None:
                 x0, y0, x1, y1 = binding
                 cv2.rectangle(annotated, (x0, y0), (x1, y1), (0, 255, 0), 4)
-                cv2.putText(annotated, NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID, (x0, max(30, y0 - 12)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+                cv2.putText(
+                    annotated,
+                    NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID,
+                    (x0, max(30, y0 - 12)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (0, 255, 0),
+                    2,
+                    cv2.LINE_AA,
+                )
             cv2.imwrite(str(annotated_path), annotated)
             atlas_bytes = route.atlas_path.read_bytes()
             payload = {
                 "schema_version": 1,
                 "flow_id": NOAHS_TAVERN_NAV_FLOW_ID,
-                "status": "preflight_capture_passed" if binding is not None else "blocked",
-                "reason": "current_frame_atlas_binding" if binding is not None else "home_atlas_tavern_target_not_current_frame_bound",
+                "status": "preflight_capture_passed"
+                if binding is not None
+                else "blocked",
+                "reason": "current_frame_atlas_binding"
+                if binding is not None
+                else "home_atlas_tavern_target_not_current_frame_bound",
                 "transport_calls": 0,
                 "source_frame": str(source.path),
                 "source_frame_sha256": source.sha256,
@@ -3511,11 +4199,16 @@ def noahs_tavern_navigation(args: argparse.Namespace) -> str:
                 "scheduler_enabled": False,
                 "session_directory": str(runtime.session),
             }
-            (runtime.session / "home-atlas-entry-preflight-result.json").write_text(json.dumps(payload, sort_keys=True, default=str, indent=2) + "\n", encoding="utf-8")
+            (runtime.session / "home-atlas-entry-preflight-result.json").write_text(
+                json.dumps(payload, sort_keys=True, default=str, indent=2) + "\n",
+                encoding="utf-8",
+            )
             return json.dumps(payload, sort_keys=True, default=str)
 
         owner = f"pnsctl-noahs-tavern-atlas-preflight:{candidate_commit[:12]}"
-        invocation_id = f"noahs-tavern-atlas-preflight-{candidate_commit[:12]}-{int(time.time())}"
+        invocation_id = (
+            f"noahs-tavern-atlas-preflight-{candidate_commit[:12]}-{int(time.time())}"
+        )
         with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
             return _run_preflight_capture()
     if args.preflight_only:
@@ -3536,13 +4229,17 @@ def noahs_tavern_navigation(args: argparse.Namespace) -> str:
     if not args.yes:
         raise OperatorError("live Noah's Tavern navigation requires --yes")
     if not args.supervised_live_opt_in:
-        raise OperatorError("live Noah's Tavern navigation requires --supervised-live-opt-in")
+        raise OperatorError(
+            "live Noah's Tavern navigation requires --supervised-live-opt-in"
+        )
     from scripts.navigation_development_boundary import NavigationDevelopmentSession
 
     try:
         from scripts import noahs_tavern_recruit_bluestacks as route_module
     except ImportError as exc:
-        raise OperatorError("Noah's Tavern navigation route module is unavailable") from exc
+        raise OperatorError(
+            "Noah's Tavern navigation route module is unavailable"
+        ) from exc
     runner = getattr(route_module, "run_noahs_tavern_navigation_canary", None)
     if not callable(runner):
         return json.dumps(
@@ -3576,16 +4273,22 @@ def noahs_tavern_recruit(args: argparse.Namespace) -> str:
         raise OperatorError("--preflight-only and --live are mutually exclusive")
     if args.reconcile_session is not None:
         if args.live or args.preflight_only:
-            raise OperatorError("retained reconciliation is zero-input and cannot use --live or --preflight-only")
+            raise OperatorError(
+                "retained reconciliation is zero-input and cannot use --live or --preflight-only"
+            )
         if args.state_session is None or args.terminal_home_session is None:
-            raise OperatorError("retained reconciliation requires --state-session and --terminal-home-session")
+            raise OperatorError(
+                "retained reconciliation requires --state-session and --terminal-home-session"
+            )
         from scripts import noahs_tavern_recruit_bluestacks as route_module
         from tasks.scheduler_task_result import SchedulerIdentity
         from tasks.noahs_tavern_recruit_maintenance import MAINTENANCE_TASK_ID
+
         identity = SchedulerIdentity(
             args.account_id or "local-bluestacks-account",
             args.server_id or "local-bluestacks-server",
-            args.reset_id or f"game-day-{datetime.now(timezone.utc).date().isoformat()}",
+            args.reset_id
+            or f"game-day-{datetime.now(timezone.utc).date().isoformat()}",
             MAINTENANCE_TASK_ID,
         )
         return route_module.reconcile_noahs_tavern_retained_recruit(args, identity)
@@ -3594,7 +4297,9 @@ def noahs_tavern_recruit(args: argparse.Namespace) -> str:
         from scripts import noahs_tavern_recruit_bluestacks as route_module
 
         owner = f"pnsctl-noahs-tavern-recruit-preflight:{candidate_commit[:12]}"
-        invocation_id = f"noahs-tavern-recruit-preflight-{candidate_commit[:12]}-{int(time.time())}"
+        invocation_id = (
+            f"noahs-tavern-recruit-preflight-{candidate_commit[:12]}-{int(time.time())}"
+        )
         with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
             return route_module.run_noahs_tavern_recruitment_preflight(args)
     if not args.live:
@@ -3602,11 +4307,15 @@ def noahs_tavern_recruit(args: argparse.Namespace) -> str:
     if not args.yes:
         raise OperatorError("live unified recruitment requires --yes")
     if not args.supervised_live_opt_in:
-        raise OperatorError("live unified recruitment requires --supervised-live-opt-in")
+        raise OperatorError(
+            "live unified recruitment requires --supervised-live-opt-in"
+        )
     continuation = getattr(args, "continuation_session", None) is not None
     required_cap = 4 if continuation else 12
     if args.max_inputs != required_cap:
-        raise OperatorError(f"unified recruitment live pass requires exact {required_cap}-input cap")
+        raise OperatorError(
+            f"unified recruitment live pass requires exact {required_cap}-input cap"
+        )
     from scripts.navigation_development_boundary import NavigationDevelopmentSession
     from scripts import noahs_tavern_recruit_bluestacks as route_module
     from tasks.scheduler_task_result import SchedulerIdentity
@@ -3622,7 +4331,9 @@ def noahs_tavern_recruit(args: argparse.Namespace) -> str:
     invocation_id = f"noahs-tavern-recruit-{candidate_commit[:12]}-{int(time.time())}"
     with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
         if continuation:
-            return route_module.run_noahs_tavern_recruitment_continuation(args, identity)
+            return route_module.run_noahs_tavern_recruitment_continuation(
+                args, identity
+            )
         return route_module.run_noahs_tavern_unified_recruitment(args, identity)
 
 
@@ -3632,7 +4343,11 @@ def automation_service_offline(args: argparse.Namespace) -> int:
 
     if args.automation_service_command == "campaign-plan":
         from automation_service.campaign import CampaignNavigationHandler
-        from automation_service.contracts import FamilyFacts, PerceptionEnvelope, SchedulerFacts
+        from automation_service.contracts import (
+            FamilyFacts,
+            PerceptionEnvelope,
+            SchedulerFacts,
+        )
 
         handler = CampaignNavigationHandler(args.destination)
         plan = handler.plan(
@@ -3660,7 +4375,11 @@ def automation_service_offline(args: argparse.Namespace) -> int:
             )
         )
         return 0
-    argv = ["--mode", args.mode, "status" if args.automation_service_command == "status" else "health"]
+    argv = [
+        "--mode",
+        args.mode,
+        "status" if args.automation_service_command == "status" else "health",
+    ]
     return automation_main(argv)
 
 
@@ -3669,7 +4388,9 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--run-id", default="help-all-20260713")
     sub = root.add_subparsers(dest="command", required=True)
     development = sub.add_parser("development-session")
-    development_sub = development.add_subparsers(dest="development_command", required=True)
+    development_sub = development.add_subparsers(
+        dest="development_command", required=True
+    )
     development_observe = development_sub.add_parser("observe")
     development_observe.add_argument("--max-inputs", type=int, default=12)
     development_run = development_sub.add_parser("run-flow")
@@ -3681,30 +4402,65 @@ def parser() -> argparse.ArgumentParser:
     development_run.add_argument("--recovery-session", type=Path, default=None)
     development_run.add_argument("--chests-only", action="store_true")
     development_run.add_argument("--chest-continuation", type=Path, default=None)
-    for name in ("preflight", "worker-start", "worker-status", "worker-stop", "adb-start", "launch", "capture", "observe", "navigate", "run-task", "test-focused", "test-full", "validate", "preserve-evidence", "evidence-status", "cleanup"):
+    development_run.add_argument(
+        "--enhancement-variant",
+        choices=("gear", "chip", "module"),
+        default="gear",
+    )
+    for name in (
+        "preflight",
+        "worker-start",
+        "worker-status",
+        "worker-stop",
+        "adb-start",
+        "launch",
+        "capture",
+        "observe",
+        "navigate",
+        "run-task",
+        "test-focused",
+        "test-full",
+        "validate",
+        "preserve-evidence",
+        "evidence-status",
+        "cleanup",
+    ):
         sub.add_parser(name)
     sub.choices["capture"].add_argument("--name", default="current")
     sub.choices["observe"].add_argument("--name", default="observe")
-    sub.choices["navigate"].add_argument("--step", required=True, choices=tuple(NAVIGATION_STEPS))
+    sub.choices["navigate"].add_argument(
+        "--step", required=True, choices=tuple(NAVIGATION_STEPS)
+    )
     sub.choices["run-task"].add_argument(
         "--task",
         required=True,
         choices=(
-            "alliance-help", "vip-popup", "praise-route-evidence",
-            "praise-leaderboard-evidence", "praise", "personal-might-claim",
-            "bioenhancer-free-research", "daily-claim",
+            "alliance-help",
+            "vip-popup",
+            "praise-route-evidence",
+            "praise-leaderboard-evidence",
+            "praise",
+            "personal-might-claim",
+            "bioenhancer-free-research",
+            "daily-claim",
         ),
     )
     sub.choices["run-task"].add_argument("--game-day", default="")
     sub.choices["test-focused"].add_argument("--pattern", default="test_task_module.py")
-    sub.choices["preserve-evidence"].add_argument("--destination", type=Path, required=True)
+    sub.choices["preserve-evidence"].add_argument(
+        "--destination", type=Path, required=True
+    )
     sub.choices["preserve-evidence"].add_argument("--name", action="append", default=[])
     rec = sub.add_parser("reconcile")
     rec.add_argument("--source", type=Path, required=True)
     rec.add_argument("--output", type=Path, required=True)
     rec.add_argument("--action-id", required=True)
     rec.add_argument("--evidence", nargs="+", required=True)
-    rec.add_argument("--outcome", choices=("proven_no_effect", "positive_postcondition"), default="proven_no_effect")
+    rec.add_argument(
+        "--outcome",
+        choices=("proven_no_effect", "positive_postcondition"),
+        default="proven_no_effect",
+    )
     rec.add_argument("--reason", default="positive_postcondition")
     nova_pulse = sub.add_parser("nova-praise-pulse")
     nova_pulse.add_argument("--live", action="store_true")
@@ -3746,9 +4502,21 @@ def parser() -> argparse.ArgumentParser:
     tavern_nav.add_argument("--preflight-only", action="store_true")
     tavern_nav.add_argument("--yes", action="store_true")
     tavern_nav.add_argument("--supervised-live-opt-in", action="store_true")
-    tavern_nav.add_argument("--preflight-capture", action="store_true", help="capture and annotate a zero-input canonical Home Atlas binding")
-    tavern_nav.add_argument("--recovery-continuation", action="store_true", help="one retained Tavern safe-exit prelude, then fresh canonical round trip")
-    tavern_nav.add_argument("--safe-exit-only", action="store_true", help="one positively recognized Tavern exit to canonical Home")
+    tavern_nav.add_argument(
+        "--preflight-capture",
+        action="store_true",
+        help="capture and annotate a zero-input canonical Home Atlas binding",
+    )
+    tavern_nav.add_argument(
+        "--recovery-continuation",
+        action="store_true",
+        help="one retained Tavern safe-exit prelude, then fresh canonical round trip",
+    )
+    tavern_nav.add_argument(
+        "--safe-exit-only",
+        action="store_true",
+        help="one positively recognized Tavern exit to canonical Home",
+    )
     tavern_nav.add_argument("--adb", type=Path, default=BLUESTACKS_ADB)
     tavern_nav.add_argument("--serial", default=BLUESTACKS_SERIAL)
     tavern_nav.add_argument("--settle-seconds", type=float, default=1.0)
@@ -3819,9 +4587,13 @@ def parser() -> argparse.ArgumentParser:
         dest="automation_service_command", required=True
     )
     automation_status = automation_sub.add_parser("status")
-    automation_status.add_argument("--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled")
+    automation_status.add_argument(
+        "--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled"
+    )
     automation_health = automation_sub.add_parser("health")
-    automation_health.add_argument("--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled")
+    automation_health.add_argument(
+        "--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled"
+    )
     campaign_plan = automation_sub.add_parser("campaign-plan")
     campaign_plan.add_argument("--destination", default="1-20-9")
     return root
@@ -3874,7 +4646,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             output = noahs_tavern_recruit(args)
             print(output)
             return 0
-        except (OperatorError, OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        except (
+            OperatorError,
+            OSError,
+            RuntimeError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
             print(
                 json.dumps(
                     {
@@ -3933,12 +4711,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                     recovery_session=args.recovery_session,
                     chests_only=bool(args.chests_only),
                     chest_continuation=args.chest_continuation,
+                    enhancement_variant=args.enhancement_variant,
                 )
             else:
                 raise OperatorError("unknown development-session command")
             print(output)
             return 0
-        except (OperatorError, OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        except (
+            OperatorError,
+            OSError,
+            RuntimeError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
             print(
                 json.dumps(
                     {
@@ -3997,7 +4782,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
     cfg = OperatorConfig()
     handlers = {
-        "preflight": lambda: run_remote(cfg, "set -eu; printf 'vm='; virsh domstate PnS-BlissOS-PoC; printf 'worker='; docker ps --filter name=^%s$ --format '{{.Names}}' || true; printf 'listeners='; ss -ltn | grep -E ':(5037|5042|5555)\\b' || true; test -f /mnt/cache/domains/PnS-BlissOS-PoC/rollback/20260711-rt017-runtime-backup/system.qcow2 && echo backup=intact" % re.escape(cfg.container)),
+        "preflight": lambda: run_remote(
+            cfg,
+            "set -eu; printf 'vm='; virsh domstate PnS-BlissOS-PoC; printf 'worker='; docker ps --filter name=^%s$ --format '{{.Names}}' || true; printf 'listeners='; ss -ltn | grep -E ':(5037|5042|5555)\\b' || true; test -f /mnt/cache/domains/PnS-BlissOS-PoC/rollback/20260711-rt017-runtime-backup/system.qcow2 && echo backup=intact"
+            % re.escape(cfg.container),
+        ),
         "worker-start": lambda: worker_start(cfg),
         "worker-status": lambda: worker_status(cfg),
         "worker-stop": lambda: worker_stop(cfg),
@@ -4010,7 +4799,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "test-focused": lambda: test_command(cfg, True, args.pattern),
         "test-full": lambda: test_command(cfg, False),
         "validate": lambda: validate(cfg),
-        "preserve-evidence": lambda: preserve_evidence(cfg, args.destination, args.name),
+        "preserve-evidence": lambda: preserve_evidence(
+            cfg, args.destination, args.name
+        ),
         "evidence-status": lambda: evidence_status(cfg),
         "cleanup": lambda: cleanup(cfg),
     }

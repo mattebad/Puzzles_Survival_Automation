@@ -2327,32 +2327,103 @@
         "development_invocation_count": 12,
         "input_bearing_invocation_count": 7,
         "invocations": [
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T001307592114Z", "input_count": 0, "outcome": "blocked", "material_condition": "initial Home localization ambiguity"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T001442504600Z", "input_count": 3, "outcome": "completed_navigation_only", "material_condition": "known VIP popup dismissed; Gear OCR alias missing"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T001937421464Z", "input_count": 2, "outcome": "completed_navigation_only", "material_condition": "second observed Gear OCR alias missing"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T002150994593Z", "input_count": 2, "outcome": "blocked", "material_condition": "Gear target bound above orange Challenge control"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T003917413177Z", "input_count": 0, "outcome": "blocked", "material_condition": "current Ruins-list source attempted Home recovery"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T004705185506Z", "input_count": 1, "outcome": "blocked", "material_condition": "Gear opened; Attack contour not yet bound"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T005854776061Z", "input_count": 3, "outcome": "blocked", "material_condition": "Attack opened zero-cost NPC screen; Dispatch contour not yet bound"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T010702164273Z", "input_count": 6, "outcome": "combat_succeeded_reconciliation_pending", "material_condition": "one Dispatch and Continue advanced Gear 67 to 68; next-floor detail was initially mistaken for list"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013038868912Z", "input_count": 0, "outcome": "failed_preflight", "material_condition": "overstrict retained source binding"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013144107941Z", "input_count": 0, "outcome": "timed_out", "material_condition": "all-identity recovery OCR exceeded wrapper timeout"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013444288293Z", "input_count": 0, "outcome": "operator_terminated", "material_condition": "unauthorized extra start stopped immediately"},
-          {"development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013704091274Z", "input_count": 2, "outcome": "completed", "material_condition": "evidence-bound Detail-to-list-to-canonical-Home recovery; no combat repeat"}
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T001307592114Z",
+            "input_count": 0,
+            "outcome": "blocked",
+            "material_condition": "initial Home localization ambiguity"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T001442504600Z",
+            "input_count": 3,
+            "outcome": "completed_navigation_only",
+            "material_condition": "known VIP popup dismissed; Gear OCR alias missing"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T001937421464Z",
+            "input_count": 2,
+            "outcome": "completed_navigation_only",
+            "material_condition": "second observed Gear OCR alias missing"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T002150994593Z",
+            "input_count": 2,
+            "outcome": "blocked",
+            "material_condition": "Gear target bound above orange Challenge control"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T003917413177Z",
+            "input_count": 0,
+            "outcome": "blocked",
+            "material_condition": "current Ruins-list source attempted Home recovery"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T004705185506Z",
+            "input_count": 1,
+            "outcome": "blocked",
+            "material_condition": "Gear opened; Attack contour not yet bound"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T005854776061Z",
+            "input_count": 3,
+            "outcome": "blocked",
+            "material_condition": "Attack opened zero-cost NPC screen; Dispatch contour not yet bound"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T010702164273Z",
+            "input_count": 6,
+            "outcome": "combat_succeeded_reconciliation_pending",
+            "material_condition": "one Dispatch and Continue advanced Gear 67 to 68; next-floor detail was initially mistaken for list"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013038868912Z",
+            "input_count": 0,
+            "outcome": "failed_preflight",
+            "material_condition": "overstrict retained source binding"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013144107941Z",
+            "input_count": 0,
+            "outcome": "timed_out",
+            "material_condition": "all-identity recovery OCR exceeded wrapper timeout"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013444288293Z",
+            "input_count": 0,
+            "outcome": "operator_terminated",
+            "material_condition": "unauthorized extra start stopped immediately"
+          },
+          {
+            "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013704091274Z",
+            "input_count": 2,
+            "outcome": "completed",
+            "material_condition": "evidence-bound Detail-to-list-to-canonical-Home recovery; no combat repeat"
+          }
         ]
       },
       "chest_validation": {
         "mode": "ordinary_gameplay_chests_only",
         "claimed": [
-          {"identity": "Hero Challenge", "ruins_medals": 432},
-          {"identity": "Weapon Trial", "ruins_medals": 5},
-          {"identity": "Tech Challenge", "ruins_medals": 324}
+          {
+            "identity": "Hero Challenge",
+            "ruins_medals": 432
+          },
+          {
+            "identity": "Weapon Trial",
+            "ruins_medals": 5
+          },
+          {
+            "identity": "Tech Challenge",
+            "ruins_medals": 324
+          }
         ],
         "points_before": 14951,
         "points_after": 15712,
         "reward_delta": 761,
         "remaining_fully_visible_chest_targets": [],
-        "rejected_clipped_targets": ["Nova Challenge"],
+        "rejected_clipped_targets": [
+          "Nova Challenge"
+        ],
         "terminal_development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T045416299611Z",
         "terminal_runtime_session": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION/nav-20260812T045416729521Z/ruins-challenge-20260812T045417285968Z",
         "terminal_state": "recognized_home",
@@ -2373,11 +2444,26 @@
             "Cube Challenge": "locked"
           },
           "newly_claimed": [
-            {"identity": "Gear Challenge", "ruins_medals": 496},
-            {"identity": "Glory Challenge", "ruins_medals": 408},
-            {"identity": "Bioenhancer Challenge", "ruins_medals": 11},
-            {"identity": "Ultimate Challenge", "ruins_medals": 784},
-            {"identity": "Chip Challenge", "ruins_medals": 488}
+            {
+              "identity": "Gear Challenge",
+              "ruins_medals": 496
+            },
+            {
+              "identity": "Glory Challenge",
+              "ruins_medals": 408
+            },
+            {
+              "identity": "Bioenhancer Challenge",
+              "ruins_medals": 11
+            },
+            {
+              "identity": "Ultimate Challenge",
+              "ruins_medals": 784
+            },
+            {
+              "identity": "Chip Challenge",
+              "ruins_medals": 488
+            }
           ],
           "points_before": 14462,
           "points_after": 16649,
@@ -2637,7 +2723,7 @@
       ],
       "blocked_reason": "",
       "next_concrete_action": "Historical navigation-only flow is superseded by completed TROOP-TRAINING-END-TO-END-CONSOLIDATION.",
-      "last_completed_stage": "superseded",
+      "last_completed_stage": "completed",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
       "acceptance_criteria": [
@@ -2697,7 +2783,9 @@
       "status": "completed",
       "backlog_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
       "dependencies": [],
-      "superseded_provenance": ["TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE"],
+      "superseded_provenance": [
+        "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE"
+      ],
       "implementation_entrypoints": [
         "tasks/troop_training.py",
         "tasks/troop_training_runtime.py",
@@ -2758,7 +2846,11 @@
         "tests/test_flow_delivery_troop_training.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
-      "performance_metrics_required": ["navigation_input_count", "per_type_training_records", "terminal_home_localization"],
+      "performance_metrics_required": [
+        "navigation_input_count",
+        "per_type_training_records",
+        "terminal_home_localization"
+      ],
       "blocked_reason": "",
       "next_concrete_action": "Begin SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT; Troop Training remains NOT_REGISTERED and scheduler-disabled.",
       "last_completed_stage": "completed",
@@ -2778,7 +2870,10 @@
         "no Train Now, premium, speedup, Cash Mall, or arbitrary ADB",
         "no modification of Bliss, GnBots, or historical navigation flow"
       ],
-      "reference_docs": ["docs/troop-training-bluestacks.md", "docs/prompts/daily-quest/dq-flow-training.md"],
+      "reference_docs": [
+        "docs/troop-training-bluestacks.md",
+        "docs/prompts/daily-quest/dq-flow-training.md"
+      ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
         "tasks/troop_training.py",
@@ -2792,10 +2887,29 @@
         "tests/test_bluestacks_integrated_routes.py",
         "tests/test_flow_delivery_troop_training.py"
       ],
-      "live_validation_scenarios": [{"id": "troop-training-consolidation-supervised-canary", "mode": "supervised_consequential_validation"}],
-      "required_terminal_states": ["recognized_home", "blocked", "unresolved", "manual_required"],
-      "completion_tests": ["tests/test_troop_training.py", "tests/test_troop_training_entry.py", "tests/test_bluestacks_integrated_routes.py", "tests/test_flow_delivery_troop_training.py"],
-      "consequential_stage_policy": {"initial_live_validation": "supervised_consequential_validation", "maximum_canaries": 1, "train_action": "normal_timed_train_only"}
+      "live_validation_scenarios": [
+        {
+          "id": "troop-training-consolidation-supervised-canary",
+          "mode": "supervised_consequential_validation"
+        }
+      ],
+      "required_terminal_states": [
+        "recognized_home",
+        "blocked",
+        "unresolved",
+        "manual_required"
+      ],
+      "completion_tests": [
+        "tests/test_troop_training.py",
+        "tests/test_troop_training_entry.py",
+        "tests/test_bluestacks_integrated_routes.py",
+        "tests/test_flow_delivery_troop_training.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "supervised_consequential_validation",
+        "maximum_canaries": 1,
+        "train_action": "normal_timed_train_only"
+      }
     },
     {
       "flow_id": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
@@ -2965,7 +3079,7 @@
       "title": "Integrate Gear, Chip, and Module enhancement with BlueStacks",
       "kind": "consequential_integration",
       "priority": 90,
-      "status": "ready",
+      "status": "blocked",
       "backlog_task_id": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -2985,16 +3099,17 @@
         "tests/test_enhancement.py",
         "tests/test_daily_enhancement.py",
         "tests/test_daily_enhancement_chip.py",
-        "tests/test_daily_enhancement_module.py"
+        "tests/test_daily_enhancement_module.py",
+        "tests/test_flow_delivery_enhancement.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "material_binding_latency_seconds",
         "postcondition_latency_seconds"
       ],
-      "blocked_reason": "",
-      "next_concrete_action": "Add a category-parameterized BlueStacks route with exact one-star quantity-one binding and fail-closed postconditions.",
-      "last_completed_stage": null,
+      "blocked_reason": "The bounded verifier repair is parent-accepted offline: result-hit association now uses result geometry, retained observations bind to real matching native PNGs, and the 64-test focused package passes. The flow remains evidence_required because no current BlueStacks semantic observation or supervised canary has occurred.",
+      "next_concrete_action": "After the delegated live-operator foundation is accepted, issue a parent-bounded zero-input or navigation-only reconnaissance receipt for fresh native Enhancement semantics. Do not admit a resource-affecting canary until that evidence passes integration review.",
+      "last_completed_stage": "offline_integration_accepted",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
       "acceptance_criteria": [
@@ -3024,10 +3139,19 @@
         "tasks/enhancement.py",
         "tasks/daily_enhancement.py",
         "scripts/bluestacks_native_runtime.py",
+        "scripts/enhancement_bluestacks.py",
+        "scripts/flow_delivery_enhancement_bluestacks.py",
+        "scripts/flow_delivery_control.py",
+        "scripts/pnsctl.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/flow_delivery_queue.json",
+        "tasks/gameplay_flow_contracts/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION.json",
         "tests/test_enhancement.py",
         "tests/test_daily_enhancement.py",
         "tests/test_daily_enhancement_chip.py",
-        "tests/test_daily_enhancement_module.py"
+        "tests/test_daily_enhancement_module.py",
+        "tests/test_flow_delivery_enhancement.py",
+        "tests/test_flow_delivery_orchestrator.py"
       ],
       "live_validation_scenarios": [
         {
@@ -3054,7 +3178,8 @@
         "tests/test_enhancement.py",
         "tests/test_daily_enhancement.py",
         "tests/test_daily_enhancement_chip.py",
-        "tests/test_daily_enhancement_module.py"
+        "tests/test_daily_enhancement_module.py",
+        "tests/test_flow_delivery_enhancement.py"
       ],
       "consequential_stage_policy": {
         "material_policy": "exactly_one_one_star_material",
