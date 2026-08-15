@@ -33,14 +33,14 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
+  "active_flow_id": null,
   "flows": [
     {
       "flow_id": "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
       "title": "Prove the automation-service Campaign navigation boundary",
       "kind": "navigation_only_proving_slice",
       "priority": 1,
-      "status": "active",
+      "status": "completed",
       "backlog_task_id": "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
       "dependencies": [
         "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
@@ -54,12 +54,24 @@
       ],
       "navigation_model": "automation_service_handler_plus_existing_current_frame_campaign_route",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "Exactly ten supervised navigation-only Campaign cycles rotating 1-20-9, 1-15-9, and 2-2-9; no AP, Challenge, Auto Battle, refill, Sweep, Blitz, Auto Complete, purchase, registration, or scheduling input.",
+      "live_validation_scope": "Three consecutive post-repair supervised navigation-only Campaign cycles, one each for 1-20-9, 1-15-9, and 2-2-9; no AP, Challenge, Auto Battle, refill, Sweep, Blitz, Auto Complete, purchase, registration, or scheduling input.",
       "consequence_policy": "Navigation-only ordinary development interaction with zero AP or resource consequence.",
       "product_policy_status": "navigation_only_validation",
       "maximum_live_attempts": 25,
-      "live_attempt_count": 0,
+      "live_attempt_count": 17,
       "live_attempts": [],
+      "proving_result_summary": {
+        "retained_attempt_directories": 17,
+        "completed_results": 9,
+        "completed_by_destination": {
+          "1-20-9": 3,
+          "1-15-9": 3,
+          "2-2-9": 3
+        },
+        "accepted_post_repair_consecutive_cycles": 3,
+        "interrupted_extra_cycle_excluded": true,
+        "acceptance_basis": "user-approved representative destination coverage"
+      },
       "focused_tests": [
         "tests/test_automation_service_campaign.py",
         "tests/test_automation_service_cli.py",
@@ -73,12 +85,12 @@
         "automation_service_handler"
       ],
       "blocked_reason": "",
-      "next_concrete_action": "Run focused validation, one zero-input development-session observation, then the first supervised navigation-only cycle.",
-      "last_completed_stage": "focused_validation",
-      "last_commit": null,
+      "next_concrete_action": "Select SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT; Campaign proving remains NOT_REGISTERED and scheduler-disabled.",
+      "last_completed_stage": "completed",
+      "last_commit": "e5ddc3f1e61911339cfea4c683ce0d7ee359adbe",
       "artifact_root": ".local-captures/flow-delivery/AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
       "acceptance_criteria": [
-        "ten consecutive independently retained navigation-only cycles complete without code repair",
+        "three consecutive post-repair independently retained navigation-only cycles complete without code repair",
         "supported destinations rotate across 1-20-9, 1-15-9, and 2-2-9",
         "each cycle crosses the automation-service Campaign handler boundary",
         "zero AP, premium, refill, combat, purchase, registration, or scheduler input",
@@ -118,7 +130,7 @@
       ],
       "live_validation_scenarios": [
         {
-          "id": "ten-supervised-campaign-navigation-cycles",
+          "id": "three-supervised-campaign-navigation-cycles",
           "mode": "navigation_only"
         }
       ],
@@ -134,7 +146,7 @@
       "consequential_stage_policy": {
         "initial_live_validation": "navigation_only",
         "maximum_canaries": "25",
-        "required_consecutive_successes": "10",
+        "required_consecutive_successes": "3",
         "campaign_execution": "prohibited"
       }
     },
@@ -2790,7 +2802,7 @@
       "title": "Retire the legacy Supply Depot adapter beside the canonical route",
       "kind": "legacy_adapter_retirement",
       "priority": 60,
-      "status": "ready",
+      "status": "completed",
       "backlog_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -2807,6 +2819,17 @@
       "maximum_live_attempts": 0,
       "live_attempt_count": 0,
       "live_attempts": [],
+      "retirement_result": {
+        "deleted_paths": [
+          "scripts/supply_depot_bluestacks.py",
+          "tests/test_supply_depot_bluestacks.py"
+        ],
+        "supported_callers_remaining": 0,
+        "canonical_route": "scripts/home_atlas_bluestacks.py:command_supply_depot_radial",
+        "focused_validation_tests": 50,
+        "focused_validation_receipt_digest": "ff316042f8a4e3998230ccb310f07e0a88e3f1994648f10e563d241d86ef9ae9",
+        "live_input_count": 0
+      },
       "focused_tests": [
         "tests/test_supply_depot_verified_route.py",
         "tests/test_supply_depot_vision.py",
@@ -2815,8 +2838,8 @@
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
       "blocked_reason": "",
-      "next_concrete_action": "Trace callers, migrate any remaining supported entrypoint, and remove only the redundant adapter.",
-      "last_completed_stage": null,
+      "next_concrete_action": "No further action in the autonomy-remediation roadmap; production registration, scheduling, composition, M6, and Bliss remain separate and disabled.",
+      "last_completed_stage": "completed",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
       "acceptance_criteria": [

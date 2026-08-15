@@ -56,7 +56,7 @@
     "resource_or_currency": null,
     "notes": "Every AP-consuming, combat, refill, purchase, or premium path is prohibited."
   },
-  "completion_identity": "automation-service-campaign-navigation:ten-cycle-proving-slice",
+  "completion_identity": "automation-service-campaign-navigation:three-destination-proving-slice",
   "terminal_outcomes": [
     "complete_for_reset",
     "blocked"
@@ -64,7 +64,7 @@
   "cooldown_deferred_behavior": "not_applicable_navigation_only",
   "bounded_recovery_behavior": "recognized Campaign exit or canonical Home preparation only; otherwise block",
   "evidence_requirements": [
-    "ten independently retained supervised BlueStacks navigation-only results",
+    "three consecutive post-repair supervised BlueStacks navigation-only results accepted as representative coverage",
     "supported destinations rotated across 1-20-9, 1-15-9, and 2-2-9",
     "native source, immediate-before, post, terminal, events, ledger, capability audit, and journal evidence",
     "zero AP, premium, refill, combat, purchase, registration, or scheduler input"
@@ -79,9 +79,9 @@
   ],
   "live_validation_scenarios": [
     {
-      "id": "ten-supervised-campaign-navigation-cycles",
+      "id": "three-supervised-campaign-navigation-cycles",
       "mode": "navigation_only",
-      "notes": "Exactly ten supervised cycles; each cycle is independently retained and no gameplay execution is authorized."
+      "notes": "Three consecutive post-repair cycles, one for each supported destination; each cycle is independently retained and no gameplay execution is authorized."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -100,7 +100,7 @@
     "ultimate_challenge"
   ],
   "implementation_status": "reference_implemented",
-  "proof_state": "evidence_required",
+  "proof_state": "current",
   "registration_state": "disabled",
   "production_eligible": false,
   "scheduler_eligibility": false

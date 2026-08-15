@@ -99,7 +99,7 @@ class AutomationServiceCampaignTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
         )
         self.assertEqual(contract["consequential_action_class"], "none_declared")
-        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["proof_state"], "current")
         self.assertFalse(contract["production_eligible"])
         self.assertFalse(contract["scheduler_eligibility"])
         self.assertNotIn("challenge", " ".join(contract["permitted_inputs"]).casefold())
@@ -141,7 +141,7 @@ class AutomationServiceCampaignTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "budget is exhausted"):
                     run_campaign_navigation_proving_slice({}, {"owner": "test"})
 
-    def test_proving_runner_stops_after_ten_trailing_successes(self) -> None:
+    def test_proving_runner_stops_after_three_trailing_successes(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             flow_root = root / PROVING_FLOW_ID

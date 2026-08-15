@@ -57,6 +57,12 @@ roadmap slice; Codex/Cursor is not a NAS production dependency.
 ## Readiness versus admission
 
 Offline tests establish composition readiness only. They do not promote registry entries, alter
-the queue scheduler flag, or admit runtime input. Exactly ten supervised Campaign navigation
-cycles remain pending under the roadmap; no family is enabled and no legacy adapter is retired.
+the queue scheduler flag, or admit runtime input. The supervised Campaign navigation proving slice
+is complete: three consecutive post-repair cycles covered 1-20-9, 1-15-9, and 2-2-9, within nine
+successful retained results overall. This proves only the BlueStacks navigation boundary; no
+family is production-enabled, registered, scheduler-eligible, or Bliss-validated.
+
+The redundant standalone `scripts/supply_depot_bluestacks.py` adapter is retired after offline
+call-graph review, independent verification, and focused validation. Supply Depot continues to use
+the verified Home Atlas route; free-only gameplay contracts remain evidence-gated and disabled.
 
