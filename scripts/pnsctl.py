@@ -2726,10 +2726,21 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
 
 
 def bluestacks_verify_flow(session_directory: Path) -> str:
+    structure: dict[str, Any] | None = None
     try:
         queue, lease = _load_flow_delivery_state(require_runtime_held=False)
     except OperatorError:
-        queue, lease = _retained_troop_training_state(session_directory)
+        structure = _verify_flow_structure(session_directory)
+        retained_flow_id = structure["result"].get("flow_id")
+        if retained_flow_id == "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE":
+            queue = {"active_flow_id": retained_flow_id}
+            lease = {
+                "active_stage": "evidence_review",
+                "runtime_ownership_state": "released",
+                "unresolved_action_state": "clear",
+            }
+        else:
+            queue, lease = _retained_troop_training_state(session_directory)
     if lease.get("active_stage") != "evidence_review":
         raise OperatorError("verify-flow requires the active evidence_review stage")
     flow_id = queue["active_flow_id"]
@@ -2760,7 +2771,8 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
         or contract["evidence_validator"] not in _BLUESTACKS_EVIDENCE_VALIDATORS
     ):
         raise OperatorError("FLOW_EVIDENCE_VALIDATOR_UNAVAILABLE")
-    structure = _verify_flow_structure(session_directory)
+    if structure is None:
+        structure = _verify_flow_structure(session_directory)
     if structure["result"].get("flow_id") != flow_id:
         raise OperatorError("flow evidence belongs to another active flow")
     verdict = _BLUESTACKS_EVIDENCE_VALIDATORS[contract["evidence_validator"]](
