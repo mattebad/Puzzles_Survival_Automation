@@ -339,10 +339,8 @@ class ScrcpyMotionEventZoomTransport:
         if not 8 <= steps <= 32:
             raise ValueError("pinch steps must remain between 8 and 32")
         y = 640
-        # P&S interprets an outward two-pointer spread as zoom-out.  The prior
-        # inward trajectory was retained live at scale < 1.0 and zoomed in.
-        left_start, left_end = 350, 110
-        right_start, right_end = 450, 690
+        left_start, left_end = 110, 350
+        right_start, right_end = 690, 450
         messages = [
             ("left-down", cls._touch_message(cls.ACTION_DOWN, 1, left_start, y, 1.0)),
             ("right-down", cls._touch_message(cls.ACTION_DOWN, 2, right_start, y, 1.0)),
@@ -3796,11 +3794,29 @@ def command_zoom(args) -> int:
             "step_translation_px": translation,
         }
         _json(runtime.session / f"zoom-{ordinal:02d}.json", record)
+        canonical_class = classify_zoom(settled.frame, canonical)
+        if (
+            canonical_class.identity is ZoomIdentity.FULLY_ZOOMED_OUT
+            and canonical_class.confidence >= 0.80
+        ):
+            result = {
+                "status": "completed",
+                "reason": "verified_fully_zoomed_out_classification",
+                "inputs": ordinal,
+                "record": record,
+                "canonical_reference_classification": {
+                    **canonical_class.__dict__,
+                    "identity": canonical_class.identity.value,
+                },
+                "session": str(runtime.session),
+            }
+            _json(runtime.session / "zoom-result.json", result)
+            print(json.dumps(result, sort_keys=True, default=str))
+            return 0
         if not step.accepted or scale is None or translation is None:
             print(json.dumps({"status": "blocked", "reason": "ambiguous_zoom_step", "record": record, "session": str(runtime.session)}, sort_keys=True, default=str))
             return 3
         if 0.985 <= scale <= 1.015 and translation <= 3.0:
-            canonical_class = classify_zoom(settled.frame, canonical)
             result = {
                 "status": "completed",
                 "reason": "verified_zoom_out_clamp",
