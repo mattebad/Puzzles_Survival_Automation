@@ -6,7 +6,7 @@ free Bioenhancer contract.
 
 ## Route and safety boundary
 
-1. Recognize Home/Base and zoom the map out with Ctrl held while scrolling down.
+1. Recognize Home/Base and zoom the map out with the fixed headless scrcpy two-pointer pinch.
 2. Bind the Research Lab building from the current native 800×1280 frame.
 3. Open the building menu; if clipped, drag the map until the complete menu is visible.
 4. Bind the menu's distinct Nova control and recognize the Nova screen.

@@ -21,7 +21,9 @@ from typing import Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
-MAX_DISPATCH_BEARING_CANARY_RUNS = 100
+# Queue authority permits one dispatch-bearing canary.  Recovery-only sessions
+# remain available after that canary, but never consume or reopen its budget.
+MAX_DISPATCH_BEARING_CANARY_RUNS = 1
 RUNNER_ID = "troop_training_consolidation_runner"
 VALIDATOR_ID = "troop_training_consolidation_evidence"
 RECOVERY_ID = "troop_training_consolidation_recovery"

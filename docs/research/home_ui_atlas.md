@@ -19,10 +19,9 @@ not transformed into the new atlas.
 
 - Profile: `pns-bluestacks-5-p64-800x1280-v1`, package `com.global.ztmslg`, native portrait
   `800×1280`. Bliss calibration and assets remain separate.
-- Zoom mechanism: held left Ctrl plus wheel-down in the exact BlueStacks window. A measured live
-  step changed scale by `1.2660` with `0.1948 px` residual; the following clamp measured scale
-  `1.0000` with `0.0053 px` residual. The cursor is bound to verified empty road so BlueStacks'
-  simulated pinch contacts do not land on a building.
+- Zoom mechanism: the legacy host route is retired and non-executable. Current development uses
+  the fixed headless scrcpy two-pointer pinch against the private Android
+  controller, with current-frame recovery and successor validation.
 - Atlas coordinates: origin `(0,0)`, size `1447×2769`, units canonical BlueStacks atlas pixels.
   Thirty unique native viewports were accepted; two scan frames were rejected as duplicates.
 - Registration: translation for stable camera pans and similarity only where live measurements

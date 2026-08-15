@@ -542,6 +542,19 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         self.assertEqual(row["registration_status"], "NOT_REGISTERED")
         self.assertFalse(row["scheduler_eligibility"])
 
+    def test_canary_authorization_and_input_counters_remain_independent(self) -> None:
+        queue = json.loads((ROOT / "tasks/flow_delivery_queue.json").read_text(encoding="utf-8"))
+        flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
+        self.assertEqual(flow["live_authorization_count"], 1)
+        self.assertIsNone(flow["physical_session_count"])
+        self.assertEqual(flow["physical_session_count_status"], "unknown_not_derived")
+        self.assertIn("not a separately derived", flow["physical_session_count_explanation"])
+        self.assertEqual(flow["terminal_transport_input_count"], 10)
+        self.assertEqual(flow["consequential_input_count"], 1)
+        self.assertEqual(flow["recovery_input_count"], 0)
+        self.assertIn("not summed", flow["input_accounting_scope"])
+        self.assertFalse(queue["gameplay_scheduler"])
+
     def test_registry_and_pnsctl_handlers_are_fixed(self) -> None:
         registry = json.loads((ROOT / "tasks/flow_delivery_bluestacks_registry.json").read_text(encoding="utf-8"))
         self.assertEqual(registry["flows"][FLOW_ID]["runner"], RUNNER_ID)
@@ -696,7 +709,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                     )
             self.assertEqual(result["dispatch_count"], 0)
 
-    def test_live_canary_admission_allows_four_total_with_one_prior_dispatch_evidence(self) -> None:
+    def test_recovery_only_remains_permitted_after_one_prior_dispatch_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             prior = root / FLOW_ID / "run-prior"
@@ -730,13 +743,13 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                     result = json.loads(
                         run_troop_training_consolidation(
                             {},
-                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset"},
+                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset", "troop_training_recovery_only": True},
                             live=True,
                         )
                     )
             self.assertEqual(result["dispatch_count"], 0)
 
-    def test_live_canary_admission_allows_four_total_with_two_prior_dispatch_evidence(self) -> None:
+    def test_recovery_only_remains_permitted_after_two_prior_dispatch_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for ordinal in range(2):
@@ -770,13 +783,13 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                     result = json.loads(
                         run_troop_training_consolidation(
                             {},
-                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset"},
+                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset", "troop_training_recovery_only": True},
                             live=True,
                         )
                     )
             self.assertEqual(result["dispatch_count"], 0)
 
-    def test_live_canary_admission_allows_four_total_with_three_prior_dispatch_evidence(self) -> None:
+    def test_recovery_only_remains_permitted_after_three_prior_dispatch_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for ordinal in range(3):
@@ -808,13 +821,13 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                     result = json.loads(
                         run_troop_training_consolidation(
                             {},
-                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset"},
+                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset", "troop_training_recovery_only": True},
                             live=True,
                         )
                     )
             self.assertEqual(result["dispatch_count"], 0)
 
-    def test_live_canary_admission_rejects_four_prior_dispatch_evidence(self) -> None:
+    def test_live_canary_admission_rejects_one_prior_dispatch_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for ordinal in range(MAX_DISPATCH_BEARING_CANARY_RUNS):
@@ -836,7 +849,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
 
     def test_live_canary_admission_uses_full_count_boundary(self) -> None:
         configured_max = MAX_DISPATCH_BEARING_CANARY_RUNS
-        self.assertEqual(configured_max, 100)
+        self.assertEqual(configured_max, 1)
 
         def fake_run(command, **_kwargs):
             output = Path(command[command.index("--output-directory") + 1])

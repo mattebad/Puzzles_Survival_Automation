@@ -35,9 +35,9 @@ from scripts.bluestacks_native_runtime import (
     NativeRuntimePort,
 )
 from scripts.home_atlas_bluestacks import (
-    BlueStacksHostZoomTransport,
     BlueStacksLocalizeFirstHomeDriver,
     HomeDriverDisposition,
+    ScrcpyMotionEventZoomTransport,
 )
 from scripts.navigation_development_boundary import (
     CANONICAL_ACTION_STORE_PATH,
@@ -1313,7 +1313,11 @@ def run_nova_navigation_canary(args, identity: VerifiedRuntimeIdentity) -> str:
         runtime,
         identity,
         atlas_path=atlas_path,
-        zoom_transport=BlueStacksHostZoomTransport(),
+        zoom_transport=ScrcpyMotionEventZoomTransport(
+            adb=str(args.adb),
+            serial=args.serial,
+            evidence_directory=runtime.session / "scrcpy-zoom",
+        ),
         settle_seconds=args.settle_seconds,
         route_declaration=nova_navigation_route_declaration(),
     )
@@ -1464,7 +1468,11 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             identity,
             atlas_path=atlas_path,
             action_boundary=boundary,
-            zoom_transport=BlueStacksHostZoomTransport(),
+            zoom_transport=ScrcpyMotionEventZoomTransport(
+                adb=str(args.adb),
+                serial=args.serial,
+                evidence_directory=runtime.session / "scrcpy-zoom",
+            ),
             settle_seconds=args.settle_seconds,
         )
         result = route.run()

@@ -1,0 +1,107 @@
+"""Offline composition service for deterministic Puzzles & Survival flows."""
+
+from .adapters import (
+    AdapterError,
+    AdapterKind,
+    AdapterStatus,
+    AdmissionToken,
+    DeviceAdapter,
+    FakeDeviceAdapter,
+    FrameSample,
+    RequestCapabilityBinding,
+    ReplayDeviceAdapter,
+    SupervisedBlueStacksAdapter,
+)
+from .campaign import (
+    FORBIDDEN_CAMPAIGN_INPUTS,
+    FORBIDDEN_NAVIGATION_ACTIONS,
+    CampaignNavigationHandler,
+)
+from .context import (
+    CommonContextClassification,
+    RuntimeContext,
+    SafetyContext,
+    ScreenContext,
+    classify_common_context,
+)
+from .contracts import (
+    CostEffectVector,
+    FamilyFacts,
+    FlowDescriptor,
+    NormalizedOutcome,
+    NormalizedResult,
+    PerceptionEnvelope,
+    SchedulerFacts,
+    SemanticActionIntent,
+    ServiceMode,
+)
+from .handlers import DisabledHandler, FlowHandler
+from .scheduler import (
+    ActivationAuthority,
+    DisabledProductionAuthority,
+    PulseCandidate,
+    PulseCoordinator,
+    PulseReport,
+    UtcPulseCoordinator,
+)
+from .service import AutomationService, ServiceError, ServiceStatus
+from .temporal import (
+    CandidateEvidence,
+    CaptureProvenance,
+    RoiMask,
+    RoiMaskKind,
+    TemporalDecision,
+    TemporalObservation,
+    TemporalPerception,
+    TemporalPolicy,
+)
+
+__all__ = [
+    "AdapterError",
+    "AdapterKind",
+    "AdapterStatus",
+    "AdmissionToken",
+    "ActivationAuthority",
+    "CandidateEvidence",
+    "CampaignNavigationHandler",
+    "CaptureProvenance",
+    "CommonContextClassification",
+    "CostEffectVector",
+    "AutomationService",
+    "DeviceAdapter",
+    "DisabledHandler",
+    "DisabledProductionAuthority",
+    "FamilyFacts",
+    "FakeDeviceAdapter",
+    "FlowDescriptor",
+    "FlowHandler",
+    "FORBIDDEN_CAMPAIGN_INPUTS",
+    "FORBIDDEN_NAVIGATION_ACTIONS",
+    "FrameSample",
+    "NormalizedOutcome",
+    "NormalizedResult",
+    "PerceptionEnvelope",
+    "PulseCandidate",
+    "PulseCoordinator",
+    "PulseReport",
+    "ReplayDeviceAdapter",
+    "RequestCapabilityBinding",
+    "RoiMask",
+    "RoiMaskKind",
+    "RuntimeContext",
+    "SafetyContext",
+    "ServiceError",
+    "SchedulerFacts",
+    "ScreenContext",
+    "ServiceStatus",
+    "SemanticActionIntent",
+    "ServiceMode",
+    "SupervisedBlueStacksAdapter",
+    "TemporalDecision",
+    "TemporalObservation",
+    "TemporalPerception",
+    "TemporalPolicy",
+    "UtcPulseCoordinator",
+    "classify_common_context",
+]
+

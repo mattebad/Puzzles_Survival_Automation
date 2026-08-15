@@ -316,7 +316,116 @@ def ocr_chapter_roi_near_projection(
                             continue
                         if best is None or dist < best[0]:
                             best = (float(dist), roi)
-    return None if best is None else best[1]
+    if best is not None:
+        return best[1]
+
+    # Chapter 2's dark medallion digit is weak on the current BlueStacks renderer,
+    # while its independently retained semantic label "Eclipolis" remains clear.
+    # The difficulty-2 atlas landmark can be displaced from the rendered medallion,
+    # so use a wider bounded search. Prefer digit+label association; when the dark
+    # digit is not OCR-readable, derive the medallion immediately left of the exact
+    # retained Eclipolis renderer stem. Never tap the text label itself.
+    if chapter == 2:
+        wide_pad = 220
+        wx0 = max(0, int(cx) - wide_pad)
+        wy0 = max(0, int(cy) - wide_pad)
+        wx1 = min(NATIVE_WIDTH, int(cx) + wide_pad)
+        wy1 = min(NATIVE_HEIGHT, int(cy) + wide_pad)
+        wide = frame[wy0:wy1, wx0:wx1]
+        wide_variants = (
+            cv2.cvtColor(wide, cv2.COLOR_RGB2GRAY),
+            cv2.cvtColor(wide, cv2.COLOR_BGR2GRAY),
+        )
+        digit_candidates: list[Box] = []
+        label_candidates: list[Box] = []
+        for gray in wide_variants:
+            enlarged = cv2.resize(
+                gray,
+                None,
+                fx=2.0,
+                fy=2.0,
+                interpolation=cv2.INTER_CUBIC,
+            )
+            for processed, scale in ((gray, 1.0), (enlarged, 2.0)):
+                digit_data = pytesseract.image_to_data(
+                    processed,
+                    config="--psm 11 -c tessedit_char_whitelist=0123456789",
+                    output_type=pytesseract.Output.DICT,
+                )
+                for index, text in enumerate(digit_data["text"]):
+                    if str(text).strip() != "2":
+                        continue
+                    left = int(round(int(digit_data["left"][index]) / scale))
+                    top = int(round(int(digit_data["top"][index]) / scale))
+                    width = int(round(int(digit_data["width"][index]) / scale))
+                    height = int(round(int(digit_data["height"][index]) / scale))
+                    if width < 10 or height < 24 or width > 60 or height > 60:
+                        continue
+                    roi = (
+                        wx0 + left,
+                        wy0 + top,
+                        wx0 + left + width,
+                        wy0 + top + height,
+                    )
+                    center = _box_center(roi)
+                    if (
+                        (center[0] - cx) ** 2 + (center[1] - cy) ** 2
+                    ) ** 0.5 <= wide_pad:
+                        digit_candidates.append(roi)
+                data = pytesseract.image_to_data(
+                    processed,
+                    config="--psm 11",
+                    output_type=pytesseract.Output.DICT,
+                )
+                for index, text in enumerate(data["text"]):
+                    token = "".join(character for character in str(text).casefold() if character.isalpha())
+                    if token not in {"eclipolis", "eclips"}:
+                        continue
+                    left = int(round(int(data["left"][index]) / scale))
+                    top = int(round(int(data["top"][index]) / scale))
+                    width = int(round(int(data["width"][index]) / scale))
+                    height = int(round(int(data["height"][index]) / scale))
+                    label_roi = (
+                        wx0 + left,
+                        wy0 + top,
+                        wx0 + left + width,
+                        wy0 + top + height,
+                    )
+                    label_candidates.append(label_roi)
+        associated: list[tuple[float, Box]] = []
+        for digit_roi in digit_candidates:
+            digit_center = _box_center(digit_roi)
+            for label_roi in label_candidates:
+                label_center = _box_center(label_roi)
+                separation = (
+                    (digit_center[0] - label_center[0]) ** 2
+                    + (digit_center[1] - label_center[1]) ** 2
+                ) ** 0.5
+                if separation <= 160.0:
+                    associated.append((separation, digit_roi))
+        for _separation, target in sorted(associated, key=lambda item: item[0]):
+            if chapter_roi_is_safely_framed(target):
+                return target
+        for label_roi in label_candidates:
+            label_center = _box_center(label_roi)
+            target = (
+                max(0, label_roi[0] - 100),
+                max(0, int(round(label_center[1])) - 45),
+                max(0, label_roi[0] - 20),
+                min(NATIVE_HEIGHT, int(round(label_center[1])) + 45),
+            )
+            target_center = _box_center(target)
+            projection_distance = (
+                (target_center[0] - cx) ** 2
+                + (target_center[1] - cy) ** 2
+            ) ** 0.5
+            if (
+                projection_distance <= wide_pad
+                and target[2] <= label_roi[0]
+                and chapter_roi_is_safely_framed(target)
+            ):
+                return target
+    return None
 
 
 def _pick_localization(

@@ -8,8 +8,6 @@ accepts only the repository's explicit local BlueStacks serial policy.
 from __future__ import annotations
 
 import argparse
-import ctypes
-from ctypes import wintypes
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
@@ -69,6 +67,8 @@ from tasks.home_atlas_vision import (
     native_frame_guard,
     register_home_frame,
 )
+
+CANONICAL_ZOOM_CONFIDENCE_MINIMUM = 0.50
 from tasks.home_context import (
     HomeContextLevel,
     HomeReadyObservation,
@@ -279,182 +279,6 @@ def read_frame(path: Path) -> np.ndarray:
 def _json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
-
-
-class _MouseInput(ctypes.Structure):
-    _fields_ = (
-        ("dx", wintypes.LONG),
-        ("dy", wintypes.LONG),
-        ("mouseData", wintypes.DWORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.c_size_t),
-    )
-
-
-class _KeyboardInput(ctypes.Structure):
-    _fields_ = (
-        ("wVk", wintypes.WORD),
-        ("wScan", wintypes.WORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.c_size_t),
-    )
-
-
-class _HardwareInput(ctypes.Structure):
-    _fields_ = (("uMsg", wintypes.DWORD), ("wParamL", wintypes.WORD), ("wParamH", wintypes.WORD))
-
-
-class _InputUnion(ctypes.Union):
-    _fields_ = (("mi", _MouseInput), ("ki", _KeyboardInput), ("hi", _HardwareInput))
-
-
-class _Input(ctypes.Structure):
-    _anonymous_ = ("union",)
-    _fields_ = (("type", wintypes.DWORD), ("union", _InputUnion))
-
-
-class BlueStacksHostZoomTransport:
-    """Exact-window Ctrl+wheel transport for the positively observed BlueStacks zoom control."""
-
-    _INPUT_MOUSE = 0
-    _INPUT_KEYBOARD = 1
-    _KEYEVENTF_KEYUP = 0x0002
-    _MOUSEEVENTF_WHEEL = 0x0800
-    _VK_LCONTROL = 0xA2
-
-    def __init__(
-        self,
-        window_title: str = "BlueStacks App Player 4",
-        *,
-        cursor_x: int = 420,
-        cursor_y: int = 540,
-    ) -> None:
-        if sys.platform != "win32":
-            raise RuntimeError("BlueStacks host zoom is Windows-only")
-        self.user32 = ctypes.windll.user32
-        self.kernel32 = ctypes.windll.kernel32
-        self.user32.IsWindowVisible.argtypes = (wintypes.HWND,)
-        self.user32.IsWindowVisible.restype = wintypes.BOOL
-        self.user32.GetWindowTextLengthW.argtypes = (wintypes.HWND,)
-        self.user32.GetWindowTextLengthW.restype = ctypes.c_int
-        self.user32.GetWindowTextW.argtypes = (wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
-        self.user32.GetWindowTextW.restype = ctypes.c_int
-        self.user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
-        self.user32.SetForegroundWindow.restype = wintypes.BOOL
-        self.user32.BringWindowToTop.argtypes = (wintypes.HWND,)
-        self.user32.BringWindowToTop.restype = wintypes.BOOL
-        self.user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
-        self.user32.ShowWindow.restype = wintypes.BOOL
-        self.user32.GetWindowThreadProcessId.argtypes = (
-            wintypes.HWND,
-            ctypes.POINTER(wintypes.DWORD),
-        )
-        self.user32.GetWindowThreadProcessId.restype = wintypes.DWORD
-        self.kernel32.GetCurrentThreadId.restype = wintypes.DWORD
-        self.user32.AttachThreadInput.argtypes = (
-            wintypes.DWORD,
-            wintypes.DWORD,
-            wintypes.BOOL,
-        )
-        self.user32.AttachThreadInput.restype = wintypes.BOOL
-        self.user32.GetForegroundWindow.restype = wintypes.HWND
-        self.user32.GetAsyncKeyState.argtypes = (ctypes.c_int,)
-        self.user32.GetAsyncKeyState.restype = ctypes.c_short
-        self.user32.GetClientRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
-        self.user32.GetClientRect.restype = wintypes.BOOL
-        self.user32.ClientToScreen.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.POINT))
-        self.user32.ClientToScreen.restype = wintypes.BOOL
-        self.user32.SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(_Input), ctypes.c_int)
-        self.user32.SendInput.restype = wintypes.UINT
-        self.window_title = window_title
-        self.cursor_x = cursor_x
-        self.cursor_y = cursor_y
-
-    def _unique_window(self) -> int:
-        found: list[int] = []
-        callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-
-        @callback_type
-        def callback(hwnd, _lparam):
-            if not self.user32.IsWindowVisible(hwnd):
-                return True
-            length = self.user32.GetWindowTextLengthW(hwnd)
-            if length <= 0:
-                return True
-            buffer = ctypes.create_unicode_buffer(length + 1)
-            self.user32.GetWindowTextW(hwnd, buffer, len(buffer))
-            if buffer.value == self.window_title:
-                found.append(int(hwnd))
-            return True
-
-        self.user32.EnumWindows(callback, 0)
-        if len(found) != 1:
-            raise RuntimeError(f"expected exactly one {self.window_title!r} window; found {len(found)}")
-        return found[0]
-
-    def _foreground_window(self, hwnd: int) -> None:
-        if int(self.user32.GetForegroundWindow()) == hwnd:
-            return
-        self.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-        foreground = self.user32.GetForegroundWindow()
-        current_thread = self.kernel32.GetCurrentThreadId()
-        foreground_thread = (
-            self.user32.GetWindowThreadProcessId(foreground, None) if foreground else 0
-        )
-        attached = bool(
-            foreground_thread
-            and foreground_thread != current_thread
-            and self.user32.AttachThreadInput(current_thread, foreground_thread, True)
-        )
-        try:
-            self.user32.BringWindowToTop(hwnd)
-            self.user32.SetForegroundWindow(hwnd)
-        finally:
-            if attached:
-                self.user32.AttachThreadInput(current_thread, foreground_thread, False)
-        time.sleep(0.1)
-        if int(self.user32.GetForegroundWindow()) != hwnd:
-            raise RuntimeError("could not foreground the exact BlueStacks window")
-
-    def zoom_out_once(self) -> None:
-        hwnd = self._unique_window()
-        self._foreground_window(hwnd)
-        rect = wintypes.RECT()
-        if not self.user32.GetClientRect(hwnd, ctypes.byref(rect)):
-            raise RuntimeError("could not read BlueStacks client bounds")
-        if not (0 <= self.cursor_x < rect.right - rect.left and 0 <= self.cursor_y < rect.bottom - rect.top):
-            raise RuntimeError("configured zoom cursor is outside the BlueStacks client")
-        point = wintypes.POINT(self.cursor_x, self.cursor_y)
-        if not self.user32.ClientToScreen(hwnd, ctypes.byref(point)):
-            raise RuntimeError("could not bind a BlueStacks client point")
-        if not self.user32.SetCursorPos(point.x, point.y):
-            raise RuntimeError("could not position the zoom gesture inside BlueStacks")
-        down = _Input(type=self._INPUT_KEYBOARD, ki=_KeyboardInput(wVk=self._VK_LCONTROL))
-        wheel = _Input(
-            type=self._INPUT_MOUSE,
-            mi=_MouseInput(mouseData=ctypes.c_ulong(-120).value, dwFlags=self._MOUSEEVENTF_WHEEL),
-        )
-        up = _Input(
-            type=self._INPUT_KEYBOARD,
-            ki=_KeyboardInput(wVk=self._VK_LCONTROL, dwFlags=self._KEYEVENTF_KEYUP),
-        )
-        sent = self.user32.SendInput(1, ctypes.byref(down), ctypes.sizeof(_Input))
-        if sent != 1:
-            raise RuntimeError("BlueStacks left-Ctrl key-down was incomplete")
-        try:
-            time.sleep(0.18)
-            if not (self.user32.GetAsyncKeyState(self._VK_LCONTROL) & 0x8000):
-                raise RuntimeError("left Ctrl is not held immediately before BlueStacks wheel input")
-            sent = self.user32.SendInput(1, ctypes.byref(wheel), ctypes.sizeof(_Input))
-            if sent != 1:
-                raise RuntimeError("BlueStacks wheel-down input was incomplete")
-            time.sleep(0.18)
-        finally:
-            sent = self.user32.SendInput(1, ctypes.byref(up), ctypes.sizeof(_Input))
-            if sent != 1:
-                raise RuntimeError("BlueStacks left-Ctrl key-up was incomplete")
 
 
 class ScrcpyMotionEventZoomTransport:
@@ -3940,12 +3764,31 @@ def command_zoom(args) -> int:
         raise SystemExit("zoom-out requires both --execute and --yes")
     runtime = connect_runtime(args, "home-canonical-zoom")
     canonical = read_frame(args.canonical_reference)
-    transport = BlueStacksHostZoomTransport(
-        args.window_title,
-        cursor_x=args.cursor_x,
-        cursor_y=args.cursor_y,
+    transport = ScrcpyMotionEventZoomTransport(
+        adb=str(args.adb),
+        serial=str(args.serial),
+        evidence_directory=runtime.session,
     )
     source = runtime.capture("zoom-00-source")
+    source_class = classify_zoom(source.frame, canonical)
+    if (
+        source_class.identity is ZoomIdentity.FULLY_ZOOMED_OUT
+        and source_class.confidence >= CANONICAL_ZOOM_CONFIDENCE_MINIMUM
+    ):
+        result = {
+            "status": "completed",
+            "reason": "source_already_fully_zoomed_out",
+            "inputs": 0,
+            "canonical_reference_classification": {
+                **source_class.__dict__,
+                "identity": source_class.identity.value,
+            },
+            "session": str(runtime.session),
+        }
+        _json(runtime.session / "zoom-result.json", result)
+        print(json.dumps(result, sort_keys=True, default=str))
+        return 0
+    previous_canonical_scale = source_class.scale
     for ordinal in range(1, args.max_inputs + 1):
         immediate_before = runtime.capture(f"zoom-{ordinal:02d}-immediate-before")
         transport.zoom_out_once()
@@ -3972,11 +3815,41 @@ def command_zoom(args) -> int:
             "step_translation_px": translation,
         }
         _json(runtime.session / f"zoom-{ordinal:02d}.json", record)
+        canonical_class = classify_zoom(settled.frame, canonical)
+        if (
+            canonical_class.identity is ZoomIdentity.FULLY_ZOOMED_OUT
+            and canonical_class.confidence >= CANONICAL_ZOOM_CONFIDENCE_MINIMUM
+        ):
+            result = {
+                "status": "completed",
+                "reason": "verified_fully_zoomed_out_classification",
+                "inputs": ordinal,
+                "record": record,
+                "canonical_reference_classification": {
+                    **canonical_class.__dict__,
+                    "identity": canonical_class.identity.value,
+                },
+                "session": str(runtime.session),
+            }
+            _json(runtime.session / "zoom-result.json", result)
+            print(json.dumps(result, sort_keys=True, default=str))
+            return 0
+        if (
+            canonical_class.identity
+            in {ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE}
+            and canonical_class.scale is not None
+            and (
+                previous_canonical_scale is None
+                or canonical_class.scale > previous_canonical_scale + 0.005
+            )
+        ):
+            previous_canonical_scale = canonical_class.scale
+            source = settled
+            continue
         if not step.accepted or scale is None or translation is None:
             print(json.dumps({"status": "blocked", "reason": "ambiguous_zoom_step", "record": record, "session": str(runtime.session)}, sort_keys=True, default=str))
             return 3
         if 0.985 <= scale <= 1.015 and translation <= 3.0:
-            canonical_class = classify_zoom(settled.frame, canonical)
             result = {
                 "status": "completed",
                 "reason": "verified_zoom_out_clamp",
@@ -5531,9 +5404,6 @@ def parser() -> argparse.ArgumentParser:
             item.add_argument("--yes", action="store_true")
         elif name == "zoom-out":
             item.add_argument("--canonical-reference", type=Path, required=True)
-            item.add_argument("--window-title", default="BlueStacks App Player 4")
-            item.add_argument("--cursor-x", type=int, default=420)
-            item.add_argument("--cursor-y", type=int, default=540)
             item.add_argument("--max-inputs", type=int, default=6)
             item.add_argument("--settle-seconds", type=float, default=1.2)
             item.add_argument("--execute", action="store_true")

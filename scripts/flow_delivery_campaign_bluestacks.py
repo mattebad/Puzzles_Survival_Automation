@@ -17,11 +17,17 @@ from scripts.flow_delivery_evidence import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
+PROVING_FLOW_ID = "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE"
 AUTO_BATTLE_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
 DESTINATIONS = ("1-20-9", "1-15-9", "2-2-9")
+MAX_PROVING_ATTEMPTS = 25
+REQUIRED_CONSECUTIVE_PROVING_CYCLES = 3
 CAMPAIGN_RUNNER_ID = "campaign_navigation_only_runner"
 CAMPAIGN_EVIDENCE_VALIDATOR_ID = "campaign_navigation_only_evidence"
 CAMPAIGN_RECOVERY_HANDLER_ID = "campaign_navigation_only_recovery"
+PROVING_RUNNER_ID = "automation_service_campaign_navigation_proving_runner"
+PROVING_EVIDENCE_VALIDATOR_ID = "automation_service_campaign_navigation_proving_evidence"
+PROVING_RECOVERY_HANDLER_ID = "automation_service_campaign_navigation_proving_recovery"
 AUTO_BATTLE_RUNNER_ID = "campaign_auto_battle_live_runner"
 AUTO_BATTLE_EVIDENCE_VALIDATOR_ID = "campaign_auto_battle_live_evidence"
 AUTO_BATTLE_RECOVERY_HANDLER_ID = "campaign_auto_battle_live_recovery"
@@ -338,12 +344,20 @@ def _resolve_campaign_operator_session(session: Path, destination: str) -> Path:
     return session
 
 
-def run_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
+def _run_campaign_navigation_execution(
+    *,
+    flow_id: str,
+    destination: str,
+    lease: Mapping[str, Any],
+) -> str:
     pnsctl = _pnsctl()
-    flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
-    destination = _destination_for_attempt(flow)
+    from automation_service.campaign import CampaignNavigationHandler
+
+    handler = CampaignNavigationHandler(destination)
+    if handler.describe().flow_id != FLOW_ID:
+        raise pnsctl.OperatorError("automation-service Campaign handler identity mismatch")
     stamp = _utc_stamp()
-    session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"nav-{destination}-{stamp}"
+    session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / flow_id / f"nav-{destination}-{stamp}"
     session.mkdir(parents=True, exist_ok=False)
     _prepare_canonical_home(session)
     command = [
@@ -387,7 +401,7 @@ def run_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, A
     events_rel = "events.jsonl"
     delivery = {
         "schema_version": 1,
-        "flow_id": FLOW_ID,
+        "flow_id": flow_id,
         "status": "completed" if ok else "failed",
         "serial": pnsctl.BLUESTACKS_SERIAL,
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
@@ -409,6 +423,7 @@ def run_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, A
         "journal_path": "journal.jsonl",
         "frames": frame_names,
         "operator_returncode": completed.returncode,
+        "automation_service_handler": handler.summarize(),
     }
     (campaign_session / "flow-delivery-result.json").write_text(
         json.dumps(delivery, indent=2, sort_keys=True) + "\n",
@@ -422,12 +437,88 @@ def run_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, A
     return json.dumps(
         {
             "status": "completed",
-            "flow_id": FLOW_ID,
+            "flow_id": flow_id,
             "destination": destination,
             "session_directory": str(campaign_session),
             "dispatch": True,
         },
         sort_keys=True,
+    )
+
+
+def run_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
+    flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
+    return _run_campaign_navigation_execution(
+        flow_id=FLOW_ID,
+        destination=_destination_for_attempt(flow),
+        lease=lease,
+    )
+
+
+def _proving_result_summary(root: Path) -> tuple[int, int, dict[str, int]]:
+    records: list[tuple[str, Mapping[str, Any]]] = []
+    attempt_directories = (
+        sorted(
+            (
+                path
+                for path in root.iterdir()
+                if path.is_dir() and path.name.startswith("nav-")
+            ),
+            key=lambda path: path.name.rsplit("-", 1)[-1],
+        )
+        if root.is_dir()
+        else ()
+    )
+    for attempt in attempt_directories:
+        result_paths = sorted(attempt.rglob("flow-delivery-result.json"))
+        payload: Mapping[str, Any] = {
+            "flow_id": PROVING_FLOW_ID,
+            "status": "failed",
+        }
+        for path in reversed(result_paths):
+            try:
+                candidate = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                continue
+            if candidate.get("flow_id") == PROVING_FLOW_ID:
+                payload = candidate
+                break
+        records.append((attempt.name, payload))
+    successful_by_destination = {destination: 0 for destination in DESTINATIONS}
+    for _path, payload in records:
+        if (
+            payload.get("status") == "completed"
+            and payload.get("destination") in successful_by_destination
+        ):
+            successful_by_destination[str(payload["destination"])] += 1
+    trailing_successes = 0
+    for _path, payload in reversed(records):
+        if payload.get("status") != "completed":
+            break
+        trailing_successes += 1
+    return len(records), trailing_successes, successful_by_destination
+
+
+def run_campaign_navigation_proving_slice(
+    queue: Mapping[str, Any],
+    lease: Mapping[str, Any],
+) -> str:
+    del queue
+    pnsctl = _pnsctl()
+    root = pnsctl.BLUESTACKS_ARTIFACT_ROOT / PROVING_FLOW_ID
+    attempt_count, trailing_successes, successful_by_destination = _proving_result_summary(root)
+    if trailing_successes >= REQUIRED_CONSECUTIVE_PROVING_CYCLES:
+        raise pnsctl.OperatorError("Campaign navigation proving-slice is already complete")
+    if attempt_count >= MAX_PROVING_ATTEMPTS:
+        raise pnsctl.OperatorError("Campaign navigation proving-slice attempt budget is exhausted")
+    destination = min(
+        DESTINATIONS,
+        key=lambda item: (successful_by_destination[item], DESTINATIONS.index(item)),
+    )
+    return _run_campaign_navigation_execution(
+        flow_id=PROVING_FLOW_ID,
+        destination=destination,
+        lease=lease,
     )
 
 
@@ -460,6 +551,41 @@ def verify_campaign_navigation_only(
     }
 
 
+def verify_campaign_navigation_proving_slice(
+    structure: Mapping[str, Any],
+    queue: Mapping[str, Any],
+    lease: Mapping[str, Any],
+) -> dict[str, Any]:
+    del queue, lease
+    pnsctl = _pnsctl()
+    result = structure["result"]
+    if result.get("flow_id") != PROVING_FLOW_ID:
+        raise pnsctl.OperatorError("Campaign proving evidence belongs to another flow")
+    destination = result.get("destination")
+    if destination not in DESTINATIONS:
+        raise pnsctl.OperatorError("Campaign proving destination is not authorized")
+    campaign = result.get("campaign_result") or {}
+    if campaign.get("terminal") != "navigation_only_complete":
+        raise pnsctl.OperatorError("Campaign proving evidence is not navigation_only_complete")
+    handler = result.get("automation_service_handler") or {}
+    if (
+        handler.get("flow_id") != FLOW_ID
+        or handler.get("mode") != "navigation_only"
+        or handler.get("transport_count") != 0
+    ):
+        raise pnsctl.OperatorError("Campaign proving evidence lacks the service handler boundary")
+    if result.get("terminal_runtime_state") != "recognized_home":
+        raise pnsctl.OperatorError("Campaign proving evidence terminal runtime state is unsafe")
+    return {
+        "status": "verified",
+        "flow_id": PROVING_FLOW_ID,
+        "destination": destination,
+        "session_directory": structure["session_directory"],
+        "actions": structure["actions"],
+        "terminal_runtime_state": result["terminal_runtime_state"],
+    }
+
+
 def recover_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
     pnsctl = _pnsctl()
     del queue, lease
@@ -480,6 +606,15 @@ def recover_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[st
         },
         sort_keys=True,
     )
+
+
+def recover_campaign_navigation_proving_slice(
+    queue: Mapping[str, Any],
+    lease: Mapping[str, Any],
+) -> str:
+    result = json.loads(recover_campaign_navigation_only(queue, lease))
+    result["flow_id"] = PROVING_FLOW_ID
+    return json.dumps(result, sort_keys=True)
 
 
 def run_campaign_auto_battle_live(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
@@ -610,6 +745,9 @@ def register(
     runners[CAMPAIGN_RUNNER_ID] = run_campaign_navigation_only
     validators[CAMPAIGN_EVIDENCE_VALIDATOR_ID] = verify_campaign_navigation_only
     handlers[CAMPAIGN_RECOVERY_HANDLER_ID] = recover_campaign_navigation_only
+    runners[PROVING_RUNNER_ID] = run_campaign_navigation_proving_slice
+    validators[PROVING_EVIDENCE_VALIDATOR_ID] = verify_campaign_navigation_proving_slice
+    handlers[PROVING_RECOVERY_HANDLER_ID] = recover_campaign_navigation_proving_slice
     runners[AUTO_BATTLE_RUNNER_ID] = run_campaign_auto_battle_live
     validators[AUTO_BATTLE_EVIDENCE_VALIDATOR_ID] = verify_campaign_auto_battle_live
     handlers[AUTO_BATTLE_RECOVERY_HANDLER_ID] = recover_campaign_auto_battle_live

@@ -1815,8 +1815,9 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   contract with a BlueStacks-specific stitched pixel atlas and Supply Depot as the first executable
   direct-building consumer. Future Bank, upgrade, camp, research, and production workflows remain
   out of scope and unauthorized.
-- Established facts: native `800x1280`; profile `pns-bluestacks-5-p64-800x1280-v1`; held-left-Ctrl
-  plus wheel-down is the measured zoom mechanism; the atlas is `1447x2769` with 30 accepted
+- Established facts: native `800x1280`; profile `pns-bluestacks-5-p64-800x1280-v1`; the legacy
+  host zoom measurement is retained evidence but its transport is retired in favor of the
+  fixed headless scrcpy two-pointer pinch; the atlas is `1447x2769` with 30 accepted
   viewports, two duplicate rejections, four measured edge clamps, five overlapping scan rows, zero
   reachable interior coverage gaps, maximum residual `0.213 px`, and maximum loop-closure
   disagreement `1.161 px`; the current registry contains 65 facilities/instances (Forum and Parade
@@ -1836,7 +1837,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Prohibited changes: unrelated workflows, protected evidence, Bliss/Unraid/production input,
   workers, task rows, registration, scheduler promotion, credential/manual-only automation, and
   staging/commit/push without a later explicit request.
-- Authorized runtime action: local BlueStacks Home panning, held-Ctrl+wheel zoom normalization,
+- Authorized runtime action: local BlueStacks Home panning, headless scrcpy pinch zoom normalization,
   recognized building open/back navigation, the earlier single Free tap, and the later explicitly
   authorized one-gesture Food hold over the freshly observed remaining Free attempts; no Bliss or
   production action.
@@ -3497,9 +3498,15 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   exit successor accepts high-confidence ZOOMED_IN Home after facility leave; zero claims; local
   artifacts under `.local-captures/supply-depot-verified-route/`; registration/scheduler unchanged;
   `CONFIRMED_NOT_DISPATCHED=NON_DISPATCH_AUTHORITY_UNAVAILABLE`.
-- Next: active seam closure `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`; leave
-  `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` blocked until that seam closure completes and
-  readiness is renewed; leave `M6-DQ-TRANSITION-CORPUS` unactivated until then.
+- Retirement follow-up completed (2026-08-15):
+  `SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT`. Read-only call-graph review and independent verification
+  found no supported caller of `scripts/supply_depot_bluestacks.py`; the canonical route remains
+  `scripts/home_atlas_bluestacks.py:command_supply_depot_radial`. The legacy adapter and its
+  adapter-only importer test were deleted. The worker/tester 59-test package passed, the checked-in
+  focused profile passed 50 tests with receipt
+  `ff316042f8a4e3998230ccb310f07e0a88e3f1994648f10e563d241d86ef9ae9`, and `git diff --check`
+  passed. Canonical navigation, free-only contracts, vision, registration, scheduler, composition,
+  M6, and Bliss remain unchanged; no live input or claim occurred.
 
 ### SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE
 - Task ID: `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE`.
@@ -5371,6 +5378,25 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   `1-20-9`/`1-15-9`/`2-2-9` only; destination verification separate from AP execution.
 - Product tuple format: `<story difficulty>-<chapter>-<stage>`.
 - Authority: full normalized task state remains in `tasks/flow_delivery_queue.json`.
+
+### AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE
+- Task ID: `AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE`.
+- Title: Prove the automation-service Campaign navigation boundary.
+- Status: Completed (2026-08-15; user accepted three consecutive post-repair navigation-only
+  cycles covering `1-20-9`, `1-15-9`, and `2-2-9` instead of the original ten-cycle gate).
+- Evidence: 17 retained attempt directories contain 9 completed results, exactly 3 per supported
+  destination. The accepted post-repair sequence covered all three destinations; the subsequently
+  interrupted extra cycle is excluded. Every accepted result crossed the automation-service
+  handler boundary, stopped before Challenge/AP, and ended in recognized Home.
+- Safety: zero AP, combat, refill, purchase, registration, scheduler, composition, M6, Bliss, or
+  production-activation authority. The proving handler remains `NOT_REGISTERED` and
+  scheduler-disabled.
+- Runtime closure: the interrupted process tree was terminated, a zero-input
+  `pnsctl development-session observe` returned `input_count=0`, and singleton ownership is
+  released.
+- Next ready flow: `SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT`; it is not activated by this
+  completion checkpoint.
+- Authority: full normalized state is in `tasks/flow_delivery_queue.json`.
 
 ### ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION
 - Task ID: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`.

@@ -46,6 +46,12 @@ LIVE_CH15_EDGE_CLIPPED = (
     / "frames"
     / "frame-0005.png"
 )
+LIVE_CH2_ECLIPOLIS = (
+    ROOT
+    / ".local-captures/development-sessions"
+    / "observe-20260815T005959023610Z"
+    / "observe.png"
+)
 
 
 class CampaignAtlasChapterNavTests(unittest.TestCase):
@@ -113,7 +119,7 @@ class CampaignAtlasChapterNavTests(unittest.TestCase):
             or "orb" in decision.reason.casefold()
         )
 
-    def test_retained_chapter_2_false_badge_frame_never_taps(self) -> None:
+    def test_retained_chapter_2_false_badge_is_ignored_when_eclipolis_binds(self) -> None:
         if not LIVE_CH2_FALSE_BADGE.is_file():
             raise unittest.SkipTest("retained Chapter 2 false-badge frame is absent")
         frame = np.asarray(Image.open(LIVE_CH2_FALSE_BADGE).convert("RGB"))
@@ -122,7 +128,28 @@ class CampaignAtlasChapterNavTests(unittest.TestCase):
             destination_id="2-2-9",
             visible_chapter_rois={4: (259, 384, 302, 428), 6: (68, 333, 117, 387)},
         )
-        self.assertNotEqual(decision.kind, "tap")
+        self.assertEqual(decision.kind, "tap")
+        self.assertEqual(decision.target_identity, "campaign-chapter-2")
+        self.assertIsNotNone(decision.target_roi)
+        assert decision.target_roi is not None
+        # The false 2x3 event badge is in the fixed upper-right event stack.
+        self.assertLess(decision.target_roi[2], 560)
+        self.assertGreater(decision.target_roi[1], 700)
+
+    def test_retained_chapter_2_eclipolis_frame_binds_medallion_not_label(self) -> None:
+        if not LIVE_CH2_ECLIPOLIS.is_file():
+            raise unittest.SkipTest("retained Chapter 2 Eclipolis frame is absent")
+        frame = np.asarray(Image.open(LIVE_CH2_ECLIPOLIS).convert("RGB"))
+        decision = resolve_atlas_chapter_navigation(
+            frame,
+            destination_id="2-2-9",
+        )
+        self.assertEqual(decision.kind, "tap")
+        self.assertEqual(decision.target_identity, "campaign-chapter-2")
+        self.assertIsNotNone(decision.target_roi)
+        assert decision.target_roi is not None
+        # Retained Eclipolis text starts to the right of x=348; target the medallion.
+        self.assertLessEqual(decision.target_roi[2], 348)
 
     def test_retained_edge_clipped_chapter_15_frame_never_taps(self) -> None:
         if not LIVE_CH15_EDGE_CLIPPED.is_file():

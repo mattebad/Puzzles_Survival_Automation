@@ -1,48 +1,49 @@
 <!-- CURRENT_HANDOFF_STATE_BEGIN -->
 {
   "schema_version": 2,
-  "branch": "main",
-  "head": "c548a8f",
-  "ahead_behind": {"ahead": 1, "behind": 0},
-  "attributable_dirty_paths": ["BACKLOG.md", "CURRENT_HANDOFF.md", "docs/prompts/daily-quest/dq-flow-training.md", "docs/troop-training-bluestacks.md", "scripts/bluestacks_adb_readiness.py", "scripts/flow_delivery_troop_training_bluestacks.py", "scripts/pnsctl.py", "scripts/troop_training_bluestacks.py", "tasks/assets/troop_training/", "tasks/flow_delivery_bluestacks_registry.json", "tasks/flow_delivery_product_policy.json", "tasks/flow_delivery_queue.json", "tasks/flow_delivery_validation_profiles.json", "tasks/gameplay_flow_contracts/TROOP-TRAINING-END-TO-END-CONSOLIDATION.json", "tasks/troop_training.py", "tasks/troop_training_runtime.py", "tasks/troop_training_vision.py", "tests/test_bluestacks_adb_readiness.py", "tests/test_flow_delivery_orchestrator.py", "tests/test_flow_delivery_troop_training.py", "tests/test_troop_training.py", "tests/test_troop_training_entry.py"],
+  "branch": "feature/autonomy-remediation",
+  "head": "e5ddc3f1e61911339cfea4c683ce0d7ee359adbe",
+  "ahead_behind": {"ahead": 11, "behind": 0},
+  "attributable_dirty_paths": ["BACKLOG.md", "CURRENT_HANDOFF.md", "docs/automation-service.md", "scripts/flow_delivery_campaign_bluestacks.py", "scripts/supply_depot_bluestacks.py (deleted)", "tasks/flow_delivery_queue.json", "tasks/gameplay_flow_contracts/AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE.json", "tests/test_automation_service_campaign.py", "tests/test_supply_depot_bluestacks.py (deleted)"],
+  "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-transfer/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+  "current_task_id": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
   "current_task_state": "completed",
-  "next_task_id": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
-  "next_task_activation_status": "ready",
-  "active_task_or_flow": "",
+  "next_task_id": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+  "next_task_activation_status": "ready_outside_completed_autonomy_remediation_roadmap",
+  "active_task_or_flow": null,
   "active_delivery_stage": "completed",
-  "queue_counts": {"ready": 3, "active": 0, "blocked": 6, "completed": 14, "needs_product_decision": 1},
-  "first_ready_flow": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
-  "next_ready_flow": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
+  "queue_counts": {"ready": 2, "active": 0, "blocked": 6, "completed": 16, "needs_product_decision": 1},
+  "first_ready_flow": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+  "next_ready_flow": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
   "development_lease_state": "released",
   "runtime_ownership_state": "released",
   "writable_agent_state": "absent",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "Final affected-package gate passed 112 tests with one expected retained-evidence skip. The checked-in focused profile passed 46 tests (receipt 4f54ca8f1ef0f203148aa0f32393f2349be1df25a2c6c0f813cc4deb5fffc32f) and shared-navigation passed 64 tests (receipt 80e76854a066c91dbddfcf76987fe650b6adab4172457497e3264c410f49d7d4). The broader flow-delivery orchestrator module remains baseline-failing at HEAD because Nova records live_attempt_count 4 for two attempts, the Ruins product-policy status is unknown to the validator, and several historical queue expectations are stale; Troop-specific gates are green.",
+  "latest_focused_validation_result": "Supply Depot retirement worker and independent tester packages each passed 59 tests. Parent checked-in focused profile passed 50 tests with receipt digest ff316042f8a4e3998230ccb310f07e0a88e3f1994648f10e563d241d86ef9ae9. Campaign closeout previously passed 46 focused/authority tests. JSON and git diff checks passed.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "Complete on 2026-08-14. Exact active queues are Fighter T8 x1000, Shooter T8 x250, Rider T1 x250, and Vehicle T1 x1000. The terminal run freshly reconciled the first three queues, dispatched only normal timed Vehicle Train after proving current maximum 1000, verified its exact queue successor, and returned to canonical Home. Runtime ownership is released.",
-  "current_evidence_or_session_reference": ".local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION/run-20260814T054246158698Z/troop-training-20260814T054246675094Z; development session TROOP-TRAINING-END-TO-END-CONSOLIDATION-20260814T054244780021Z.",
-  "last_safe_completed_step": "The terminal run recorded all four exact active queues, confirmed Vehicle T1 x1000 after one normal timed Train dispatch, issued the bounded Home return, and positively recognized canonical FULLY_ZOOMED_OUT Home. Its development-session summary is completed with 10 inputs and ownership_released=true.",
-  "exact_next_permitted_action": "Begin SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT as the next atomic ready flow; Troop Training remains NOT_REGISTERED and scheduler-disabled.",
+  "current_live_attempt_state": "No Supply Depot retirement runtime input occurred. Campaign navigation remains accepted complete from three post-repair destination-covering cycles; its interrupted extra cycle remains excluded. No Bliss action occurred.",
+  "current_evidence_or_session_reference": "Supply Depot retirement validation receipt .local-orchestrator/validation-receipts/SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT/focused_validation/focused_tests-20260815T025257473582Z.json; Campaign retained root .local-captures/flow-delivery/AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE.",
+  "last_safe_completed_step": "Parent integration accepted deletion of the unreferenced Supply Depot adapter and its adapter-only test after independent no-defect review and the checked-in 50-test focused gate.",
+  "exact_next_permitted_action": "The autonomy-remediation roadmap without Bliss is complete. Do not activate a separate ready gameplay flow without a new atomic selection.",
   "current_blocker": "",
-  "prohibited_repeated_action": "Do not repeat any Fighter, Shooter, Rider, or Vehicle Train: exact matching queues are active/proven. Do not use Train Now, premium currency, speedups, Shooter/Rider resource boxes, registration, scheduler, composition, M6, or Bliss changes.",
-  "recent_relevant_commits": ["c548a8f", "fa9a33b", "9c68cbe", "5148309"],
-  "process_deviations": ["The first live preflight sampled transient ADB startup state before its own successful screencap; a zero-input pnsctl observation proved device/game/native profile readiness.", "Later bounded development sessions exposed stale OCR source frames, packed queue timers, transient Master Trainer text, and active-queue carousel/queue-tier divergence. Each block retained evidence, released ownership, and was retried only after a materially changed tested repair; no exact active queue was trained twice."],
+  "prohibited_repeated_action": "Do not run more Campaign proving cycles or revive the retired Supply Depot adapter. Do not dispatch Supply Depot claims, Challenge, Auto Battle, AP spend, refill, Sweep, Blitz, Auto Complete, purchase, registration, scheduler, composition, M6, or Bliss changes.",
+  "recent_relevant_commits": ["e5ddc3f1e61911339cfea4c683ce0d7ee359adbe", "95424e4", "d405d0b", "96e9cc3", "e098263"],
+  "process_deviations": ["The original ten-cycle gate was reduced by explicit user acceptance to three consecutive post-repair cycles covering every supported destination.", "The fourth post-repair cycle remained active after interruption; its exact process tree was terminated before closeout and it is not counted as successful evidence.", "Legacy desktop foreground/Ctrl+wheel zoom was removed after it interfered with the game window; headless scrcpy two-pointer pinch is the retained zoom transport."],
   "registration_and_scheduler": {"registered_operator_tasks": "NOT_REGISTERED_UNCHANGED", "scheduler_enabled_disabled": "DISABLED/INELIGIBLE", "scheduler_eligible_flows": [], "composition_blocked": true, "m6_unactivated": true, "bliss_unchanged": true},
-  "journals_and_lease": {"development_lease_path": ".local-orchestrator/flow-delivery-lease.json", "development_lease_status": "released_after_completed_session", "active_prepared_input_sent_unresolved_action_ids": [], "historical_unresolved_classification": "Clear. Every dispatched normal Train has an exact queue/timer successor, the terminal Home postcondition is proven, and singleton ownership is released."},
-  "evidence": {"evidence_requirement": "SATISFIED", "evidence_requirement_reason": "The terminal native session proves exact Fighter, Shooter, Rider, and Vehicle queues with positive timers, queue-bound tier/quantity identity, fresh tab successors, Vehicle current maximum 1000 before normal Train, and canonical Atlas Home. No resource boxes, Train Now, premium, speedup, purchase, registration, or scheduling input occurred.", "active_evidence_manifest": null, "do_not_recursively_inspect_parent_evidence_tree": true}
+  "journals_and_lease": {"development_lease_path": ".local-orchestrator/flow-delivery-lease.json", "development_lease_status": "released_after_zero_input_observation", "active_prepared_input_sent_unresolved_action_ids": [], "historical_unresolved_classification": "Clear. Accepted Campaign results stopped before Challenge/AP, returned recognized Home, and singleton ownership is released."},
+  "evidence": {"evidence_requirement": "SATISFIED_FOR_AUTONOMY_REMEDIATION_WITHOUT_BLISS", "evidence_requirement_reason": "Campaign proving has representative post-repair coverage of every supported destination, and Supply Depot retirement has no remaining supported caller plus independent and parent focused validation. No AP, claim, combat, refill, purchase, registration, scheduling, composition, M6, or Bliss input occurred during closeout.", "active_evidence_manifest": null, "do_not_recursively_inspect_parent_evidence_tree": true}
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
 # Current handoff
 
-`TROOP-TRAINING-END-TO-END-CONSOLIDATION` is complete. The authoritative production route enters
-one configured camp from canonical Home, then uses freshly bound top tabs for the remaining enabled
-types. Exact active queues are Fighter T8 x1000, Shooter T8 x250, Rider T1 x250, and Vehicle T1
-x1000. The terminal 2026-08-14 session reconciled Fighter, Shooter, and Rider read-only, proved
-Vehicle current maximum 1000 before normal timed Train, verified the exact Vehicle queue successor,
-and returned to canonical Home. No resource boxes, Train Now, premium, speedup, registration,
-scheduler, composition, M6, or Bliss change occurred. Runtime ownership is released,
-`TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE` is superseded, and
-`SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT` is the exact next ready flow.
+`SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT` is complete on `feature/autonomy-remediation`. The
+unreferenced standalone adapter and its adapter-only test are deleted; the canonical verified Home
+Atlas route remains unchanged. A Luna High worker and independent Luna High tester each passed the
+59-test Supply Depot package, and the parent checked-in focused profile passed 50 tests. No live
+input, claim, registration, scheduler, composition, M6, or Bliss change occurred.
+
+This closes `AUTONOMY-REMEDIATION-ROADMAP-WITHOUT-BLISS`, including the user-approved Campaign
+navigation proving gate and legacy-path retirement. Two broader gameplay flows remain ready in the
+development queue, but they are separate atomic work and are not activated by this roadmap.
