@@ -3613,6 +3613,44 @@ def noahs_tavern_recruit(args: argparse.Namespace) -> str:
         return route_module.run_noahs_tavern_unified_recruitment(args, identity)
 
 
+def automation_service_offline(args: argparse.Namespace) -> int:
+    """Backward-compatible, zero-transport delegation to automation_service."""
+    from automation_service.cli import main as automation_main
+
+    if args.automation_service_command == "campaign-plan":
+        from automation_service.campaign import CampaignNavigationHandler
+        from automation_service.contracts import FamilyFacts, PerceptionEnvelope, SchedulerFacts
+
+        handler = CampaignNavigationHandler(args.destination)
+        plan = handler.plan(
+            SchedulerFacts("offline", "offline", "offline", 0.0, health_ok=True),
+            PerceptionEnvelope(
+                "offline-capture",
+                "home_canonical",
+                "offline-profile",
+                "fresh",
+                family_facts=(FamilyFacts("campaign", True, {}),),
+            ),
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "dry_run",
+                    "flow_id": handler.describe().flow_id,
+                    "destination": handler.destination,
+                    "plan_type": type(plan).__name__,
+                    "transport_count": 0,
+                    "registration_status": "NOT_REGISTERED",
+                    "scheduler_eligible": False,
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+    argv = ["--mode", args.mode, "status" if args.automation_service_command == "status" else "health"]
+    return automation_main(argv)
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     root.add_argument("--run-id", default="help-all-20260713")
@@ -3763,6 +3801,16 @@ def parser() -> argparse.ArgumentParser:
     )
     reconcile_survey.add_argument("--session-directory", type=Path, required=True)
     reconcile_survey.add_argument("--action-key", required=True)
+    automation = sub.add_parser("automation-service")
+    automation_sub = automation.add_subparsers(
+        dest="automation_service_command", required=True
+    )
+    automation_status = automation_sub.add_parser("status")
+    automation_status.add_argument("--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled")
+    automation_health = automation_sub.add_parser("health")
+    automation_health.add_argument("--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled")
+    campaign_plan = automation_sub.add_parser("campaign-plan")
+    campaign_plan.add_argument("--destination", default="1-20-9")
     return root
 
 
@@ -3927,6 +3975,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
                 file=sys.stderr,
             )
+            return 2
+    if args.command == "automation-service":
+        try:
+            return automation_service_offline(args)
+        except (OperatorError, OSError, RuntimeError, ValueError) as exc:
+            print("pnsctl: " + str(exc), file=sys.stderr)
             return 2
     cfg = OperatorConfig()
     handlers = {

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "registry_kind": "disabled_production_handlers",
+  "flows": {
+    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "NOVA-PRAISE-HOME-ATLAS-MIGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "NOAHS-TAVERN-HOME-ATLAS-MIGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "TROOP-TRAINING-END-TO-END-CONSOLIDATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "NANOWEAPON-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "RECRUITMENT-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "WORLD-MAP-NAVIGATION-FOUNDATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "GATHERING-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
+    "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false}
+  }
+}

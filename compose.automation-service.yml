@@ -1,0 +1,45 @@
+services:
+  automation-service:
+    build:
+      context: .
+      dockerfile: docker/automation-service.Dockerfile
+    image: puzzle-survival-automation-service:offline
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      AUTOMATION_SERVICE_MODE: disabled
+      AUTOMATION_SERVICE_ADAPTER: fake
+      AUTOMATION_SERVICE_STATE_DIR: /var/lib/automation-service/state
+      AUTOMATION_SERVICE_EVIDENCE_DIR: /var/lib/automation-service/evidence
+    volumes:
+      - automation_service_state:/var/lib/automation-service/state
+      - automation_service_evidence:/var/lib/automation-service/evidence
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    mem_limit: 256m
+    cpus: "0.50"
+    pids_limit: 64
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -m
+        - automation_service
+        - --mode
+        - disabled
+        - --state-path
+        - /var/lib/automation-service/state/service.sqlite3
+        - health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  automation_service_state:
+  automation_service_evidence:

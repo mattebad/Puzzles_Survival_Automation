@@ -1,0 +1,2 @@
+# The offline composition package uses Python's standard library and checked-in
+# safe_action_core/tasks primitives. No additional dependency is required.

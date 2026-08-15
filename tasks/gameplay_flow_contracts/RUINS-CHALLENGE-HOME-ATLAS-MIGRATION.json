@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "flow_id": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
-  "product_purpose": "Ruins Challenge entry via Home Atlas.",
+  "product_purpose": "Navigation-only Home Atlas recognition of Ruins followed by a safe exit to canonical Home.",
   "trigger_cadence_type": "eligibility_pulse",
   "reset_scope": "daily_reset",
   "required_starting_context": [
@@ -48,11 +48,11 @@
     "maximum_cost": null,
     "quantity": null,
     "resource_or_currency": null,
-    "notes": "Challenge consequence remains policy-gated."
+    "notes": "Challenge, combat, chest, reward, Exchange, and purchase surfaces remain historical non-authorizing evidence."
   },
   "completion_identity": "ruins-challenge-home-atlas-migration:navigation-only-complete",
   "terminal_outcomes": [
-    "navigation_only_complete",
+    "complete_for_reset",
     "blocked"
   ],
   "cooldown_deferred_behavior": "not_applicable_navigation_only",
@@ -66,7 +66,7 @@
   "replay_fixture_requirements": [
     {
       "fixture_id": "flow_entry",
-      "status": "production_path_required",
+      "status": "required_evidence",
       "path": null,
       "notes": "Live evidence is retained by the approved pnsctl flow runner."
     }
@@ -87,6 +87,9 @@
     "ambiguous_account_or_server_identity",
     "blocking_unknown_modal"
   ],
-  "implementation_status": "navigation_only_runner",
-  "proof_state": "live_evidence_pending"
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false,
+  "scheduler_eligibility": false
 }

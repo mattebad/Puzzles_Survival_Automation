@@ -2042,9 +2042,11 @@
       ],
       "navigation_model": "dedicated_route_to_canonical_home_atlas",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "One current-day zero-cost Ruins challenge through result reconciliation and canonical Home return, plus a separate fully visible chest-only claim pass; Cash Mall, Exchange, and purchases are prohibited.",
-      "consequence_policy": "Only NPC Dispatch is combat/consequential. Challenge selection, Attack setup, Continue, chest Claim, popup dismissal, and navigation are ordinary gameplay actions; Cash Mall purchases remain unsupported.",
-      "product_policy_status": "local_gameplay_validated_not_registered",
+      "live_validation_scope": "Navigation-only Home to the recognized Ruins destination, one revalidated safe exit, and recognized canonical Home return; no Challenge, combat, chest, reward, Exchange, or purchase action is authorized.",
+      "consequence_policy": "Navigation-only route. Retained Challenge, NPC Dispatch, Continue, and chest evidence is historical and non-authorizing; Cash Mall, Exchange, rewards, and purchases remain unsupported.",
+      "product_policy_status": "navigation_only_validation",
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligibility": false,
       "maximum_live_attempts": 14,
       "live_attempt_count": 10,
       "live_attempts": [
@@ -2198,6 +2200,7 @@
         "postcondition": "Gear Floor 67 advanced to 68 after one zero-cost NPC Dispatch; evidence-bound safe exit then reached canonical Home without repeating combat"
       },
       "gameplay_validation": {
+        "authority": "historical_non_authorizing",
         "reset_identity": "local-2026-08-12-ruins-home-atlas",
         "challenge_identity": "Gear Challenge",
         "progress_before": "67/190",
@@ -2595,8 +2598,29 @@
       "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 1,
       "development_session_max_inputs": 32,
-      "canary_admission": "durable handler guard rejects any prior dispatch-bearing artifact under this flow root; dry-run and observe-only recovery remain allowed",
+      "canary_admission": "one bounded dispatch-bearing canary; durable handler guard rejects any prior dispatch-bearing artifact under this flow root; dry-run and observe-only recovery remain allowed",
+      "dispatch_bearing_canary_guard": {
+        "maximum_runs": 1,
+        "recovery_only_after_exhaustion": true,
+        "counts": "dispatch-bearing artifacts only"
+      },
       "live_attempt_count": 1,
+      "live_authorization_count": 1,
+      "physical_session_count": null,
+      "physical_session_count_status": "unknown_not_derived",
+      "physical_session_count_explanation": "The retained evidence proves one terminal development session, not a separately derived physical-session total.",
+      "terminal_transport_input_count": 10,
+      "consequential_input_count": 1,
+      "recovery_input_count": 0,
+      "input_accounting_scope": "These independent counters are not summed; historical evidence and session records remain authoritative.",
+      "completion_evidence": {
+        "terminal_session_count": 1,
+        "terminal_transport_input_count": 10,
+        "consequential_input_count": 1,
+        "recovery_input_count": 0,
+        "physical_session_count": null,
+        "physical_session_count_status": "unknown_not_derived"
+      },
       "live_attempts": [
         {
           "ordinal": 1,
@@ -2623,7 +2647,7 @@
       "blocked_reason": "",
       "next_concrete_action": "Begin SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT; Troop Training remains NOT_REGISTERED and scheduler-disabled.",
       "last_completed_stage": "completed",
-      "last_commit": null,
+      "last_commit": "d9f47bb9a8ac0f610d6e2a31bce37a211d8aeb75",
       "artifact_root": ".local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION",
       "acceptance_criteria": [
         "named default profile and all per-type overrides are retained exactly in route results",
