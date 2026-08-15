@@ -20,7 +20,8 @@ FLOW_ID = "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
 PROVING_FLOW_ID = "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE"
 AUTO_BATTLE_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
 DESTINATIONS = ("1-20-9", "1-15-9", "2-2-9")
-MAX_PROVING_CYCLES = 10
+MAX_PROVING_ATTEMPTS = 15
+REQUIRED_CONSECUTIVE_PROVING_CYCLES = 10
 CAMPAIGN_RUNNER_ID = "campaign_navigation_only_runner"
 CAMPAIGN_EVIDENCE_VALIDATOR_ID = "campaign_navigation_only_evidence"
 CAMPAIGN_RECOVERY_HANDLER_ID = "campaign_navigation_only_recovery"
@@ -454,8 +455,8 @@ def run_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, A
     )
 
 
-def _proving_result_count(root: Path) -> int:
-    count = 0
+def _proving_result_summary(root: Path) -> tuple[int, int, dict[str, int]]:
+    records: list[tuple[str, Mapping[str, Any]]] = []
     paths = root.rglob("flow-delivery-result.json") if root.is_dir() else ()
     for path in paths:
         try:
@@ -463,8 +464,21 @@ def _proving_result_count(root: Path) -> int:
         except (OSError, UnicodeError, json.JSONDecodeError):
             continue
         if payload.get("flow_id") == PROVING_FLOW_ID:
-            count += 1
-    return count
+            records.append((str(path), payload))
+    records.sort(key=lambda item: item[0])
+    successful_by_destination = {destination: 0 for destination in DESTINATIONS}
+    for _path, payload in records:
+        if (
+            payload.get("status") == "completed"
+            and payload.get("destination") in successful_by_destination
+        ):
+            successful_by_destination[str(payload["destination"])] += 1
+    trailing_successes = 0
+    for _path, payload in reversed(records):
+        if payload.get("status") != "completed":
+            break
+        trailing_successes += 1
+    return len(records), trailing_successes, successful_by_destination
 
 
 def run_campaign_navigation_proving_slice(
@@ -474,10 +488,15 @@ def run_campaign_navigation_proving_slice(
     del queue
     pnsctl = _pnsctl()
     root = pnsctl.BLUESTACKS_ARTIFACT_ROOT / PROVING_FLOW_ID
-    prior_count = _proving_result_count(root)
-    if prior_count >= MAX_PROVING_CYCLES:
-        raise pnsctl.OperatorError("Campaign navigation proving-slice cycle budget is exhausted")
-    destination = DESTINATIONS[prior_count % len(DESTINATIONS)]
+    attempt_count, trailing_successes, successful_by_destination = _proving_result_summary(root)
+    if trailing_successes >= REQUIRED_CONSECUTIVE_PROVING_CYCLES:
+        raise pnsctl.OperatorError("Campaign navigation proving-slice is already complete")
+    if attempt_count >= MAX_PROVING_ATTEMPTS:
+        raise pnsctl.OperatorError("Campaign navigation proving-slice attempt budget is exhausted")
+    destination = min(
+        DESTINATIONS,
+        key=lambda item: (successful_by_destination[item], DESTINATIONS.index(item)),
+    )
     return _run_campaign_navigation_execution(
         flow_id=PROVING_FLOW_ID,
         destination=destination,

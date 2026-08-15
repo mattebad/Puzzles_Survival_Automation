@@ -18,8 +18,10 @@ from automation_service.contracts import (
     SchedulerFacts,
 )
 from scripts.flow_delivery_campaign_bluestacks import (
-    MAX_PROVING_CYCLES,
+    DESTINATIONS,
+    MAX_PROVING_ATTEMPTS,
     PROVING_FLOW_ID,
+    REQUIRED_CONSECUTIVE_PROVING_CYCLES,
     run_campaign_navigation_proving_slice,
 )
 
@@ -102,7 +104,7 @@ class AutomationServiceCampaignTests(unittest.TestCase):
         self.assertFalse(contract["scheduler_eligibility"])
         self.assertNotIn("challenge", " ".join(contract["permitted_inputs"]).casefold())
 
-    def test_proving_runner_rotates_destinations_and_enforces_ten_cycle_budget(self) -> None:
+    def test_proving_runner_balances_destinations_and_enforces_attempt_budget(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             pnsctl = SimpleNamespace(
@@ -118,7 +120,7 @@ class AutomationServiceCampaignTests(unittest.TestCase):
             ) as run:
                 run_campaign_navigation_proving_slice({}, {"owner": "test"})
                 self.assertEqual(run.call_args.kwargs["destination"], "1-20-9")
-                for ordinal in range(MAX_PROVING_CYCLES):
+                for ordinal in range(MAX_PROVING_ATTEMPTS):
                     result = (
                         root
                         / PROVING_FLOW_ID
@@ -127,10 +129,44 @@ class AutomationServiceCampaignTests(unittest.TestCase):
                     )
                     result.parent.mkdir(parents=True, exist_ok=True)
                     result.write_text(
-                        json.dumps({"flow_id": PROVING_FLOW_ID}),
+                        json.dumps(
+                            {
+                                "flow_id": PROVING_FLOW_ID,
+                                "status": "failed",
+                                "destination": "1-20-9",
+                            }
+                        ),
                         encoding="utf-8",
                     )
                 with self.assertRaisesRegex(RuntimeError, "budget is exhausted"):
+                    run_campaign_navigation_proving_slice({}, {"owner": "test"})
+
+    def test_proving_runner_stops_after_ten_trailing_successes(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            flow_root = root / PROVING_FLOW_ID
+            for ordinal in range(REQUIRED_CONSECUTIVE_PROVING_CYCLES):
+                result = flow_root / f"run-{ordinal:02d}" / "flow-delivery-result.json"
+                result.parent.mkdir(parents=True, exist_ok=True)
+                result.write_text(
+                    json.dumps(
+                        {
+                            "flow_id": PROVING_FLOW_ID,
+                            "status": "completed",
+                            "destination": DESTINATIONS[ordinal % len(DESTINATIONS)],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            pnsctl = SimpleNamespace(
+                BLUESTACKS_ARTIFACT_ROOT=root,
+                OperatorError=RuntimeError,
+            )
+            with patch(
+                "scripts.flow_delivery_campaign_bluestacks._pnsctl",
+                return_value=pnsctl,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "already complete"):
                     run_campaign_navigation_proving_slice({}, {"owner": "test"})
 
 
