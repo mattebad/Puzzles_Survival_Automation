@@ -3109,8 +3109,8 @@
       ],
       "blocked_reason": "The bounded verifier repair is parent-accepted offline: result-hit association now uses result geometry, retained observations bind to real matching native PNGs, and the 64-test focused package passes. The flow remains evidence_required because no current BlueStacks semantic observation or supervised canary has occurred.",
       "next_concrete_action": "After the delegated live-operator foundation is accepted, issue a parent-bounded zero-input or navigation-only reconnaissance receipt for fresh native Enhancement semantics. Do not admit a resource-affecting canary until that evidence passes integration review.",
-      "last_completed_stage": "offline_integration_accepted",
-      "last_commit": null,
+      "last_completed_stage": "focused_validation",
+      "last_commit": "2f2ee1045ad6ddd54ce7e9ecb04de3f193b82f73",
       "artifact_root": ".local-captures/flow-delivery/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
       "acceptance_criteria": [
         "category-parameterized BlueStacks route for Gear, Chip, and Module",
