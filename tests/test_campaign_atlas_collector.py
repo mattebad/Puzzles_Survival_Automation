@@ -104,7 +104,7 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
         )
         self.assertEqual(
             graph["home_zoom_transport"],
-            "scripts.home_atlas_bluestacks.BlueStacksHostZoomTransport",
+            "scripts.home_atlas_bluestacks.ScrcpyMotionEventZoomTransport",
         )
         self.assertIn("NavigationGuardedRuntime.dispatch_zoom_out", graph["home_zoom_firewall"])
         self.assertEqual(
@@ -815,7 +815,7 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
         self.assertLess(post_zoom_before, entry_idx)
         self.assertIn("BlueStacksLocalizeFirstHomeDriver", source)
         self.assertIn("HomeDriverDisposition.RECOVER_ZOOM", source)
-        self.assertIn("BlueStacksHostZoomTransport", source)
+        self.assertIn("ScrcpyMotionEventZoomTransport", source)
         self.assertIn("dispatch_zoom_out(", source)
         self.assertIn("InputBudgetCategory.AUXILIARY", source)
         self.assertIn("maximum_zoom_inputs=4", source)

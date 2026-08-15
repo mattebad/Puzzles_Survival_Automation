@@ -1815,8 +1815,9 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   contract with a BlueStacks-specific stitched pixel atlas and Supply Depot as the first executable
   direct-building consumer. Future Bank, upgrade, camp, research, and production workflows remain
   out of scope and unauthorized.
-- Established facts: native `800x1280`; profile `pns-bluestacks-5-p64-800x1280-v1`; held-left-Ctrl
-  plus wheel-down is the measured zoom mechanism; the atlas is `1447x2769` with 30 accepted
+- Established facts: native `800x1280`; profile `pns-bluestacks-5-p64-800x1280-v1`; the legacy
+  host zoom measurement is retained evidence but its transport is retired in favor of the
+  fixed headless scrcpy two-pointer pinch; the atlas is `1447x2769` with 30 accepted
   viewports, two duplicate rejections, four measured edge clamps, five overlapping scan rows, zero
   reachable interior coverage gaps, maximum residual `0.213 px`, and maximum loop-closure
   disagreement `1.161 px`; the current registry contains 65 facilities/instances (Forum and Parade
@@ -1836,7 +1837,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Prohibited changes: unrelated workflows, protected evidence, Bliss/Unraid/production input,
   workers, task rows, registration, scheduler promotion, credential/manual-only automation, and
   staging/commit/push without a later explicit request.
-- Authorized runtime action: local BlueStacks Home panning, held-Ctrl+wheel zoom normalization,
+- Authorized runtime action: local BlueStacks Home panning, headless scrcpy pinch zoom normalization,
   recognized building open/back navigation, the earlier single Free tap, and the later explicitly
   authorized one-gesture Food hold over the freshly observed remaining Free attempts; no Bliss or
   production action.

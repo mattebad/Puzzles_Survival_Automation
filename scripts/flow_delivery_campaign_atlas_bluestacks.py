@@ -41,10 +41,10 @@ from scripts.personal_might_praise_live import (
     vip_popup_handled,
 )
 from scripts.home_atlas_bluestacks import (
-    BlueStacksHostZoomTransport,
     BlueStacksLocalizeFirstHomeDriver,
     CAMPAIGN_HOME_ATLAS_BUILDING_ID,
     HomeDriverDisposition,
+    ScrcpyMotionEventZoomTransport,
     gesture_geometry_roi,
     load_home_atlas,
     require_campaign_home_atlas_building,
@@ -269,7 +269,7 @@ def production_survey_call_graph() -> dict[str, str]:
             "recover_home_zoom_before_campaign_entry"
         ),
         "home_zoom_driver": "scripts.home_atlas_bluestacks.BlueStacksLocalizeFirstHomeDriver",
-        "home_zoom_transport": "scripts.home_atlas_bluestacks.BlueStacksHostZoomTransport",
+        "home_zoom_transport": "scripts.home_atlas_bluestacks.ScrcpyMotionEventZoomTransport",
         "home_zoom_firewall": (
             "scripts.navigation_development_boundary.NavigationGuardedRuntime.dispatch_zoom_out"
         ),
@@ -329,7 +329,7 @@ def recover_home_zoom_before_campaign_entry(
     """Reuse standard Home RECOVER_ZOOM before verified Campaign Home-atlas entry.
 
     Plans via ``BlueStacksLocalizeFirstHomeDriver``; dispatches only through
-    ``NavigationGuardedRuntime.dispatch_zoom_out`` + ``BlueStacksHostZoomTransport``.
+    ``NavigationGuardedRuntime.dispatch_zoom_out`` + ``ScrcpyMotionEventZoomTransport``.
     Each successful zoom is AUXILIARY-budgeted with full evidence. Stops fail-closed on
     unknown/ambiguous zoom, repeated frames, or max inputs. Does not open Campaign.
     """
@@ -353,7 +353,12 @@ def recover_home_zoom_before_campaign_entry(
         building_id = CAMPAIGN_HOME_ATLAS_BUILDING_ID
     transport = zoom_transport
     if transport is None:
-        transport = BlueStacksHostZoomTransport()
+        pnsctl = _pnsctl()
+        transport = ScrcpyMotionEventZoomTransport(
+            adb=str(pnsctl.BLUESTACKS_ADB),
+            serial=pnsctl.BLUESTACKS_SERIAL,
+            evidence_directory=op.session / "scrcpy-zoom",
+        )
     guarded = guarded_runtime
     if guarded is None:
         guarded = NavigationGuardedRuntime(
@@ -407,7 +412,7 @@ def recover_home_zoom_before_campaign_entry(
                     "action_key": action_key,
                     "gesture": "zoom_out",
                     "authority": "NavigationGuardedRuntime.dispatch_zoom_out",
-                    "transport": "BlueStacksHostZoomTransport.zoom_out_once",
+                    "transport": "ScrcpyMotionEventZoomTransport.zoom_out_once",
                     "driver_reason": step.reason,
                     "recovery_input_ordinal": step.recovery_input_ordinal,
                 },
