@@ -860,34 +860,140 @@ def _visual_search_entry_binding(
     *,
     candidates: list[tuple[int, int, int, int]] | None = None,
 ) -> tuple[tuple[int, int, int, int], tuple[str, ...], str] | None:
-    """Bind exactly one current-frame magnifying-glass Search control."""
+    """Bind exactly one current-frame magnifying-glass Search control.
 
+    The icon is measured directly from the current search-region pixels.  The
+    optional contour argument is retained for call-site compatibility, but a
+    merged toolbar contour must never determine the dispatch ROI.
+    """
+
+    del candidates
     rx0, ry0, rx1, ry1 = _WORLD_SEARCH_REGION
-    source_candidates = (
-        _visual_candidate_boxes(frame) if candidates is None else candidates
+    if frame is None or getattr(frame, "shape", ())[:2] != (
+        NATIVE_HEIGHT,
+        NATIVE_WIDTH,
+    ):
+        return None
+    crop = frame[ry0:ry1, rx0:rx1]
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    circles = cv2.HoughCircles(
+        cv2.medianBlur(gray, 7),
+        cv2.HOUGH_GRADIENT,
+        dp=1,
+        minDist=24,
+        param1=60,
+        param2=16,
+        minRadius=11,
+        maxRadius=26,
     )
-    bounded = [
-        candidate
-        for candidate in source_candidates
-        if _valid_roi(candidate)
-        and rx0 <= candidate[0] < candidate[2] <= rx1
-        and ry0 <= candidate[1] < candidate[3] <= ry1
-        and 45 <= candidate[2] - candidate[0] <= 180
-        and 40 <= candidate[3] - candidate[1] <= 120
-    ]
-    valid = [
-        candidate
-        for candidate in _merge_overlapping_candidates(bounded)
-        if _magnifier_has_lens_and_handle(frame, candidate)
-    ]
-    if len(valid) != 1:
+    edges = cv2.Canny(gray, 60, 180)
+    lines = cv2.HoughLinesP(
+        edges,
+        1,
+        np.pi / 180,
+        threshold=8,
+        minLineLength=8,
+        maxLineGap=4,
+    )
+    if circles is None or lines is None:
+        return None
+
+    grid_y, grid_x = np.ogrid[: gray.shape[0], : gray.shape[1]]
+    icon_rois: list[tuple[int, int, int, int]] = []
+    for raw_circle in circles[0]:
+        center_x, center_y, radius = (float(value) for value in raw_circle)
+        if not (
+            radius >= 11
+            and rx0 <= center_x - radius
+            and center_x + radius <= rx1
+            and 0 <= center_y - radius
+            and center_y + radius <= ry1 - ry0
+        ):
+            continue
+        distance = np.sqrt(
+            (grid_x - center_x) ** 2 + (grid_y - center_y) ** 2
+        )
+        ring = gray[(distance >= radius - 2) & (distance <= radius + 2)]
+        inside = gray[distance <= radius * 0.55]
+        if (
+            not len(ring)
+            or not len(inside)
+            or float(ring.mean() - inside.mean()) < 30
+            or float(inside.std()) > 30
+        ):
+            continue
+
+        handles: list[tuple[float, float, np.ndarray, np.ndarray]] = []
+        for raw_line in lines[:, 0]:
+            first = np.array(raw_line[:2], dtype=float)
+            second = np.array(raw_line[2:], dtype=float)
+            first_distance = float(
+                np.linalg.norm(first - np.array((center_x, center_y)))
+            )
+            second_distance = float(
+                np.linalg.norm(second - np.array((center_x, center_y)))
+            )
+            near, far = (
+                (first, second)
+                if first_distance <= second_distance
+                else (second, first)
+            )
+            near_distance = min(first_distance, second_distance)
+            far_distance = max(first_distance, second_distance)
+            dx = float(far[0] - near[0])
+            dy = float(far[1] - near[1])
+            angle = math.degrees(math.atan2(dy, dx)) if dx > 0 else -180.0
+            if not (
+                near_distance <= radius * 1.60
+                and far_distance >= radius * 1.45
+                and dx >= radius * 0.45
+                and dy >= radius * 0.30
+                and 20.0 <= angle <= 70.0
+                and far[0] >= center_x + radius * 0.45
+                and far[1] >= center_y + radius * 0.35
+            ):
+                continue
+            handles.append(
+                (
+                    far_distance,
+                    float(np.linalg.norm(far - near)),
+                    near,
+                    far,
+                )
+            )
+        if not handles:
+            continue
+        _far_distance, _length, near, far = max(
+            handles,
+            key=lambda item: (item[0], item[1]),
+        )
+        points = np.array(
+            (
+                (center_x - radius, center_y - radius),
+                (center_x + radius, center_y + radius),
+                near,
+                far,
+            ),
+            dtype=float,
+        )
+        margin = 4
+        icon_rois.append(
+            (
+                max(rx0, int(math.floor(points[:, 0].min())) - margin),
+                max(ry0, int(math.floor(points[:, 1].min() + ry0)) - margin),
+                min(rx1, int(math.ceil(points[:, 0].max())) + margin),
+                min(ry1, int(math.ceil(points[:, 1].max() + ry0)) + margin),
+            )
+        )
+    if len(icon_rois) != 1 or not _valid_roi(icon_rois[0]):
         return None
     return (
-        valid[0],
+        icon_rois[0],
         (
             "Search",
             "magnifying-glass lens",
             "magnifying-glass handle",
+            "tight current-frame icon ROI",
             "current-frame visual structure",
         ),
         "current-frame-bounded-candidate",
@@ -951,6 +1057,27 @@ def _coordinate_hud_evidence(
                 continue
             return ("spatially-bounded-top-coordinate-hud",)
     if not x_marker or len(numeric) < 2:
+        x_rois = [
+            roi
+            for text, roi in bounded
+            if text in {"x", "xk"}
+        ]
+        y_rois = [
+            roi
+            for text, roi in bounded
+            if re.fullmatch(r"y\d{2,4}", text)
+        ]
+        if x_rois and y_rois and any(
+            y_roi[0] >= x_roi[0]
+            and abs(
+                (y_roi[1] + y_roi[3]) / 2
+                - (x_roi[1] + x_roi[3]) / 2
+            )
+            <= 32
+            for x_roi in x_rois
+            for y_roi in y_rois
+        ):
+            return ("spatially-bounded-top-coordinate-hud",)
         return ()
     numeric = sorted(numeric, key=lambda roi: roi[0])
     first_center = (numeric[0][0] + numeric[0][2]) / 2
@@ -1211,7 +1338,7 @@ def recognize_world_frame(
     menu_evidence = _world_search_menu_evidence(hits)
     has_home = HOME_TO_WORLD in controls
     has_world_context = bool(coordinate_evidence) and WORLD_TO_HOME in controls
-    has_world = WORLD_SEARCH_ENTRY in controls and has_world_context
+    has_world = bool(coordinate_evidence) and WORLD_SEARCH_ENTRY in controls
     has_search_panel = bool(menu_evidence) and has_world_context
     has_canonical_home = has_home and any(
         marker in compact for marker in ("canonical home", "home base", "command center")
@@ -1245,6 +1372,7 @@ def recognize_world_frame(
         evidence += (
             "magnifying-glass lens",
             "magnifying-glass handle",
+            "tight current-frame icon ROI",
             "current-frame Search visual structure",
         )
     return WorldNavigationObservation(

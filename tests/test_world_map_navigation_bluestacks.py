@@ -1614,10 +1614,116 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result.zoom_identity, "WORLD_ZOOM_UNKNOWN")
         self.assertEqual(result.zoom_evidence, ())
         self.assertEqual(result.localization_evidence, ())
-        self.assertEqual(result.controls[WORLD_SEARCH_ENTRY], search_button)
+        self.assertEqual(
+            result.controls[WORLD_SEARCH_ENTRY],
+            (105, 1034, 157, 1085),
+        )
+        self.assertNotEqual(result.controls[WORLD_SEARCH_ENTRY], search_button)
         self.assertEqual(result.controls[WORLD_TO_HOME], home_button)
         self.assertIn("magnifying-glass lens", result.semantic_evidence)
         self.assertIn("magnifying-glass handle", result.semantic_evidence)
+        self.assertIn("tight current-frame icon ROI", result.semantic_evidence)
+
+    def test_magnifier_binding_ignores_broad_or_missing_contours(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        broad_toolbar = (0, 1025, 161, 1100)
+        cv2.rectangle(frame, (94, 1026), (190, 1093), (50, 50, 50), -1)
+        cv2.circle(frame, (122, 1052), 16, (230, 230, 230), 3)
+        cv2.line(frame, (133, 1063), (151, 1081), (230, 230, 230), 3)
+
+        self.assertEqual(
+            _visual_search_entry_binding(frame, candidates=[broad_toolbar])[0],
+            (105, 1034, 157, 1085),
+        )
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[
+                ("X:299", (290, 110, 350, 145)),
+                ("Y:495", (360, 110, 420, 145)),
+            ],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
+            return_value=[],
+        ):
+            result = recognize_world_frame(
+                frame,
+                source_frame_sha256="2" * 64,
+                evidence_ref="current-native-world.png",
+            )
+        self.assertEqual(result.state, WORLD_READY)
+        self.assertEqual(
+            result.controls[WORLD_SEARCH_ENTRY],
+            (105, 1034, 157, 1085),
+        )
+        self.assertNotIn(WORLD_TO_HOME, result.controls)
+        self.assertFalse(
+            world_navigation_observation_authorizeable(
+                result,
+                expected_state=WORLD_READY,
+                required_target_identity=WORLD_TO_HOME,
+            )
+        )
+
+    def test_retained_world_frame_binds_hud_only_search_entry(self):
+        source = (
+            ROOT
+            / ".local-captures"
+            / "development-sessions"
+            / "observe-20260816T055857724262Z"
+            / "observe.png"
+        )
+        if not source.is_file():
+            self.fail(f"required retained World frame is absent: {source}")
+        raw = source.read_bytes()
+        frame = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(
+            frame,
+            f"required retained World frame is unreadable: {source}",
+        )
+        result = recognize_world_frame(
+            frame,
+            source_frame_sha256=hashlib.sha256(raw).hexdigest(),
+            evidence_ref=str(source),
+        )
+        self.assertEqual(result.state, WORLD_READY)
+        self.assertEqual(
+            result.controls,
+            {WORLD_SEARCH_ENTRY: (100, 1031, 148, 1084)},
+        )
+        self.assertEqual(set(result.control_semantics), {WORLD_SEARCH_ENTRY})
+        self.assertEqual(
+            result.control_semantics[WORLD_SEARCH_ENTRY][0],
+            "Search",
+        )
+        self.assertEqual(
+            set(result.control_geometry_source),
+            {WORLD_SEARCH_ENTRY},
+        )
+        self.assertEqual(result.zoom_evidence, ())
+        self.assertEqual(result.localization_evidence, ())
+        self.assertFalse(
+            world_navigation_observation_authorizeable(
+                result,
+                expected_state=WORLD_READY,
+                required_target_identity=WORLD_TO_HOME,
+            )
+        )
+        for forbidden_identity in (
+            "zombie",
+            "resource-node-dispatch",
+            "combat-dispatch",
+        ):
+            with self.subTest(forbidden_identity=forbidden_identity):
+                self.assertFalse(
+                    world_navigation_observation_authorizeable(
+                        result,
+                        expected_state=WORLD_READY,
+                        required_target_identity=forbidden_identity,
+                    )
+                )
 
     def test_coordinate_hud_accepts_merged_y_prefix_with_current_control_geometry(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
@@ -1649,7 +1755,10 @@ class WorldMapNavigationTests(unittest.TestCase):
             )
         self.assertEqual(result.state, WORLD_READY)
         self.assertTrue(result.recognized)
-        self.assertEqual(result.controls[WORLD_SEARCH_ENTRY], search_button)
+        self.assertEqual(
+            result.controls[WORLD_SEARCH_ENTRY],
+            (105, 1032, 155, 1085),
+        )
         self.assertEqual(result.controls[WORLD_TO_HOME], home_button)
 
     def test_coordinate_hud_rejects_far_or_unusable_y_value_tokens(self):
@@ -1704,7 +1813,7 @@ class WorldMapNavigationTests(unittest.TestCase):
                 source_frame_sha256="2" * 64,
                 evidence_ref="current-native-world.png",
             )
-        self.assertEqual(missing_home.state, "UNKNOWN")
+        self.assertEqual(missing_home.state, WORLD_READY)
         self.assertIn(WORLD_SEARCH_ENTRY, missing_home.controls)
         self.assertNotIn(WORLD_TO_HOME, missing_home.controls)
 
