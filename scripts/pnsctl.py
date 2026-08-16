@@ -1292,6 +1292,151 @@ def _delegated_session_path(receipt: Mapping[str, Any]) -> Path:
     return _development_session_directory(f"delegated-{receipt['receipt_id']}")
 
 
+def _read_delegated_observation_json(path: Path, label: str) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise OperatorError(f"delegated observation {label} is unavailable or unsafe")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError(f"delegated observation {label} is unreadable") from exc
+    if not isinstance(payload, dict):
+        raise OperatorError(f"delegated observation {label} must be an object")
+    return payload
+
+
+def _delegated_observation_ownership_released(session: Any | None) -> bool:
+    lock = getattr(getattr(session, "_ownership", None), "lock", None)
+    return lock is not None and not bool(getattr(lock, "held", True))
+
+
+def _delegated_observation_failure_payload(
+    result: Mapping[str, Any],
+    *,
+    receipt: Mapping[str, Any],
+    result_identity: str,
+    error: str,
+    ownership_released: bool,
+) -> dict[str, Any]:
+    return {
+        **dict(result),
+        "status": "evidence_required",
+        "receipt_id": receipt["receipt_id"],
+        "receipt_digest": receipt["receipt_digest"],
+        "evidence_result_identity": result_identity,
+        "input_count": 0,
+        "dispatch": False,
+        "ownership_released": ownership_released,
+        "error": error,
+    }
+
+
+def _write_delegated_observation_failure(
+    session_directory: Path,
+    *,
+    result: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+    result_identity: str,
+    error: str,
+    ownership_released: bool,
+) -> dict[str, Any]:
+    failure = _delegated_observation_failure_payload(
+        result,
+        receipt=receipt,
+        result_identity=result_identity,
+        error=error,
+        ownership_released=ownership_released,
+    )
+    session_directory.mkdir(parents=True, exist_ok=True)
+    (session_directory / "result.json").write_text(
+        json.dumps(failure, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    summary = {
+        "status": "evidence_required",
+        "receipt_id": receipt["receipt_id"],
+        "receipt_digest": receipt["receipt_digest"],
+        "evidence_result_identity": result_identity,
+        "input_count": 0,
+        "action_count": 0,
+        "dispatch": False,
+        "ownership_released": ownership_released,
+        "lifecycle_state_created": False,
+        "blocker": error,
+        "next_action": "repair the reported delegated observation failure",
+    }
+    summary_path = session_directory / "summary.json"
+    if summary_path.is_file() and not summary_path.is_symlink():
+        try:
+            prior = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            prior = {}
+        if isinstance(prior, dict):
+            summary = {**prior, **summary}
+    summary_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return failure
+
+
+def _validate_delegated_observation_artifacts(
+    session_directory: Path,
+    *,
+    receipt: Mapping[str, Any],
+    result_identity: str,
+    observation: Mapping[str, Any],
+) -> dict[str, Any]:
+    frame_path = session_directory / "observe.png"
+    if frame_path.is_symlink() or not frame_path.is_file():
+        raise OperatorError("delegated observation frame is unavailable or unsafe")
+    try:
+        frame_hash = hashlib.sha256(frame_path.read_bytes()).hexdigest()
+    except (OSError, UnicodeError) as exc:
+        raise OperatorError("delegated observation frame is unreadable") from exc
+    declared_hash = observation.get("frame_sha256")
+    if not isinstance(declared_hash, str) or frame_hash != declared_hash:
+        raise OperatorError("delegated observation frame hash mismatch")
+
+    result = _read_delegated_observation_json(
+        session_directory / "result.json",
+        "result.json",
+    )
+    summary = _read_delegated_observation_json(
+        session_directory / "summary.json",
+        "summary.json",
+    )
+    expected_bindings = {
+        "receipt_id": receipt["receipt_id"],
+        "receipt_digest": receipt["receipt_digest"],
+        "evidence_result_identity": result_identity,
+    }
+    for label, payload in (("result.json", result), ("summary.json", summary)):
+        for field, expected in expected_bindings.items():
+            if payload.get(field) != expected:
+                raise OperatorError(
+                    f"delegated observation {label} {field} binding mismatch"
+                )
+        if payload.get("status") != "observed":
+            raise OperatorError(f"delegated observation {label} status is not observed")
+        if payload.get("input_count") != 0:
+            raise OperatorError(f"delegated observation {label} input count is not zero")
+        if payload.get("dispatch") is not False:
+            raise OperatorError(f"delegated observation {label} dispatch is not false")
+        if payload.get("ownership_released") is not True:
+            raise OperatorError(
+                f"delegated observation {label} ownership release is unproven"
+            )
+    if result.get("runtime_access") is not True:
+        raise OperatorError("delegated observation result runtime access is unproven")
+    if result.get("observation") != dict(observation):
+        raise OperatorError("delegated observation result observation binding mismatch")
+    if result.get("observation", {}).get("frame_sha256") != frame_hash:
+        raise OperatorError("delegated observation result frame hash mismatch")
+    if summary.get("action_count") != 0:
+        raise OperatorError("delegated observation summary contains actions")
+    return result
+
+
 def development_session_delegated_dry_run(
     *,
     receipt_state: Path,
@@ -1411,7 +1556,10 @@ def development_session_observe(
             "dispatch": False,
             "session_directory": str(session_directory),
             "evidence_result_identity": context.result_identity,
+            "ownership_released": False,
         }
+        session: Any | None = None
+        observation: Mapping[str, Any] | None = None
         terminal_recorded = False
         try:
             with delegated_runtime_context(context):
@@ -1421,31 +1569,76 @@ def development_session_observe(
                     session_directory=session_directory,
                     max_inputs=0,
                     allow_zero_inputs=True,
-                ) as session:
+                ) as active_session:
+                    session = active_session
                     observation, frame = _development_runtime_observation()
                     (session_directory / "observe.png").write_bytes(frame)
                     result.update({"status": "observed", "observation": observation})
+                    session.terminal_status = "observed"
                     (session_directory / "result.json").write_text(
                         json.dumps(result, indent=2, sort_keys=True) + "\n",
                         encoding="utf-8",
                     )
-            if (
-                not (session_directory / "observe.png").is_file()
-                or not (session_directory / "result.json").is_file()
-                or not (session_directory / "summary.json").is_file()
-                or session._ownership.lock.held
-            ):
-                raise OperatorError("delegated observation evidence or ownership release is unproven")
+            ownership_released = _delegated_observation_ownership_released(session)
+            if not ownership_released:
+                raise OperatorError("delegated observation ownership release is unproven")
             if _checkpoint_hashes() != before:
                 raise OperatorError("delegated observation mutated a checkpoint artifact")
-            context.record_terminal(status="observed", payload=result)
+            result["ownership_released"] = True
+            (session_directory / "result.json").write_text(
+                json.dumps(result, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            summary = _read_delegated_observation_json(
+                session_directory / "summary.json",
+                "summary.json",
+            )
+            summary.update(
+                {
+                    "status": "observed",
+                    "receipt_id": receipt["receipt_id"],
+                    "receipt_digest": receipt["receipt_digest"],
+                    "evidence_result_identity": context.result_identity,
+                    "input_count": 0,
+                    "dispatch": False,
+                    "ownership_released": True,
+                }
+            )
+            (session_directory / "summary.json").write_text(
+                json.dumps(summary, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            persisted_result = _validate_delegated_observation_artifacts(
+                session_directory,
+                receipt=receipt,
+                result_identity=context.result_identity,
+                observation=observation or {},
+            )
+            context.record_terminal(status="observed", payload=persisted_result)
             terminal_recorded = True
         except BaseException as exc:
-            result["error"] = f"{type(exc).__name__}: {exc}"
+            failure = _delegated_observation_failure_payload(
+                result,
+                receipt=receipt,
+                result_identity=context.result_identity,
+                error=f"{type(exc).__name__}: {exc}",
+                ownership_released=_delegated_observation_ownership_released(session),
+            )
             if not terminal_recorded:
-                context.record_terminal(status="evidence_required", payload=result)
+                context.record_terminal(status="evidence_required", payload=failure)
+            try:
+                _write_delegated_observation_failure(
+                    session_directory,
+                    result=result,
+                    receipt=receipt,
+                    result_identity=context.result_identity,
+                    error=f"{type(exc).__name__}: {exc}",
+                    ownership_released=_delegated_observation_ownership_released(session),
+                )
+            except BaseException as artifact_error:
+                raise exc from artifact_error
             raise
-        return json.dumps(result, sort_keys=True)
+        return json.dumps(persisted_result, sort_keys=True)
     if max_inputs < 1:
         raise OperatorError("ordinary observation requires max_inputs >= 1")
     invocation_id = f"observe-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"

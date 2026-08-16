@@ -124,9 +124,10 @@ P&S project workflow constraints:
   failures, syntax errors, and known repairs do not justify escalation.
 - Use [`docs/execution-manifest-template.md`](docs/execution-manifest-template.md)
   for compact frozen manifests. One execution chat may contain one implementation
-  package, one tester package, one consolidated repair, one integration
-  checkpoint, and one live iteration. Further architecture work or another
-  substantial repair/live cycle requires a compact handoff and fresh chat.
+  package, one initial tester package, up to three consolidated repair turns
+  with a read-only tester recheck after each, one integration checkpoint, and
+  one live iteration. Further architecture work or another substantial live
+  cycle requires a compact handoff and fresh chat.
   Localized deterministic work may close from passing checks and tester evidence.
   Heavy, safety-critical, or cross-contract work requires one bounded
   architecture/integration checkpoint containing only the manifest, changed
@@ -146,9 +147,12 @@ One initial live failure alone does not require promotion or an extra review.
 - The parent owns architecture and one coherent pre-canary integration acceptance after the Luna executor self-check and the named tester package are complete. Do not request incremental patch reviews unless a new cross-contract decision appears; no child Sol review is automatic.
 - Use the compact ladder in [`docs/flow-delivery-validation-policy.md`](docs/flow-delivery-validation-policy.md): exact regression during repair; each affected package suite once; the focused profile once before canary; shared-navigation only when navigation is touched; one parent integration gate; zero-input `pnsctl development-session observe`; live execution; semantic verification. Full repository discovery is manual-only (`full --manual`). Reuse the checked-in runner's compact output and receipts; do not create a second validation framework.
 - Do not impose file-count or LOC budgets unless the user explicitly requests them.
-- Permit one consolidated Luna repair per execution chat and at most three across
-  the active task. Each additional repair requires a compact handoff and fresh
-  execution chat.
+- Permit up to three consolidated Luna repair turns per execution chat and at
+  most three across the active task. This project-local rule overrides the
+  one-repair workflow default above. Keep repairs serial, limit each to
+  parent-classified findings, and require a fresh independent read-only tester
+  recheck after each. A fourth repair requires explicit user authorization, a
+  refrozen manifest, a compact handoff, and a fresh execution chat.
 - Every mutable Luna implementation or repair turn must explicitly select GPT-5.6 Luna XHigh. If a resume cannot preserve that selection, launch a fresh bounded XHigh turn instead.
 - Keep solutions proportionate; do not let perfect be the enemy of good.
 <!-- codex-workflow-project-personalization-end -->

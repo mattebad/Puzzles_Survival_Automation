@@ -631,7 +631,7 @@ class ReceiptTests(unittest.TestCase):
                 "foreground_package": pnsctl.PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
-                "frame_sha256": "a" * 64,
+                "frame_sha256": hashlib.sha256(b"png").hexdigest(),
             }
             with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"), patch.object(
                 pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
@@ -663,7 +663,65 @@ class ReceiptTests(unittest.TestCase):
                 (Path(output["session_directory"]) / "summary.json").read_text(encoding="utf-8")
             )
             self.assertEqual(summary["receipt_id"], output["receipt_id"])
+            self.assertEqual(summary["status"], "observed")
+            self.assertFalse(summary["dispatch"])
+            self.assertTrue(summary["ownership_released"])
             self.assertEqual(controller.inspect()["status"], "consumed")
+
+    def test_observe_frame_hash_mismatch_records_fail_closed_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "receipts.sqlite3"
+            argv = ["development-session", "observe", "--max-inputs", "0"]
+            controller = self._controller(root)
+            receipt = self._issue(
+                controller,
+                receipt_class="reconnaissance",
+                command=argv,
+                total=0,
+                terminals=["observed", "evidence_required"],
+                gates=False,
+            )
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": "a" * 64,
+            }
+            with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl, "_development_runtime_observation", return_value=(observation, b"png")
+            ), patch.object(
+                control.DelegatedRuntimeReceiptController,
+                "_candidate",
+                return_value=("head", "fingerprint"),
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"
+            ):
+                with self.assertRaisesRegex(pnsctl.OperatorError, "frame hash mismatch"):
+                    pnsctl.development_session_observe(
+                        max_inputs=0,
+                        delegated_receipt=state,
+                        agent_identity="luna-1",
+                        task_id="TASK-1",
+                        flow_id="FLOW-1",
+                        scenario="scenario-a",
+                        variant="variant-a",
+                        command_argv=argv,
+                    )
+            session_directory = root / "sessions" / f"delegated-{receipt['receipt_id']}"
+            result = json.loads((session_directory / "result.json").read_text(encoding="utf-8"))
+            summary = json.loads((session_directory / "summary.json").read_text(encoding="utf-8"))
+            for artifact in (result, summary):
+                self.assertEqual(artifact["status"], "evidence_required")
+                self.assertEqual(artifact["receipt_id"], receipt["receipt_id"])
+                self.assertEqual(artifact["receipt_digest"], receipt["receipt_digest"])
+                self.assertEqual(artifact["input_count"], 0)
+                self.assertFalse(artifact["dispatch"])
+            self.assertTrue(result["ownership_released"])
+            self.assertTrue(summary["ownership_released"])
 
     def test_observe_release_failure_records_evidence_required_not_success(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -722,9 +780,78 @@ class ReceiptTests(unittest.TestCase):
                         command_argv=argv,
                     )
             consumed = receipt
+            session_directory = root / "sessions" / f"delegated-{receipt['receipt_id']}"
+            result = json.loads((session_directory / "result.json").read_text(encoding="utf-8"))
+            summary = json.loads((session_directory / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(result["status"], "evidence_required")
+            self.assertEqual(summary["status"], "evidence_required")
+            self.assertFalse(result["ownership_released"])
+            self.assertFalse(summary["ownership_released"])
             with self.assertRaisesRegex(control.FlowDeliveryError, "terminal result"):
                 controller.record_result(
                     consumed,
+                    status="observed",
+                    result_identity="result-a",
+                    payload={},
+                )
+
+    def test_observe_failure_artifact_write_still_records_evidence_required(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "receipts.sqlite3"
+            argv = ["development-session", "observe", "--max-inputs", "0"]
+            controller = self._controller(root)
+            receipt = self._issue(
+                controller,
+                receipt_class="reconnaissance",
+                command=argv,
+                total=0,
+                terminals=["observed", "evidence_required"],
+                gates=False,
+            )
+            with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl,
+                "_development_runtime_observation",
+                side_effect=pnsctl.OperatorError("observation failed"),
+            ), patch.object(
+                control.DelegatedRuntimeReceiptController,
+                "_candidate",
+                return_value=("head", "fingerprint"),
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"
+            ), patch.object(
+                pnsctl,
+                "_write_delegated_observation_failure",
+                side_effect=OSError("failure artifact write failed"),
+            ):
+                with self.assertRaisesRegex(pnsctl.OperatorError, "observation failed"):
+                    pnsctl.development_session_observe(
+                        max_inputs=0,
+                        delegated_receipt=state,
+                        agent_identity="luna-1",
+                        task_id="TASK-1",
+                        flow_id="FLOW-1",
+                        scenario="scenario-a",
+                        variant="variant-a",
+                        command_argv=argv,
+                    )
+
+            connection = controller._connection()
+            try:
+                terminal = connection.execute(
+                    "SELECT status, payload_json FROM delegated_results WHERE receipt_id=?",
+                    (receipt["receipt_id"],),
+                ).fetchone()
+            finally:
+                connection.close()
+            self.assertIsNotNone(terminal)
+            self.assertEqual(terminal[0], "evidence_required")
+            self.assertEqual(json.loads(terminal[1])["status"], "evidence_required")
+            with self.assertRaisesRegex(control.FlowDeliveryError, "terminal result"):
+                controller.record_result(
+                    receipt,
                     status="observed",
                     result_identity="result-a",
                     payload={},

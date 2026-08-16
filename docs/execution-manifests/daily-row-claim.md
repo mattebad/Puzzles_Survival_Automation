@@ -3,8 +3,8 @@
 ## Task ID and objective
 - Task ID: `daily-row-claim`
 - Flow ID: `DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION`
-- Manifest state: `FROZEN_RECONNAISSANCE`
-- Frozen repository candidate: `main@4f2bcc0b7cb13d3672f4aa24bb55998677733e48`
+- Manifest state: `FROZEN_RECONNAISSANCE_REPAIR_CONTINUATION`
+- Frozen repository candidate: `main@6e497f12b159d5b5e8deb0f3bc73c8c9577f95d9`
 - Corrected freeze UTC: `2026-08-16T22:06:31.5258035Z`
 - Objective: acquire current local-BlueStacks ordinary Daily row evidence, then deliver one exact free row-local Claim without registering or scheduling the handler.
 
@@ -28,6 +28,7 @@
 - The exact frozen reconnaissance command is:
   `python scripts/pnsctl.py development-session observe --max-inputs 0 --delegated-receipt <RECEIPT_DB> --agent-identity <LUNA_AGENT_ID> --task-id daily-row-claim --flow-id DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION --scenario selected-daily-row-evidence --variant ordinary-row`
 - The command must consume a `reconnaissance` receipt, acquire and release singleton ownership, dispatch zero inputs, capture one current native BlueStacks frame, and retain a bound result and terminal summary.
+- Independent review rejected live admission because a post-capture failure can leave success-looking artifacts and success does not revalidate retained artifact contents. One bounded repair is frozen before reconnaissance.
 - Legacy `run-task daily-claim` remains unauthorized because it can dispatch Claim and is not delegated-receipt-bound.
 - If the observed frame is not the selected Daily screen with one fully visible ordinary ready row, stop `evidence_required`. Do not add navigation or Claim behavior under reconnaissance authority.
 - After accepted source evidence exists, the parent must freeze the evidence-bound implementation revision before assigning Claim code. That revision will preserve `AvailableDailyClaimObservation` as the domain contract, require independent current-frame row/target geometry and a same-objective successor, and reject synthetic references as live provenance.
@@ -41,11 +42,15 @@
 - Current authority remains `EVIDENCE_REQUIRED`, `NOT_REGISTERED`, scheduler-ineligible, composition-blocked, and M6-inactive.
 - The queue remains non-active because its Daily Row Claim entry is blocked on fresh source/target/successor evidence.
 
-## Frozen reconnaissance writable paths
-- No production or test path is writable during the zero-input reconnaissance stage.
-- The execution coordinator may write only receipt state and ignored development-session evidence through the existing supported command.
+## Frozen reconnaissance-repair writable paths
+- Production: `scripts/pnsctl.py`
+- Tests: `tests/test_delegated_runtime_receipts.py`
+- The repair must rewrite retained terminal artifacts fail-closed after any post-capture failure and validate the retained frame hash, receipt/result bindings, zero counts, terminal status, and ownership release before recording success.
+- Re-review found one remaining defect: fallback artifact-write failure can prevent durable `evidence_required` terminal recording. Live admission remains rejected.
+- Repair budget: one of three repair turns used; up to two additional serial repair turns remain, each followed by an independent read-only tester recheck.
+- No runtime access is authorized during the repair.
 - Queue, catalog, matrix, policy, registry, registration, scheduler, composition, M6, and Bliss state remain unchanged.
-- `scripts/pnsctl.py` and `scripts/flow_delivery_control.py` are excluded unless a concrete defect is escalated and the parent refreezes the allowlist.
+- `scripts/flow_delivery_control.py` and all other production/test paths remain excluded.
 
 ## Deferred evidence-bound implementation paths
 These paths are candidates only and are not writable under `FROZEN_RECONNAISSANCE`:
@@ -60,7 +65,7 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - `tests/test_daily_row_claim_bluestacks.py`
 
 ## Required states and transitions
-- Reconnaissance: `FROZEN_RECONNAISSANCE -> RECONNAISSANCE_RECEIPT_ISSUED -> ZERO_INPUT_OBSERVED -> SOURCE_EVIDENCE_ACCEPTED`.
+- Reconnaissance: `FROZEN_RECONNAISSANCE_REPAIR -> OBSERVER_REPAIRED -> TESTER_ACCEPTED -> PARENT_INTEGRATION_ACCEPTED -> RECONNAISSANCE_RECEIPT_ISSUED -> ZERO_INPUT_OBSERVED -> SOURCE_EVIDENCE_ACCEPTED`.
 - Evidence negative: any wrong profile, package, dimensions, receipt binding, ownership state, missing frame/result/summary, or non-selected-Daily frame transitions to `EVIDENCE_REQUIRED`.
 - Later implementation revision: `SOURCE_EVIDENCE_ACCEPTED -> OFFLINE_IMPLEMENTED -> TESTER_ACCEPTED -> PARENT_INTEGRATION_ACCEPTED -> CANARY_ADMITTED`.
 - Later canary: `READY_TO_CLAIM -> CLAIM_DISPATCHED_ONCE -> CLAIMED_OR_POINTS_INCREASED -> TERMINAL_DAILY_SELECTED`.
@@ -78,11 +83,13 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - It may use only the checked-in local BlueStacks ADB executable and exact allowlisted private serial through `pnsctl`; it cannot dispatch tap, swipe, key, text, shell-input, Claim, purchase, resource, march, or combat actions.
 - It validates `com.global.ztmslg` and native `800x1280` on local BlueStacks before retaining `observe.png`.
 - It retains source SHA-256, result identity, `result.json`, `summary.json`, zero input count, terminal status, and proven singleton release.
+- It rereads and validates retained evidence before terminal success and leaves fail-closed artifacts after any post-capture, checkpoint, or ownership-release failure.
 - It does not mutate `BACKLOG.md`, `CURRENT_HANDOFF.md`, `tasks/flow_delivery_queue.json`, registration, scheduling, composition, M6, BlueStacks configuration, Bliss configuration, or unrelated Git state.
 - Existing delegated-receipt and zero-input observation tests are the acceptance basis for this unchanged command.
 
 ## Safety limits
-- Allowed now: one delegated zero-input local BlueStacks observation using the exact frozen command.
+- Allowed now: up to two additional serial offline bounded repairs in the frozen reconnaissance-repair allowlist, with an independent read-only tester recheck after each.
+- Allowed after tester acceptance and parent integration acceptance: one delegated zero-input local BlueStacks observation using the exact frozen command.
 - Disallowed now: navigation, Claim binding or dispatch, queue activation, registration, scheduling, direct ADB outside `pnsctl`, ad hoc remote shell, Bliss access, and evidence fabrication.
 - Reconnaissance live budget: one observation, zero inputs, zero resource-affecting inputs, zero combat confirmations.
 - Future Claim budget: not authorized by this revision.
@@ -121,9 +128,10 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - Ordinary test failures, syntax errors, and known repairs do not escalate.
 
 ## Stop conditions
+- Stop repairs after tester acceptance or after the third total repair turn. A fourth repair requires explicit user authorization, a refrozen manifest, a compact handoff, and a fresh execution chat.
 - Stop after one zero-input observation with `EVIDENCE_REQUIRED` if the selected Daily ready row is absent or ambiguous.
 - Stop before any Claim implementation until the parent freezes the evidence-bound revision.
 - Stop after any unknown runtime, ownership, transport, evidence, or semantic result; do not retry identically.
 
 ## Next authorized action
-- Assign the execution coordinator and one `GPT-5.6 Luna XHigh` live operator identity, issue one exact zero-input reconnaissance receipt, and run the frozen local BlueStacks observation command. No navigation or Claim input is authorized.
+- Assign one offline bounded `GPT-5.6 Luna XHigh` repair turn limited to making terminal failure recording independent of fallback artifact writes and adding the exact regression test, then run an independent read-only tester recheck. No runtime access, navigation, or Claim input is authorized.
