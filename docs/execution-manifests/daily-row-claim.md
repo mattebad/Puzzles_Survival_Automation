@@ -3,7 +3,7 @@
 ## Task ID and objective
 - Task ID: `daily-row-claim`
 - Flow ID: `DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION`
-- Manifest state: `QUEST_CONTINUATION_ACCEPTED`
+- Manifest state: `QUEST_CONTINUATION_REACCEPTED`
 - Frozen repository candidate: `main@324d80badfa76ad3d1031b797dc600fcde8e6b40`
 - Corrected freeze UTC: `2026-08-16T22:06:31.525Z`
 - Objective: acquire current local-BlueStacks ordinary Daily row evidence, then deliver one exact free row-local Claim without registering or scheduling the handler.
@@ -84,6 +84,9 @@
   `python scripts/pnsctl.py development-session daily-row-reconnaissance --max-inputs 1 --delegated-receipt <RECEIPT_DB> --agent-identity <LUNA_AGENT_ID> --task-id daily-row-claim --flow-id DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION --scenario selected-daily-row-evidence --variant quest-daily-continuation`
 - The continuation receipt permits only action identity `quest-daily-tab`, class `navigation`, one total input, zero resource inputs, and zero combat confirmations. It starts only from a positively recognized Main Quest frame, revalidates the current Daily tab immediately before dispatch, taps once, and polls without further input until selected Daily is positively recognized or the bounded timeout expires.
 - Continuation/polling validation accepted: 74 package tests passed; the focused five-test profile passed with receipt digest `8f5d2f64d1396ad98c7d223761ba1def1155ab8a7d8941081c63b7159d975fea`. Independent Terra High review `8cf20171-989e-4b33-8e42-891fc334321b` found no material defect, and parent integration acceptance is `accepted`.
+- Receipt `d7e12b72-121a-48ff-a8fc-717f2e90e3d0` sent zero inputs because Tesseract did not extract the stylized top `Quest` title. The same current native frame reliably extracted spatially associated `Daily` + `Quest`, `Alliance` + `Activity`, and `Recom'd` semantics, and independently bound the Daily tab.
+- One bounded recognition repair may replace the brittle title-only gate with current-frame Quest-page semantics requiring the Daily Quest tab pair, Alliance Activity tab pair, and recommendation/list context in their expected relative layout. It must remain negative for unrelated screens, selected Daily, missing/fragmented tab pairs, overlays, and out-of-layout text. The Daily target remains OCR-derived and immediately revalidated.
+- The repaired continuation passed 81 package tests and the five-test focused profile with receipt digest `5e0879e445fa9c365c0f89d04f201d50997fe25b2b6c55125e8e974175ece727`. Independent Terra High recheck `2e730112-4980-4f42-a4d6-60b375618089` accepted with no material findings, and parent integration acceptance is `accepted`.
 
 ## Deferred evidence-bound implementation paths
 These paths are candidates only and are not writable under `FROZEN_RECONNAISSANCE`:
@@ -169,4 +172,4 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - Stop after any unknown runtime, ownership, transport, evidence, or semantic result; do not retry identically.
 
 ## Next authorized action
-- Commit the accepted continuation candidate locally without push, issue one max-one `quest-daily-continuation` reconnaissance receipt, and run it once from the retained/proven Main Quest state.
+- Commit the reaccepted continuation candidate locally without push, then issue one fresh max-one `quest-daily-continuation` receipt and run it once.

@@ -117,7 +117,27 @@ class VisualFakeRuntime(FakeRuntime):
             self.home_foreground = np.zeros((1280, 800), dtype=bool)
             self.home_foreground[y0:y1, x0:x1] = True
         else:
-            cv2.rectangle(image, (280, 20), (500, 190), (0, 180, 255), -1)
+            cv2.rectangle(image, (0, 60), (267, 145), (0, 180, 255), -1)
+            cv2.rectangle(image, (268, 60), (533, 145), (70, 70, 70), -1)
+            cv2.rectangle(image, (534, 60), (799, 145), (70, 70, 70), -1)
+        captured = _frame(self.session, label, image=image)
+        with self.events.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"type": "capture", "label": label}) + "\n")
+        return captured
+
+
+class MainAbsentContinuationRuntime(FakeRuntime):
+    def capture(self, label: str) -> CapturedNativeFrame:
+        self.labels.append(label)
+        image = np.zeros((1280, 800, 3), dtype=np.uint8)
+        daily_selected = label.startswith("quest-daily-tab-immediate-post") or label.startswith(
+            "quest-daily-tab-poll-"
+        )
+        main_color = (70, 70, 70) if daily_selected else (0, 180, 255)
+        daily_color = (0, 180, 255) if daily_selected else (70, 70, 70)
+        cv2.rectangle(image, (0, 60), (267, 145), main_color, -1)
+        cv2.rectangle(image, (268, 60), (533, 145), daily_color, -1)
+        cv2.rectangle(image, (534, 60), (799, 145), (70, 70, 70), -1)
         captured = _frame(self.session, label, image=image)
         with self.events.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps({"type": "capture", "label": label}) + "\n")
@@ -159,8 +179,11 @@ class ModalOCR:
             )
         return self._data(
             [
-                ("quest", 100, 5, 100, 40),
-                ("daily", 700, 70, 100, 40),
+                ("daily", 640, 136, 140, 56),
+                ("quest", 804, 138, 160, 48),
+                ("alliance", 1236, 114, 190, 36),
+                ("activity", 1248, 168, 172, 44),
+                ("Recom'd", 672, 288, 256, 52),
             ]
         )
 
@@ -606,6 +629,63 @@ class DailyRowRecognizerTests(unittest.TestCase):
         return ocr
 
     @staticmethod
+    def _quest_ocr(
+        *,
+        shift_x: int = 0,
+        shift_y: int = 0,
+        context_text: str = "Recom’d",
+        tokens: list[tuple[str, tuple[int, int, int, int]]] | None = None,
+        extra_tokens: list[tuple[str, tuple[int, int, int, int]]] | None = None,
+    ):
+        # Hand-authored native geometry converted through an independent OCR
+        # crop model; these fixtures do not import production ROIs.
+        native_tokens: list[tuple[str, tuple[int, int, int, int]]] = tokens or [
+            ("Daily", (320 + shift_x, 103 + shift_y, 390 + shift_x, 131 + shift_y)),
+            ("Quest", (402 + shift_x, 104 + shift_y, 482 + shift_x, 128 + shift_y)),
+            ("Alliance", (618 + shift_x, 92 + shift_y, 713 + shift_x, 110 + shift_y)),
+            ("Activity", (624 + shift_x, 119 + shift_y, 710 + shift_x, 141 + shift_y)),
+            (context_text, (336 + shift_x, 179 + shift_y, 464 + shift_x, 205 + shift_y)),
+        ]
+        if extra_tokens:
+            native_tokens.extend(extra_tokens)
+
+        def scaled(item: tuple[str, tuple[int, int, int, int]]) -> tuple[str, int, int, int, int]:
+            text, (x0, y0, x1, y1) = item
+            return text, x0 * 2, (y0 - 35) * 2, (x1 - x0) * 2, (y1 - y0) * 2
+
+        return DailyRowRecognizerTests._ocr_for([scaled(item) for item in native_tokens])
+
+    @staticmethod
+    def _main_absent_continuation_ocr():
+        base = DailyRowRecognizerTests._quest_ocr()
+
+        def ocr(image: np.ndarray) -> dict[str, list[object]]:
+            if image.shape[0] != 390:
+                return DailyRowRecognizerTests._ocr_for([])(image)
+            data = base(image)
+            if float(np.mean(image[:, :534])) >= float(np.mean(image[:, 536:1066])):
+                return data
+            extra = DailyRowRecognizerTests._ocr_for(
+                [("Main", 100 * 2, (70 - 35) * 2, 80 * 2, 20 * 2)]
+            )(image)
+            for key in ("text", "left", "top", "width", "height", "conf"):
+                data[key] = extra[key] + data[key]
+            return data
+
+        return ocr
+
+    @staticmethod
+    def _quest_frame(*, shift_x: int = 0, shift_y: int = 0, daily_selected: bool = False) -> np.ndarray:
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        y0, y1 = 60 + shift_y, 145 + shift_y
+        main_color = (70, 70, 70) if daily_selected else (0, 180, 255)
+        daily_color = (0, 180, 255) if daily_selected else (70, 70, 70)
+        cv2.rectangle(frame, (shift_x, y0), (267 + shift_x, y1), main_color, -1)
+        cv2.rectangle(frame, (268 + shift_x, y0), (533 + shift_x, y1), daily_color, -1)
+        cv2.rectangle(frame, (534 + shift_x, y0), (799 + shift_x, y1), (70, 70, 70), -1)
+        return frame
+
+    @staticmethod
     def _home_recognizer(
         *,
         quest: tuple[int, int, int, int] = (330, 1100, 390, 1120),
@@ -682,14 +762,9 @@ class DailyRowRecognizerTests(unittest.TestCase):
         self.assertGreaterEqual(center_y, rendered_component[1])
         self.assertLess(center_y, rendered_component[3])
 
-        cv2.rectangle(frame, (240, 40), (560, 185), (0, 180, 255), -1)
+        frame = self._quest_frame()
         quest = daily.DailyRowClaimRecognizer(
-            ocr=self._ocr_for(
-                [
-                    ("quest", 340, 10, 70, 20),
-                    ("daily", 820, 70, 140, 20),
-                ]
-            )
+            ocr=self._quest_ocr()
         ).recognize_quest(frame)
         self.assertTrue(quest.recognized)
         self.assertEqual(quest.target_identity, daily.QUEST_DAILY_IDENTITY)
@@ -935,6 +1010,137 @@ class DailyRowRecognizerTests(unittest.TestCase):
             recognition.visual_evidence["selected_margin"],
             0.015,
         )
+
+    def test_quest_recognizes_split_context_without_stylized_title(self) -> None:
+        recognition = daily.DailyRowClaimRecognizer(
+            ocr=self._quest_ocr()
+        ).recognize_quest(self._quest_frame())
+
+        self.assertTrue(recognition.recognized)
+        self.assertIsNone(recognition.visual_evidence["quest_header"])
+        self.assertTrue(recognition.visual_evidence["selection_proven"])
+
+    def test_continuation_accepts_spatial_main_proof_without_main_title_ocr(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
+        ):
+            root = Path(directory)
+            runtime = MainAbsentContinuationRuntime(root)
+            recognizer = daily.DailyRowClaimRecognizer(
+                ocr=self._main_absent_continuation_ocr()
+            )
+            session = boundary.DevelopmentSession(
+                owner="test-daily-row-continuation",
+                invocation_id="test-daily-row-continuation",
+                session_directory=root / "session",
+                max_inputs=1,
+            )
+            with session:
+                result = daily.run_quest_daily_continuation(
+                    runtime, session, recognizer=recognizer
+                )
+
+        self.assertEqual(result["status"], "observed")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(runtime.taps[0]["target_identity"], daily.QUEST_DAILY_IDENTITY)
+        source = result["recognitions"]["source"]
+        self.assertTrue(source["recognized"])
+        self.assertTrue(source["visual_evidence"]["selection_proven"])
+        self.assertFalse(source["visual_evidence"]["main_tab_present"])
+        self.assertNotIn("main", source["ocr_text"].split())
+
+    def test_quest_accepts_normalized_recommend_spelling(self) -> None:
+        recognition = daily.DailyRowClaimRecognizer(
+            ocr=self._quest_ocr(context_text="Recommend")
+        ).recognize_quest(self._quest_frame())
+
+        self.assertTrue(recognition.recognized)
+
+    def test_quest_spatial_semantics_translate_with_current_layout(self) -> None:
+        recognition = daily.DailyRowClaimRecognizer(
+            ocr=self._quest_ocr(shift_x=100, shift_y=15)
+        ).recognize_quest(self._quest_frame(shift_x=100, shift_y=15))
+
+        self.assertTrue(recognition.recognized)
+        self.assertGreater(recognition.target_roi[0], 300)
+
+    def test_quest_rejects_missing_or_disassociated_context(self) -> None:
+        cases = [
+            (
+                "missing_activity",
+                [
+                    ("Daily", (320, 103, 390, 131)),
+                    ("Quest", (402, 104, 482, 128)),
+                    ("Alliance", (618, 92, 713, 110)),
+                    ("Recom’d", (336, 179, 464, 205)),
+                ],
+            ),
+            (
+                "quest_far_from_daily",
+                [
+                    ("Daily", (320, 103, 390, 131)),
+                    ("Quest", (560, 104, 640, 128)),
+                    ("Alliance", (618, 92, 713, 110)),
+                    ("Activity", (624, 119, 710, 141)),
+                    ("Recom’d", (336, 179, 464, 205)),
+                ],
+            ),
+            (
+                "context_elsewhere",
+                [
+                    ("Daily", (320, 103, 390, 131)),
+                    ("Quest", (402, 104, 482, 128)),
+                    ("Alliance", (618, 92, 713, 110)),
+                    ("Activity", (624, 119, 710, 141)),
+                    ("Recommend", (620, 179, 748, 205)),
+                ],
+            ),
+            (
+                "fragmented_context",
+                [
+                    ("Daily", (320, 103, 390, 131)),
+                    ("Quest", (402, 104, 482, 128)),
+                    ("Alliance", (618, 92, 713, 110)),
+                    ("Activity", (624, 119, 710, 141)),
+                    ("Recom", (336, 179, 425, 205)),
+                    ("d", (430, 179, 464, 205)),
+                ],
+            ),
+        ]
+        for name, tokens in cases:
+            with self.subTest(case=name):
+                recognition = daily.DailyRowClaimRecognizer(
+                    ocr=self._quest_ocr(tokens=tokens)
+                ).recognize_quest(self._quest_frame())
+                self.assertFalse(recognition.recognized)
+
+    def test_quest_rejects_selected_daily_visual_state(self) -> None:
+        recognition = daily.DailyRowClaimRecognizer(
+            ocr=self._quest_ocr()
+        ).recognize_quest(self._quest_frame(daily_selected=True))
+
+        self.assertFalse(recognition.recognized)
+        self.assertEqual(recognition.reason, "main-quest-selection-not-proven")
+        self.assertLess(
+            recognition.visual_evidence["main_selected_margin"],
+            0.015,
+        )
+
+    def test_quest_rejects_duplicate_daily_target_and_unrelated_text(self) -> None:
+        duplicate = daily.DailyRowClaimRecognizer(
+            ocr=self._quest_ocr(
+                extra_tokens=[("Daily", (120, 103, 190, 131))]
+            )
+        ).recognize_quest(self._quest_frame())
+        self.assertFalse(duplicate.recognized)
+
+        unrelated = daily.DailyRowClaimRecognizer(
+            ocr=self._quest_ocr(
+                extra_tokens=[("Recommend", (700, 179, 790, 205))]
+            )
+        ).recognize_quest(self._quest_frame())
+        self.assertFalse(unrelated.recognized)
 
     def test_catalog_parser_exposes_frozen_command_bindings(self) -> None:
         parsed = pnsctl.parser().parse_args(

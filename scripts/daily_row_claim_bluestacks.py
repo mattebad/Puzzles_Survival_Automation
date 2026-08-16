@@ -546,6 +546,157 @@ def _tab_visual_score(frame: np.ndarray, token: OCRToken) -> float:
     return round(0.55 * saturation + 0.30 * value + 0.15 * min(edge_ratio * 8.0, 1.0), 6)
 
 
+def _quest_page_semantics(
+    tokens: Sequence[OCRToken],
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Prove the current Quest page from spatially related tab/list labels."""
+
+    daily_candidates = [token for token in tokens if token.text == "daily"]
+    quest_candidates = [token for token in tokens if token.text == "quest"]
+    alliance_candidates = [token for token in tokens if token.text == "alliance"]
+    activity_candidates = [token for token in tokens if token.text == "activity"]
+    context_candidates = [
+        token
+        for token in tokens
+        if token.text in {"recom d", "recommend"}
+    ]
+    details: dict[str, Any] = {
+        "daily_candidates": tuple(token.roi for token in daily_candidates),
+        "quest_candidates": tuple(token.roi for token in quest_candidates),
+        "alliance_candidates": tuple(token.roi for token in alliance_candidates),
+        "activity_candidates": tuple(token.roi for token in activity_candidates),
+        "context_candidates": tuple(token.roi for token in context_candidates),
+    }
+
+    def fail(reason: str) -> tuple[None, dict[str, Any]]:
+        details["recognized"] = False
+        details["reason"] = reason
+        return None, details
+
+    if len(daily_candidates) != 1:
+        return fail("daily-target-is-missing-or-ambiguous")
+    if len(alliance_candidates) != 1 or len(activity_candidates) != 1:
+        return fail("alliance-activity-context-is-missing-or-ambiguous")
+    if len(context_candidates) != 1:
+        return fail("recommendation-context-is-missing-or-ambiguous")
+
+    daily = daily_candidates[0]
+    alliance = alliance_candidates[0]
+    activity = activity_candidates[0]
+    context = context_candidates[0]
+    daily_x0, daily_y0, daily_x1, daily_y1 = daily.roi
+    daily_center_x = (daily_x0 + daily_x1) / 2.0
+    daily_center_y = (daily_y0 + daily_y1) / 2.0
+    daily_height = daily_y1 - daily_y0
+
+    adjacent_quests: list[OCRToken] = []
+    for quest in quest_candidates:
+        quest_x0, quest_y0, quest_x1, quest_y1 = quest.roi
+        quest_center_y = (quest_y0 + quest_y1) / 2.0
+        quest_height = quest_y1 - quest_y0
+        row_tolerance = max(16.0, 1.25 * max(daily_height, quest_height))
+        horizontal_gap = quest_x0 - daily_x1
+        max_horizontal_gap = max(48.0, 2.5 * max(daily_height, quest_height))
+        if (
+            horizontal_gap >= 0
+            and horizontal_gap <= max_horizontal_gap
+            and abs(quest_center_y - daily_center_y) <= row_tolerance
+        ):
+            adjacent_quests.append(quest)
+    if len(adjacent_quests) != 1:
+        return fail("daily-quest-tab-phrase-is-missing-or-ambiguous")
+    quest = adjacent_quests[0]
+
+    quest_x0, quest_y0, quest_x1, quest_y1 = quest.roi
+    quest_center_x = (quest_x0 + quest_x1) / 2.0
+    quest_center_y = (quest_y0 + quest_y1) / 2.0
+    quest_height = quest_y1 - quest_y0
+    alliance_x0, alliance_y0, alliance_x1, alliance_y1 = alliance.roi
+    activity_x0, activity_y0, activity_x1, activity_y1 = activity.roi
+    alliance_center_x = (alliance_x0 + alliance_x1) / 2.0
+    alliance_center_y = (alliance_y0 + alliance_y1) / 2.0
+    activity_center_x = (activity_x0 + activity_x1) / 2.0
+    activity_center_y = (activity_y0 + activity_y1) / 2.0
+    tab_height = max(
+        daily_height,
+        quest_height,
+        alliance_y1 - alliance_y0,
+        activity_y1 - activity_y0,
+    )
+    if (
+        alliance_x0 <= quest_x1
+        or activity_x0 <= quest_x1
+        or abs(alliance_center_x - activity_center_x) > max(36.0, tab_height)
+        or activity_y0 < alliance_y1
+        or activity_y0 - alliance_y1 > max(64.0, 3.0 * tab_height)
+        or activity_center_y <= alliance_center_y
+    ):
+        return fail("alliance-activity-tab-phrase-is-spatially-disassociated")
+
+    context_x0, context_y0, context_x1, context_y1 = context.roi
+    context_center_x = (context_x0 + context_x1) / 2.0
+    context_center_y = (context_y0 + context_y1) / 2.0
+    lower_tab_edge = max(daily_y1, quest_y1, alliance_y1, activity_y1)
+    context_gap = context_center_y - lower_tab_edge
+    if (
+        context_gap < max(10.0, (context_y1 - context_y0) / 2.0)
+        or context_gap > max(80.0, 4.0 * tab_height)
+    ):
+        return fail("recommendation-context-is-outside-tab-layout")
+    group_left = daily_x0
+    group_right = quest_x1
+    context_margin = max(16.0, (context_x1 - context_x0) / 2.0)
+    if not (group_left - context_margin <= context_center_x <= group_right + context_margin):
+        return fail("recommendation-context-is-not-associated-with-daily-quest")
+
+    details.update(
+        {
+            "recognized": True,
+            "daily": daily.roi,
+            "quest": quest.roi,
+            "alliance": alliance.roi,
+            "activity": activity.roi,
+            "recommendation_context": context.roi,
+            "daily_quest_group": (group_left, min(daily_y0, quest_y0), group_right, max(daily_y1, quest_y1)),
+            "alliance_activity_centers": (
+                (round(alliance_center_x, 3), round(alliance_center_y, 3)),
+                (round(activity_center_x, 3), round(activity_center_y, 3)),
+            ),
+            "recommendation_context_gap": round(context_gap, 3),
+            "quest_center": (round(quest_center_x, 3), round(quest_center_y, 3)),
+        }
+    )
+    return (
+        {
+            "daily": daily,
+            "quest": quest,
+            "alliance": alliance,
+            "activity": activity,
+            "context": context,
+            "group_center_x": (group_left + group_right) / 2.0,
+            "group_width": group_right - group_left,
+            "tab_height": tab_height,
+            "alliance_center_x": alliance_center_x,
+        },
+        details,
+    )
+
+
+def _tab_probe_token(
+    *,
+    center_x: float,
+    group_width: float,
+    y0: int,
+    y1: int,
+) -> OCRToken | None:
+    width = max(1, int(round(group_width)))
+    left = int(round(center_x - width / 2.0))
+    roi = _clamp_roi((left, y0, left + width, y1))
+    if roi is None:
+        return None
+    return OCRToken(text="tab-probe", roi=roi)
+
+
 class DailyRowClaimRecognizer:
     """Recognize only the three states needed by the frozen route."""
 
@@ -614,11 +765,14 @@ class DailyRowClaimRecognizer:
             (token for token in tokens if "quest" in token.text and token.roi[1] < 90),
             None,
         )
-        daily = next((token for token in tokens if token.text == "daily"), None)
+        semantics, semantics_visual = _quest_page_semantics(tokens)
+        daily_candidates = [token for token in tokens if token.text == "daily"]
+        daily = daily_candidates[0] if len(daily_candidates) == 1 else None
         target = None
         visual: dict[str, Any] = {
             "quest_header": quest_header.roi if quest_header else None,
-            "tab_structure": bool(daily and 35 <= (daily.roi[1] + daily.roi[3]) // 2 <= 220),
+            "tab_structure": semantics is not None,
+            "quest_page_semantics": semantics_visual,
             "full_frame_overlay": {
                 "recognized": bool(overlay_markers),
                 "markers": overlay_markers,
@@ -633,17 +787,83 @@ class DailyRowClaimRecognizer:
                 max_y=220,
             )
             visual["daily_binding"] = binding
+
+        selection_proven = False
+        if semantics is not None:
+            group_left, group_y0, group_right, group_y1 = semantics_visual["daily_quest_group"]
+            daily_probe = _tab_probe_token(
+                center_x=semantics["group_center_x"],
+                group_width=semantics["group_width"],
+                y0=group_y0,
+                y1=group_y1,
+            )
+            tab_pitch = semantics["alliance_center_x"] - semantics["group_center_x"]
+            main_probe = (
+                _tab_probe_token(
+                    center_x=semantics["group_center_x"] - tab_pitch,
+                    group_width=semantics["group_width"],
+                    y0=group_y0,
+                    y1=group_y1,
+                )
+                if tab_pitch > semantics["group_width"]
+                else None
+            )
+            main_candidates = [
+                token
+                for token in tokens
+                if token.text in {"main", "main quest"}
+            ]
+            main_row_candidates = [
+                token
+                for token in main_candidates
+                if token.roi[2] <= group_left
+                and abs(
+                    (token.roi[1] + token.roi[3]) / 2.0
+                    - (group_y0 + group_y1) / 2.0
+                )
+                <= max(16.0, 1.25 * semantics["tab_height"])
+            ]
+            main_token = main_row_candidates[0] if len(main_row_candidates) == 1 else None
+            if main_candidates and len(main_row_candidates) != 1:
+                main_probe = None
+            daily_score = _tab_visual_score(frame, daily_probe) if daily_probe else 0.0
+            main_score = (
+                _tab_visual_score(frame, main_token)
+                if main_token is not None
+                else _tab_visual_score(frame, main_probe)
+                if main_probe is not None
+                else 0.0
+            )
+            selection_proven = bool(
+                main_probe is not None
+                and main_score >= 0.12
+                and main_score >= daily_score + 0.015
+            )
+            visual.update(
+                {
+                    "daily_tab_score": daily_score,
+                    "main_tab_score": main_score,
+                    "main_selected_margin": round(main_score - daily_score, 6),
+                    "main_tab_present": main_token is not None,
+                    "main_tab_probe": main_probe.roi if main_probe else None,
+                    "selection_proven": selection_proven,
+                }
+            )
         recognized = bool(
-            quest_header is not None
+            semantics is not None
             and daily is not None
-            and visual["tab_structure"]
             and target is not None
+            and selection_proven
             and not _contains_overlay_marker(tokens)
             and not overlay_markers
         )
         reason = (
             "full-frame overlay/modal detected"
             if overlay_markers
+            else semantics_visual.get("reason")
+            if semantics is None
+            else "main-quest-selection-not-proven"
+            if not selection_proven
             else None
             if recognized
             else "quest-daily-target-not-proven"
@@ -660,57 +880,9 @@ class DailyRowClaimRecognizer:
         )
 
     def recognize_main_quest(self, frame: np.ndarray) -> FrameRecognition:
-        """Recognize Quest with Main Quest selected, including tab semantics."""
+        """Reuse the complete Main-selection proof from ``recognize_quest``."""
 
-        base = self.recognize_quest(frame)
-        if not base.recognized:
-            return base
-        tokens = _ocr_tokens(frame, QUEST_TAB_SEARCH_ROI, self._ocr)
-        main = next(
-            (
-                token
-                for token in tokens
-                if token.text in {"main", "main quest"}
-                and 35 <= (token.roi[1] + token.roi[3]) // 2 <= 220
-            ),
-            None,
-        )
-        daily = next(
-            (
-                token
-                for token in tokens
-                if token.text == "daily"
-                and 35 <= (token.roi[1] + token.roi[3]) // 2 <= 220
-            ),
-            None,
-        )
-        main_score = _tab_visual_score(frame, main) if main else 0.0
-        daily_score = _tab_visual_score(frame, daily) if daily else 0.0
-        visual = dict(base.visual_evidence or {})
-        visual.update(
-            {
-                "main_tab_score": main_score,
-                "daily_tab_score": daily_score,
-                "main_selected_margin": round(main_score - daily_score, 6),
-                "main_tab_present": main is not None,
-            }
-        )
-        recognized = bool(
-            main is not None
-            and daily is not None
-            and main_score >= 0.12
-            and main_score >= daily_score + 0.015
-        )
-        return FrameRecognition(
-            QUEST_STATE if recognized else UNKNOWN_STATE,
-            recognized,
-            QUEST_DAILY_IDENTITY if recognized else None,
-            base.target_roi if recognized else None,
-            " ".join(token.text for token in tokens),
-            visual,
-            None if recognized else "main-quest-selection-not-proven",
-            _token_rows(tokens),
-        )
+        return self.recognize_quest(frame)
 
     def recognize_daily_selected(self, frame: np.ndarray) -> FrameRecognition:
         if not _frame_shape_ok(frame):
