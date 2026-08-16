@@ -25,6 +25,7 @@ from scripts.world_map_navigation_bluestacks import (
     ALLOWED_CONTROL_IDENTITIES,
     BLOCKED_FAIL_CLOSED,
     HOME_CANONICAL,
+    HOME_READY,
     NAVIGATION_ONLY_COMPLETE,
     POPUP_CLOSE,
     SafePopupHandler,
@@ -85,7 +86,7 @@ def observation(
         "frame_height": 1280,
         "controls": controls or {},
         "semantic_evidence": [
-            state,
+            "Home" if state in {HOME_READY, HOME_CANONICAL} else state,
             "Canonical Home" if state == HOME_CANONICAL else state,
         ],
         "control_semantics": control_semantics,
@@ -150,7 +151,7 @@ def scripted_recognizer(frame, **_kwargs):
 
 def route_frames(*, popup_at_start: bool = False) -> list[dict]:
     home = observation(
-        HOME_CANONICAL,
+        HOME_READY,
         controls={"home-to-world": (100, 100, 220, 160)},
     )
     if popup_at_start:
@@ -163,7 +164,7 @@ def route_frames(*, popup_at_start: bool = False) -> list[dict]:
             "target_roi": (260, 768, 540, 842),
             "panel_roi": (80, 300, 720, 940),
             "target_geometry_source": "current-frame-bounded-candidate",
-            "context_state": HOME_CANONICAL,
+            "context_state": HOME_READY,
             "semantic_evidence": [
                 "Get Pts",
                 "Log in every day to get VIP pts",
@@ -174,7 +175,7 @@ def route_frames(*, popup_at_start: bool = False) -> list[dict]:
     if popup_at_start:
         frames.append(
             observation(
-                HOME_CANONICAL,
+                HOME_READY,
                 controls={"home-to-world": (100, 100, 220, 160)},
             )
         )
@@ -216,18 +217,18 @@ def route_frames(*, popup_at_start: bool = False) -> list[dict]:
                 "world-to-home": (20, 25, 110, 100),
             },
         ),
-        observation(HOME_CANONICAL),
+        observation(HOME_READY),
         ]
     )
     return frames
 
 
-def canonical_validator_events() -> tuple[list[dict], dict, set[str]]:
+def hud_validator_events() -> tuple[list[dict], dict, set[str]]:
     steps = (
-        ("home-to-world", "HOME_CANONICAL", "WORLD_READY"),
+        ("home-to-world", "HOME_READY", "WORLD_READY"),
         ("world-search-entry", "WORLD_READY", "WORLD_SEARCH_OPEN"),
         ("android-back", "WORLD_SEARCH_OPEN", "WORLD_READY"),
-        ("world-to-home", "WORLD_READY", "HOME_CANONICAL"),
+        ("world-to-home", "WORLD_READY", "HOME_READY"),
     )
     events: list[dict] = []
     hashes: set[str] = set()
@@ -308,6 +309,7 @@ def canonical_validator_events() -> tuple[list[dict], dict, set[str]]:
                     "successor_frame_sha256": post,
                     "expected_successor_state": successor_state,
                     "successor_state": successor_state,
+                    "successor_overlay_state": "none_observed",
                 },
             ]
         )
@@ -317,6 +319,8 @@ def canonical_validator_events() -> tuple[list[dict], dict, set[str]]:
                 "target_identity": target,
                 "source_state": source_state,
                 "expected_successor_state": successor_state,
+                "successor_state": successor_state,
+                "successor_overlay_state": "none_observed",
                 "source_frame_sha256": source,
                 "successor_frame_sha256": post,
             }
@@ -325,7 +329,8 @@ def canonical_validator_events() -> tuple[list[dict], dict, set[str]]:
         {
             "type": "semantic",
             "event": "route_terminal",
-            "state": "HOME_CANONICAL",
+            "state": "HOME_READY",
+            "overlay_state": "none_observed",
             "frame_sha256": "8" * 64,
         }
     )
@@ -349,15 +354,16 @@ def canonical_validator_events() -> tuple[list[dict], dict, set[str]]:
         "currency_inputs": 0,
         "forbidden_input_classes": [],
         "final_frame_sha256": "8" * 64,
-        "final_state": HOME_CANONICAL,
-        "terminal_runtime_state": "recognized_home",
-        "reason": "canonical_home_round_trip_verified",
+        "final_state": HOME_READY,
+        "final_overlay_state": "none_observed",
+        "terminal_runtime_state": HOME_READY,
+        "reason": "verified_hud_home_round_trip",
     }
     return events, route, hashes
 
 
 class WorldMapNavigationTests(unittest.TestCase):
-    def test_canonical_route_requires_exact_successors_and_counts_inputs(self):
+    def test_hud_home_route_requires_exact_successors_and_counts_inputs(self):
         runtime = FakeRuntime(route_frames())
         result = run_world_map_navigation(
             runtime,
@@ -367,7 +373,16 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
         self.assertEqual(result["navigation_input_count"], 4)
         self.assertEqual(result["safe_popup_input_count"], 0)
-        self.assertEqual(result["final_state"], HOME_CANONICAL)
+        self.assertEqual(result["final_state"], HOME_READY)
+        self.assertEqual(route_declaration()["required_start_state"], HOME_READY)
+        self.assertEqual(
+            result["route_transitions"][0]["source_state"],
+            HOME_READY,
+        )
+        self.assertEqual(
+            result["route_transitions"][-1]["successor_state"],
+            HOME_READY,
+        )
         self.assertEqual(
             [row["target_identity"] for row in result["route_transitions"]],
             ["home-to-world", "world-search-entry", "android-back", "world-to-home"],
@@ -668,20 +683,77 @@ class WorldMapNavigationTests(unittest.TestCase):
         )
         self.assertEqual(handler.input_count, 2)
 
-    def test_wrong_zoom_stale_roi_and_missing_successor_block_without_retry(self):
-        noncanonical = route_frames()
-        noncanonical[0] = observation(
-            "HOME_READY",
-            controls={"home-to-world": (100, 100, 220, 160)},
-        )
-        noncanonical_result = run_world_map_navigation(
-            FakeRuntime(noncanonical),
+    def test_home_ready_requires_exact_current_frame_world_control_before_input(self):
+        missing_control = route_frames()
+        missing_control[0] = observation(HOME_READY)
+        runtime = FakeRuntime(missing_control)
+        result = run_world_map_navigation(
+            runtime,
             recognizer=scripted_recognizer,
             maximum_inputs=4,
         )
-        self.assertEqual(noncanonical_result["status"], BLOCKED_FAIL_CLOSED)
-        self.assertEqual(noncanonical_result["navigation_input_count"], 0)
+        self.assertEqual(result["status"], BLOCKED_FAIL_CLOSED)
+        self.assertEqual(result["navigation_input_count"], 0)
+        self.assertEqual(runtime.calls, [])
 
+        missing_evidence = route_frames()
+        missing_evidence[0]["semantic_evidence"] = []
+        evidence_runtime = FakeRuntime(missing_evidence)
+        evidence_result = run_world_map_navigation(
+            evidence_runtime,
+            recognizer=scripted_recognizer,
+            maximum_inputs=4,
+        )
+        self.assertEqual(evidence_result["status"], BLOCKED_FAIL_CLOSED)
+        self.assertEqual(evidence_result["navigation_input_count"], 0)
+        self.assertEqual(evidence_runtime.calls, [])
+
+        for identity in ("atlas", "building", "atlas-building"):
+            with self.subTest(identity=identity):
+                wrong_identity = route_frames()
+                wrong_identity[0] = observation(
+                    HOME_READY,
+                    controls={identity: (100, 100, 220, 160)},
+                )
+                wrong_runtime = FakeRuntime(wrong_identity)
+                wrong_result = run_world_map_navigation(
+                    wrong_runtime,
+                    recognizer=scripted_recognizer,
+                    maximum_inputs=4,
+                )
+                self.assertEqual(wrong_result["status"], BLOCKED_FAIL_CLOSED)
+                self.assertEqual(wrong_result["navigation_input_count"], 0)
+                self.assertEqual(wrong_runtime.calls, [])
+
+        wrong_semantics = route_frames()
+        wrong_semantics[0]["control_semantics"]["home-to-world"] = ("Atlas",)
+        semantic_runtime = FakeRuntime(wrong_semantics)
+        semantic_result = run_world_map_navigation(
+            semantic_runtime,
+            recognizer=scripted_recognizer,
+            maximum_inputs=4,
+        )
+        self.assertEqual(semantic_result["status"], BLOCKED_FAIL_CLOSED)
+        self.assertEqual(semantic_result["navigation_input_count"], 0)
+        self.assertEqual(semantic_runtime.calls, [])
+
+    def test_home_canonical_is_only_a_stronger_home_ready_source(self):
+        stronger = route_frames()
+        stronger[0] = observation(
+            HOME_CANONICAL,
+            controls={"home-to-world": (100, 100, 220, 160)},
+        )
+        runtime = FakeRuntime(stronger)
+        result = run_world_map_navigation(
+            runtime,
+            recognizer=scripted_recognizer,
+            maximum_inputs=4,
+        )
+        self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
+        self.assertEqual(result["route_transitions"][0]["source_state"], HOME_READY)
+        self.assertEqual(result["final_state"], HOME_READY)
+
+    def test_wrong_zoom_stale_roi_and_missing_successor_block_without_retry(self):
         wrong_zoom = route_frames()
         wrong_zoom[1]["zoom_identity"] = "WORLD_ZOOM_UNKNOWN"
         result = run_world_map_navigation(
@@ -721,7 +793,7 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(missing_result["status"], BLOCKED_FAIL_CLOSED)
         self.assertEqual(
             missing_result["reason"],
-            "unexpected_successor:WORLD_READY:HOME_CANONICAL",
+            "unexpected_successor:WORLD_READY:HOME_READY",
         )
 
     def test_budget_exhaustion_and_forbidden_identity_are_closed(self):
@@ -820,6 +892,18 @@ class WorldMapNavigationTests(unittest.TestCase):
                 required_target_identity="home-to-world",
             )
         )
+        home_ready_observation = replace(
+            home_observation,
+            state=HOME_READY,
+            semantic_evidence=tuple(observations["home_ready"]["semantic_evidence"]),
+        )
+        self.assertTrue(
+            world_navigation_observation_authorizeable(
+                home_ready_observation,
+                expected_state=HOME_READY,
+                required_target_identity="home-to-world",
+            )
+        )
         wrong_zoom = observations["wrong_zoom"]
         wrong = WorldNavigationObservation(
             "WORLD_READY",
@@ -851,13 +935,40 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertTrue(world_node_binding_authorizeable(node_observation))
 
     def test_event_validator_derives_route_and_rejects_adversarial_proof(self):
-        events, route, hashes = canonical_validator_events()
+        events, route, hashes = hud_validator_events()
         _verify_event_order(events, route, hashes)
+        result_payload = {
+            "world_navigation_result": route,
+            "terminal_runtime_state": HOME_READY,
+            "production_registration": "NOT_REGISTERED",
+            "scheduler_enabled": False,
+        }
         _verify_route_semantics(
-            {"world_navigation_result": route, "production_registration": "NOT_REGISTERED",
-             "scheduler_enabled": False},
+            result_payload,
             events,
         )
+
+        canonical_terminal = [dict(event) for event in events]
+        terminal_event = next(
+            event
+            for event in canonical_terminal
+            if event.get("event") == "route_terminal"
+        )
+        terminal_event["state"] = HOME_CANONICAL
+        with self.assertRaises(pnsctl.OperatorError):
+            _verify_event_order(canonical_terminal, route, hashes)
+
+        canonical_result = dict(
+            route,
+            final_state=HOME_CANONICAL,
+            terminal_runtime_state=HOME_CANONICAL,
+        )
+        with self.assertRaises(pnsctl.OperatorError):
+            _verify_route_semantics(
+                dict(result_payload, world_navigation_result=canonical_result,
+                     terminal_runtime_state=HOME_CANONICAL),
+                events,
+            )
 
         stale = [dict(event) for event in events]
         dispatches = [event for event in stale if event.get("type") == "dispatch"]

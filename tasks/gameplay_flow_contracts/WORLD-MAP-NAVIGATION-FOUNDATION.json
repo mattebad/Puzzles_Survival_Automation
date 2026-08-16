@@ -1,11 +1,11 @@
 {
   "schema_version": 2,
   "flow_id": "WORLD-MAP-NAVIGATION-FOUNDATION",
-  "product_purpose": "Canonical Home to World Search entry and safe canonical Home return.",
+  "product_purpose": "Verified HUD Home-ready to World Search round trip without atlas or building authority.",
   "trigger_cadence_type": "navigation_foundation",
   "reset_scope": "session",
   "required_starting_context": [
-    "home_canonical"
+    "home_ready"
   ],
   "shared_primitive_dependencies": [
     {
@@ -27,7 +27,7 @@
   "transition_contracts": [
     {
       "transition_id": "home_to_world",
-      "from": "home_canonical",
+      "from": "home_ready",
       "to": "world_ready",
       "planner": "bind_current_frame_home_to_world_control",
       "permitted_input": "tap_home_to_world",
@@ -84,11 +84,12 @@
     {
       "transition_id": "world_to_home",
       "from": "world_ready",
-      "to": "home_canonical",
+      "to": "home_ready",
       "planner": "bind_current_frame_world_to_home_control",
       "permitted_input": "tap_world_to_home",
       "postconditions": [
-        "fresh_canonical_home_successor"
+        "fresh_home_ready_successor",
+        "home_ready_overlay_absent"
       ],
       "terminal_outcomes": [
         "blocked",
@@ -96,13 +97,14 @@
       ]
     },
     {
-      "transition_id": "complete_canonical_round_trip",
-      "from": "home_canonical",
+      "transition_id": "complete_hud_home_round_trip",
+      "from": "home_ready",
       "to": "navigation_only_complete",
-      "planner": "verify_canonical_start_to_end_route",
+      "planner": "verify_hud_home_ready_start_to_end_route",
       "permitted_input": null,
       "postconditions": [
-        "canonical_home_terminal_proof",
+        "home_ready_terminal_proof",
+        "home_ready_overlay_absent",
         "navigation_only_complete"
       ],
       "terminal_outcomes": [
@@ -112,13 +114,13 @@
     },
     {
       "transition_id": "safe_popup_at_home_checkpoint",
-      "from": "home_canonical",
-      "to": "home_canonical",
+      "from": "home_ready",
+      "to": "home_ready",
       "planner": "handle_one_allowlisted_popup_from_fresh_frame",
       "permitted_input": "safe_popup_close",
       "postconditions": [
         "popup_absent",
-        "home_successor_rerecognized"
+        "home_ready_successor_rerecognized"
       ],
       "terminal_outcomes": [
         "blocked"
@@ -236,7 +238,8 @@
   "evidence_requirements": [
     "independent native 800x1280 source and successor frame hashes",
     "current-frame target ROI and semantic identity for every input",
-    "canonical Home -> World -> Search -> World -> canonical Home event order",
+    "HOME_READY -> World -> Search -> World -> HOME_READY event order",
+    "HOME_READY successor overlay is absent",
     "allowlisted popup semantic evidence spatially associated with Close",
     "zero resource, march, formation, occupancy override, stamina, AP, currency, node, or combat input",
     "production registration remains NOT_REGISTERED and scheduler remains false"
@@ -246,7 +249,7 @@
       "gate_id": "world_navigation_live_evidence",
       "status": "evidence_required",
       "blocks": [
-        "world_navigation_canonical_route"
+        "world_navigation_hud_home_route"
       ],
       "required_evidence": [
         "retained current-frame native route evidence with independently verified semantic successors"
@@ -270,9 +273,9 @@
   ],
   "scenarios": [
     {
-      "scenario_id": "world_navigation_canonical_route",
+      "scenario_id": "world_navigation_hud_home_route",
       "mode": "navigation_only",
-      "start_state": "home_canonical",
+      "start_state": "home_ready",
       "terminal_state": "navigation_only_complete",
       "permitted_inputs": [
         "tap_home_to_world",
@@ -298,12 +301,12 @@
         "open_world_search",
         "close_world_search",
         "world_to_home",
-        "complete_canonical_round_trip"
+        "complete_hud_home_round_trip"
       ],
       "evidence_gate_ids": [
         "world_navigation_live_evidence"
       ],
-      "notes": "Canonical start-to-end route only; node binding and bounded pan/search planning remain offline primitives."
+      "notes": "HUD Home-ready start-to-end route only; atlas localization, building binding, and bounded pan/search planning remain offline primitives."
     },
     {
       "scenario_id": "world_navigation_unknown_fail_closed",

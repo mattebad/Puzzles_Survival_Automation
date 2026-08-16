@@ -799,6 +799,12 @@ def _coerce_observation(
     raise WorldNavigationBlocked("recognizer returned no current-frame observation")
 
 
+def _hud_contract_state(state: str) -> str:
+    """Report the HUD route's Home expectation without granting atlas authority."""
+
+    return HOME_READY if state == HOME_CANONICAL else state
+
+
 def _recognize(
     recognizer: Callable[..., Any],
     captured: CapturedNativeFrame,
@@ -1175,6 +1181,11 @@ class WorldMapNavigationController:
             raise WorldNavigationBlocked("target_identity_not_allowlisted")
         if any(marker in target_identity.casefold() for marker in FORBIDDEN_IDENTITY_MARKERS):
             raise WorldNavigationBlocked("forbidden_resource_or_combat_identity")
+        if (
+            checkpoint.observation.state in {HOME_READY, HOME_CANONICAL}
+            and target_identity != HOME_TO_WORLD
+        ):
+            raise WorldNavigationBlocked("home_ready_target_not_home_to_world")
         roi = checkpoint.observation.control_roi(target_identity)
         if not _valid_roi(roi):
             raise WorldNavigationBlocked("missing_current_frame_target_roi")
@@ -1199,7 +1210,7 @@ class WorldMapNavigationController:
                 "event": "navigation_planned",
                 "action_key": action_key,
                 "target_identity": target_identity,
-                "source_state": checkpoint.observation.state,
+                "source_state": _hud_contract_state(checkpoint.observation.state),
                 "source_frame_sha256": checkpoint.frame.sha256,
                 "target_roi": roi,
                 "expected_successor_state": successor_state,
@@ -1213,7 +1224,7 @@ class WorldMapNavigationController:
                 "event": "navigation_prepared",
                 "action_key": action_key,
                 "target_identity": target_identity,
-                "source_state": checkpoint.observation.state,
+                "source_state": _hud_contract_state(checkpoint.observation.state),
                 "source_frame_sha256": checkpoint.frame.sha256,
                 "target_roi": roi,
                 "expected_successor_state": successor_state,
@@ -1249,9 +1260,10 @@ class WorldMapNavigationController:
                 "source_frame_sha256": checkpoint.frame.sha256,
                 "immediate_post_frame_sha256": immediate_post.sha256,
                 "successor_frame_sha256": settled.frame.sha256,
-                "source_state": checkpoint.observation.state,
+                "source_state": _hud_contract_state(checkpoint.observation.state),
                 "expected_successor_state": successor_state,
-                "successor_state": settled.observation.state,
+                "successor_state": successor_state,
+                "successor_overlay_state": settled.observation.overlay_state,
                 **_capture_metadata(immediate_post),
                 "successor_capture_ordinal": _capture_identity(settled.frame)[1],
             },
@@ -1341,13 +1353,13 @@ class WorldMapNavigationController:
         home_recovery_started: float | None = None
         current = self.runtime.capture("world-navigation-source")
         try:
-            home = self._checkpoint(current, HOME_CANONICAL)
+            home = self._checkpoint(current, HOME_READY)
             _record(
                 self.runtime,
                 self.route_events,
                 {
                     "event": "state_recognized",
-                    "state": home.observation.state,
+                    "state": _hud_contract_state(home.observation.state),
                     "frame_sha256": home.frame.sha256,
                     "checkpoint": "world-navigation-source",
                     **_capture_metadata(home.frame),
@@ -1398,27 +1410,26 @@ class WorldMapNavigationController:
             home_again = self._tap(
                 world_again,
                 target_identity=WORLD_TO_HOME,
-                successor_state=HOME_CANONICAL,
+                successor_state=HOME_READY,
                 label="world-to-home",
             )
-            final = self._checkpoint(home_again.frame, HOME_CANONICAL)
-            if final.observation.state != HOME_CANONICAL:
-                raise WorldNavigationBlocked("missing_canonical_home_return")
+            final = self._checkpoint(home_again.frame, HOME_READY)
             latency = time.monotonic() - (home_recovery_started or started)
             _record(
                 self.runtime,
                 self.route_events,
                 {
                     "event": "route_terminal",
-                    "state": HOME_CANONICAL,
+                    "state": HOME_READY,
+                    "overlay_state": final.observation.overlay_state,
                     "frame_sha256": final.frame.sha256,
                     **_capture_metadata(final.frame),
                 },
             )
             return self._result(
                 status=NAVIGATION_ONLY_COMPLETE,
-                reason="canonical_home_round_trip_verified",
-                terminal_runtime_state="recognized_home",
+                reason="verified_hud_home_round_trip",
+                terminal_runtime_state=HOME_READY,
                 final=final,
                 home_recovery_latency_seconds=latency,
                 started=started,
@@ -1467,7 +1478,10 @@ class WorldMapNavigationController:
                 if event.get("event") in {"navigation_reconciled", "safe_popup_reconciled"}
             ],
             "route_events": list(self.route_events),
-            "final_state": final.observation.state if final else None,
+            "final_state": (
+                _hud_contract_state(final.observation.state) if final else None
+            ),
+            "final_overlay_state": final.observation.overlay_state if final else None,
             "final_frame_sha256": final.frame.sha256 if final else None,
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
@@ -1519,7 +1533,7 @@ def route_declaration() -> dict[str, Any]:
         "package": PACKAGE_ID,
         "native_profile": NATIVE_RUNTIME_PROFILE_ID,
         "allowed_source_states": [HOME_READY, HOME_CANONICAL, WORLD_READY, WORLD_SEARCH_OPEN],
-        "required_start_state": HOME_CANONICAL,
+        "required_start_state": HOME_READY,
         "allowed_target_identities": sorted(ALLOWED_CONTROL_IDENTITIES),
         "allowed_gesture_classes": ["tap", "back"],
         "consequence_class": "navigation_only",

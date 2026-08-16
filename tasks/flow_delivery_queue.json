@@ -3572,7 +3572,7 @@
         "home_recovery_latency_seconds"
       ],
       "blocked_reason": "",
-      "next_concrete_action": "Freeze the validated bounded popup-settle correction in a clean candidate, then admit at most one materially changed navigation-only canary under a new single-use receipt.",
+      "next_concrete_action": "Freeze the validated HOME_READY HUD-only contract in a clean candidate, inspect a fresh zero-input source, then admit the one remaining materially changed navigation-only canary.",
       "last_completed_stage": "focused_validation",
       "last_commit": "a2defbd83796d43c43345ca84ac46b7622151b10",
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",

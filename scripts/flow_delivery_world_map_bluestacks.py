@@ -17,6 +17,7 @@ from scripts.world_map_navigation_bluestacks import (
     ALLOWED_CONTROL_IDENTITIES,
     BLOCKED_FAIL_CLOSED,
     FLOW_ID,
+    HOME_READY,
     MAX_ROUTE_INPUTS,
     NAVIGATION_ONLY_COMPLETE,
     POPUP_CLOSE,
@@ -42,6 +43,7 @@ _FORBIDDEN_MARKERS = (
     "purchase",
     "payment",
 )
+_OVERLAY_ABSENT = frozenset({"none", "none_observed", ""})
 
 
 def _pnsctl():
@@ -114,14 +116,14 @@ def _run_result(
         "native_height": NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
         "terminal_runtime_state": (
-            "recognized_home"
+            HOME_READY
             if delivery_status == "completed"
             else "safe_blocked_terminal"
         ),
         "actions": [
             {
                 "action_class": "navigation_only",
-                "path": "canonical_home_to_world_to_search_to_canonical_home",
+                "path": "home_ready_to_world_to_search_to_home_ready",
                 "outcome": status,
             }
         ],
@@ -462,10 +464,15 @@ def _verify_event_order(
             and event.get("event") == "navigation_reconciled"
         ):
             raise _pnsctl().OperatorError("World navigation terminal event is out of order")
-        if terminal_event.get("state") != "HOME_CANONICAL" or terminal_event.get(
-            "frame_sha256"
-        ) != route.get("final_frame_sha256"):
-            raise _pnsctl().OperatorError("World navigation terminal proof is inconsistent")
+        if (
+            terminal_event.get("state") != HOME_READY
+            or terminal_event.get("overlay_state") not in _OVERLAY_ABSENT
+            or terminal_event.get("frame_sha256") != route.get("final_frame_sha256")
+            or route.get("final_overlay_state") not in _OVERLAY_ABSENT
+        ):
+            raise _pnsctl().OperatorError(
+                "World navigation HOME_READY terminal proof is inconsistent"
+            )
         terminal_hash = terminal_event.get("frame_sha256")
         terminal_captures = [
             (index, event)
@@ -684,26 +691,40 @@ def _verify_route_semantics(
         if identities != expected:
             raise _pnsctl().OperatorError("World navigation transition order is not canonical")
         expected_contract = [
-            ("HOME_CANONICAL", "home-to-world", "WORLD_READY"),
-            ("WORLD_READY", "world-search-entry", "WORLD_SEARCH_OPEN"),
-            ("WORLD_SEARCH_OPEN", "android-back", "WORLD_READY"),
-            ("WORLD_READY", "world-to-home", "HOME_CANONICAL"),
+            ("HOME_READY", "home-to-world", "WORLD_READY", "WORLD_READY"),
+            ("WORLD_READY", "world-search-entry", "WORLD_SEARCH_OPEN", "WORLD_SEARCH_OPEN"),
+            ("WORLD_SEARCH_OPEN", "android-back", "WORLD_READY", "WORLD_READY"),
+            ("WORLD_READY", "world-to-home", "HOME_READY", "HOME_READY"),
         ]
         actual_contract = [
             (
                 str(item.get("source_state")),
                 str(item.get("target_identity")),
                 str(item.get("expected_successor_state")),
+                str(item.get("successor_state")),
             )
             for item in transitions
         ]
         if actual_contract != expected_contract:
             raise _pnsctl().OperatorError("World navigation transition contract is invalid")
-        if route.get("final_state") != "HOME_CANONICAL":
-            raise _pnsctl().OperatorError("World navigation lacks final canonical Home proof")
-        if route.get("terminal_runtime_state") != "recognized_home":
-            raise _pnsctl().OperatorError("World navigation terminal Home state is unsafe")
-        if route.get("reason") != "canonical_home_round_trip_verified":
+        if any(
+            item.get("successor_overlay_state") not in _OVERLAY_ABSENT
+            for item in transitions
+        ):
+            raise _pnsctl().OperatorError(
+                "World navigation successor overlay is not absent"
+            )
+        if route.get("final_state") != HOME_READY:
+            raise _pnsctl().OperatorError("World navigation lacks final HOME_READY proof")
+        if route.get("final_overlay_state") not in _OVERLAY_ABSENT:
+            raise _pnsctl().OperatorError(
+                "World navigation final HOME_READY overlay is not absent"
+            )
+        if route.get("terminal_runtime_state") != HOME_READY:
+            raise _pnsctl().OperatorError("World navigation terminal HOME_READY state is unsafe")
+        if result.get("terminal_runtime_state") != HOME_READY:
+            raise _pnsctl().OperatorError("World navigation delivery terminal state is unsafe")
+        if route.get("reason") != "verified_hud_home_round_trip":
             raise _pnsctl().OperatorError("World navigation completion reason is invalid")
     elif route.get("status") != BLOCKED_FAIL_CLOSED:
         raise _pnsctl().OperatorError("World navigation status is not terminal")
