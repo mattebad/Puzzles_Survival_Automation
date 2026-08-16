@@ -33,7 +33,7 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": null,
+  "active_flow_id": "WORLD-MAP-NAVIGATION-FOUNDATION",
   "flows": [
     {
       "flow_id": "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
@@ -3523,7 +3523,7 @@
       "title": "Build verified World Map navigation foundation",
       "kind": "navigation_foundation",
       "priority": 120,
-      "status": "ready",
+      "status": "active",
       "backlog_task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -3550,7 +3550,7 @@
       ],
       "blocked_reason": "",
       "next_concrete_action": "Implement current-frame verified Home-to-World, bounded search entry, and safe Home recovery without march authority.",
-      "last_completed_stage": null,
+      "last_completed_stage": "selected",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
       "acceptance_criteria": [
