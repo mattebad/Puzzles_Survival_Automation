@@ -1483,6 +1483,7 @@ def development_session_run_flow(
     yes: bool,
     max_inputs: int = 12,
     recovery_only: bool = False,
+    search_entry_only: bool = False,
     recovery_session: Path | None = None,
     chests_only: bool = False,
     chest_continuation: Path | str | None = None,
@@ -1498,6 +1499,17 @@ def development_session_run_flow(
 
     from scripts.navigation_development_boundary import DevelopmentSession
     from scripts.navigation_development_boundary import delegated_runtime_context
+
+    if search_entry_only:
+        if recovery_only:
+            raise OperatorError(
+                "--search-entry-only and --recovery-only are mutually exclusive"
+            )
+        if flow_id != "WORLD-MAP-NAVIGATION-FOUNDATION":
+            raise OperatorError(
+                "--search-entry-only is supported only for World navigation"
+            )
+        max_inputs = 1
 
     delegated_context = None
     delegated_receipt_payload = None
@@ -1653,6 +1665,7 @@ def development_session_run_flow(
                 "unresolved_action_state": "not_applicable",
                 "development_session": True,
                 "recovery_only": recovery_only,
+                "search_entry_only": search_entry_only,
                 "recovery_session": str(recovery_session)
                 if recovery_session is not None
                 else None,
@@ -4690,7 +4703,9 @@ def parser() -> argparse.ArgumentParser:
     development_run.add_argument("--live", action="store_true")
     development_run.add_argument("--yes", action="store_true")
     development_run.add_argument("--max-inputs", type=int, default=12)
-    development_run.add_argument("--recovery-only", action="store_true")
+    development_mode = development_run.add_mutually_exclusive_group()
+    development_mode.add_argument("--recovery-only", action="store_true")
+    development_mode.add_argument("--search-entry-only", action="store_true")
     development_run.add_argument("--recovery-session", type=Path, default=None)
     development_run.add_argument("--chests-only", action="store_true")
     development_run.add_argument("--chest-continuation", type=Path, default=None)
@@ -5026,6 +5041,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     yes=bool(args.yes),
                     max_inputs=args.max_inputs,
                     recovery_only=bool(args.recovery_only),
+                    search_entry_only=bool(args.search_entry_only),
                     recovery_session=args.recovery_session,
                     chests_only=bool(args.chests_only),
                     chest_continuation=args.chest_continuation,

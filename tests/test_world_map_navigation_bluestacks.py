@@ -31,6 +31,7 @@ from scripts.world_map_navigation_bluestacks import (
     NAVIGATION_ONLY_COMPLETE,
     POPUP_CLOSE,
     SafePopupHandler,
+    SEARCH_ENTRY_ONLY_PATH,
     WorldNavigationBlocked,
     WORLD_READY,
     WORLD_SEARCH_ENTRY,
@@ -46,6 +47,7 @@ from scripts.world_map_navigation_bluestacks import (
     recognize_world_home_recovery,
     route_declaration,
     run_world_map_navigation,
+    run_world_map_search_entry_only,
 )
 from tasks.world_stamina import (
     WORLD_ZOOM_SUPPORTED,
@@ -386,6 +388,105 @@ def hud_validator_events() -> tuple[list[dict], dict, set[str]]:
 
 
 class WorldMapNavigationTests(unittest.TestCase):
+    def test_search_entry_only_taps_search_once_and_stops_open(self):
+        runtime = FakeRuntime(
+            [
+                observation(
+                    WORLD_READY,
+                    controls={"world-search-entry": (600, 100, 760, 170)},
+                ),
+                observation(
+                    WORLD_SEARCH_OPEN,
+                    controls={"world-search-close": (660, 30, 760, 100)},
+                ),
+            ]
+        )
+        result = run_world_map_search_entry_only(
+            runtime,
+            maximum_inputs=1,
+            recognizer=scripted_recognizer,
+        )
+        self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
+        self.assertEqual(result["path"], SEARCH_ENTRY_ONLY_PATH)
+        self.assertEqual(result["navigation_input_count"], 1)
+        self.assertEqual(result["safe_popup_input_count"], 0)
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(result["max_inputs"], 1)
+        self.assertEqual(result["terminal_runtime_state"], WORLD_SEARCH_OPEN)
+        self.assertEqual(result["final_state"], WORLD_SEARCH_OPEN)
+        self.assertEqual(
+            [call[1]["target_identity"] for call in runtime.calls],
+            [WORLD_SEARCH_ENTRY],
+        )
+        self.assertEqual([call[0] for call in runtime.calls], ["tap"])
+        self.assertEqual(
+            [
+                event["target_identity"]
+                for event in result["route_transitions"]
+            ],
+            [WORLD_SEARCH_ENTRY],
+        )
+
+    def test_search_entry_only_disables_popup_inputs(self):
+        runtime = FakeRuntime(
+            [
+                observation(
+                    WORLD_READY,
+                    controls={"world-search-entry": (600, 100, 760, 170)},
+                    popup={"popup_identity": "VIP_POINTS_GET_PTS"},
+                )
+            ]
+        )
+        result = run_world_map_search_entry_only(
+            runtime,
+            maximum_inputs=1,
+            recognizer=scripted_recognizer,
+        )
+        self.assertEqual(result["status"], BLOCKED_FAIL_CLOSED)
+        self.assertEqual(result["navigation_input_count"], 0)
+        self.assertEqual(result["safe_popup_input_count"], 0)
+        self.assertEqual(result["input_count"], 0)
+        self.assertEqual(runtime.calls, [])
+
+    def test_search_entry_only_cli_propagates_and_is_mutually_exclusive(self):
+        parsed = pnsctl.parser().parse_args(
+            [
+                "development-session",
+                "run-flow",
+                "WORLD-MAP-NAVIGATION-FOUNDATION",
+                "--search-entry-only",
+            ]
+        )
+        self.assertTrue(parsed.search_entry_only)
+        self.assertFalse(parsed.recovery_only)
+        with patch.object(
+            pnsctl,
+            "development_session_run_flow",
+            return_value="{}",
+        ) as run_flow:
+            self.assertEqual(
+                pnsctl.main(
+                    [
+                        "development-session",
+                        "run-flow",
+                        "WORLD-MAP-NAVIGATION-FOUNDATION",
+                        "--search-entry-only",
+                    ]
+                ),
+                0,
+            )
+        self.assertTrue(run_flow.call_args.kwargs["search_entry_only"])
+        with self.assertRaises(SystemExit):
+            pnsctl.parser().parse_args(
+                [
+                    "development-session",
+                    "run-flow",
+                    "WORLD-MAP-NAVIGATION-FOUNDATION",
+                    "--search-entry-only",
+                    "--recovery-only",
+                ]
+            )
+
     def test_hud_home_route_requires_exact_successors_and_counts_inputs(self):
         runtime = FakeRuntime(route_frames())
         result = run_world_map_navigation(
@@ -1176,6 +1277,28 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result["input_count"] if "input_count" in result else 0, 0)
         self.assertEqual(result["production_registration"], "NOT_REGISTERED")
         self.assertFalse(result["scheduler_enabled"])
+
+    def test_search_entry_only_flow_lease_forces_one_input_and_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(
+                pnsctl,
+                "BLUESTACKS_ARTIFACT_ROOT",
+                Path(directory),
+            ):
+                result = json.loads(
+                    run_world_map_navigation_foundation(
+                        {},
+                        {
+                            "owner": "test-owner",
+                            "max_inputs": 20,
+                            "search_entry_only": True,
+                        },
+                        live=False,
+                    )
+                )
+        self.assertEqual(result["max_inputs"], 1)
+        self.assertEqual(result["path"], SEARCH_ENTRY_ONLY_PATH)
+        self.assertEqual(result["input_count"], 0)
 
     def test_retained_popup_recognizer_rejects_non_native_frame(self):
         result = recognize_allowlisted_popup(

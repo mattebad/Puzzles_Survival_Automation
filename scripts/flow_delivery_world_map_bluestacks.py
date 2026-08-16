@@ -21,11 +21,15 @@ from scripts.world_map_navigation_bluestacks import (
     MAX_ROUTE_INPUTS,
     NAVIGATION_ONLY_COMPLETE,
     POPUP_CLOSE,
+    RECOVERY_PATH,
     RUNNER_ID,
     RECOVERY_ID,
+    SEARCH_ENTRY_ONLY_PATH,
+    FULL_ROUTE_PATH,
     VALIDATOR_ID,
     recover_world_map_home,
     run_world_map_navigation,
+    run_world_map_search_entry_only,
 )
 
 
@@ -109,6 +113,14 @@ def _run_result(
     frames = _native_frames(session)
     status = str(route.get("status") or BLOCKED_FAIL_CLOSED)
     delivery_status = "completed" if status == NAVIGATION_ONLY_COMPLETE else "blocked"
+    path = str(
+        route.get("path")
+        or (
+            RECOVERY_PATH
+            if recovery_only
+            else FULL_ROUTE_PATH
+        )
+    )
     delivery = {
         "schema_version": 1,
         "flow_id": FLOW_ID,
@@ -118,18 +130,14 @@ def _run_result(
         "native_height": NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
         "terminal_runtime_state": (
-            HOME_READY
+            str(route.get("terminal_runtime_state") or HOME_READY)
             if delivery_status == "completed"
             else "safe_blocked_terminal"
         ),
         "actions": [
             {
                 "action_class": "navigation_only",
-                "path": (
-                    "world_ready_to_home_recovery"
-                    if recovery_only
-                    else "home_ready_to_world_to_search_to_home_ready"
-                ),
+                "path": path,
                 "outcome": status,
             }
         ],
@@ -140,6 +148,7 @@ def _run_result(
         "journal_path": None,
         "frames": frames,
         "world_navigation_result": dict(route),
+        "path": path,
         "dispatch": int(route.get("input_count") or 0) > 0,
         "dispatch_count": int(route.get("input_count") or 0),
         "input_count": int(route.get("input_count") or 0),
@@ -174,7 +183,13 @@ def run_world_map_navigation_foundation(
 
     del queue
     pnsctl = _pnsctl()
-    maximum = _maximum_inputs(lease)
+    recovery_only = bool(lease.get("recovery_only"))
+    search_entry_only = bool(lease.get("search_entry_only"))
+    if recovery_only and search_entry_only:
+        raise pnsctl.OperatorError(
+            "World navigation recovery-only and search-entry-only are mutually exclusive"
+        )
+    maximum = 1 if search_entry_only else _maximum_inputs(lease)
     root = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"run-{_stamp()}"
     root.mkdir(parents=True, exist_ok=False)
     if not live:
@@ -198,6 +213,13 @@ def run_world_map_navigation_foundation(
             "currency_inputs": 0,
             "forbidden_input_classes": [],
             "max_inputs": maximum,
+            "path": (
+                SEARCH_ENTRY_ONLY_PATH
+                if search_entry_only
+                else RECOVERY_PATH
+                if recovery_only
+                else FULL_ROUTE_PATH
+            ),
             "session_directory": str(root),
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
@@ -213,10 +235,14 @@ def run_world_map_navigation_foundation(
             workflow="world-map-navigation",
             execute=True,
         )
-        recovery_only = bool(lease.get("recovery_only"))
         route = (
             recover_world_map_home(runtime, maximum_inputs=maximum)
             if recovery_only
+            else run_world_map_search_entry_only(
+                runtime,
+                maximum_inputs=maximum,
+            )
+            if search_entry_only
             else run_world_map_navigation(
                 runtime,
                 maximum_inputs=maximum,
@@ -244,6 +270,7 @@ def run_world_map_navigation_foundation(
         "navigation_input_count": delivery["navigation_input_count"],
         "safe_popup_input_count": delivery["safe_popup_input_count"],
         "reason": route.get("reason"),
+        "path": route.get("path"),
         "terminal_runtime_state": delivery["terminal_runtime_state"],
     }
     return json.dumps(result, sort_keys=True)
@@ -458,7 +485,25 @@ def _verify_event_order(
             )
         transitions.append(transition)
     if route.get("status") == NAVIGATION_ONLY_COMPLETE:
-        expected = ["home-to-world", "world-search-entry", "android-back", "world-to-home"]
+        route_path = str(route.get("path") or FULL_ROUTE_PATH)
+        contracts = {
+            FULL_ROUTE_PATH: (
+                ["home-to-world", "world-search-entry", "android-back", "world-to-home"],
+                HOME_READY,
+            ),
+            RECOVERY_PATH: (["world-to-home"], HOME_READY),
+            SEARCH_ENTRY_ONLY_PATH: (["world-search-entry"], "WORLD_SEARCH_OPEN"),
+        }
+        if route_path not in contracts:
+            raise _pnsctl().OperatorError("World navigation route path is unsupported")
+        expected, terminal_state = contracts[route_path]
+        if (
+            route_path == SEARCH_ENTRY_ONLY_PATH
+            and route.get("safe_popup_input_count") != 0
+        ):
+            raise _pnsctl().OperatorError(
+                "World search-entry-only route contains popup input"
+            )
         if [str(item.get("target_identity")) for item in transitions] != expected:
             raise _pnsctl().OperatorError("World navigation dispatch order is not canonical")
         terminal = [
@@ -477,7 +522,7 @@ def _verify_event_order(
         ):
             raise _pnsctl().OperatorError("World navigation terminal event is out of order")
         if (
-            terminal_event.get("state") != HOME_READY
+            terminal_event.get("state") != terminal_state
             or terminal_event.get("overlay_state") not in _OVERLAY_ABSENT
             or terminal_event.get("frame_sha256") != route.get("final_frame_sha256")
             or route.get("final_overlay_state") not in _OVERLAY_ABSENT
@@ -699,15 +744,37 @@ def _verify_route_semantics(
     ]
     identities = [str(item.get("target_identity")) for item in transitions]
     if route.get("status") == NAVIGATION_ONLY_COMPLETE:
-        expected = ["home-to-world", "world-search-entry", "android-back", "world-to-home"]
+        route_path = str(route.get("path") or FULL_ROUTE_PATH)
+        contracts = {
+            FULL_ROUTE_PATH: (
+                ["home-to-world", "world-search-entry", "android-back", "world-to-home"],
+                [
+                    ("HOME_READY", "home-to-world", "WORLD_READY", "WORLD_READY"),
+                    ("WORLD_READY", "world-search-entry", "WORLD_SEARCH_OPEN", "WORLD_SEARCH_OPEN"),
+                    ("WORLD_SEARCH_OPEN", "android-back", "WORLD_READY", "WORLD_READY"),
+                    ("WORLD_READY", "world-to-home", "HOME_READY", "HOME_READY"),
+                ],
+                HOME_READY,
+                "verified_hud_home_round_trip",
+            ),
+            RECOVERY_PATH: (
+                ["world-to-home"],
+                [("WORLD_READY", "world-to-home", "HOME_READY", "HOME_READY")],
+                HOME_READY,
+                "verified_world_to_home_recovery",
+            ),
+            SEARCH_ENTRY_ONLY_PATH: (
+                ["world-search-entry"],
+                [("WORLD_READY", "world-search-entry", "WORLD_SEARCH_OPEN", "WORLD_SEARCH_OPEN")],
+                "WORLD_SEARCH_OPEN",
+                "verified_world_ready_to_search_open",
+            ),
+        }
+        if route_path not in contracts:
+            raise _pnsctl().OperatorError("World navigation route path is unsupported")
+        expected, expected_contract, terminal_state, expected_reason = contracts[route_path]
         if identities != expected:
             raise _pnsctl().OperatorError("World navigation transition order is not canonical")
-        expected_contract = [
-            ("HOME_READY", "home-to-world", "WORLD_READY", "WORLD_READY"),
-            ("WORLD_READY", "world-search-entry", "WORLD_SEARCH_OPEN", "WORLD_SEARCH_OPEN"),
-            ("WORLD_SEARCH_OPEN", "android-back", "WORLD_READY", "WORLD_READY"),
-            ("WORLD_READY", "world-to-home", "HOME_READY", "HOME_READY"),
-        ]
         actual_contract = [
             (
                 str(item.get("source_state")),
@@ -726,17 +793,17 @@ def _verify_route_semantics(
             raise _pnsctl().OperatorError(
                 "World navigation successor overlay is not absent"
             )
-        if route.get("final_state") != HOME_READY:
-            raise _pnsctl().OperatorError("World navigation lacks final HOME_READY proof")
+        if route.get("final_state") != terminal_state:
+            raise _pnsctl().OperatorError("World navigation lacks final terminal proof")
         if route.get("final_overlay_state") not in _OVERLAY_ABSENT:
             raise _pnsctl().OperatorError(
                 "World navigation final HOME_READY overlay is not absent"
             )
-        if route.get("terminal_runtime_state") != HOME_READY:
-            raise _pnsctl().OperatorError("World navigation terminal HOME_READY state is unsafe")
-        if result.get("terminal_runtime_state") != HOME_READY:
+        if route.get("terminal_runtime_state") != terminal_state:
+            raise _pnsctl().OperatorError("World navigation terminal state is unsafe")
+        if result.get("terminal_runtime_state") != terminal_state:
             raise _pnsctl().OperatorError("World navigation delivery terminal state is unsafe")
-        if route.get("reason") != "verified_hud_home_round_trip":
+        if route.get("reason") != expected_reason:
             raise _pnsctl().OperatorError("World navigation completion reason is invalid")
     elif route.get("status") != BLOCKED_FAIL_CLOSED:
         raise _pnsctl().OperatorError("World navigation status is not terminal")

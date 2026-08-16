@@ -46,6 +46,9 @@ SAFE_POPUP_SETTLE_DELAY_SECONDS = 0.25
 MAX_NAVIGATION_POST_FRAMES = 3
 NAVIGATION_SETTLE_DELAY_SECONDS = 0.25
 POPUP_CONTRACT_VERSION = "vip-points-get-pts-close-v1"
+FULL_ROUTE_PATH = "home_ready_to_world_to_search_to_home_ready"
+RECOVERY_PATH = "world_ready_to_home_recovery"
+SEARCH_ENTRY_ONLY_PATH = "world_ready_to_search_entry_only"
 
 HOME_READY = "HOME_READY"
 HOME_CANONICAL = "HOME_CANONICAL"
@@ -2126,6 +2129,7 @@ class WorldMapNavigationController:
                 final=final,
                 home_recovery_latency_seconds=latency,
                 started=started,
+                path=FULL_ROUTE_PATH,
             )
         except WorldNavigationBlocked as exc:
             return self._result(
@@ -2139,6 +2143,72 @@ class WorldMapNavigationController:
                     else None
                 ),
                 started=started,
+                path=FULL_ROUTE_PATH,
+            )
+
+    def run_search_entry_only(self) -> dict[str, Any]:
+        """Tap Search once from a fresh World checkpoint and stop open."""
+
+        started = time.monotonic()
+        current = self.runtime.capture("world-search-entry-only-source")
+        try:
+            world = self._checkpoint(current, WORLD_READY)
+            _record(
+                self.runtime,
+                self.route_events,
+                {
+                    "event": "state_recognized",
+                    "state": world.observation.state,
+                    "frame_sha256": world.frame.sha256,
+                    "checkpoint": "world-search-entry-only-source",
+                    **_capture_metadata(world.frame),
+                },
+            )
+            search = self._tap(
+                world,
+                target_identity=WORLD_SEARCH_ENTRY,
+                successor_state=WORLD_SEARCH_OPEN,
+                label="world-search-entry",
+            )
+            _record(
+                self.runtime,
+                self.route_events,
+                {
+                    "event": "world_search_open",
+                    "state": WORLD_SEARCH_OPEN,
+                    "frame_sha256": search.frame.sha256,
+                },
+            )
+            final = self._checkpoint(search.frame, WORLD_SEARCH_OPEN)
+            _record(
+                self.runtime,
+                self.route_events,
+                {
+                    "event": "route_terminal",
+                    "state": WORLD_SEARCH_OPEN,
+                    "overlay_state": final.observation.overlay_state,
+                    "frame_sha256": final.frame.sha256,
+                    **_capture_metadata(final.frame),
+                },
+            )
+            return self._result(
+                status=NAVIGATION_ONLY_COMPLETE,
+                reason="verified_world_ready_to_search_open",
+                terminal_runtime_state=WORLD_SEARCH_OPEN,
+                final=final,
+                home_recovery_latency_seconds=None,
+                started=started,
+                path=SEARCH_ENTRY_ONLY_PATH,
+            )
+        except WorldNavigationBlocked as exc:
+            return self._result(
+                status=BLOCKED_FAIL_CLOSED,
+                reason=str(exc),
+                terminal_runtime_state="safe_blocked_terminal",
+                final=None,
+                home_recovery_latency_seconds=None,
+                started=started,
+                path=SEARCH_ENTRY_ONLY_PATH,
             )
 
     def recover_home(self) -> dict[str, Any]:
@@ -2172,6 +2242,17 @@ class WorldMapNavigationController:
                 label="world-home-recovery",
             )
             final = self._checkpoint(home.frame, HOME_READY)
+            _record(
+                self.runtime,
+                self.route_events,
+                {
+                    "event": "route_terminal",
+                    "state": HOME_READY,
+                    "overlay_state": final.observation.overlay_state,
+                    "frame_sha256": final.frame.sha256,
+                    **_capture_metadata(final.frame),
+                },
+            )
             return self._result(
                 status=NAVIGATION_ONLY_COMPLETE,
                 reason="verified_world_to_home_recovery",
@@ -2179,6 +2260,7 @@ class WorldMapNavigationController:
                 final=final,
                 home_recovery_latency_seconds=time.monotonic() - started,
                 started=started,
+                path=RECOVERY_PATH,
             )
         except WorldNavigationBlocked as exc:
             return self._result(
@@ -2188,6 +2270,7 @@ class WorldMapNavigationController:
                 final=None,
                 home_recovery_latency_seconds=None,
                 started=started,
+                path=RECOVERY_PATH,
             )
 
     def _result(
@@ -2199,6 +2282,7 @@ class WorldMapNavigationController:
         final: Checkpoint | None,
         home_recovery_latency_seconds: float | None,
         started: float,
+        path: str,
     ) -> dict[str, Any]:
         result = {
             "schema_version": 1,
@@ -2206,6 +2290,7 @@ class WorldMapNavigationController:
             "status": status,
             "reason": reason,
             "terminal_runtime_state": terminal_runtime_state,
+            "path": path,
             "navigation_input_count": self.navigation_input_count,
             "safe_popup_input_count": self.safe_popup_input_count,
             "input_count": self.total_input_count,
@@ -2248,15 +2333,40 @@ def run_world_map_navigation(
     maximum_inputs: int = MAX_ROUTE_INPUTS,
     maximum_popup_inputs: int = MAX_SAFE_POPUP_INPUTS,
     recognizer: Callable[..., Any] | None = None,
+    search_entry_only: bool = False,
 ) -> dict[str, Any]:
     """Run the route against an injected runtime; useful for deterministic tests."""
 
+    if search_entry_only:
+        return run_world_map_search_entry_only(
+            runtime,
+            maximum_inputs=1,
+            recognizer=recognizer,
+        )
     return WorldMapNavigationController(
         runtime,
         recognizer=recognizer,
         maximum_inputs=maximum_inputs,
         maximum_popup_inputs=maximum_popup_inputs,
     ).run()
+
+
+def run_world_map_search_entry_only(
+    runtime: Any,
+    *,
+    maximum_inputs: int = 1,
+    recognizer: Callable[..., Any] | None = None,
+) -> dict[str, Any]:
+    """Run only the one-input World -> Search-entry canary."""
+
+    if type(maximum_inputs) is not int or maximum_inputs != 1:
+        raise ValueError("search-entry-only maximum_inputs must be exactly 1")
+    return WorldMapNavigationController(
+        runtime,
+        recognizer=recognizer,
+        maximum_inputs=1,
+        maximum_popup_inputs=0,
+    ).run_search_entry_only()
 
 
 def recover_world_map_home(
