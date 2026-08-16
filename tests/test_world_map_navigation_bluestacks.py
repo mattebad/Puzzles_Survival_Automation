@@ -31,6 +31,7 @@ from scripts.world_map_navigation_bluestacks import (
     SafePopupHandler,
     WorldNavigationBlocked,
     _group_spatial_ocr_hits,
+    recover_world_map_home,
     recognize_allowlisted_popup,
     recognize_world_frame,
     route_declaration,
@@ -438,6 +439,30 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result["navigation_input_count"], 4)
         self.assertEqual(len(runtime.calls), 4)
         self.assertEqual(runtime.calls[0][1]["target_identity"], "home-to-world")
+
+    def test_world_recovery_taps_home_once(self):
+        runtime = FakeRuntime(
+            [
+                observation(
+                    "WORLD_READY",
+                    controls={
+                        "world-search-entry": (600, 100, 760, 170),
+                        "world-to-home": (20, 25, 110, 100),
+                    },
+                ),
+                observation(HOME_READY),
+            ]
+        )
+        result = recover_world_map_home(
+            runtime,
+            maximum_inputs=1,
+            recognizer=scripted_recognizer,
+        )
+        self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
+        self.assertEqual(result["navigation_input_count"], 1)
+        self.assertEqual(len(runtime.calls), 1)
+        self.assertEqual(runtime.calls[0][1]["target_identity"], "world-to-home")
+        self.assertEqual(result["final_state"], HOME_READY)
 
     def test_popup_is_handled_at_checkpoint_and_counts_against_total_budget(self):
         runtime = FakeRuntime(route_frames(popup_at_start=True))

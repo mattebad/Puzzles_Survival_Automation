@@ -1486,6 +1486,38 @@ class WorldMapNavigationController:
                 started=started,
             )
 
+    def recover_home(self) -> dict[str, Any]:
+        """Return an already-open World map to Home with one bounded tap."""
+
+        started = time.monotonic()
+        current = self.runtime.capture("world-home-recovery-source")
+        try:
+            world = self._checkpoint(current, WORLD_READY)
+            home = self._tap(
+                world,
+                target_identity=WORLD_TO_HOME,
+                successor_state=HOME_READY,
+                label="world-home-recovery",
+            )
+            final = self._checkpoint(home.frame, HOME_READY)
+            return self._result(
+                status=NAVIGATION_ONLY_COMPLETE,
+                reason="verified_world_to_home_recovery",
+                terminal_runtime_state=HOME_READY,
+                final=final,
+                home_recovery_latency_seconds=time.monotonic() - started,
+                started=started,
+            )
+        except WorldNavigationBlocked as exc:
+            return self._result(
+                status=BLOCKED_FAIL_CLOSED,
+                reason=str(exc),
+                terminal_runtime_state="safe_blocked_terminal",
+                final=None,
+                home_recovery_latency_seconds=None,
+                started=started,
+            )
+
     def _result(
         self,
         *,
@@ -1553,6 +1585,22 @@ def run_world_map_navigation(
         maximum_inputs=maximum_inputs,
         maximum_popup_inputs=maximum_popup_inputs,
     ).run()
+
+
+def recover_world_map_home(
+    runtime: Any,
+    *,
+    maximum_inputs: int = 1,
+    recognizer: Callable[..., Any] | None = None,
+) -> dict[str, Any]:
+    """Run only the explicit World-to-Home recovery transition."""
+
+    return WorldMapNavigationController(
+        runtime,
+        recognizer=recognizer,
+        maximum_inputs=maximum_inputs,
+        maximum_popup_inputs=0,
+    ).recover_home()
 
 
 def default_maximum_inputs() -> int:

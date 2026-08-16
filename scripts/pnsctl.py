@@ -1546,9 +1546,10 @@ def development_session_run_flow(
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
             "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+            "WORLD-MAP-NAVIGATION-FOUNDATION",
         }:
             raise OperatorError(
-                "recovery-only is supported only for Ruins, Troop Training, or Enhancement"
+                "recovery-only is unsupported for this development flow"
             )
     if chests_only and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
         raise OperatorError(

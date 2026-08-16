@@ -24,6 +24,7 @@ from scripts.world_map_navigation_bluestacks import (
     RUNNER_ID,
     RECOVERY_ID,
     VALIDATOR_ID,
+    recover_world_map_home,
     run_world_map_navigation,
 )
 
@@ -103,6 +104,7 @@ def _run_result(
     session: Path,
     lease: Mapping[str, Any],
     operator_returncode: int,
+    recovery_only: bool = False,
 ) -> dict[str, Any]:
     frames = _native_frames(session)
     status = str(route.get("status") or BLOCKED_FAIL_CLOSED)
@@ -123,7 +125,11 @@ def _run_result(
         "actions": [
             {
                 "action_class": "navigation_only",
-                "path": "home_ready_to_world_to_search_to_home_ready",
+                "path": (
+                    "world_ready_to_home_recovery"
+                    if recovery_only
+                    else "home_ready_to_world_to_search_to_home_ready"
+                ),
                 "outcome": status,
             }
         ],
@@ -207,10 +213,15 @@ def run_world_map_navigation_foundation(
             workflow="world-map-navigation",
             execute=True,
         )
-        route = run_world_map_navigation(
-            runtime,
-            maximum_inputs=maximum,
-            maximum_popup_inputs=min(4, maximum),
+        recovery_only = bool(lease.get("recovery_only"))
+        route = (
+            recover_world_map_home(runtime, maximum_inputs=maximum)
+            if recovery_only
+            else run_world_map_navigation(
+                runtime,
+                maximum_inputs=maximum,
+                maximum_popup_inputs=min(4, maximum),
+            )
         )
         session = runtime.session
         delivery = _run_result(
@@ -218,6 +229,7 @@ def run_world_map_navigation_foundation(
             session=session,
             lease=lease,
             operator_returncode=0,
+            recovery_only=recovery_only,
         )
     except Exception:
         # Do not invent a successful route result after a transport or capture
