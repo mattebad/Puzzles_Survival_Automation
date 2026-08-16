@@ -1510,6 +1510,364 @@ def development_session_delegated_dry_run(
     return json.dumps(result, sort_keys=True)
 
 
+DAILY_ROW_RECON_TASK_ID = "daily-row-claim"
+DAILY_ROW_RECON_FLOW_ID = "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
+DAILY_ROW_RECON_SCENARIO = "selected-daily-row-evidence"
+DAILY_ROW_RECON_VARIANT = "home-quest-daily"
+DAILY_ROW_RECON_RESULT_IDENTITY = (
+    "daily-row-claim:reconnaissance:selected-daily-row-evidence"
+)
+DAILY_ROW_RECON_ACTION_IDENTITIES = ("home-quest-entry", "quest-daily-tab")
+DAILY_ROW_RECON_ACTION_CLASSES = ("navigation", "navigation")
+
+
+def _validate_daily_row_recon_receipt(receipt: Mapping[str, Any]) -> None:
+    expected = {
+        "receipt_class": "reconnaissance",
+        "task_id": DAILY_ROW_RECON_TASK_ID,
+        "flow_id": DAILY_ROW_RECON_FLOW_ID,
+        "scenario": DAILY_ROW_RECON_SCENARIO,
+        "variant": DAILY_ROW_RECON_VARIANT,
+        "consequence_class": "navigation_only",
+        "max_total_inputs": 2,
+        "max_resource_affecting_inputs": 0,
+        "max_combat_confirmations": 0,
+        "permitted_action_identities": list(DAILY_ROW_RECON_ACTION_IDENTITIES),
+        "permitted_action_classes": list(DAILY_ROW_RECON_ACTION_CLASSES),
+        "permitted_terminal_states": ["observed", "evidence_required"],
+    }
+    for field, value in expected.items():
+        if field == "permitted_terminal_states":
+            if set(receipt.get(field, ())) != set(value):
+                raise OperatorError(
+                    f"daily row reconnaissance receipt {field} is not frozen"
+                )
+            continue
+        if receipt.get(field) != value:
+            raise OperatorError(f"daily row reconnaissance receipt {field} is not frozen")
+    expected_bindings = [
+        {
+            "action_identity": "home-quest-entry",
+            "action_class": "navigation",
+            "consequence_class": "navigation_only",
+            "resource_affecting": False,
+            "combat_confirmation": False,
+        },
+        {
+            "action_identity": "quest-daily-tab",
+            "action_class": "navigation",
+            "consequence_class": "navigation_only",
+            "resource_affecting": False,
+            "combat_confirmation": False,
+        },
+    ]
+    if receipt.get("action_bindings") != expected_bindings:
+        raise OperatorError("daily row reconnaissance receipt action bindings are not frozen")
+    binding = receipt.get("evidence_result_binding")
+    if not isinstance(binding, Mapping) or binding.get("result_identity") != DAILY_ROW_RECON_RESULT_IDENTITY:
+        raise OperatorError("daily row reconnaissance result identity is not frozen")
+
+
+def _daily_recon_artifact_path(session_directory: Path, value: object) -> Path:
+    if not isinstance(value, str) or not value.strip():
+        raise OperatorError("daily row reconnaissance artifact path is missing")
+    candidate = Path(value)
+    resolved = (candidate if candidate.is_absolute() else session_directory / candidate).resolve()
+    try:
+        resolved.relative_to(session_directory.resolve())
+    except ValueError as exc:
+        raise OperatorError("daily row reconnaissance artifact escaped its session") from exc
+    if resolved.is_symlink() or not resolved.is_file():
+        raise OperatorError("daily row reconnaissance artifact is missing or unsafe")
+    return resolved
+
+
+def _validate_daily_recon_artifacts(
+    session_directory: Path,
+    payload: Mapping[str, Any],
+) -> None:
+    from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+
+    required_frames = {
+        "source",
+        "home_immediate_before",
+        "quest_successor",
+        "daily_immediate_before",
+        "daily_terminal",
+    }
+    frames = payload.get("frames")
+    if not isinstance(frames, Mapping) or not required_frames <= set(frames):
+        raise OperatorError("daily row reconnaissance requires all five native frames")
+    for name in required_frames:
+        reference = frames.get(name)
+        if not isinstance(reference, Mapping):
+            raise OperatorError(f"daily row reconnaissance frame reference is malformed: {name}")
+        path = _daily_recon_artifact_path(session_directory, reference.get("path"))
+        declared_hash = reference.get("sha256")
+        if not isinstance(declared_hash, str):
+            raise OperatorError(f"daily row reconnaissance frame hash is missing: {name}")
+        raw = path.read_bytes()
+        actual_hash = hashlib.sha256(raw).hexdigest()
+        if actual_hash != declared_hash:
+            raise OperatorError(f"daily row reconnaissance frame hash mismatch: {name}")
+        captured_native_frame_from_png(
+            raw,
+            captured_monotonic=float(reference.get("captured_monotonic", 0.0)),
+            path=path,
+        )
+    actions = payload.get("actions")
+    if not isinstance(actions, list) or len(actions) != 2:
+        raise OperatorError("daily row reconnaissance must retain exactly two action records")
+    if [
+        (row.get("action_key") or row.get("label"))
+        for row in actions
+        if isinstance(row, Mapping)
+    ] != list(
+        DAILY_ROW_RECON_ACTION_IDENTITIES
+    ):
+        raise OperatorError("daily row reconnaissance action identity order is invalid")
+    if any(
+        not isinstance(row, Mapping)
+        or row.get("status") != "completed"
+        or row.get("requested_action") != "navigation"
+        for row in actions
+    ):
+        raise OperatorError("daily row reconnaissance action records are not completed navigation")
+    if payload.get("input_count") != 2:
+        raise OperatorError("daily row reconnaissance input count is not exactly two")
+    if payload.get("resource_affecting_inputs") != 0 or payload.get("combat_confirmations") != 0:
+        raise OperatorError("daily row reconnaissance contains a forbidden budget")
+    terminal = payload.get("recognitions", {}).get("daily_terminal")
+    if not isinstance(terminal, Mapping) or terminal.get("state") != "DAILY_SELECTED":
+        raise OperatorError("daily row reconnaissance terminal semantics are not selected Daily")
+    events_path = _daily_recon_artifact_path(
+        session_directory,
+        payload.get("runtime_events_path"),
+    )
+    event_rows = [
+        json.loads(line)
+        for line in events_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if sum(row.get("type") == "dispatch" for row in event_rows) != 2:
+        raise OperatorError("daily row reconnaissance event log does not retain two dispatches")
+
+
+def _write_daily_recon_artifacts(
+    session_directory: Path,
+    payload: Mapping[str, Any],
+    *,
+    ownership_released: bool,
+) -> None:
+    session_directory.mkdir(parents=True, exist_ok=True)
+    result = dict(payload)
+    result["ownership_released"] = ownership_released
+    (session_directory / "result.json").write_text(
+        json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
+    )
+    summary = {
+        "status": result.get("status"),
+        "receipt_id": result.get("receipt_id"),
+        "receipt_digest": result.get("receipt_digest"),
+        "evidence_result_identity": result.get("evidence_result_identity"),
+        "input_count": result.get("input_count", 0),
+        "action_count": len(result.get("actions", []))
+        if isinstance(result.get("actions"), list)
+        else 0,
+        "dispatch": result.get("input_count", 0) > 0,
+        "resource_affecting_inputs": result.get("resource_affecting_inputs", 0),
+        "combat_confirmations": result.get("combat_confirmations", 0),
+        "ownership_released": ownership_released,
+        "lifecycle_state_created": False,
+    }
+    if result.get("reason"):
+        summary["blocker"] = result["reason"]
+    (session_directory / "summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
+    )
+
+
+def development_session_daily_row_reconnaissance(
+    *,
+    max_inputs: int,
+    delegated_receipt: Path,
+    agent_identity: str,
+    task_id: str,
+    flow_id: str,
+    scenario: str,
+    variant: str,
+    command_argv: Sequence[str] | None = None,
+) -> str:
+    """Run the frozen two-input Home -> Quest -> selected-Daily route."""
+
+    expected_bindings = (
+        max_inputs,
+        task_id,
+        flow_id,
+        scenario,
+        variant,
+        agent_identity,
+        command_argv,
+    )
+    if max_inputs != 2:
+        raise OperatorError("daily row reconnaissance requires --max-inputs 2")
+    if any(value is None for value in expected_bindings[1:]):
+        raise OperatorError("daily row reconnaissance requires complete receipt bindings")
+    if task_id != DAILY_ROW_RECON_TASK_ID or flow_id != DAILY_ROW_RECON_FLOW_ID:
+        raise OperatorError("daily row reconnaissance task or flow binding is not frozen")
+    if scenario != DAILY_ROW_RECON_SCENARIO or variant != DAILY_ROW_RECON_VARIANT:
+        raise OperatorError("daily row reconnaissance scenario or variant is not frozen")
+    if command_argv is None:
+        raise OperatorError("daily row reconnaissance command binding is required")
+
+    from scripts.daily_row_claim_bluestacks import run_daily_row_reconnaissance
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    from scripts.navigation_development_boundary import (
+        DevelopmentSession,
+        delegated_runtime_context,
+    )
+    from scripts.flow_delivery_control import DelegatedRuntimeReceiptController
+
+    # Inspect before consumption so an incorrectly scoped receipt remains issued.
+    inspected = DelegatedRuntimeReceiptController(delegated_receipt).inspect()
+    _validate_daily_row_recon_receipt(inspected["receipt"])
+    _controller, receipt, context = _consume_delegated_receipt(
+        delegated_receipt,
+        command_argv=command_argv,
+        agent_identity=agent_identity,
+        task_id=task_id,
+        flow_id=flow_id,
+        receipt_class="reconnaissance",
+        scenario=scenario,
+        variant=variant,
+        max_inputs=2,
+    )
+    _validate_daily_row_recon_receipt(receipt)
+
+    invocation_id = f"delegated-{receipt['receipt_id']}"
+    session_directory = _development_session_directory(invocation_id)
+    checkpoint_before = _checkpoint_hashes()
+    session: Any | None = None
+    runtime: Any | None = None
+    route_result: dict[str, Any] | None = None
+    terminal_recorded = False
+
+    def base_payload(status: str, reason: str | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "status": status,
+            "task_id": task_id,
+            "flow_id": flow_id,
+            "scenario": scenario,
+            "variant": variant,
+            "receipt_id": receipt["receipt_id"],
+            "receipt_digest": receipt["receipt_digest"],
+            "evidence_result_identity": context.result_identity,
+            "session_directory": str(session_directory),
+            "input_count": int(getattr(session, "input_count", 0)),
+            "resource_affecting_inputs": 0,
+            "combat_confirmations": 0,
+            "dispatch": int(getattr(session, "input_count", 0)) > 0,
+            "ownership_released": False,
+        }
+        if reason:
+            payload["reason"] = reason
+        if route_result:
+            payload.update(route_result)
+            payload.update(
+                {
+                    "status": status,
+                    "task_id": task_id,
+                    "flow_id": flow_id,
+                    "scenario": scenario,
+                    "variant": variant,
+                    "receipt_id": receipt["receipt_id"],
+                    "receipt_digest": receipt["receipt_digest"],
+                    "evidence_result_identity": context.result_identity,
+                    "session_directory": str(session_directory),
+                }
+            )
+        if runtime is not None:
+            runtime_session = Path(runtime.session)
+            try:
+                runtime_relative = runtime_session.resolve().relative_to(
+                    session_directory.resolve()
+                )
+                payload["runtime_session_directory"] = str(runtime_relative).replace("\\", "/")
+            except (OSError, ValueError):
+                payload["runtime_session_directory"] = str(runtime_session)
+            payload["runtime_events_path"] = str(
+                Path(payload["runtime_session_directory"]) / "events.jsonl"
+            )
+            payload["runtime_input_count"] = int(getattr(runtime, "input_count", 0))
+        return payload
+
+    try:
+        with delegated_runtime_context(context):
+            with DevelopmentSession(
+                owner=f"pnsctl-delegated-daily-row-recon:{flow_id}",
+                invocation_id=invocation_id,
+                session_directory=session_directory,
+                max_inputs=2,
+            ) as active_session:
+                session = active_session
+                runtime = LocalBlueStacksRuntime.connect(
+                    adb=str(BLUESTACKS_ADB),
+                    serial=BLUESTACKS_SERIAL,
+                    output_directory=session_directory / "runtime",
+                    workflow="daily-row-reconnaissance",
+                    execute=True,
+                )
+                route_result = run_daily_row_reconnaissance(runtime, active_session)
+                active_session.terminal_status = route_result.get(
+                    "status", "evidence_required"
+                )
+
+        ownership_released = _delegated_observation_ownership_released(session)
+        if not ownership_released:
+            raise OperatorError("daily row reconnaissance ownership release is unproven")
+        checkpoint_after = _checkpoint_hashes()
+        if checkpoint_after != checkpoint_before:
+            route_result = {
+                **(route_result or {}),
+                "status": "evidence_required",
+                "reason": "daily row reconnaissance mutated a checkpoint artifact",
+            }
+        status = str((route_result or {}).get("status") or "evidence_required")
+        payload = base_payload(status)
+        payload["ownership_released"] = True
+        _write_daily_recon_artifacts(
+            session_directory,
+            payload,
+            ownership_released=True,
+        )
+        if status == "observed":
+            _validate_daily_recon_artifacts(session_directory, payload)
+        context.record_terminal(status=status, payload=payload)
+        terminal_recorded = True
+        return json.dumps(payload, sort_keys=True, default=str)
+    except BaseException as exc:
+        ownership_released = _delegated_observation_ownership_released(session)
+        failure = base_payload(
+            "evidence_required",
+            f"{type(exc).__name__}: {exc}",
+        )
+        failure["ownership_released"] = ownership_released
+        if not terminal_recorded:
+            context.record_terminal(status="evidence_required", payload=failure)
+            terminal_recorded = True
+        try:
+            _write_daily_recon_artifacts(
+                session_directory,
+                failure,
+                ownership_released=ownership_released,
+            )
+        except BaseException as artifact_error:
+            raise exc.with_traceback(exc.__traceback__) from artifact_error
+        raise exc.with_traceback(exc.__traceback__)
+
+
 def development_session_observe(
     *,
     max_inputs: int = 12,
@@ -4883,6 +5241,14 @@ def parser() -> argparse.ArgumentParser:
     development_observe.add_argument("--flow-id")
     development_observe.add_argument("--scenario")
     development_observe.add_argument("--variant")
+    daily_row_recon = development_sub.add_parser("daily-row-reconnaissance")
+    daily_row_recon.add_argument("--max-inputs", type=int, required=True)
+    daily_row_recon.add_argument("--delegated-receipt", type=Path, required=True)
+    daily_row_recon.add_argument("--agent-identity", required=True)
+    daily_row_recon.add_argument("--task-id", required=True)
+    daily_row_recon.add_argument("--flow-id", required=True)
+    daily_row_recon.add_argument("--scenario", required=True)
+    daily_row_recon.add_argument("--variant", required=True)
     delegated_dry_run = development_sub.add_parser("delegated-dry-run")
     delegated_dry_run.add_argument("--delegated-receipt", type=Path, required=True)
     delegated_dry_run.add_argument("--agent-identity", required=True)
@@ -5207,6 +5573,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             if args.development_command == "observe":
                 output = development_session_observe(
+                    max_inputs=args.max_inputs,
+                    delegated_receipt=args.delegated_receipt,
+                    agent_identity=args.agent_identity,
+                    task_id=args.task_id,
+                    flow_id=args.flow_id,
+                    scenario=args.scenario,
+                    variant=args.variant,
+                    command_argv=command_argv,
+                )
+            elif args.development_command == "daily-row-reconnaissance":
+                output = development_session_daily_row_reconnaissance(
                     max_inputs=args.max_inputs,
                     delegated_receipt=args.delegated_receipt,
                     agent_identity=args.agent_identity,

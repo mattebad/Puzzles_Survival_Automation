@@ -133,6 +133,12 @@ P&S project workflow constraints:
   architecture/integration checkpoint containing only the manifest, changed
   paths, compact diff summary, test receipts, tester findings, and unresolved
   decisions.
+- In each execution manifest, record the exact usage-export model slug including
+  reasoning level, never a display name. Record start UTC immediately before an
+  assigned turn and completion UTC immediately after it using RFC 3339 UTC with
+  millisecond precision (`YYYY-MM-DDTHH:MM:SS.sssZ`). Never invent missing
+  timestamps; mark them `not recorded` and add an exact matched usage-event UTC
+  later when one can be established from retained evidence.
 - For substantive behavior changes, run the existing deterministic validation hierarchy—focused and flow-specific checks followed by any required architecture or integration gate—before any live emulator canary. Use the local BlueStacks / P&S emulator for current live verification; use Bliss only for an explicitly selected future porting or Bliss-validation task.
 - For cross-cutting changes involving state recognition, navigation, recovery or retry behavior, ADB contracts, or multiple interacting production packages, the parent performs the integration review and owns the final integration decision; do not automatically spawn a child `executor_sol`.
 - Never use `git add .`. Never automatically commit unrelated working-tree changes. Stage only explicitly enumerated active-task paths and preserve all pre-existing user modifications; this overrides automatic closure Git defaults.

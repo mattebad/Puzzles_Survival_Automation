@@ -7,14 +7,20 @@
 ## Execution routing and timing
 - Host: `<cursor | codex | other>`
 - Parent conversation ID: `<stable host conversation identifier>`
+- Model values must be exact usage-export slugs including reasoning level, for
+  example `gpt-5.6-sol-high`, not display names such as `GPT-5.6 Sol`.
+- Record start immediately before invocation and completion immediately after
+  return as RFC 3339 UTC milliseconds (`YYYY-MM-DDTHH:MM:SS.sssZ`).
+- Never infer an unknown execution timestamp. Use `not recorded`, then populate
+  usage-event UTC from an exact retained CSV match when available.
 
-| Role | Model | Agent/session ID | Started UTC | Completed UTC |
-| --- | --- | --- | --- | --- |
-| `architecture_planner` | `<resolved model>` | `<identifier>` | `<ISO-8601 UTC>` | `<ISO-8601 UTC>` |
-| `execution_coordinator` | `<resolved model>` | `<identifier>` | `<ISO-8601 UTC>` | `<ISO-8601 UTC>` |
-| `bounded_implementer` | `<resolved model or not used>` | `<identifier or not used>` | `<ISO-8601 UTC or not used>` | `<ISO-8601 UTC or not used>` |
-| `independent_tester` | `<resolved model or not used>` | `<identifier or not used>` | `<ISO-8601 UTC or not used>` | `<ISO-8601 UTC or not used>` |
-| `escalation_architect` | `<resolved model or not used>` | `<identifier or not used>` | `<ISO-8601 UTC or not used>` | `<ISO-8601 UTC or not used>` |
+| Role | Exact model slug | Agent/session ID | Started UTC | Completed UTC | Usage-event UTC |
+| --- | --- | --- | --- | --- | --- |
+| `architecture_planner` | `<exact slug>` | `<identifier>` | `<RFC3339 UTC milliseconds>` | `<RFC3339 UTC milliseconds>` | `<matched UTC value(s) or pending>` |
+| `execution_coordinator` | `<exact slug>` | `<identifier>` | `<RFC3339 UTC milliseconds>` | `<RFC3339 UTC milliseconds>` | `<matched UTC value(s) or pending>` |
+| `bounded_implementer` | `<exact slug or not used>` | `<identifier or not used>` | `<UTC or not used>` | `<UTC or not used>` | `<matched UTC or not used/pending>` |
+| `independent_tester` | `<exact slug or not used>` | `<identifier or not used>` | `<UTC or not used>` | `<UTC or not used>` | `<matched UTC or not used/pending>` |
+| `escalation_architect` | `<exact slug or not used>` | `<identifier or not used>` | `<UTC or not used>` | `<UTC or not used>` | `<matched UTC or not used/pending>` |
 
 ## Frozen architecture decision
 - Decision: `<accepted architecture and rationale>`

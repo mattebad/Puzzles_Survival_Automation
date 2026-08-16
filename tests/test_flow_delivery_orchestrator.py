@@ -449,6 +449,8 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         self.assertIn("execution_coordinator", project)
         self.assertIn("independent code-and-acceptance reviewer", project)
         self.assertIn("Exclude\n    cosmetic preferences", project)
+        self.assertIn("exact usage-export model slug", project)
+        self.assertIn("YYYY-MM-DDTHH:MM:SS.sssZ", project)
         routing = (
             ROOT / ".cursor" / "rules" / "pns-model-routing.mdc"
         ).read_text(encoding="utf-8")
@@ -466,7 +468,10 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         )
         self.assertIn("## Execution routing and timing", manifest)
         self.assertIn("Parent conversation ID", manifest)
-        self.assertIn("| Role | Model | Agent/session ID |", manifest)
+        self.assertIn("| Role | Exact model slug | Agent/session ID |", manifest)
+        self.assertIn("gpt-5.6-sol-high", manifest)
+        self.assertIn("Usage-event UTC", manifest)
+        self.assertIn("RFC 3339 UTC milliseconds", manifest)
         self.assertIn("## Frozen architecture decision", manifest)
         self.assertIn("## Escalation conditions", manifest)
 
