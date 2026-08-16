@@ -104,6 +104,15 @@ _POPUP_BODY_MARKERS = (
 )
 _WORLD_SEARCH_REGION = (0, 960, 240, 1120)
 _WORLD_COORDINATE_HUD_REGION = (240, 80, 600, 220)
+_FOOTER_NAVIGATION_REGION = (0, 1160, 150, 1280)
+_FOOTER_OCR_SCALE = 3.0
+_FOOTER_MIN_TEXT_CANDIDATE_OVERLAP = 0.50
+_FOOTER_EFFECTIVE_CANDIDATE_MIN_OVERLAP = 0.70
+_FOOTER_EFFECTIVE_CANDIDATE_MIN_IOU = 0.65
+_FOOTER_CONTROL_LABELS: Mapping[str, tuple[str, ...]] = {
+    HOME_TO_WORLD: ("world",),
+    WORLD_TO_HOME: ("home", "base"),
+}
 _WORLD_SEARCH_CATEGORY_MARKERS = (
     ("zombie", "zombie"),
     ("zombie lair", "zombielair"),
@@ -248,6 +257,59 @@ def _ocr_hits(frame: np.ndarray) -> list[tuple[str, tuple[int, int, int, int]]]:
             min(NATIVE_HEIGHT, top + height + 10),
         )
         if _valid_roi(roi):
+            hits.append((text, roi))
+    return hits
+
+
+def _footer_navigation_ocr_hits(
+    frame: np.ndarray,
+) -> list[tuple[str, tuple[int, int, int, int]]]:
+    """Run fallback OCR only over the current bottom-left footer controls."""
+
+    if frame is None or getattr(frame, "shape", ())[:2] != (
+        NATIVE_HEIGHT,
+        NATIVE_WIDTH,
+    ):
+        return []
+    x0, y0, x1, y1 = _FOOTER_NAVIGATION_REGION
+    crop = frame[y0:y1, x0:x1]
+    if crop.size == 0:
+        return []
+    try:
+        import pytesseract
+
+        data = pytesseract.image_to_data(
+            cv2.resize(
+                crop,
+                None,
+                fx=_FOOTER_OCR_SCALE,
+                fy=_FOOTER_OCR_SCALE,
+                interpolation=cv2.INTER_CUBIC,
+            ),
+            config="--psm 6",
+            output_type=pytesseract.Output.DICT,
+        )
+    except Exception:
+        return []
+    hits: list[tuple[str, tuple[int, int, int, int]]] = []
+    for index, raw in enumerate(data.get("text", ())):
+        text = _normalized(raw)
+        if not text:
+            continue
+        try:
+            left = int(data["left"][index] / _FOOTER_OCR_SCALE)
+            top = int(data["top"][index] / _FOOTER_OCR_SCALE)
+            width = int(data["width"][index] / _FOOTER_OCR_SCALE)
+            height = int(data["height"][index] / _FOOTER_OCR_SCALE)
+        except (KeyError, TypeError, ValueError, IndexError):
+            continue
+        roi = (
+            x0 + left,
+            y0 + top,
+            x0 + left + width,
+            y0 + top + height,
+        )
+        if _valid_roi(roi) and _roi_contains(_FOOTER_NAVIGATION_REGION, roi):
             hits.append((text, roi))
     return hits
 
@@ -578,6 +640,110 @@ def _control_binding(
     if candidate is None:
         return None
     return candidate, (text,), "current-frame-bounded-candidate"
+
+
+def _footer_control_binding(
+    frame: np.ndarray,
+    identity: str,
+    *,
+    footer_hits: list[tuple[str, tuple[int, int, int, int]]],
+    candidates: list[tuple[int, int, int, int]] | None = None,
+) -> tuple[tuple[int, int, int, int], tuple[str, ...], str] | None:
+    """Bind one exact footer label to an independently measured candidate."""
+
+    wanted = set(_FOOTER_CONTROL_LABELS[identity])
+    matching = [
+        (text, roi)
+        for text, roi in footer_hits
+        if _compact(text) in wanted
+        and _roi_contains(_FOOTER_NAVIGATION_REGION, roi)
+    ]
+    observed = {
+        _compact(text)
+        for text, roi in footer_hits
+        if _compact(text) in {"world", "home", "base"}
+        and _roi_contains(_FOOTER_NAVIGATION_REGION, roi)
+    }
+    if (
+        len(matching) != 1
+        or ("world" in observed and bool(observed & {"home", "base"}))
+    ):
+        return None
+    text, text_roi = matching[0]
+    associated: list[tuple[int, int, int, int]] = []
+    tx0, ty0, tx1, ty1 = text_roi
+    text_area = max(1, (tx1 - tx0) * (ty1 - ty0))
+    for candidate in (
+        _visual_candidate_boxes(frame) if candidates is None else candidates
+    ):
+        if not _valid_roi(candidate):
+            continue
+        x0, y0, x1, y1 = candidate
+        overlap = max(0, min(tx1, x1) - max(tx0, x0)) * max(
+            0, min(ty1, y1) - max(ty0, y0)
+        )
+        if overlap / text_area >= _FOOTER_MIN_TEXT_CANDIDATE_OVERLAP:
+            associated.append(candidate)
+
+    distinct: list[tuple[int, int, int, int]] = []
+    for candidate in associated:
+        candidate_area = max(1, (candidate[2] - candidate[0]) * (candidate[3] - candidate[1]))
+        equivalent = False
+        for existing in distinct:
+            existing_area = max(
+                1,
+                (existing[2] - existing[0]) * (existing[3] - existing[1]),
+            )
+            intersection = max(
+                0,
+                min(candidate[2], existing[2]) - max(candidate[0], existing[0]),
+            ) * max(
+                0,
+                min(candidate[3], existing[3]) - max(candidate[1], existing[1]),
+            )
+            if (
+                intersection / min(candidate_area, existing_area)
+                >= _FOOTER_EFFECTIVE_CANDIDATE_MIN_OVERLAP
+                and intersection
+                / max(1, candidate_area + existing_area - intersection)
+                >= _FOOTER_EFFECTIVE_CANDIDATE_MIN_IOU
+                and abs(
+                    (candidate[0] + candidate[2])
+                    - (existing[0] + existing[2])
+                )
+                <= max(candidate[2] - candidate[0], existing[2] - existing[0]) * 0.15
+                and abs(
+                    (candidate[1] + candidate[3])
+                    - (existing[1] + existing[3])
+                )
+                <= max(candidate[3] - candidate[1], existing[3] - existing[1]) * 0.15
+            ):
+                equivalent = True
+                break
+        if not equivalent:
+            distinct.append(candidate)
+    if len(distinct) != 1:
+        return None
+    return distinct[0], (text,), "current-frame-bounded-candidate"
+
+
+def _footer_fallback_identity(
+    footer_hits: list[tuple[str, tuple[int, int, int, int]]],
+) -> str | None:
+    """Select one screen-specific identity from one fallback OCR result."""
+
+    labels = {
+        _compact(text)
+        for text, roi in footer_hits
+        if _roi_contains(_FOOTER_NAVIGATION_REGION, roi)
+        and _compact(text) in {"world", "home", "base"}
+    }
+    if len(labels) != 1:
+        return None
+    label = next(iter(labels))
+    if label == "world":
+        return HOME_TO_WORLD
+    return WORLD_TO_HOME
 
 
 def _merge_overlapping_candidates(
@@ -995,6 +1161,8 @@ def recognize_world_frame(
     controls: dict[str, tuple[int, int, int, int]] = {}
     control_semantics: dict[str, tuple[str, ...]] = {}
     control_geometry_source: dict[str, str] = {}
+    footer_fallback_identities: set[str] = set()
+    footer_hits: list[tuple[str, tuple[int, int, int, int]]] | None = None
     for identity in (
         HOME_TO_WORLD,
         WORLD_SEARCH_CLOSE,
@@ -1011,6 +1179,25 @@ def recognize_world_frame(
             controls[identity] = roi
             control_semantics[identity] = semantics
             control_geometry_source[identity] = geometry_source
+    if not (
+        HOME_TO_WORLD in controls
+        or WORLD_TO_HOME in controls
+    ):
+        footer_hits = _footer_navigation_ocr_hits(frame)
+        fallback_identity = _footer_fallback_identity(footer_hits)
+        if fallback_identity is not None:
+            binding = _footer_control_binding(
+                frame,
+                fallback_identity,
+                footer_hits=footer_hits,
+                candidates=visual_candidates,
+            )
+            if binding is not None:
+                roi, semantics, geometry_source = binding
+                controls[fallback_identity] = roi
+                control_semantics[fallback_identity] = semantics
+                control_geometry_source[fallback_identity] = geometry_source
+                footer_fallback_identities.add(fallback_identity)
     search_binding = _visual_search_entry_binding(
         frame,
         candidates=visual_candidates,
@@ -1042,8 +1229,15 @@ def recognize_world_frame(
     else:
         state = "UNKNOWN"
     zoom = "WORLD_ZOOM_UNKNOWN" if state in {WORLD_READY, WORLD_SEARCH_OPEN} else "HOME"
+    footer_evidence = tuple(
+        text
+        for identity in footer_fallback_identities
+        for text in control_semantics.get(identity, ())
+        if any(_compact(text) == label for label in _FOOTER_CONTROL_LABELS[identity])
+    )
     evidence = (
         tuple(text for text, _roi in hits)
+        + footer_evidence
         + coordinate_evidence
         + menu_evidence
     )

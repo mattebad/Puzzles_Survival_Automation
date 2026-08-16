@@ -21,9 +21,11 @@ from scripts.flow_delivery_world_map_bluestacks import (
     run_world_map_navigation_foundation,
 )
 from scripts import pnsctl
+from scripts import world_map_navigation_bluestacks as navigation
 from scripts.world_map_navigation_bluestacks import (
     ALLOWED_CONTROL_IDENTITIES,
     BLOCKED_FAIL_CLOSED,
+    HOME_TO_WORLD,
     HOME_CANONICAL,
     HOME_READY,
     NAVIGATION_ONLY_COMPLETE,
@@ -1405,6 +1407,185 @@ class WorldMapNavigationTests(unittest.TestCase):
             ).status,
             "absent",
         )
+
+    def test_footer_fallback_binds_exact_world_to_current_footer_candidate(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        candidate = (36, 1242, 112, 1265)
+        text_roi = (39, 1242, 108, 1261)
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[candidate],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
+            return_value=[("World", text_roi)],
+        ) as fallback, patch(
+            "scripts.world_map_navigation_bluestacks._footer_control_binding",
+            wraps=navigation._footer_control_binding,
+        ) as footer_binding:
+            result = recognize_world_frame(
+                frame,
+                source_frame_sha256="7" * 64,
+                evidence_ref="current-home-frame.png",
+            )
+        self.assertEqual(result.state, HOME_READY)
+        self.assertEqual(result.controls[HOME_TO_WORLD], candidate)
+        self.assertEqual(result.control_semantics[HOME_TO_WORLD], ("World",))
+        self.assertEqual(
+            result.control_geometry_source[HOME_TO_WORLD],
+            "current-frame-bounded-candidate",
+        )
+        fallback.assert_called_once_with(frame)
+        footer_binding.assert_called_once()
+        self.assertEqual(footer_binding.call_args.args[1], HOME_TO_WORLD)
+
+    def test_normal_world_footer_binding_skips_home_fallback(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        home_candidate = (20, 1167, 128, 1258)
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[("Home", (20, 1220, 120, 1270))],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[home_candidate],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
+            side_effect=AssertionError("fallback must not run after normal World binding"),
+        ):
+            result = recognize_world_frame(
+                frame,
+                source_frame_sha256="a" * 64,
+                evidence_ref="current-world-frame.png",
+            )
+        self.assertEqual(result.controls[WORLD_TO_HOME], home_candidate)
+
+    def test_normal_home_footer_binding_skips_world_fallback(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        world_candidate = (36, 1242, 112, 1265)
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[("World", (39, 1242, 108, 1261))],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[world_candidate],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
+            side_effect=AssertionError("fallback must not run after normal Home binding"),
+        ):
+            result = recognize_world_frame(
+                frame,
+                source_frame_sha256="b" * 64,
+                evidence_ref="current-home-frame.png",
+            )
+        self.assertEqual(result.controls[HOME_TO_WORLD], world_candidate)
+
+    def test_footer_fallback_rejects_mixed_ambiguous_unrelated_or_unbound_labels(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        candidate = (36, 1242, 112, 1265)
+        text_roi = (39, 1242, 108, 1261)
+        cases = (
+            (
+                [("World", text_roi), ("Home", (28, 1220, 75, 1240))],
+                [candidate],
+            ),
+            (
+                [("World", text_roi), ("World", (38, 1242, 109, 1261))],
+                [candidate],
+            ),
+            ([("Quest", text_roi)], [candidate]),
+            ([("World", text_roi)], []),
+        )
+        for footer_hits, candidates in cases:
+            with self.subTest(footer_hits=footer_hits, candidates=candidates):
+                with patch(
+                    "scripts.world_map_navigation_bluestacks._ocr_hits",
+                    return_value=[],
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+                    return_value=candidates,
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
+                    return_value=footer_hits,
+                ):
+                    result = recognize_world_frame(
+                        frame,
+                        source_frame_sha256="8" * 64,
+                        evidence_ref="current-home-frame.png",
+                    )
+                self.assertEqual(result.state, "UNKNOWN")
+                self.assertNotIn(HOME_TO_WORLD, result.controls)
+
+    def test_footer_fallback_binds_base_for_world_recovery_without_atlas_authority(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        home_candidate = (20, 1167, 128, 1258)
+        coordinate_hits = [
+            ("X:299", (290, 70, 360, 115)),
+            ("Y:495", (360, 70, 430, 115)),
+        ]
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=coordinate_hits,
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[home_candidate],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
+            return_value=[("Base", (30, 1243, 100, 1267))],
+        ):
+            result = recognize_world_home_recovery(
+                frame,
+                source_frame_sha256="9" * 64,
+                evidence_ref="current-world-recovery-frame.png",
+            )
+        self.assertEqual(result.state, WORLD_READY)
+        self.assertEqual(result.controls[WORLD_TO_HOME], home_candidate)
+        self.assertEqual(result.control_semantics[WORLD_TO_HOME], ("Base",))
+        self.assertNotEqual(result.zoom_identity, WORLD_ZOOM_SUPPORTED)
+
+    def test_footer_binding_rejects_distinct_candidates_but_deduplicates_nested_equivalents(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        text_roi = (39, 1242, 108, 1261)
+        exact = (36, 1242, 112, 1265)
+        nested_equivalent = (35, 1241, 113, 1266)
+        distinct = (50, 1242, 126, 1265)
+
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[exact, nested_equivalent],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
+            return_value=[("World", text_roi)],
+        ):
+            resolved = recognize_world_frame(
+                frame,
+                source_frame_sha256="c" * 64,
+                evidence_ref="current-home-frame.png",
+            )
+        self.assertEqual(resolved.state, HOME_READY)
+        self.assertEqual(resolved.controls[HOME_TO_WORLD], exact)
+
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[exact, distinct],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
+            return_value=[("World", text_roi)],
+        ):
+            ambiguous = recognize_world_frame(
+                frame,
+                source_frame_sha256="d" * 64,
+                evidence_ref="current-home-frame.png",
+            )
+        self.assertEqual(ambiguous.state, "UNKNOWN")
+        self.assertNotIn(HOME_TO_WORLD, ambiguous.controls)
 
     def test_current_frame_magnifier_binds_search_without_zoom_authority(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
