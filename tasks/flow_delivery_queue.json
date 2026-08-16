@@ -3609,7 +3609,7 @@
       ],
       "blocked_reason": "",
       "next_concrete_action": "Run the explicitly authorized navigation-only fifth canary from frozen commit 912be9a after focused, shared-navigation, retained-frame, independent tester, parent integration, and zero-input observation acceptance.",
-      "last_completed_stage": "parent_integration_accepted",
+      "last_completed_stage": "focused_validation",
       "last_commit": "912be9af79cddff8a1ad3c2386d66d995107cb9b",
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
       "acceptance_criteria": [
