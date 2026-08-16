@@ -30,7 +30,13 @@ from scripts.world_map_navigation_bluestacks import (
     POPUP_CLOSE,
     SafePopupHandler,
     WorldNavigationBlocked,
+    WORLD_READY,
+    WORLD_SEARCH_ENTRY,
+    WORLD_SEARCH_OPEN,
+    WORLD_TO_HOME,
     _group_spatial_ocr_hits,
+    _world_search_menu_evidence,
+    _visual_search_entry_binding,
     recover_world_map_home,
     recognize_allowlisted_popup,
     recognize_world_frame,
@@ -1397,6 +1403,207 @@ class WorldMapNavigationTests(unittest.TestCase):
                 source_frame_sha256="e" * 64,
             ).status,
             "absent",
+        )
+
+    def test_current_frame_magnifier_binds_search_without_zoom_authority(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        search_button = (94, 1026, 190, 1093)
+        home_button = (20, 1167, 132, 1258)
+        cv2.rectangle(frame, search_button[:2], search_button[2:], (50, 50, 50), -1)
+        cv2.circle(frame, (122, 1052), 16, (230, 230, 230), 3)
+        cv2.line(frame, (133, 1063), (151, 1081), (230, 230, 230), 3)
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[
+                ("X:299", (290, 110, 350, 145)),
+                ("Y:495", (360, 110, 420, 145)),
+                ("Home", (20, 1220, 120, 1270)),
+            ],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[search_button, home_button],
+        ):
+            result = recognize_world_frame(
+                frame,
+                source_frame_sha256="1" * 64,
+                evidence_ref="current-native-world.png",
+            )
+        self.assertEqual(result.state, WORLD_READY)
+        self.assertEqual(result.zoom_identity, "WORLD_ZOOM_UNKNOWN")
+        self.assertEqual(result.zoom_evidence, ())
+        self.assertEqual(result.localization_evidence, ())
+        self.assertEqual(result.controls[WORLD_SEARCH_ENTRY], search_button)
+        self.assertEqual(result.controls[WORLD_TO_HOME], home_button)
+        self.assertIn("magnifying-glass lens", result.semantic_evidence)
+        self.assertIn("magnifying-glass handle", result.semantic_evidence)
+
+    def test_magnifier_missing_handle_and_ambiguous_candidates_fail_closed(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        first = (64, 1026, 134, 1093)
+        second = (150, 1026, 220, 1093)
+        for x0, y0, x1, y1 in (first, second):
+            cv2.rectangle(frame, (x0, y0), (x1, y1), (50, 50, 50), -1)
+            cv2.circle(frame, (x0 + 28, y0 + 26), 16, (230, 230, 230), 3)
+        self.assertIsNone(_visual_search_entry_binding(frame, candidates=[first]))
+        cv2.line(frame, (first[0] + 39, first[1] + 37), (first[0] + 57, first[1] + 55), (230, 230, 230), 3)
+        cv2.circle(frame, (second[0] + 28, second[1] + 26), 16, (230, 230, 230), 3)
+        cv2.line(frame, (second[0] + 39, second[1] + 37), (second[0] + 57, second[1] + 55), (230, 230, 230), 3)
+        self.assertIsNone(
+            _visual_search_entry_binding(frame, candidates=[first, second])
+        )
+
+    def test_world_context_requires_coordinate_hud_and_independent_home_binding(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        search_button = (94, 1026, 190, 1093)
+        home_button = (20, 1167, 132, 1258)
+        cv2.rectangle(frame, search_button[:2], search_button[2:], (50, 50, 50), -1)
+        cv2.circle(frame, (122, 1052), 16, (230, 230, 230), 3)
+        cv2.line(frame, (133, 1063), (151, 1081), (230, 230, 230), 3)
+        common_hits = [
+            ("X:299", (290, 110, 350, 145)),
+            ("Y:495", (360, 110, 420, 145)),
+        ]
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=common_hits,
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[search_button, home_button],
+        ):
+            missing_home = recognize_world_frame(
+                frame,
+                source_frame_sha256="2" * 64,
+                evidence_ref="current-native-world.png",
+            )
+        self.assertEqual(missing_home.state, "UNKNOWN")
+        self.assertIn(WORLD_SEARCH_ENTRY, missing_home.controls)
+        self.assertNotIn(WORLD_TO_HOME, missing_home.controls)
+
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[
+                ("Home", (20, 1220, 120, 1270)),
+            ],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[search_button, home_button],
+        ):
+            missing_hud = recognize_world_frame(
+                frame,
+                source_frame_sha256="3" * 64,
+                evidence_ref="current-native-world.png",
+            )
+        self.assertEqual(missing_hud.state, "UNKNOWN")
+
+    def test_search_menu_requires_visible_categories_without_gas_or_category_binding(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        home_button = (20, 1167, 132, 1258)
+        category_hits = [
+            ("X:299", (290, 110, 350, 145)),
+            ("Y:495", (360, 110, 420, 145)),
+            ("Home", (20, 1220, 120, 1270)),
+            ("Zombie", (180, 300, 300, 340)),
+            ("Zombie Lair", (180, 360, 340, 400)),
+            ("Food", (180, 420, 250, 460)),
+            ("Wood", (180, 480, 260, 520)),
+            ("Steel", (180, 540, 270, 580)),
+        ]
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=category_hits,
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[home_button],
+        ):
+            result = recognize_world_frame(
+                frame,
+                source_frame_sha256="4" * 64,
+                evidence_ref="current-native-search.png",
+            )
+        self.assertEqual(result.state, WORLD_SEARCH_OPEN)
+        self.assertEqual(result.zoom_identity, "WORLD_ZOOM_UNKNOWN")
+        self.assertEqual(result.zoom_evidence, ())
+        self.assertEqual(result.localization_evidence, ())
+        self.assertNotIn("food", result.controls)
+        self.assertNotIn("wood", result.controls)
+        self.assertNotIn("steel", result.controls)
+        self.assertNotIn("zombie", result.controls)
+
+        gas_only = [
+            ("X:299", (290, 110, 350, 145)),
+            ("Y:495", (360, 110, 420, 145)),
+            ("Home", (20, 1220, 120, 1270)),
+            ("Zombie", (180, 300, 300, 340)),
+            ("Gas", (180, 360, 250, 400)),
+        ]
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=gas_only,
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[home_button],
+        ):
+            gas_result = recognize_world_frame(
+                frame,
+                source_frame_sha256="5" * 64,
+                evidence_ref="current-native-search.png",
+            )
+        self.assertEqual(gas_result.state, "UNKNOWN")
+
+    def test_lone_zombie_lair_menu_hit_fails_closed(self):
+        self.assertEqual(
+            _world_search_menu_evidence(
+                [("Zombie Lair", (180, 300, 340, 340))]
+            ),
+            (),
+        )
+
+    def test_duplicate_category_hits_at_one_roi_fail_closed(self):
+        roi = (180, 300, 300, 340)
+        self.assertEqual(
+            _world_search_menu_evidence(
+                [("Zombie", roi), ("Food", roi)]
+            ),
+            (),
+        )
+
+    def test_zombie_lair_and_food_at_distinct_rois_recognize_menu(self):
+        evidence = _world_search_menu_evidence(
+            [
+                ("Zombie Lair", (180, 300, 340, 340)),
+                ("Food", (180, 360, 250, 400)),
+            ]
+        )
+        self.assertIn("visible Search category semantics", evidence)
+        self.assertIn("Search category: zombie lair", evidence)
+        self.assertIn("Search category: food", evidence)
+
+    def test_hud_only_world_route_accepts_unknown_zoom_without_extra_inputs(self):
+        frames = route_frames()
+        for value in frames:
+            if value["state"] in {"WORLD_READY", "WORLD_SEARCH_OPEN"}:
+                value["zoom_identity"] = "WORLD_ZOOM_UNKNOWN"
+                value.pop("zoom_evidence", None)
+                value.pop("localization_evidence", None)
+        runtime = FakeRuntime(frames)
+        result = run_world_map_navigation(
+            runtime,
+            recognizer=scripted_recognizer,
+            maximum_inputs=4,
+        )
+        self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
+        self.assertEqual(result["navigation_input_count"], 4)
+        self.assertEqual(
+            [
+                call[1].get("target_identity", "android-back")
+                for call in runtime.calls
+            ],
+            [
+                "home-to-world",
+                "world-search-entry",
+                "android-back",
+                "world-to-home",
+            ],
         )
 
     def test_world_recovery_binds_home_without_atlas_authority(self):

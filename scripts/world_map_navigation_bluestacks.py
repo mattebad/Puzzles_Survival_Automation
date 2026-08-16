@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 import hashlib
+import math
 import os
 import re
 import time
@@ -100,6 +101,15 @@ _POPUP_BODY_MARKERS = (
     "log in every day to get vip pts",
     "obtained vip pts",
     "obtained vip pt",
+)
+_WORLD_SEARCH_REGION = (0, 960, 240, 1120)
+_WORLD_COORDINATE_HUD_REGION = (240, 80, 600, 220)
+_WORLD_SEARCH_CATEGORY_MARKERS = (
+    ("zombie", "zombie"),
+    ("zombie lair", "zombielair"),
+    ("food", "food"),
+    ("wood", "wood"),
+    ("steel", "steel"),
 )
 
 
@@ -528,13 +538,16 @@ def _candidate_associated_with(
     text_roi: tuple[int, int, int, int],
     *,
     minimum_overlap: float = 0.10,
+    candidates: list[tuple[int, int, int, int]] | None = None,
 ) -> tuple[int, int, int, int] | None:
     """Bind text to a separately detected visual candidate."""
 
     tx0, ty0, tx1, ty1 = text_roi
     text_area = max(1, (tx1 - tx0) * (ty1 - ty0))
     best: tuple[float, tuple[int, int, int, int]] | None = None
-    for candidate in _visual_candidate_boxes(frame):
+    for candidate in (
+        _visual_candidate_boxes(frame) if candidates is None else candidates
+    ):
         x0, y0, x1, y1 = candidate
         overlap = max(0, min(tx1, x1) - max(tx0, x0)) * max(
             0, min(ty1, y1) - max(ty0, y0)
@@ -549,32 +562,268 @@ def _control_binding(
     frame: np.ndarray,
     hits: list[tuple[str, tuple[int, int, int, int]]],
     identity: str,
+    *,
+    candidates: list[tuple[int, int, int, int]] | None = None,
 ) -> tuple[tuple[int, int, int, int], tuple[str, ...], str] | None:
     labels = _CONTROL_LABELS[identity]
     hit = _hit_for_labels(hits, labels)
     if hit is None:
         return None
     text, text_roi = hit
-    candidate = _candidate_associated_with(frame, text_roi)
+    candidate = _candidate_associated_with(
+        frame,
+        text_roi,
+        candidates=candidates,
+    )
     if candidate is None:
         return None
     return candidate, (text,), "current-frame-bounded-candidate"
 
 
-def _world_visual_evidence(
+def _merge_overlapping_candidates(
+    candidates: list[tuple[int, int, int, int]],
+) -> list[tuple[int, int, int, int]]:
+    """Merge nested contour boxes while preserving measured current-frame bounds."""
+
+    merged: list[tuple[int, int, int, int]] = []
+    for candidate in sorted(candidates, key=lambda roi: (roi[1], roi[0], roi[2], roi[3])):
+        if not _valid_roi(candidate):
+            continue
+        x0, y0, x1, y1 = candidate
+        area = max(1, (x1 - x0) * (y1 - y0))
+        for index, existing in enumerate(merged):
+            ex0, ey0, ex1, ey1 = existing
+            overlap = max(0, min(x1, ex1) - max(x0, ex0)) * max(
+                0, min(y1, ey1) - max(y0, ey0)
+            )
+            existing_area = max(1, (ex1 - ex0) * (ey1 - ey0))
+            if overlap / min(area, existing_area) < 0.45:
+                continue
+            merged[index] = (
+                min(x0, ex0),
+                min(y0, ey0),
+                max(x1, ex1),
+                max(y1, ey1),
+            )
+            break
+        else:
+            merged.append(candidate)
+    return sorted(merged, key=lambda roi: (roi[1], roi[0], roi[2], roi[3]))
+
+
+def _magnifier_has_lens_and_handle(
+    frame: np.ndarray,
+    candidate: tuple[int, int, int, int],
+) -> bool:
+    """Require a current-frame circular lens and its lower-right handle."""
+
+    if not _valid_roi(candidate):
+        return False
+    x0, y0, x1, y1 = candidate
+    crop = frame[y0:y1, x0:x1]
+    if crop.size == 0:
+        return False
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.medianBlur(gray, 5)
+    circles = cv2.HoughCircles(
+        blurred,
+        cv2.HOUGH_GRADIENT,
+        dp=1,
+        minDist=12,
+        param1=60,
+        param2=16,
+        minRadius=9,
+        maxRadius=max(10, min(gray.shape) // 2),
+    )
+    if circles is None:
+        return False
+    edges = cv2.Canny(gray, 60, 180)
+    lines = cv2.HoughLinesP(
+        edges,
+        1,
+        np.pi / 180,
+        threshold=8,
+        minLineLength=8,
+        maxLineGap=4,
+    )
+    if lines is None:
+        return False
+    for raw_circle in circles[0]:
+        center_x, center_y, radius = (float(value) for value in raw_circle)
+        if (
+            radius < 12
+            or radius > min(gray.shape) * 0.45
+            or center_x > (x1 - x0) * 0.40
+        ):
+            continue
+        for raw_line in lines[:, 0]:
+            first = np.array(raw_line[:2], dtype=float)
+            second = np.array(raw_line[2:], dtype=float)
+            first_distance = float(
+                np.linalg.norm(first - np.array((center_x, center_y)))
+            )
+            second_distance = float(
+                np.linalg.norm(second - np.array((center_x, center_y)))
+            )
+            near, far = (
+                (first, second)
+                if first_distance <= second_distance
+                else (second, first)
+            )
+            near_distance = min(first_distance, second_distance)
+            far_distance = max(first_distance, second_distance)
+            dx = float(far[0] - near[0])
+            dy = float(far[1] - near[1])
+            angle = math.degrees(math.atan2(dy, dx)) if dx > 0 else -180.0
+            if not (
+                near_distance <= radius * 1.35
+                and far_distance >= radius * 1.45
+                and dx >= radius * 0.45
+                and dy >= radius * 0.30
+                and 20.0 <= angle <= 70.0
+                and far[0] >= center_x + radius * 0.45
+                and far[1] >= center_y + radius * 0.35
+            ):
+                continue
+            return True
+    return False
+
+
+def _visual_search_entry_binding(
+    frame: np.ndarray,
+    *,
+    candidates: list[tuple[int, int, int, int]] | None = None,
+) -> tuple[tuple[int, int, int, int], tuple[str, ...], str] | None:
+    """Bind exactly one current-frame magnifying-glass Search control."""
+
+    rx0, ry0, rx1, ry1 = _WORLD_SEARCH_REGION
+    source_candidates = (
+        _visual_candidate_boxes(frame) if candidates is None else candidates
+    )
+    bounded = [
+        candidate
+        for candidate in source_candidates
+        if _valid_roi(candidate)
+        and rx0 <= candidate[0] < candidate[2] <= rx1
+        and ry0 <= candidate[1] < candidate[3] <= ry1
+        and 45 <= candidate[2] - candidate[0] <= 180
+        and 40 <= candidate[3] - candidate[1] <= 120
+    ]
+    valid = [
+        candidate
+        for candidate in _merge_overlapping_candidates(bounded)
+        if _magnifier_has_lens_and_handle(frame, candidate)
+    ]
+    if len(valid) != 1:
+        return None
+    return (
+        valid[0],
+        (
+            "Search",
+            "magnifying-glass lens",
+            "magnifying-glass handle",
+            "current-frame visual structure",
+        ),
+        "current-frame-bounded-candidate",
+    )
+
+
+def _coordinate_hud_evidence(
     frame: np.ndarray,
     hits: list[tuple[str, tuple[int, int, int, int]]],
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Return independently measured zoom and localization evidence."""
+) -> tuple[str, ...]:
+    """Recognize only the spatially bounded top coordinate HUD."""
 
-    world_hit = _hit_for_labels(hits, ("world map", "world"))
-    coordinate_hit = _hit_for_labels(hits, ("coordinates", "coordinate", "map"))
-    candidates = _visual_candidate_boxes(frame)
-    if world_hit is None or coordinate_hit is None or len(candidates) < 2:
-        return (), ()
+    hx0, hy0, hx1, hy1 = _WORLD_COORDINATE_HUD_REGION
+    bounded = [
+        (_compact(text), roi)
+        for text, roi in hits
+        if _valid_roi(roi)
+        and hx0 <= roi[0] < roi[2] <= hx1
+        and hy0 <= roi[1] < roi[3] <= hy1
+    ]
+    if not bounded:
+        return ()
+    direct_x = any(re.fullmatch(r"x\d{2,4}", text) for text, _roi in bounded)
+    direct_y = any(re.fullmatch(r"y\d{2,4}", text) for text, _roi in bounded)
+    if direct_x and direct_y:
+        return ("spatially-bounded-top-coordinate-hud",)
+    x_marker = any(
+        text in {"x", "xk"} or text.startswith("x")
+        for text, _roi in bounded
+    )
+    numeric = [
+        roi
+        for text, roi in bounded
+        if re.fullmatch(r"\d{2,4}", text)
+        and roi[1] >= hy0 + 10
+    ]
+    if not x_marker or len(numeric) < 2:
+        return ()
+    numeric = sorted(numeric, key=lambda roi: roi[0])
+    first_center = (numeric[0][0] + numeric[0][2]) / 2
+    second_center = (numeric[1][0] + numeric[1][2]) / 2
+    if not (
+        30 <= second_center - first_center <= 240
+        and abs(
+            (numeric[0][1] + numeric[0][3]) / 2
+            - (numeric[1][1] + numeric[1][3]) / 2
+        )
+        <= 80
+    ):
+        return ()
+    return ("spatially-bounded-top-coordinate-hud",)
+
+
+def _world_search_menu_evidence(
+    hits: list[tuple[str, tuple[int, int, int, int]]],
+) -> tuple[str, ...]:
+    """Recognize visible Search categories without binding any category control."""
+
+    category_hits: set[str] = set()
+    category_rois: set[tuple[int, int, int, int]] = set()
+    markers = sorted(
+        _WORLD_SEARCH_CATEGORY_MARKERS,
+        key=lambda item: len(item[1]),
+        reverse=True,
+    )
+    for text, roi in hits:
+        if not _valid_roi(roi) or roi[1] < 180:
+            continue
+        compact = _compact(text)
+        match = next(
+            (
+                (label, marker)
+                for label, marker in markers
+                if compact == marker
+            ),
+            None,
+        )
+        if match is not None:
+            category_hits.add(match[0])
+            category_rois.add(roi)
+    if "zombie" not in category_hits and "zombie lair" not in category_hits:
+        return ()
+    if len(category_hits) < 2:
+        return ()
+    if not any(
+        abs(
+            (first[0] + first[2]) / 2
+            - (second[0] + second[2]) / 2
+        )
+        <= 360
+        and abs(
+            (first[1] + first[3]) / 2
+            - (second[1] + second[3]) / 2
+        )
+        <= 180
+        for index, first in enumerate(sorted(category_rois))
+        for second in sorted(category_rois)[index + 1 :]
+    ):
+        return ()
     return (
-        ("supported-world-zoom-visual-landmarks",),
-        ("current-frame-world-localization",),
+        "visible Search category semantics",
+        *(f"Search category: {label}" for label in sorted(category_hits)),
     )
 
 
@@ -701,6 +950,7 @@ def recognize_world_frame(
             zoom_identity="WORLD_ZOOM_UNKNOWN",
         )
     hits = _ocr_hits(frame)
+    visual_candidates = _visual_candidate_boxes(frame)
     words = " ".join(text for text, _roi in hits)
     compact = _compact(words)
     unknown_modal = any(
@@ -721,23 +971,35 @@ def recognize_world_frame(
     control_geometry_source: dict[str, str] = {}
     for identity in (
         HOME_TO_WORLD,
-        WORLD_SEARCH_ENTRY,
         WORLD_SEARCH_CLOSE,
         WORLD_TO_HOME,
     ):
-        binding = _control_binding(frame, hits, identity)
+        binding = _control_binding(
+            frame,
+            hits,
+            identity,
+            candidates=visual_candidates,
+        )
         if binding is not None:
             roi, semantics, geometry_source = binding
             controls[identity] = roi
             control_semantics[identity] = semantics
             control_geometry_source[identity] = geometry_source
-
-    zoom_evidence, localization_evidence = _world_visual_evidence(frame, hits)
-    has_home = HOME_TO_WORLD in controls
-    has_world = WORLD_SEARCH_ENTRY in controls
-    has_search_panel = WORLD_SEARCH_CLOSE in controls and any(
-        marker in compact for marker in ("coordinates", "coordinate", "find")
+    search_binding = _visual_search_entry_binding(
+        frame,
+        candidates=visual_candidates,
     )
+    if search_binding is not None:
+        roi, semantics, geometry_source = search_binding
+        controls[WORLD_SEARCH_ENTRY] = roi
+        control_semantics[WORLD_SEARCH_ENTRY] = semantics
+        control_geometry_source[WORLD_SEARCH_ENTRY] = geometry_source
+    coordinate_evidence = _coordinate_hud_evidence(frame, hits)
+    menu_evidence = _world_search_menu_evidence(hits)
+    has_home = HOME_TO_WORLD in controls
+    has_world_context = bool(coordinate_evidence) and WORLD_TO_HOME in controls
+    has_world = WORLD_SEARCH_ENTRY in controls and has_world_context
+    has_search_panel = bool(menu_evidence) and has_world_context
     has_canonical_home = has_home and any(
         marker in compact for marker in ("canonical home", "home base", "command center")
     )
@@ -747,20 +1009,24 @@ def recognize_world_frame(
         state = HOME_CANONICAL
     elif has_home:
         state = HOME_READY
-    elif has_search_panel and zoom_evidence and localization_evidence:
+    elif has_search_panel:
         state = WORLD_SEARCH_OPEN
-    elif has_world and zoom_evidence and localization_evidence:
+    elif has_world:
         state = WORLD_READY
     else:
         state = "UNKNOWN"
-    zoom = (
-        WORLD_ZOOM_SUPPORTED
-        if zoom_evidence and localization_evidence
-        else "WORLD_ZOOM_UNKNOWN"
-        if state in {WORLD_READY, WORLD_SEARCH_OPEN}
-        else "HOME"
+    zoom = "WORLD_ZOOM_UNKNOWN" if state in {WORLD_READY, WORLD_SEARCH_OPEN} else "HOME"
+    evidence = (
+        tuple(text for text, _roi in hits)
+        + coordinate_evidence
+        + menu_evidence
     )
-    evidence = tuple(text for text, _roi in hits)
+    if search_binding is not None:
+        evidence += (
+            "magnifying-glass lens",
+            "magnifying-glass handle",
+            "current-frame Search visual structure",
+        )
     return WorldNavigationObservation(
         state=state,
         source_frame_sha256=source_frame_sha256 or _frame_digest(frame),
@@ -776,8 +1042,8 @@ def recognize_world_frame(
         control_semantics=control_semantics,
         control_geometry_source=control_geometry_source,
         semantic_evidence=evidence,
-        zoom_evidence=zoom_evidence,
-        localization_evidence=localization_evidence,
+        zoom_evidence=(),
+        localization_evidence=(),
     )
 
 
@@ -845,6 +1111,16 @@ def _hud_contract_state(state: str) -> str:
     """Report the HUD route's Home expectation without granting atlas authority."""
 
     return HOME_READY if state == HOME_CANONICAL else state
+
+
+def _contradictory_zoom_claim(observation: WorldNavigationObservation) -> bool:
+    """Reject explicit unsupported-zoom evidence without requiring zoom authority."""
+
+    return bool(
+        observation.state in {WORLD_READY, WORLD_SEARCH_OPEN}
+        and observation.zoom_identity != WORLD_ZOOM_SUPPORTED
+        and (observation.zoom_evidence or observation.localization_evidence)
+    )
 
 
 def _recognize(
@@ -1100,9 +1376,11 @@ class SafePopupHandler:
         if not accepted_state or not world_navigation_observation_authorizeable(
             observation,
             expected_state=expected_state,
-            require_supported_zoom=expected_state in {WORLD_READY, WORLD_SEARCH_OPEN},
+            require_supported_zoom=False,
         ):
             raise WorldNavigationBlocked("popup_successor_not_recognized")
+        if _contradictory_zoom_claim(observation):
+            raise WorldNavigationBlocked("world_zoom_unsupported_or_ambiguous")
         reconcile = getattr(runtime, "reconcile", None)
         if callable(reconcile):
             reconcile(action_key, "confirmed", post, "allowlisted_popup_absent_and_successor_recognized")
@@ -1173,8 +1451,10 @@ class WorldMapNavigationController:
             expected_state=(
                 HOME_CANONICAL if observation.state == HOME_CANONICAL else expected_state
             ),
-            require_supported_zoom=expected_state in {WORLD_READY, WORLD_SEARCH_OPEN},
+            require_supported_zoom=False,
         ):
+            if _contradictory_zoom_claim(observation):
+                raise WorldNavigationBlocked("world_zoom_unsupported_or_ambiguous")
             return Checkpoint(source, observation)
 
         # Normal route frames already expose the exact allowlisted HUD control,
@@ -1269,9 +1549,7 @@ class WorldMapNavigationController:
             checkpoint.observation,
             expected_state=checkpoint.observation.state,
             required_target_identity=target_identity,
-            require_supported_zoom=checkpoint.observation.state
-            in {WORLD_READY, WORLD_SEARCH_OPEN}
-            and target_identity != WORLD_TO_HOME,
+            require_supported_zoom=False,
         ):
             raise WorldNavigationBlocked("control_semantics_not_current_frame_bound")
         if self.total_input_count >= self.maximum_inputs:
@@ -1358,7 +1636,7 @@ class WorldMapNavigationController:
         if not world_navigation_observation_authorizeable(
             checkpoint.observation,
             expected_state=WORLD_SEARCH_OPEN,
-            require_supported_zoom=True,
+            require_supported_zoom=False,
         ):
             raise WorldNavigationBlocked("search_source_not_current_frame_bound")
         action_key = f"world-navigation:search-back:{checkpoint.frame.sha256[:24]}"
@@ -1449,18 +1727,6 @@ class WorldMapNavigationController:
                 target_identity=HOME_TO_WORLD,
                 successor_state=WORLD_READY,
                 label="home-to-world",
-            )
-            if world.observation.zoom_identity != WORLD_ZOOM_SUPPORTED:
-                raise WorldNavigationBlocked("world_zoom_unsupported_or_ambiguous")
-            _record(
-                self.runtime,
-                self.route_events,
-                {
-                    "event": "world_zoom_calibrated",
-                    "state": WORLD_READY,
-                    "zoom_identity": world.observation.zoom_identity,
-                    "frame_sha256": world.frame.sha256,
-                },
             )
             world = self._fresh_checkpoint(WORLD_READY, "world-search-source")
             search = self._tap(
