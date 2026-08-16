@@ -3544,8 +3544,8 @@
       "live_validation_scope": "Navigation-only Home-to-World/search-to-Home validation; no march, attack, stamina, or AP dispatch.",
       "consequence_policy": "Navigation only; unknown map, target, occupancy, march, or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 3,
-      "live_attempt_count": 3,
+      "maximum_live_attempts": 4,
+      "live_attempt_count": 4,
       "live_attempts": [
         {
           "ordinal": 1,
@@ -3582,6 +3582,18 @@
           "session_directory": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260816T041058743496Z",
           "terminal_outcome": "blocked",
           "diagnosis": "The fast path recognized HOME_READY in 1.9 seconds and dispatched one current-frame home-to-world tap at [86,1217]. Its immediate post-frame arrived only 0.86 seconds later and still recognized HOME_READY, so the route failed closed without a second input. A later zero-input observation proved the tap succeeded and the runtime had reached World. Commit 1cdff43 adds bounded observation-only successor settling (at most three post frames, 0.25-second delay, no repeated tap); focused 66-test and shared-navigation 18-test profiles pass. Ownership released with one navigation input and zero resource/combat inputs."
+        },
+        {
+          "ordinal": 4,
+          "active_flow": "WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_owner": "pnsctl-development-session:WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_session": "85c41d15-8ee8-4277-92e6-2b0d391d7da5",
+          "repository_head": "1835d0c9c165f6af5cbc5e8783db49832754081b",
+          "started_at": "2026-08-16T04:47:27.618371Z",
+          "finished_at": "2026-08-16T04:52:37.277441Z",
+          "session_directory": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260816T044727618371Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "The route recognized HOME_READY and the single home-to-world tap succeeded. All three retained post frames show World, but canonical World recognition could not bind the unlabeled magnifying-glass Search control and therefore stayed UNKNOWN. UNKNOWN fallback ran the expensive popup recognizer on each observation and eventually failed closed without a second input. The separate HUD-only Home recovery at commit 1835d0c succeeded with one world-to-home tap and no atlas authority. Ownership released with one navigation input and zero resource/combat inputs."
         }
       ],
       "focused_tests": [
@@ -3595,10 +3607,10 @@
         "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "evidence_required: the authorized third canary successfully dispatched home-to-world and a later zero-input observation proved World was reached, but the immediate post-frame was captured before the transition completed; bounded observation-only successor settling is repaired offline at 1cdff43 and requires one fresh canary",
-      "next_concrete_action": "Obtain explicit authorization for one additional navigation-only canary at frozen commit 1cdff43; require current Home or World recognition, use bounded post-input observation settling without a repeated tap, and preserve zero resource/combat authority.",
+      "blocked_reason": "evidence_required: the fourth canary reached World with one tap, but the current-frame recognizer cannot yet bind the unlabeled magnifying-glass Search control; all post frames remained fail-closed UNKNOWN and no second input occurred",
+      "next_concrete_action": "Implement and independently verify the smallest current-frame visual binding for the World magnifying-glass Search control without granting atlas, node, pan, resource, or combat authority. Obtain explicit authorization before any further live input.",
       "last_completed_stage": "blocked",
-      "last_commit": "1cdff43c4f963c219eb451293bb42bb0df72e9c8",
+      "last_commit": "1835d0c9c165f6af5cbc5e8783db49832754081b",
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
       "acceptance_criteria": [
         "current-frame verified Home-to-World navigation",
