@@ -734,7 +734,20 @@ def recognize_world_frame(
 
     zoom_evidence, localization_evidence = _world_visual_evidence(frame, hits)
     has_home = HOME_TO_WORLD in controls
-    has_world = WORLD_SEARCH_ENTRY in controls
+    has_world_coordinate = any(
+        re.fullmatch(r"x\d+", _compact(text)) is not None
+        for text, _roi in hits
+    )
+    has_world = WORLD_SEARCH_ENTRY in controls or (
+        WORLD_TO_HOME in controls and has_world_coordinate
+    )
+    if (
+        not zoom_evidence
+        and WORLD_TO_HOME in controls
+        and has_world_coordinate
+    ):
+        zoom_evidence = ("supported-world-coordinate-hud",)
+        localization_evidence = ("current-frame-world-coordinate-hud",)
     has_search_panel = WORLD_SEARCH_CLOSE in controls and any(
         marker in compact for marker in ("coordinates", "coordinate", "find")
     )

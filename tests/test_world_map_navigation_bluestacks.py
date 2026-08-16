@@ -1398,6 +1398,28 @@ class WorldMapNavigationTests(unittest.TestCase):
             "absent",
         )
 
+    def test_world_recovery_recognizes_coordinate_hud_and_home_icon(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        home_button = (20, 1167, 128, 1258)
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[
+                ("X:299", (290, 70, 360, 115)),
+                ("Home", (18, 1232, 148, 1277)),
+            ],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[home_button],
+        ):
+            result = recognize_world_frame(
+                frame,
+                source_frame_sha256="f" * 64,
+                evidence_ref="current-world-recovery-frame.png",
+            )
+        self.assertEqual(result.state, "WORLD_READY")
+        self.assertEqual(result.controls["world-to-home"], home_button)
+        self.assertEqual(result.zoom_identity, WORLD_ZOOM_SUPPORTED)
+
 
 if __name__ == "__main__":
     unittest.main()
