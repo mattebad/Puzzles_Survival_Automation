@@ -1118,17 +1118,6 @@ class WorldMapNavigationController:
         return self.navigation_input_count + self.safe_popup_input_count
 
     def _checkpoint(self, source: CapturedNativeFrame, expected_state: str) -> Checkpoint:
-        handled = self.popup_handler.handle(
-            self.runtime,
-            source,
-            expected_state=expected_state,
-            recognizer=self.recognizer,
-            route_input_count=self.navigation_input_count,
-            route_input_limit=self.maximum_inputs,
-            route_events=self.route_events,
-        )
-        if handled is not None:
-            return handled
         observation = _recognize(self.recognizer, source)
         if observation.source_frame_sha256 != source.sha256:
             raise WorldNavigationBlocked("stale_or_cross_frame_observation")
@@ -1137,21 +1126,37 @@ class WorldMapNavigationController:
             or expected_state == HOME_READY
             and observation.state == HOME_CANONICAL
         )
-        if not accepted_state:
-            if observation.unknown_modal or observation.state == "UNKNOWN":
-                raise WorldNavigationBlocked("unknown_state_or_modal")
-            raise WorldNavigationBlocked(
-                f"unexpected_successor:{observation.state}:{expected_state}"
-            )
-        if not world_navigation_observation_authorizeable(
+        if accepted_state and world_navigation_observation_authorizeable(
             observation,
             expected_state=(
                 HOME_CANONICAL if observation.state == HOME_CANONICAL else expected_state
             ),
             require_supported_zoom=expected_state in {WORLD_READY, WORLD_SEARCH_OPEN},
         ):
-            raise WorldNavigationBlocked("current_frame_state_not_authorizeable")
-        return Checkpoint(source, observation)
+            return Checkpoint(source, observation)
+
+        # Normal route frames already expose the exact allowlisted HUD control,
+        # so do not spend a second full-frame OCR pass looking for a reset popup.
+        # An obscuring popup makes normal state recognition fail closed; only
+        # then run the slower explicit popup recognizer.
+        if observation.state == "UNKNOWN":
+            handled = self.popup_handler.handle(
+                self.runtime,
+                source,
+                expected_state=expected_state,
+                recognizer=self.recognizer,
+                route_input_count=self.navigation_input_count,
+                route_input_limit=self.maximum_inputs,
+                route_events=self.route_events,
+            )
+            if handled is not None:
+                return handled
+            raise WorldNavigationBlocked("unknown_state_or_modal")
+        if not accepted_state:
+            raise WorldNavigationBlocked(
+                f"unexpected_successor:{observation.state}:{expected_state}"
+            )
+        raise WorldNavigationBlocked("current_frame_state_not_authorizeable")
 
     def _fresh_checkpoint(self, expected_state: str, label: str) -> Checkpoint:
         source = self.runtime.capture(label)

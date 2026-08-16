@@ -146,6 +146,18 @@ class FakeRuntime:
 def scripted_recognizer(frame, **_kwargs):
     if not isinstance(frame, dict):
         raise AssertionError("scripted recognizer received an unexpected frame")
+    if frame.get("popup"):
+        obscured = dict(frame)
+        obscured.update(
+            state="UNKNOWN",
+            recognized=False,
+            unknown_modal=True,
+            overlay_state="unknown",
+            controls={},
+            control_semantics={},
+            control_geometry_source={},
+        )
+        return obscured
     return frame
 
 
@@ -387,6 +399,21 @@ class WorldMapNavigationTests(unittest.TestCase):
             [row["target_identity"] for row in result["route_transitions"]],
             ["home-to-world", "world-search-entry", "android-back", "world-to-home"],
         )
+
+    def test_recognized_route_frame_skips_expensive_popup_scan(self):
+        runtime = FakeRuntime(route_frames())
+        with patch.object(
+            SafePopupHandler,
+            "handle",
+            side_effect=AssertionError("popup scan must be fallback-only"),
+        ):
+            result = run_world_map_navigation(
+                runtime,
+                recognizer=scripted_recognizer,
+                maximum_inputs=4,
+            )
+        self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
+        self.assertEqual(result["navigation_input_count"], 4)
 
     def test_popup_is_handled_at_checkpoint_and_counts_against_total_budget(self):
         runtime = FakeRuntime(route_frames(popup_at_start=True))
