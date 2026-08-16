@@ -35,6 +35,7 @@ from scripts.world_map_navigation_bluestacks import (
     WORLD_SEARCH_OPEN,
     WORLD_TO_HOME,
     _group_spatial_ocr_hits,
+    _coordinate_hud_evidence,
     _world_search_menu_evidence,
     _visual_search_entry_binding,
     recover_world_map_home,
@@ -1436,6 +1437,53 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result.controls[WORLD_TO_HOME], home_button)
         self.assertIn("magnifying-glass lens", result.semantic_evidence)
         self.assertIn("magnifying-glass handle", result.semantic_evidence)
+
+    def test_coordinate_hud_accepts_merged_y_prefix_with_current_control_geometry(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        search_button = (94, 1024, 190, 1093)
+        home_button = (20, 1167, 128, 1258)
+        cv2.rectangle(frame, search_button[:2], search_button[2:], (50, 50, 50), -1)
+        cv2.circle(frame, (122, 1050), 16, (230, 230, 230), 3)
+        cv2.line(frame, (133, 1061), (151, 1079), (230, 230, 230), 3)
+        hits = [
+            ("x:299", (323, 99, 427, 205)),
+            ("1.495", (424, 104, 520, 198)),
+            ("Home", (20, 1220, 120, 1270)),
+        ]
+        self.assertEqual(
+            _coordinate_hud_evidence(frame, hits[:2]),
+            ("spatially-bounded-top-coordinate-hud",),
+        )
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=hits,
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[search_button, home_button],
+        ):
+            result = recognize_world_frame(
+                frame,
+                source_frame_sha256="6" * 64,
+                evidence_ref="current-native-world.png",
+            )
+        self.assertEqual(result.state, WORLD_READY)
+        self.assertTrue(result.recognized)
+        self.assertEqual(result.controls[WORLD_SEARCH_ENTRY], search_button)
+        self.assertEqual(result.controls[WORLD_TO_HOME], home_button)
+
+    def test_coordinate_hud_rejects_far_or_unusable_y_value_tokens(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        x_hit = ("x:299", (323, 99, 427, 205))
+        cases = (
+            [x_hit, ("1.495", (548, 104, 596, 198))],
+            [("1495", (424, 104, 520, 198))],
+            [x_hit, ("49", (424, 104, 520, 198))],
+            [x_hit, ("14950", (424, 104, 520, 198))],
+            [x_hit, ("1.a95", (424, 104, 520, 198))],
+        )
+        for hits in cases:
+            with self.subTest(hits=hits):
+                self.assertEqual(_coordinate_hud_evidence(frame, hits), ())
 
     def test_magnifier_missing_handle_and_ambiguous_candidates_fail_closed(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)

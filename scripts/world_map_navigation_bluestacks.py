@@ -758,6 +758,32 @@ def _coordinate_hud_evidence(
         if re.fullmatch(r"\d{2,4}", text)
         and roi[1] >= hy0 + 10
     ]
+    direct_x_rois = [
+        roi
+        for text, roi in bounded
+        if re.fullmatch(r"x\d{2,4}", text)
+    ]
+    y_value_rois = [
+        roi
+        for text, roi in bounded
+        if re.fullmatch(r"\d{3,4}", text)
+    ]
+    for x_roi in direct_x_rois:
+        x0, y0, x1, y1 = x_roi
+        x_center = (x0 + x1) / 2
+        x_y_center = (y0 + y1) / 2
+        for y_roi in y_value_rois:
+            yx0, yy0, yx1, yy1 = y_roi
+            y_center = (yx0 + yx1) / 2
+            y_y_center = (yy0 + yy1) / 2
+            if (
+                yx1 < x0
+                or yx0 > x1 + 24
+                or y_center < x_center - 12
+                or abs(y_y_center - x_y_center) > 32
+            ):
+                continue
+            return ("spatially-bounded-top-coordinate-hud",)
     if not x_marker or len(numeric) < 2:
         return ()
     numeric = sorted(numeric, key=lambda roi: roi[0])
