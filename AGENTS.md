@@ -105,8 +105,13 @@ P&S project workflow constraints:
     stages without redesigning architecture.
   - `bounded_implementer`: mutates only assigned files and self-checks against
     manifest acceptance criteria.
-  - `independent_tester`: remains read-only and defect-first, verifies acceptance,
-    and cannot authorize repair or expand scope.
+  - `independent_tester`: serves as the independent code-and-acceptance reviewer,
+    remains read-only and defect-first, verifies the actual diff and required
+    checks, and cannot authorize repair or expand scope. Report only material,
+    actionable defects affecting correctness, runtime safety, acceptance,
+    regressions, or maintainability in this private local project. Exclude
+    cosmetic preferences, speculative hardening, theoretical edge cases without
+    a plausible local path, and perfection-oriented refactors.
   - `escalation_architect`: resolves new architecture, safety, or evidence
     conflicts from a compact packet rather than the full transcript.
 - The execution coordinator may make procedural decisions authorized by the

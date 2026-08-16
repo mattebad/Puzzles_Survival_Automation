@@ -12,9 +12,9 @@ escalation packet model-neutral so another host can map the same roles.
 - `execution_coordinator`: Luna XHigh by default; Terra High only when
   manually selected as the parent chat model.
 - `bounded_implementer`: Luna XHigh.
-- routine `independent_tester`: Luna XHigh in a separate read-only context.
-- high-risk or cross-contract tester: delegated Sol Medium or Grok 4.5 High when added
-  capability or model diversity is justified.
+- routine `independent_tester`: Terra High in a separate read-only context.
+- high-risk or cross-contract tester: delegated Sol Medium when the broader
+  reasoning capability is justified.
 - `escalation_architect`: delegated Sol Medium; use Sol High only in a
   user-selected fresh chat when available.
 
@@ -23,6 +23,16 @@ assigned model. Never inherit an expensive parent model accidentally for
 routine coordination or testing. The coordinator follows the frozen manifest
 and may not redesign it, expand writable scope, weaken acceptance, invent live
 actions, or override contradictory evidence.
+
+Select Terra High explicitly for the independent reviewer. If the current host
+cannot delegate that model, use a user-selected fresh Terra High read-only chat
+or report the unavailable assignment; never substitute another model silently.
+The reviewer prioritizes concrete defects and acceptance risks over idealized
+code. It must not request style-only cleanup, speculative abstractions,
+public-service or multi-tenant hardening, or perfection-oriented refactors
+without a plausible impact on this private local project. Local deployment does
+not excuse credential exposure, unsafe command execution, runtime-input safety,
+data-loss risks, or other defects with a concrete local impact.
 
 Named agents still require a manifest-compatible assignment. The
 `pns-flow-implementer` default is Luna XHigh; verify the explicit model on every

@@ -436,6 +436,7 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         self.assertIn("at most one consolidated repair", skill)
         self.assertIn("compact handoff and fresh chat", skill)
         self.assertIn("optional `pns-flow-implementer`", skill)
+        self.assertIn("material, actionable findings", skill)
         self.assertNotIn("pns-flow-recon", skill)
         self.assertNotIn("pns-flow-reviewer", skill)
 
@@ -446,12 +447,20 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         )
         self.assertNotIn("execution_coordinator", managed)
         self.assertIn("execution_coordinator", project)
+        self.assertIn("independent code-and-acceptance reviewer", project)
+        self.assertIn("Exclude\n    cosmetic preferences", project)
         routing = (
             ROOT / ".cursor" / "rules" / "pns-model-routing.mdc"
         ).read_text(encoding="utf-8")
         self.assertIn("alwaysApply: true", routing)
         self.assertIn("`execution_coordinator`: Luna XHigh", routing)
         self.assertIn("`bounded_implementer`: Luna XHigh", routing)
+        self.assertIn("routine `independent_tester`: Terra High", routing)
+        self.assertIn(
+            "high-risk or cross-contract tester: delegated Sol Medium", routing
+        )
+        self.assertIn("prioritizes concrete defects and acceptance risks", routing)
+        self.assertIn("credential exposure, unsafe command execution", routing)
         manifest = (ROOT / "docs" / "execution-manifest-template.md").read_text(
             encoding="utf-8"
         )

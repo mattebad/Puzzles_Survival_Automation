@@ -31,7 +31,9 @@ evidence goes to the escalation architect through a compact checkpoint packet.
    architecture decision requires escalation.
 7. Run the focused tests for the active flow. Run architecture/full/governance validation only
    when the changed scope or task contract requires it.
-8. Give the independent tester a bounded read-only package when required by the selected route.
+8. Give the independent code-and-acceptance reviewer a bounded read-only package when required by
+   the selected route. Require material, actionable findings tied to the manifest or a plausible
+   private/local-project impact; reject cosmetic, speculative, or perfection-oriented findings.
    Use `record-stage` as a lightweight task ledger; descriptive stages are not agent gates.
 9. If live validation is required, the parent alone uses `scripts/pnsctl.py`, one flow at a time,
    with current raw-frame binding, immediate-before revalidation, attempt accounting, and the
