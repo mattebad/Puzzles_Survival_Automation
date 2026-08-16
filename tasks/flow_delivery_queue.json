@@ -3544,8 +3544,8 @@
       "live_validation_scope": "Navigation-only Home-to-World/search-to-Home validation; no march, attack, stamina, or AP dispatch.",
       "consequence_policy": "Navigation only; unknown map, target, occupancy, march, or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 5,
-      "live_attempt_count": 4,
+      "maximum_live_attempts": 6,
+      "live_attempt_count": 5,
       "live_attempts": [
         {
           "ordinal": 1,
@@ -3594,6 +3594,18 @@
           "session_directory": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260816T044727618371Z",
           "terminal_outcome": "blocked",
           "diagnosis": "The route recognized HOME_READY and the single home-to-world tap succeeded. All three retained post frames show World, but canonical World recognition could not bind the unlabeled magnifying-glass Search control and therefore stayed UNKNOWN. UNKNOWN fallback ran the expensive popup recognizer on each observation and eventually failed closed without a second input. The separate HUD-only Home recovery at commit 1835d0c succeeded with one world-to-home tap and no atlas authority. Ownership released with one navigation input and zero resource/combat inputs."
+        },
+        {
+          "ordinal": 5,
+          "active_flow": "WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_owner": "parent-sol-world-map-search-2",
+          "lease_session": "parent-world-map-search-20260816T0519Z",
+          "repository_head": "7bbdbccba0e7d207a8feae9b63d8f66adb354620",
+          "started_at": "2026-08-16T05:21:06.768410Z",
+          "finished_at": "2026-08-16T05:22:03.864703Z",
+          "session_directory": null,
+          "terminal_outcome": "blocked",
+          "diagnosis": "Controller setup reservation ended before receipt issuance; candidate cleanliness rejected the receipt. No development session started and zero runtime inputs occurred."
         }
       ],
       "focused_tests": [
@@ -3608,7 +3620,7 @@
         "home_recovery_latency_seconds"
       ],
       "blocked_reason": "",
-      "next_concrete_action": "Run the explicitly authorized navigation-only fifth canary from frozen commit 912be9a after focused, shared-navigation, retained-frame, independent tester, parent integration, and zero-input observation acceptance.",
+      "next_concrete_action": "Run the explicitly authorized navigation-only canary; reservation 5 ended during controller setup before receipt issuance with zero runtime inputs, so reservation 6 is the actual live attempt.",
       "last_completed_stage": "focused_validation",
       "last_commit": "912be9af79cddff8a1ad3c2386d66d995107cb9b",
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
