@@ -62,7 +62,11 @@ class CompactHandoffTests(unittest.TestCase):
         )[0].strip()
         state = json.loads(raw)
         self.assertIn("active_execution_manifest_path", state)
-        self.assertIsNone(state["active_execution_manifest_path"])
+        self.assertEqual(
+            state["active_execution_manifest_path"],
+            "docs/execution-manifests/daily-row-claim.md",
+        )
+        self.assertTrue((ROOT / state["active_execution_manifest_path"]).is_file())
 
     def test_handoff_byte_budgets_and_field_allowlist(self) -> None:
         text = HANDOFF_PATH.read_text(encoding="utf-8")
@@ -79,14 +83,17 @@ class CompactHandoffTests(unittest.TestCase):
         self.assertLessEqual(len(state["process_deviations"]), 3)
         self.assertIn("exact_next_permitted_action", state)
         self.assertIn("active_execution_manifest_path", state)
-        self.assertIsNone(state["active_execution_manifest_path"])
+        self.assertEqual(
+            state["active_execution_manifest_path"],
+            "docs/execution-manifests/daily-row-claim.md",
+        )
         self.assertEqual(state["unresolved_action_state"], "clear")
         self.assertTrue(state["protected_user_owned_paths"])
         self.assertTrue(state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"])
 
     def test_handoff_rejects_manifest_paths_outside_repository(self) -> None:
         text = HANDOFF_PATH.read_text(encoding="utf-8").replace(
-            '"active_execution_manifest_path": null',
+            '"active_execution_manifest_path": "docs/execution-manifests/daily-row-claim.md"',
             '"active_execution_manifest_path": "../escape.md"',
         )
         text = text.replace(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reproducible operator interface for the Unraid-hosted Bliss trial.
+"""Reproducible operator interface for local BlueStacks development and future Bliss porting.
 
 Only this checked-in interface owns the routine worker, private ADB, validation, evidence, and
 cleanup commands.  Credentials are read from the project .env for the lifetime of one subprocess

@@ -132,7 +132,7 @@ P&S project workflow constraints:
   architecture/integration checkpoint containing only the manifest, changed
   paths, compact diff summary, test receipts, tester findings, and unresolved
   decisions.
-- For substantive behavior changes, run the existing deterministic validation hierarchy—focused and flow-specific checks followed by any required architecture or integration gate—before any live emulator canary. Use the Bliss OS / P&S emulator only when actual runtime behavior requires live verification.
+- For substantive behavior changes, run the existing deterministic validation hierarchy—focused and flow-specific checks followed by any required architecture or integration gate—before any live emulator canary. Use the local BlueStacks / P&S emulator for current live verification; use Bliss only for an explicitly selected future porting or Bliss-validation task.
 - For cross-cutting changes involving state recognition, navigation, recovery or retry behavior, ADB contracts, or multiple interacting production packages, the parent performs the integration review and owns the final integration decision; do not automatically spawn a child `executor_sol`.
 - Never use `git add .`. Never automatically commit unrelated working-tree changes. Stage only explicitly enumerated active-task paths and preserve all pre-existing user modifications; this overrides automatic closure Git defaults.
 - Unless the user explicitly selects a route, the main agent must automatically choose the proportionate route for each new task and may change routes between tasks: Light for trivial or leaf work, Medium for localized substantive changes handled primarily by the main agent, and Heavy only for genuinely multi-module or independently parallelizable work. Briefly state an automatic Medium or Heavy selection before substantive execution. An explicit user route selection overrides automatic selection and remains active until the user changes it or the session ends.
@@ -197,10 +197,19 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
   but are not authentication secrets; receipt consumption is durable and occurs before singleton
   acquisition.
 
-## Fixed runtime and manual-only states
+## Runtime phases and manual-only states
 
-- Production runtime is the Unraid-hosted Bliss OS VM, package `com.global.ztmslg`, logical profile
-  800×1280 at 160 dpi. Live coordinates use raw full-frame 800×1280 evidence only.
+- The current active-development runtime is the private local BlueStacks instance, package
+  `com.global.ztmslg`, using its checked-in native 800×1280 profile and exact allowlisted local
+  serial. Current reconnaissance, implementation canaries, and flow acceptance run on BlueStacks
+  through `scripts/pnsctl.py`.
+- The Unraid-hosted Bliss OS VM is the future porting and deployment-acceptance target after the
+  local BlueStacks portfolio is built. Do not substitute Bliss for an active BlueStacks development
+  task or require Bliss evidence unless an explicit porting or Bliss-validation task is selected.
+- BlueStacks and Bliss evidence, geometry, calibration, and acceptance remain platform-specific.
+  A BlueStacks pass does not prove Bliss acceptance; Bliss targets must be rebound and tested during
+  the later porting phase.
+- Live coordinates use current raw full-frame 800×1280 evidence only.
 - Never derive coordinates from scaled previews, stale captures, untranslated crops, or vendor
   coordinates.
 - Login, tutorial, CAPTCHA, account selection/switching, credential entry, and other explicitly
@@ -348,8 +357,9 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 
 ## Hard infrastructure boundaries
 
-- Production remains on Unraid. Never autonomously reboot/shut down the host, replace the Bliss
-  qcow2, or modify unrelated VMs, containers, storage, networking, or services.
+- Future Bliss deployment remains on Unraid; current development remains on local BlueStacks.
+  Never autonomously reboot/shut down the host, replace the Bliss qcow2, or modify unrelated VMs,
+  containers, storage, networking, or services.
 - Never expose ADB/viewers publicly or place credentials in files, code, logs, evidence, prompts, or
   shell history.
 - Do not create generic execution, live-action, or recovery prompt templates.

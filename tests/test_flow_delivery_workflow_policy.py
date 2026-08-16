@@ -59,6 +59,27 @@ class FlowDeliveryWorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("Sol gate", self.policy)
         self.assertIn("do not create a second validation framework", self.agents.lower())
 
+    def test_runtime_phases_keep_current_bluestacks_and_future_bliss_distinct(self) -> None:
+        normalized = " ".join(self.agents.split())
+        for marker in (
+            "current active-development runtime is the private local BlueStacks instance",
+            "Current reconnaissance, implementation canaries, and flow acceptance run on BlueStacks",
+            "Use the local BlueStacks / P&S emulator for current live verification",
+            "future porting and deployment-acceptance target",
+            "Do not substitute Bliss for an active BlueStacks development task",
+            "A BlueStacks pass does not prove Bliss acceptance",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, normalized)
+        self.assertNotIn(
+            "Production runtime is the Unraid-hosted Bliss OS VM",
+            self.agents,
+        )
+        self.assertNotIn(
+            "Use the Bliss OS / P&S emulator only when actual runtime behavior requires live verification",
+            self.agents,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

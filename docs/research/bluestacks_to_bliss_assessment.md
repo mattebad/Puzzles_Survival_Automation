@@ -2,10 +2,10 @@
 
 ## Decision
 
-BlueStacks is an optional local discovery and rapid-development target. It is useful for manual
-flow recording, screen-state discovery, bounded OCR experiments, and detector prototyping without
-occupying the production operator. Bliss OS 16.9.7 remains the only production acceptance target
-for package `com.global.ztmslg` at the canonical logical viewport 800×1280 portrait and 160 dpi.
+BlueStacks is the current primary development, reconnaissance, replay, and canary target. Build and
+accept the local automation portfolio there first. Bliss OS 16.9.7 is the later porting and
+deployment-acceptance target for package `com.global.ztmslg` at the canonical logical viewport
+800×1280 portrait and 160 dpi; it is not a prerequisite for current BlueStacks flow development.
 
 Both supplied BlueStacks screenshots are native 800×1280 PNGs, not scaled previews. One is
 user-confirmed zoomed in and the other fully zoomed out; the latter still does not show the entire
@@ -42,10 +42,10 @@ The current abstractions substantially support local discovery:
 - `scripts/pnsctl.py` remains the supported operational interface where an operation exists; the
   collector is a bounded evidence tool, not a second production runtime interface.
 
-No replacement manual-flow collector is needed. A future atomic task is needed only before direct
-detector/route replay against BlueStacks: promote the collector-local ADB runner/profile metadata
-into a shared, typed device-profile adapter with explicit evidence provenance. That task must not
-register tasks, enable scheduling, or weaken the single-runtime-operator rule.
+No replacement manual-flow collector is needed. Current BlueStacks work should keep using the
+checked-in typed runtime/profile boundaries and explicit evidence provenance. Later Bliss porting
+must bind a separate device profile and reacquire native evidence without registering tasks,
+enabling scheduling, or weakening the single-runtime-operator rule.
 
 ## Evidence separation
 
