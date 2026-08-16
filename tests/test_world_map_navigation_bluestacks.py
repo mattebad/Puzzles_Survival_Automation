@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
@@ -384,6 +385,169 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result["safe_popup_input_count"], 1)
         self.assertEqual(result["navigation_input_count"], 4)
         self.assertEqual(runtime.calls[0][1]["target_identity"], POPUP_CLOSE)
+
+    def test_popup_close_settles_after_transient_immediate_post_without_retry(self):
+        popup = {
+            "popup_identity": "VIP_POINTS_GET_PTS",
+            "title_identity": True,
+            "body_identity": True,
+            "close_identity": POPUP_CLOSE,
+            "literal_close": True,
+            "target_roi": (263, 781, 537, 869),
+            "panel_roi": (80, 300, 720, 940),
+            "target_geometry_source": "current-frame-bounded-candidate",
+            "context_state": "WORLD_READY",
+            "semantic_evidence": ["Get Pts", "Log in every day to get VIP pts", "Close"],
+        }
+        runtime = FakeRuntime(
+            [
+                observation("WORLD_READY", popup=popup),
+                observation("WORLD_READY", popup=dict(popup)),
+                observation("WORLD_READY"),
+            ]
+        )
+        source = runtime.capture("popup-source")
+        handler = SafePopupHandler(maximum_inputs=1)
+        events: list[dict] = []
+        with patch(
+            "scripts.world_map_navigation_bluestacks.time.sleep",
+            return_value=None,
+        ):
+            checkpoint = handler.handle(
+                runtime,
+                source,
+                expected_state="WORLD_READY",
+                recognizer=scripted_recognizer,
+                route_input_count=0,
+                route_input_limit=4,
+                route_events=events,
+            )
+        self.assertIsNotNone(checkpoint)
+        self.assertEqual(handler.input_count, 1)
+        self.assertEqual([call[0] for call in runtime.calls], ["tap"])
+        post_events = [
+            event
+            for event in events
+            if event.get("event") == "safe_popup_post_observed"
+        ]
+        self.assertEqual([event["post_phase"] for event in post_events], ["immediate", "settle"])
+        reconciled = [
+            event
+            for event in events
+            if event.get("event") == "safe_popup_reconciled"
+        ]
+        self.assertEqual(len(reconciled), 1)
+        self.assertEqual(reconciled[0]["post_observation_count"], 2)
+        self.assertEqual(
+            reconciled[0]["immediate_post_frame_sha256"],
+            post_events[0]["post_frame_sha256"],
+        )
+        self.assertEqual(
+            reconciled[0]["post_frame_sha256"],
+            post_events[-1]["post_frame_sha256"],
+        )
+
+    def test_persistent_popup_blocks_at_settle_bound_without_second_tap(self):
+        popup = {
+            "popup_identity": "VIP_POINTS_GET_PTS",
+            "title_identity": True,
+            "body_identity": True,
+            "close_identity": POPUP_CLOSE,
+            "literal_close": True,
+            "target_roi": (263, 781, 537, 869),
+            "panel_roi": (80, 300, 720, 940),
+            "target_geometry_source": "current-frame-bounded-candidate",
+            "context_state": "WORLD_READY",
+            "semantic_evidence": ["Get Pts", "Log in every day to get VIP pts", "Close"],
+        }
+        runtime = FakeRuntime(
+            [
+                observation("WORLD_READY", popup=popup),
+                observation("WORLD_READY", popup=dict(popup)),
+                observation("WORLD_READY", popup=dict(popup)),
+                observation("WORLD_READY", popup=dict(popup)),
+            ]
+        )
+        source = runtime.capture("popup-source")
+        handler = SafePopupHandler(maximum_inputs=1)
+        events: list[dict] = []
+        with patch(
+            "scripts.world_map_navigation_bluestacks.time.sleep",
+            return_value=None,
+        ), self.assertRaisesRegex(
+            WorldNavigationBlocked, "popup_transport_without_verified_dismissal"
+        ):
+            handler.handle(
+                runtime,
+                source,
+                expected_state="WORLD_READY",
+                recognizer=scripted_recognizer,
+                route_input_count=0,
+                route_input_limit=4,
+                route_events=events,
+            )
+        self.assertEqual([call[0] for call in runtime.calls], ["tap"])
+        self.assertEqual(handler.input_count, 1)
+        self.assertEqual(
+            len(
+                [
+                    event
+                    for event in events
+                    if event.get("event") == "safe_popup_post_observed"
+                ]
+            ),
+            3,
+        )
+
+    def test_unknown_popup_post_state_blocks_without_second_tap(self):
+        popup = {
+            "popup_identity": "VIP_POINTS_GET_PTS",
+            "title_identity": True,
+            "body_identity": True,
+            "close_identity": POPUP_CLOSE,
+            "literal_close": True,
+            "target_roi": (263, 781, 537, 869),
+            "panel_roi": (80, 300, 720, 940),
+            "target_geometry_source": "current-frame-bounded-candidate",
+            "context_state": "WORLD_READY",
+            "semantic_evidence": ["Get Pts", "Log in every day to get VIP pts", "Close"],
+        }
+        lookalike = observation(
+            "WORLD_READY",
+            popup={
+                "popup_identity": "UNKNOWN_LOOKALIKE",
+                "title_identity": True,
+                "body_identity": False,
+                "close_identity": "x",
+                "literal_close": False,
+            },
+        )
+        runtime = FakeRuntime(
+            [
+                observation("WORLD_READY", popup=popup),
+                observation("WORLD_READY", popup=dict(popup)),
+                lookalike,
+            ]
+        )
+        source = runtime.capture("popup-source")
+        handler = SafePopupHandler(maximum_inputs=1)
+        with patch(
+            "scripts.world_map_navigation_bluestacks.time.sleep",
+            return_value=None,
+        ), self.assertRaisesRegex(
+            WorldNavigationBlocked, "popup_successor_unknown_or_lookalike"
+        ):
+            handler.handle(
+                runtime,
+                source,
+                expected_state="WORLD_READY",
+                recognizer=scripted_recognizer,
+                route_input_count=0,
+                route_input_limit=4,
+                route_events=[],
+            )
+        self.assertEqual([call[0] for call in runtime.calls], ["tap"])
+        self.assertEqual(handler.input_count, 1)
 
     def test_same_frame_popup_close_and_unknown_popup_fail_closed(self):
         handler = SafePopupHandler(maximum_inputs=2)
@@ -946,6 +1110,76 @@ class WorldMapNavigationTests(unittest.TestCase):
                     )
                 self.assertEqual(result.status, "allowed")
                 self.assertEqual(result.target_roi, button)
+
+    def test_retained_native_close_roi_matches_independent_button_measurement(self):
+        geometry = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][
+            "retained_source_popup_geometry"
+        ]
+        source = (
+            ROOT
+            / ".local-captures"
+            / "flow-delivery"
+            / "WORLD-MAP-NAVIGATION-FOUNDATION"
+            / "run-20260816T030538631368Z"
+            / "world-map-navigation-20260816T030538742441Z"
+            / "frames"
+            / "0001-world-navigation-source.png"
+        )
+        if not source.is_file():
+            self.skipTest("retained live source frame is unavailable")
+        raw = source.read_bytes()
+        self.assertEqual(
+            hashlib.sha256(raw).hexdigest(),
+            geometry["source_frame_sha256"],
+        )
+        frame = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        self.assertEqual(frame.shape[:2], (geometry["native_height"], geometry["native_width"]))
+
+        # Independently measure the orange Close button in native pixels.  These
+        # bounds are fixture ground truth, not production recognition constants.
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        orange = cv2.inRange(
+            hsv,
+            np.array([5, 80, 80], dtype=np.uint8),
+            np.array([35, 255, 255], dtype=np.uint8),
+        )
+        _count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(
+            orange, connectivity=8
+        )
+        measured_boxes = {
+            (
+                int(x),
+                int(y),
+                int(x + width),
+                int(y + height),
+            )
+            for x, y, width, height, area in stats[1:]
+            if int(area) > 10_000 and int(y) > 700
+        }
+        measured = tuple(geometry["close_button_roi"])
+        self.assertIn(measured, measured_boxes)
+
+        def local_ocr(_frame, _roi, *, psm):
+            if psm == 11:
+                return "Get Pts\nLog in every day to get VIP pts"
+            if psm == 7:
+                return "Close"
+            return ""
+
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._ocr_text_in_roi",
+            side_effect=local_ocr,
+        ):
+            result = recognize_allowlisted_popup(
+                frame,
+                source_frame_sha256=geometry["source_frame_sha256"],
+            )
+        self.assertEqual(result.status, "allowed")
+        self.assertEqual(result.target_roi, measured)
 
     def test_world_text_alone_cannot_authorize_supported_zoom_or_targets(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)

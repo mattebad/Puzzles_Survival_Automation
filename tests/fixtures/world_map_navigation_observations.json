@@ -126,6 +126,13 @@
         "Close"
       ]
     },
+    "retained_source_popup_geometry": {
+      "source_frame_sha256": "17a9bc308e9b72d1d611094fabce7bbec9ed1a380a3156e1088a65787e00e0df",
+      "native_width": 800,
+      "native_height": 1280,
+      "close_button_roi": [263, 781, 537, 869],
+      "measurement_method": "native HSV orange connected-component bounds"
+    },
     "node_binding": {
       "state": "WORLD_READY",
       "source_frame_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

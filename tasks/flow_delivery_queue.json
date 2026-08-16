@@ -33,7 +33,7 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": null,
+  "active_flow_id": "WORLD-MAP-NAVIGATION-FOUNDATION",
   "flows": [
     {
       "flow_id": "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
@@ -3526,7 +3526,7 @@
       "title": "Build verified World Map navigation foundation",
       "kind": "navigation_foundation",
       "priority": 120,
-      "status": "blocked",
+      "status": "active",
       "backlog_task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -3544,7 +3544,7 @@
       "live_validation_scope": "Navigation-only Home-to-World/search-to-Home validation; no march, attack, stamina, or AP dispatch.",
       "consequence_policy": "Navigation only; unknown map, target, occupancy, march, or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 1,
+      "maximum_live_attempts": 2,
       "live_attempt_count": 1,
       "live_attempts": [
         {
@@ -3557,7 +3557,7 @@
           "finished_at": "2026-08-16T03:05:44.583222Z",
           "session_directory": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260816T030538196102Z",
           "terminal_outcome": "blocked",
-          "diagnosis": "The current-frame recognizer allowed VIP_POINTS_GET_PTS but bound Close ROI [263,781,537,869], whose dispatched center [400,825] is below the visible Close control. Immediate-post frame 1aa7d31a still shows the popup. The flow failed closed after one popup input, before navigation, with ownership released and zero resource/combat inputs."
+          "diagnosis": "The current-frame recognizer allowed VIP_POINTS_GET_PTS and independently measured native geometry confirms Close ROI [263,781,537,869] with center [400,825]. Immediate-post frame 1aa7d31a still showed the popup, and the original handler failed closed without bounded observation-only settling. The flow stopped after one popup input, before navigation, with ownership released and zero resource/combat inputs."
         }
       ],
       "focused_tests": [
@@ -3571,9 +3571,9 @@
         "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "evidence_required: the one navigation-only canary consumed one allowlisted reset-popup-close input and stopped before navigation because bound ROI [263,781,537,869] missed the visible Close control; immediate-post frame still shows Get Pts, ownership released, and no resource/combat input occurred",
-      "next_concrete_action": "Obtain explicit authorization for a new bounded follow-up because all three permitted Luna repair turns are exhausted; then correct current-frame Close ROI geometry using independent native-frame ground truth before any new live attempt.",
-      "last_completed_stage": "blocked",
+      "blocked_reason": "",
+      "next_concrete_action": "Freeze the validated bounded popup-settle correction in a clean candidate, then admit at most one materially changed navigation-only canary under a new single-use receipt.",
+      "last_completed_stage": "focused_validation",
       "last_commit": "a2defbd83796d43c43345ca84ac46b7622151b10",
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
       "acceptance_criteria": [

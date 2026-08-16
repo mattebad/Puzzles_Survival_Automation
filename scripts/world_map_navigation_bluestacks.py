@@ -40,6 +40,8 @@ RECOVERY_ID = "world_map_navigation_foundation_recovery"
 PACKAGE_ID = "com.global.ztmslg"
 MAX_ROUTE_INPUTS = 20
 MAX_SAFE_POPUP_INPUTS = 4
+MAX_SAFE_POPUP_POST_FRAMES = 3
+SAFE_POPUP_SETTLE_DELAY_SECONDS = 0.25
 POPUP_CONTRACT_VERSION = "vip-points-get-pts-close-v1"
 
 HOME_READY = "HOME_READY"
@@ -999,8 +1001,48 @@ class SafePopupHandler:
             raise WorldNavigationBlocked(
                 f"safe_popup_transport_ambiguous:{type(exc).__name__}"
             ) from exc
-        post = runtime.capture("safe-popup-close-immediate-post")
+        immediate_post = runtime.capture("safe-popup-close-immediate-post")
+        post = immediate_post
         post_popup = self.recognize(post.frame, source_frame_sha256=post.sha256)
+        post_observation_count = 1
+        _record(
+            runtime,
+            route_events,
+            {
+                "event": "safe_popup_post_observed",
+                "action_key": action_key,
+                "post_phase": "immediate",
+                "popup_status": post_popup.status,
+                "post_frame_sha256": post.sha256,
+                **_capture_metadata(post),
+            },
+        )
+        while (
+            post_popup.status == "allowed"
+            and post_observation_count < MAX_SAFE_POPUP_POST_FRAMES
+        ):
+            if SAFE_POPUP_SETTLE_DELAY_SECONDS > 0:
+                time.sleep(SAFE_POPUP_SETTLE_DELAY_SECONDS)
+            post = runtime.capture(
+                f"safe-popup-close-settle-{post_observation_count:02d}"
+            )
+            post_observation_count += 1
+            post_popup = self.recognize(post.frame, source_frame_sha256=post.sha256)
+            _record(
+                runtime,
+                route_events,
+                {
+                    "event": "safe_popup_post_observed",
+                    "action_key": action_key,
+                    "post_phase": "settle",
+                    "post_observation_number": post_observation_count,
+                    "popup_status": post_popup.status,
+                    "post_frame_sha256": post.sha256,
+                    **_capture_metadata(post),
+                },
+            )
+        if post_popup.status == "unknown":
+            raise WorldNavigationBlocked("popup_successor_unknown_or_lookalike")
         if post_popup.status != "absent":
             raise WorldNavigationBlocked("popup_transport_without_verified_dismissal")
         observation = _recognize(recognizer, post)
@@ -1024,9 +1066,11 @@ class SafePopupHandler:
                 "popup_identity": popup.popup_identity,
                 "action_key": action_key,
                 "source_frame_sha256": source.sha256,
+                "immediate_post_frame_sha256": immediate_post.sha256,
                 "post_frame_sha256": post.sha256,
                 "popup_absent_verified": True,
                 "successor_state": observation.state,
+                "post_observation_count": post_observation_count,
                 "popup_contract_version": POPUP_CONTRACT_VERSION,
                 "popup_semantic_evidence": popup.semantic_evidence,
                 **_capture_metadata(post),
