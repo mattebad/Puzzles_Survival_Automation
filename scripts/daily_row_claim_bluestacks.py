@@ -253,6 +253,263 @@ def _bind_text_target(
     return (target if visual["recognized"] else None), details
 
 
+def _home_navigation_geometry(
+    tokens: Sequence[OCRToken],
+    quest: OCRToken,
+) -> dict[str, Any] | None:
+    """Derive the current Quest lane and icon band from adjacent labels."""
+
+    quest_x0, quest_y0, quest_x1, quest_y1 = quest.roi
+    quest_center_x = (quest_x0 + quest_x1) // 2
+    quest_center_y = (quest_y0 + quest_y1) // 2
+    quest_height = quest_y1 - quest_y0
+    if quest_x0 >= quest_x1 or quest_y0 >= quest_y1 or quest_height <= 0:
+        return None
+
+    labels: list[OCRToken] = []
+    row_tolerance = max(12, min(36, quest_height * 2))
+    for candidate in tokens:
+        if (
+            candidate is quest
+            or candidate.roi == quest.roi
+            or candidate.text not in (_HOME_WORDS - {"quest"})
+        ):
+            continue
+        cx0, cy0, cx1, cy1 = candidate.roi
+        center_x = (cx0 + cx1) // 2
+        center_y = (cy0 + cy1) // 2
+        if (
+            cx0 >= cx1
+            or cy0 >= cy1
+            or abs(center_y - quest_center_y) > row_tolerance
+            or center_x == quest_center_x
+        ):
+            continue
+        labels.append(candidate)
+
+    left = [candidate for candidate in labels if (candidate.roi[0] + candidate.roi[2]) // 2 < quest_center_x]
+    right = [candidate for candidate in labels if (candidate.roi[0] + candidate.roi[2]) // 2 > quest_center_x]
+    if not left or not right:
+        return None
+
+    left.sort(key=lambda candidate: (candidate.roi[0] + candidate.roi[2]) // 2, reverse=True)
+    right.sort(key=lambda candidate: (candidate.roi[0] + candidate.roi[2]) // 2)
+    if (
+        len(left) > 1
+        and (left[0].roi[0] + left[0].roi[2]) // 2
+        == (left[1].roi[0] + left[1].roi[2]) // 2
+    ) or (
+        len(right) > 1
+        and (right[0].roi[0] + right[0].roi[2]) // 2
+        == (right[1].roi[0] + right[1].roi[2]) // 2
+    ):
+        return None
+    left_label, right_label = left[0], right[0]
+    left_center_x = (left_label.roi[0] + left_label.roi[2]) // 2
+    right_center_x = (right_label.roi[0] + right_label.roi[2]) // 2
+    if not (left_center_x < quest_center_x < right_center_x):
+        return None
+
+    lane_left = (left_center_x + quest_center_x) // 2
+    lane_right = (quest_center_x + right_center_x + 1) // 2
+    if lane_right - lane_left < 12:
+        return None
+
+    band_height = max(48, quest_height * 4)
+    icon_band = _clamp_roi(
+        (
+            lane_left,
+            max(0, quest_y0 - band_height),
+            lane_right,
+            quest_y0,
+        )
+    )
+    if icon_band is None:
+        return None
+    return {
+        "quest_ocr_roi": quest.roi,
+        "quest_center": (quest_center_x, quest_center_y),
+        "left_label": left_label,
+        "right_label": right_label,
+        "left_label_center": (left_center_x, (left_label.roi[1] + left_label.roi[3]) // 2),
+        "right_label_center": (right_center_x, (right_label.roi[1] + right_label.roi[3]) // 2),
+        "ownership_lane": (lane_left, lane_right),
+        "icon_band": icon_band,
+    }
+
+
+def _home_support_mask(frame: np.ndarray, roi: NativeBox) -> np.ndarray:
+    """Build the raw color/brightness support mask for one current-frame ROI."""
+
+    x0, y0, x1, y1 = roi
+    patch = frame[y0:y1, x0:x1]
+    if patch.size == 0:
+        return np.zeros((0, 0), dtype=np.uint8)
+    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
+    saturated = cv2.inRange(hsv, (0, 60, 45), (179, 255, 255))
+    bright_neutral = cv2.inRange(hsv, (0, 0, 155), (179, 85, 255))
+    # This mask is intentionally never closed, opened, dilated, or otherwise
+    # changed.  Only pixels present in this raw mask may authorize a target.
+    return cv2.bitwise_or(saturated, bright_neutral)
+
+
+def _home_component_records(
+    frame: np.ndarray,
+    geometry: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return raw-mask components that satisfy the supported-point gates."""
+
+    icon_band = geometry["icon_band"]
+    lane_left, lane_right = geometry["ownership_lane"]
+    quest_center_x = geometry["quest_center"][0]
+    quest_width = geometry["quest_ocr_roi"][2] - geometry["quest_ocr_roi"][0]
+    quest_height = geometry["quest_ocr_roi"][3] - geometry["quest_ocr_roi"][1]
+    raw_mask = _home_support_mask(frame, icon_band)
+    if raw_mask.size == 0:
+        return ()
+
+    count, component_labels, stats, _ = cv2.connectedComponentsWithStats(raw_mask, 8)
+    band_height, band_width = raw_mask.shape
+    minimum_dimension = max(10, quest_height // 2)
+    records: list[dict[str, Any]] = []
+    for component_id in range(1, count):
+        x, y, width, height, area = (int(value) for value in stats[component_id])
+        reason: str | None = None
+        if x <= 0 or y <= 0 or x + width >= band_width or y + height >= band_height:
+            reason = "component_touches_icon_band_boundary"
+        elif width < minimum_dimension or height < minimum_dimension or area < 80:
+            reason = "component_too_small"
+        elif width >= max(12, int(round(band_width * 0.85))) or height >= max(
+            12, int(round(band_height * 0.95))
+        ):
+            reason = "broad_or_background_like_component"
+
+        component_roi = (
+            icon_band[0] + x,
+            icon_band[1] + y,
+            icon_band[0] + x + width,
+            icon_band[1] + y + height,
+        )
+        component_center_x = icon_band[0] + x + (width - 1) / 2.0
+        association_limit = max(12.0, quest_width * 0.75, band_width * 0.35)
+        if reason is None and abs(component_center_x - quest_center_x) > association_limit:
+            reason = "component_lacks_quest_horizontal_association"
+        if reason is None and not (
+            lane_left <= component_center_x < lane_right
+            and icon_band[0] <= component_roi[0] < component_roi[2] <= icon_band[2]
+        ):
+            reason = "component_outside_quest_lane_or_icon_band"
+        if reason is not None:
+            continue
+
+        component_mask = np.where(component_labels == component_id, 255, 0).astype(np.uint8)
+        clearance_map = cv2.distanceTransform(component_mask, cv2.DIST_L2, 5)
+        maximum_clearance = float(clearance_map.max())
+        if maximum_clearance <= 0.0:
+            continue
+        max_points = np.argwhere(
+            np.isclose(clearance_map, maximum_clearance, rtol=0.0, atol=1e-6)
+        )
+        selected_point: tuple[int, int] | None = None
+        for point_y, point_x in max_points:
+            if point_y <= 0 or point_x <= 0 or point_y >= band_height - 1 or point_x >= band_width - 1:
+                continue
+            neighborhood = raw_mask[point_y - 1 : point_y + 2, point_x - 1 : point_x + 2]
+            if neighborhood.shape == (3, 3) and bool(np.all(neighborhood != 0)):
+                selected_point = (
+                    icon_band[0] + int(point_x),
+                    icon_band[1] + int(point_y),
+                )
+                break
+        if selected_point is None:
+            continue
+
+        records.append(
+            {
+                "component_roi": component_roi,
+                "component_area": area,
+                "selected_point": selected_point,
+                "clearance": round(maximum_clearance, 6),
+                "raw_support_result": {
+                    "supported_pixel": True,
+                    "complete_3x3": True,
+                    "neighborhood_pixels": 9,
+                },
+            }
+        )
+    return tuple(records)
+
+
+def _home_visual_components(
+    frame: np.ndarray,
+    token: OCRToken,
+    navigation_tokens: Sequence[OCRToken] | None = None,
+) -> tuple[NativeBox, ...]:
+    """Find current-frame components in the Quest-relative icon band."""
+
+    geometry = _home_navigation_geometry(navigation_tokens or (), token)
+    if geometry is None:
+        return ()
+    return tuple(record["component_roi"] for record in _home_component_records(frame, geometry))
+
+
+def _bind_home_quest_target(
+    frame: np.ndarray,
+    token: OCRToken,
+    navigation_tokens: Sequence[OCRToken] | None = None,
+) -> tuple[NativeBox | None, dict[str, Any]]:
+    """Bind Home Quest to one maximum-clearance raw-supported point."""
+
+    geometry = _home_navigation_geometry(navigation_tokens or (), token)
+    records = _home_component_records(frame, geometry) if geometry is not None else ()
+    components = tuple(record["component_roi"] for record in records)
+    details: dict[str, Any] = {
+        "recognized": False,
+        "target_identity": HOME_QUEST_IDENTITY,
+        "ocr_roi": token.roi,
+        "component_count": len(components),
+        "components": components,
+    }
+    if geometry is None:
+        details["reason"] = "quest_and_adjacent_navigation_labels_not_proven"
+        return None, details
+    details.update(
+        {
+            "quest_ocr_roi": geometry["quest_ocr_roi"],
+            "ownership_lane": geometry["ownership_lane"],
+            "icon_band": geometry["icon_band"],
+            "left_label_roi": geometry["left_label"].roi,
+            "right_label_roi": geometry["right_label"].roi,
+            "left_label_center": geometry["left_label_center"],
+            "right_label_center": geometry["right_label_center"],
+        }
+    )
+    if len(components) == 0:
+        details["reason"] = "no_unique_home_quest_visual_component"
+        return None, details
+    if len(components) != 1:
+        details["reason"] = "ambiguous_home_quest_visual_components"
+        return None, details
+
+    record = records[0]
+    selected_x, selected_y = record["selected_point"]
+    target = _clamp_roi((selected_x - 1, selected_y - 1, selected_x + 2, selected_y + 2))
+    if target is None or target[2] - target[0] != 3 or target[3] - target[1] != 3:
+        details["reason"] = "home_quest_supported_point_out_of_bounds"
+        return None, details
+    details.update(
+        {
+            "recognized": True,
+            "target_roi": target,
+            "component_roi": record["component_roi"],
+            "selected_point": record["selected_point"],
+            "clearance": record["clearance"],
+            "raw_support_result": record["raw_support_result"],
+        }
+    )
+    return target, details
+
+
 def _contains_overlay_marker(tokens: Sequence[OCRToken]) -> bool:
     words = {word for token in tokens for word in token.text.split()}
     return bool(words & _OVERLAY_MARKERS)
@@ -301,10 +558,14 @@ class DailyRowClaimRecognizer:
             return FrameRecognition(HOME_STATE, False, reason="profile_dimensions_mismatch")
         overlay_markers = _full_frame_overlay_markers(frame, self._ocr)
         tokens = _ocr_tokens(frame, HOME_SEARCH_ROI, self._ocr)
-        quest = next((token for token in tokens if token.text == "quest"), None)
+        quest_tokens = [token for token in tokens if token.text == "quest"]
+        quest = quest_tokens[0] if len(quest_tokens) == 1 else None
+        navigation_geometry = (
+            _home_navigation_geometry(tokens, quest) if quest is not None else None
+        )
         target = None
         visual: dict[str, Any] = {
-            "bottom_navigation": len(tokens) >= 2,
+            "bottom_navigation": navigation_geometry is not None,
             "known_navigation_labels": sorted(
                 {word for token in tokens for word in token.text.split()} & _HOME_WORDS
             ),
@@ -314,17 +575,11 @@ class DailyRowClaimRecognizer:
             },
         }
         if quest is not None:
-            target, binding = _bind_text_target(
-                frame,
-                quest,
-                identity=HOME_QUEST_IDENTITY,
-                min_y=1040,
-                max_y=1270,
-            )
+            target, binding = _bind_home_quest_target(frame, quest, tokens)
             visual["quest_binding"] = binding
         recognized = bool(
-            quest is not None
-            and visual["bottom_navigation"]
+            len(quest_tokens) == 1
+            and navigation_geometry is not None
             and target is not None
             and not _contains_overlay_marker(tokens)
             and not overlay_markers

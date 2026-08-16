@@ -3,7 +3,7 @@
 ## Task ID and objective
 - Task ID: `daily-row-claim`
 - Flow ID: `DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION`
-- Manifest state: `BOUNDED_NAVIGATION_RECONNAISSANCE_ACCEPTED`
+- Manifest state: `SUPPORTED_POINT_RECONNAISSANCE_ACCEPTED`
 - Frozen repository candidate: `main@324d80badfa76ad3d1031b797dc600fcde8e6b40`
 - Corrected freeze UTC: `2026-08-16T22:06:31.525Z`
 - Objective: acquire current local-BlueStacks ordinary Daily row evidence, then deliver one exact free row-local Claim without registering or scheduling the handler.
@@ -70,6 +70,13 @@
 - It must not register the flow runner, alter the queue/matrix/catalog, implement Claim recognition or dispatch, add scrolling, or broaden any shared navigation authority.
 - Validation accepted: 57 package tests passed; the focused five-test profile passed with receipt digest `5600942762cd365d99679014acafc9d8fe13c81a1fd6ddc680c5cca03d774658`.
 - Independent Terra High recheck accepted with no material findings after repair of full-frame modal rejection and durable failure-record ordering. Parent integration acceptance is `accepted`.
+- The first accepted live reconnaissance consumed receipt `e9653d82-a3f9-4a7d-ae5c-c562a76f5525` and dispatched one navigation tap. Immediate post evidence remained positively Home; no Quest transition occurred, no second input was sent, and ownership released.
+- The retained immediate-before binding was `(204,1194,439,1280)`, whose center `(321,1237)` lands on the bottom label band rather than the visible Quest icon/control body. This is a safe no-effect with a materially new geometry hypothesis, not authority for an identical retry.
+- One bounded repair may adjust only the Home Quest binding to include the current-frame icon/control body above the OCR label while retaining OCR spatial association, full-frame overlay rejection, fresh revalidation, and all existing receipt limits. It must add an independent regression proving the dispatched point lies in the icon/control band and not the clipped label band.
+- After two rejected geometry hypotheses, escalation architect `e4555491-3fee-4e40-a725-709dc1faf9b8` froze a current-frame supported-point contract. OCR must uniquely establish `Quest` and its immediate neighboring bottom-navigation labels; their current centers define the Quest ownership lane and a label-relative icon band.
+- The binding must use an original, non-morphology-created visual support mask. Components may structure candidates, but dispatch authority comes only from a maximum-clearance point whose complete `3x3` neighborhood is supported in that original mask. The target ROI is exactly the odd-sized `3x3` box around that point, so the unchanged runtime center dispatch lands on proven pixels rather than a contour or label-relative bounding-box center.
+- Reject absent adjacent labels, neighboring-lane distractors, boundary-touching/broad/background components, insufficient clearance, morphology-only bridges, and equally valid components. Record the label ROI, ownership lane, icon band, component ROI, selected point, clearance, and raw-support verdict. Immediate-before recognition recomputes the entire contract.
+- The supported-point implementation passed 66 package tests and the five-test focused profile with receipt digest `819fc3ad8e13bdf2a2e286e8ef705febedc07254b8c9e4a6404bd9d3e3722cf7`. Independent Terra High review `43a864ab-bbdf-462e-8fbe-28890af820cb` accepted with no material findings, and parent integration acceptance is `accepted`.
 
 ## Deferred evidence-bound implementation paths
 These paths are candidates only and are not writable under `FROZEN_RECONNAISSANCE`:
@@ -155,4 +162,4 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - Stop after any unknown runtime, ownership, transport, evidence, or semantic result; do not retry identically.
 
 ## Next authorized action
-- Commit the accepted candidate locally without push so the receipt controller can bind a clean fingerprint, then admit at most one receipt-bound local BlueStacks two-input reconnaissance run. If selected-Daily evidence is accepted, freeze the evidence-bound Claim implementation revision and continue; otherwise classify the retained evidence and repair only from a materially new hypothesis.
+- Commit the supported-point candidate locally without push, then issue one fresh materially changed two-input reconnaissance receipt. The rejected label-band and contour-center geometries remain prohibited.
