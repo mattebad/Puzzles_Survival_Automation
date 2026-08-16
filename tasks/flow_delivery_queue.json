@@ -3526,7 +3526,7 @@
       "title": "Build verified World Map navigation foundation",
       "kind": "navigation_foundation",
       "priority": 120,
-      "status": "blocked",
+      "status": "ready",
       "backlog_task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -3544,7 +3544,7 @@
       "live_validation_scope": "Navigation-only Home-to-World/search-to-Home validation; no march, attack, stamina, or AP dispatch.",
       "consequence_policy": "Navigation only; unknown map, target, occupancy, march, or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 4,
+      "maximum_live_attempts": 5,
       "live_attempt_count": 4,
       "live_attempts": [
         {
@@ -3607,10 +3607,10 @@
         "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "evidence_required: the fourth canary reached World with one tap, but the current-frame recognizer cannot yet bind the unlabeled magnifying-glass Search control; all post frames remained fail-closed UNKNOWN and no second input occurred",
-      "next_concrete_action": "Implement and independently verify the smallest current-frame visual binding for the World magnifying-glass Search control without granting atlas, node, pan, resource, or combat authority. Obtain explicit authorization before any further live input.",
-      "last_completed_stage": "blocked",
-      "last_commit": "1835d0c9c165f6af5cbc5e8783db49832754081b",
+      "blocked_reason": "",
+      "next_concrete_action": "Run the explicitly authorized navigation-only fifth canary from frozen commit 912be9a after focused, shared-navigation, retained-frame, independent tester, parent integration, and zero-input observation acceptance.",
+      "last_completed_stage": "parent_integration_accepted",
+      "last_commit": "912be9af79cddff8a1ad3c2386d66d995107cb9b",
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
       "acceptance_criteria": [
         "current-frame verified Home-to-World navigation",
