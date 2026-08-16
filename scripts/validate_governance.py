@@ -55,6 +55,7 @@ HANDOFF_REQUIRED_KEYS = {
     "next_task_activation_status",
     "active_task_or_flow",
     "active_delivery_stage",
+    "active_execution_manifest_path",
     "queue_counts",
     "first_ready_flow",
     "next_ready_flow",
@@ -268,6 +269,25 @@ def parse_handoff(path: Path = HANDOFF_PATH) -> Dict[str, Any]:
         if missing_nested:
             raise GovernanceValidationError(
                 f"handoff {name} missing keys: {', '.join(sorted(missing_nested))}"
+            )
+    active_manifest = state["active_execution_manifest_path"]
+    if active_manifest is not None:
+        if (
+            not isinstance(active_manifest, str)
+            or not active_manifest.strip()
+            or "\\" in active_manifest
+        ):
+            raise GovernanceValidationError(
+                "active_execution_manifest_path must be a repository-relative path or null"
+            )
+        manifest_path = Path(active_manifest)
+        if manifest_path.is_absolute() or ".." in manifest_path.parts:
+            raise GovernanceValidationError(
+                "active_execution_manifest_path must stay inside the repository"
+            )
+        if not (path.parent / manifest_path).is_file():
+            raise GovernanceValidationError(
+                "active_execution_manifest_path does not identify a retained manifest"
             )
     if state["current_task_state"] not in CURRENT_TASK_STATES:
         raise GovernanceValidationError("invalid current_task_state")

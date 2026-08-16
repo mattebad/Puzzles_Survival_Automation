@@ -95,6 +95,38 @@ the current operating system and shell when running filesystem commands.
 
 <!-- codex-workflow-project-personalization-start -->
 P&S project workflow constraints:
+- Use the host-neutral execution roles below. The parent/controller retains final
+  integration acceptance, live-runtime ownership, defect classification,
+  official task status, and termination:
+  - `architecture_planner`: freezes architecture and the execution manifest,
+    resolves initial ambiguity, and does not perform routine implementation loops.
+  - `execution_coordinator`: follows the frozen manifest, dispatches bounded
+    workers, runs prescribed checks, collects receipts, and enforces budgets and
+    stages without redesigning architecture.
+  - `bounded_implementer`: mutates only assigned files and self-checks against
+    manifest acceptance criteria.
+  - `independent_tester`: remains read-only and defect-first, verifies acceptance,
+    and cannot authorize repair or expand scope.
+  - `escalation_architect`: resolves new architecture, safety, or evidence
+    conflicts from a compact packet rather than the full transcript.
+- The execution coordinator may make procedural decisions authorized by the
+  manifest, but must not change architecture, expand writable scope, weaken
+  acceptance, alter safety authority, invent live actions, or override
+  contradictory evidence. Escalate only for a contradictory or incomplete plan,
+  a genuinely new architecture decision, ambiguous safety authority, conflicting
+  tester and implementation evidence, two materially different failed repair
+  hypotheses, or live evidence disproving the accepted design. Ordinary test
+  failures, syntax errors, and known repairs do not justify escalation.
+- Use [`docs/execution-manifest-template.md`](docs/execution-manifest-template.md)
+  for compact frozen manifests. One execution chat may contain one implementation
+  package, one tester package, one consolidated repair, one integration
+  checkpoint, and one live iteration. Further architecture work or another
+  substantial repair/live cycle requires a compact handoff and fresh chat.
+  Localized deterministic work may close from passing checks and tester evidence.
+  Heavy, safety-critical, or cross-contract work requires one bounded
+  architecture/integration checkpoint containing only the manifest, changed
+  paths, compact diff summary, test receipts, tester findings, and unresolved
+  decisions.
 - For substantive behavior changes, run the existing deterministic validation hierarchy—focused and flow-specific checks followed by any required architecture or integration gate—before any live emulator canary. Use the Bliss OS / P&S emulator only when actual runtime behavior requires live verification.
 - For cross-cutting changes involving state recognition, navigation, recovery or retry behavior, ADB contracts, or multiple interacting production packages, the parent performs the integration review and owns the final integration decision; do not automatically spawn a child `executor_sol`.
 - Never use `git add .`. Never automatically commit unrelated working-tree changes. Stage only explicitly enumerated active-task paths and preserve all pre-existing user modifications; this overrides automatic closure Git defaults.
@@ -109,7 +141,9 @@ One initial live failure alone does not require promotion or an extra review.
 - The parent owns architecture and one coherent pre-canary integration acceptance after the Luna executor self-check and the named tester package are complete. Do not request incremental patch reviews unless a new cross-contract decision appears; no child Sol review is automatic.
 - Use the compact ladder in [`docs/flow-delivery-validation-policy.md`](docs/flow-delivery-validation-policy.md): exact regression during repair; each affected package suite once; the focused profile once before canary; shared-navigation only when navigation is touched; one parent integration gate; zero-input `pnsctl development-session observe`; live execution; semantic verification. Full repository discovery is manual-only (`full --manual`). Reuse the checked-in runner's compact output and receipts; do not create a second validation framework.
 - Do not impose file-count or LOC budgets unless the user explicitly requests them.
-- After parent classification, permit at most three serial consolidated Luna repair turns.
+- Permit one consolidated Luna repair per execution chat and at most three across
+  the active task. Each additional repair requires a compact handoff and fresh
+  execution chat.
 - Every mutable Luna implementation or repair turn must explicitly select GPT-5.6 Luna XHigh. If a resume cannot preserve that selection, launch a fresh bounded XHigh turn instead.
 - Keep solutions proportionate; do not let perfect be the enemy of good.
 <!-- codex-workflow-project-personalization-end -->

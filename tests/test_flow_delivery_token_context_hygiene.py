@@ -55,6 +55,15 @@ def _run_review_snapshot_export(
 
 
 class CompactHandoffTests(unittest.TestCase):
+    def test_handoff_exposes_active_manifest_pointer(self) -> None:
+        text = HANDOFF_PATH.read_text(encoding="utf-8")
+        raw = text.split("<!-- CURRENT_HANDOFF_STATE_BEGIN -->", 1)[1].split(
+            "<!-- CURRENT_HANDOFF_STATE_END -->", 1
+        )[0].strip()
+        state = json.loads(raw)
+        self.assertIn("active_execution_manifest_path", state)
+        self.assertIsNone(state["active_execution_manifest_path"])
+
     def test_handoff_byte_budgets_and_field_allowlist(self) -> None:
         text = HANDOFF_PATH.read_text(encoding="utf-8")
         raw = text.split("<!-- CURRENT_HANDOFF_STATE_BEGIN -->", 1)[1].split(
@@ -69,9 +78,29 @@ class CompactHandoffTests(unittest.TestCase):
         self.assertLessEqual(len(state["recent_relevant_commits"]), 5)
         self.assertLessEqual(len(state["process_deviations"]), 3)
         self.assertIn("exact_next_permitted_action", state)
+        self.assertIn("active_execution_manifest_path", state)
+        self.assertIsNone(state["active_execution_manifest_path"])
         self.assertEqual(state["unresolved_action_state"], "clear")
         self.assertTrue(state["protected_user_owned_paths"])
         self.assertTrue(state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"])
+
+    def test_handoff_rejects_manifest_paths_outside_repository(self) -> None:
+        text = HANDOFF_PATH.read_text(encoding="utf-8").replace(
+            '"active_execution_manifest_path": null',
+            '"active_execution_manifest_path": "../escape.md"',
+        )
+        text = text.replace(
+            '"next_task_activation_status": "blocked"',
+            '"next_task_activation_status": "not_applicable"',
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            handoff = Path(tmp) / "CURRENT_HANDOFF.md"
+            handoff.write_text(text, encoding="utf-8")
+            with self.assertRaisesRegex(
+                validate_governance.GovernanceValidationError,
+                "must stay inside the repository",
+            ):
+                validate_governance.parse_handoff(handoff)
 
 
 class ReadyFlowMetadataTests(unittest.TestCase):

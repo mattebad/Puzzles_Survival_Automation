@@ -13,6 +13,7 @@
   "next_task_activation_status": "blocked",
   "active_task_or_flow": null,
   "active_delivery_stage": "blocked",
+  "active_execution_manifest_path": null,
   "queue_counts": {"ready": 0, "active": 0, "blocked": 8, "completed": 16, "needs_product_decision": 1},
   "first_ready_flow": null,
   "next_ready_flow": null,

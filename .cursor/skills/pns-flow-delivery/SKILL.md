@@ -1,14 +1,15 @@
 ---
 name: pns-flow-delivery
-description: Parent-led development of Puzzles & Survival flows with optional focused Grok delegation.
+description: Plan-execute-escalate development of Puzzles & Survival flows with bounded delegation.
 disable-model-invocation: true
 ---
 
-# Parent-led PnS flow delivery
+# Plan-execute-escalate PnS flow delivery
 
-The selected high-intelligence parent is the orchestrator. It owns task selection, architecture,
-scope, corrections, validation, runtime ownership, evidence acceptance, commits, and queue
-transitions.
+The architecture planner freezes the manifest. The execution coordinator follows that manifest and
+retains final integration acceptance, runtime ownership, evidence acceptance, commits, and queue
+transitions without redesigning architecture. New architecture, safety ambiguity, or contradictory
+evidence goes to the escalation architect through a compact checkpoint packet.
 
 ## Development loop
 
@@ -18,18 +19,20 @@ transitions.
    unresolved-action state, and the current live-attempt budget.
 3. Acquire or heartbeat the development lease with `scripts/flow_delivery_control.py`. The lease
    protects one active flow and one runtime operator; it does not choose a model or agent.
-4. Select the smallest coherent implementation slice. The parent may edit directly.
+4. Follow the frozen manifest and select its smallest coherent implementation slice. The
+   coordinator may edit directly only when the selected route permits parent-owned implementation.
 5. When delegation is useful, invoke the optional `pns-flow-implementer` once for that slice. Give
    it the parent-approved allowlist and exact deliverable. Immediately before invocation, reserve
    the writer lane with `begin-delegation`; after its terminal result, release the same ID with
    `end-delegation`. Keep it foreground and single-writer. Do not launch reconnaissance, review,
    or evidence agents merely because a correction is needed.
-6. If the slice fails, reproduce the defect and either fix it directly or resume the same
-   implementer with the correction. Do not restart the whole workflow.
+6. If the slice fails, reproduce the defect and authorize at most one consolidated repair in the
+   execution chat. A further substantial repair requires a compact handoff and fresh chat; a new
+   architecture decision requires escalation.
 7. Run the focused tests for the active flow. Run architecture/full/governance validation only
    when the changed scope or task contract requires it.
-8. Use `record-stage` as a lightweight task ledger. `reconnaissance`, `implementation_review`, and
-   `correction` are optional descriptive history, not mandatory agent gates.
+8. Give the independent tester a bounded read-only package when required by the selected route.
+   Use `record-stage` as a lightweight task ledger; descriptive stages are not agent gates.
 9. If live validation is required, the parent alone uses `scripts/pnsctl.py`, one flow at a time,
    with current raw-frame binding, immediate-before revalidation, attempt accounting, and the
    unresolved-action gate.

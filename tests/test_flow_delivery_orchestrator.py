@@ -424,21 +424,42 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
             ["pns-flow-implementer"],
         )
         text = paths[0].read_text(encoding="utf-8")
-        self.assertIn("model: cursor-grok-4.5-high", text)
+        self.assertIn("model: gpt-5.6-luna-xhigh", text)
         self.assertIn("readonly: false", text)
 
-    def test_skill_is_parent_led_and_delegation_is_optional(self) -> None:
+    def test_skill_uses_plan_execute_escalate_with_bounded_delegation(self) -> None:
         skill = (
             ROOT / ".cursor" / "skills" / "pns-flow-delivery" / "SKILL.md"
         ).read_text(encoding="utf-8")
-        self.assertIn(
-            "The selected high-intelligence parent is the orchestrator", skill
-        )
-        self.assertIn("The parent may edit directly", skill)
+        self.assertIn("The architecture planner freezes the manifest", skill)
+        self.assertIn("The execution coordinator follows that manifest", skill)
+        self.assertIn("at most one consolidated repair", skill)
+        self.assertIn("compact handoff and fresh chat", skill)
         self.assertIn("optional `pns-flow-implementer`", skill)
-        self.assertIn("Do not restart the whole workflow", skill)
         self.assertNotIn("pns-flow-recon", skill)
         self.assertNotIn("pns-flow-reviewer", skill)
+
+    def test_host_portable_routing_and_manifest_are_checked_in_contracts(self) -> None:
+        agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        managed, project = agents.split(
+            "<!-- codex-workflow-managed-end -->", 1
+        )
+        self.assertNotIn("execution_coordinator", managed)
+        self.assertIn("execution_coordinator", project)
+        routing = (
+            ROOT / ".cursor" / "rules" / "pns-model-routing.mdc"
+        ).read_text(encoding="utf-8")
+        self.assertIn("alwaysApply: true", routing)
+        self.assertIn("`execution_coordinator`: Luna XHigh", routing)
+        self.assertIn("`bounded_implementer`: Luna XHigh", routing)
+        manifest = (ROOT / "docs" / "execution-manifest-template.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("## Execution routing and timing", manifest)
+        self.assertIn("Parent conversation ID", manifest)
+        self.assertIn("| Role | Model | Agent/session ID |", manifest)
+        self.assertIn("## Frozen architecture decision", manifest)
+        self.assertIn("## Escalation conditions", manifest)
 
     def test_mandatory_task_routing_hooks_are_removed(self) -> None:
         self.assertFalse((ROOT / ".cursor" / "hooks.json").exists())

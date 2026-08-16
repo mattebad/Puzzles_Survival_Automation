@@ -1,0 +1,35 @@
+---
+description: Cursor routing for the host-portable P&S execution roles
+alwaysApply: true
+---
+
+# P&S model routing
+
+Apply the host-neutral role contract in `AGENTS.md`. Keep the manifest and
+escalation packet model-neutral so another host can map the same roles.
+
+- `architecture_planner`: user-selected Sol.
+- `execution_coordinator`: Luna XHigh by default; Terra High only when
+  manually selected as the parent chat model.
+- `bounded_implementer`: Luna XHigh.
+- routine `independent_tester`: Luna XHigh in a separate read-only context.
+- high-risk or cross-contract tester: delegated Sol Medium or Grok 4.5 High when added
+  capability or model diversity is justified.
+- `escalation_architect`: delegated Sol Medium; use Sol High only in a
+  user-selected fresh chat when available.
+
+Before every routine coordination or testing turn, select or verify the
+assigned model. Never inherit an expensive parent model accidentally for
+routine coordination or testing. The coordinator follows the frozen manifest
+and may not redesign it, expand writable scope, weaken acceptance, invent live
+actions, or override contradictory evidence.
+
+Named agents still require a manifest-compatible assignment. The
+`pns-flow-implementer` default is Luna XHigh; verify the explicit model on every
+mutable implementation or repair turn rather than inheriting the parent.
+
+Use a compact checkpoint packet containing only the manifest, changed paths,
+compact diff summary, test receipts, tester findings, and unresolved decisions.
+Do not forward the full orchestration transcript. Codex remains portable by
+mapping these roles to its available GPT models without requiring Cursor-only
+model names or capabilities.

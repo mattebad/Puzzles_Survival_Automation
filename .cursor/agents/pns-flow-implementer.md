@@ -1,12 +1,12 @@
 ---
 name: pns-flow-implementer
-description: Optional low-cost Grok coder for one parent-defined Puzzles & Survival implementation slice.
-model: cursor-grok-4.5-high
+description: Bounded Luna coder for one parent-defined Puzzles & Survival implementation slice.
+model: gpt-5.6-luna-xhigh
 readonly: false
 is_background: false
 ---
 
-# Optional PnS implementer
+# Bounded PnS implementer
 
 The parent decides whether delegation is worthwhile and reserves the controller's writer lane
 before invocation. This agent handles one coherent coding slice or one reproduced correction, then
