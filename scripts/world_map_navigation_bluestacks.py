@@ -42,6 +42,8 @@ MAX_ROUTE_INPUTS = 20
 MAX_SAFE_POPUP_INPUTS = 4
 MAX_SAFE_POPUP_POST_FRAMES = 3
 SAFE_POPUP_SETTLE_DELAY_SECONDS = 0.25
+MAX_NAVIGATION_POST_FRAMES = 3
+NAVIGATION_SETTLE_DELAY_SECONDS = 0.25
 POPUP_CONTRACT_VERSION = "vip-points-get-pts-close-v1"
 
 HOME_READY = "HOME_READY"
@@ -1174,6 +1176,33 @@ class WorldMapNavigationController:
         )
         return checkpoint
 
+    def _settle_successor(
+        self,
+        immediate_post: CapturedNativeFrame,
+        expected_state: str,
+        label: str,
+    ) -> Checkpoint:
+        post = immediate_post
+        for observation_index in range(MAX_NAVIGATION_POST_FRAMES):
+            try:
+                return self._checkpoint(post, expected_state)
+            except WorldNavigationBlocked as exc:
+                reason = str(exc)
+                retryable_observation = reason == "unknown_state_or_modal" or reason.startswith(
+                    "unexpected_successor:"
+                )
+                if (
+                    not retryable_observation
+                    or observation_index + 1 >= MAX_NAVIGATION_POST_FRAMES
+                ):
+                    raise
+                if NAVIGATION_SETTLE_DELAY_SECONDS > 0:
+                    time.sleep(NAVIGATION_SETTLE_DELAY_SECONDS)
+                post = self.runtime.capture(
+                    f"{label}-settle-{observation_index + 1:02d}"
+                )
+        raise WorldNavigationBlocked("navigation_successor_settle_exhausted")
+
     def _tap(
         self,
         checkpoint: Checkpoint,
@@ -1251,7 +1280,7 @@ class WorldMapNavigationController:
         immediate_post = self.runtime.capture(f"{label}-immediate-post")
         # A popup may appear over a valid successor.  Handle it at this exact
         # fresh frame before declaring the route transition reconciled.
-        settled = self._checkpoint(immediate_post, successor_state)
+        settled = self._settle_successor(immediate_post, successor_state, label)
         reconcile = getattr(self.runtime, "reconcile", None)
         if callable(reconcile):
             reconcile(action_key, "confirmed", settled.frame, "recognized_exact_successor")
@@ -1330,7 +1359,11 @@ class WorldMapNavigationController:
                 f"navigation_transport_ambiguous:{ANDROID_BACK}:{type(exc).__name__}"
             ) from exc
         immediate_post = self.runtime.capture("world-search-back-immediate-post")
-        settled = self._checkpoint(immediate_post, successor_state)
+        settled = self._settle_successor(
+            immediate_post,
+            successor_state,
+            "world-search-back",
+        )
         reconcile = getattr(self.runtime, "reconcile", None)
         if callable(reconcile):
             reconcile(action_key, "confirmed", settled.frame, "recognized_exact_successor")

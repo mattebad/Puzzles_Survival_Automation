@@ -415,6 +415,30 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
         self.assertEqual(result["navigation_input_count"], 4)
 
+    def test_navigation_waits_for_delayed_successor_without_second_tap(self):
+        frames = route_frames()
+        frames.insert(
+            1,
+            observation(
+                HOME_READY,
+                controls={"home-to-world": (100, 100, 220, 160)},
+            ),
+        )
+        runtime = FakeRuntime(frames)
+        with patch(
+            "scripts.world_map_navigation_bluestacks.time.sleep",
+            return_value=None,
+        ):
+            result = run_world_map_navigation(
+                runtime,
+                recognizer=scripted_recognizer,
+                maximum_inputs=4,
+            )
+        self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
+        self.assertEqual(result["navigation_input_count"], 4)
+        self.assertEqual(len(runtime.calls), 4)
+        self.assertEqual(runtime.calls[0][1]["target_identity"], "home-to-world")
+
     def test_popup_is_handled_at_checkpoint_and_counts_against_total_budget(self):
         runtime = FakeRuntime(route_frames(popup_at_start=True))
         result = run_world_map_navigation(
@@ -812,6 +836,9 @@ class WorldMapNavigationTests(unittest.TestCase):
 
         missing_home = route_frames()
         missing_home[-1] = observation("WORLD_READY")
+        missing_home.extend(
+            [observation("WORLD_READY"), observation("WORLD_READY")]
+        )
         missing_result = run_world_map_navigation(
             FakeRuntime(missing_home),
             recognizer=scripted_recognizer,
