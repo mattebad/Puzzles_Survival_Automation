@@ -1715,8 +1715,8 @@ class WorldMapNavigationTests(unittest.TestCase):
         search_button = (94, 1026, 190, 1093)
         home_button = (20, 1167, 132, 1258)
         cv2.rectangle(frame, search_button[:2], search_button[2:], (50, 50, 50), -1)
-        cv2.circle(frame, (122, 1052), 16, (230, 230, 230), 3)
-        cv2.line(frame, (133, 1063), (151, 1081), (230, 230, 230), 3)
+        cv2.circle(frame, (126, 1058), 16, (230, 230, 230), 3)
+        cv2.line(frame, (137, 1069), (150, 1082), (230, 230, 230), 3)
         with patch(
             "scripts.world_map_navigation_bluestacks._ocr_hits",
             return_value=[
@@ -1739,24 +1739,24 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result.localization_evidence, ())
         self.assertEqual(
             result.controls[WORLD_SEARCH_ENTRY],
-            (105, 1034, 157, 1085),
+            (100, 1030, 152, 1086),
         )
         self.assertNotEqual(result.controls[WORLD_SEARCH_ENTRY], search_button)
         self.assertEqual(result.controls[WORLD_TO_HOME], home_button)
         self.assertIn("magnifying-glass lens", result.semantic_evidence)
         self.assertIn("magnifying-glass handle", result.semantic_evidence)
-        self.assertIn("tight current-frame icon ROI", result.semantic_evidence)
+        self.assertIn("fixed native Search HUD slot", result.semantic_evidence)
 
     def test_magnifier_binding_ignores_broad_or_missing_contours(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         broad_toolbar = (0, 1025, 161, 1100)
         cv2.rectangle(frame, (94, 1026), (190, 1093), (50, 50, 50), -1)
-        cv2.circle(frame, (122, 1052), 16, (230, 230, 230), 3)
-        cv2.line(frame, (133, 1063), (151, 1081), (230, 230, 230), 3)
+        cv2.circle(frame, (126, 1058), 16, (230, 230, 230), 3)
+        cv2.line(frame, (137, 1069), (150, 1082), (230, 230, 230), 3)
 
         self.assertEqual(
             _visual_search_entry_binding(frame, candidates=[broad_toolbar])[0],
-            (105, 1034, 157, 1085),
+            (100, 1030, 152, 1086),
         )
         with patch(
             "scripts.world_map_navigation_bluestacks._ocr_hits",
@@ -1779,7 +1779,7 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result.state, WORLD_READY)
         self.assertEqual(
             result.controls[WORLD_SEARCH_ENTRY],
-            (105, 1034, 157, 1085),
+            (100, 1030, 152, 1086),
         )
         self.assertNotIn(WORLD_TO_HOME, result.controls)
         self.assertFalse(
@@ -1814,7 +1814,7 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result.state, WORLD_READY)
         self.assertEqual(
             result.controls,
-            {WORLD_SEARCH_ENTRY: (100, 1031, 148, 1084)},
+            {WORLD_SEARCH_ENTRY: (100, 1030, 152, 1086)},
         )
         self.assertEqual(set(result.control_semantics), {WORLD_SEARCH_ENTRY})
         self.assertEqual(
@@ -1853,8 +1853,8 @@ class WorldMapNavigationTests(unittest.TestCase):
         search_button = (94, 1024, 190, 1093)
         home_button = (20, 1167, 128, 1258)
         cv2.rectangle(frame, search_button[:2], search_button[2:], (50, 50, 50), -1)
-        cv2.circle(frame, (122, 1050), 16, (230, 230, 230), 3)
-        cv2.line(frame, (133, 1061), (151, 1079), (230, 230, 230), 3)
+        cv2.circle(frame, (126, 1058), 16, (230, 230, 230), 3)
+        cv2.line(frame, (137, 1069), (150, 1082), (230, 230, 230), 3)
         hits = [
             ("x:299", (323, 99, 427, 205)),
             ("1.495", (424, 104, 520, 198)),
@@ -1880,7 +1880,7 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertTrue(result.recognized)
         self.assertEqual(
             result.controls[WORLD_SEARCH_ENTRY],
-            (105, 1032, 155, 1085),
+            (100, 1030, 152, 1086),
         )
         self.assertEqual(result.controls[WORLD_TO_HOME], home_button)
 
@@ -1918,8 +1918,8 @@ class WorldMapNavigationTests(unittest.TestCase):
         search_button = (94, 1026, 190, 1093)
         home_button = (20, 1167, 132, 1258)
         cv2.rectangle(frame, search_button[:2], search_button[2:], (50, 50, 50), -1)
-        cv2.circle(frame, (122, 1052), 16, (230, 230, 230), 3)
-        cv2.line(frame, (133, 1063), (151, 1081), (230, 230, 230), 3)
+        cv2.circle(frame, (126, 1058), 16, (230, 230, 230), 3)
+        cv2.line(frame, (137, 1069), (150, 1082), (230, 230, 230), 3)
         common_hits = [
             ("X:299", (290, 110, 350, 145)),
             ("Y:495", (360, 110, 420, 145)),
@@ -1954,7 +1954,7 @@ class WorldMapNavigationTests(unittest.TestCase):
                 source_frame_sha256="3" * 64,
                 evidence_ref="current-native-world.png",
             )
-        self.assertEqual(missing_hud.state, "UNKNOWN")
+        self.assertEqual(missing_hud.state, WORLD_READY)
 
     def test_search_menu_requires_visible_categories_without_gas_or_category_binding(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)

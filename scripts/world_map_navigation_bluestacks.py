@@ -105,7 +105,9 @@ _POPUP_BODY_MARKERS = (
     "obtained vip pts",
     "obtained vip pt",
 )
-_WORLD_SEARCH_REGION = (0, 960, 240, 1120)
+WORLD_SEARCH_ENTRY_ROI = (100, 1030, 152, 1086)
+WORLD_SEARCH_ENTRY_CENTER = (126, 1058)
+_SEARCH_ICON_CENTER_TOLERANCE = 8
 _WORLD_COORDINATE_HUD_REGION = (240, 80, 600, 220)
 _FOOTER_NAVIGATION_REGION = (0, 1160, 150, 1280)
 _FOOTER_OCR_SCALE = 3.0
@@ -863,31 +865,33 @@ def _visual_search_entry_binding(
     *,
     candidates: list[tuple[int, int, int, int]] | None = None,
 ) -> tuple[tuple[int, int, int, int], tuple[str, ...], str] | None:
-    """Bind exactly one current-frame magnifying-glass Search control.
+    """Confirm one magnifier in the fixed native Search HUD slot.
 
-    The icon is measured directly from the current search-region pixels.  The
-    optional contour argument is retained for call-site compatibility, but a
-    merged toolbar contour must never determine the dispatch ROI.
+    The fixed ROI is the only dispatch geometry.  ``candidates`` is accepted
+    for compatibility with older callers but is intentionally ignored: neither
+    contours, toolbar boxes, nor OCR may move or authorize this target.
     """
 
     del candidates
-    rx0, ry0, rx1, ry1 = _WORLD_SEARCH_REGION
+    rx0, ry0, rx1, ry1 = WORLD_SEARCH_ENTRY_ROI
     if frame is None or getattr(frame, "shape", ())[:2] != (
         NATIVE_HEIGHT,
         NATIVE_WIDTH,
     ):
         return None
     crop = frame[ry0:ry1, rx0:rx1]
+    if crop.size == 0:
+        return None
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     circles = cv2.HoughCircles(
-        cv2.medianBlur(gray, 7),
+        cv2.medianBlur(gray, 5),
         cv2.HOUGH_GRADIENT,
         dp=1,
-        minDist=24,
+        minDist=12,
         param1=60,
-        param2=16,
-        minRadius=11,
-        maxRadius=26,
+        param2=14,
+        minRadius=10,
+        maxRadius=22,
     )
     edges = cv2.Canny(gray, 60, 180)
     lines = cv2.HoughLinesP(
@@ -901,16 +905,20 @@ def _visual_search_entry_binding(
     if circles is None or lines is None:
         return None
 
+    expected_x = WORLD_SEARCH_ENTRY_CENTER[0] - rx0
+    expected_y = WORLD_SEARCH_ENTRY_CENTER[1] - ry0
     grid_y, grid_x = np.ogrid[: gray.shape[0], : gray.shape[1]]
-    icon_rois: list[tuple[int, int, int, int]] = []
+    matches: list[tuple[float, float, float]] = []
     for raw_circle in circles[0]:
         center_x, center_y, radius = (float(value) for value in raw_circle)
         if not (
-            radius >= 11
-            and rx0 <= center_x - radius
-            and center_x + radius <= rx1
-            and 0 <= center_y - radius
-            and center_y + radius <= ry1 - ry0
+            10 <= radius <= 22
+            and abs(center_x - expected_x) <= _SEARCH_ICON_CENTER_TOLERANCE
+            and abs(center_y - expected_y) <= _SEARCH_ICON_CENTER_TOLERANCE
+            and center_x - radius >= 0
+            and center_x + radius <= gray.shape[1]
+            and center_y - radius >= 0
+            and center_y + radius <= gray.shape[0]
         ):
             continue
         distance = np.sqrt(
@@ -926,7 +934,7 @@ def _visual_search_entry_binding(
         ):
             continue
 
-        handles: list[tuple[float, float, np.ndarray, np.ndarray]] = []
+        handle_found = False
         for raw_line in lines[:, 0]:
             first = np.array(raw_line[:2], dtype=float)
             second = np.array(raw_line[2:], dtype=float)
@@ -947,8 +955,8 @@ def _visual_search_entry_binding(
             dy = float(far[1] - near[1])
             angle = math.degrees(math.atan2(dy, dx)) if dx > 0 else -180.0
             if not (
-                near_distance <= radius * 1.60
-                and far_distance >= radius * 1.45
+                near_distance <= radius * 1.70
+                and far_distance >= radius * 1.35
                 and dx >= radius * 0.45
                 and dy >= radius * 0.30
                 and 20.0 <= angle <= 70.0
@@ -956,47 +964,28 @@ def _visual_search_entry_binding(
                 and far[1] >= center_y + radius * 0.35
             ):
                 continue
-            handles.append(
-                (
-                    far_distance,
-                    float(np.linalg.norm(far - near)),
-                    near,
-                    far,
-                )
-            )
-        if not handles:
-            continue
-        _far_distance, _length, near, far = max(
-            handles,
-            key=lambda item: (item[0], item[1]),
-        )
-        points = np.array(
-            (
-                (center_x - radius, center_y - radius),
-                (center_x + radius, center_y + radius),
-                near,
-                far,
-            ),
-            dtype=float,
-        )
-        margin = 4
-        icon_rois.append(
-            (
-                max(rx0, int(math.floor(points[:, 0].min())) - margin),
-                max(ry0, int(math.floor(points[:, 1].min() + ry0)) - margin),
-                min(rx1, int(math.ceil(points[:, 0].max())) + margin),
-                min(ry1, int(math.ceil(points[:, 1].max() + ry0)) + margin),
-            )
-        )
-    if len(icon_rois) != 1 or not _valid_roi(icon_rois[0]):
+            handle_found = True
+            break
+        if handle_found:
+            matches.append((center_x, center_y, radius))
+
+    distinct_matches: list[tuple[float, float, float]] = []
+    for match in matches:
+        if not any(
+            math.hypot(match[0] - other[0], match[1] - other[1]) <= 6
+            and abs(match[2] - other[2]) <= 4
+            for other in distinct_matches
+        ):
+            distinct_matches.append(match)
+    if len(distinct_matches) != 1:
         return None
     return (
-        icon_rois[0],
+        WORLD_SEARCH_ENTRY_ROI,
         (
             "Search",
             "magnifying-glass lens",
             "magnifying-glass handle",
-            "tight current-frame icon ROI",
+            "fixed native Search HUD slot",
             "current-frame visual structure",
         ),
         "current-frame-bounded-candidate",
@@ -1337,11 +1326,14 @@ def recognize_world_frame(
         controls[WORLD_SEARCH_ENTRY] = roi
         control_semantics[WORLD_SEARCH_ENTRY] = semantics
         control_geometry_source[WORLD_SEARCH_ENTRY] = geometry_source
-    coordinate_evidence = _coordinate_hud_evidence(frame, hits)
+    # A confirmed magnifier in the fixed native Search HUD slot is sufficient
+    # for World/Search-entry recognition.  Coordinate OCR is intentionally not
+    # consulted and grants no zoom or localization authority.
+    coordinate_evidence: tuple[str, ...] = ()
     menu_evidence = _world_search_menu_evidence(hits)
     has_home = HOME_TO_WORLD in controls
-    has_world_context = bool(coordinate_evidence) and WORLD_TO_HOME in controls
-    has_world = bool(coordinate_evidence) and WORLD_SEARCH_ENTRY in controls
+    has_world_context = WORLD_TO_HOME in controls
+    has_world = WORLD_SEARCH_ENTRY in controls
     has_search_panel = bool(menu_evidence) and has_world_context
     has_canonical_home = has_home and any(
         marker in compact for marker in ("canonical home", "home base", "command center")
@@ -1375,7 +1367,7 @@ def recognize_world_frame(
         evidence += (
             "magnifying-glass lens",
             "magnifying-glass handle",
-            "tight current-frame icon ROI",
+            "fixed native Search HUD slot",
             "current-frame Search visual structure",
         )
     return WorldNavigationObservation(
