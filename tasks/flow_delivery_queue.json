@@ -3526,7 +3526,7 @@
       "title": "Build verified World Map navigation foundation",
       "kind": "navigation_foundation",
       "priority": 120,
-      "status": "ready",
+      "status": "blocked",
       "backlog_task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -3544,8 +3544,8 @@
       "live_validation_scope": "Navigation-only Home-to-World/search-to-Home validation; no march, attack, stamina, or AP dispatch.",
       "consequence_policy": "Navigation only; unknown map, target, occupancy, march, or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 6,
-      "live_attempt_count": 5,
+      "maximum_live_attempts": 9,
+      "live_attempt_count": 9,
       "live_attempts": [
         {
           "ordinal": 1,
@@ -3606,6 +3606,54 @@
           "session_directory": null,
           "terminal_outcome": "blocked",
           "diagnosis": "Controller setup reservation ended before receipt issuance; candidate cleanliness rejected the receipt. No development session started and zero runtime inputs occurred."
+        },
+        {
+          "ordinal": 6,
+          "active_flow": "WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_owner": "pnsctl-development-session:WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_session": "cc6ab508-e21f-41aa-b011-ff015e681e47",
+          "repository_head": "428d10dd4625417146677594b0dda34d44068c1a",
+          "started_at": "2026-08-16T05:23:04.235603Z",
+          "finished_at": "2026-08-16T05:25:10.875603Z",
+          "session_directory": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260816T052304235603Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "The full route started while the runtime remained on World. Initial recognition stayed UNKNOWN and failed closed with zero inputs. Later zero-input evidence showed the magnifier and Home controls could bind, but the coordinate HUD OCR varied from Y:495 to 1.495."
+        },
+        {
+          "ordinal": 7,
+          "active_flow": "WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_owner": "pnsctl-development-session:WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_session": "f7149609-8637-491f-a43e-23290d253bc2",
+          "repository_head": "2e9571da921e9d920b844470d1120aab1e992519",
+          "started_at": "2026-08-16T05:32:32.921428Z",
+          "finished_at": "2026-08-16T05:36:23.968428Z",
+          "session_directory": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260816T053232921428Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "The coordinate OCR repair was valid, but the full route again started from World instead of its required Home precondition and failed closed with zero inputs."
+        },
+        {
+          "ordinal": 8,
+          "active_flow": "WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_owner": "pnsctl-development-session:WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_session": "04bc8403-c1c9-4bd9-94f6-87d62546b2b1",
+          "repository_head": "2e9571da921e9d920b844470d1120aab1e992519",
+          "started_at": "2026-08-16T05:37:24.401640Z",
+          "finished_at": "2026-08-16T05:40:26.427640Z",
+          "session_directory": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260816T053724401640Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "HUD-only recovery dispatched one current-frame world-to-home tap. Zero-input frame .local-captures/development-sessions/observe-20260816T054028358580Z/observe.png proves Home was reached, but full-frame OCR missed the visible World footer label and the immediate verifier failed closed."
+        },
+        {
+          "ordinal": 9,
+          "active_flow": "WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_owner": "pnsctl-development-session:WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_session": "ab3f4b9f-0ba7-4699-9bea-4377522522d9",
+          "repository_head": "5ffdabd2ac029c21d33abc1e83f3485671beaa17",
+          "started_at": "2026-08-16T05:54:33.723309Z",
+          "finished_at": "2026-08-16T05:58:52.743309Z",
+          "session_directory": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260816T055433723309Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "HOME_READY recognized and one home-to-world tap succeeded. The terminal zero-input frame proves World, but contour grouping changed: Search became one broad candidate [0,1025,161,1100], so lens/handle binding rejected it; footer OCR read Home? and multiple overlapping candidates remained ambiguous. The route stopped before Search with one navigation input and zero resource/combat inputs."
         }
       ],
       "focused_tests": [
@@ -3619,10 +3667,10 @@
         "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "",
-      "next_concrete_action": "Run the explicitly authorized navigation-only canary; reservation 5 ended during controller setup before receipt issuance with zero runtime inputs, so reservation 6 is the actual live attempt.",
-      "last_completed_stage": "focused_validation",
-      "last_commit": "912be9af79cddff8a1ad3c2386d66d995107cb9b",
+      "blocked_reason": "evidence_required: the final Home-to-World tap succeeded, but current-frame contour grouping merged the magnifier toolbar into a broad candidate and footer Home remained visually ambiguous; World successor recognition failed closed before Search",
+      "next_concrete_action": "Do not repeat live input. In a new authorized iteration, bind the magnifier directly from bounded lens-and-handle geometry instead of requiring one enclosing contour candidate, and separate the footer label ROI from its containing button without choosing among distinct targets.",
+      "last_completed_stage": "blocked",
+      "last_commit": "5ffdabd2ac029c21d33abc1e83f3485671beaa17",
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
       "acceptance_criteria": [
         "current-frame verified Home-to-World navigation",
