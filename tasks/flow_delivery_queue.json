@@ -3526,7 +3526,7 @@
       "title": "Build verified World Map navigation foundation",
       "kind": "navigation_foundation",
       "priority": 120,
-      "status": "blocked",
+      "status": "completed",
       "backlog_task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -3679,10 +3679,10 @@
         "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "evidence_required: direct tight magnifier geometry now binds, but the one-tap Search-only canary retained an unnecessary coordinate-HUD state gate and stopped before dispatch with zero inputs",
-      "next_concrete_action": "Do not retry live input. For Search-entry-only mode, let the unique bounded lens-and-handle binding establish the World Search control without the brittle coordinate OCR gate; retain exact one-input and WORLD_SEARCH_OPEN successor limits.",
-      "last_completed_stage": "blocked",
-      "last_commit": "c439c3a7a125fe77e9ba9e70b2f823560fb6a126",
+      "blocked_reason": "",
+      "next_concrete_action": "None; the HUD-only Home-to-World, fixed Search entry, verified Search menu, Android Back, and World-to-Home boundary is accepted at 2ed6d1c with zero atlas, node, resource, march, or combat authority.",
+      "last_completed_stage": "completed",
+      "last_commit": "2ed6d1c90e14ad0e957115022e76adf0ad7688ad",
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
       "acceptance_criteria": [
         "current-frame verified Home-to-World navigation",
