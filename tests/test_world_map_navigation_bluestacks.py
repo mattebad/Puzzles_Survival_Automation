@@ -34,6 +34,7 @@ from scripts.world_map_navigation_bluestacks import (
     recover_world_map_home,
     recognize_allowlisted_popup,
     recognize_world_frame,
+    recognize_world_home_recovery,
     route_declaration,
     run_world_map_navigation,
 )
@@ -1398,7 +1399,7 @@ class WorldMapNavigationTests(unittest.TestCase):
             "absent",
         )
 
-    def test_world_recovery_recognizes_coordinate_hud_and_home_icon(self):
+    def test_world_recovery_binds_home_without_atlas_authority(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         home_button = (20, 1167, 128, 1258)
         with patch(
@@ -1411,14 +1412,16 @@ class WorldMapNavigationTests(unittest.TestCase):
             "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
             return_value=[home_button],
         ):
-            result = recognize_world_frame(
+            result = recognize_world_home_recovery(
                 frame,
                 source_frame_sha256="f" * 64,
                 evidence_ref="current-world-recovery-frame.png",
             )
         self.assertEqual(result.state, "WORLD_READY")
         self.assertEqual(result.controls["world-to-home"], home_button)
-        self.assertEqual(result.zoom_identity, WORLD_ZOOM_SUPPORTED)
+        self.assertNotEqual(result.zoom_identity, WORLD_ZOOM_SUPPORTED)
+        self.assertEqual(result.zoom_evidence, ())
+        self.assertEqual(result.localization_evidence, ())
 
 
 if __name__ == "__main__":

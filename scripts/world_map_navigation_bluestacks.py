@@ -734,20 +734,7 @@ def recognize_world_frame(
 
     zoom_evidence, localization_evidence = _world_visual_evidence(frame, hits)
     has_home = HOME_TO_WORLD in controls
-    has_world_coordinate = any(
-        re.fullmatch(r"x\d+", _compact(text)) is not None
-        for text, _roi in hits
-    )
-    has_world = WORLD_SEARCH_ENTRY in controls or (
-        WORLD_TO_HOME in controls and has_world_coordinate
-    )
-    if (
-        not zoom_evidence
-        and WORLD_TO_HOME in controls
-        and has_world_coordinate
-    ):
-        zoom_evidence = ("supported-world-coordinate-hud",)
-        localization_evidence = ("current-frame-world-coordinate-hud",)
+    has_world = WORLD_SEARCH_ENTRY in controls
     has_search_panel = WORLD_SEARCH_CLOSE in controls and any(
         marker in compact for marker in ("coordinates", "coordinate", "find")
     )
@@ -792,6 +779,46 @@ def recognize_world_frame(
         zoom_evidence=zoom_evidence,
         localization_evidence=localization_evidence,
     )
+
+
+def recognize_world_home_recovery(
+    frame: np.ndarray,
+    *,
+    source_frame_sha256: str = "",
+    evidence_ref: str = "",
+) -> WorldNavigationObservation:
+    """Bind only the World HUD Home control without granting atlas authority."""
+
+    observation = recognize_world_frame(
+        frame,
+        source_frame_sha256=source_frame_sha256,
+        evidence_ref=evidence_ref,
+    )
+    if observation.state == WORLD_READY:
+        return observation
+    coordinate_hud = any(
+        re.fullmatch(r"x\d+", _compact(text)) is not None
+        and 0 <= roi[1] < roi[3] <= 220
+        for text, roi in _ocr_hits(frame)
+    )
+    if (
+        observation.state == "UNKNOWN"
+        and not observation.unknown_modal
+        and observation.overlay_state in {"none", "none_observed", ""}
+        and coordinate_hud
+        and _valid_roi(observation.control_roi(WORLD_TO_HOME))
+    ):
+        return replace(
+            observation,
+            state=WORLD_READY,
+            recognized=True,
+            semantic_evidence=(
+                *observation.semantic_evidence,
+                "spatially_bound_world_coordinate_hud",
+                "current-frame Home control",
+            ),
+        )
+    return observation
 
 
 def _coerce_observation(
@@ -1243,7 +1270,8 @@ class WorldMapNavigationController:
             expected_state=checkpoint.observation.state,
             required_target_identity=target_identity,
             require_supported_zoom=checkpoint.observation.state
-            in {WORLD_READY, WORLD_SEARCH_OPEN},
+            in {WORLD_READY, WORLD_SEARCH_OPEN}
+            and target_identity != WORLD_TO_HOME,
         ):
             raise WorldNavigationBlocked("control_semantics_not_current_frame_bound")
         if self.total_input_count >= self.maximum_inputs:
@@ -1505,7 +1533,24 @@ class WorldMapNavigationController:
         started = time.monotonic()
         current = self.runtime.capture("world-home-recovery-source")
         try:
-            world = self._checkpoint(current, WORLD_READY)
+            if self.recognizer is recognize_world_frame:
+                world_observation = recognize_world_home_recovery(
+                    current.frame,
+                    source_frame_sha256=current.sha256,
+                    evidence_ref=str(current.path),
+                )
+                if world_observation.source_frame_sha256 != current.sha256:
+                    raise WorldNavigationBlocked("stale_or_cross_frame_observation")
+                if not world_navigation_observation_authorizeable(
+                    world_observation,
+                    expected_state=WORLD_READY,
+                    required_target_identity=WORLD_TO_HOME,
+                    require_supported_zoom=False,
+                ):
+                    raise WorldNavigationBlocked("world_home_control_not_authorizeable")
+                world = Checkpoint(current, world_observation)
+            else:
+                world = self._checkpoint(current, WORLD_READY)
             home = self._tap(
                 world,
                 target_identity=WORLD_TO_HOME,
