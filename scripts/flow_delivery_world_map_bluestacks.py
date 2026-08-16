@@ -498,13 +498,19 @@ def _verify_event_order(
             raise _pnsctl().OperatorError("World navigation route path is unsupported")
         expected, terminal_state = contracts[route_path]
         if (
-            route_path == SEARCH_ENTRY_ONLY_PATH
+            route_path in {RECOVERY_PATH, SEARCH_ENTRY_ONLY_PATH}
             and route.get("safe_popup_input_count") != 0
         ):
             raise _pnsctl().OperatorError(
-                "World search-entry-only route contains popup input"
+                "World navigation bounded route contains popup input"
             )
-        if [str(item.get("target_identity")) for item in transitions] != expected:
+        actual_path = [str(item.get("target_identity")) for item in transitions]
+        expected_paths = (
+            (expected, ["android-back", "world-to-home"])
+            if route_path == RECOVERY_PATH
+            else (expected,)
+        )
+        if actual_path not in expected_paths:
             raise _pnsctl().OperatorError("World navigation dispatch order is not canonical")
         terminal = [
             (index, event)
@@ -773,7 +779,15 @@ def _verify_route_semantics(
         if route_path not in contracts:
             raise _pnsctl().OperatorError("World navigation route path is unsupported")
         expected, expected_contract, terminal_state, expected_reason = contracts[route_path]
-        if identities != expected:
+        if route_path == RECOVERY_PATH and identities == [
+            "android-back",
+            "world-to-home",
+        ]:
+            expected_contract = [
+                ("WORLD_SEARCH_OPEN", "android-back", "WORLD_READY", "WORLD_READY"),
+                ("WORLD_READY", "world-to-home", "HOME_READY", "HOME_READY"),
+            ]
+        elif identities != expected:
             raise _pnsctl().OperatorError("World navigation transition order is not canonical")
         actual_contract = [
             (

@@ -1334,7 +1334,7 @@ def recognize_world_frame(
     has_home = HOME_TO_WORLD in controls
     has_world_context = WORLD_TO_HOME in controls
     has_world = WORLD_SEARCH_ENTRY in controls
-    has_search_panel = bool(menu_evidence) and has_world_context
+    has_search_panel = bool(menu_evidence)
     has_canonical_home = has_home and any(
         marker in compact for marker in ("canonical home", "home base", "command center")
     )
@@ -2042,6 +2042,7 @@ class WorldMapNavigationController:
                 "source_state": checkpoint.observation.state,
                 "expected_successor_state": successor_state,
                 "successor_state": settled.observation.state,
+                "successor_overlay_state": settled.observation.overlay_state,
                 **_capture_metadata(immediate_post),
                 "successor_capture_ordinal": _capture_identity(settled.frame)[1],
             },
@@ -2204,12 +2205,28 @@ class WorldMapNavigationController:
             )
 
     def recover_home(self) -> dict[str, Any]:
-        """Return an already-open World map to Home with one bounded tap."""
+        """Return an open World map or Search menu to Home with bounded inputs."""
 
         started = time.monotonic()
         current = self.runtime.capture("world-home-recovery-source")
         try:
-            if self.recognizer is recognize_world_frame:
+            initial = _recognize(self.recognizer, current)
+            if initial.source_frame_sha256 != current.sha256:
+                raise WorldNavigationBlocked("stale_or_cross_frame_observation")
+            if initial.state == WORLD_SEARCH_OPEN:
+                if not world_navigation_observation_authorizeable(
+                    initial,
+                    expected_state=WORLD_SEARCH_OPEN,
+                    require_supported_zoom=False,
+                ):
+                    raise WorldNavigationBlocked("world_search_menu_not_authorizeable")
+                world = Checkpoint(current, initial)
+                world = self._back(world, successor_state=WORLD_READY)
+                world = self._fresh_checkpoint(
+                    WORLD_READY,
+                    "world-to-home-source",
+                )
+            elif self.recognizer is recognize_world_frame:
                 world_observation = recognize_world_home_recovery(
                     current.frame,
                     source_frame_sha256=current.sha256,
@@ -2223,7 +2240,13 @@ class WorldMapNavigationController:
                     required_target_identity=WORLD_TO_HOME,
                     require_supported_zoom=False,
                 ):
-                    raise WorldNavigationBlocked("world_home_control_not_authorizeable")
+                    raise WorldNavigationBlocked(
+                        "world_home_control_not_authorizeable:"
+                        f"state={world_observation.state}:"
+                        f"controls={','.join(sorted(world_observation.controls))}:"
+                        f"home_geometry={world_observation.control_geometry_source.get(WORLD_TO_HOME)}:"
+                        f"overlay={world_observation.overlay_state}"
+                    )
                 world = Checkpoint(current, world_observation)
             else:
                 world = self._checkpoint(current, WORLD_READY)

@@ -24,12 +24,14 @@ from scripts import pnsctl
 from scripts import world_map_navigation_bluestacks as navigation
 from scripts.world_map_navigation_bluestacks import (
     ALLOWED_CONTROL_IDENTITIES,
+    ANDROID_BACK,
     BLOCKED_FAIL_CLOSED,
     HOME_TO_WORLD,
     HOME_CANONICAL,
     HOME_READY,
     NAVIGATION_ONLY_COMPLETE,
     POPUP_CLOSE,
+    RECOVERY_PATH,
     SafePopupHandler,
     SEARCH_ENTRY_ONLY_PATH,
     WorldNavigationBlocked,
@@ -387,6 +389,39 @@ def hud_validator_events() -> tuple[list[dict], dict, set[str]]:
     return events, route, hashes
 
 
+def recovery_validator_events(
+    *,
+    menu_open: bool,
+) -> tuple[list[dict], dict, set[str]]:
+    events, route, hashes = hud_validator_events()
+    action_keys = {"action-3", "action-4"} if menu_open else {"action-4"}
+    retained_hashes = (
+        {"3" * 64, "4" * 64, "7" * 64, "8" * 64}
+        if menu_open
+        else {"4" * 64, "8" * 64}
+    )
+    filtered = [
+        event
+        for event in events
+        if event.get("action_key") in action_keys
+        or event.get("event") == "route_terminal"
+        or (
+            event.get("type") == "capture"
+            and event.get("sha256") in retained_hashes
+        )
+    ]
+    input_count = 2 if menu_open else 1
+    recovery_route = dict(
+        route,
+        path=RECOVERY_PATH,
+        input_count=input_count,
+        max_inputs=input_count,
+        navigation_input_count=input_count,
+        reason="verified_world_to_home_recovery",
+    )
+    return filtered, recovery_route, hashes
+
+
 class WorldMapNavigationTests(unittest.TestCase):
     def test_search_entry_only_taps_search_once_and_stops_open(self):
         runtime = FakeRuntime(
@@ -574,6 +609,51 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(len(runtime.calls), 1)
         self.assertEqual(runtime.calls[0][1]["target_identity"], "world-to-home")
         self.assertEqual(result["final_state"], HOME_READY)
+
+    def test_world_search_recovery_backs_out_then_taps_home(self):
+        runtime = FakeRuntime(
+            [
+                observation(WORLD_SEARCH_OPEN),
+                observation(
+                    WORLD_READY,
+                    controls={"world-to-home": (20, 25, 110, 100)},
+                ),
+                observation(
+                    WORLD_READY,
+                    controls={"world-to-home": (20, 25, 110, 100)},
+                ),
+                observation(HOME_READY),
+            ]
+        )
+        result = recover_world_map_home(
+            runtime,
+            maximum_inputs=2,
+            recognizer=scripted_recognizer,
+        )
+        self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
+        self.assertEqual(result["path"], RECOVERY_PATH)
+        self.assertEqual(result["navigation_input_count"], 2)
+        self.assertEqual(result["safe_popup_input_count"], 0)
+        self.assertEqual(result["input_count"], 2)
+        self.assertEqual(result["terminal_runtime_state"], HOME_READY)
+        self.assertEqual(
+            [call[0] for call in runtime.calls],
+            ["back", "tap"],
+        )
+        self.assertEqual(
+            [call[1].get("target_identity", ANDROID_BACK) for call in runtime.calls],
+            [ANDROID_BACK, WORLD_TO_HOME],
+        )
+        self.assertEqual(
+            [item["target_identity"] for item in result["route_transitions"]],
+            [ANDROID_BACK, WORLD_TO_HOME],
+        )
+        self.assertTrue(
+            all(
+                item["successor_overlay_state"] == "none_observed"
+                for item in result["route_transitions"]
+            )
+        )
 
     def test_popup_is_handled_at_checkpoint_and_counts_against_total_budget(self):
         runtime = FakeRuntime(route_frames(popup_at_start=True))
@@ -1223,6 +1303,23 @@ class WorldMapNavigationTests(unittest.TestCase):
         extra_route = dict(route, input_count=5, navigation_input_count=5)
         with self.assertRaises(pnsctl.OperatorError):
             _verify_event_order(extra_dispatch, extra_route, hashes)
+
+    def test_recovery_contract_accepts_world_ready_and_search_menu_paths(self):
+        for menu_open in (False, True):
+            with self.subTest(menu_open=menu_open):
+                events, route, hashes = recovery_validator_events(
+                    menu_open=menu_open,
+                )
+                _verify_event_order(events, route, hashes)
+                _verify_route_semantics(
+                    {
+                        "world_navigation_result": route,
+                        "terminal_runtime_state": HOME_READY,
+                        "production_registration": "NOT_REGISTERED",
+                        "scheduler_enabled": False,
+                    },
+                    events,
+                )
 
     def test_development_runtime_observation_accepts_standard_png_frame(self):
         frame = bytearray(24)
@@ -2010,6 +2107,27 @@ class WorldMapNavigationTests(unittest.TestCase):
                 evidence_ref="current-native-search.png",
             )
         self.assertEqual(gas_result.state, "UNKNOWN")
+
+    def test_retained_search_menu_recognizes_without_footer_binding(self):
+        source = (
+            ROOT
+            / ".local-captures"
+            / "development-sessions"
+            / "observe-20260816T064109887154Z"
+            / "observe.png"
+        )
+        self.assertTrue(source.is_file(), f"required Search menu frame absent: {source}")
+        raw = source.read_bytes()
+        frame = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+        result = recognize_world_frame(
+            frame,
+            source_frame_sha256=hashlib.sha256(raw).hexdigest(),
+            evidence_ref=str(source),
+        )
+        self.assertEqual(result.state, WORLD_SEARCH_OPEN)
+        self.assertEqual(result.controls, {})
+        self.assertEqual(result.zoom_evidence, ())
+        self.assertEqual(result.localization_evidence, ())
 
     def test_lone_zombie_lair_menu_hit_fails_closed(self):
         self.assertEqual(
