@@ -351,7 +351,7 @@ class LeanWorkflowTests(unittest.TestCase):
             .split("<!-- CURRENT_HANDOFF_STATE_END -->", 1)[0]
             .strip()
         )
-        self.assertEqual(lease["runtime_ownership_state"], "none")
+        self.assertEqual(lease["runtime_ownership_state"], "released")
 
 
 class RuntimeBoundaryTests(unittest.TestCase):

@@ -27,6 +27,16 @@ from scripts.bluestacks_flow_collector import (
 )
 
 
+def current_delegated_runtime_context():
+    """Resolve the optional delegated context lazily to avoid an import cycle."""
+
+    from scripts.navigation_development_boundary import (
+        current_delegated_runtime_context as current,
+    )
+
+    return current()
+
+
 NativeBox = tuple[int, int, int, int]
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280
@@ -299,9 +309,40 @@ class LocalBlueStacksRuntime:
         fingerprint = (source.sha256, target_identity, target_roi)
         if fingerprint in self.frame_actions:
             raise RuntimeError("identical source/target input is forbidden")
+        delegated = current_delegated_runtime_context()
+        if delegated is not None:
+            delegated.reserve_input(
+                action_identity=target_identity,
+                action_class="combat_confirmation" if consequential else "navigation",
+                consequence_class=(
+                    "combat_confirmation"
+                    if consequential
+                    else str(getattr(delegated, "receipt", {}).get("consequence_class") or "navigation_only")
+                ),
+                source_evidence_hash=source.sha256,
+                action_key=action_key,
+            )
         self.action_keys.add(action_key)
         self.frame_actions.add(fingerprint)
         self.input_count += 1
+
+    @staticmethod
+    def _delegated_transport_result(action_key: str, error: BaseException | None = None) -> None:
+        delegated = current_delegated_runtime_context()
+        if delegated is None:
+            return
+        if error is None:
+            delegated.mark_transported(action_key)
+        else:
+            delegated.mark_reconciled(action_key, unresolved=True)
+
+    def _dispatch_transport(self, action_key: str, transport) -> None:
+        try:
+            transport()
+        except BaseException as exc:
+            self._delegated_transport_result(action_key, exc)
+            raise
+        self._delegated_transport_result(action_key)
 
     def tap(
         self,
@@ -336,7 +377,7 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        self.runner.dispatch_tap(point)
+        self._dispatch_transport(action_key, lambda: self.runner.dispatch_tap(point))
 
     def swipe(
         self,
@@ -376,7 +417,7 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        self.runner.dispatch_swipe(start, end)
+        self._dispatch_transport(action_key, lambda: self.runner.dispatch_swipe(start, end))
 
     def long_press(
         self,
@@ -415,7 +456,9 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        self.runner.dispatch_swipe(point, point, duration_ms=duration_ms)
+        self._dispatch_transport(
+            action_key, lambda: self.runner.dispatch_swipe(point, point, duration_ms=duration_ms)
+        )
 
     def type_text(
         self,
@@ -447,7 +490,7 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        self.runner.dispatch_text(text)
+        self._dispatch_transport(action_key, lambda: self.runner.dispatch_text(text))
 
     def clear_numeric_text(
         self,
@@ -479,7 +522,9 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        self.runner.dispatch_clear_numeric_text(max_digits)
+        self._dispatch_transport(
+            action_key, lambda: self.runner.dispatch_clear_numeric_text(max_digits)
+        )
 
     def press_key(
         self,
@@ -511,7 +556,10 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        self.runner.dispatch_keyevent("ENTER" if normalized == "ENTER" else "4")
+        self._dispatch_transport(
+            action_key,
+            lambda: self.runner.dispatch_keyevent("ENTER" if normalized == "ENTER" else "4"),
+        )
 
     def zoom_out(
         self,
@@ -540,7 +588,7 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        self.runner.dispatch_zoom_out()
+        self._dispatch_transport(action_key, self.runner.dispatch_zoom_out)
 
     def dispatch_external_zoom(
         self,
@@ -572,7 +620,7 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        transport()
+        self._dispatch_transport(action_key, transport)
 
     def back(
         self,
@@ -601,7 +649,7 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        self.runner.dispatch_back()
+        self._dispatch_transport(action_key, self.runner.dispatch_back)
 
     def reconcile(self, action_key: str, status: str, post: CapturedNativeFrame, reason: str) -> None:
         if status not in {"confirmed", "failed_confirmed", "unresolved"}:
@@ -616,6 +664,9 @@ class LocalBlueStacksRuntime:
                 "reason": reason,
             },
         )
+        delegated = current_delegated_runtime_context()
+        if delegated is not None:
+            delegated.mark_reconciled(action_key, unresolved=status == "unresolved")
         self.in_flight_action = None
 
     def record_recovery(

@@ -108,6 +108,10 @@ P&S project workflow constraints:
 One initial live failure alone does not require promotion or an extra review.
 - The parent owns architecture and one coherent pre-canary integration acceptance after the Luna executor self-check and the named tester package are complete. Do not request incremental patch reviews unless a new cross-contract decision appears; no child Sol review is automatic.
 - Use the compact ladder in [`docs/flow-delivery-validation-policy.md`](docs/flow-delivery-validation-policy.md): exact regression during repair; each affected package suite once; the focused profile once before canary; shared-navigation only when navigation is touched; one parent integration gate; zero-input `pnsctl development-session observe`; live execution; semantic verification. Full repository discovery is manual-only (`full --manual`). Reuse the checked-in runner's compact output and receipts; do not create a second validation framework.
+- Do not impose file-count or LOC budgets unless the user explicitly requests them.
+- After parent classification, permit at most three serial consolidated Luna repair turns.
+- Every mutable Luna implementation or repair turn must explicitly select GPT-5.6 Luna XHigh. If a resume cannot preserve that selection, launch a fresh bounded XHigh turn instead.
+- Keep solutions proportionate; do not let perfect be the enemy of good.
 <!-- codex-workflow-project-personalization-end -->
 
 <!-- codex-workflow-project-local-instructions-start -->
@@ -149,7 +153,10 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
   bypass policy with ad hoc ADB, plink, Docker, remote shell, or temporary runtime scripts.
 - ADB must remain private and non-public.
 - This project is in active development. `pnsctl development-session` automatically acquires and
-  releases singleton runtime ownership and writes one compact terminal record.
+  releases singleton runtime ownership and writes one compact terminal record. Delegated runtime
+  work uses controller-owned single-use receipts only. Receipt digests detect accidental alteration
+  but are not authentication secrets; receipt consumption is durable and occurs before singleton
+  acquisition.
 
 ## Fixed runtime and manual-only states
 
@@ -307,4 +314,10 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 - Never expose ADB/viewers publicly or place credentials in files, code, logs, evidence, prompts, or
   shell history.
 - Do not create generic execution, live-action, or recovery prompt templates.
+- Delegated reconnaissance is zero-input observation or an explicitly enumerated bounded navigation
+  manifest with zero resource/combat budgets. Canary manifests require the frozen clean candidate,
+  implementation self-check, independent read-only tester evidence, and parent integration
+  acceptance. Every possible delegated input has a durable pre-transport reservation; failures,
+  timeouts, unknown results, and missing post evidence remain `evidence_required` and never reopen
+  budget or permit an identical retry.
 <!-- codex-workflow-project-local-instructions-end -->

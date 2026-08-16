@@ -12,3 +12,17 @@ flushed, runtime ownership is released, and attributable staged/unstaged paths a
 inputs, recognition failures, repairs, tests, zoom attempts, combat, claims, rewards, and recovery
 do not trigger `CURRENT_HANDOFF.md`, queue, or backlog rewrites. Update those artifacts only at a
 flow checkpoint or genuine external blocker.
+
+## Delegated receipt ownership
+
+The parent controller may issue one single-use delegated runtime receipt at a time. A receipt binds
+the exact task, flow, Luna identity, clean candidate content fingerprint, HEAD, canonical
+`pnsctl development-session` argv, scenario, variant, capability manifest, budgets, expiry, and
+result identity. Receipt state is controller-owned durable state; its digest detects alteration but
+is not a bearer credential.
+
+Issuance and admission reject dirty or changed candidates. Admission consumes the receipt before
+runtime singleton acquisition, so a failed, dry-run, crashed, timed-out, or ambiguous admission
+cannot be replayed. Delegated sessions retain receipt-bound results and evidence and release the
+singleton on every safe terminal path. Canary admission additionally requires implementation
+self-check evidence, independent read-only tester evidence, and parent integration acceptance.

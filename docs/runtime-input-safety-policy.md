@@ -36,3 +36,23 @@ Real-money Cash Mall confirmation is unsupported.
 If a path reaches a real-money Cash Mall payment surface, it may observe or safely leave the surface
 but must reject the payment confirmation before transport. Do not create approval or journal
 infrastructure for real-money purchasing.
+
+## Delegated receipts and reservations
+
+Reconnaissance receipts permit only zero-input observation or an explicitly enumerated bounded
+navigation manifest. Purchases, claims, crafts, donations, upgrades, item or resource use,
+marches, combat dispatch or confirmation, premium currency, and real-money confirmation are
+forbidden; reconnaissance resource and combat budgets are always zero.
+
+Canary receipts are exact, non-widenable manifests. Before a canary session, the controller must
+bind the clean candidate fingerprint and all three pre-canary gates: implementation self-check,
+independent read-only tester evidence, and parent integration acceptance. The receipt is consumed
+before runtime acquisition and cannot be reused.
+
+Before every delegated input transport, the controller durably reserves the ordinal, action
+identity and class, consequence class, source-frame hash when available, and budgets. Dispatch
+exceptions, crashes, timeouts, unknown successors, and missing post evidence leave the reservation
+unresolved and require `evidence_required`; budgets are never refunded and an identical retry is
+denied. A delegated dry-run consumes its receipt without runtime access. A delegated zero-input
+observation acquires the normal singleton, retains native evidence, writes a receipt-bound result,
+and releases ownership normally or exceptionally.

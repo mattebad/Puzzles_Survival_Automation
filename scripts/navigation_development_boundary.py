@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 import sqlite3
 import time
+from contextvars import ContextVar
 from typing import Any, Callable, Mapping, Sequence
 
 from scripts.bluestacks_flow_collector import EXPECTED_PACKAGE
@@ -655,6 +656,34 @@ class DevelopmentSessionError(NavigationBoundaryError):
     """A bounded development-session safeguard rejected an operation."""
 
 
+_DELEGATED_RUNTIME_CONTEXT: ContextVar[Any | None] = ContextVar(
+    "pns_delegated_runtime_context", default=None
+)
+
+
+def current_delegated_runtime_context() -> Any | None:
+    return _DELEGATED_RUNTIME_CONTEXT.get()
+
+
+class delegated_runtime_context:
+    """Install controller-owned receipt authority for one bounded session."""
+
+    def __init__(self, context: Any) -> None:
+        self.context = context
+        self._token = None
+
+    def __enter__(self) -> Any:
+        if current_delegated_runtime_context() is not None:
+            raise DevelopmentSessionError("nested delegated runtime context is denied")
+        self._token = _DELEGATED_RUNTIME_CONTEXT.set(self.context)
+        return self.context
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self._token is not None:
+            _DELEGATED_RUNTIME_CONTEXT.reset(self._token)
+            self._token = None
+
+
 def validate_development_action(action_class: str) -> str:
     normalized = str(action_class).strip().lower()
     if not normalized:
@@ -703,13 +732,15 @@ class DevelopmentSession:
         invocation_id: str,
         session_directory: Path,
         max_inputs: int = 12,
+        allow_zero_inputs: bool = False,
     ) -> None:
-        if not 1 <= int(max_inputs) <= 100:
+        if not 0 <= int(max_inputs) <= 100 or (int(max_inputs) == 0 and not allow_zero_inputs):
             raise DevelopmentSessionError("max_inputs must be between 1 and 100")
         self.owner = owner
         self.invocation_id = invocation_id
         self.session_directory = Path(session_directory)
         self.max_inputs = int(max_inputs)
+        self.allow_zero_inputs = bool(allow_zero_inputs)
         self.input_count = 0
         self.actions: list[dict[str, Any]] = []
         self.terminal_status: str | None = None
@@ -750,23 +781,69 @@ class DevelopmentSession:
         recognize: Callable[[CapturedNativeFrame], str],
         target_roi: NativeBox | None = None,
         recover: Callable[[CapturedNativeFrame], bool | int] | None = None,
+        recovery_action_identity: str | None = None,
+        recovery_action_class: str | None = None,
+        recovery_consequence_class: str | None = None,
+        consequence_class: str | None = None,
     ) -> DevelopmentActionResult:
         normalized = validate_development_action(action_class)
         if self.input_count >= self.max_inputs:
             raise DevelopmentSessionError("development session input limit reached")
         _validate_development_roi(target_roi)
         before = self.observe(capture, label=f"{label}-immediate-before")
+        delegated = current_delegated_runtime_context()
+        dispatch_owner = getattr(dispatch, "__self__", None)
+        native_guarded = dispatch_owner is not None and hasattr(
+            dispatch_owner, "_authorize_dispatch"
+        )
+        if delegated is not None and not native_guarded:
+            receipt = getattr(delegated, "receipt", {})
+            requested = str(action_class).strip().lower()
+            delegated.reserve_input(
+                action_identity=label,
+                action_class=requested,
+                consequence_class=str(
+                    consequence_class or receipt.get("consequence_class") or "navigation_only"
+                ),
+                source_evidence_hash=before.sha256,
+                action_key=label,
+            )
         self.input_count += 1
-        dispatch(before)
+        try:
+            dispatch(before)
+        except BaseException:
+            if delegated is not None:
+                delegated.mark_reconciled(label, unresolved=True)
+            raise
+        if delegated is not None:
+            delegated.mark_transported(label)
         after = self.observe(capture, label=f"{label}-immediate-post")
         state = str(recognize(after) or "unknown")
         recovery_used = False
+        recovery_key = recovery_action_identity
         if state.lower() == "unknown" and recover is not None:
             if self.input_count >= self.max_inputs:
                 raise DevelopmentSessionError(
                     "development session input limit reached before recovery"
                 )
-            recovery_result = recover(after)
+            if delegated is not None:
+                if not recovery_action_identity or not recovery_action_class or not recovery_consequence_class:
+                    raise DevelopmentSessionError(
+                        "delegated recovery requires an explicit action binding"
+                    )
+                delegated.reserve_input(
+                    action_identity=recovery_action_identity,
+                    action_class=recovery_action_class,
+                    consequence_class=recovery_consequence_class,
+                    source_evidence_hash=after.sha256,
+                    action_key=recovery_action_identity,
+                )
+            try:
+                recovery_result = recover(after)
+            except BaseException:
+                if delegated is not None:
+                    delegated.mark_reconciled(recovery_key, unresolved=True)
+                raise
             recovery_inputs = (
                 1
                 if recovery_result is True
@@ -778,11 +855,20 @@ class DevelopmentSession:
                 raise DevelopmentSessionError("recovery must report zero or one bounded input")
             self.input_count += recovery_inputs
             recovery_used = recovery_inputs == 1
+            if delegated is not None:
+                if recovery_used:
+                    delegated.mark_transported(recovery_key)
+                else:
+                    delegated.mark_reconciled(recovery_key)
             if recovery_used:
                 after = self.observe(capture, label=f"{label}-recovery-post")
                 state = str(recognize(after) or "unknown")
         status = "completed" if state.lower() != "unknown" else "unknown"
         reason = "recognized_successor" if status == "completed" else "unknown_successor"
+        if delegated is not None:
+            delegated.mark_reconciled(label, unresolved=status == "unknown")
+            if recovery_used:
+                delegated.mark_reconciled(recovery_key, unresolved=status == "unknown")
         row = {
             "ordinal": len(self.actions) + 1,
             "action_class": normalized,
@@ -828,6 +914,8 @@ class DevelopmentSession:
             "lifecycle_state_created": False,
             "terminal_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
+        if (delegated := current_delegated_runtime_context()) is not None:
+            summary.update({"receipt_id": delegated.receipt["receipt_id"], "receipt_digest": delegated.receipt["receipt_digest"], "evidence_result_identity": delegated.result_identity})
         if unknown:
             summary["blocker"] = unknown["reason"]
             summary["next_action"] = (

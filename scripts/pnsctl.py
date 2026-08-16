@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from contextlib import nullcontext
 from datetime import datetime, timezone
 import hashlib
 import inspect
@@ -1233,11 +1234,207 @@ def _compact_development_action_results(
     return actions
 
 
-def development_session_observe(*, max_inputs: int = 12) -> str:
+def _consume_delegated_receipt(
+    receipt_state: Path,
+    *,
+    command_argv: Sequence[str],
+    agent_identity: str,
+    task_id: str,
+    flow_id: str,
+    receipt_class: str,
+    scenario: str,
+    variant: str,
+    max_inputs: int | None = None,
+):
+    from scripts.flow_delivery_control import (
+        DelegatedRuntimeContext,
+        DelegatedRuntimeReceiptController,
+    )
+
+    controller = DelegatedRuntimeReceiptController(receipt_state)
+    expected: dict[str, Any] = {}
+    if max_inputs is not None:
+        expected["max_total_inputs"] = max_inputs
+    receipt_id = controller.inspect()["receipt_id"]
+    receipt = controller.consume(
+        receipt_id=receipt_id,
+        agent_identity=agent_identity,
+        task_id=task_id,
+        flow_id=flow_id,
+        receipt_class=receipt_class,
+        command_argv=command_argv,
+        scenario=scenario,
+        variant=variant,
+        expected=expected,
+    )
+    context = DelegatedRuntimeContext(
+        controller,
+        receipt,
+        result_identity=receipt["evidence_result_binding"]["result_identity"],
+    )
+    return controller, receipt, context
+
+
+def _delegated_session_path(receipt: Mapping[str, Any]) -> Path:
+    return _development_session_directory(f"delegated-{receipt['receipt_id']}")
+
+
+def development_session_delegated_dry_run(
+    *,
+    receipt_state: Path,
+    command_argv: Sequence[str],
+    agent_identity: str,
+    task_id: str,
+    flow_id: str,
+    scenario: str,
+    variant: str,
+    max_inputs: int,
+) -> str:
+    """Consume a receipt and write a bound result without runtime access."""
+
+    controller, receipt, context = _consume_delegated_receipt(
+        receipt_state,
+        command_argv=command_argv,
+        agent_identity=agent_identity,
+        task_id=task_id,
+        flow_id=flow_id,
+        receipt_class="canary",
+        scenario=scenario,
+        variant=variant,
+        max_inputs=max_inputs,
+    )
+    session_directory = _delegated_session_path(receipt)
+    session_directory.mkdir(parents=True, exist_ok=False)
+    result = {
+        "status": "dry_run",
+        "task_id": task_id,
+        "flow_id": flow_id,
+        "scenario": scenario,
+        "variant": variant,
+        "receipt_id": receipt["receipt_id"],
+        "receipt_digest": receipt["receipt_digest"],
+        "session_directory": str(session_directory),
+        "input_count": 0,
+        "runtime_access": False,
+        "dispatch": False,
+        "evidence_result_identity": context.result_identity,
+    }
+    try:
+        (session_directory / "result.json").write_text(
+            json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        (session_directory / "summary.json").write_text(
+            json.dumps(
+                {
+                    "status": "dry_run",
+                    "receipt_id": receipt["receipt_id"],
+                    "receipt_digest": receipt["receipt_digest"],
+                    "ownership_released": True,
+                    "input_count": 0,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        context.record_terminal(status="dry_run", payload=result)
+    except BaseException as exc:
+        failure = {
+            **result,
+            "status": "evidence_required",
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+        try:
+            context.record_terminal(status="evidence_required", payload=failure)
+        finally:
+            raise
+    return json.dumps(result, sort_keys=True)
+
+
+def development_session_observe(
+    *,
+    max_inputs: int = 12,
+    delegated_receipt: Path | None = None,
+    agent_identity: str | None = None,
+    task_id: str | None = None,
+    flow_id: str | None = None,
+    scenario: str | None = None,
+    variant: str | None = None,
+    command_argv: Sequence[str] | None = None,
+) -> str:
     """Observe the current runtime under automatic singleton ownership."""
 
     from scripts.navigation_development_boundary import DevelopmentSession
+    from scripts.navigation_development_boundary import delegated_runtime_context
 
+    if delegated_receipt is not None:
+        if max_inputs != 0:
+            raise OperatorError("delegated reconnaissance observation requires max_inputs=0")
+        values = (agent_identity, task_id, flow_id, scenario, variant, command_argv)
+        if any(value is None for value in values):
+            raise OperatorError("delegated observation requires complete receipt bindings")
+        _controller, receipt, context = _consume_delegated_receipt(
+            delegated_receipt,
+            command_argv=command_argv,
+            agent_identity=str(agent_identity),
+            task_id=str(task_id),
+            flow_id=str(flow_id),
+            receipt_class="reconnaissance",
+            scenario=str(scenario),
+            variant=str(variant),
+            max_inputs=0,
+        )
+        invocation_id = f"delegated-{receipt['receipt_id']}"
+        session_directory = _development_session_directory(invocation_id)
+        before = _checkpoint_hashes()
+        result: dict[str, Any] = {
+            "status": "evidence_required",
+            "flow_id": flow_id,
+            "receipt_id": receipt["receipt_id"],
+            "receipt_digest": receipt["receipt_digest"],
+            "input_count": 0,
+            "runtime_access": True,
+            "dispatch": False,
+            "session_directory": str(session_directory),
+            "evidence_result_identity": context.result_identity,
+        }
+        terminal_recorded = False
+        try:
+            with delegated_runtime_context(context):
+                with DevelopmentSession(
+                    owner=f"pnsctl-delegated-observe:{flow_id}",
+                    invocation_id=invocation_id,
+                    session_directory=session_directory,
+                    max_inputs=0,
+                    allow_zero_inputs=True,
+                ) as session:
+                    observation, frame = _development_runtime_observation()
+                    (session_directory / "observe.png").write_bytes(frame)
+                    result.update({"status": "observed", "observation": observation})
+                    (session_directory / "result.json").write_text(
+                        json.dumps(result, indent=2, sort_keys=True) + "\n",
+                        encoding="utf-8",
+                    )
+            if (
+                not (session_directory / "observe.png").is_file()
+                or not (session_directory / "result.json").is_file()
+                or not (session_directory / "summary.json").is_file()
+                or session._ownership.lock.held
+            ):
+                raise OperatorError("delegated observation evidence or ownership release is unproven")
+            if _checkpoint_hashes() != before:
+                raise OperatorError("delegated observation mutated a checkpoint artifact")
+            context.record_terminal(status="observed", payload=result)
+            terminal_recorded = True
+        except BaseException as exc:
+            result["error"] = f"{type(exc).__name__}: {exc}"
+            if not terminal_recorded:
+                context.record_terminal(status="evidence_required", payload=result)
+            raise
+        return json.dumps(result, sort_keys=True)
+    if max_inputs < 1:
+        raise OperatorError("ordinary observation requires max_inputs >= 1")
     invocation_id = f"observe-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     session_directory = _development_session_directory(invocation_id)
     before = _checkpoint_hashes()
@@ -1277,10 +1474,37 @@ def development_session_run_flow(
     chests_only: bool = False,
     chest_continuation: Path | str | None = None,
     enhancement_variant: str = "gear",
+    delegated_receipt: Path | None = None,
+    agent_identity: str | None = None,
+    task_id: str | None = None,
+    scenario: str | None = None,
+    variant: str | None = None,
+    command_argv: Sequence[str] | None = None,
 ) -> str:
     """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
 
     from scripts.navigation_development_boundary import DevelopmentSession
+    from scripts.navigation_development_boundary import delegated_runtime_context
+
+    delegated_context = None
+    delegated_receipt_payload = None
+    delegated_scope = nullcontext()
+    if delegated_receipt is not None:
+        values = (agent_identity, task_id, scenario, variant, command_argv)
+        if any(value is None for value in values):
+            raise OperatorError("delegated canary requires complete receipt bindings")
+        _controller, delegated_receipt_payload, delegated_context = _consume_delegated_receipt(
+            delegated_receipt,
+            command_argv=command_argv,
+            agent_identity=str(agent_identity),
+            task_id=str(task_id),
+            flow_id=flow_id,
+            receipt_class="canary",
+            scenario=str(scenario),
+            variant=str(variant),
+            max_inputs=max_inputs,
+        )
+        delegated_scope = delegated_runtime_context(delegated_context)
 
     ruins_reset_identity: str | None = None
     ruins_current_day: str | None = None
@@ -1393,6 +1617,8 @@ def development_session_run_flow(
     owner = f"pnsctl-development-session:{flow_id}"
     checkpoint_before = _checkpoint_hashes()
     previous_limit = os.environ.get("PNS_DEVELOPMENT_MAX_INPUTS")
+    if delegated_context is not None:
+        delegated_scope.__enter__()
     try:
         os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = str(max_inputs)
         with DevelopmentSession(
@@ -1504,14 +1730,44 @@ def development_session_run_flow(
                 "persistent_checkpoint_artifacts_unchanged": True,
                 "result": result,
             }
+            if delegated_receipt_payload is not None:
+                wrapper["receipt_id"] = delegated_receipt_payload["receipt_id"]
+                wrapper["receipt_digest"] = delegated_receipt_payload["receipt_digest"]
+                wrapper["evidence_result_identity"] = delegated_context.result_identity
             (session_directory / "result.json").write_text(
                 json.dumps(wrapper, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
+        if delegated_context is not None:
+            if (
+                not (session_directory / "source.png").is_file()
+                or not (session_directory / "result.json").is_file()
+                or not (session_directory / "summary.json").is_file()
+                or session._ownership.lock.held
+            ):
+                raise OperatorError("delegated flow evidence or ownership release is unproven")
+            terminal_status = str(result.get("status") or "evidence_required")
+            if terminal_status not in delegated_receipt_payload["permitted_terminal_states"]:
+                terminal_status = "evidence_required"
+            delegated_context.record_terminal(status=terminal_status, payload=wrapper)
+    except BaseException as exc:
+        if delegated_context is not None:
+            delegated_context.record_terminal(
+                status="evidence_required",
+                payload={
+                    "status": "evidence_required",
+                    "receipt_id": delegated_receipt_payload["receipt_id"],
+                    "receipt_digest": delegated_receipt_payload["receipt_digest"],
+                    "error": f"{type(exc).__name__}: {exc}",
+                },
+            )
+        raise
     finally:
         if previous_limit is None:
             os.environ.pop("PNS_DEVELOPMENT_MAX_INPUTS", None)
         else:
             os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = previous_limit
+        if delegated_context is not None:
+            delegated_scope.__exit__(None, None, None)
     return json.dumps(wrapper, sort_keys=True)
 
 
@@ -4393,6 +4649,20 @@ def parser() -> argparse.ArgumentParser:
     )
     development_observe = development_sub.add_parser("observe")
     development_observe.add_argument("--max-inputs", type=int, default=12)
+    development_observe.add_argument("--delegated-receipt", type=Path)
+    development_observe.add_argument("--agent-identity")
+    development_observe.add_argument("--task-id")
+    development_observe.add_argument("--flow-id")
+    development_observe.add_argument("--scenario")
+    development_observe.add_argument("--variant")
+    delegated_dry_run = development_sub.add_parser("delegated-dry-run")
+    delegated_dry_run.add_argument("--delegated-receipt", type=Path, required=True)
+    delegated_dry_run.add_argument("--agent-identity", required=True)
+    delegated_dry_run.add_argument("--task-id", required=True)
+    delegated_dry_run.add_argument("--flow-id", required=True)
+    delegated_dry_run.add_argument("--scenario", required=True)
+    delegated_dry_run.add_argument("--variant", required=True)
+    delegated_dry_run.add_argument("--max-inputs", type=int, required=True)
     development_run = development_sub.add_parser("run-flow")
     development_run.add_argument("flow_id", choices=BLUESTACKS_FLOW_IDS)
     development_run.add_argument("--live", action="store_true")
@@ -4407,6 +4677,11 @@ def parser() -> argparse.ArgumentParser:
         choices=("gear", "chip", "module"),
         default="gear",
     )
+    development_run.add_argument("--delegated-receipt", type=Path)
+    development_run.add_argument("--agent-identity")
+    development_run.add_argument("--task-id")
+    development_run.add_argument("--scenario")
+    development_run.add_argument("--variant")
     for name in (
         "preflight",
         "worker-start",
@@ -4600,6 +4875,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    command_argv = list(sys.argv[1:] if argv is None else argv)
     args = parser().parse_args(argv)
     if args.command == "nova-praise-pulse":
         try:
@@ -4700,7 +4976,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "development-session":
         try:
             if args.development_command == "observe":
-                output = development_session_observe(max_inputs=args.max_inputs)
+                output = development_session_observe(
+                    max_inputs=args.max_inputs,
+                    delegated_receipt=args.delegated_receipt,
+                    agent_identity=args.agent_identity,
+                    task_id=args.task_id,
+                    flow_id=args.flow_id,
+                    scenario=args.scenario,
+                    variant=args.variant,
+                    command_argv=command_argv,
+                )
+            elif args.development_command == "delegated-dry-run":
+                output = development_session_delegated_dry_run(
+                    receipt_state=args.delegated_receipt,
+                    command_argv=command_argv,
+                    agent_identity=args.agent_identity,
+                    task_id=args.task_id,
+                    flow_id=args.flow_id,
+                    scenario=args.scenario,
+                    variant=args.variant,
+                    max_inputs=args.max_inputs,
+                )
             elif args.development_command == "run-flow":
                 output = development_session_run_flow(
                     args.flow_id,
@@ -4712,6 +5008,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     chests_only=bool(args.chests_only),
                     chest_continuation=args.chest_continuation,
                     enhancement_variant=args.enhancement_variant,
+                    delegated_receipt=args.delegated_receipt,
+                    agent_identity=args.agent_identity,
+                    task_id=args.task_id,
+                    scenario=args.scenario,
+                    variant=args.variant,
+                    command_argv=command_argv,
                 )
             else:
                 raise OperatorError("unknown development-session command")
