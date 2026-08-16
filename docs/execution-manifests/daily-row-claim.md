@@ -3,7 +3,7 @@
 ## Task ID and objective
 - Task ID: `daily-row-claim`
 - Flow ID: `DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION`
-- Manifest state: `SUPPORTED_POINT_RECONNAISSANCE_ACCEPTED`
+- Manifest state: `QUEST_CONTINUATION_ACCEPTED`
 - Frozen repository candidate: `main@324d80badfa76ad3d1031b797dc600fcde8e6b40`
 - Corrected freeze UTC: `2026-08-16T22:06:31.525Z`
 - Objective: acquire current local-BlueStacks ordinary Daily row evidence, then deliver one exact free row-local Claim without registering or scheduling the handler.
@@ -77,6 +77,13 @@
 - The binding must use an original, non-morphology-created visual support mask. Components may structure candidates, but dispatch authority comes only from a maximum-clearance point whose complete `3x3` neighborhood is supported in that original mask. The target ROI is exactly the odd-sized `3x3` box around that point, so the unchanged runtime center dispatch lands on proven pixels rather than a contour or label-relative bounding-box center.
 - Reject absent adjacent labels, neighboring-lane distractors, boundary-touching/broad/background components, insufficient clearance, morphology-only bridges, and equally valid components. Record the label ROI, ownership lane, icon band, component ROI, selected point, clearance, and raw-support verdict. Immediate-before recognition recomputes the entire contract.
 - The supported-point implementation passed 66 package tests and the five-test focused profile with receipt digest `819fc3ad8e13bdf2a2e286e8ef705febedc07254b8c9e4a6404bd9d3e3722cf7`. Independent Terra High review `43a864ab-bbdf-462e-8fbe-28890af820cb` accepted with no material findings, and parent integration acceptance is `accepted`.
+- Fresh receipt `5dd7d35b-cb70-4261-a26f-f993e33300e7` sent zero inputs because its source frame was already the Main Quest screen, not Home. The retained native frame positively shows `Quest`, selected `Main Quest`, unselected `Daily Quest`, and ordinary quest rows.
+- This proves the earlier Home tap did transition successfully after the route's single immediate-post capture. The prior `unknown_successor` was premature sampling, not a failed transport. The supported-point target was not dispatched in the zero-input run and remains accepted offline.
+- The route must now support bounded no-input successor polling after Home→Quest and a separately receipt-bound Quest→Daily continuation from this proven intermediate state. Polling may capture fresh frames for a bounded timeout but may not dispatch another Home tap.
+- Exact continuation command:
+  `python scripts/pnsctl.py development-session daily-row-reconnaissance --max-inputs 1 --delegated-receipt <RECEIPT_DB> --agent-identity <LUNA_AGENT_ID> --task-id daily-row-claim --flow-id DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION --scenario selected-daily-row-evidence --variant quest-daily-continuation`
+- The continuation receipt permits only action identity `quest-daily-tab`, class `navigation`, one total input, zero resource inputs, and zero combat confirmations. It starts only from a positively recognized Main Quest frame, revalidates the current Daily tab immediately before dispatch, taps once, and polls without further input until selected Daily is positively recognized or the bounded timeout expires.
+- Continuation/polling validation accepted: 74 package tests passed; the focused five-test profile passed with receipt digest `8f5d2f64d1396ad98c7d223761ba1def1155ab8a7d8941081c63b7159d975fea`. Independent Terra High review `8cf20171-989e-4b33-8e42-891fc334321b` found no material defect, and parent integration acceptance is `accepted`.
 
 ## Deferred evidence-bound implementation paths
 These paths are candidates only and are not writable under `FROZEN_RECONNAISSANCE`:
@@ -162,4 +169,4 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - Stop after any unknown runtime, ownership, transport, evidence, or semantic result; do not retry identically.
 
 ## Next authorized action
-- Commit the supported-point candidate locally without push, then issue one fresh materially changed two-input reconnaissance receipt. The rejected label-band and contour-center geometries remain prohibited.
+- Commit the accepted continuation candidate locally without push, issue one max-one `quest-daily-continuation` reconnaissance receipt, and run it once from the retained/proven Main Quest state.

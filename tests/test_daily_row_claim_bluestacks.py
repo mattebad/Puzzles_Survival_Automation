@@ -208,12 +208,68 @@ class ScriptedRecognizer:
             (304, 74, 492, 146),
         )
 
+    def recognize_main_quest(self, frame: np.ndarray) -> daily.FrameRecognition:
+        return self.recognize_quest(frame)
+
     def recognize_daily_selected(self, frame: np.ndarray) -> daily.FrameRecognition:
         self.calls.append(("daily", self._label(frame)))
         return self._recognition(
             daily.DAILY_SELECTED_STATE if self.selected_daily else daily.UNKNOWN_STATE,
             "daily-quest-selected" if self.selected_daily else None,
             (326, 78, 486, 152) if self.selected_daily else None,
+        )
+
+
+class LabelSettlingRecognizer(ScriptedRecognizer):
+    def __init__(
+        self,
+        *,
+        quest_ready_label: str | None = None,
+        daily_ready_label: str | None = None,
+        main_source_state: str = daily.QUEST_STATE,
+    ) -> None:
+        super().__init__(selected_daily=True)
+        self.quest_ready_after = (
+            2 if quest_ready_label == "home-quest-entry-poll-01" else 999
+            if quest_ready_label is not None
+            else 1
+        )
+        self.daily_ready_after = (
+            2 if daily_ready_label == "quest-daily-tab-poll-01" else 999
+            if daily_ready_label is not None
+            else 1
+        )
+        self.main_source_state = main_source_state
+
+    def recognize_quest(self, frame: np.ndarray) -> daily.FrameRecognition:
+        self.quest_calls = getattr(self, "quest_calls", 0) + 1
+        if self.quest_calls <= self.quest_ready_after:
+            if self.quest_calls < self.quest_ready_after:
+                return self._recognition(daily.UNKNOWN_STATE, None, None)
+        return self._recognition(
+            daily.QUEST_STATE,
+            daily.QUEST_DAILY_IDENTITY,
+            (304, 74, 492, 146),
+        )
+
+    def recognize_main_quest(self, frame: np.ndarray) -> daily.FrameRecognition:
+        if self.main_source_state != daily.QUEST_STATE:
+            return self._recognition(self.main_source_state, None, None)
+        return self._recognition(
+            daily.QUEST_STATE,
+            daily.QUEST_DAILY_IDENTITY,
+            (304, 74, 492, 146),
+        )
+
+    def recognize_daily_selected(self, frame: np.ndarray) -> daily.FrameRecognition:
+        self.daily_calls = getattr(self, "daily_calls", 0) + 1
+        if self.daily_calls <= self.daily_ready_after:
+            if self.daily_calls < self.daily_ready_after:
+                return self._recognition(daily.UNKNOWN_STATE, None, None)
+        return self._recognition(
+            daily.DAILY_SELECTED_STATE,
+            "daily-quest-selected",
+            (326, 78, 486, 152),
         )
 
 
@@ -224,6 +280,14 @@ class DailyRowReconnaissanceTests(unittest.TestCase):
             invocation_id="test-daily-row-recon",
             session_directory=root / "session",
             max_inputs=2,
+        )
+
+    def _continuation_session(self, root: Path) -> boundary.DevelopmentSession:
+        return boundary.DevelopmentSession(
+            owner="test-daily-row-continuation",
+            invocation_id="test-daily-row-continuation",
+            session_directory=root / "session",
+            max_inputs=1,
         )
 
     def test_two_step_route_rebinds_current_geometry_and_retains_five_frames(self) -> None:
@@ -347,6 +411,132 @@ class DailyRowReconnaissanceTests(unittest.TestCase):
         self.assertNotIn("daily_terminal", result["frames"])
         self.assertEqual(result["resource_affecting_inputs"], 0)
         self.assertEqual(result["combat_confirmations"], 0)
+
+    def test_delayed_quest_successor_polls_without_repeating_home(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
+        ), patch.object(daily, "SUCCESSOR_POLL_INTERVAL_SECONDS", 0.0), patch.object(
+            daily, "SUCCESSOR_POLL_TIMEOUT_SECONDS", 1.0
+        ):
+            root = Path(directory)
+            runtime = FakeRuntime(root)
+            recognizer = LabelSettlingRecognizer(
+                quest_ready_label="home-quest-entry-poll-01"
+            )
+            with self._session(root) as session:
+                result = daily.run_daily_row_reconnaissance(
+                    runtime, session, recognizer=recognizer
+                )
+
+        self.assertEqual(result["status"], "observed")
+        self.assertEqual(
+            [tap["target_identity"] for tap in runtime.taps],
+            [daily.HOME_QUEST_IDENTITY, daily.QUEST_DAILY_IDENTITY],
+        )
+        self.assertEqual(
+            [poll["label"] for poll in result["polls"] if poll["action_identity"] == daily.HOME_QUEST_IDENTITY],
+            ["home-quest-entry-immediate-post", "home-quest-entry-poll-01"],
+        )
+
+    def test_delayed_daily_successor_polls_without_repeating_daily(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
+        ), patch.object(daily, "SUCCESSOR_POLL_INTERVAL_SECONDS", 0.0), patch.object(
+            daily, "SUCCESSOR_POLL_TIMEOUT_SECONDS", 1.0
+        ):
+            root = Path(directory)
+            runtime = FakeRuntime(root)
+            recognizer = LabelSettlingRecognizer(
+                daily_ready_label="quest-daily-tab-poll-01"
+            )
+            with self._session(root) as session:
+                result = daily.run_daily_row_reconnaissance(
+                    runtime, session, recognizer=recognizer
+                )
+
+        self.assertEqual(result["status"], "observed")
+        self.assertEqual(len(runtime.taps), 2)
+        self.assertEqual(
+            [poll["label"] for poll in result["polls"] if poll["action_identity"] == daily.QUEST_DAILY_IDENTITY],
+            ["quest-daily-tab-immediate-post", "quest-daily-tab-poll-01"],
+        )
+
+    def test_poll_timeout_does_not_dispatch_an_extra_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
+        ), patch.object(daily, "SUCCESSOR_POLL_INTERVAL_SECONDS", 0.0), patch.object(
+            daily, "SUCCESSOR_POLL_TIMEOUT_SECONDS", 1.0
+        ), patch.object(daily, "SUCCESSOR_POLL_MAX_ATTEMPTS", 2):
+            root = Path(directory)
+            runtime = FakeRuntime(root)
+            recognizer = LabelSettlingRecognizer(
+                daily_ready_label="never-observed"
+            )
+            with self._session(root) as session:
+                result = daily.run_daily_row_reconnaissance(
+                    runtime, session, recognizer=recognizer
+                )
+
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(len(runtime.taps), 2)
+        self.assertEqual(
+            len(
+                [
+                    poll
+                    for poll in result["polls"]
+                    if poll["action_identity"] == daily.QUEST_DAILY_IDENTITY
+                ]
+            ),
+            3,
+        )
+
+    def test_continuation_starts_on_main_quest_and_dispatches_only_daily(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
+        ):
+            root = Path(directory)
+            runtime = FakeRuntime(root)
+            recognizer = LabelSettlingRecognizer()
+            with self._continuation_session(root) as session:
+                result = daily.run_quest_daily_continuation(
+                    runtime, session, recognizer=recognizer
+                )
+
+        self.assertEqual(result["status"], "observed")
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(runtime.taps[0]["target_identity"], daily.QUEST_DAILY_IDENTITY)
+        self.assertEqual(set(result["frames"]), {"source", "daily_immediate_before", "daily_terminal"})
+        self.assertEqual(result["recognitions"]["source"]["state"], daily.QUEST_STATE)
+
+    def test_continuation_rejects_home_source_without_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
+        ):
+            root = Path(directory)
+            runtime = FakeRuntime(root)
+            recognizer = LabelSettlingRecognizer(main_source_state=daily.HOME_STATE)
+            with self._continuation_session(root) as session:
+                result = daily.run_quest_daily_continuation(
+                    runtime, session, recognizer=recognizer
+                )
+
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(runtime.taps, [])
+
+    def test_continuation_rejects_unknown_source_without_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
+        ):
+            root = Path(directory)
+            runtime = FakeRuntime(root)
+            recognizer = LabelSettlingRecognizer(main_source_state=daily.UNKNOWN_STATE)
+            with self._continuation_session(root) as session:
+                result = daily.run_quest_daily_continuation(
+                    runtime, session, recognizer=recognizer
+                )
+
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(runtime.taps, [])
 
     def test_stale_immediate_before_stops_before_transport(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.object(
@@ -773,6 +963,116 @@ class DailyRowRecognizerTests(unittest.TestCase):
 
 
 class PnsctlDailyRowCommandTests(unittest.TestCase):
+    def test_continuation_receipt_freezes_variant_budget_and_actions_before_consume(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "receipts.sqlite3"
+            command = [
+                "development-session",
+                "daily-row-reconnaissance",
+                "--max-inputs",
+                "1",
+                "--delegated-receipt",
+                str(state),
+                "--agent-identity",
+                "luna-agent",
+                "--task-id",
+                "daily-row-claim",
+                "--flow-id",
+                "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                "--scenario",
+                "selected-daily-row-evidence",
+                "--variant",
+                "quest-daily-continuation",
+            ]
+            controller = control.DelegatedRuntimeReceiptController(state)
+            controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
+            receipt = controller.issue(
+                task_id="daily-row-claim",
+                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                receipt_class="reconnaissance",
+                agent_identity="luna-agent",
+                command_argv=command,
+                scenario="selected-daily-row-evidence",
+                variant="quest-daily-continuation",
+                permitted_action_identities=["quest-daily-tab"],
+                permitted_action_classes=["navigation"],
+                consequence_class="navigation_only",
+                max_total_inputs=1,
+                max_resource_affecting_inputs=0,
+                max_combat_confirmations=0,
+                permitted_terminal_states=["observed", "evidence_required"],
+                result_identity=pnsctl.DAILY_ROW_RECON_RESULT_IDENTITY,
+            )
+
+            with self.assertRaisesRegex(pnsctl.OperatorError, "requires --max-inputs 1"):
+                pnsctl.development_session_daily_row_reconnaissance(
+                    max_inputs=2,
+                    delegated_receipt=state,
+                    agent_identity="luna-agent",
+                    task_id="daily-row-claim",
+                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                    scenario="selected-daily-row-evidence",
+                    variant="quest-daily-continuation",
+                    command_argv=command,
+                )
+            self.assertEqual(controller.inspect()["status"], "issued")
+
+            with patch.object(
+                control,
+                "DelegatedRuntimeReceiptController",
+                return_value=controller,
+            ), self.assertRaises(control.FlowDeliveryError):
+                pnsctl.development_session_daily_row_reconnaissance(
+                    max_inputs=2,
+                    delegated_receipt=state,
+                    agent_identity="luna-agent",
+                    task_id="daily-row-claim",
+                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                    scenario="selected-daily-row-evidence",
+                    variant="home-quest-daily",
+                    command_argv=command,
+                )
+            self.assertEqual(controller.inspect()["status"], "issued")
+            self.assertEqual(receipt["max_total_inputs"], 1)
+
+            bad_state = root / "bad-receipts.sqlite3"
+            bad_controller = control.DelegatedRuntimeReceiptController(bad_state)
+            bad_controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
+            bad_controller.issue(
+                task_id="daily-row-claim",
+                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                receipt_class="reconnaissance",
+                agent_identity="luna-agent",
+                command_argv=command,
+                scenario="selected-daily-row-evidence",
+                variant="quest-daily-continuation",
+                permitted_action_identities=["home-quest-entry"],
+                permitted_action_classes=["navigation"],
+                consequence_class="navigation_only",
+                max_total_inputs=1,
+                max_resource_affecting_inputs=0,
+                max_combat_confirmations=0,
+                permitted_terminal_states=["observed", "evidence_required"],
+                result_identity=pnsctl.DAILY_ROW_RECON_RESULT_IDENTITY,
+            )
+            with patch.object(
+                control,
+                "DelegatedRuntimeReceiptController",
+                return_value=bad_controller,
+            ), self.assertRaises(pnsctl.OperatorError):
+                pnsctl.development_session_daily_row_reconnaissance(
+                    max_inputs=1,
+                    delegated_receipt=bad_state,
+                    agent_identity="luna-agent",
+                    task_id="daily-row-claim",
+                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                    scenario="selected-daily-row-evidence",
+                    variant="quest-daily-continuation",
+                    command_argv=command,
+                )
+            self.assertEqual(bad_controller.inspect()["status"], "issued")
+
     def test_receipt_bound_command_records_observed_terminal_after_release(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -864,6 +1164,88 @@ class PnsctlDailyRowCommandTests(unittest.TestCase):
             finally:
                 connection.close()
             self.assertEqual(terminal[0], "observed")
+
+    def test_continuation_command_accepts_three_frame_terminal_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "receipts.sqlite3"
+            command = [
+                "development-session",
+                "daily-row-reconnaissance",
+                "--max-inputs",
+                "1",
+                "--delegated-receipt",
+                str(state),
+                "--agent-identity",
+                "luna-agent",
+                "--task-id",
+                "daily-row-claim",
+                "--flow-id",
+                "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                "--scenario",
+                "selected-daily-row-evidence",
+                "--variant",
+                "quest-daily-continuation",
+            ]
+            controller = control.DelegatedRuntimeReceiptController(state)
+            controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
+            controller.issue(
+                task_id="daily-row-claim",
+                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                receipt_class="reconnaissance",
+                agent_identity="luna-agent",
+                command_argv=command,
+                scenario="selected-daily-row-evidence",
+                variant="quest-daily-continuation",
+                permitted_action_identities=["quest-daily-tab"],
+                permitted_action_classes=["navigation"],
+                consequence_class="navigation_only",
+                max_total_inputs=1,
+                max_resource_affecting_inputs=0,
+                max_combat_confirmations=0,
+                permitted_terminal_states=["observed", "evidence_required"],
+                result_identity=pnsctl.DAILY_ROW_RECON_RESULT_IDENTITY,
+            )
+
+            def connect(**kwargs):
+                return FakeRuntime(Path(kwargs["output_directory"]))
+
+            with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                control,
+                "DelegatedRuntimeReceiptController",
+                return_value=controller,
+            ), patch.object(
+                LocalBlueStacksRuntime,
+                "connect",
+                side_effect=connect,
+            ), patch.object(
+                daily,
+                "DailyRowClaimRecognizer",
+                return_value=ScriptedRecognizer(),
+            ), patch.object(
+                boundary,
+                "RUNTIME_INPUT_LOCK_PATH",
+                root / "lock.sqlite3",
+            ):
+                output = pnsctl.development_session_daily_row_reconnaissance(
+                    max_inputs=1,
+                    delegated_receipt=state,
+                    agent_identity="luna-agent",
+                    task_id="daily-row-claim",
+                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                    scenario="selected-daily-row-evidence",
+                    variant="quest-daily-continuation",
+                    command_argv=command,
+                )
+
+            result = json.loads(output)
+            self.assertEqual(result["status"], "observed")
+            self.assertEqual(result["input_count"], 1)
+            self.assertTrue(result["ownership_released"])
+            self.assertEqual(set(result["frames"]), {"source", "daily_immediate_before", "daily_terminal"})
+            self.assertEqual(controller.inspect()["status"], "consumed")
 
     def test_daily_recon_failure_records_terminal_before_fallback_write(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

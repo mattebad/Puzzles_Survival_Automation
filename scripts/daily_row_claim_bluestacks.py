@@ -35,6 +35,9 @@ HOME_QUEST_IDENTITY = "home-quest-entry"
 QUEST_DAILY_IDENTITY = "quest-daily-tab"
 NAVIGATION_ACTION_CLASS = "navigation"
 NAVIGATION_CONSEQUENCE_CLASS = "navigation_only"
+SUCCESSOR_POLL_TIMEOUT_SECONDS = 5.0
+SUCCESSOR_POLL_INTERVAL_SECONDS = 0.25
+SUCCESSOR_POLL_MAX_ATTEMPTS = 20
 
 _HOME_WORDS = frozenset({"quest", "world", "hero", "bag", "mail", "alliance", "more"})
 _OVERLAY_MARKERS = frozenset(
@@ -656,6 +659,59 @@ class DailyRowClaimRecognizer:
             _token_rows(tokens),
         )
 
+    def recognize_main_quest(self, frame: np.ndarray) -> FrameRecognition:
+        """Recognize Quest with Main Quest selected, including tab semantics."""
+
+        base = self.recognize_quest(frame)
+        if not base.recognized:
+            return base
+        tokens = _ocr_tokens(frame, QUEST_TAB_SEARCH_ROI, self._ocr)
+        main = next(
+            (
+                token
+                for token in tokens
+                if token.text in {"main", "main quest"}
+                and 35 <= (token.roi[1] + token.roi[3]) // 2 <= 220
+            ),
+            None,
+        )
+        daily = next(
+            (
+                token
+                for token in tokens
+                if token.text == "daily"
+                and 35 <= (token.roi[1] + token.roi[3]) // 2 <= 220
+            ),
+            None,
+        )
+        main_score = _tab_visual_score(frame, main) if main else 0.0
+        daily_score = _tab_visual_score(frame, daily) if daily else 0.0
+        visual = dict(base.visual_evidence or {})
+        visual.update(
+            {
+                "main_tab_score": main_score,
+                "daily_tab_score": daily_score,
+                "main_selected_margin": round(main_score - daily_score, 6),
+                "main_tab_present": main is not None,
+            }
+        )
+        recognized = bool(
+            main is not None
+            and daily is not None
+            and main_score >= 0.12
+            and main_score >= daily_score + 0.015
+        )
+        return FrameRecognition(
+            QUEST_STATE if recognized else UNKNOWN_STATE,
+            recognized,
+            QUEST_DAILY_IDENTITY if recognized else None,
+            base.target_roi if recognized else None,
+            " ".join(token.text for token in tokens),
+            visual,
+            None if recognized else "main-quest-selection-not-proven",
+            _token_rows(tokens),
+        )
+
     def recognize_daily_selected(self, frame: np.ndarray) -> FrameRecognition:
         if not _frame_shape_ok(frame):
             return FrameRecognition(DAILY_SELECTED_STATE, False, reason="profile_dimensions_mismatch")
@@ -755,6 +811,7 @@ def _failure(
     reason: str,
     frames: Mapping[str, CapturedNativeFrame],
     recognitions: Mapping[str, FrameRecognition],
+    polls: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     session.terminal_status = "evidence_required"
     session.blocker = reason
@@ -772,8 +829,97 @@ def _failure(
         "recognitions": {
             name: recognition.as_dict() for name, recognition in recognitions.items()
         },
+        "polls": [dict(poll) for poll in polls],
         "actions": [dict(row) for row in session.actions],
     }
+
+
+def _recognize_main_quest(
+    recognizer: DailyRowClaimRecognizer | Any,
+    frame: np.ndarray,
+) -> FrameRecognition:
+    method = getattr(recognizer, "recognize_main_quest", None)
+    if callable(method):
+        return method(frame)
+    return FrameRecognition(
+        QUEST_STATE,
+        False,
+        reason="Main Quest recognition is unavailable",
+    )
+
+
+def _settle_successor(
+    *,
+    session: SessionLike,
+    capture: Callable[[str], CapturedNativeFrame],
+    immediate_post: CapturedNativeFrame,
+    recognize: Callable[[np.ndarray], FrameRecognition],
+    expected_state: str,
+    action_identity: str,
+    frame_key: str,
+    recognition_key: str,
+    frames: dict[str, CapturedNativeFrame],
+    recognitions: dict[str, FrameRecognition],
+    polls: list[dict[str, Any]],
+) -> FrameRecognition:
+    """Poll fresh frames after one input without dispatching another input."""
+
+    def record(
+        frame: CapturedNativeFrame,
+        recognition: FrameRecognition,
+        *,
+        attempt: int,
+        label: str,
+    ) -> None:
+        frame_name = frame_key if attempt == 0 else f"{recognition_key}_poll_{attempt}"
+        frames[frame_name] = frame
+        recognitions[frame_name] = recognition
+        polls.append(
+            {
+                "action_identity": action_identity,
+                "attempt": attempt,
+                "label": label,
+                "frame_name": frame_name,
+                "frame": _frame_ref(frame, session.session_directory),
+                "recognition": recognition.as_dict(),
+            }
+        )
+
+    current = immediate_post
+    current_recognition = recognize(current.frame)
+    record(
+        current,
+        current_recognition,
+        attempt=0,
+        label=f"{action_identity}-immediate-post",
+    )
+    if current_recognition.recognized and current_recognition.state == expected_state:
+        recognitions[recognition_key] = current_recognition
+        return current_recognition
+
+    deadline = time.monotonic() + SUCCESSOR_POLL_TIMEOUT_SECONDS
+    attempts = 0
+    while attempts < SUCCESSOR_POLL_MAX_ATTEMPTS:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        interval = max(0.0, min(SUCCESSOR_POLL_INTERVAL_SECONDS, remaining))
+        if interval:
+            time.sleep(interval)
+        if time.monotonic() >= deadline:
+            break
+        attempts += 1
+        label = f"{action_identity}-poll-{attempts:02d}"
+        current = session.observe(capture, label=label)
+        current_recognition = recognize(current.frame)
+        record(current, current_recognition, attempt=attempts, label=label)
+        if current_recognition.recognized and current_recognition.state == expected_state:
+            recognitions[recognition_key] = current_recognition
+            frames[frame_key] = current
+            return current_recognition
+
+    recognitions[recognition_key] = current_recognition
+    return current_recognition
 
 
 def run_daily_row_reconnaissance(
@@ -794,6 +940,7 @@ def run_daily_row_reconnaissance(
     recognizer = recognizer or DailyRowClaimRecognizer()
     frames: dict[str, CapturedNativeFrame] = {}
     recognitions: dict[str, FrameRecognition] = {}
+    polls: list[dict[str, Any]] = []
 
     try:
         def capture(label: str) -> CapturedNativeFrame:
@@ -806,6 +953,10 @@ def run_daily_row_reconnaissance(
                 "quest-daily-tab-immediate-post": "daily_terminal",
             }
             name = frame_names.get(label)
+            if name is None and label.startswith(f"{HOME_QUEST_IDENTITY}-poll-"):
+                name = f"quest_successor_poll_{label.rsplit('-', 1)[-1]}"
+            if name is None and label.startswith(f"{QUEST_DAILY_IDENTITY}-poll-"):
+                name = f"daily_terminal_poll_{label.rsplit('-', 1)[-1]}"
             if name is not None:
                 frames[name] = captured
             return captured
@@ -841,8 +992,19 @@ def run_daily_row_reconnaissance(
 
         def recognize_quest_successor(after: CapturedNativeFrame) -> str:
             nonlocal first_post_recognition
-            first_post_recognition = recognizer.recognize_quest(after.frame)
-            recognitions["quest_successor"] = first_post_recognition
+            first_post_recognition = _settle_successor(
+                session=session,
+                capture=capture,
+                immediate_post=after,
+                recognize=recognizer.recognize_quest,
+                expected_state=QUEST_STATE,
+                action_identity=HOME_QUEST_IDENTITY,
+                frame_key="quest_successor",
+                recognition_key="quest_successor",
+                frames=frames,
+                recognitions=recognitions,
+                polls=polls,
+            )
             return first_post_recognition.state if first_post_recognition.recognized else UNKNOWN_STATE
 
         quest_dispatch = _NativeTapDispatch(dispatch_quest)
@@ -864,6 +1026,7 @@ def run_daily_row_reconnaissance(
                 reason="Quest successor was not positively recognized",
                 frames=frames,
                 recognitions=recognitions,
+                polls=polls,
             )
 
         second_post_recognition: FrameRecognition | None = None
@@ -887,8 +1050,19 @@ def run_daily_row_reconnaissance(
 
         def recognize_daily_successor(after: CapturedNativeFrame) -> str:
             nonlocal second_post_recognition
-            second_post_recognition = recognizer.recognize_daily_selected(after.frame)
-            recognitions["daily_terminal"] = second_post_recognition
+            second_post_recognition = _settle_successor(
+                session=session,
+                capture=capture,
+                immediate_post=after,
+                recognize=recognizer.recognize_daily_selected,
+                expected_state=DAILY_SELECTED_STATE,
+                action_identity=QUEST_DAILY_IDENTITY,
+                frame_key="daily_terminal",
+                recognition_key="daily_terminal",
+                frames=frames,
+                recognitions=recognitions,
+                polls=polls,
+            )
             return second_post_recognition.state if second_post_recognition.recognized else UNKNOWN_STATE
 
         daily_dispatch = _NativeTapDispatch(dispatch_daily)
@@ -910,6 +1084,7 @@ def run_daily_row_reconnaissance(
                 reason="selected Daily terminal was not positively recognized",
                 frames=frames,
                 recognitions=recognitions,
+                polls=polls,
             )
 
         session.terminal_status = "observed"
@@ -926,6 +1101,7 @@ def run_daily_row_reconnaissance(
             "recognitions": {
                 name: recognition.as_dict() for name, recognition in recognitions.items()
             },
+            "polls": [dict(poll) for poll in polls],
             "actions": [dict(row) for row in session.actions],
         }
     except BaseException as exc:
@@ -934,5 +1110,136 @@ def run_daily_row_reconnaissance(
             reason=f"{type(exc).__name__}: {exc}",
             frames=frames,
             recognitions=recognitions,
+            polls=polls,
+        )
+
+
+def run_quest_daily_continuation(
+    runtime: RuntimeLike,
+    session: SessionLike,
+    *,
+    recognizer: DailyRowClaimRecognizer | Any | None = None,
+) -> dict[str, Any]:
+    """Continue from a positively recognized Main Quest screen to Daily."""
+
+    if not bool(getattr(runtime, "execute", False)):
+        return _failure(
+            session,
+            reason="runtime execution is required for reconnaissance",
+            frames={},
+            recognitions={},
+        )
+    recognizer = recognizer or DailyRowClaimRecognizer()
+    frames: dict[str, CapturedNativeFrame] = {}
+    recognitions: dict[str, FrameRecognition] = {}
+    polls: list[dict[str, Any]] = []
+
+    try:
+        def capture(label: str) -> CapturedNativeFrame:
+            captured = runtime.capture(label)
+            frame_names = {
+                "quest-source": "source",
+                "quest-daily-tab-immediate-before": "daily_immediate_before",
+                "quest-daily-tab-immediate-post": "daily_terminal",
+            }
+            name = frame_names.get(label)
+            if name is None and label.startswith(f"{QUEST_DAILY_IDENTITY}-poll-"):
+                name = f"daily_terminal_poll_{label.rsplit('-', 1)[-1]}"
+            if name is not None:
+                frames[name] = captured
+            return captured
+
+        source = session.observe(capture, label="quest-source")
+        frames["source"] = source
+        source_recognition = _recognize_main_quest(recognizer, source.frame)
+        recognitions["source"] = source_recognition
+        _require_recognition(
+            source_recognition,
+            state=QUEST_STATE,
+            target_identity=QUEST_DAILY_IDENTITY,
+        )
+
+        terminal_recognition: FrameRecognition | None = None
+
+        def dispatch_daily(before: CapturedNativeFrame) -> None:
+            rebound = _recognize_main_quest(recognizer, before.frame)
+            recognitions["daily_immediate_before"] = rebound
+            _require_recognition(
+                rebound,
+                state=QUEST_STATE,
+                target_identity=QUEST_DAILY_IDENTITY,
+            )
+            _ensure_fresh(before, runtime)
+            _ensure_runtime_ready(runtime)
+            runtime.tap(
+                before,
+                target_identity=QUEST_DAILY_IDENTITY,
+                target_roi=rebound.target_roi,  # type: ignore[arg-type]
+                action_key=QUEST_DAILY_IDENTITY,
+            )
+
+        def recognize_daily_successor(after: CapturedNativeFrame) -> str:
+            nonlocal terminal_recognition
+            terminal_recognition = _settle_successor(
+                session=session,
+                capture=capture,
+                immediate_post=after,
+                recognize=recognizer.recognize_daily_selected,
+                expected_state=DAILY_SELECTED_STATE,
+                action_identity=QUEST_DAILY_IDENTITY,
+                frame_key="daily_terminal",
+                recognition_key="daily_terminal",
+                frames=frames,
+                recognitions=recognitions,
+                polls=polls,
+            )
+            return terminal_recognition.state if terminal_recognition.recognized else UNKNOWN_STATE
+
+        daily_dispatch = _NativeTapDispatch(dispatch_daily)
+        action = session.run_action(
+            action_class=NAVIGATION_ACTION_CLASS,
+            label=QUEST_DAILY_IDENTITY,
+            capture=capture,
+            dispatch=daily_dispatch.dispatch,
+            recognize=recognize_daily_successor,
+            consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
+        )
+        if (
+            action.status != "completed"
+            or terminal_recognition is None
+            or not terminal_recognition.recognized
+        ):
+            return _failure(
+                session,
+                reason="selected Daily terminal was not positively recognized",
+                frames=frames,
+                recognitions=recognitions,
+                polls=polls,
+            )
+
+        session.terminal_status = "observed"
+        return {
+            "status": "observed",
+            "reason": "selected Daily positively recognized from Main Quest",
+            "input_count": int(session.input_count),
+            "resource_affecting_inputs": 0,
+            "combat_confirmations": 0,
+            "frames": {
+                name: _frame_ref(frame, session.session_directory)
+                for name, frame in frames.items()
+            },
+            "recognitions": {
+                name: recognition.as_dict() for name, recognition in recognitions.items()
+            },
+            "polls": [dict(poll) for poll in polls],
+            "actions": [dict(row) for row in session.actions],
+        }
+    except BaseException as exc:
+        return _failure(
+            session,
+            reason=f"{type(exc).__name__}: {exc}",
+            frames=frames,
+            recognitions=recognitions,
+            polls=polls,
         )
 

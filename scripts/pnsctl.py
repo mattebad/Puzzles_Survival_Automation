@@ -1514,26 +1514,47 @@ DAILY_ROW_RECON_TASK_ID = "daily-row-claim"
 DAILY_ROW_RECON_FLOW_ID = "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
 DAILY_ROW_RECON_SCENARIO = "selected-daily-row-evidence"
 DAILY_ROW_RECON_VARIANT = "home-quest-daily"
+DAILY_ROW_RECON_CONTINUATION_VARIANT = "quest-daily-continuation"
 DAILY_ROW_RECON_RESULT_IDENTITY = (
     "daily-row-claim:reconnaissance:selected-daily-row-evidence"
 )
 DAILY_ROW_RECON_ACTION_IDENTITIES = ("home-quest-entry", "quest-daily-tab")
 DAILY_ROW_RECON_ACTION_CLASSES = ("navigation", "navigation")
+DAILY_ROW_RECON_CONTINUATION_ACTION_IDENTITIES = ("quest-daily-tab",)
+DAILY_ROW_RECON_CONTINUATION_ACTION_CLASSES = ("navigation",)
+
+
+def _daily_row_recon_variant_spec(variant: str) -> Mapping[str, Any]:
+    if variant == DAILY_ROW_RECON_VARIANT:
+        return {
+            "max_inputs": 2,
+            "action_identities": DAILY_ROW_RECON_ACTION_IDENTITIES,
+            "action_classes": DAILY_ROW_RECON_ACTION_CLASSES,
+        }
+    if variant == DAILY_ROW_RECON_CONTINUATION_VARIANT:
+        return {
+            "max_inputs": 1,
+            "action_identities": DAILY_ROW_RECON_CONTINUATION_ACTION_IDENTITIES,
+            "action_classes": DAILY_ROW_RECON_CONTINUATION_ACTION_CLASSES,
+        }
+    raise OperatorError("daily row reconnaissance variant is not frozen")
 
 
 def _validate_daily_row_recon_receipt(receipt: Mapping[str, Any]) -> None:
+    variant = receipt.get("variant")
+    spec = _daily_row_recon_variant_spec(str(variant))
     expected = {
         "receipt_class": "reconnaissance",
         "task_id": DAILY_ROW_RECON_TASK_ID,
         "flow_id": DAILY_ROW_RECON_FLOW_ID,
         "scenario": DAILY_ROW_RECON_SCENARIO,
-        "variant": DAILY_ROW_RECON_VARIANT,
+        "variant": variant,
         "consequence_class": "navigation_only",
-        "max_total_inputs": 2,
+        "max_total_inputs": spec["max_inputs"],
         "max_resource_affecting_inputs": 0,
         "max_combat_confirmations": 0,
-        "permitted_action_identities": list(DAILY_ROW_RECON_ACTION_IDENTITIES),
-        "permitted_action_classes": list(DAILY_ROW_RECON_ACTION_CLASSES),
+        "permitted_action_identities": list(spec["action_identities"]),
+        "permitted_action_classes": list(spec["action_classes"]),
         "permitted_terminal_states": ["observed", "evidence_required"],
     }
     for field, value in expected.items():
@@ -1547,25 +1568,43 @@ def _validate_daily_row_recon_receipt(receipt: Mapping[str, Any]) -> None:
             raise OperatorError(f"daily row reconnaissance receipt {field} is not frozen")
     expected_bindings = [
         {
-            "action_identity": "home-quest-entry",
-            "action_class": "navigation",
+            "action_identity": identity,
+            "action_class": action_class,
             "consequence_class": "navigation_only",
             "resource_affecting": False,
             "combat_confirmation": False,
-        },
-        {
-            "action_identity": "quest-daily-tab",
-            "action_class": "navigation",
-            "consequence_class": "navigation_only",
-            "resource_affecting": False,
-            "combat_confirmation": False,
-        },
+        }
+        for identity, action_class in zip(
+            spec["action_identities"], spec["action_classes"]
+        )
     ]
     if receipt.get("action_bindings") != expected_bindings:
         raise OperatorError("daily row reconnaissance receipt action bindings are not frozen")
     binding = receipt.get("evidence_result_binding")
     if not isinstance(binding, Mapping) or binding.get("result_identity") != DAILY_ROW_RECON_RESULT_IDENTITY:
         raise OperatorError("daily row reconnaissance result identity is not frozen")
+    command = receipt.get("command_argv")
+    if (
+        not isinstance(command, list)
+        or len(command) != 16
+        or command[:3] != [
+            "development-session",
+            "daily-row-reconnaissance",
+            "--max-inputs",
+        ]
+        or command[3] != str(spec["max_inputs"])
+        or command[4] != "--delegated-receipt"
+        or not isinstance(command[5], str)
+        or not command[5]
+        or command[6] != "--agent-identity"
+        or not isinstance(command[7], str)
+        or not command[7]
+        or command[8:10] != ["--task-id", DAILY_ROW_RECON_TASK_ID]
+        or command[10:12] != ["--flow-id", DAILY_ROW_RECON_FLOW_ID]
+        or command[12:14] != ["--scenario", DAILY_ROW_RECON_SCENARIO]
+        or command[14:16] != ["--variant", str(variant)]
+    ):
+        raise OperatorError("daily row reconnaissance command shape is not frozen")
 
 
 def _daily_recon_artifact_path(session_directory: Path, value: object) -> Path:
@@ -1588,18 +1627,24 @@ def _validate_daily_recon_artifacts(
 ) -> None:
     from scripts.bluestacks_native_runtime import captured_native_frame_from_png
 
-    required_frames = {
-        "source",
-        "home_immediate_before",
-        "quest_successor",
-        "daily_immediate_before",
-        "daily_terminal",
-    }
+    variant = str(payload.get("variant"))
+    spec = _daily_row_recon_variant_spec(variant)
+    required_frames = (
+        {
+            "source",
+            "home_immediate_before",
+            "quest_successor",
+            "daily_immediate_before",
+            "daily_terminal",
+        }
+        if variant == DAILY_ROW_RECON_VARIANT
+        else {"source", "daily_immediate_before", "daily_terminal"}
+    )
     frames = payload.get("frames")
     if not isinstance(frames, Mapping) or not required_frames <= set(frames):
-        raise OperatorError("daily row reconnaissance requires all five native frames")
-    for name in required_frames:
-        reference = frames.get(name)
+        raise OperatorError("daily row reconnaissance required native frames are missing")
+
+    def validate_frame(name: str, reference: object) -> None:
         if not isinstance(reference, Mapping):
             raise OperatorError(f"daily row reconnaissance frame reference is malformed: {name}")
         path = _daily_recon_artifact_path(session_directory, reference.get("path"))
@@ -1615,16 +1660,32 @@ def _validate_daily_recon_artifacts(
             captured_monotonic=float(reference.get("captured_monotonic", 0.0)),
             path=path,
         )
+
+    for name, reference in frames.items():
+        validate_frame(str(name), reference)
+    polls = payload.get("polls")
+    if not isinstance(polls, list):
+        raise OperatorError("daily row reconnaissance polling evidence is missing")
+    for index, poll in enumerate(polls):
+        if not isinstance(poll, Mapping):
+            raise OperatorError(f"daily row reconnaissance poll is malformed: {index}")
+        if poll.get("action_identity") not in spec["action_identities"]:
+            raise OperatorError("daily row reconnaissance poll action identity is invalid")
+        if not isinstance(poll.get("recognition"), Mapping):
+            raise OperatorError("daily row reconnaissance poll semantics are missing")
+        validate_frame(
+            f"poll-{index}",
+            poll.get("frame"),
+        )
+
     actions = payload.get("actions")
-    if not isinstance(actions, list) or len(actions) != 2:
-        raise OperatorError("daily row reconnaissance must retain exactly two action records")
+    if not isinstance(actions, list) or len(actions) != spec["max_inputs"]:
+        raise OperatorError("daily row reconnaissance action count is not frozen")
     if [
         (row.get("action_key") or row.get("label"))
         for row in actions
         if isinstance(row, Mapping)
-    ] != list(
-        DAILY_ROW_RECON_ACTION_IDENTITIES
-    ):
+    ] != list(spec["action_identities"]):
         raise OperatorError("daily row reconnaissance action identity order is invalid")
     if any(
         not isinstance(row, Mapping)
@@ -1633,13 +1694,17 @@ def _validate_daily_recon_artifacts(
         for row in actions
     ):
         raise OperatorError("daily row reconnaissance action records are not completed navigation")
-    if payload.get("input_count") != 2:
-        raise OperatorError("daily row reconnaissance input count is not exactly two")
+    if payload.get("input_count") != spec["max_inputs"]:
+        raise OperatorError("daily row reconnaissance input count is not frozen")
     if payload.get("resource_affecting_inputs") != 0 or payload.get("combat_confirmations") != 0:
         raise OperatorError("daily row reconnaissance contains a forbidden budget")
     terminal = payload.get("recognitions", {}).get("daily_terminal")
     if not isinstance(terminal, Mapping) or terminal.get("state") != "DAILY_SELECTED":
         raise OperatorError("daily row reconnaissance terminal semantics are not selected Daily")
+    source = payload.get("recognitions", {}).get("source")
+    expected_source = "HOME" if variant == DAILY_ROW_RECON_VARIANT else "QUEST"
+    if not isinstance(source, Mapping) or source.get("state") != expected_source:
+        raise OperatorError("daily row reconnaissance source semantics are not variant-bound")
     events_path = _daily_recon_artifact_path(
         session_directory,
         payload.get("runtime_events_path"),
@@ -1649,8 +1714,14 @@ def _validate_daily_recon_artifacts(
         for line in events_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    if sum(row.get("type") == "dispatch" for row in event_rows) != 2:
-        raise OperatorError("daily row reconnaissance event log does not retain two dispatches")
+    dispatches = [row for row in event_rows if row.get("type") == "dispatch"]
+    if len(dispatches) != spec["max_inputs"]:
+        raise OperatorError("daily row reconnaissance event log dispatch count is not frozen")
+    if [
+        row.get("action_key") or row.get("target_identity")
+        for row in dispatches
+    ] != list(spec["action_identities"]):
+        raise OperatorError("daily row reconnaissance event action identity order is invalid")
 
 
 def _write_daily_recon_artifacts(
@@ -1700,7 +1771,7 @@ def development_session_daily_row_reconnaissance(
     variant: str,
     command_argv: Sequence[str] | None = None,
 ) -> str:
-    """Run the frozen two-input Home -> Quest -> selected-Daily route."""
+    """Run one frozen bounded Daily reconnaissance route variant."""
 
     expected_bindings = (
         max_inputs,
@@ -1711,18 +1782,24 @@ def development_session_daily_row_reconnaissance(
         agent_identity,
         command_argv,
     )
-    if max_inputs != 2:
-        raise OperatorError("daily row reconnaissance requires --max-inputs 2")
+    spec = _daily_row_recon_variant_spec(variant)
+    if max_inputs != spec["max_inputs"]:
+        raise OperatorError(
+            f"daily row reconnaissance requires --max-inputs {spec['max_inputs']}"
+        )
     if any(value is None for value in expected_bindings[1:]):
         raise OperatorError("daily row reconnaissance requires complete receipt bindings")
     if task_id != DAILY_ROW_RECON_TASK_ID or flow_id != DAILY_ROW_RECON_FLOW_ID:
         raise OperatorError("daily row reconnaissance task or flow binding is not frozen")
-    if scenario != DAILY_ROW_RECON_SCENARIO or variant != DAILY_ROW_RECON_VARIANT:
-        raise OperatorError("daily row reconnaissance scenario or variant is not frozen")
+    if scenario != DAILY_ROW_RECON_SCENARIO:
+        raise OperatorError("daily row reconnaissance scenario is not frozen")
     if command_argv is None:
         raise OperatorError("daily row reconnaissance command binding is required")
 
-    from scripts.daily_row_claim_bluestacks import run_daily_row_reconnaissance
+    from scripts.daily_row_claim_bluestacks import (
+        run_daily_row_reconnaissance,
+        run_quest_daily_continuation,
+    )
     from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
     from scripts.navigation_development_boundary import (
         DevelopmentSession,
@@ -1742,7 +1819,7 @@ def development_session_daily_row_reconnaissance(
         receipt_class="reconnaissance",
         scenario=scenario,
         variant=variant,
-        max_inputs=2,
+        max_inputs=spec["max_inputs"],
     )
     _validate_daily_row_recon_receipt(receipt)
 
@@ -1809,7 +1886,7 @@ def development_session_daily_row_reconnaissance(
                 owner=f"pnsctl-delegated-daily-row-recon:{flow_id}",
                 invocation_id=invocation_id,
                 session_directory=session_directory,
-                max_inputs=2,
+                max_inputs=spec["max_inputs"],
             ) as active_session:
                 session = active_session
                 runtime = LocalBlueStacksRuntime.connect(
@@ -1819,7 +1896,12 @@ def development_session_daily_row_reconnaissance(
                     workflow="daily-row-reconnaissance",
                     execute=True,
                 )
-                route_result = run_daily_row_reconnaissance(runtime, active_session)
+                route = (
+                    run_daily_row_reconnaissance
+                    if variant == DAILY_ROW_RECON_VARIANT
+                    else run_quest_daily_continuation
+                )
+                route_result = route(runtime, active_session)
                 active_session.terminal_status = route_result.get(
                     "status", "evidence_required"
                 )
