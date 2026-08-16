@@ -3544,8 +3544,8 @@
       "live_validation_scope": "Navigation-only Home-to-World/search-to-Home validation; no march, attack, stamina, or AP dispatch.",
       "consequence_policy": "Navigation only; unknown map, target, occupancy, march, or consequence fails closed.",
       "product_policy_status": "navigation_only_validation",
-      "maximum_live_attempts": 9,
-      "live_attempt_count": 9,
+      "maximum_live_attempts": 10,
+      "live_attempt_count": 10,
       "live_attempts": [
         {
           "ordinal": 1,
@@ -3654,6 +3654,18 @@
           "session_directory": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260816T055433723309Z",
           "terminal_outcome": "blocked",
           "diagnosis": "HOME_READY recognized and one home-to-world tap succeeded. The terminal zero-input frame proves World, but contour grouping changed: Search became one broad candidate [0,1025,161,1100], so lens/handle binding rejected it; footer OCR read Home? and multiple overlapping candidates remained ambiguous. The route stopped before Search with one navigation input and zero resource/combat inputs."
+        },
+        {
+          "ordinal": 10,
+          "active_flow": "WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_owner": "pnsctl-development-session:WORLD-MAP-NAVIGATION-FOUNDATION",
+          "lease_session": "b5c07139-27ae-48d6-8e51-63479bc811ac",
+          "repository_head": "c439c3a7a125fe77e9ba9e70b2f823560fb6a126",
+          "started_at": "2026-08-16T06:26:05.127346Z",
+          "finished_at": "2026-08-16T06:30:18.475346Z",
+          "session_directory": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260816T062605127346Z",
+          "terminal_outcome": "blocked",
+          "diagnosis": "The one-tap Search-only canary failed closed before dispatch with zero inputs. A terminal zero-input frame immediately afterward bound the tight magnifier ROI [101,1032,151,1078], proving the remaining failure is the extra coordinate-HUD state gate rather than Search geometry."
         }
       ],
       "focused_tests": [
@@ -3667,10 +3679,10 @@
         "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "evidence_required: the final Home-to-World tap succeeded, but current-frame contour grouping merged the magnifier toolbar into a broad candidate and footer Home remained visually ambiguous; World successor recognition failed closed before Search",
-      "next_concrete_action": "Do not repeat live input. In a new authorized iteration, bind the magnifier directly from bounded lens-and-handle geometry instead of requiring one enclosing contour candidate, and separate the footer label ROI from its containing button without choosing among distinct targets.",
+      "blocked_reason": "evidence_required: direct tight magnifier geometry now binds, but the one-tap Search-only canary retained an unnecessary coordinate-HUD state gate and stopped before dispatch with zero inputs",
+      "next_concrete_action": "Do not retry live input. For Search-entry-only mode, let the unique bounded lens-and-handle binding establish the World Search control without the brittle coordinate OCR gate; retain exact one-input and WORLD_SEARCH_OPEN successor limits.",
       "last_completed_stage": "blocked",
-      "last_commit": "5ffdabd2ac029c21d33abc1e83f3485671beaa17",
+      "last_commit": "c439c3a7a125fe77e9ba9e70b2f823560fb6a126",
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
       "acceptance_criteria": [
         "current-frame verified Home-to-World navigation",
