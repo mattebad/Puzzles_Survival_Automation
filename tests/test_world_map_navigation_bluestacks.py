@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -757,6 +758,37 @@ class WorldMapNavigationTests(unittest.TestCase):
         extra_route = dict(route, input_count=5, navigation_input_count=5)
         with self.assertRaises(pnsctl.OperatorError):
             _verify_event_order(extra_dispatch, extra_route, hashes)
+
+    def test_development_runtime_observation_accepts_standard_png_frame(self):
+        frame = bytearray(24)
+        frame[:8] = b"\x89PNG\r\n\x1a\n"
+        frame[16:20] = (800).to_bytes(4, "big")
+        frame[20:24] = (1280).to_bytes(4, "big")
+        expected_frame = bytes(frame)
+        outputs = (
+            "device\n",
+            expected_frame,
+            "mCurrentFocus=Window{123 u0 com.global.ztmslg/.MainActivity}\n",
+        )
+
+        with patch.object(
+            pnsctl,
+            "_run_fixed_bluestacks_adb",
+            side_effect=outputs,
+        ):
+            result, returned_frame = pnsctl._development_runtime_observation()
+
+        self.assertEqual(returned_frame, expected_frame)
+        self.assertEqual(
+            result,
+            {
+                "device_state": "device",
+                "foreground_package": "com.global.ztmslg",
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(expected_frame).hexdigest(),
+            },
+        )
 
     def test_registry_and_dry_run_are_fixed_and_unregistered(self):
         self.assertIn(RUNNER_ID, pnsctl._BLUESTACKS_FLOW_RUNNERS)

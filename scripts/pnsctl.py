@@ -1091,9 +1091,9 @@ def _load_bluestacks_flow_registry() -> dict[str, dict[str, str]]:
 
 def _focused_package(dumpsys_output: str) -> str:
     patterns = (
-        r"(?m)^\s*mCurrentFocus=Window\{[^\n]*?\s(?:u\d+\s+)?"
+        r"(?m)^\s*mCurrentFocus=Window\{[^\r\n]*?\s(?:u\d+\s+)?"
         r"(?P<package>[A-Za-z0-9._]+)/[^\s}]+",
-        r"(?m)^\s*mFocusedApp=ActivityRecord\{[^\n]*?\s(?:u\d+\s+)?"
+        r"(?m)^\s*mFocusedApp=ActivityRecord\{[^\r\n]*?\s(?:u\d+\s+)?"
         r"(?P<package>[A-Za-z0-9._]+)/[^\s}]+",
     )
     for pattern in patterns:
@@ -1132,7 +1132,7 @@ def bluestacks_preflight() -> str:
     frame = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
     if (
         not isinstance(frame, bytes)
-        or frame[:8] != b"\x89PNG\n\x1a\n"
+        or frame[:8] != b"\x89PNG\r\n\x1a\n"
         or len(frame) < 24
     ):
         raise OperatorError("BlueStacks preflight did not receive a valid PNG frame")
@@ -1170,7 +1170,7 @@ def _development_runtime_observation() -> tuple[dict[str, Any], bytes]:
     frame = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
     if (
         not isinstance(frame, bytes)
-        or frame[:8] != b"\x89PNG\n\x1a\n"
+        or frame[:8] != b"\x89PNG\r\n\x1a\n"
         or len(frame) < 24
     ):
         raise OperatorError("development observation did not receive a valid PNG frame")

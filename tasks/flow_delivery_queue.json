@@ -33,7 +33,7 @@
     "priority",
     "flow_id"
   ],
-  "active_flow_id": null,
+  "active_flow_id": "WORLD-MAP-NAVIGATION-FOUNDATION",
   "flows": [
     {
       "flow_id": "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
@@ -3526,7 +3526,7 @@
       "title": "Build verified World Map navigation foundation",
       "kind": "navigation_foundation",
       "priority": 120,
-      "status": "blocked",
+      "status": "active",
       "backlog_task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -3558,9 +3558,9 @@
         "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "evidence_required: two receipt-bound zero-input observations on frozen commit 39e639a failed before input because runtime capture did not return a valid PNG; both sessions prove input_count 0 and ownership_released true",
-      "next_concrete_action": "Restore valid PNG screenshot transport through the supported runtime boundary, then issue one new zero-input observation only after that materially changed condition is verified. Do not repeat either consumed receipt or admit the navigation canary before a native frame is retained.",
-      "last_completed_stage": "blocked",
+      "blocked_reason": "",
+      "next_concrete_action": "Restore the standard PNG signature check in pnsctl, add an exact regression, rerun the focused profile, and obtain a fresh zero-input observation before canary admission.",
+      "last_completed_stage": "focused_validation",
       "last_commit": "39e639ad771f3c550c5f5dd1e5ee9b689e1d0309",
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
       "acceptance_criteria": [
