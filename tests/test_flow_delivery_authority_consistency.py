@@ -61,16 +61,17 @@ class AuthorityConsistencyTests(unittest.TestCase):
             "nanoweapon-material-policy",
             "nano-material-production-maintenance",
             "zombie-lair-level-stamina-march",
+            "gathering-resource-node-march-policy",
+            "troop-training-resource-policy",
         ):
             self.assertEqual(entries[policy_id]["status"], "explicitly_approved")
-        self.assertEqual(
-            entries["gathering-resource-node-march-policy"]["status"],
-            "unresolved_user_decision",
-        )
-        self.assertEqual(
-            entries["troop-training-resource-policy"]["status"],
-            "unresolved_user_decision",
-        )
+        gathering = entries["gathering-resource-node-march-policy"]
+        self.assertIn("exact level 5", gathering["decision"])
+        self.assertIn("one free march slot", gathering["decision"])
+        self.assertIn("default formation", gathering["decision"])
+        self.assertEqual(gathering["registration_status"], "NOT_REGISTERED")
+        self.assertFalse(gathering["scheduler_eligibility"])
+        self.assertIn("proving slice only", gathering["daily_catalog_boundary"])
 
     def test_affected_queue_flows_are_evidence_gated_and_not_live_authorized(self) -> None:
         queue = _read(QUEUE)

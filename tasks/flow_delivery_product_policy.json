@@ -194,9 +194,12 @@
     {
       "policy_id": "gathering-resource-node-march-policy",
       "scope": "gathering.resource_and_march",
-      "status": "unresolved_user_decision",
-      "decision": "Resource choice, node-level bounds, and march-slot budget remain unresolved.",
-      "source": "execution_matrix"
+      "status": "explicitly_approved",
+      "decision": "Bind Food, Wood, Steel, and Gas in Search and select exact level 5. Reveal Gas only through one bounded left swipe and rebind it from the immediate current frame. Bind only an independently proven free level-5 tile, require one free march slot, use the default formation, and dispatch one known-free Food proving march before independent Wood, Steel, and Gas canaries. Never override an existing march or occupied target.",
+      "source": "explicit_user_direction_2026-08-16",
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligibility": false,
+      "daily_catalog_boundary": "Food is a proving slice only and gains no Daily objective ownership without current selected-Daily admission"
     },
     {
       "policy_id": "troop-training-resource-policy",

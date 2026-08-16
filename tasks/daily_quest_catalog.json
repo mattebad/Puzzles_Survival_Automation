@@ -69,6 +69,54 @@
     {"candidate_key": "own_hero", "observed_names": ["Own Lv.211 hero x3"], "classification": "PROVEN_MAIN_OBJECTIVE", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[own_hero]"]},
     {"candidate_key": "attack_headquarters_and_win", "observed_names": ["Attack a player's Headquarters and win"], "classification": "DOCUMENTATION_ONLY", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[attack_headquarters_and_win]"]}
   ],
+  "historical_portfolio_reconciliation": {
+    "authority": "reference_only; current selected-Daily native evidence remains the admission owner",
+    "source_profile": "historical portrait iOS screenshots; not current 800x1280 runtime input evidence",
+    "source_refs": [
+      "C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5076.PNG",
+      "C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5077.PNG",
+      "C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5078.PNG",
+      "C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5079.PNG"
+    ],
+    "visible_row_count": 32,
+    "differences_from_current_catalog": [
+      {
+        "candidate_key": "use_resource_item",
+        "historical_observation": "Use resource item x1",
+        "current_state": "ADMISSION_EVIDENCE_REQUIRED",
+        "catalog_admitted": false,
+        "missing_evidence": "current selected-Daily native objective-list frame proving the exact identity"
+      },
+      {
+        "candidate_key": "gather_food",
+        "historical_observation": "Gather Food x30000",
+        "current_state": "EXCLUDED_SYNTHETIC_ONLY",
+        "catalog_admitted": false,
+        "missing_evidence": "current selected-Daily native objective-list proof; historical iOS and synthetic fixtures do not satisfy current admission"
+      },
+      {
+        "candidate_key": "ultimate_challenge",
+        "historical_observation": "Join Ultimate Challenge 1x",
+        "current_state": "EXCLUDED_RECLASSIFIED_MAIN",
+        "catalog_admitted": false,
+        "missing_evidence": "none sought by this portfolio; current native Main classification controls over historical reference"
+      },
+      {
+        "candidate_key": "upgrade_tech",
+        "historical_observation": null,
+        "current_state": "CATALOG_ADMITTED_CURRENT_NATIVE",
+        "catalog_admitted": true,
+        "missing_evidence": "none for identity admission"
+      },
+      {
+        "candidate_key": "buy_box",
+        "historical_observation": null,
+        "current_state": "CATALOG_ADMITTED_CURRENT_NATIVE",
+        "catalog_admitted": true,
+        "missing_evidence": "none for identity admission"
+      }
+    ]
+  },
   "observation_metadata": {
     "upgrade_building": {"observed_variant": "generic", "completion_quantity": 1, "identity_provenance": ["inventory-20260713.json#rows[name=Upgrade building]"], "quantity_provenance": ["inventory-20260713.json#rows[name=Upgrade building]"]},
     "join_hero_duel": {"observed_variant": "hero_duel", "completion_quantity": 3, "identity_provenance": ["inventory-20260713.json"], "quantity_provenance": ["inventory-20260713.json"]},

@@ -6,7 +6,172 @@
     "catalog_provenance_audit": "tasks/daily_quest_provenance_audit.json",
     "catalog_admission_rule": "only selected-Daily evidence may create an objective entry",
     "scheduler_eligibility_default": false,
-    "objective_completion_does_not_imply_claim_readiness": true
+    "objective_completion_does_not_imply_claim_readiness": true,
+    "portfolio_status_owner": "portfolio_reconciliation.catalog_objective_ownership",
+    "legacy_objective_rows_are_capability_snapshots": true
+  },
+  "portfolio_reconciliation": {
+    "reconciled_at": "2026-08-16",
+    "scope": "Daily Quest Portfolio authority and evidence ordering only; no gameplay implementation, queue activation, registration, scheduler, composition, M6, or runtime authority",
+    "state_vocabulary": [
+      "ACCEPTED_EXISTING",
+      "EVIDENCE_REQUIRED",
+      "IMPLEMENTATION_AND_EVIDENCE_REQUIRED",
+      "ADMISSION_EVIDENCE_REQUIRED",
+      "DEFERRED_NOT_CURRENT_PORTFOLIO",
+      "DEFERRED_EXPLICIT"
+    ],
+    "registration_and_scheduler_invariant": "Preserve every checked-in registration snapshot; all newly scoped portfolio handlers remain NOT_REGISTERED and every scheduler_eligibility remains false.",
+    "known_authority_conflicts": [],
+    "catalog_objective_ownership": [
+      {"objective_key": "upgrade_building", "owner_task_id": "DQ-FLOW-BUILDING-UPGRADE", "state": "DEFERRED_NOT_CURRENT_PORTFOLIO"},
+      {"objective_key": "join_hero_duel", "owner_task_id": "hero-duel", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"objective_key": "upgrade_tech", "owner_task_id": "DQ-FLOW-TECH-UPGRADE", "state": "DEFERRED_NOT_CURRENT_PORTFOLIO"},
+      {"objective_key": "train_fighter", "owner_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION", "state": "ACCEPTED_EXISTING"},
+      {"objective_key": "train_rider", "owner_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION", "state": "ACCEPTED_EXISTING"},
+      {"objective_key": "train_shooter", "owner_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION", "state": "ACCEPTED_EXISTING"},
+      {"objective_key": "train_vehicle", "owner_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION", "state": "ACCEPTED_EXISTING"},
+      {"objective_key": "recruit_noahs_tavern", "owner_task_id": "RECRUITMENT-BLUESTACKS-INTEGRATION", "state": "ACCEPTED_EXISTING"},
+      {"objective_key": "upgrade_hero", "owner_task_id": "hero-upgrade", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"objective_key": "defeat_zombie_lair", "owner_task_id": "DQ-FLOW-ZOMBIE-LAIR", "state": "DEFERRED_EXPLICIT"},
+      {"objective_key": "consume_stamina", "owner_task_id": "DQ-FLOW-STAMINA", "state": "DEFERRED_NOT_CURRENT_PORTFOLIO"},
+      {"objective_key": "consume_ap", "owner_task_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY", "state": "ACCEPTED_EXISTING"},
+      {"objective_key": "help_allies", "owner_task_id": "DQ-FLOW-ALLIANCE-HELP", "state": "ACCEPTED_EXISTING"},
+      {"objective_key": "buy_box", "owner_task_id": "DQ-FLOW-PURCHASES", "state": "DEFERRED_NOT_CURRENT_PORTFOLIO"},
+      {"objective_key": "gather_wood", "owner_task_id": "gathering-variant-canaries", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"objective_key": "gather_steel", "owner_task_id": "gathering-variant-canaries", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"objective_key": "gather_gas", "owner_task_id": "gathering-variant-canaries", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"objective_key": "boost_resource_building_output", "owner_task_id": "DQ-FLOW-RESOURCE-BOOST", "state": "DEFERRED_NOT_CURRENT_PORTFOLIO"},
+      {"objective_key": "ruins_shop_purchase", "owner_task_id": "ruins-shop-purchase", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"objective_key": "rare_earth_shop_purchase", "owner_task_id": "rare-earth-shop-purchase", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"objective_key": "alliance_shop_purchase", "owner_task_id": "alliance-shop-purchase", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"objective_key": "speedup_using_items", "owner_task_id": "DQ-FLOW-SPEEDUP", "state": "DEFERRED_EXPLICIT"},
+      {"objective_key": "bioenhancer_research", "owner_task_id": "DQ-FLOW-BIOENHANCER", "state": "ACCEPTED_EXISTING"},
+      {"objective_key": "craft_nanoweapon", "owner_task_id": "nanoweapon-daily", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"objective_key": "personal_might_praise", "owner_task_id": "DQ-FLOW-PERSONAL-MIGHT-PRAISE", "state": "ACCEPTED_EXISTING"},
+      {"objective_key": "enhance_chip", "owner_task_id": "enhancement-chip-native-proof", "state": "EVIDENCE_REQUIRED"},
+      {"objective_key": "enhance_module", "owner_task_id": "enhancement-module-native-proof", "state": "EVIDENCE_REQUIRED"},
+      {"objective_key": "enhance_gear", "owner_task_id": "enhancement-gear-native-proof", "state": "EVIDENCE_REQUIRED"},
+      {"objective_key": "donate_alliance_tech", "owner_task_id": "alliance-tech-donation", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"objective_key": "supply_depot", "owner_task_id": "supply-depot", "state": "EVIDENCE_REQUIRED"},
+      {"objective_key": "ruins_challenge", "owner_task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS", "state": "ACCEPTED_EXISTING"}
+    ],
+    "non_catalog_portfolio_ownership": [
+      {"identity": "delegated_live_operator", "owner_task_id": "delegated-live-operator", "state": "ACCEPTED_EXISTING"},
+      {"identity": "enhancement_offline_integration", "owner_task_id": "enhancement-offline-integration", "state": "ACCEPTED_EXISTING"},
+      {"identity": "world_map_hud_navigation", "owner_task_id": "world-map-foundation", "state": "ACCEPTED_EXISTING"},
+      {"identity": "generalized_daily_row_claim", "owner_task_id": "daily-row-claim", "state": "EVIDENCE_REQUIRED"},
+      {"identity": "daily_milestone_claim", "owner_task_id": "daily-milestone-claim", "state": "EVIDENCE_REQUIRED"},
+      {"identity": "use_resource_item", "owner_task_id": "use-resource-item", "state": "ADMISSION_EVIDENCE_REQUIRED"},
+      {"identity": "nano_material_production", "owner_task_id": "nano-material-maintenance", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"identity": "gathering_search_level5", "owner_task_id": "gathering-search-level5", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"identity": "gathering_gas_reveal", "owner_task_id": "gathering-gas-reveal", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"identity": "gathering_free_tile_binding", "owner_task_id": "gathering-free-tile-binding", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"identity": "gathering_food_march_proving_slice", "owner_task_id": "gathering-march-dispatch", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
+      {"identity": "rare_earth_pit_income", "owner_task_id": "portfolio-closeout", "state": "DEFERRED_EXPLICIT"}
+    ],
+    "ordered_atomic_tasks": [
+      {
+        "task_id": "daily-row-claim",
+        "depends_on": ["DQ-FOUNDATION-DAILY-INVENTORY"],
+        "evidence_gap": "fresh current-day selected Daily ordinary row with an exact ready row-local Claim plus row disappearance or points delta"
+      },
+      {
+        "task_id": "daily-milestone-claim",
+        "depends_on": ["DQ-FOUNDATION-DAILY-INVENTORY"],
+        "evidence_gap": "separate fresh ready milestone chest identity plus opened-chest or points successor"
+      },
+      {
+        "task_id": "use-resource-item",
+        "depends_on": ["current_selected_daily_catalog_admission"],
+        "evidence_gap": "current selected-Daily native identity first; then Resources tab, exact 1K Food item, quantity-one control, inventory delta, Daily 0-to-1, and Home"
+      },
+      {
+        "task_id": "supply-depot",
+        "depends_on": ["accepted_canonical_supply_depot_route"],
+        "evidence_gap": "current game-day all-free-attempt sequence through Free disappearance and independent Daily 5/5 reconciliation"
+      },
+      {
+        "task_id": "alliance-tech-donation",
+        "depends_on": ["DQ-FOUNDATION-DAILY-INVENTORY"],
+        "evidence_gap": "current highlighted tech, yellow-resource control, red-diamond negative, exact ten-count/resource deltas, and Home"
+      },
+      {
+        "task_id": "alliance-shop-purchase",
+        "depends_on": ["shared_shop_navigation_receipt_primitives"],
+        "evidence_gap": "current Joy Coin offer/cost/availability and Alliance-coin fallback item/cost/balance successors"
+      },
+      {
+        "task_id": "ruins-shop-purchase",
+        "depends_on": ["shared_shop_navigation_receipt_primitives"],
+        "evidence_gap": "current three-star Chip material identity, 15-coin cost, balance, bounded quantity, currency/item deltas, and Home"
+      },
+      {
+        "task_id": "rare-earth-shop-purchase",
+        "depends_on": ["shared_shop_navigation_receipt_primitives"],
+        "evidence_gap": "exact current three-star item label and cost, sufficient balance, quantity-one successor, and Home"
+      },
+      {
+        "task_id": "nano-material-maintenance",
+        "depends_on": ["accepted_historical_route_semantics"],
+        "evidence_gap": "current native claim, idle, active, start, 21600-second timer, due-time persistence/restart replay, and Home"
+      },
+      {
+        "task_id": "nanoweapon-daily",
+        "depends_on": ["nano-material-maintenance"],
+        "evidence_gap": "current completed-claim, Normal Craft, exact 100 parts, 43200-second timer, one-start reset persistence, Daily 0-to-1, and Home"
+      },
+      {
+        "task_id": "hero-upgrade",
+        "depends_on": ["DQ-FOUNDATION-DAILY-INVENTORY"],
+        "evidence_gap": "current Wally identity, standard-resource upgrade successors, maxed state, one 150-diamond reset, list reorder/reacquisition, exact three-count, and Home"
+      },
+      {
+        "task_id": "hero-duel",
+        "depends_on": ["DQ-FOUNDATION-DAILY-INVENTORY"],
+        "evidence_gap": "current free-opponent route and popup variants, three combat-dispatch receipts, immediate Exit/Flee loss successors, Daily 3/3, and Home"
+      },
+      {
+        "task_id": "enhancement-gear-native-proof",
+        "depends_on": ["enhancement-offline-integration"],
+        "evidence_gap": "fresh native Gear semantics and one quantity-one one-star bounded canary"
+      },
+      {
+        "task_id": "enhancement-chip-native-proof",
+        "depends_on": ["enhancement-offline-integration"],
+        "evidence_gap": "fresh native Chip semantics and one quantity-one one-star bounded canary"
+      },
+      {
+        "task_id": "enhancement-module-native-proof",
+        "depends_on": ["enhancement-offline-integration"],
+        "evidence_gap": "fresh native Module semantics and one quantity-one one-star bounded canary"
+      },
+      {
+        "task_id": "gathering-search-level5",
+        "depends_on": ["world-map-foundation"],
+        "evidence_gap": "fresh Search menu category identities and exact level-5 selection for Food, Wood, Steel, and Gas without tile or march input"
+      },
+      {
+        "task_id": "gathering-gas-reveal",
+        "depends_on": ["gathering-search-level5"],
+        "evidence_gap": "bounded left swipe successor and immediate-current-frame Gas rebinding"
+      },
+      {
+        "task_id": "gathering-free-tile-binding",
+        "depends_on": ["gathering-gas-reveal"],
+        "evidence_gap": "current free level-5 tile identity with independent occupancy evidence and zero march input"
+      },
+      {
+        "task_id": "gathering-march-dispatch",
+        "depends_on": ["gathering-free-tile-binding"],
+        "evidence_gap": "one free slot, default formation, known-free Food level-5 target, one combat-free march dispatch, and outbound gathering successor"
+      },
+      {
+        "task_id": "gathering-variant-canaries",
+        "depends_on": ["gathering-march-dispatch"],
+        "evidence_gap": "independent Wood, Steel, and Gas native canaries; Food remains a proving slice and does not gain Daily catalog ownership"
+      }
+    ]
   },
   "promotion_enum": [
     "OFFLINE_ONLY",

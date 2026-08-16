@@ -1642,6 +1642,44 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Claim/persistence/registration/scheduler: separate Claim support; dormant persistence; actual registration snapshot; false.
 - Promotion/unlocks: `OFFLINE_ONLY`; unlocks roadmap and prompts.
 
+## Daily Quest Portfolio authority checkpoint — 2026-08-16
+
+- Scope: authority reconciliation and evidence ordering only. No gameplay behavior, emulator input,
+  queue activation, execution manifest, registration, scheduler, composition, M6, or Bliss change.
+- Status owner: `tasks/daily_quest_execution_matrix.json#portfolio_reconciliation`.
+- Identity owner: `tasks/daily_quest_catalog.json`; current selected-Daily native evidence controls.
+- Order/blocker mirror: `tasks/flow_delivery_queue.json#portfolio_staging`; the staging entries are
+  non-executable, `active_flow_id` remains `null`, and `freeze-next-flow-manifest` is still pending.
+- Human-readable decision record: `docs/portfolio-requirements-inventory.md`.
+- Historical reconciliation: `IMG_5076.PNG`–`IMG_5079.PNG` show 32 portrait iOS rows.
+  `use_resource_item` remains admission-evidence-required; Gather Food remains excluded from Daily
+  ownership; Ultimate Challenge remains reclassified Main; current-native `upgrade_tech` and
+  `buy_box` remain admitted.
+- Accepted and preserved: delegated Luna operator foundation; Enhancement offline integration and
+  verifier repair; HUD-only World foundation; Nova Praise; Personal Might Praise/Claim;
+  Bioenhancer; Help Allies; Recruitment; Training; Campaign AP; and Ruins Challenge.
+- Corrected stale policy statements: the portfolio supplies the scoped donation, shop, Wally
+  upgrade, Hero Duel, Nano, enhancement, Supply Depot, and gathering decisions. Legacy disabled
+  contracts remain capability snapshots until task-specific implementation/evidence work occurs.
+  Gathering product-policy and executable queue authority are synchronized as
+  `explicitly_approved`; implementation and native evidence remain missing.
+- Atomic owner separation: ordinary row Claim and milestone Claim remain separate; Alliance, Ruins,
+  and Rare Earth shops remain separate; Gear, Chip, and Module canaries remain separate; gathering
+  remains five serial gates.
+- Dependency decisions: Nano Material precedes Nanoweapon; the accepted HUD-only World boundary
+  precedes all gathering gates; Food is only the bounded proving march and gains no Daily catalog
+  ownership.
+- Evidence order: row Claim → milestone Claim → Resource Item admission/flow → Supply Depot →
+  Alliance Tech → three shops → Nano Material → Nanoweapon → Hero Upgrade → Hero Duel → three
+  Enhancement canaries → five Gathering gates.
+- Explicit deferrals: both Zombie Lair items, Speedup 180 minutes, and Rare Earth Pit income.
+- Registration/scheduler: preserve checked-in operator registrations only; every newly scoped
+  handler remains `NOT_REGISTERED`, all scheduler eligibility remains false, and no promotion is
+  implied by implementation or evidence.
+- Supersession boundary: this checkpoint supersedes stale current-status, product-decision, and
+  "next task" prose in the targeted Daily sections below. Their retained implementation and
+  evidence facts remain historical and must not be rewritten as proof.
+
 ### DQ-FOUNDATION-DAILY-INVENTORY
 - Covered: selected Daily-tab recognition, bounded inventory, overlap reconciliation, current game-day evidence.
 - Variants: selected tab, Main-negative, clipped-row abstention, scroll overlap.
