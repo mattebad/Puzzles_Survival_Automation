@@ -1,0 +1,147 @@
+{
+  "schema_version": 2,
+  "fixture_kind": "independently_authored_world_navigation_semantics",
+  "observations": {
+    "home_ready": {
+      "state": "HOME_READY",
+      "zoom_identity": "HOME",
+      "recognized": true,
+      "overlay_state": "none_observed",
+      "controls": {
+        "home-to-world": [120, 96, 248, 158]
+      },
+      "control_semantics": {
+        "home-to-world": ["World map"]
+      },
+      "control_geometry_source": {
+        "home-to-world": "current-frame-bounded-candidate"
+      },
+      "semantic_evidence": ["Home", "World"]
+    },
+    "home_canonical": {
+      "state": "HOME_CANONICAL",
+      "zoom_identity": "HOME",
+      "recognized": true,
+      "overlay_state": "none_observed",
+      "controls": {
+        "home-to-world": [120, 96, 248, 158]
+      },
+      "control_semantics": {
+        "home-to-world": ["World map"]
+      },
+      "control_geometry_source": {
+        "home-to-world": "current-frame-bounded-candidate"
+      },
+      "semantic_evidence": ["Home", "Canonical Home"]
+    },
+    "world_ready": {
+      "state": "WORLD_READY",
+      "source_frame_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "evidence_ref": "independent-fixture-world.png",
+      "zoom_identity": "WORLD_ZOOM_SUPPORTED",
+      "recognized": true,
+      "overlay_state": "none_observed",
+      "controls": {
+        "world-search-entry": [632, 108, 774, 174],
+        "world-to-home": [22, 32, 108, 96]
+      },
+      "control_semantics": {
+        "world-search-entry": ["Search"],
+        "world-to-home": ["Home"]
+      },
+      "control_geometry_source": {
+        "world-search-entry": "current-frame-bounded-candidate",
+        "world-to-home": "current-frame-bounded-candidate"
+      },
+      "zoom_evidence": ["supported-world-zoom-visual-landmarks"],
+      "localization_evidence": ["current-frame-world-localization"],
+      "semantic_evidence": ["World", "Search"]
+    },
+    "world_search_open": {
+      "state": "WORLD_SEARCH_OPEN",
+      "zoom_identity": "WORLD_ZOOM_SUPPORTED",
+      "recognized": true,
+      "overlay_state": "none_observed",
+      "controls": {
+        "world-search-close": [674, 34, 760, 102]
+      },
+      "control_semantics": {
+        "world-search-close": ["Close"]
+      },
+      "control_geometry_source": {
+        "world-search-close": "current-frame-bounded-candidate"
+      },
+      "zoom_evidence": ["supported-world-zoom-visual-landmarks"],
+      "localization_evidence": ["current-frame-world-localization"],
+      "semantic_evidence": ["Search", "Coordinates"]
+    },
+    "wrong_zoom": {
+      "state": "WORLD_READY",
+      "zoom_identity": "WORLD_ZOOM_UNKNOWN",
+      "recognized": true,
+      "overlay_state": "none_observed",
+      "controls": {
+        "world-search-entry": [632, 108, 774, 174]
+      },
+      "semantic_evidence": ["World", "Search", "unsupported zoom"]
+    },
+    "unknown_popup": {
+      "state": "WORLD_READY",
+      "recognized": false,
+      "unknown_modal": true,
+      "overlay_state": "unknown",
+      "popup": {
+        "popup_identity": "UNKNOWN_LOOKALIKE",
+        "title_identity": true,
+        "body_identity": false,
+        "close_identity": "x",
+        "literal_close": false,
+        "target_roi": [660, 40, 760, 140]
+      },
+      "semantic_evidence": ["unknown modal"]
+    },
+    "allowed_popup": {
+      "state": "WORLD_READY",
+      "recognized": true,
+      "overlay_state": "known_popup",
+      "popup": {
+        "popup_identity": "VIP_POINTS_GET_PTS",
+        "title_identity": true,
+        "body_identity": true,
+        "close_identity": "reset-popup-close",
+        "literal_close": true,
+        "target_roi": [260, 768, 540, 842],
+        "panel_roi": [80, 300, 720, 940],
+        "target_geometry_source": "current-frame-bounded-candidate",
+        "context_state": "WORLD_READY",
+        "semantic_evidence": [
+          "Get Pts",
+          "Log in every day to get VIP pts",
+          "Close"
+        ]
+      },
+      "semantic_evidence": [
+        "Get Pts",
+        "Log in every day to get VIP pts",
+        "Close"
+      ]
+    },
+    "node_binding": {
+      "state": "WORLD_READY",
+      "source_frame_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "evidence_ref": "independent-fixture-node.png",
+      "zoom_identity": "WORLD_ZOOM_SUPPORTED",
+      "recognized": true,
+      "overlay_state": "none_observed",
+      "node_identity": "resource-node-independent-fixture",
+      "node_roi": [302, 488, 390, 572],
+      "node_source_frame_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "node_label": "Resource",
+      "node_label_roi": [310, 500, 380, 530],
+      "node_semantic_evidence": ["resource node label spatially associated"],
+      "zoom_evidence": ["supported-world-zoom-visual-landmarks"],
+      "localization_evidence": ["current-frame-world-localization"],
+      "semantic_evidence": ["World", "resource node label spatially associated"]
+    }
+  }
+}

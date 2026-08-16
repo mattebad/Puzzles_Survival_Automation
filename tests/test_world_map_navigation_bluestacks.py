@@ -1,0 +1,947 @@
+from __future__ import annotations
+
+from dataclasses import replace
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import numpy as np
+
+from scripts.bluestacks_native_runtime import CapturedNativeFrame
+from scripts.flow_delivery_world_map_bluestacks import (
+    RUNNER_ID,
+    RECOVERY_ID,
+    VALIDATOR_ID,
+    _verify_event_order,
+    _verify_route_semantics,
+    run_world_map_navigation_foundation,
+)
+from scripts import pnsctl
+from scripts.world_map_navigation_bluestacks import (
+    ALLOWED_CONTROL_IDENTITIES,
+    BLOCKED_FAIL_CLOSED,
+    HOME_CANONICAL,
+    NAVIGATION_ONLY_COMPLETE,
+    POPUP_CLOSE,
+    SafePopupHandler,
+    WorldNavigationBlocked,
+    _group_spatial_ocr_hits,
+    recognize_allowlisted_popup,
+    recognize_world_frame,
+    route_declaration,
+    run_world_map_navigation,
+)
+from tasks.world_stamina import (
+    WORLD_ZOOM_SUPPORTED,
+    WorldNavigationObservation,
+    plan_bounded_world_pan,
+    world_navigation_observation_authorizeable,
+    world_navigation_observation_from_mapping,
+    world_node_binding_authorizeable,
+)
+
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURE = ROOT / "tests" / "fixtures" / "world_map_navigation_observations.json"
+PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+
+
+def observation(
+    state: str,
+    *,
+    controls: dict[str, tuple[int, int, int, int]] | None = None,
+    zoom: str = WORLD_ZOOM_SUPPORTED,
+    recognized: bool = True,
+    unknown_modal: bool = False,
+    popup: dict | None = None,
+    node_identity: str | None = None,
+    node_roi: tuple[int, int, int, int] | None = None,
+    node_source: str | None = None,
+) -> dict:
+    control_semantics = {
+        identity: (
+            ["World map"]
+            if identity == "home-to-world"
+            else ["Search"]
+            if identity == "world-search-entry"
+            else ["Close"]
+            if identity == "world-search-close"
+            else ["Home"]
+        )
+        for identity in (controls or {})
+    }
+    payload = {
+        "state": state,
+        "recognized": recognized,
+        "unknown_modal": unknown_modal,
+        "overlay_state": "unknown" if unknown_modal else "none_observed",
+        "zoom_identity": zoom,
+        "runtime_profile_id": PROFILE,
+        "frame_width": 800,
+        "frame_height": 1280,
+        "controls": controls or {},
+        "semantic_evidence": [
+            state,
+            "Canonical Home" if state == HOME_CANONICAL else state,
+        ],
+        "control_semantics": control_semantics,
+        "control_geometry_source": {
+            identity: "current-frame-bounded-candidate"
+            for identity in (controls or {})
+        },
+    }
+    if state in {"WORLD_READY", "WORLD_SEARCH_OPEN"}:
+        payload["zoom_evidence"] = ["supported-world-zoom-visual-landmarks"]
+        payload["localization_evidence"] = ["current-frame-world-localization"]
+    if popup is not None:
+        payload["popup"] = popup
+    if node_identity is not None:
+        payload["node_identity"] = node_identity
+    if node_roi is not None:
+        payload["node_roi"] = node_roi
+    if node_source is not None:
+        payload["node_source_frame_sha256"] = node_source
+    return payload
+
+
+class FakeRuntime:
+    execute = True
+
+    def __init__(self, frames: list[dict]) -> None:
+        self.frames = list(frames)
+        self.ordinal = 0
+        self.session = Path("synthetic-world-session")
+        self.calls: list[tuple[str, dict]] = []
+        self.reconciliations: list[tuple[str, str]] = []
+
+    def capture(self, label: str) -> CapturedNativeFrame:
+        if not self.frames:
+            raise AssertionError(f"unexpected capture: {label}")
+        self.ordinal += 1
+        frame = self.frames.pop(0)
+        payload = f"synthetic-png-{self.ordinal}".encode()
+        return CapturedNativeFrame(
+            frame,
+            payload,
+            f"{self.ordinal:064x}"[-64:],
+            float(self.ordinal),
+            self.session / f"{self.ordinal:04d}-{label}.png",
+        )
+
+    def tap(self, source, **kwargs) -> None:
+        self.calls.append(("tap", kwargs))
+
+    def back(self, source, **kwargs) -> None:
+        self.calls.append(("back", kwargs))
+
+    def reconcile(self, action_key, status, post, reason) -> None:
+        self.reconciliations.append((action_key, status))
+
+
+def scripted_recognizer(frame, **_kwargs):
+    if not isinstance(frame, dict):
+        raise AssertionError("scripted recognizer received an unexpected frame")
+    return frame
+
+
+def route_frames(*, popup_at_start: bool = False) -> list[dict]:
+    home = observation(
+        HOME_CANONICAL,
+        controls={"home-to-world": (100, 100, 220, 160)},
+    )
+    if popup_at_start:
+        home["popup"] = {
+            "popup_identity": "VIP_POINTS_GET_PTS",
+            "title_identity": True,
+            "body_identity": True,
+            "close_identity": POPUP_CLOSE,
+            "literal_close": True,
+            "target_roi": (260, 768, 540, 842),
+            "panel_roi": (80, 300, 720, 940),
+            "target_geometry_source": "current-frame-bounded-candidate",
+            "context_state": HOME_CANONICAL,
+            "semantic_evidence": [
+                "Get Pts",
+                "Log in every day to get VIP pts",
+                "Close",
+            ],
+        }
+    frames = [home]
+    if popup_at_start:
+        frames.append(
+            observation(
+                HOME_CANONICAL,
+                controls={"home-to-world": (100, 100, 220, 160)},
+            )
+        )
+    frames.extend(
+        [
+        observation(
+            "WORLD_READY",
+            controls={
+                "world-search-entry": (600, 100, 760, 170),
+                "world-to-home": (20, 25, 110, 100),
+            },
+        ),
+        observation(
+            "WORLD_READY",
+            controls={
+                "world-search-entry": (600, 100, 760, 170),
+                "world-to-home": (20, 25, 110, 100),
+            },
+        ),
+        observation(
+            "WORLD_SEARCH_OPEN",
+            controls={"world-search-close": (660, 30, 760, 100)},
+        ),
+        observation(
+            "WORLD_SEARCH_OPEN",
+            controls={"world-search-close": (660, 30, 760, 100)},
+        ),
+        observation(
+            "WORLD_READY",
+            controls={
+                "world-search-entry": (600, 100, 760, 170),
+                "world-to-home": (20, 25, 110, 100),
+            },
+        ),
+        observation(
+            "WORLD_READY",
+            controls={
+                "world-search-entry": (600, 100, 760, 170),
+                "world-to-home": (20, 25, 110, 100),
+            },
+        ),
+        observation(HOME_CANONICAL),
+        ]
+    )
+    return frames
+
+
+def canonical_validator_events() -> tuple[list[dict], dict, set[str]]:
+    steps = (
+        ("home-to-world", "HOME_CANONICAL", "WORLD_READY"),
+        ("world-search-entry", "WORLD_READY", "WORLD_SEARCH_OPEN"),
+        ("android-back", "WORLD_SEARCH_OPEN", "WORLD_READY"),
+        ("world-to-home", "WORLD_READY", "HOME_CANONICAL"),
+    )
+    events: list[dict] = []
+    hashes: set[str] = set()
+    transitions: list[dict] = []
+    for ordinal, (target, source_state, successor_state) in enumerate(steps, 1):
+        source = f"{ordinal:x}" * 64
+        post = f"{ordinal + 4:x}" * 64
+        action = f"action-{ordinal}"
+        source_path = f"/session/frames/{ordinal:04d}-source.png"
+        post_path = f"/session/frames/{ordinal + 4:04d}-post.png"
+        hashes.update((source, post))
+        events.extend(
+            [
+                {
+                    "type": "capture",
+                    "sha256": source,
+                    "path": source_path,
+                },
+                {
+                    "type": "semantic",
+                    "event": "navigation_planned",
+                    "action_key": action,
+                    "target_identity": target,
+                    "source_frame_sha256": source,
+                    "target_roi": None
+                    if target == "android-back"
+                    else (10, 10, 50, 50),
+                    "capture_session": "/session",
+                    "capture_ordinal": f"{ordinal:04d}",
+                    "capture_frame_sha256": source,
+                },
+                {
+                    "type": "semantic",
+                    "event": "navigation_prepared",
+                    "action_key": action,
+                    "target_identity": target,
+                    "source_state": source_state,
+                    "source_frame_sha256": source,
+                    "target_roi": None
+                    if target == "android-back"
+                    else (10, 10, 50, 50),
+                    "expected_successor_state": successor_state,
+                    "capture_session": "/session",
+                    "capture_ordinal": f"{ordinal:04d}",
+                    "capture_frame_sha256": source,
+                },
+                {
+                    "type": "dispatch",
+                    "action_key": action,
+                    "target_identity": target,
+                    **(
+                        {"target_roi": (10, 10, 50, 50)}
+                        if target != "android-back"
+                        else {}
+                    ),
+                    "source_sha256": source,
+                    "consequential": False,
+                },
+                {
+                    "type": "capture",
+                    "sha256": post,
+                    "path": post_path,
+                },
+                {
+                    "type": "reconcile",
+                    "action_key": action,
+                    "status": "confirmed",
+                    "post_sha256": post,
+                },
+                {
+                    "type": "semantic",
+                    "event": "navigation_reconciled",
+                    "action_key": action,
+                    "target_identity": target,
+                    "source_state": source_state,
+                    "source_frame_sha256": source,
+                    "immediate_post_frame_sha256": post,
+                    "successor_frame_sha256": post,
+                    "expected_successor_state": successor_state,
+                    "successor_state": successor_state,
+                },
+            ]
+        )
+        transitions.append(
+            {
+                "event": "navigation_reconciled",
+                "target_identity": target,
+                "source_state": source_state,
+                "expected_successor_state": successor_state,
+                "source_frame_sha256": source,
+                "successor_frame_sha256": post,
+            }
+        )
+    events.append(
+        {
+            "type": "semantic",
+            "event": "route_terminal",
+            "state": "HOME_CANONICAL",
+            "frame_sha256": "8" * 64,
+        }
+    )
+    hashes.add("8" * 64)
+    route = {
+        "flow_id": "WORLD-MAP-NAVIGATION-FOUNDATION",
+        "status": NAVIGATION_ONLY_COMPLETE,
+        "input_count": 4,
+        "max_inputs": 4,
+        "navigation_input_count": 4,
+        "safe_popup_input_count": 0,
+        "resource_actions": 0,
+        "combat_actions": 0,
+        "node_inputs": 0,
+        "resource_node_selection_inputs": 0,
+        "march_inputs": 0,
+        "formation_inputs": 0,
+        "occupancy_override_inputs": 0,
+        "stamina_inputs": 0,
+        "ap_inputs": 0,
+        "currency_inputs": 0,
+        "forbidden_input_classes": [],
+        "final_frame_sha256": "8" * 64,
+        "final_state": HOME_CANONICAL,
+        "terminal_runtime_state": "recognized_home",
+        "reason": "canonical_home_round_trip_verified",
+    }
+    return events, route, hashes
+
+
+class WorldMapNavigationTests(unittest.TestCase):
+    def test_canonical_route_requires_exact_successors_and_counts_inputs(self):
+        runtime = FakeRuntime(route_frames())
+        result = run_world_map_navigation(
+            runtime,
+            recognizer=scripted_recognizer,
+            maximum_inputs=4,
+        )
+        self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
+        self.assertEqual(result["navigation_input_count"], 4)
+        self.assertEqual(result["safe_popup_input_count"], 0)
+        self.assertEqual(result["final_state"], HOME_CANONICAL)
+        self.assertEqual(
+            [row["target_identity"] for row in result["route_transitions"]],
+            ["home-to-world", "world-search-entry", "android-back", "world-to-home"],
+        )
+
+    def test_popup_is_handled_at_checkpoint_and_counts_against_total_budget(self):
+        runtime = FakeRuntime(route_frames(popup_at_start=True))
+        result = run_world_map_navigation(
+            runtime,
+            recognizer=scripted_recognizer,
+            maximum_inputs=5,
+            maximum_popup_inputs=1,
+        )
+        self.assertEqual(result["status"], NAVIGATION_ONLY_COMPLETE)
+        self.assertEqual(result["safe_popup_input_count"], 1)
+        self.assertEqual(result["navigation_input_count"], 4)
+        self.assertEqual(runtime.calls[0][1]["target_identity"], POPUP_CLOSE)
+
+    def test_same_frame_popup_close_and_unknown_popup_fail_closed(self):
+        handler = SafePopupHandler(maximum_inputs=2)
+        runtime = FakeRuntime(
+            [
+                observation(
+                    "WORLD_READY",
+                    popup={
+                        "popup_identity": "VIP_POINTS_GET_PTS",
+                        "title_identity": True,
+                        "body_identity": True,
+                        "close_identity": POPUP_CLOSE,
+                        "literal_close": True,
+                        "target_roi": (260, 768, 540, 842),
+                        "panel_roi": (80, 300, 720, 940),
+                        "target_geometry_source": "current-frame-bounded-candidate",
+                        "context_state": "WORLD_READY",
+                        "semantic_evidence": [
+                            "Get Pts",
+                            "Log in every day to get VIP pts",
+                            "Close",
+                        ],
+                    },
+                ),
+                observation("WORLD_READY"),
+            ]
+        )
+        source = runtime.capture("popup")
+        handler.handle(
+            runtime,
+            source,
+            expected_state="WORLD_READY",
+            recognizer=scripted_recognizer,
+            route_input_count=0,
+            route_input_limit=4,
+            route_events=[],
+        )
+        with self.assertRaisesRegex(WorldNavigationBlocked, "same_frame"):
+            handler.handle(
+                runtime,
+                source,
+                expected_state="WORLD_READY",
+                recognizer=scripted_recognizer,
+                route_input_count=0,
+                route_input_limit=4,
+                route_events=[],
+            )
+        unknown = FakeRuntime(
+            [
+                observation(
+                    "WORLD_READY",
+                    unknown_modal=True,
+                    popup={
+                        "popup_identity": "UNKNOWN_LOOKALIKE",
+                        "title_identity": True,
+                    },
+                )
+            ]
+        )
+        with self.assertRaisesRegex(WorldNavigationBlocked, "unknown_popup"):
+            handler.handle(
+                unknown,
+                unknown.capture("unknown-popup"),
+                expected_state="WORLD_READY",
+                recognizer=scripted_recognizer,
+                route_input_count=0,
+                route_input_limit=4,
+                route_events=[],
+            )
+
+    def test_same_popup_can_recur_only_on_a_distinct_verified_capture(self):
+        popup = {
+            "popup_identity": "VIP_POINTS_GET_PTS",
+            "title_identity": True,
+            "body_identity": True,
+            "close_identity": POPUP_CLOSE,
+            "literal_close": True,
+            "target_roi": (260, 768, 540, 842),
+            "panel_roi": (80, 300, 720, 940),
+            "target_geometry_source": "current-frame-bounded-candidate",
+            "context_state": "WORLD_READY",
+            "semantic_evidence": [
+                "Get Pts",
+                "Log in every day to get VIP pts",
+                "Close",
+            ],
+        }
+        first = observation(
+            "WORLD_READY",
+            popup=popup,
+        )
+        second = dict(first)
+        second["popup"] = dict(popup)
+        runtime = FakeRuntime(
+            [first, observation("WORLD_READY"), second, observation("WORLD_READY")]
+        )
+        handler = SafePopupHandler(maximum_inputs=2)
+        events: list[dict] = []
+        first_source = runtime.capture("first")
+        handler.handle(
+            runtime,
+            first_source,
+            expected_state="WORLD_READY",
+            recognizer=scripted_recognizer,
+            route_input_count=0,
+            route_input_limit=4,
+            route_events=events,
+        )
+        second_source = runtime.capture("second")
+        handler.handle(
+            runtime,
+            second_source,
+            expected_state="WORLD_READY",
+            recognizer=scripted_recognizer,
+            route_input_count=0,
+            route_input_limit=4,
+            route_events=events,
+        )
+        self.assertEqual(handler.input_count, 2)
+
+    def test_wrong_zoom_stale_roi_and_missing_successor_block_without_retry(self):
+        noncanonical = route_frames()
+        noncanonical[0] = observation(
+            "HOME_READY",
+            controls={"home-to-world": (100, 100, 220, 160)},
+        )
+        noncanonical_result = run_world_map_navigation(
+            FakeRuntime(noncanonical),
+            recognizer=scripted_recognizer,
+            maximum_inputs=4,
+        )
+        self.assertEqual(noncanonical_result["status"], BLOCKED_FAIL_CLOSED)
+        self.assertEqual(noncanonical_result["navigation_input_count"], 0)
+
+        wrong_zoom = route_frames()
+        wrong_zoom[1]["zoom_identity"] = "WORLD_ZOOM_UNKNOWN"
+        result = run_world_map_navigation(
+            FakeRuntime(wrong_zoom),
+            recognizer=scripted_recognizer,
+            maximum_inputs=4,
+        )
+        self.assertEqual(result["status"], BLOCKED_FAIL_CLOSED)
+        self.assertEqual(result["navigation_input_count"], 1)
+
+        stale_runtime = FakeRuntime(route_frames())
+        recognizer = scripted_recognizer
+        original = recognizer
+
+        def stale(frame, **kwargs):
+            value = original(frame, **kwargs)
+            if value["state"] == "WORLD_READY" and "world-search-entry" in value.get("controls", {}):
+                value = dict(value)
+                value["source_frame_sha256"] = "different"
+            return value
+
+        stale_result = run_world_map_navigation(
+            stale_runtime,
+            recognizer=stale,
+            maximum_inputs=4,
+        )
+        self.assertEqual(stale_result["status"], BLOCKED_FAIL_CLOSED)
+        self.assertEqual(stale_result["navigation_input_count"], 1)
+
+        missing_home = route_frames()
+        missing_home[-1] = observation("WORLD_READY")
+        missing_result = run_world_map_navigation(
+            FakeRuntime(missing_home),
+            recognizer=scripted_recognizer,
+            maximum_inputs=4,
+        )
+        self.assertEqual(missing_result["status"], BLOCKED_FAIL_CLOSED)
+        self.assertEqual(
+            missing_result["reason"],
+            "unexpected_successor:WORLD_READY:HOME_CANONICAL",
+        )
+
+    def test_budget_exhaustion_and_forbidden_identity_are_closed(self):
+        runtime = FakeRuntime(route_frames())
+        result = run_world_map_navigation(
+            runtime,
+            recognizer=scripted_recognizer,
+            maximum_inputs=3,
+        )
+        self.assertEqual(result["status"], BLOCKED_FAIL_CLOSED)
+        self.assertEqual(result["navigation_input_count"], 3)
+        self.assertEqual(len(runtime.calls), 3)
+        self.assertEqual(
+            set(route_declaration()["allowed_target_identities"]),
+            ALLOWED_CONTROL_IDENTITIES,
+        )
+
+        bad = observation(
+            "WORLD_READY",
+            controls={"resource-node-dispatch": (10, 10, 50, 50)},
+        )
+        self.assertFalse(
+            world_navigation_observation_authorizeable(
+                WorldNavigationObservation(
+                    "WORLD_READY",
+                    "a" * 64,
+                    "current.png",
+                    controls={"resource-node-dispatch": (10, 10, 50, 50)},
+                ),
+                expected_state="WORLD_READY",
+                required_target_identity="resource-node-dispatch",
+                require_supported_zoom=True,
+            )
+        )
+        self.assertEqual(bad["state"], "WORLD_READY")
+
+    def test_node_binding_and_pan_are_planning_only_and_current_frame_bound(self):
+        digest = "b" * 64
+        node = WorldNavigationObservation(
+            "WORLD_READY",
+            digest,
+            "current.png",
+            controls={},
+            node_identity="node-17",
+            node_roi=(300, 500, 380, 580),
+            node_source_frame_sha256=digest,
+            node_label="Resource",
+            node_label_roi=(310, 510, 370, 535),
+            node_semantic_evidence=("resource node label spatially associated",),
+            zoom_evidence=("supported-world-zoom-visual-landmarks",),
+            localization_evidence=("current-frame-world-localization",),
+            semantic_evidence=("World", "resource node label spatially associated"),
+        )
+        self.assertTrue(world_node_binding_authorizeable(node))
+        plan = plan_bounded_world_pan(node, direction="left", maximum_steps=2)
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.source_frame_sha256, digest)
+        self.assertIsNone(plan_bounded_world_pan(node, direction="left", maximum_steps=4))
+        self.assertFalse(
+            world_node_binding_authorizeable(
+                replace(node, node_source_frame_sha256="c" * 64)
+            )
+        )
+        self.assertFalse(
+            world_node_binding_authorizeable(
+                replace(node, node_roi=(1, 1, 900, 2))
+            )
+        )
+
+    def test_independent_fixture_expectations_are_loaded_and_not_production_defaults(self):
+        fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        observations = fixture["observations"]
+        home = observations["home_canonical"]
+        home_observation = WorldNavigationObservation(
+            **{
+                key: value
+                for key, value in {
+                    "state": home["state"],
+                    "source_frame_sha256": "c" * 64,
+                    "evidence_ref": "independent-fixture-home.png",
+                    "zoom_identity": home["zoom_identity"],
+                    "controls": {
+                        key: tuple(value)
+                        for key, value in home["controls"].items()
+                    },
+                    "control_semantics": home["control_semantics"],
+                    "control_geometry_source": home["control_geometry_source"],
+                    "semantic_evidence": tuple(home["semantic_evidence"]),
+                }.items()
+            }
+        )
+        self.assertTrue(
+            world_navigation_observation_authorizeable(
+                home_observation,
+                expected_state="HOME_CANONICAL",
+                required_target_identity="home-to-world",
+            )
+        )
+        wrong_zoom = observations["wrong_zoom"]
+        wrong = WorldNavigationObservation(
+            "WORLD_READY",
+            "d" * 64,
+            "independent-fixture-world.png",
+            zoom_identity=wrong_zoom["zoom_identity"],
+            controls={
+                key: tuple(value)
+                for key, value in wrong_zoom["controls"].items()
+            },
+            control_semantics={"world-search-entry": ("Search",)},
+            control_geometry_source={
+                "world-search-entry": "current-frame-bounded-candidate"
+            },
+            semantic_evidence=tuple(wrong_zoom["semantic_evidence"]),
+            zoom_evidence=("unsupported",),
+            localization_evidence=("current-frame-world-localization",),
+        )
+        self.assertFalse(
+            world_navigation_observation_authorizeable(
+                wrong,
+                expected_state="WORLD_READY",
+                required_target_identity="world-search-entry",
+                require_supported_zoom=True,
+            )
+        )
+        node_payload = dict(observations["node_binding"])
+        node_observation = world_navigation_observation_from_mapping(node_payload)
+        self.assertTrue(world_node_binding_authorizeable(node_observation))
+
+    def test_event_validator_derives_route_and_rejects_adversarial_proof(self):
+        events, route, hashes = canonical_validator_events()
+        _verify_event_order(events, route, hashes)
+        _verify_route_semantics(
+            {"world_navigation_result": route, "production_registration": "NOT_REGISTERED",
+             "scheduler_enabled": False},
+            events,
+        )
+
+        stale = [dict(event) for event in events]
+        dispatches = [event for event in stale if event.get("type") == "dispatch"]
+        second = dispatches[1]
+        second["source_sha256"] = dispatches[0]["source_sha256"]
+        with self.assertRaises(pnsctl.OperatorError):
+            _verify_event_order(stale, route, hashes)
+
+        wrong_order = [dict(event) for event in events]
+        navigation = [
+            event
+            for event in wrong_order
+            if event.get("type") == "semantic"
+            and event.get("event") == "navigation_reconciled"
+        ]
+        navigation[0]["target_identity"] = "world-search-entry"
+        with self.assertRaises(pnsctl.OperatorError):
+            _verify_event_order(wrong_order, route, hashes)
+
+        missing_post = [
+            event
+            for event in events
+            if not (
+                event.get("type") == "capture"
+                and event.get("sha256") == "5" * 64
+            )
+        ]
+        with self.assertRaises(pnsctl.OperatorError):
+            _verify_event_order(missing_post, route, hashes - {"5" * 64})
+
+        missing_reconcile = [
+            event
+            for event in events
+            if not (
+                event.get("type") == "reconcile"
+                and event.get("action_key") == "action-2"
+            )
+        ]
+        with self.assertRaises(pnsctl.OperatorError):
+            _verify_event_order(missing_reconcile, route, hashes)
+
+        missing_terminal = [
+            event
+            for event in events
+            if event.get("event") != "route_terminal"
+        ]
+        with self.assertRaises(pnsctl.OperatorError):
+            _verify_event_order(missing_terminal, route, hashes)
+
+        extra_dispatch = [dict(event) for event in events]
+        extra_dispatch.insert(
+            4,
+            {
+                "type": "dispatch",
+                "action_key": "extra",
+                "target_identity": "home-to-world",
+                "target_roi": (10, 10, 50, 50),
+                "source_sha256": "1" * 64,
+                "consequential": False,
+            },
+        )
+        extra_route = dict(route, input_count=5, navigation_input_count=5)
+        with self.assertRaises(pnsctl.OperatorError):
+            _verify_event_order(extra_dispatch, extra_route, hashes)
+
+    def test_registry_and_dry_run_are_fixed_and_unregistered(self):
+        self.assertIn(RUNNER_ID, pnsctl._BLUESTACKS_FLOW_RUNNERS)
+        self.assertIn(VALIDATOR_ID, pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS)
+        self.assertIn(RECOVERY_ID, pnsctl._BLUESTACKS_RECOVERY_HANDLERS)
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(
+                pnsctl,
+                "BLUESTACKS_ARTIFACT_ROOT",
+                Path(directory),
+            ):
+                result = json.loads(
+                    run_world_map_navigation_foundation(
+                        {},
+                        {"owner": "test-owner", "max_inputs": 7},
+                        live=False,
+                    )
+                )
+        self.assertEqual(result["status"], "dry_run")
+        self.assertFalse(result["dispatch"])
+        self.assertEqual(result["input_count"] if "input_count" in result else 0, 0)
+        self.assertEqual(result["production_registration"], "NOT_REGISTERED")
+        self.assertFalse(result["scheduler_enabled"])
+
+    def test_retained_popup_recognizer_rejects_non_native_frame(self):
+        result = recognize_allowlisted_popup(
+            np.zeros((100, 100, 3), dtype=np.uint8), source_frame_sha256="a" * 64
+        )
+        self.assertEqual(result.status, "unknown")
+
+    def test_split_ocr_words_are_grouped_into_spatial_phrase_lines(self):
+        grouped = _group_spatial_ocr_hits(
+            [
+                ("log", (100, 100, 140, 124)),
+                ("in", (142, 99, 170, 123)),
+                ("every", (172, 101, 230, 125)),
+                ("day", (232, 99, 274, 124)),
+                ("to", (276, 100, 300, 123)),
+                ("get", (302, 100, 340, 124)),
+                ("vip", (342, 100, 378, 124)),
+                ("pts", (380, 99, 418, 124)),
+                ("other", (105, 155, 150, 178)),
+            ]
+        )
+        self.assertIn(
+            ("log in every day to get vip pts", (100, 99, 418, 125)),
+            grouped,
+        )
+        self.assertNotIn(("log", (100, 100, 140, 124)), grouped)
+
+    def test_popup_uses_panel_local_semantics_and_independent_button_geometry(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        panel = (96, 260, 704, 948)
+        button = (228, 772, 572, 856)
+
+        def local_ocr(_frame, roi, *, psm):
+            if roi == panel and psm == 11:
+                return "Get Pts\nLog in every day to get VIP pts"
+            if psm == 7:
+                return "Close"
+            return ""
+
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_popup_panel_candidates",
+            return_value=[panel],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[button],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._ocr_text_in_roi",
+            side_effect=local_ocr,
+        ):
+            result = recognize_allowlisted_popup(
+                frame,
+                source_frame_sha256="b" * 64,
+            )
+
+        self.assertEqual(result.status, "allowed")
+        self.assertEqual(result.popup_identity, "VIP_POINTS_GET_PTS")
+        self.assertEqual(result.target_identity, POPUP_CLOSE)
+        self.assertEqual(result.target_roi, button)
+        self.assertIn("Get Pts", result.semantic_evidence)
+        self.assertIn("Log in every day to get VIP pts", result.semantic_evidence)
+        self.assertIn("Close", result.semantic_evidence)
+
+    def test_popup_lookalike_partial_and_unbacked_panel_evidence_fail_closed(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        panel = (96, 260, 704, 948)
+        button = (228, 772, 572, 856)
+
+        cases = (
+            ("Get Rewards\nLog in every day to get VIP pts", "Close", "unknown"),
+            ("Get Pts\nLog in every day to get VIP pts", "Dismiss", "unknown"),
+            ("Get Rewards\nDaily rewards", "Close", "absent"),
+        )
+        for panel_text, close_text, expected in cases:
+            with self.subTest(panel_text=panel_text, close_text=close_text):
+                def local_ocr(_frame, roi, *, psm):
+                    if roi == panel and psm == 11:
+                        return panel_text
+                    if psm == 7:
+                        return close_text
+                    return ""
+
+                with patch(
+                    "scripts.world_map_navigation_bluestacks._ocr_hits",
+                    return_value=[],
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._visual_popup_panel_candidates",
+                    return_value=[panel],
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+                    return_value=[button],
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._ocr_text_in_roi",
+                    side_effect=local_ocr,
+                ):
+                    result = recognize_allowlisted_popup(
+                        frame,
+                        source_frame_sha256="c" * 64,
+                    )
+                self.assertEqual(result.status, expected)
+
+    def test_popup_close_roi_follows_moved_current_frame_button_geometry(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        panel = (70, 220, 730, 980)
+        for button in ((160, 760, 390, 836), (414, 804, 650, 884)):
+            with self.subTest(button=button):
+                def local_ocr(_frame, roi, *, psm):
+                    if roi == panel and psm == 11:
+                        return "Get Pts\nLog in every day to get VIP pts"
+                    if psm == 7:
+                        return "Close"
+                    return ""
+
+                with patch(
+                    "scripts.world_map_navigation_bluestacks._ocr_hits",
+                    return_value=[],
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._visual_popup_panel_candidates",
+                    return_value=[panel],
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+                    return_value=[button],
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._ocr_text_in_roi",
+                    side_effect=local_ocr,
+                ):
+                    result = recognize_allowlisted_popup(
+                        frame,
+                        source_frame_sha256="d" * 64,
+                    )
+                self.assertEqual(result.status, "allowed")
+                self.assertEqual(result.target_roi, button)
+
+    def test_world_text_alone_cannot_authorize_supported_zoom_or_targets(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        with patch(
+            "scripts.world_map_navigation_bluestacks._ocr_hits",
+            return_value=[
+                ("World", (100, 100, 180, 140)),
+                ("Search", (600, 100, 700, 140)),
+            ],
+        ), patch(
+            "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+            return_value=[],
+        ):
+            result = recognize_world_frame(
+                frame,
+                source_frame_sha256="e" * 64,
+                evidence_ref="independent-native-frame.png",
+            )
+        self.assertNotEqual(result.zoom_identity, WORLD_ZOOM_SUPPORTED)
+        self.assertFalse(result.recognized)
+        self.assertEqual(
+            recognize_allowlisted_popup(
+                frame,
+                source_frame_sha256="e" * 64,
+            ).status,
+            "absent",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

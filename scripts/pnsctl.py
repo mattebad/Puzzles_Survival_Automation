@@ -171,6 +171,14 @@ def _register_checked_in_bluestacks_handlers() -> None:
         from flow_delivery_enhancement_bluestacks import (
             register as register_enhancement,
         )
+    try:
+        from scripts.flow_delivery_world_map_bluestacks import (
+            register as register_world_map,
+        )
+    except ImportError:
+        from flow_delivery_world_map_bluestacks import (
+            register as register_world_map,
+        )
 
     register_campaign(
         _BLUESTACKS_FLOW_RUNNERS,
@@ -198,6 +206,11 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
     register_enhancement(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+    register_world_map(
         _BLUESTACKS_FLOW_RUNNERS,
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
@@ -1078,9 +1091,9 @@ def _load_bluestacks_flow_registry() -> dict[str, dict[str, str]]:
 
 def _focused_package(dumpsys_output: str) -> str:
     patterns = (
-        r"(?m)^\s*mCurrentFocus=Window\{[^\r\n]*?\s(?:u\d+\s+)?"
+        r"(?m)^\s*mCurrentFocus=Window\{[^\n]*?\s(?:u\d+\s+)?"
         r"(?P<package>[A-Za-z0-9._]+)/[^\s}]+",
-        r"(?m)^\s*mFocusedApp=ActivityRecord\{[^\r\n]*?\s(?:u\d+\s+)?"
+        r"(?m)^\s*mFocusedApp=ActivityRecord\{[^\n]*?\s(?:u\d+\s+)?"
         r"(?P<package>[A-Za-z0-9._]+)/[^\s}]+",
     )
     for pattern in patterns:
@@ -1119,7 +1132,7 @@ def bluestacks_preflight() -> str:
     frame = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
     if (
         not isinstance(frame, bytes)
-        or frame[:8] != b"\x89PNG\r\n\x1a\n"
+        or frame[:8] != b"\x89PNG\n\x1a\n"
         or len(frame) < 24
     ):
         raise OperatorError("BlueStacks preflight did not receive a valid PNG frame")
@@ -1157,7 +1170,7 @@ def _development_runtime_observation() -> tuple[dict[str, Any], bytes]:
     frame = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
     if (
         not isinstance(frame, bytes)
-        or frame[:8] != b"\x89PNG\r\n\x1a\n"
+        or frame[:8] != b"\x89PNG\n\x1a\n"
         or len(frame) < 24
     ):
         raise OperatorError("development observation did not receive a valid PNG frame")
@@ -3534,6 +3547,7 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
         if result.get("flow_id") not in {
             "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+            "WORLD-MAP-NAVIGATION-FOUNDATION",
         } or result_status not in {
             "blocked",
             "unresolved",
@@ -3629,6 +3643,13 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
             }
         elif retained_flow_id == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION":
             queue, lease = _retained_enhancement_state(session_directory)
+        elif retained_flow_id == "WORLD-MAP-NAVIGATION-FOUNDATION":
+            queue = {"active_flow_id": retained_flow_id}
+            lease = {
+                "active_stage": "evidence_review",
+                "runtime_ownership_state": "released",
+                "unresolved_action_state": "clear",
+            }
         else:
             queue, lease = _retained_troop_training_state(session_directory)
     if lease.get("active_stage") != "evidence_review":

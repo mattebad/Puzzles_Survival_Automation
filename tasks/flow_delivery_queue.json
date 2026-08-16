@@ -1151,6 +1151,7 @@
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "navigation_input_count",
+        "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
       "blocked_reason": "",
@@ -1360,6 +1361,7 @@
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "navigation_input_count",
+        "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
       "blocked_reason": "",
@@ -2082,6 +2084,7 @@
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "navigation_input_count",
+        "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
       "blocked_reason": "",
@@ -3528,8 +3531,13 @@
       "dependencies": [],
       "implementation_entrypoints": [
         "tasks/world_stamina.py",
+        "scripts/world_map_navigation_bluestacks.py",
+        "scripts/flow_delivery_world_map_bluestacks.py",
+        "scripts/pnsctl.py",
         "scripts/bluestacks_native_runtime.py",
-        "scripts/home_atlas_bluestacks.py"
+        "scripts/home_atlas_bluestacks.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/WORLD-MAP-NAVIGATION-FOUNDATION.json"
       ],
       "navigation_model": "verified_home_world_search_home",
       "requires_bluestacks_live": true,
@@ -3541,6 +3549,7 @@
       "live_attempts": [],
       "focused_tests": [
         "tests/test_world_stamina.py",
+        "tests/test_world_map_navigation_bluestacks.py",
         "tests/test_home_atlas_verified_route.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
@@ -3550,7 +3559,7 @@
       ],
       "blocked_reason": "",
       "next_concrete_action": "Implement current-frame verified Home-to-World, bounded search entry, and safe Home recovery without march authority.",
-      "last_completed_stage": "selected",
+      "last_completed_stage": "focused_validation",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/WORLD-MAP-NAVIGATION-FOUNDATION",
       "acceptance_criteria": [
@@ -3575,15 +3584,32 @@
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
         "tasks/world_stamina.py",
+        "scripts/world_map_navigation_bluestacks.py",
+        "scripts/flow_delivery_world_map_bluestacks.py",
+        "scripts/pnsctl.py",
         "scripts/bluestacks_native_runtime.py",
         "scripts/home_atlas_bluestacks.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/WORLD-MAP-NAVIGATION-FOUNDATION.json",
         "tests/test_world_stamina.py",
-        "tests/test_home_atlas_verified_route.py"
+        "tests/test_world_map_navigation_bluestacks.py",
+        "tests/test_home_atlas_verified_route.py",
+        "tests/fixtures/world_map_navigation_observations.json"
       ],
       "live_validation_scenarios": [
         {
           "id": "world-map-nav-home-search-home",
-          "mode": "navigation_only"
+          "mode": "navigation_only",
+          "forbidden_inputs": [
+            "resource_node_selection",
+            "march",
+            "formation",
+            "occupancy_override",
+            "stamina",
+            "ap",
+            "resource_or_currency",
+            "combat"
+          ]
         }
       ],
       "required_terminal_states": [
@@ -3592,6 +3618,7 @@
       ],
       "completion_tests": [
         "tests/test_world_stamina.py",
+        "tests/test_world_map_navigation_bluestacks.py",
         "tests/test_home_atlas_verified_route.py"
       ],
       "consequential_stage_policy": {

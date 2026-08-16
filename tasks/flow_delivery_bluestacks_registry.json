@@ -50,6 +50,12 @@
       "evidence_validator": "enhancement_family_bluestacks_evidence",
       "recovery_handler": "enhancement_family_bluestacks_recovery",
       "consequence_class": "consequential"
+    },
+    "WORLD-MAP-NAVIGATION-FOUNDATION": {
+      "runner": "world_map_navigation_foundation_runner",
+      "evidence_validator": "world_map_navigation_foundation_evidence",
+      "recovery_handler": "world_map_navigation_foundation_recovery",
+      "consequence_class": "navigation_only"
     }
   }
 }

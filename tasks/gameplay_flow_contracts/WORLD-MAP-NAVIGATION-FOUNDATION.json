@@ -1,11 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "WORLD-MAP-NAVIGATION-FOUNDATION",
-  "product_purpose": "World-map navigation foundation.",
+  "product_purpose": "Canonical Home to World Search entry and safe canonical Home return.",
   "trigger_cadence_type": "navigation_foundation",
   "reset_scope": "session",
   "required_starting_context": [
-    "home_ready"
+    "home_canonical"
   ],
   "shared_primitive_dependencies": [
     {
@@ -15,55 +15,316 @@
     }
   ],
   "recognized_states": [
-    "contract_declared",
-    "evidence_required"
+    "home_ready",
+    "home_canonical",
+    "world_ready",
+    "world_search_open",
+    "navigation_only_complete",
+    "unknown_fail_closed",
+    "blocked_fail_closed",
+    "manual_required"
   ],
-  "state_transitions": [
+  "transition_contracts": [
     {
-      "from": "contract_declared",
-      "to": "evidence_required",
-      "via": "missing_gameplay_evidence",
-      "notes": "Navigation foundation only."
+      "transition_id": "home_to_world",
+      "from": "home_canonical",
+      "to": "world_ready",
+      "planner": "bind_current_frame_home_to_world_control",
+      "permitted_input": "tap_home_to_world",
+      "postconditions": [
+        "fresh_world_ready_successor",
+        "supported_world_zoom_identity"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "calibrate_world_zoom",
+      "from": "world_ready",
+      "to": "world_ready",
+      "planner": "recognize_supported_world_zoom_from_current_frame",
+      "permitted_input": null,
+      "postconditions": [
+        "world_zoom_is_supported",
+        "world_localization_is_current_frame_bound"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "open_world_search",
+      "from": "world_ready",
+      "to": "world_search_open",
+      "planner": "bind_current_frame_world_search_entry",
+      "permitted_input": "tap_world_search",
+      "postconditions": [
+        "fresh_world_search_successor"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "close_world_search",
+      "from": "world_search_open",
+      "to": "world_ready",
+      "planner": "safe_android_back_from_recognized_search",
+      "permitted_input": "back_world_search",
+      "postconditions": [
+        "fresh_world_ready_successor"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "world_to_home",
+      "from": "world_ready",
+      "to": "home_canonical",
+      "planner": "bind_current_frame_world_to_home_control",
+      "permitted_input": "tap_world_to_home",
+      "postconditions": [
+        "fresh_canonical_home_successor"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "complete_canonical_round_trip",
+      "from": "home_canonical",
+      "to": "navigation_only_complete",
+      "planner": "verify_canonical_start_to_end_route",
+      "permitted_input": null,
+      "postconditions": [
+        "canonical_home_terminal_proof",
+        "navigation_only_complete"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "safe_popup_at_home_checkpoint",
+      "from": "home_canonical",
+      "to": "home_canonical",
+      "planner": "handle_one_allowlisted_popup_from_fresh_frame",
+      "permitted_input": "safe_popup_close",
+      "postconditions": [
+        "popup_absent",
+        "home_successor_rerecognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "safe_popup_at_world_checkpoint",
+      "from": "world_ready",
+      "to": "world_ready",
+      "planner": "handle_one_allowlisted_popup_from_fresh_frame",
+      "permitted_input": "safe_popup_close",
+      "postconditions": [
+        "popup_absent",
+        "world_successor_rerecognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "safe_popup_at_search_checkpoint",
+      "from": "world_search_open",
+      "to": "world_search_open",
+      "planner": "handle_one_allowlisted_popup_from_fresh_frame",
+      "permitted_input": "safe_popup_close",
+      "postconditions": [
+        "popup_absent",
+        "search_successor_rerecognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "block_unknown_state",
+      "from": "unknown_fail_closed",
+      "to": "blocked_fail_closed",
+      "planner": "stop_without_input",
+      "permitted_input": null,
+      "postconditions": [
+        "no_further_input"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     }
   ],
   "permitted_inputs": [
-    "none_until_implemented"
+    "tap_home_to_world",
+    "tap_world_search",
+    "back_world_search",
+    "tap_world_to_home",
+    "safe_popup_close"
   ],
-  "local_postconditions": [
-    "evidence_required"
+  "safe_popup_input_count": {
+    "metric": "safe_popup_input_count",
+    "maximum": 4,
+    "counts_against": "input_count",
+    "requires": [
+      "allowlisted VIP_POINTS_GET_PTS semantic evidence",
+      "fresh current-frame capture identity",
+      "verified popup dismissal successor"
+    ]
+  },
+  "forbidden_input_classes": [
+    "resource_node_selection",
+    "march",
+    "formation",
+    "occupancy_override",
+    "stamina",
+    "ap",
+    "resource",
+    "currency",
+    "combat"
   ],
-  "consequential_action_class": "none_declared",
+  "safety_accounting": {
+    "required_zero_metrics": [
+      "resource_actions",
+      "combat_actions",
+      "node_inputs",
+      "resource_node_selection_inputs",
+      "march_inputs",
+      "formation_inputs",
+      "occupancy_override_inputs",
+      "stamina_inputs",
+      "ap_inputs",
+      "currency_inputs"
+    ],
+    "forbidden_input_classes_must_be_empty": true,
+    "dispatch_count_formula": "navigation_input_count + safe_popup_input_count"
+  },
+  "consequential_action_class": "none",
   "cost_quantity_requirements": {
     "free_only": true,
-    "maximum_cost": null,
-    "quantity": null,
+    "maximum_cost": 0,
+    "quantity": 0,
     "resource_or_currency": null,
-    "notes": "Navigation foundation only."
+    "notes": "Navigation-only route; resource, march, formation, stamina, AP, and combat behavior are out of scope."
   },
   "completion_identity": "world-map-navigation-foundation:complete",
   "terminal_outcomes": [
+    "complete_for_reset",
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "evidence_required",
-  "bounded_recovery_behavior": "evidence_required",
+  "cooldown_deferred_behavior": "No cooldown or resource wait is performed; stop safely if Search or World state is not recognized.",
+  "bounded_recovery_behavior": "A popup may be handled once per fresh appearance at each checkpoint; unknown or ambiguous state blocks without retry.",
+  "product_policy_refs": [
+    {
+      "policy_id": "world-map-navigation-only",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
   "evidence_requirements": [
-    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
-    "Navigation foundation only."
+    "independent native 800x1280 source and successor frame hashes",
+    "current-frame target ROI and semantic identity for every input",
+    "canonical Home -> World -> Search -> World -> canonical Home event order",
+    "allowlisted popup semantic evidence spatially associated with Close",
+    "zero resource, march, formation, occupancy override, stamina, AP, currency, node, or combat input",
+    "production registration remains NOT_REGISTERED and scheduler remains false"
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "world_navigation_live_evidence",
+      "status": "evidence_required",
+      "blocks": [
+        "world_navigation_canonical_route"
+      ],
+      "required_evidence": [
+        "retained current-frame native route evidence with independently verified semantic successors"
+      ],
+      "permitted_inputs": []
+    }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "flow_entry",
+      "fixture_id": "world_navigation_semantic_observations",
+      "status": "synthetic_policy_ok",
+      "path": "tests/fixtures/world_map_navigation_observations.json",
+      "notes": "Independently authored semantic observations exercise the offline state machine; they are not live proof."
+    },
+    {
+      "fixture_id": "retained_popup_native_source",
       "status": "required_evidence",
       "path": null,
-      "notes": "Not fabricated in this task."
+      "notes": "Read-only delegated native source is retained outside the production asset tree and is not copied or modified."
     }
   ],
-  "live_validation_scenarios": [
+  "scenarios": [
     {
-      "id": "world-map-navigation-foundation-pending",
-      "mode": "blocked_until_policy",
-      "notes": "Navigation foundation only."
+      "scenario_id": "world_navigation_canonical_route",
+      "mode": "navigation_only",
+      "start_state": "home_canonical",
+      "terminal_state": "navigation_only_complete",
+      "permitted_inputs": [
+        "tap_home_to_world",
+        "tap_world_search",
+        "back_world_search",
+        "tap_world_to_home",
+        "safe_popup_close"
+      ],
+      "forbidden_inputs": [
+        "resource_node_selection",
+        "march",
+        "formation",
+        "occupancy_override",
+        "stamina",
+        "ap",
+        "resource",
+        "currency",
+        "combat"
+      ],
+      "required_transitions": [
+        "home_to_world",
+        "calibrate_world_zoom",
+        "open_world_search",
+        "close_world_search",
+        "world_to_home",
+        "complete_canonical_round_trip"
+      ],
+      "evidence_gate_ids": [
+        "world_navigation_live_evidence"
+      ],
+      "notes": "Canonical start-to-end route only; node binding and bounded pan/search planning remain offline primitives."
+    },
+    {
+      "scenario_id": "world_navigation_unknown_fail_closed",
+      "mode": "blocked_until_evidence",
+      "start_state": "unknown_fail_closed",
+      "terminal_state": "blocked_fail_closed",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "tap_home_to_world",
+        "tap_world_search",
+        "back_world_search",
+        "tap_world_to_home",
+        "safe_popup_close"
+      ],
+      "required_transitions": [
+        "block_unknown_state"
+      ],
+      "evidence_gate_ids": [
+        "world_navigation_live_evidence"
+      ],
+      "notes": "Unknown/lookalike popup, wrong zoom, stale ROI, or missing successor remains blocked."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -73,8 +334,17 @@
     "account_selection_or_switching",
     "credential_entry",
     "ambiguous_account_or_server_identity",
-    "blocking_unknown_modal"
+    "blocking_unknown_modal",
+    "unknown_popup",
+    "resource_node_selection",
+    "march_or_formation_selection",
+    "combat_or_stamina_dispatch"
   ],
-  "implementation_status": "contract_only",
-  "proof_state": "evidence_required"
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "current",
+  "supervised_live_proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false
 }
