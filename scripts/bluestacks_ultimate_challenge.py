@@ -585,6 +585,7 @@ def _normalize_ultimate_home_before_campaign(
             return False, detail
 
         planned_source = str(getattr(step, "source_frame_sha256", ""))
+        planned_disposition = getattr(step, "disposition", None)
         immediate_before = runtime.capture(
             f"ultimate-home-zoom-{ordinal:02d}-immediate-before"
         )
@@ -594,16 +595,69 @@ def _normalize_ultimate_home_before_campaign(
                 "action_key": f"home-zoom-out:{immediate_before.sha256}",
                 "immediate_before_sha256": immediate_before.sha256,
                 "immediate_before_semantic_frame_sha256": immediate_semantic,
+                "planned_source_frame_sha256": planned_source,
+                "planned_disposition": getattr(
+                    planned_disposition, "value", str(planned_disposition)
+                ),
             }
         )
-        if (
-            not _home_nav_terminal(immediate_before.frame)
-            or immediate_semantic != planned_source
-        ):
+        if not _home_nav_terminal(immediate_before.frame):
             plan_detail["status"] = "blocked"
             plan_detail["failure"] = "immediate_before_home_revalidation_failed"
             records.append(plan_detail)
             detail["reason"] = "Home zoom immediate-before revalidation failed"
+            return False, detail
+        # The first observation is only a provisional plan.  Re-observing an
+        # unchanged frame must replace that plan rather than trip the driver's
+        # post-dispatch repeated-frame guard before any input was sent.
+        if immediate_semantic == planned_source:
+            seen_recovery_frames = getattr(driver, "_seen_recovery_frames", None)
+            if isinstance(seen_recovery_frames, set):
+                seen_recovery_frames.discard(immediate_semantic)
+        try:
+            step = driver.observe(immediate_before.frame)
+        except Exception as exc:
+            plan_detail["status"] = "blocked"
+            plan_detail["failure"] = (
+                f"immediate_before_reobservation_failed:{type(exc).__name__}:{exc}"
+            )
+            records.append(plan_detail)
+            detail["reason"] = "Home zoom immediate-before re-observation failed"
+            return False, detail
+        refreshed_source = str(getattr(step, "source_frame_sha256", ""))
+        plan_detail.update(
+            _ultimate_home_zoom_step_detail(
+                ordinal,
+                step,
+                source=immediate_before,
+            )
+        )
+        plan_detail.update(
+            {
+                "planned_source_frame_sha256": planned_source,
+                "planned_disposition": getattr(
+                    planned_disposition, "value", str(planned_disposition)
+                ),
+                "refreshed_source_frame_sha256": refreshed_source,
+            }
+        )
+        if getattr(step, "disposition", None) is not HomeDriverDisposition.RECOVER_ZOOM:
+            plan_detail["status"] = "blocked"
+            plan_detail["failure"] = "immediate_before_disposition_changed"
+            records.append(plan_detail)
+            detail["reason"] = (
+                "Home zoom immediate-before disposition changed: "
+                f"{getattr(getattr(step, 'disposition', None), 'value', 'unknown')}"
+            )
+            return False, detail
+        if refreshed_source != immediate_semantic:
+            plan_detail["status"] = "blocked"
+            plan_detail["failure"] = "immediate_before_source_digest_mismatch"
+            records.append(plan_detail)
+            detail["reason"] = (
+                "Home zoom immediate-before source digest did not match "
+                "the refreshed driver source"
+            )
             return False, detail
         try:
             immediate_localization = localizer.localize(immediate_before.frame)
@@ -721,7 +775,7 @@ def _normalize_ultimate_home_before_campaign(
             return False, detail
 
         try:
-            driver.record_zoom_input_dispatched(planned_source)
+            driver.record_zoom_input_dispatched(immediate_semantic)
         except Exception as exc:
             plan_detail["status"] = "unresolved" if runtime_accounted else "blocked"
             plan_detail["failure"] = f"zoom_accounting_failed:{type(exc).__name__}:{exc}"

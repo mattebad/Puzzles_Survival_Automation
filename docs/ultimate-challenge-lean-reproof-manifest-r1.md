@@ -268,3 +268,20 @@ All other paths are read-only during implementation.
 - Preserve centered popup denial, all actionable-state overlay denial, native-frame requirements, and fail-closed behavior for ambiguous or genuinely bounded panels.
 - Add deterministic unit coverage using independently hard-coded centered-modal and edge-spanning geometry; retained live evidence is supplementary, not the authoritative test oracle.
 - One Luna implementation and one Terra review are authorized. A new clean candidate commit and one materially changed live canary may follow parent integration acceptance.
+
+## Refrozen stage r14 — re-plan Home zoom from immediate-before
+- User authorization: autonomous redesign around non-absolute blockers remains active. The r13 canary failed closed with zero inputs on a second, evidence-resolved local defect.
+- Revision ID: `ultimate-challenge-lean-reproof-r14`.
+- Failure class: `local_defect`.
+- Evidence:
+  - resume and zoom immediate-before frames were captured 15.6 seconds apart with different whole-frame semantic digests because animated timers, badges, and promotions changed;
+  - both independently remain popup-free Home at the same supported `zoomed_in` scale (`0.740013` and `0.740010`) with positive Home correlation (`0.961023` and `0.958438`);
+  - failure was solely the exact digest comparison; no input was dispatched, ownership was released, and no recognizer, zoom, or overlay contradiction exists.
+- Writable paths:
+  - `scripts/bluestacks_ultimate_challenge.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- After each immediate-before capture, re-observe and re-plan from that exact frame. Dispatch may proceed only if the refreshed frame is popup-free Home, localization is current/non-overlay, and the refreshed driver disposition remains supported `RECOVER_ZOOM`.
+- Bind the action key, safety facts, guarded dispatch, driver accounting, and reconciliation to the exact immediate-before capture and refreshed source digest. Do not require equality with an older whole-frame plan digest.
+- Any popup, non-Home frame, unknown/unsupported zoom, stale/overlay localization, changed disposition, or exhausted budget blocks before input.
+- Add deterministic animation-drift coverage proving harmless dynamic pixels cause one refreshed dispatch, plus zero-input negatives for semantic state/zoom/disposition changes. Replay both retained r13 frames offline as supplementary evidence.
+- One Luna implementation and one Terra review are authorized. A clean candidate commit and one materially changed live canary may follow parent integration acceptance.

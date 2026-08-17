@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
@@ -295,6 +296,23 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         return frame
 
     @staticmethod
+    def _non_home_frame() -> np.ndarray:
+        frame = np.full((1280, 800, 3), (35, 45, 65), dtype=np.uint8)
+        cv2.rectangle(frame, (80, 120), (720, 1160), (35, 45, 65), -1)
+        cv2.rectangle(frame, (120, 180), (680, 260), (25, 150, 210), -1)
+        cv2.putText(
+            frame,
+            "Resource Shop",
+            (190, 235),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.2,
+            (255, 255, 255),
+            3,
+            cv2.LINE_AA,
+        )
+        return frame
+
+    @staticmethod
     def _atlas() -> HomeAtlas:
         return HomeAtlas(
             3,
@@ -420,11 +438,20 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         execute = True
         max_inputs = ultimate.MAX_TOTAL_INPUTS
 
-        def __init__(self, root: Path, initial: np.ndarray, factory, *, input_count: int = 0):
+        def __init__(
+            self,
+            root: Path,
+            initial: np.ndarray,
+            factory,
+            *,
+            input_count: int = 0,
+            immediate_before_frame: np.ndarray | None = None,
+        ):
             self.session = root / "runtime"
             self.session.mkdir(parents=True)
             self.current = initial
             self.factory = factory
+            self.immediate_before_frame = immediate_before_frame
             self.input_count = input_count
             self.capture_count = 0
             self.captures_by_label: dict[str, CapturedNativeFrame] = {}
@@ -455,6 +482,11 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
             return captured
 
         def capture(self, label: str) -> CapturedNativeFrame:
+            if (
+                label.endswith("-immediate-before")
+                and self.immediate_before_frame is not None
+            ):
+                self.current = self.immediate_before_frame.copy()
             return self._captured(label)
 
         def measure_foreground_package(self) -> str:
@@ -496,6 +528,42 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
             if self.fail:
                 raise RuntimeError("synthetic zoom transport failure")
 
+    class _RefreshDispositionDriver:
+        def __init__(self, refreshed_disposition: ultimate.HomeDriverDisposition):
+            self.refreshed_disposition = refreshed_disposition
+            self.observed_digests: list[str] = []
+            self.zoom_inputs = 0
+
+        def observe(self, frame: np.ndarray):
+            digest = ultimate.frame_sha256(frame)
+            self.observed_digests.append(digest)
+            disposition = (
+                ultimate.HomeDriverDisposition.RECOVER_ZOOM
+                if len(self.observed_digests) == 1
+                else self.refreshed_disposition
+            )
+            return SimpleNamespace(
+                disposition=disposition,
+                reason=(
+                    "unsupported_zoom_requires_bounded_canonical_recovery"
+                    if disposition is ultimate.HomeDriverDisposition.RECOVER_ZOOM
+                    else "synthetic refreshed disposition"
+                ),
+                source_frame_sha256=digest,
+                localization=SimpleNamespace(
+                    zoom_identity=ZoomIdentity.ZOOMED_IN,
+                    recognized=True,
+                    confidence=0.92,
+                    residual_px=0.1,
+                    overlay=False,
+                    stale=False,
+                    ambiguity_state=AmbiguityState.NONE,
+                ),
+            )
+
+        def record_zoom_input_dispatched(self, _source_frame_sha256: str) -> None:
+            raise AssertionError("refreshed non-recovery step must not dispatch")
+
     def _run_normalizer(
         self,
         *,
@@ -507,11 +575,19 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         initial_canonical: bool = False,
         guard_denial: bool = False,
         driver_accounting_failure: bool = False,
+        immediate_before_frame: np.ndarray | None = None,
+        driver=None,
     ):
         root = Path(tempfile.mkdtemp())
         initial = self._home_frame(marker=0 if initial_canonical else 1)
         canonical = self._home_frame()
-        runtime = self._Runtime(root, initial, factory, input_count=input_count)
+        runtime = self._Runtime(
+            root,
+            initial,
+            factory,
+            input_count=input_count,
+            immediate_before_frame=immediate_before_frame,
+        )
         source = runtime._captured("source")
         localizer = self._Localizer(initial, canonical, unknown=unknown)
         self._Transport.instances = []
@@ -522,13 +598,18 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
                 scale=0.70 + min(marker, ultimate.MAX_HOME_ZOOM_INPUTS) * 0.02,
                 identity=ZoomIdentity.ZOOMED_IN,
             )
+        driver_patch = patch.object(
+            ultimate,
+            "BlueStacksLocalizeFirstHomeDriver",
+            return_value=driver,
+        ) if driver is not None else nullcontext()
         with patch.object(ultimate, "load_home_atlas", return_value=self._atlas()), patch.object(
             ultimate, "BlueStacksHomeLocalizer", return_value=localizer
         ), patch.object(
             ultimate, "ScrcpyMotionEventZoomTransport", self._Transport
         ), patch.object(
             ultimate, "classify_zoom", side_effect=fake_zoom_classification
-        ):
+        ), driver_patch:
             popup_patch = patch.object(ultimate, "_unexpected_visual_popup", return_value=True) if overlay else patch.object(
                 ultimate, "_unexpected_visual_popup", wraps=ultimate._unexpected_visual_popup
             )
@@ -619,6 +700,97 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
             if "action_key" in record
         ]
         self.assertEqual(len(action_keys), len(set(action_keys)))
+
+    def test_dynamic_immediate_before_replans_and_binds_all_accounting_to_it(self) -> None:
+        immediate_frame = self._home_frame(marker=2)
+        accounting_sources: list[str] = []
+        original_record = (
+            ultimate.BlueStacksLocalizeFirstHomeDriver.record_zoom_input_dispatched
+        )
+
+        def record_zoom_input(driver, source_frame_sha256: str) -> None:
+            accounting_sources.append(source_frame_sha256)
+            original_record(driver, source_frame_sha256)
+
+        with patch.object(
+            ultimate.BlueStacksLocalizeFirstHomeDriver,
+            "record_zoom_input_dispatched",
+            autospec=True,
+            side_effect=record_zoom_input,
+        ):
+            _root, runtime, ok, detail = self._run_normalizer(
+                factory=lambda _count: self._home_frame(),
+                immediate_before_frame=immediate_frame,
+            )
+
+        self.assertTrue(ok)
+        source = runtime.captures_by_label["source"]
+        immediate_before = runtime.captures_by_label[
+            "ultimate-home-zoom-01-immediate-before"
+        ]
+        immediate_semantic = ultimate.frame_sha256(immediate_before.frame)
+        self.assertNotEqual(ultimate.frame_sha256(source.frame), immediate_semantic)
+        self.assertEqual(accounting_sources, [immediate_semantic])
+        action_key = f"home-zoom-out:{immediate_before.sha256}"
+        self.assertEqual(runtime.zoom_dispatches, [action_key])
+        self.assertEqual(runtime.reconciliations, [(action_key, "confirmed")])
+        plan = next(record for record in detail["records"] if "action_key" in record)
+        self.assertEqual(plan["action_key"], action_key)
+        self.assertEqual(plan["source_frame_sha256"], immediate_semantic)
+        self.assertEqual(plan["runtime_source_sha256"], immediate_before.sha256)
+        self.assertEqual(plan["refreshed_source_frame_sha256"], immediate_semantic)
+        self.assertNotEqual(plan["planned_source_frame_sha256"], immediate_semantic)
+
+    def test_popup_or_non_home_immediate_before_blocks_without_input(self) -> None:
+        popup_frame = self._home_frame(marker=2)
+        non_home_frame = self._non_home_frame()
+
+        def popup_candidates(frame: np.ndarray):
+            if int(frame[300, 300, 0]) == 2:
+                return [(50, 400, 750, 800)]
+            return []
+
+        with patch.object(
+            ultimate,
+            "_central_popup_candidates",
+            side_effect=popup_candidates,
+        ):
+            for label, immediate_before in (
+                ("popup", popup_frame),
+                ("non_home", non_home_frame),
+            ):
+                with self.subTest(case=label):
+                    _root, runtime, ok, detail = self._run_normalizer(
+                        factory=lambda _count: self._home_frame(),
+                        immediate_before_frame=immediate_before,
+                    )
+                    self.assertFalse(ok)
+                    self.assertEqual(runtime.input_count, 0)
+                    self.assertEqual(runtime.zoom_dispatches, [])
+                    self.assertEqual(runtime.reconciliation_attempts, [])
+                    self.assertIn("immediate-before", str(detail["reason"]))
+
+    def test_refreshed_unknown_or_changed_disposition_blocks_without_input(self) -> None:
+        for disposition in (
+            ultimate.HomeDriverDisposition.BLOCKED,
+            ultimate.HomeDriverDisposition.PAN,
+        ):
+            with self.subTest(disposition=disposition.value):
+                driver = self._RefreshDispositionDriver(disposition)
+                _root, runtime, ok, detail = self._run_normalizer(
+                    factory=lambda _count: self._home_frame(),
+                    driver=driver,
+                )
+                self.assertFalse(ok)
+                self.assertEqual(len(driver.observed_digests), 2)
+                self.assertEqual(runtime.input_count, 0)
+                self.assertEqual(runtime.zoom_dispatches, [])
+                self.assertEqual(runtime.reconciliation_attempts, [])
+                self.assertEqual(
+                    detail["reason"],
+                    "Home zoom immediate-before disposition changed: "
+                    f"{disposition.value}",
+                )
 
     def test_zoom_reconciliation_joins_exact_dispatched_key_on_success_and_failure(self) -> None:
         canonical = self._home_frame()
