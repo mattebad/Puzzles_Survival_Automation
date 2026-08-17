@@ -419,8 +419,11 @@ class LocalBlueStacksRuntime:
             {
                 "action_key": action_key,
                 "target_identity": target_identity,
+                "gesture": "swipe",
                 "start": start,
                 "end": end,
+                "action_class": "navigation",
+                "consequence_class": "navigation_only",
                 "consequential": False,
                 "execute": self.execute,
                 "source_sha256": source.sha256,

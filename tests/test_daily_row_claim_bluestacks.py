@@ -1776,6 +1776,67 @@ class DailyClaimRecognitionTests(unittest.TestCase):
                 self.assertFalse(recognition.recognized)
                 self.assertIn("attached", recognition.reason or "")
 
+    def test_generic_daily_scan_rejects_claim_adjacent_numeric_icon_and_currency_costs(self):
+        cases = (
+            (
+                "numeric-only",
+                self._claim_fixture(
+                    extra_tokens=(("2", (520, 500, 560, 525)),)
+                ),
+            ),
+            ("icon-only", self._claim_fixture(cost_icon=True)),
+            (
+                "currency-word",
+                self._claim_fixture(
+                    extra_tokens=(("Gems", (520, 500, 590, 525)),)
+                ),
+            ),
+            (
+                "cost-word",
+                self._claim_fixture(
+                    extra_tokens=(("Cost", (520, 500, 590, 525)),)
+                ),
+            ),
+        )
+        for name, (frame, ocr, _tokens) in cases:
+            with self.subTest(case=name):
+                recognition = daily.DailyRowClaimRecognizer(
+                    ocr=ocr
+                ).recognize_daily_ready_rows(
+                    frame,
+                    game_day_id="reset-deadline:2026-08-16T04:00:00Z",
+                    observed_utc="2026-08-16T00:00:00Z",
+                )
+                visual = recognition.visual_evidence
+                rows = visual["inventory_rows"]
+                self.assertTrue(recognition.recognized)
+                self.assertIsNone(visual["ready_row"])
+                self.assertEqual(len(rows), 1)
+                self.assertIn("claim_attached_cost", rows[0]["rejection_reasons"])
+                self.assertFalse(rows[0]["free_control_proven"])
+
+    def test_generic_daily_scan_proves_free_ordinary_claim_ready(self):
+        frame, ocr, _tokens = self._claim_fixture()
+        recognition = daily.DailyRowClaimRecognizer(
+            ocr=ocr
+        ).recognize_daily_ready_rows(
+            frame,
+            game_day_id="reset-deadline:2026-08-16T04:00:00Z",
+            observed_utc="2026-08-16T00:00:00Z",
+        )
+
+        self.assertTrue(recognition.recognized)
+        ready_row = recognition.visual_evidence["ready_row"]
+        self.assertIsNotNone(ready_row)
+        self.assertEqual(ready_row["status"], "ready")
+        self.assertTrue(ready_row["free_control_proven"])
+        self.assertFalse(ready_row["cost_scan"]["attached_cost"])
+        self.assertEqual(
+            ready_row["cost_scan"]["currency_words"],
+            (),
+        )
+        self.assertEqual(ready_row["cost_scan"]["numeric_tokens"], ())
+
     def test_reset_deadline_is_bound_from_injected_wall_utc_and_rollover_rejects(self):
         before_frame, before_ocr, _tokens = self._claim_fixture(
             reset_timer="00:00:02"
@@ -2960,6 +3021,524 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             self.assertIsNotNone(terminal)
             self.assertEqual(terminal[0], "evidence_required")
             self.assertEqual(json.loads(terminal[1])["status"], "evidence_required")
+
+
+class DailyReadyRowArtifactValidationTests(unittest.TestCase):
+    """Retained scan artifacts must prove the exact native swipe dispatches."""
+
+    _REGION = (100, 520, 700, 1120)
+    _START = (400, 1000)
+    _END = (400, 560)
+    _IDENTITIES = (
+        "daily-row-scan-swipe-1",
+        "daily-row-scan-swipe-2",
+        "daily-row-scan-swipe-3",
+    )
+
+    def _artifact(self, root: Path, *, count: int = 2, status: str = "observed"):
+        session = root / "session"
+        session.mkdir(parents=True)
+        frames: dict[str, dict[str, object]] = {}
+        captured_frames: dict[str, CapturedNativeFrame] = {}
+
+        def add_frame(name: str) -> dict[str, object]:
+            captured = _frame(session, name)
+            reference = {
+                "path": name + ".png",
+                "sha256": captured.sha256,
+                "captured_monotonic": captured.captured_monotonic,
+            }
+            frames[name] = reference
+            captured_frames[name] = captured
+            return reference
+
+        add_frame("source")
+        class SwipeTransport:
+            def dispatch_swipe(
+                self,
+                _start: tuple[int, int],
+                _end: tuple[int, int],
+            ) -> None:
+                return None
+
+        native_runtime = LocalBlueStacksRuntime(
+            SwipeTransport(),
+            session / "runtime",
+            execute=True,
+        )
+        events_path = native_runtime.events
+        events_path.write_text(
+            json.dumps({"type": "capture", "label": "daily-row-scan-source"}) + "\n",
+            encoding="utf-8",
+        )
+        swipes: list[dict[str, object]] = []
+        actions: list[dict[str, object]] = []
+        before_refs: list[dict[str, object]] = []
+        for ordinal, identity in enumerate(self._IDENTITIES[:count], start=1):
+            before_key = f"swipe_{ordinal:02d}_immediate_before"
+            before = add_frame(before_key)
+            before_refs.append(before)
+            native_runtime.swipe(
+                captured_frames[before_key],
+                start=self._START,
+                end=self._END,
+                action_key=identity,
+                target_identity=identity,
+            )
+
+        dispatches: list[dict[str, object]] = []
+        for line in events_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            event = json.loads(line)
+            if event.get("type") == "dispatch":
+                dispatches.append(event)
+        self.assertEqual(len(dispatches), count)
+        for ordinal, (before, event) in enumerate(
+            zip(before_refs, dispatches),
+            start=1,
+        ):
+            identity = str(event["target_identity"])
+            swipes.append(
+                {
+                    "ordinal": ordinal,
+                    "action_identity": identity,
+                    "action_class": event["action_class"],
+                    "consequence_class": event["consequence_class"],
+                    "source_frame_sha256": event["source_sha256"],
+                    "start": event["start"],
+                    "end": event["end"],
+                    "safe_list_region": self._REGION,
+                    "status": "completed",
+                    "before": before,
+                    "after": None,
+                }
+            )
+            actions.append(
+                {
+                    "ordinal": ordinal,
+                    "action_class": event["action_class"],
+                    "requested_action": "navigation",
+                    "label": identity,
+                    "status": "completed",
+                    "before_sha256": before["sha256"],
+                    "after_sha256": "b" * 64,
+                    "recovery_used": False,
+                }
+            )
+
+        (session / "final.png").write_bytes(b"annotated")
+        payload: dict[str, object] = {
+            "status": status,
+            "mode": "scan-ready-row",
+            "input_count": count,
+            "resource_affecting_inputs": 0,
+            "combat_confirmations": 0,
+            "claim_authority": False,
+            "scan_budget": 3,
+            "swipe_identities": list(self._IDENTITIES),
+            "safe_list_region": self._REGION,
+            "swipe_start": self._START,
+            "swipe_end": self._END,
+            "frames": frames,
+            "swipes": swipes,
+            "actions": actions,
+            "runtime_events_path": "runtime/events.jsonl",
+            "final_annotation": "final.png",
+            "dispatch": count > 0,
+        }
+        if status == "observed":
+            payload["ready_row"] = {
+                "status": "ready",
+                "claim_authority": False,
+                "objective_key": "upgrade_building",
+                "objective_name": "Upgrade building",
+                "row_bounds": (70, 432, 780, 542),
+                "claim_roi": (605, 455, 755, 535),
+            }
+        return session, payload, events_path
+
+    def test_positive_multi_swipe_artifact_matches_runtime_events(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session, payload, _events_path = self._artifact(Path(directory))
+            pnsctl._validate_daily_row_claim_artifacts(
+                session,
+                payload,
+                mode="scan-ready-row",
+            )
+
+    def test_scan_rejects_out_of_region_endpoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session, payload, _events_path = self._artifact(Path(directory))
+            payload["swipes"][0]["end"] = (700, 1120)
+            with self.assertRaisesRegex(pnsctl.OperatorError, "outside"):
+                pnsctl._validate_daily_row_claim_artifacts(
+                    session,
+                    payload,
+                    mode="scan-ready-row",
+                )
+
+    def test_scan_rejects_source_hash_tamper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session, payload, _events_path = self._artifact(Path(directory))
+            payload["swipes"][0]["source_frame_sha256"] = "0" * 64
+            with self.assertRaisesRegex(pnsctl.OperatorError, "source hash"):
+                pnsctl._validate_daily_row_claim_artifacts(
+                    session,
+                    payload,
+                    mode="scan-ready-row",
+                )
+
+    def test_scan_rejects_non_navigation_consequence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session, payload, _events_path = self._artifact(Path(directory))
+            payload["swipes"][0]["consequence_class"] = "resource_affecting"
+            with self.assertRaisesRegex(pnsctl.OperatorError, "class"):
+                pnsctl._validate_daily_row_claim_artifacts(
+                    session,
+                    payload,
+                    mode="scan-ready-row",
+                )
+
+    def test_scan_rejects_missing_and_extra_runtime_dispatch(self):
+        for mutation, expected in (
+            ("missing", "count"),
+            ("extra", "count"),
+        ):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                session, payload, events_path = self._artifact(Path(directory))
+                rows = [
+                    json.loads(line)
+                    for line in events_path.read_text(encoding="utf-8").splitlines()
+                ]
+                dispatch_indices = [
+                    index for index, row in enumerate(rows) if row["type"] == "dispatch"
+                ]
+                if mutation == "missing":
+                    rows.pop(dispatch_indices[-1])
+                else:
+                    rows.append(dict(rows[dispatch_indices[0]]))
+                events_path.write_text(
+                    "".join(json.dumps(row) + "\n" for row in rows),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(pnsctl.OperatorError, expected):
+                    pnsctl._validate_daily_row_claim_artifacts(
+                        session,
+                        payload,
+                        mode="scan-ready-row",
+                    )
+
+    def test_scan_rejects_reordered_runtime_dispatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session, payload, events_path = self._artifact(Path(directory))
+            rows = [
+                json.loads(line)
+                for line in events_path.read_text(encoding="utf-8").splitlines()
+            ]
+            dispatches = [row for row in rows if row["type"] == "dispatch"]
+            rows = [row for row in rows if row["type"] != "dispatch"]
+            rows.extend(reversed(dispatches))
+            events_path.write_text(
+                "".join(json.dumps(row) + "\n" for row in rows),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(pnsctl.OperatorError, "identity"):
+                pnsctl._validate_daily_row_claim_artifacts(
+                    session,
+                    payload,
+                    mode="scan-ready-row",
+                )
+
+    def test_scan_rejects_non_swipe_runtime_gesture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session, payload, events_path = self._artifact(Path(directory))
+            rows = [
+                json.loads(line)
+                for line in events_path.read_text(encoding="utf-8").splitlines()
+            ]
+            next(row for row in rows if row["type"] == "dispatch")["gesture"] = "tap"
+            events_path.write_text(
+                "".join(json.dumps(row) + "\n" for row in rows),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(pnsctl.OperatorError, "identity or class"):
+                pnsctl._validate_daily_row_claim_artifacts(
+                    session,
+                    payload,
+                    mode="scan-ready-row",
+                )
+
+    def test_scan_rejects_missing_required_runtime_dispatch_fields(self):
+        for field in ("gesture", "action_class", "consequence_class"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                session, payload, events_path = self._artifact(Path(directory))
+                rows = [
+                    json.loads(line)
+                    for line in events_path.read_text(encoding="utf-8").splitlines()
+                ]
+                dispatch = next(row for row in rows if row["type"] == "dispatch")
+                dispatch.pop(field)
+                events_path.write_text(
+                    "".join(json.dumps(row) + "\n" for row in rows),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(pnsctl.OperatorError, "identity or class"):
+                    pnsctl._validate_daily_row_claim_artifacts(
+                        session,
+                        payload,
+                        mode="scan-ready-row",
+                    )
+
+    def test_evidence_terminal_validates_available_scan_artifacts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session, payload, events_path = self._artifact(
+                Path(directory),
+                status="evidence_required",
+            )
+            payload.pop("final_annotation")
+            pnsctl._validate_daily_row_claim_artifacts(
+                session,
+                payload,
+                mode="scan-ready-row",
+            )
+            rows = [
+                json.loads(line)
+                for line in events_path.read_text(encoding="utf-8").splitlines()
+            ]
+            events_path.write_text(
+                "".join(
+                    json.dumps(row) + "\n"
+                    for row in rows
+                    if row["type"] != "dispatch"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(pnsctl.OperatorError, "count"):
+                pnsctl._validate_daily_row_claim_artifacts(
+                    session,
+                    payload,
+                    mode="scan-ready-row",
+                )
+
+
+class DailyReadyRowScanTests(unittest.TestCase):
+    """Independent row-scan fixtures exercise observation without Claim authority."""
+
+    class Runtime:
+        execute = True
+        frame_max_age_seconds = 30.0
+
+        def __init__(self, root: Path, *, unchanged_after_swipe: bool = False) -> None:
+            self.session = root
+            self.session.mkdir(parents=True, exist_ok=True)
+            self.labels: list[str] = []
+            self.swipes: list[dict[str, object]] = []
+            self._last_capture: CapturedNativeFrame | None = None
+            self.unchanged_after_swipe = unchanged_after_swipe
+            self._ordinal = 0
+
+        def capture(self, label: str) -> CapturedNativeFrame:
+            self.labels.append(label)
+            if (
+                self.unchanged_after_swipe
+                and label.endswith("-immediate-post")
+                and self._last_capture is not None
+            ):
+                return self._last_capture
+            self._ordinal += 1
+            image = np.zeros((1280, 800, 3), dtype=np.uint8)
+            image[0, 0, 0] = self._ordinal % 255
+            captured = _frame(
+                self.session,
+                label.replace(":", "_"),
+                image=image,
+            )
+            if label.endswith("-immediate-before"):
+                self._last_capture = captured
+            return captured
+
+        def measure_device_state(self) -> str:
+            return "device"
+
+        def measure_foreground_package(self) -> str:
+            return daily.EXPECTED_PACKAGE
+
+        def swipe(
+            self,
+            source: CapturedNativeFrame,
+            *,
+            start: tuple[int, int],
+            end: tuple[int, int],
+            action_key: str,
+            target_identity: str,
+        ) -> None:
+            self.swipes.append(
+                {
+                    "source": source.sha256,
+                    "start": start,
+                    "end": end,
+                    "action_key": action_key,
+                    "target_identity": target_identity,
+                }
+            )
+
+    class Recognizer:
+        def __init__(self, ready_on_call: int | None = None) -> None:
+            self.calls = 0
+            self.ready_on_call = ready_on_call
+
+        def recognize_daily_ready_rows(
+            self,
+            _frame: np.ndarray,
+            *,
+            game_day_id: str | None = None,
+            observed_utc: str | None = None,
+        ) -> daily.FrameRecognition:
+            self.calls += 1
+            ready = (
+                self.ready_on_call is not None
+                and self.calls >= self.ready_on_call
+            )
+            row = {
+                "objective_key": "upgrade_building",
+                "objective_name": "Upgrade building",
+                "observed_name": "upgrade building 1 1",
+                "current_progress": 1,
+                "required_progress": 1,
+                "progress_text": "upgrade building 1 1",
+                "reward": {"text": "reward pts 5", "points": 5},
+                "row_bounds": (70, 432, 780, 542),
+                "claim_roi": (605, 455, 755, 535),
+                "status": "ready",
+                "claim_authority": False,
+            }
+            visual = {
+                "selected_daily": True,
+                "full_frame_overlay": {"recognized": False, "markers": ()},
+                "generic_modal_overlay": {"recognized": False},
+                "reset_timer": "23:07:46",
+                "reset_timer_seconds": 83266,
+                "reset_observed_utc": "2026-08-17T00:00:00Z",
+                "reset_deadline_utc": "2026-08-17T23:07:46Z",
+                "reset_deadline_identity": "reset-deadline:2026-08-17T23:07:46Z",
+                "game_day_id": game_day_id or "reset-deadline:2026-08-17T23:07:46Z",
+                "inventory_rows": [row],
+                "ready_row": row if ready else None,
+            }
+            return daily.FrameRecognition(
+                daily.DAILY_SELECTED_STATE,
+                True,
+                daily.DAILY_ROW_SCAN_OBSERVATION_IDENTITY if ready else None,
+                row["claim_roi"] if ready else None,
+                "selected Daily",
+                visual,
+                None,
+            )
+
+    def _run_scan(
+        self,
+        root: Path,
+        *,
+        ready_on_call: int | None,
+        unchanged_after_swipe: bool = False,
+    ):
+        with patch.object(daily, "DAILY_ROW_SCAN_SETTLE_INTERVAL_SECONDS", 0.0), patch.object(
+            boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"
+        ):
+            with boundary.DevelopmentSession(
+                owner="test-daily-ready-row-scan",
+                invocation_id="test-daily-ready-row-scan",
+                session_directory=root / "session",
+                max_inputs=3,
+            ) as session:
+                runtime = self.Runtime(
+                    session.session_directory / "runtime",
+                    unchanged_after_swipe=unchanged_after_swipe,
+                )
+                result = daily.run_daily_row_claim_ready_row_scan(
+                    runtime,
+                    session,
+                    recognizer=self.Recognizer(ready_on_call),
+                    game_day_id="reset-deadline:2026-08-17T23:07:46Z",
+                    wall_utc=lambda: __import__("datetime").datetime.fromisoformat(
+                        "2026-08-17T00:00:00+00:00"
+                    ),
+                )
+        return result, runtime
+
+    def test_visible_ready_row_uses_zero_inputs_and_retains_non_authorizing_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime = self._run_scan(
+                Path(directory),
+                ready_on_call=1,
+            )
+        self.assertEqual(result["status"], "observed")
+        self.assertEqual(result["input_count"], 0)
+        self.assertEqual(runtime.swipes, [])
+        self.assertEqual(result["ready_row"]["objective_key"], "upgrade_building")
+        self.assertFalse(result["claim_authority"])
+        self.assertFalse(result["ready_row"]["claim_authority"])
+        self.assertTrue(result["final_annotation"])
+
+    def test_one_swipe_finds_ready_row_with_safe_navigation_geometry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime = self._run_scan(
+                Path(directory),
+                ready_on_call=4,
+            )
+        self.assertEqual(result["status"], "observed")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(len(runtime.swipes), 1)
+        self.assertEqual(runtime.swipes[0]["action_key"], "daily-row-scan-swipe-1")
+        self.assertEqual(runtime.swipes[0]["target_identity"], "daily-row-scan-swipe-1")
+        region = tuple(result["swipes"][0]["safe_list_region"])
+        start = tuple(runtime.swipes[0]["start"])
+        end = tuple(runtime.swipes[0]["end"])
+        self.assertEqual(region, tuple(daily.DAILY_ROW_SCAN_LIST_REGION))
+        header_tabs = (0, 0, 800, 340)
+        row_button_lane = (region[2] - 100, region[1], region[2], region[3])
+        for point in (start, end):
+            self.assertGreater(point[0], region[0])
+            self.assertLess(point[0], region[2])
+            self.assertGreater(point[1], region[1])
+            self.assertLess(point[1], region[3])
+            self.assertFalse(
+                header_tabs[0] <= point[0] < header_tabs[2]
+                and header_tabs[1] <= point[1] < header_tabs[3]
+            )
+            self.assertFalse(
+                row_button_lane[0] <= point[0] < row_button_lane[2]
+                and row_button_lane[1] <= point[1] < row_button_lane[3]
+            )
+
+    def test_three_swipes_without_ready_row_end_evidence_required(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime = self._run_scan(
+                Path(directory),
+                ready_on_call=None,
+            )
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(result["input_count"], 3)
+        self.assertEqual(
+            [item["action_key"] for item in runtime.swipes],
+            [
+                "daily-row-scan-swipe-1",
+                "daily-row-scan-swipe-2",
+                "daily-row-scan-swipe-3",
+            ],
+        )
+
+    def test_unchanged_swipe_successor_stops_without_repeated_swipe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime = self._run_scan(
+                Path(directory),
+                ready_on_call=None,
+                unchanged_after_swipe=True,
+            )
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(len(runtime.swipes), 1)
 
 
 if __name__ == "__main__":

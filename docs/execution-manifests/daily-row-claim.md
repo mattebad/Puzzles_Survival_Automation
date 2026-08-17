@@ -3,7 +3,7 @@
 ## Task ID and objective
 - Task ID: `daily-row-claim`
 - Flow ID: `DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION`
-- Manifest state: `VIP_POINTS_POPUP_RECOGNIZER_ACCEPTED`
+- Manifest state: `POST_RESET_READY_ROW_SCAN_FROZEN`
 - Frozen repository candidate: `main@324d80badfa76ad3d1031b797dc600fcde8e6b40`
 - Corrected freeze UTC: `2026-08-16T22:06:31.525Z`
 - Objective: acquire current local-BlueStacks ordinary Daily row evidence, then deliver one exact free row-local Claim without registering or scheduling the handler.
@@ -109,6 +109,15 @@
 - Live receipt `e9882436-f818-48eb-b4cf-a4fed1c644cf` dispatched zero inputs because the exact current popup OCR merged the title as `GetPts`. Panel, body, and Close evidence were otherwise positive. One frozen shared-recognizer repair may add the compact `getpts` title alias to the existing exact VIP popup contract; it may not broaden body, panel, button, or popup identity authority.
 - Additional writable paths for this repair only: `scripts/world_map_navigation_bluestacks.py` and its existing focused popup test file(s).
 - Compact-title repair accepted: 165 combined tests passed; Daily focused 9 passed with digest `4747467c192ad625a955838c86e4f66f9ab88a6724060667e840561ed2ae61bf`; shared navigation 18 passed with digest `e0fa4cb88842dc3bfc9b982b52e337fafe833d054adc202178645f630756ac90`. Terra recheck `80c99397-599e-4356-bd9b-fcfa0b2161f2` and parent integration accepted.
+- Receipt `743139eb-2506-4d9d-95db-9095c9711ec3` dispatched one exact VIP Close input. Poll evidence proves the popup absent and no replacement modal; ownership released. The current selected-Daily frame SHA-256 `e47ab3833a647e0e6562c7aca0eccdb03faeb01a9367106c81cc45f505989ede` shows reset timer `23:07:46`, points `0`, and only incomplete `Go` rows in the visible viewport.
+- The reset invalidated the pre-reset `consume_stamina` target. Its canary remains prohibited unless freshly ready again. Parent checkpoint authorizes one bounded post-reset ready-row scan within the active Daily Row Claim flow.
+- Scan mode starts only on positively selected Daily with no modal. It inventories visible catalog-admitted ordinary rows and stops without input if a fully visible row-local Claim exists. Otherwise it may issue at most three upward list swipes, each from a fresh revalidated selected-Daily frame and each with a unique receipt identity, capturing and rescanning after every swipe. It must not tap Claim, Go, milestone chests, tabs, Back, or any other control.
+- Exact scan command:
+  `python scripts/pnsctl.py development-session daily-row-claim --mode scan-ready-row --max-inputs 3 --delegated-receipt <RECEIPT_DB> --agent-identity <LUNA_AGENT_ID> --task-id daily-row-claim --flow-id DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION --scenario post-reset-ready-row-scan --variant ordinary-row-scan`
+- Scan receipt is reconnaissance/navigation-only with action identities `daily-row-scan-swipe-1`, `daily-row-scan-swipe-2`, `daily-row-scan-swipe-3`, zero resource/combat inputs, and result identity `daily-row-claim:scan:post-reset-ready-row`.
+- Scan implementation and retained-evidence validation are parent-accepted. The validator requires ordered one-to-one correlation between every retained swipe and the actual runtime dispatch event, including explicit gesture, action class, consequence class, identity, geometry, source-frame hash, and input count; missing, extra, reordered, tampered, or out-of-region events fail closed.
+- Targeted validation accepted: native runtime `4/4`, Daily focused `76/76`, `py_compile`, and lints passed. Independent Terra High review `1c7bdbc1-60b1-4958-b307-14803298f88d` found no material scan receipt-supportability defect. Unrelated existing flow-delivery queue/lean baseline failures remain outside this atomic package.
+- Parent integration acceptance is `accepted`; one receipt-bound scan is admitted after the accepted paths are committed into a clean frozen candidate.
 
 ## Deferred evidence-bound implementation paths
 These paths are candidates only and are not writable under `FROZEN_RECONNAISSANCE`:
@@ -205,4 +214,4 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - Stop after any unknown runtime, ownership, transport, evidence, or semantic result; do not retry identically.
 
 ## Next authorized action
-- Commit the accepted compact-title repair locally without push, issue one fresh exact popup receipt, dismiss it once, then rerun zero-input Claim prepare.
+- Commit the accepted bounded selected-Daily ready-row scan package, issue one exact scan receipt from that clean frozen candidate, and execute the frozen scan command once. Classify the retained ready-row inventory before freezing any follow-up Claim target.

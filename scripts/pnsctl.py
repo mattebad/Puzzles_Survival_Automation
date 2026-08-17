@@ -1969,6 +1969,14 @@ DAILY_ROW_CLAIM_SCENARIO = "consume-stamina-row-claim"
 DAILY_ROW_CLAIM_PREPARE_VARIANT = "consume-stamina-prepare"
 DAILY_ROW_CLAIM_CANARY_VARIANT = "consume-stamina-canary"
 DAILY_ROW_CLAIM_DISMISS_VIP_VARIANT = "consume-stamina-dismiss-vip"
+DAILY_ROW_CLAIM_SCAN_VARIANT = "ordinary-row-scan"
+DAILY_ROW_CLAIM_SCAN_SCENARIO = "post-reset-ready-row-scan"
+DAILY_ROW_CLAIM_SCAN_RESULT_IDENTITY = "daily-row-claim:scan:post-reset-ready-row"
+DAILY_ROW_CLAIM_SCAN_ACTION_IDENTITIES = (
+    "daily-row-scan-swipe-1",
+    "daily-row-scan-swipe-2",
+    "daily-row-scan-swipe-3",
+)
 DAILY_ROW_CLAIM_PREPARE_RESULT_IDENTITY = "daily-row-claim:prepare:consume_stamina"
 DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY = "daily-row-claim:canary:consume_stamina"
 DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY = (
@@ -1986,6 +1994,7 @@ def _daily_row_claim_spec(mode: str) -> Mapping[str, Any]:
             "receipt_class": "reconnaissance",
             "max_inputs": 0,
             "variant": DAILY_ROW_CLAIM_PREPARE_VARIANT,
+            "scenario": DAILY_ROW_CLAIM_SCENARIO,
             "action_identities": (DAILY_ROW_CLAIM_PREPARE_ACTION_IDENTITY,),
             "action_classes": ("observation",),
             "consequence_class": "navigation_only",
@@ -1998,6 +2007,7 @@ def _daily_row_claim_spec(mode: str) -> Mapping[str, Any]:
             "receipt_class": "canary",
             "max_inputs": 1,
             "variant": DAILY_ROW_CLAIM_CANARY_VARIANT,
+            "scenario": DAILY_ROW_CLAIM_SCENARIO,
             "action_identities": (DAILY_ROW_CLAIM_ACTION_IDENTITY,),
             "action_classes": ("reward_claim",),
             "consequence_class": "ordinary_development",
@@ -2010,10 +2020,24 @@ def _daily_row_claim_spec(mode: str) -> Mapping[str, Any]:
             "receipt_class": "reconnaissance",
             "max_inputs": 1,
             "variant": DAILY_ROW_CLAIM_DISMISS_VIP_VARIANT,
+            "scenario": DAILY_ROW_CLAIM_SCENARIO,
             "action_identities": (DAILY_ROW_CLAIM_DISMISS_VIP_ACTION_IDENTITY,),
             "action_classes": ("navigation",),
             "consequence_class": "navigation_only",
             "result_identity": DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY,
+            "terminal_states": ("observed", "evidence_required"),
+        }
+    if mode == "scan-ready-row":
+        return {
+            "mode": mode,
+            "receipt_class": "reconnaissance",
+            "max_inputs": 3,
+            "variant": DAILY_ROW_CLAIM_SCAN_VARIANT,
+            "scenario": DAILY_ROW_CLAIM_SCAN_SCENARIO,
+            "action_identities": DAILY_ROW_CLAIM_SCAN_ACTION_IDENTITIES,
+            "action_classes": ("navigation", "navigation", "navigation"),
+            "consequence_class": "navigation_only",
+            "result_identity": DAILY_ROW_CLAIM_SCAN_RESULT_IDENTITY,
             "terminal_states": ("observed", "evidence_required"),
         }
     raise OperatorError("daily row Claim mode is unsupported")
@@ -2029,7 +2053,7 @@ def _validate_daily_row_claim_receipt(
         "receipt_class": spec["receipt_class"],
         "task_id": DAILY_ROW_CLAIM_TASK_ID,
         "flow_id": DAILY_ROW_CLAIM_FLOW_ID,
-        "scenario": DAILY_ROW_CLAIM_SCENARIO,
+        "scenario": spec["scenario"],
         "variant": spec["variant"],
         "consequence_class": spec["consequence_class"],
         "max_total_inputs": spec["max_inputs"],
@@ -2084,7 +2108,7 @@ def _validate_daily_row_claim_receipt(
         or not command[9]
         or command[10:12] != ["--task-id", DAILY_ROW_CLAIM_TASK_ID]
         or command[12:14] != ["--flow-id", DAILY_ROW_CLAIM_FLOW_ID]
-        or command[14:16] != ["--scenario", DAILY_ROW_CLAIM_SCENARIO]
+        or command[14:16] != ["--scenario", spec["scenario"]]
         or command[16:18] != ["--variant", spec["variant"]]
     ):
         raise OperatorError("daily row Claim command shape is not frozen")
@@ -2126,12 +2150,76 @@ def _write_daily_row_claim_artifacts(
         ):
             if reset_field in claim:
                 summary[reset_field] = claim[reset_field]
+    ready_row = result.get("ready_row")
+    if isinstance(ready_row, Mapping):
+        summary["ready_row"] = {
+            field: ready_row.get(field)
+            for field in (
+                "objective_key",
+                "objective_name",
+                "current_progress",
+                "required_progress",
+                "reward",
+                "row_bounds",
+                "claim_roi",
+                "claim_authority",
+            )
+        }
+    if result.get("final_annotation"):
+        summary["final_annotation"] = result.get("final_annotation")
+    if result.get("swipe_identities"):
+        summary["swipe_identities"] = result.get("swipe_identities")
     if result.get("reason"):
         summary["blocker"] = result["reason"]
     (session_directory / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
     )
+
+
+def _daily_row_claim_artifact_path(
+    session_directory: Path,
+    value: object,
+    *,
+    label: str,
+) -> Path:
+    if not isinstance(value, str) or not value.strip():
+        raise OperatorError(f"Daily row Claim {label} path is missing")
+    candidate = Path(value)
+    resolved = (
+        candidate if candidate.is_absolute() else session_directory / candidate
+    ).resolve()
+    try:
+        resolved.relative_to(session_directory.resolve())
+    except ValueError as exc:
+        raise OperatorError(f"Daily row Claim {label} escaped the session") from exc
+    if resolved.is_symlink() or not resolved.is_file():
+        raise OperatorError(f"Daily row Claim {label} is missing or unsafe")
+    return resolved
+
+
+def _daily_scan_point(value: object, *, label: str) -> tuple[int, int]:
+    if (
+        not isinstance(value, (list, tuple))
+        or len(value) != 2
+        or any(type(coordinate) is not int for coordinate in value)
+    ):
+        raise OperatorError(f"Daily ready-row scan {label} is malformed")
+    return int(value[0]), int(value[1])
+
+
+def _daily_scan_region(value: object, *, label: str) -> tuple[int, int, int, int]:
+    if (
+        not isinstance(value, (list, tuple))
+        or len(value) != 4
+        or any(type(coordinate) is not int for coordinate in value)
+    ):
+        raise OperatorError(f"Daily ready-row scan {label} is malformed")
+    region = tuple(int(coordinate) for coordinate in value)
+    x0, y0, x1, y1 = region
+    if not (0 <= x0 < x1 <= 800 and 0 <= y0 < y1 <= 1280):
+        raise OperatorError(f"Daily ready-row scan {label} is unsafe")
+    return region
 
 
 def _validate_daily_row_claim_artifacts(
@@ -2141,6 +2229,7 @@ def _validate_daily_row_claim_artifacts(
     mode: str,
 ) -> None:
     from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+    from scripts.daily_row_claim_bluestacks import DAILY_ROW_SCAN_LIST_REGION
 
     frames = payload.get("frames")
     if not isinstance(frames, Mapping) or "source" not in frames:
@@ -2290,6 +2379,263 @@ def _validate_daily_row_claim_artifacts(
             or successor.get("unblurred") is not True
         ):
             raise OperatorError("Daily VIP popup successor is not selected Daily")
+    elif mode == "scan-ready-row":
+        partial_terminal = payload.get("status") == "evidence_required"
+        expected_region = tuple(DAILY_ROW_SCAN_LIST_REGION)
+        expected_identities = list(DAILY_ROW_CLAIM_SCAN_ACTION_IDENTITIES)
+        declared_region = _daily_scan_region(
+            payload.get("safe_list_region"),
+            label="declared safe list region",
+        )
+        if declared_region != expected_region:
+            raise OperatorError("Daily ready-row scan safe list region is not frozen")
+        if payload.get("scan_budget") != len(expected_identities):
+            raise OperatorError("Daily ready-row scan budget is not frozen")
+        if payload.get("swipe_identities") != expected_identities:
+            raise OperatorError("Daily ready-row scan swipe identity manifest is not frozen")
+        if (
+            type(payload.get("input_count")) is not int
+            or payload["input_count"] < 0
+            or payload["input_count"] > len(expected_identities)
+        ):
+            raise OperatorError("Daily ready-row scan input count is malformed")
+        input_count = int(payload["input_count"])
+        if (
+            payload.get("resource_affecting_inputs") != 0
+            or payload.get("combat_confirmations") != 0
+            or payload.get("claim_authority") is not False
+        ):
+            raise OperatorError("Daily ready-row scan contains a forbidden capability")
+        for field, expected in (
+            ("action_class", "navigation"),
+            ("consequence_class", "navigation_only"),
+        ):
+            if field in payload and payload.get(field) != expected:
+                raise OperatorError(
+                    f"Daily ready-row scan {field} is not navigation-only"
+                )
+
+        actions = payload.get("actions")
+        if not isinstance(actions, list) or len(actions) != input_count:
+            raise OperatorError("Daily ready-row scan action count is malformed")
+        swipes = payload.get("swipes")
+        if not isinstance(swipes, list) or len(swipes) != input_count:
+            raise OperatorError("Daily ready-row scan swipe count is malformed")
+        actual_identities = [
+            row.get("action_identity") if isinstance(row, Mapping) else None
+            for row in swipes
+        ]
+        if actual_identities != expected_identities[:input_count]:
+            raise OperatorError("Daily ready-row scan action identity order is invalid")
+        if any(
+            not isinstance(row, Mapping)
+            or row.get("requested_action") != "navigation"
+            or row.get("action_class") != "navigation"
+            or row.get("label") != expected_identities[index]
+            or row.get("status")
+            not in ({"completed"} if not partial_terminal else {"completed", "unknown"})
+            or row.get("recovery_used") is True
+            or row.get("resource_affecting", False) not in (False, 0)
+            or row.get("combat_confirmation", False) not in (False, 0)
+            for index, row in enumerate(actions)
+        ):
+            raise OperatorError("Daily ready-row scan action record is not navigation")
+
+        declared_start = None
+        if "swipe_start" in payload:
+            declared_start = _daily_scan_point(
+                payload.get("swipe_start"),
+                label="declared swipe start",
+            )
+        declared_end = None
+        if "swipe_end" in payload:
+            declared_end = _daily_scan_point(
+                payload.get("swipe_end"),
+                label="declared swipe end",
+            )
+
+        for index, swipe in enumerate(swipes, start=1):
+            if not isinstance(swipe, Mapping):
+                raise OperatorError("Daily ready-row scan swipe record is malformed")
+            expected_identity = expected_identities[index - 1]
+            if (
+                swipe.get("ordinal") != index
+                or swipe.get("action_identity") != expected_identity
+                or swipe.get("action_class") != "navigation"
+                or swipe.get("consequence_class", "navigation_only")
+                != "navigation_only"
+                or swipe.get("consequential", False) is not False
+                or swipe.get("status")
+                not in ({"completed"} if not partial_terminal else {"completed", "unknown"})
+            ):
+                raise OperatorError(
+                    "Daily ready-row scan swipe action identity or class is invalid"
+                )
+            row_region = _daily_scan_region(
+                swipe.get("safe_list_region"),
+                label=f"swipe {index} safe list region",
+            )
+            if row_region != declared_region:
+                raise OperatorError(
+                    "Daily ready-row scan swipe safe list region is inconsistent"
+                )
+            start = _daily_scan_point(
+                swipe.get("start"),
+                label=f"swipe {index} start",
+            )
+            end = _daily_scan_point(
+                swipe.get("end"),
+                label=f"swipe {index} end",
+            )
+            for point, point_label in ((start, "start"), (end, "end")):
+                if not (
+                    declared_region[0] <= point[0] < declared_region[2]
+                    and declared_region[1] <= point[1] < declared_region[3]
+                ):
+                    raise OperatorError(
+                        f"Daily ready-row scan swipe {index} {point_label} is outside the safe list region"
+                    )
+            if (
+                declared_start is not None
+                and start != declared_start
+                or declared_end is not None
+                and end != declared_end
+            ):
+                raise OperatorError(
+                    "Daily ready-row scan swipe geometry disagrees with the declaration"
+                )
+            before_key = f"swipe_{index:02d}_immediate_before"
+            before_frame = frames.get(before_key)
+            before_ref = swipe.get("before")
+            if not isinstance(before_frame, Mapping) or not isinstance(before_ref, Mapping):
+                raise OperatorError(
+                    f"Daily ready-row scan swipe {index} immediate-before evidence is missing"
+                )
+            if (
+                before_ref.get("path") != before_frame.get("path")
+                or before_ref.get("sha256") != before_frame.get("sha256")
+                or swipe.get("source_frame_sha256") != before_frame.get("sha256")
+            ):
+                raise OperatorError(
+                    f"Daily ready-row scan swipe {index} source hash is not bound to immediate-before"
+                )
+            if not isinstance(swipe.get("source_frame_sha256"), str):
+                raise OperatorError(
+                    f"Daily ready-row scan swipe {index} source hash is malformed"
+                )
+
+        events_value = payload.get("runtime_events_path")
+        if not isinstance(events_value, str) or not events_value.strip():
+            if input_count or not partial_terminal:
+                raise OperatorError("Daily ready-row scan runtime events path is missing")
+        else:
+            events_path = _daily_row_claim_artifact_path(
+                session_directory,
+                events_value,
+                label="runtime events",
+            )
+            try:
+                event_lines = events_path.read_text(encoding="utf-8").splitlines()
+            except (OSError, UnicodeError) as exc:
+                raise OperatorError("Daily ready-row scan runtime events are unreadable") from exc
+            event_rows: list[Mapping[str, Any]] = []
+            for line_number, line in enumerate(event_lines, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    parsed = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise OperatorError(
+                        f"Daily ready-row scan runtime event {line_number} is malformed"
+                    ) from exc
+                if not isinstance(parsed, Mapping):
+                    raise OperatorError(
+                        f"Daily ready-row scan runtime event {line_number} is malformed"
+                    )
+                event_rows.append(parsed)
+            dispatches: list[Mapping[str, Any]] = []
+            for event in event_rows:
+                event_type = event.get("type")
+                if event_type == "capture":
+                    continue
+                if event_type != "dispatch":
+                    raise OperatorError(
+                        "Daily ready-row scan contains a forbidden runtime event"
+                    )
+                dispatches.append(event)
+            if len(dispatches) != input_count:
+                raise OperatorError(
+                    "Daily ready-row scan runtime dispatch count does not match input count"
+                )
+            for index, (swipe, event) in enumerate(zip(swipes, dispatches), start=1):
+                expected_identity = expected_identities[index - 1]
+                if (
+                    event.get("action_key") != expected_identity
+                    or event.get("target_identity") != expected_identity
+                    or "gesture" not in event
+                    or event["gesture"] != "swipe"
+                    or "action_class" not in event
+                    or event["action_class"] != "navigation"
+                    or "consequence_class" not in event
+                    or event["consequence_class"] != "navigation_only"
+                    or event.get("consequential", False) is not False
+                    or event.get("resource_affecting", False) is not False
+                    or event.get("combat_confirmation", False) is not False
+                    or any(
+                        event.get(field) != 0
+                        for field in (
+                            "resource_affecting_inputs",
+                            "combat_confirmations",
+                            "resource_count",
+                            "combat_count",
+                        )
+                        if field in event
+                    )
+                    or (
+                        "input_count" in event
+                        and event.get("input_count") != index
+                    )
+                ):
+                    raise OperatorError(
+                        "Daily ready-row scan runtime dispatch identity or class is invalid"
+                    )
+                if (
+                    _daily_scan_point(event.get("start"), label=f"event {index} start")
+                    != tuple(swipe["start"])
+                    or _daily_scan_point(event.get("end"), label=f"event {index} end")
+                    != tuple(swipe["end"])
+                    or event.get("source_sha256") != swipe.get("source_frame_sha256")
+                ):
+                    raise OperatorError(
+                        "Daily ready-row scan runtime dispatch does not match its swipe"
+                    )
+
+        annotation = payload.get("final_annotation")
+        if (
+            not isinstance(annotation, str)
+            or not annotation.strip()
+        ) and not partial_terminal:
+            raise OperatorError("Daily ready-row scan final annotation is missing")
+        if isinstance(annotation, str) and annotation.strip():
+            annotation_path = _daily_row_claim_artifact_path(
+                session_directory,
+                annotation,
+                label="final annotation",
+            )
+            if annotation_path.stat().st_size == 0:
+                raise OperatorError("Daily ready-row scan final annotation is unsafe")
+        if payload.get("status") == "observed":
+            ready = payload.get("ready_row")
+            if (
+                not isinstance(ready, Mapping)
+                or ready.get("status") != "ready"
+                or ready.get("claim_authority") is not False
+                or not ready.get("objective_key")
+                or not ready.get("objective_name")
+                or not ready.get("row_bounds")
+                or not ready.get("claim_roi")
+            ):
+                raise OperatorError("Daily ready-row scan ready-row evidence is missing")
 
 
 def development_session_daily_row_claim(
@@ -2314,7 +2660,7 @@ def development_session_daily_row_claim(
     if (
         task_id != DAILY_ROW_CLAIM_TASK_ID
         or flow_id != DAILY_ROW_CLAIM_FLOW_ID
-        or scenario != DAILY_ROW_CLAIM_SCENARIO
+        or scenario != spec["scenario"]
         or variant != spec["variant"]
         or command_argv is None
     ):
@@ -2325,6 +2671,7 @@ def development_session_daily_row_claim(
         run_daily_row_claim_vip_popup_dismissal,
         run_daily_row_claim_canary,
         run_daily_row_claim_prepare,
+        run_daily_row_claim_ready_row_scan,
     )
     from scripts.flow_delivery_control import DelegatedRuntimeReceiptController
     from scripts.navigation_development_boundary import (
@@ -2353,6 +2700,7 @@ def development_session_daily_row_claim(
     runtime: Any | None = None
     route_result: dict[str, Any] | None = None
     terminal_recorded = False
+    checkpoint_before = _checkpoint_hashes()
     # Daily reset authority is bound from the displayed in-game countdown
     # after the source frame is captured.  A host date is not a game-day
     # identity and must never authorize this flow.
@@ -2450,6 +2798,11 @@ def development_session_daily_row_claim(
                         game_day_id=game_day_id,
                     )
                     if mode == "canary"
+                    else run_daily_row_claim_ready_row_scan(
+                        runtime,
+                        active_session,
+                    )
+                    if mode == "scan-ready-row"
                     else run_daily_row_claim_vip_popup_dismissal(
                         runtime,
                         active_session,
@@ -2464,6 +2817,12 @@ def development_session_daily_row_claim(
             os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = previous_limit
         if session is None or session._ownership.lock.held:
             raise OperatorError("Daily row Claim ownership release is unproven")
+        if _checkpoint_hashes() != checkpoint_before:
+            route_result = {
+                **(route_result or {}),
+                "status": "evidence_required",
+                "reason": "Daily ready-row scan mutated a checkpoint artifact",
+            }
         status = str((route_result or {}).get("status") or "evidence_required")
         payload = base_payload(status)
         payload["ownership_released"] = True
@@ -2472,7 +2831,19 @@ def development_session_daily_row_claim(
             payload,
             ownership_released=True,
         )
-        if status in {"observed", "completed"}:
+        scan_artifacts_present = mode == "scan-ready-row" and any(
+            field in payload
+            for field in (
+                "frames",
+                "swipes",
+                "actions",
+                "runtime_events_path",
+                "final_annotation",
+            )
+        )
+        if status in {"observed", "completed"} or (
+            status == "evidence_required" and scan_artifacts_present
+        ):
             _validate_daily_row_claim_artifacts(
                 session_directory,
                 payload,
@@ -5891,7 +6262,7 @@ def parser() -> argparse.ArgumentParser:
     daily_row_claim = development_sub.add_parser("daily-row-claim")
     daily_row_claim.add_argument(
         "--mode",
-        choices=("prepare", "canary", "dismiss-vip-popup"),
+        choices=("prepare", "canary", "dismiss-vip-popup", "scan-ready-row"),
         required=True,
     )
     daily_row_claim.add_argument("--max-inputs", type=int, required=True)

@@ -1058,5 +1058,115 @@ def time_now(value: str):
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+class DailyReadyRowReceiptBindingTests(unittest.TestCase):
+    def _command(self, root: Path) -> list[str]:
+        return [
+            "development-session",
+            "daily-row-claim",
+            "--mode",
+            "scan-ready-row",
+            "--max-inputs",
+            "3",
+            "--delegated-receipt",
+            str(root / "receipts.sqlite3"),
+            "--agent-identity",
+            "luna-agent",
+            "--task-id",
+            "daily-row-claim",
+            "--flow-id",
+            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+            "--scenario",
+            "post-reset-ready-row-scan",
+            "--variant",
+            "ordinary-row-scan",
+        ]
+
+    def test_scan_receipt_freezes_navigation_only_swipe_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            controller = control.DelegatedRuntimeReceiptController(
+                root / "receipts.sqlite3"
+            )
+            controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
+            receipt = controller.issue(
+                task_id="daily-row-claim",
+                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                receipt_class="reconnaissance",
+                agent_identity="luna-agent",
+                command_argv=self._command(root),
+                scenario="post-reset-ready-row-scan",
+                variant="ordinary-row-scan",
+                permitted_action_identities=[
+                    "daily-row-scan-swipe-1",
+                    "daily-row-scan-swipe-2",
+                    "daily-row-scan-swipe-3",
+                ],
+                permitted_action_classes=["navigation", "navigation", "navigation"],
+                consequence_class="navigation_only",
+                max_total_inputs=3,
+                max_resource_affecting_inputs=0,
+                max_combat_confirmations=0,
+                permitted_terminal_states=["observed", "evidence_required"],
+                result_identity="daily-row-claim:scan:post-reset-ready-row",
+            )
+            pnsctl._validate_daily_row_claim_receipt(
+                receipt,
+                mode="scan-ready-row",
+            )
+            self.assertEqual(receipt["receipt_class"], "reconnaissance")
+            self.assertEqual(receipt["consequence_class"], "navigation_only")
+            self.assertEqual(receipt["max_total_inputs"], 3)
+            self.assertEqual(
+                receipt["permitted_action_identities"],
+                [
+                    "daily-row-scan-swipe-1",
+                    "daily-row-scan-swipe-2",
+                    "daily-row-scan-swipe-3",
+                ],
+            )
+            self.assertEqual(
+                receipt["permitted_action_classes"],
+                ["navigation", "navigation", "navigation"],
+            )
+            self.assertEqual(controller.inspect()["status"], "issued")
+
+    def test_scan_receipt_mismatch_is_rejected_before_consumption(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            controller = control.DelegatedRuntimeReceiptController(
+                root / "receipts.sqlite3"
+            )
+            controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
+            receipt = controller.issue(
+                task_id="daily-row-claim",
+                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                receipt_class="reconnaissance",
+                agent_identity="luna-agent",
+                command_argv=self._command(root),
+                scenario="post-reset-ready-row-scan",
+                variant="ordinary-row-scan",
+                permitted_action_identities=[
+                    "daily-row-scan-swipe-1",
+                    "daily-row-scan-swipe-2",
+                    "daily-row-scan-swipe-3",
+                ],
+                permitted_action_classes=["navigation", "navigation", "navigation"],
+                consequence_class="navigation_only",
+                max_total_inputs=3,
+                max_resource_affecting_inputs=0,
+                max_combat_confirmations=0,
+                permitted_terminal_states=["observed", "evidence_required"],
+                result_identity="daily-row-claim:scan:post-reset-ready-row",
+            )
+            wrong = dict(receipt)
+            wrong["scenario"] = "consume-stamina-row-claim"
+            with self.assertRaises(pnsctl.OperatorError):
+                pnsctl._validate_daily_row_claim_receipt(
+                    wrong,
+                    mode="scan-ready-row",
+                )
+            self.assertEqual(controller.inspect()["status"], "issued")
+
+
 if __name__ == "__main__":
     unittest.main()

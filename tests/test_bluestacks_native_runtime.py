@@ -18,9 +18,17 @@ from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStac
 class FakeRunner:
     def __init__(self) -> None:
         self.taps: list[tuple[int, int]] = []
+        self.swipes: list[tuple[tuple[int, int], tuple[int, int]]] = []
 
     def dispatch_tap(self, point: tuple[int, int]) -> None:
         self.taps.append(point)
+
+    def dispatch_swipe(
+        self,
+        start: tuple[int, int],
+        end: tuple[int, int],
+    ) -> None:
+        self.swipes.append((start, end))
 
 
 def source_frame(root: Path, name: str = "source") -> CapturedNativeFrame:
@@ -114,6 +122,54 @@ class LocalBlueStacksRuntimeActionClassTests(unittest.TestCase):
             finally:
                 connection.close()
             self.assertEqual(tuple(reservation), ("navigation", "input_sent"))
+
+    def test_real_swipe_emits_exact_scan_event_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime, runner = self._runtime(root)
+            _controller, context = self._navigation_context(root)
+            source = source_frame(root)
+            with boundary.delegated_runtime_context(context):
+                runtime.swipe(
+                    source,
+                    start=(400, 1000),
+                    end=(400, 560),
+                    action_key="target-a",
+                    target_identity="target-a",
+                )
+
+            self.assertEqual(runner.swipes, [((400, 1000), (400, 560))])
+            event = json.loads(runtime.events.read_text(encoding="utf-8").splitlines()[-1])
+            self.assertEqual(
+                {field: event[field] for field in (
+                    "gesture",
+                    "action_class",
+                    "consequence_class",
+                )},
+                {
+                    "gesture": "swipe",
+                    "action_class": "navigation",
+                    "consequence_class": "navigation_only",
+                },
+            )
+            self.assertEqual(event["action_key"], "target-a")
+            self.assertEqual(event["target_identity"], "target-a")
+            self.assertEqual(event["start"], [400, 1000])
+            self.assertEqual(event["end"], [400, 560])
+            self.assertEqual(event["source_sha256"], source.sha256)
+            connection = _controller._connection()
+            try:
+                reservation = connection.execute(
+                    "SELECT action_class, consequence_class, status "
+                    "FROM delegated_reservations WHERE receipt_id=?",
+                    (context.receipt["receipt_id"],),
+                ).fetchone()
+            finally:
+                connection.close()
+            self.assertEqual(
+                tuple(reservation),
+                ("navigation", "navigation_only", "input_sent"),
+            )
 
     def test_optional_reward_claim_tap_records_reward_claim_without_breaking_compatibility(self):
         with tempfile.TemporaryDirectory() as directory:
