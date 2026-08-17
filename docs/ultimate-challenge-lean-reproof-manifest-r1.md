@@ -252,3 +252,19 @@ All other paths are read-only during implementation.
 - A legacy controller queue may contain its standard `active_flow_id`; that field alone must not select the development-session branch. It must instead reach legacy validation for exact `flows` identity, held ownership, nonempty owner, and explicit integer `max_inputs=16`.
 - Add valid legacy Daily and navigation tests using the standard `active_flow_id` plus `flows`, and preserve all malformed-context pre-launch assertions.
 - One Luna implementation and one Terra review are authorized. No live input before parent integration acceptance and a clean candidate commit.
+
+## Refrozen stage r13 — exclude edge-spanning Home scenery from popup binding
+- User authorization: autonomous redesign around non-absolute blockers remains active. The first r12 canary failed closed with zero inputs, and the retained current native frame establishes a local visual-classification defect.
+- Revision ID: `ultimate-challenge-lean-reproof-r13`.
+- Failure class: `local_defect`.
+- Evidence:
+  - current retained 800×1280 frame is visually Home and `recognize_home_nav` reports `is_home=True`, `correlation=0.9604653120040894`;
+  - `_unexpected_visual_popup` reports true only because shared contour candidates spanning ordinary Home scenery reach the right frame edge (`x1=799`);
+  - the blocked canary and supported Home recovery consumed zero inputs and released ownership.
+- Writable paths:
+  - `scripts/bluestacks_ultimate_challenge.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- A bounded central modal candidate must be interior to the native frame. Edge-spanning scenery candidates touching either horizontal frame edge must not deny an otherwise positive Home source.
+- Preserve centered popup denial, all actionable-state overlay denial, native-frame requirements, and fail-closed behavior for ambiguous or genuinely bounded panels.
+- Add deterministic unit coverage using independently hard-coded centered-modal and edge-spanning geometry; retained live evidence is supplementary, not the authoritative test oracle.
+- One Luna implementation and one Terra review are authorized. A new clean candidate commit and one materially changed live canary may follow parent integration acceptance.

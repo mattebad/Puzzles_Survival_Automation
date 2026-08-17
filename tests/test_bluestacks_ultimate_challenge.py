@@ -209,14 +209,36 @@ class UltimateChallengeVisualTests(unittest.TestCase):
             )
         self.assertFalse(observation.entry_control_visible)
 
-    def test_popup_detector_uses_shared_visual_panel_primitive(self) -> None:
+    def test_popup_detector_requires_interior_central_geometry(self) -> None:
         blank = np.zeros((1280, 800, 3), dtype=np.uint8)
+        geometries = (
+            ("centered", (50, 400, 750, 800), True),
+            ("offset_interior", (170, 400, 730, 800), True),
+            ("left_margin_touching", (40, 400, 700, 800), False),
+            ("right_margin_touching", (100, 400, 760, 800), False),
+            ("right_edge_scenery", (34, 588, 799, 1091), False),
+            ("left_edge_scenery", (1, 588, 766, 1091), False),
+        )
+        for label, candidate, expected_popup in geometries:
+            with self.subTest(geometry=label), patch.object(
+                ultimate,
+                "_visual_popup_panel_candidates",
+                return_value=[candidate],
+            ):
+                self.assertEqual(
+                    bool(ultimate._central_popup_candidates(blank)),
+                    expected_popup,
+                )
+                self.assertEqual(
+                    ultimate._unexpected_visual_popup(blank),
+                    expected_popup,
+                )
+
         with patch.object(
             ultimate,
             "_visual_popup_panel_candidates",
             return_value=[(50, 400, 750, 800)],
         ):
-            self.assertTrue(ultimate._unexpected_visual_popup(blank))
             self.assertIsNone(ultimate._recognize_ultimate_main(blank))
             self.assertIsNone(ultimate._bind_active_battle_exit(blank))
 
@@ -559,6 +581,22 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         ) as campaign:
             campaign(runtime, atlas_path=root / "atlas.json", execute=True)
         self.assertIs(campaign.call_args.args[0], runtime)
+
+    def test_edge_spanning_scenery_does_not_block_synthetic_home_normalization(self) -> None:
+        canonical = self._home_frame()
+        edge_spanning_scenery = (34, 588, 799, 1091)
+        with patch.object(
+            ultimate,
+            "_visual_popup_panel_candidates",
+            return_value=[edge_spanning_scenery],
+        ):
+            root, runtime, ok, detail = self._run_normalizer(
+                factory=lambda _count: canonical,
+                initial_canonical=True,
+            )
+        self.assertTrue(ok)
+        self.assertEqual(detail["zoom_input_count"], 0)
+        self.assertEqual(runtime.input_count, 0)
 
     def test_recoverable_zoom_uses_guarded_counted_transport(self) -> None:
         canonical = self._home_frame()

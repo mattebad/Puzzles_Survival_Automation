@@ -43,6 +43,7 @@ from bluestacks_flow_collector import (
 from bluestacks_native_runtime import (
     CapturedNativeFrame,
     LocalBlueStacksRuntime,
+    NATIVE_WIDTH,
     NATIVE_RUNTIME_PROFILE_ID,
 )
 from home_atlas_bluestacks import (
@@ -96,6 +97,8 @@ _FLEE_MODAL_ROI = (65, 365, 735, 745)
 _FLEE_MODAL_TEXT_ROI = (120, 450, 680, 590)
 _FLEE_FIGHT_SEARCH_ROI = (80, 590, 390, 740)
 _FLEE_FLEE_SEARCH_ROI = (390, 590, 720, 740)
+# Keep contour boxes touching the native horizontal edge margins classified as scenery.
+_CENTRAL_POPUP_HORIZONTAL_MARGIN = int(NATIVE_WIDTH * 0.05)
 
 import pytesseract
 from pytesseract import Output
@@ -272,8 +275,8 @@ def _central_popup_candidates(
     candidates = []
     for x0, y0, x1, y1 in _visual_popup_candidates(frame):
         if (
-            x0 <= 160
-            and x1 >= 640
+            x0 > _CENTRAL_POPUP_HORIZONTAL_MARGIN
+            and x1 < NATIVE_WIDTH - _CENTRAL_POPUP_HORIZONTAL_MARGIN
             and 350 <= y0 <= 800
             and 450 <= y1 <= 1100
             and 400 <= x1 - x0 <= 780
