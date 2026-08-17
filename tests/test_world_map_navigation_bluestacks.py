@@ -1461,6 +1461,58 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertIn("Log in every day to get VIP pts", result.semantic_evidence)
         self.assertIn("Close", result.semantic_evidence)
 
+    def test_popup_accepts_merged_getpts_only_with_exact_body_and_close(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        panel = (96, 260, 704, 948)
+        button = (228, 772, 572, 856)
+        cases = (
+            (
+                "GetPts\nLog in every day to get VIP pts",
+                "Close",
+                "allowed",
+            ),
+            ("GetPts", "Close", "unknown"),
+            ("GetPts\nLog in every day to get VIP rewards", "Close", "unknown"),
+            (
+                "GetPts\nLog in every day to get VIP pts",
+                "Dismiss",
+                "unknown",
+            ),
+        )
+        for panel_text, close_text, expected_status in cases:
+            with self.subTest(panel_text=panel_text, close_text=close_text):
+
+                def local_ocr(_frame, roi, *, psm):
+                    if roi == panel and psm == 11:
+                        return panel_text
+                    if psm == 7:
+                        return close_text
+                    return ""
+
+                with patch(
+                    "scripts.world_map_navigation_bluestacks._ocr_hits",
+                    return_value=[],
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._visual_popup_panel_candidates",
+                    return_value=[panel],
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+                    return_value=[button],
+                ), patch(
+                    "scripts.world_map_navigation_bluestacks._ocr_text_in_roi",
+                    side_effect=local_ocr,
+                ):
+                    result = recognize_allowlisted_popup(
+                        frame,
+                        source_frame_sha256="e" * 64,
+                    )
+                self.assertEqual(result.status, expected_status)
+                if expected_status == "allowed":
+                    self.assertEqual(result.popup_identity, "VIP_POINTS_GET_PTS")
+                    self.assertEqual(result.target_identity, POPUP_CLOSE)
+                    self.assertEqual(result.target_roi, button)
+                    self.assertEqual(result.source_frame_sha256, "e" * 64)
+
     def test_popup_lookalike_partial_and_unbacked_panel_evidence_fail_closed(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         panel = (96, 260, 704, 948)

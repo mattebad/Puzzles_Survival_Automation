@@ -99,7 +99,7 @@ _CONTROL_LABELS: Mapping[str, tuple[str, ...]] = {
     WORLD_SEARCH_CLOSE: ("close",),
     WORLD_TO_HOME: ("home", "base"),
 }
-_POPUP_TITLE_MARKERS = ("get pts", "get points")
+_POPUP_TITLE_MARKERS = ("get pts", "get points", "getpts")
 _POPUP_BODY_MARKERS = (
     "log in every day to get vip pts",
     "obtained vip pts",
@@ -145,7 +145,7 @@ class PopupContract:
 POPUP_CONTRACT_REGISTRY: Mapping[str, PopupContract] = {
     "VIP_POINTS_GET_PTS": PopupContract(
         popup_identity="VIP_POINTS_GET_PTS",
-        title_markers=("get pts", "get points"),
+        title_markers=("get pts", "get points", "getpts"),
         body_markers=("log in every day to get vip pts", "obtained vip pt"),
         close_identity=POPUP_CLOSE,
         close_label="Close",

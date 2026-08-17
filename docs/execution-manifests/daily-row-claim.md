@@ -3,7 +3,7 @@
 ## Task ID and objective
 - Task ID: `daily-row-claim`
 - Flow ID: `DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION`
-- Manifest state: `VIP_POINTS_POPUP_DISMISS_ACCEPTED`
+- Manifest state: `VIP_POINTS_POPUP_RECOGNIZER_ACCEPTED`
 - Frozen repository candidate: `main@324d80badfa76ad3d1031b797dc600fcde8e6b40`
 - Corrected freeze UTC: `2026-08-16T22:06:31.525Z`
 - Objective: acquire current local-BlueStacks ordinary Daily row evidence, then deliver one exact free row-local Claim without registering or scheduling the handler.
@@ -106,6 +106,9 @@
 - Exact popup command:
   `python scripts/pnsctl.py development-session daily-row-claim --mode dismiss-vip-popup --max-inputs 1 --delegated-receipt <RECEIPT_DB> --agent-identity <LUNA_AGENT_ID> --task-id daily-row-claim --flow-id DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION --scenario consume-stamina-row-claim --variant consume-stamina-dismiss-vip`
 - Popup package validation accepted: 124 affected tests passed; focused validation passed 9 with digest `6ea8539aff559c3cf9a0e8585eb6d3f5bd23269e8eb378934df31361472d2854`. Terra recheck `bf58b5c0-49f0-4ece-839a-f12967f6b626` and parent integration accepted the exact VIP and generic-modal successor gates.
+- Live receipt `e9882436-f818-48eb-b4cf-a4fed1c644cf` dispatched zero inputs because the exact current popup OCR merged the title as `GetPts`. Panel, body, and Close evidence were otherwise positive. One frozen shared-recognizer repair may add the compact `getpts` title alias to the existing exact VIP popup contract; it may not broaden body, panel, button, or popup identity authority.
+- Additional writable paths for this repair only: `scripts/world_map_navigation_bluestacks.py` and its existing focused popup test file(s).
+- Compact-title repair accepted: 165 combined tests passed; Daily focused 9 passed with digest `4747467c192ad625a955838c86e4f66f9ab88a6724060667e840561ed2ae61bf`; shared navigation 18 passed with digest `e0fa4cb88842dc3bfc9b982b52e337fafe833d054adc202178645f630756ac90`. Terra recheck `80c99397-599e-4356-bd9b-fcfa0b2161f2` and parent integration accepted.
 
 ## Deferred evidence-bound implementation paths
 These paths are candidates only and are not writable under `FROZEN_RECONNAISSANCE`:
@@ -202,4 +205,4 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - Stop after any unknown runtime, ownership, transport, evidence, or semantic result; do not retry identically.
 
 ## Next authorized action
-- Commit the accepted popup package locally without push, issue one exact max-one popup receipt, dismiss it once, then rerun zero-input Claim prepare from the resulting selected-Daily state.
+- Commit the accepted compact-title repair locally without push, issue one fresh exact popup receipt, dismiss it once, then rerun zero-input Claim prepare.
