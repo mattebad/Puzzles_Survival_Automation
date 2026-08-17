@@ -304,7 +304,7 @@ def _home_navigation_geometry(
     tokens: Sequence[OCRToken],
     quest: OCRToken,
 ) -> dict[str, Any] | None:
-    """Derive the current Quest lane and icon band from adjacent labels."""
+    """Derive the current Quest lane and icon band from navigation labels."""
 
     quest_x0, quest_y0, quest_x1, quest_y1 = quest.roi
     quest_center_x = (quest_x0 + quest_x1) // 2
@@ -336,29 +336,68 @@ def _home_navigation_geometry(
 
     left = [candidate for candidate in labels if (candidate.roi[0] + candidate.roi[2]) // 2 < quest_center_x]
     right = [candidate for candidate in labels if (candidate.roi[0] + candidate.roi[2]) // 2 > quest_center_x]
-    if not left or not right:
-        return None
 
     left.sort(key=lambda candidate: (candidate.roi[0] + candidate.roi[2]) // 2, reverse=True)
     right.sort(key=lambda candidate: (candidate.roi[0] + candidate.roi[2]) // 2)
-    if (
-        len(left) > 1
-        and (left[0].roi[0] + left[0].roi[2]) // 2
-        == (left[1].roi[0] + left[1].roi[2]) // 2
-    ) or (
-        len(right) > 1
-        and (right[0].roi[0] + right[0].roi[2]) // 2
-        == (right[1].roi[0] + right[1].roi[2]) // 2
-    ):
-        return None
-    left_label, right_label = left[0], right[0]
-    left_center_x = (left_label.roi[0] + left_label.roi[2]) // 2
-    right_center_x = (right_label.roi[0] + right_label.roi[2]) // 2
-    if not (left_center_x < quest_center_x < right_center_x):
+    left_label: OCRToken | None = None
+    right_label: OCRToken | None = None
+    navigation_evidence = "two_sided_adjacent_labels"
+    if left and right:
+        if (
+            len(left) > 1
+            and (left[0].roi[0] + left[0].roi[2]) // 2
+            == (left[1].roi[0] + left[1].roi[2]) // 2
+        ) or (
+            len(right) > 1
+            and (right[0].roi[0] + right[0].roi[2]) // 2
+            == (right[1].roi[0] + right[1].roi[2]) // 2
+        ):
+            return None
+        left_label, right_label = left[0], right[0]
+        left_center_x = (left_label.roi[0] + left_label.roi[2]) // 2
+        right_center_x = (right_label.roi[0] + right_label.roi[2]) // 2
+        if not (left_center_x < quest_center_x < right_center_x):
+            return None
+        lane_left = (left_center_x + quest_center_x) // 2
+        lane_right = (quest_center_x + right_center_x + 1) // 2
+    elif not left and len(right) >= 3:
+        # The fresh Home frame missed Hero but retained the exact ordered
+        # Bag -> Mail -> More chain.  Do not generalize this to arbitrary
+        # recognized navigation words or an extra-label chain.
+        right_chain = tuple(
+            candidate
+            for candidate in right
+            if candidate.text in {"bag", "mail", "more"}
+        )
+        if (
+            len(right) != 3
+            or len(right_chain) != 3
+            or tuple(candidate.text for candidate in right_chain)
+            != ("bag", "mail", "more")
+        ):
+            return None
+        right_centers = tuple(
+            (candidate.roi[0] + candidate.roi[2]) // 2 for candidate in right_chain
+        )
+        if len(set(right_centers)) != len(right_centers):
+            return None
+        adjacent_gap_limit = max(192, quest_height * 6)
+        gaps = (
+            right_centers[0] - quest_center_x,
+            right_centers[1] - right_centers[0],
+            right_centers[2] - right_centers[1],
+        )
+        if any(gap <= 0 or gap > adjacent_gap_limit for gap in gaps):
+            return None
+        right_label = right_chain[0]
+        navigation_evidence = "right_side_label_chain"
+        # Reflect the measured Quest-to-Bag gap to retain a Quest-local lane
+        # without inventing a fixed coordinate or accepting Quest text alone.
+        lane_left = (quest_center_x * 3 - right_centers[0]) // 2
+        lane_right = (quest_center_x + right_centers[0] + 1) // 2
+    else:
         return None
 
-    lane_left = (left_center_x + quest_center_x) // 2
-    lane_right = (quest_center_x + right_center_x + 1) // 2
     if lane_right - lane_left < 12:
         return None
 
@@ -378,8 +417,19 @@ def _home_navigation_geometry(
         "quest_center": (quest_center_x, quest_center_y),
         "left_label": left_label,
         "right_label": right_label,
-        "left_label_center": (left_center_x, (left_label.roi[1] + left_label.roi[3]) // 2),
-        "right_label_center": (right_center_x, (right_label.roi[1] + right_label.roi[3]) // 2),
+        "left_label_center": (
+            (left_label.roi[0] + left_label.roi[2]) // 2,
+            (left_label.roi[1] + left_label.roi[3]) // 2,
+        )
+        if left_label is not None
+        else None,
+        "right_label_center": (
+            (right_label.roi[0] + right_label.roi[2]) // 2,
+            (right_label.roi[1] + right_label.roi[3]) // 2,
+        )
+        if right_label is not None
+        else None,
+        "navigation_evidence": navigation_evidence,
         "ownership_lane": (lane_left, lane_right),
         "icon_band": icon_band,
     }
@@ -555,10 +605,15 @@ def _bind_home_quest_target(
             "quest_ocr_roi": geometry["quest_ocr_roi"],
             "ownership_lane": geometry["ownership_lane"],
             "icon_band": geometry["icon_band"],
-            "left_label_roi": geometry["left_label"].roi,
-            "right_label_roi": geometry["right_label"].roi,
+            "left_label_roi": (
+                geometry["left_label"].roi if geometry["left_label"] is not None else None
+            ),
+            "right_label_roi": (
+                geometry["right_label"].roi if geometry["right_label"] is not None else None
+            ),
             "left_label_center": geometry["left_label_center"],
             "right_label_center": geometry["right_label_center"],
+            "navigation_evidence": geometry["navigation_evidence"],
         }
     )
     if len(components) == 0:

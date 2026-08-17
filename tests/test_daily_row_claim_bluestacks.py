@@ -769,6 +769,137 @@ class DailyRowRecognizerTests(unittest.TestCase):
         self.assertEqual(binding["ownership_lane"], (202, 375))
         self.assertEqual(binding["icon_band"], (202, 1146, 375, 1242))
 
+    def test_fresh_home_source_binds_quest_with_right_side_navigation_chain(self) -> None:
+        source_path = (
+            Path(__file__).resolve().parents[1]
+            / ".local-captures/development-sessions/delegated-e0dece90-4270-4cda-8aad-15bda0c689c0"
+            / "runtime/daily-row-reconnaissance-20260817T054254117686Z/frames/0001-home-source.png"
+        )
+        if not source_path.is_file():
+            self.skipTest("fresh Home source is unavailable in this checkout")
+        payload = source_path.read_bytes()
+        self.assertEqual(
+            hashlib.sha256(payload).hexdigest(),
+            "a82f1e4f3b9760810acbe139fb7afea7dd25433e896afb7297a1cec6f94fe442",
+        )
+        frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        assert frame is not None
+        recognizer = daily.DailyRowClaimRecognizer(
+            ocr=self._ocr_for(
+                [
+                    ("quest", 284 * 2, (1230 - 1000) * 2, 75 * 2, 38 * 2),
+                    ("bag", 390 * 2, (1233 - 1000) * 2, 108 * 2, 33 * 2),
+                    ("mail", 512 * 2, (1242 - 1000) * 2, 50 * 2, 20 * 2),
+                    ("more", 714 * 2, (1222 - 1000) * 2, 75 * 2, 40 * 2),
+                ]
+            )
+        )
+
+        recognition = recognizer.recognize_home(frame)
+
+        self.assertTrue(recognition.recognized)
+        self.assertEqual(recognition.target_identity, daily.HOME_QUEST_IDENTITY)
+        binding = recognition.visual_evidence["quest_binding"]
+        self.assertEqual(binding["navigation_evidence"], "right_side_label_chain")
+        self.assertIsNone(binding["left_label_roi"])
+        self.assertEqual(binding["right_label_roi"], (390, 1233, 498, 1266))
+        self.assertEqual(binding["component_count"], 1)
+        self.assertEqual(binding["raw_support_result"]["supported_pixel"], True)
+        self.assertEqual(binding["raw_support_result"]["complete_3x3"], True)
+        selected_x, selected_y = binding["selected_point"]
+        component_x0, component_y0, component_x1, component_y1 = binding["component_roi"]
+        self.assertTrue(component_x0 <= selected_x < component_x1)
+        self.assertTrue(component_y0 <= selected_y < component_y1)
+        target_x0, target_y0, target_x1, target_y1 = recognition.target_roi
+        self.assertEqual((target_x1 - target_x0, target_y1 - target_y0), (3, 3))
+
+    def test_home_quest_right_side_fallback_remains_fail_closed(self) -> None:
+        right_chain = [
+            ("quest", 284 * 2, (1230 - 1000) * 2, 75 * 2, 38 * 2),
+            ("bag", 390 * 2, (1233 - 1000) * 2, 108 * 2, 33 * 2),
+            ("mail", 512 * 2, (1242 - 1000) * 2, 50 * 2, 20 * 2),
+            ("more", 714 * 2, (1222 - 1000) * 2, 75 * 2, 40 * 2),
+        ]
+        frame = self._home_frame()
+
+        arbitrary_chain_frame = self._home_frame()
+        cv2.rectangle(
+            arbitrary_chain_frame,
+            (310, 1170),
+            (350, 1200),
+            (0, 180, 255),
+            -1,
+        )
+        arbitrary_chain = [
+            right_chain[0],
+            ("world", right_chain[1][1], right_chain[1][2], right_chain[1][3], right_chain[1][4]),
+            ("hero", right_chain[2][1], right_chain[2][2], right_chain[2][3], right_chain[2][4]),
+            ("alliance", right_chain[3][1], right_chain[3][2], right_chain[3][3], right_chain[3][4]),
+        ]
+        wrong_quest = daily.DailyRowClaimRecognizer(
+            ocr=self._ocr_for(arbitrary_chain)
+        ).recognize_home(arbitrary_chain_frame)
+        self.assertFalse(wrong_quest.recognized)
+        self.assertEqual(
+            wrong_quest.visual_evidence["quest_binding"]["reason"],
+            "quest_and_adjacent_navigation_labels_not_proven",
+        )
+
+        wide_gap_frame = self._home_frame()
+        cv2.rectangle(
+            wide_gap_frame,
+            (310, 1170),
+            (350, 1200),
+            (0, 180, 255),
+            -1,
+        )
+        wide_gap_chain = [
+            *right_chain[:3],
+            ("more", 760 * 2, (1222 - 1000) * 2, 40 * 2, 40 * 2),
+        ]
+        wide_gap = daily.DailyRowClaimRecognizer(
+            ocr=self._ocr_for(wide_gap_chain)
+        ).recognize_home(wide_gap_frame)
+        self.assertFalse(wide_gap.recognized)
+        self.assertEqual(
+            wide_gap.visual_evidence["quest_binding"]["reason"],
+            "quest_and_adjacent_navigation_labels_not_proven",
+        )
+
+        lone = daily.DailyRowClaimRecognizer(
+            ocr=self._ocr_for([right_chain[0]])
+        ).recognize_home(frame)
+        self.assertFalse(lone.recognized)
+        self.assertEqual(
+            lone.visual_evidence["quest_binding"]["reason"],
+            "quest_and_adjacent_navigation_labels_not_proven",
+        )
+
+        insufficient = daily.DailyRowClaimRecognizer(
+            ocr=self._ocr_for(right_chain[:3])
+        ).recognize_home(frame)
+        self.assertFalse(insufficient.recognized)
+        self.assertEqual(
+            insufficient.visual_evidence["quest_binding"]["reason"],
+            "quest_and_adjacent_navigation_labels_not_proven",
+        )
+
+        unsupported = daily.DailyRowClaimRecognizer(
+            ocr=self._ocr_for(right_chain)
+        ).recognize_home(frame)
+        self.assertFalse(unsupported.recognized)
+        self.assertEqual(
+            unsupported.visual_evidence["quest_binding"]["reason"],
+            "no_unique_home_quest_visual_component",
+        )
+
+        wrong_dimensions = daily.DailyRowClaimRecognizer(
+            ocr=self._ocr_for(right_chain)
+        ).recognize_home(np.zeros((640, 400, 3), dtype=np.uint8))
+        self.assertFalse(wrong_dimensions.recognized)
+        self.assertEqual(wrong_dimensions.reason, "profile_dimensions_mismatch")
+
     def test_current_home_icon_morphology_excludes_low_value_background(self) -> None:
         frame = self._home_frame()
         # The muted, saturated navigation background is deliberately present
