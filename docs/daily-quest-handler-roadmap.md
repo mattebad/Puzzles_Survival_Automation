@@ -5,13 +5,15 @@ dependency order and reusable implementation families. It does not authorize run
 
 ## Boundary
 
-Daily Quest only. Main Quest Claim is excluded from active implementation, registration, scheduler,
-and prompt scope. Generic Daily Claim, exact Personal Might Daily Claim, and milestone Claim remain
-separate contracts. Objective execution never implies Claim readiness.
+Daily Quest only. Main Quest Claim is excluded from active implementation,
+registration, scheduler, and prompt scope. One aggregate selected-Daily Claim
+flow owns every ordinary Daily Claim tap; milestone Claim remains separate.
+Objective flows provide completion attribution only.
 
-All scheduler eligibility is false. Existing `pnsctl` operator registrations remain unchanged:
-Alliance Help, Personal Might Praise, and exact Personal Might Daily Claim. Offline modules,
-SQLite task-state persistence, and one-pulse scheduling remain dormant infrastructure.
+All scheduler eligibility is false. Legacy Bliss operator registrations for
+Alliance Help, Personal Might Praise, and Personal Might Claim are retired.
+Offline modules, SQLite task-state persistence, and one-pulse scheduling
+remain dormant infrastructure.
 
 Catalog admission is strict: raw/lossless Bliss frame or derived inventory, positive Quest screen,
 positive selected Daily tab, visible objective-list row, non-Main classification, and exact source
@@ -25,11 +27,12 @@ cannot admit Daily objectives.
 2. Freeze catalog/matrix authority split and cross-check all 31 proven objective keys.
 3. Validate selected Daily-tab recognition, bounded scroll inventory, row identity, current
    game-day binding, and Main-negative recognition.
-4. Keep generalized row Claim, exact Personal Might Claim, and milestone Claim independent.
-5. Preserve and verify existing Alliance Help and Personal Might Praise flows.
+4. Keep one aggregate ordinary Daily Claim independent from milestone Claim.
+5. Preserve historical Alliance Help and Personal Might Praise evidence while verifying their
+   selected-Daily completion-attribution providers remain actionless and unregistered.
 6. Review free/evidence-gated contracts: Bioenhancer, Supply Depot, Recruitment, and Nanoweapon.
 7. Build shared route and recognizer primitives offline.
-8. Build policy-gated families only after product decisions and Bliss-native evidence.
+8. Build policy-gated families only after product decisions and BlueStacks-native evidence.
 9. Keep disabled strategic flows specified, offline-only, unregistered, and scheduler-ineligible.
 10. Review dormant persistence/scheduler integration.
 11. Pass separate runtime-integration gate before any live state or new registration.
@@ -44,19 +47,20 @@ dispatch, registration, live input, or scheduler eligibility is implied.
 
 - Daily inventory/reconciliation: selected-tab source, bounded scroll, overlap, row identity,
   points/reset/game-day evidence, and fail-closed Main-negative.
-- Generalized Daily Claim: exact completed ordinary row-local Claim, zero-cost proof, same-row
-  positive postcondition.
-- Personal Might Claim: exact validated row-specific support flow, separate from Praise.
+- Aggregate Daily Claim: one ordinary free non-milestone Claim control on
+  selected Daily, one tap, positive points delta, and no remaining ordinary
+  Claim controls. Objective and row identity are not authorization inputs.
 - Milestone Claim: ready chest/panel-local target, separate from ordinary row Claim.
 - Persistence/scheduler: serializable task state, SQLite v2 adapter, one candidate per pulse,
   lease/unresolved global gates; no transport.
 
-### Existing validated flows
+### Retired completion providers
 
-- Alliance Help: one parameterized action family with preferred Help All and individual Help
-  fallback. Canonical route `daily_go_to_speedup_help`.
-- Personal Might Praise: named navigation route, current-frame rank-one target, cooldown/day
-  bound, one dispatch, positive control/postcondition.
+- Alliance Help: selected-Daily progress attribution only. Historical Help All and individual Help
+  evidence is retained, but there is no active route, target, dispatch, registration, or scheduler
+  eligibility.
+- Personal Might Praise: selected-Daily progress attribution only. Historical Praise evidence is
+  retained, but there is no active route, target, dispatch, registration, or scheduler eligibility.
 
 ### Free or evidence-gated
 
@@ -126,7 +130,7 @@ and separate Claim authorization.
 
 `OFFLINE_ONLY` → `EVIDENCE_GATED` → `SUPERVISED_VALIDATION` → `LIVE_VALIDATED` →
 `AUTOMATIC_ENABLED` is closed. `DISABLED_POLICY` is terminal until explicit policy change.
-Promotion requires Bliss-native evidence, profile/hash compatibility, positive postconditions,
+Promotion requires BlueStacks-native evidence, profile/hash compatibility, positive postconditions,
 fresh game-day identity, central policy approval, and no unresolved action. GnBots manifest facts
 may guide research but never authorize runtime input. Current Bioenhancer status is split:
 `BIOENHANCER_RESEARCH_CONFIRMED` for the single supervised research transaction, with

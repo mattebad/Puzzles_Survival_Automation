@@ -921,7 +921,7 @@ class ReceiptTests(unittest.TestCase):
     def test_daily_claim_canary_reserves_exact_reward_claim_class_once(self) -> None:
         bindings = [
             {
-                "action_identity": "daily-row-claim:consume_stamina",
+                "action_identity": "daily-claim:aggregate",
                 "action_class": "reward_claim",
                 "consequence_class": "ordinary_development",
                 "resource_affecting": False,
@@ -933,7 +933,7 @@ class ReceiptTests(unittest.TestCase):
             controller = self._controller(root)
             receipt = self._issue(
                 controller,
-                identities=["daily-row-claim:consume_stamina"],
+                identities=["daily-claim:aggregate"],
                 classes=["reward_claim"],
                 action_bindings=bindings,
                 consequence_class="ordinary_development",
@@ -945,11 +945,11 @@ class ReceiptTests(unittest.TestCase):
                 controller, consumed, result_identity="result-a"
             )
             reservation = context.reserve_input(
-                action_identity="daily-row-claim:consume_stamina",
+                action_identity="daily-claim:aggregate",
                 action_class="reward_claim",
                 consequence_class="ordinary_development",
                 source_evidence_hash="a" * 64,
-                action_key="daily-row-claim:consume_stamina",
+                action_key="daily-claim:aggregate",
             )
             self.assertEqual(reservation["ordinal"], 1)
             connection = controller._connection()
@@ -962,10 +962,10 @@ class ReceiptTests(unittest.TestCase):
             finally:
                 connection.close()
             self.assertEqual(tuple(stored), ("reward_claim", "ordinary_development", "reserved"))
-            context.mark_reconciled("daily-row-claim:consume_stamina")
+            context.mark_reconciled("daily-claim:aggregate")
             with self.assertRaisesRegex(control.FlowDeliveryError, "identical action retry"):
                 context.reserve_input(
-                    action_identity="daily-row-claim:consume_stamina",
+                    action_identity="daily-claim:aggregate",
                     action_class="reward_claim",
                     consequence_class="ordinary_development",
                     action_key="retry",
@@ -1001,9 +1001,9 @@ class ReceiptTests(unittest.TestCase):
                 "--flow-id",
                 "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
                 "--scenario",
-                "consume-stamina-row-claim",
+                "selected-daily-aggregate-claim",
                 "--variant",
-                "consume-stamina-dismiss-vip",
+                "aggregate-claim-dismiss-vip",
             ]
             receipt = controller.issue(
                 task_id="daily-row-claim",
@@ -1011,8 +1011,8 @@ class ReceiptTests(unittest.TestCase):
                 receipt_class="reconnaissance",
                 agent_identity="luna-1",
                 command_argv=command,
-                scenario="consume-stamina-row-claim",
-                variant="consume-stamina-dismiss-vip",
+                scenario="selected-daily-aggregate-claim",
+                variant="aggregate-claim-dismiss-vip",
                 permitted_action_identities=["reset-popup-close"],
                 permitted_action_classes=["navigation"],
                 action_bindings=bindings,
@@ -1058,6 +1058,7 @@ def time_now(value: str):
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+@unittest.skip("per-row Daily scan was removed from the supported flow")
 class DailyReadyRowReceiptBindingTests(unittest.TestCase):
     def _command(self, root: Path) -> list[str]:
         return [

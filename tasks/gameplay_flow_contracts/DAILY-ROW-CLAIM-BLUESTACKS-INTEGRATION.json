@@ -1,63 +1,69 @@
 {
   "schema_version": 1,
   "flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-  "product_purpose": "Daily Quest row claim BlueStacks integration.",
+  "product_purpose": "One-tap aggregate Daily Claim on the selected Daily screen.",
   "trigger_cadence_type": "daily_once",
   "reset_scope": "daily_reset",
   "required_starting_context": [
-    "quest_screen"
+    "home_or_selected_daily"
   ],
   "shared_primitive_dependencies": [],
   "recognized_states": [
-    "contract_declared",
+    "selected_daily_claim_available",
+    "aggregate_claim_complete",
     "evidence_required"
   ],
   "state_transitions": [
     {
-      "from": "contract_declared",
-      "to": "evidence_required",
-      "via": "missing_gameplay_evidence",
-      "notes": "Claim-only; no gameplay spend."
+      "from": "selected_daily_claim_available",
+      "to": "aggregate_claim_complete",
+      "via": "one ordinary Claim tap",
+      "notes": "One tap claims all available completed Daily quests."
     }
   ],
   "permitted_inputs": [
-    "none_until_implemented"
+    "one current-frame-bound ordinary Claim tap"
   ],
   "local_postconditions": [
-    "evidence_required"
+    "Daily points increased",
+    "ordinary Claim controls cleared",
+    "same selected Daily and reset identity"
   ],
-  "consequential_action_class": "none_declared",
+  "consequential_action_class": "ordinary_development",
   "cost_quantity_requirements": {
     "free_only": true,
-    "maximum_cost": null,
-    "quantity": null,
+    "maximum_cost": 0,
+    "quantity": 1,
     "resource_or_currency": null,
-    "notes": "Claim-only; no gameplay spend."
+    "notes": "Ordinary free Claim only; milestone controls are excluded."
   },
   "completion_identity": "daily-row-claim-bluestacks-integration:complete",
   "terminal_outcomes": [
-    "blocked",
-    "manual_required"
+    "complete",
+    "evidence_required",
+    "blocked_fail_closed"
   ],
   "cooldown_deferred_behavior": "evidence_required",
   "bounded_recovery_behavior": "evidence_required",
   "evidence_requirements": [
-    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
-    "Claim-only; no gameplay spend."
+    "current native 800x1280 selected-Daily source and immediate-before frame",
+    "ordinary free non-milestone Claim-control proof",
+    "one-tap accounting",
+    "points increase and ordinary Claim-control exhaustion"
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "flow_entry",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Not fabricated in this task."
+      "fixture_id": "aggregate_claim_contract",
+      "status": "implemented",
+      "path": "tests/test_daily_row_claim_bluestacks.py",
+      "notes": "Objective identity and fixed point deltas are not authorization inputs."
     }
   ],
   "live_validation_scenarios": [
     {
-      "id": "daily-row-claim-bluestacks-integration-pending",
-      "mode": "blocked_until_policy",
-      "notes": "Claim-only; no gameplay spend."
+      "id": "selected-daily-aggregate-claim",
+      "mode": "supervised_one_tap",
+      "notes": "One ordinary Claim tap; no row loop or provider-specific Claim."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -69,6 +75,6 @@
     "ambiguous_account_or_server_identity",
     "blocking_unknown_modal"
   ],
-  "implementation_status": "contract_only",
+  "implementation_status": "implemented_evidence_gated",
   "proof_state": "evidence_required"
 }

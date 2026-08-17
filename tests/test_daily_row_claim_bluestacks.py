@@ -366,8 +366,6 @@ class DailyRowReconnaissanceTests(unittest.TestCase):
 
     def test_dispatched_home_quest_center_is_inside_rendered_component(self) -> None:
         label = (180, 1080, 230, 1100)
-        rendered_component = VisualFakeRuntime.HOME_COMPONENT
-
         def ocr(image: np.ndarray) -> dict[str, list[object]]:
             if image.shape[0] != 560:
                 return {
@@ -1746,11 +1744,11 @@ class DailyClaimRecognitionTests(unittest.TestCase):
         else:
             cv2.rectangle(frame, (50, 55), (220, 145), (70, 70, 70), -1)
             cv2.rectangle(frame, (250, 55), (430, 145), (70, 70, 70), -1)
-        if claim_tokens:
+        for _claim_text, claim_roi in claim_tokens:
             cv2.rectangle(
                 frame,
-                (640, objective_y + 25),
-                (720, objective_y + 65),
+                (claim_roi[0] - 10, claim_roi[1] - 5),
+                (claim_roi[2] + 10, claim_roi[3] + 5),
                 (0, 180, 255),
                 -1,
             )
@@ -1767,14 +1765,14 @@ class DailyClaimRecognitionTests(unittest.TestCase):
 
         self.assertTrue(recognition.recognized)
         self.assertEqual(recognition.state, "DAILY_SELECTED")
-        self.assertEqual(recognition.target_identity, "daily-row-claim:consume_stamina")
+        self.assertEqual(recognition.target_identity, "daily-quest-claim")
         self.assertEqual(recognition.target_roi, (605, 455, 755, 535))
         evidence = recognition.visual_evidence
-        self.assertEqual(evidence["objective_key"], "consume_stamina")
-        self.assertEqual(evidence["objective_name"], "consume 20 stamina")
-        self.assertEqual(evidence["current_progress"], 36)
-        self.assertEqual(evidence["required_progress"], 20)
-        self.assertEqual(evidence["reward_points"], 5)
+        self.assertNotIn("objective_key", evidence)
+        self.assertNotIn("objective_name", evidence)
+        self.assertNotIn("current_progress", evidence)
+        self.assertNotIn("required_progress", evidence)
+        self.assertNotIn("reward_points", evidence)
         self.assertEqual(evidence["points"], 0)
         self.assertEqual(evidence["row_bounds"], (70, 432, 780, 542))
         self.assertEqual(evidence["claim_roi"], (605, 455, 755, 535))
@@ -1790,7 +1788,7 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             game_day_id=evidence["game_day_id"],
         )
         self.assertIsNotNone(observation)
-        self.assertTrue(observation.catalog_reconciled)
+        self.assertFalse(observation.catalog_reconciled)
         self.assertTrue(
             __import__("tasks.available_daily_claim", fromlist=["available_daily_claim_authorizeable"])
             .available_daily_claim_authorizeable(observation)
@@ -1806,6 +1804,52 @@ class DailyClaimRecognitionTests(unittest.TestCase):
         self.assertTrue(recognition.recognized)
         self.assertTrue(recognition.visual_evidence["selected_daily"])
         self.assertFalse(recognition.visual_evidence["selected_daily_semantics"]["title_ocr_present"])
+
+    def test_multiple_safe_claim_controls_select_one_deterministically(self):
+        frame, ocr, _tokens = self._claim_fixture(
+            claim_tokens=(
+                ("Claim", (520, 480, 580, 510)),
+                ("Claim", (650, 480, 710, 510)),
+            )
+        )
+        recognition = daily.DailyRowClaimRecognizer(ocr=ocr).recognize_daily_claim(
+            frame,
+            observed_utc="2026-08-16T00:00:00Z",
+        )
+
+        self.assertTrue(recognition.recognized)
+        self.assertEqual(recognition.target_roi, (475, 455, 625, 535))
+        evidence = recognition.visual_evidence
+        self.assertEqual(evidence["recognized_claim_controls"], 2)
+        self.assertEqual(evidence["available_claim_controls"], 2)
+        self.assertEqual(evidence["available_ordinary_claim_controls"], 2)
+        self.assertEqual(
+            [candidate["status"] for candidate in evidence["claim_candidates"]],
+            ["eligible", "eligible"],
+        )
+
+    def test_multiple_claim_controls_skip_unsafe_cost_and_select_safe_control(self):
+        frame, ocr, _tokens = self._claim_fixture(
+            claim_tokens=(
+                ("Claim", (520, 480, 580, 510)),
+                ("Claim", (650, 480, 710, 510)),
+            ),
+            extra_tokens=(("Gems", (400, 500, 440, 525)),),
+        )
+        recognition = daily.DailyRowClaimRecognizer(ocr=ocr).recognize_daily_claim(
+            frame,
+            observed_utc="2026-08-16T00:00:00Z",
+        )
+
+        self.assertTrue(recognition.recognized)
+        self.assertEqual(recognition.target_roi, (605, 455, 755, 535))
+        evidence = recognition.visual_evidence
+        self.assertEqual(evidence["recognized_claim_controls"], 2)
+        self.assertEqual(evidence["available_ordinary_claim_controls"], 1)
+        self.assertIn(
+            "claim_attached_cost",
+            evidence["claim_candidates"][0]["rejection_reasons"],
+        )
 
     def test_daily_claim_rejects_main_missing_context_and_overlay_states(self):
         cases = (
@@ -1836,11 +1880,11 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             ),
             ("clipped", self._claim_fixture(row_y=1190)),
             (
-                "claim_adjacent",
+                "duplicate_claim_ocr",
                 self._claim_fixture(
                     claim_tokens=(
-                        ("Claim", (550, 460, 610, 490)),
-                        ("Claim", (650, 460, 710, 490)),
+                        ("Claim", (650, 480, 710, 510)),
+                        ("Claim", (655, 480, 715, 510)),
                     )
                 ),
             ),
@@ -1864,7 +1908,7 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             observed_utc="2026-08-16T00:00:00Z",
         )
         self.assertFalse(recognition.recognized)
-        self.assertIn("outside", recognition.reason or "")
+        self.assertIn("escaped", recognition.reason or "")
 
     def test_daily_claim_rejects_numeric_only_and_icon_only_attached_costs(self):
         numeric_frame, numeric_ocr, _tokens = self._claim_fixture(
@@ -1884,67 +1928,6 @@ class DailyClaimRecognitionTests(unittest.TestCase):
                 )
                 self.assertFalse(recognition.recognized)
                 self.assertIn("attached", recognition.reason or "")
-
-    def test_generic_daily_scan_rejects_claim_adjacent_numeric_icon_and_currency_costs(self):
-        cases = (
-            (
-                "numeric-only",
-                self._claim_fixture(
-                    extra_tokens=(("2", (520, 500, 560, 525)),)
-                ),
-            ),
-            ("icon-only", self._claim_fixture(cost_icon=True)),
-            (
-                "currency-word",
-                self._claim_fixture(
-                    extra_tokens=(("Gems", (520, 500, 590, 525)),)
-                ),
-            ),
-            (
-                "cost-word",
-                self._claim_fixture(
-                    extra_tokens=(("Cost", (520, 500, 590, 525)),)
-                ),
-            ),
-        )
-        for name, (frame, ocr, _tokens) in cases:
-            with self.subTest(case=name):
-                recognition = daily.DailyRowClaimRecognizer(
-                    ocr=ocr
-                ).recognize_daily_ready_rows(
-                    frame,
-                    game_day_id="reset-deadline:2026-08-16T04:00:00Z",
-                    observed_utc="2026-08-16T00:00:00Z",
-                )
-                visual = recognition.visual_evidence
-                rows = visual["inventory_rows"]
-                self.assertTrue(recognition.recognized)
-                self.assertIsNone(visual["ready_row"])
-                self.assertEqual(len(rows), 1)
-                self.assertIn("claim_attached_cost", rows[0]["rejection_reasons"])
-                self.assertFalse(rows[0]["free_control_proven"])
-
-    def test_generic_daily_scan_proves_free_ordinary_claim_ready(self):
-        frame, ocr, _tokens = self._claim_fixture()
-        recognition = daily.DailyRowClaimRecognizer(
-            ocr=ocr
-        ).recognize_daily_ready_rows(
-            frame,
-            game_day_id="reset-deadline:2026-08-16T04:00:00Z",
-            observed_utc="2026-08-16T00:00:00Z",
-        )
-
-        self.assertTrue(recognition.recognized)
-        ready_row = recognition.visual_evidence["ready_row"]
-        self.assertIsNotNone(ready_row)
-        self.assertEqual(ready_row["status"], "ready")
-        self.assertTrue(ready_row["free_control_proven"])
-        self.assertFalse(ready_row["cost_scan"]["attached_cost"])
-        self.assertEqual(
-            ready_row["cost_scan"]["currency_words"],
-            (),
-        )
-        self.assertEqual(ready_row["cost_scan"]["numeric_tokens"], ())
 
     def test_reset_deadline_is_bound_from_injected_wall_utc_and_rollover_rejects(self):
         before_frame, before_ocr, _tokens = self._claim_fixture(
@@ -1977,8 +1960,7 @@ class DailyClaimRecognitionTests(unittest.TestCase):
         after_evidence.update(
             {
                 "claim_ready": False,
-                "same_objective_present": False,
-                "objective_key": None,
+                "available_ordinary_claim_controls": 0,
                 "points": 5,
             }
         )
@@ -2011,7 +1993,9 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             game_day_id=before.visual_evidence["game_day_id"],
         )
         after_evidence = dict(after.visual_evidence)
-        after_evidence.update({"claim_ready": False, "points": 5})
+        after_evidence.update(
+            {"claim_ready": False, "available_ordinary_claim_controls": 0, "points": 5}
+        )
         after = replace(
             after,
             target_identity=None,
@@ -2025,50 +2009,6 @@ class DailyClaimRecognitionTests(unittest.TestCase):
                 game_day_id=before.visual_evidence["game_day_id"],
             )
         )
-
-    def test_daily_claim_rejects_duplicate_objective_and_wrong_objective(self):
-        duplicate = self._claim_fixture(
-            extra_tokens=(
-                ("Consume", (100, 620, 190, 645)),
-                ("20", (200, 620, 220, 645)),
-                ("Stamina", (230, 620, 320, 645)),
-                ("36 20", (330, 620, 410, 645)),
-            )
-        )
-        wrong = self._claim_fixture(objective="Gather", quantity="10", progress="3 10")
-        for name, fixture in (("duplicate", duplicate), ("wrong", wrong)):
-            with self.subTest(case=name):
-                frame, ocr, _tokens = fixture
-                recognition = daily.DailyRowClaimRecognizer(ocr=ocr).recognize_daily_claim(
-                    frame,
-                    game_day_id="game-day-a",
-                )
-                self.assertFalse(
-                    bool((recognition.visual_evidence or {}).get("claim_ready"))
-                )
-                self.assertIsNone(recognition.target_identity)
-
-    def test_daily_claim_rejects_wrong_reward_progress_and_unknown_cost(self):
-        cases = (
-            ("wrong_reward", self._claim_fixture(reward="Reward Pts +10")),
-            ("incomplete_progress", self._claim_fixture(progress="15 20")),
-            (
-                "unknown_cost",
-                self._claim_fixture(
-                    extra_tokens=(("2 Gems", (520, 500, 610, 525)),)
-                ),
-            ),
-        )
-        for name, (frame, ocr, _tokens) in cases:
-            with self.subTest(case=name):
-                recognition = daily.DailyRowClaimRecognizer(ocr=ocr).recognize_daily_claim(
-                    frame,
-                    game_day_id="game-day-a",
-                )
-                self.assertFalse(
-                    bool((recognition.visual_evidence or {}).get("claim_ready"))
-                )
-
 
 class ClaimCanaryRuntime:
     execute = True
@@ -2275,8 +2215,9 @@ class SelectedDailySuccessorFake:
 
 
 class ScriptedClaimRecognizer:
-    def __init__(self, outcome: str):
+    def __init__(self, outcome: str, *, available_controls: int = 1):
         self.outcome = outcome
+        self.available_controls = available_controls
         self.calls = 0
 
     def recognize_daily_claim(
@@ -2289,8 +2230,6 @@ class ScriptedClaimRecognizer:
         before = self.calls <= 2
         ready = before or self.outcome == "unchanged"
         points = 0
-        objective_key: str | None = "consume_stamina"
-        same_objective_present = True
         recognized = True
         reset_timer: str | None = "04:00:00"
         if not before and self.outcome == "points":
@@ -2298,12 +2237,8 @@ class ScriptedClaimRecognizer:
             ready = False
         elif not before and self.outcome == "row_disappeared":
             ready = False
-            objective_key = None
-            same_objective_present = False
         elif not before and self.outcome == "row_missing_points":
             ready = False
-            objective_key = None
-            same_objective_present = False
             points = None
         elif not before and self.outcome == "wrong_delta":
             points = 4
@@ -2315,7 +2250,6 @@ class ScriptedClaimRecognizer:
             ready = False
         elif not before and self.outcome == "wrong_objective":
             points = 5
-            objective_key = "other_objective"
             ready = False
         elif not before and self.outcome == "overlay":
             recognized = False
@@ -2340,13 +2274,9 @@ class ScriptedClaimRecognizer:
             "reset_deadline_tolerance_seconds": (
                 2 if reset_timer is not None else None
             ),
-            "objective_key": objective_key,
-            "objective_name": "consume 20 stamina",
-            "current_progress": 36,
-            "required_progress": 20,
-            "reward_points": 5,
-            "same_objective_present": same_objective_present,
             "claim_ready": ready,
+            "available_claim_controls": self.available_controls if ready else 0,
+            "available_ordinary_claim_controls": self.available_controls if ready else 0,
             "row_bounds": (82, 432, 773, 545),
             "claim_roi": (605, 455, 755, 535),
             "row_fully_visible": True,
@@ -2378,7 +2308,7 @@ class ScriptedClaimRecognizer:
         return daily.FrameRecognition(
             daily.DAILY_SELECTED_STATE if recognized else daily.UNKNOWN_STATE,
             recognized,
-            "daily-row-claim:consume_stamina" if ready else None,
+            "daily-quest-claim" if ready else None,
             (605, 455, 755, 535) if ready else None,
             "scripted daily claim",
             visual,
@@ -2387,9 +2317,18 @@ class ScriptedClaimRecognizer:
 
 
 class DailyClaimCanaryTests(unittest.TestCase):
-    def _run_canary(self, root: Path, outcome: str):
+    def _run_canary(
+        self,
+        root: Path,
+        outcome: str,
+        *,
+        available_controls: int = 1,
+    ):
         runtime = ClaimCanaryRuntime(root)
-        recognizer = ScriptedClaimRecognizer(outcome)
+        recognizer = ScriptedClaimRecognizer(
+            outcome,
+            available_controls=available_controls,
+        )
         with patch.object(daily, "DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS", 0.0), patch.object(
             daily, "DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS", 2
         ), patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -2416,7 +2355,7 @@ class DailyClaimCanaryTests(unittest.TestCase):
             self.assertEqual(result["status"], "completed")
             self.assertEqual(result["input_count"], 1)
             self.assertEqual(len(runtime.taps), 1)
-            self.assertEqual(runtime.taps[0]["target_identity"], "daily-row-claim:consume_stamina")
+            self.assertEqual(runtime.taps[0]["target_identity"], "daily-claim:aggregate")
             self.assertEqual(runtime.taps[0]["target_roi"], (605, 455, 755, 535))
             self.assertEqual(runtime.reservations[0]["action_class"], "reward_claim")
             self.assertEqual(result["claim"]["points_before"], 0)
@@ -2428,6 +2367,30 @@ class DailyClaimCanaryTests(unittest.TestCase):
             self.assertTrue(annotated.is_file())
             self.assertGreater(annotated.stat().st_size, 0)
 
+    def test_canary_with_multiple_eligible_controls_still_dispatches_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime, _recognizer, _session = self._run_canary(
+                Path(directory),
+                "points",
+                available_controls=2,
+            )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(
+            result["recognitions"]["source"]["visual_evidence"][
+                "available_ordinary_claim_controls"
+            ],
+            2,
+        )
+        self.assertEqual(
+            result["recognitions"]["immediate_post"]["visual_evidence"][
+                "available_ordinary_claim_controls"
+            ],
+            0,
+        )
+
     def test_canary_rejects_ocr_missing_row_with_unchanged_points(self):
         with tempfile.TemporaryDirectory() as directory:
             result, runtime, _recognizer, _session = self._run_canary(
@@ -2437,17 +2400,13 @@ class DailyClaimCanaryTests(unittest.TestCase):
             self.assertEqual(result["status"], "evidence_required")
             self.assertEqual(len(runtime.taps), 1)
             post = result["recognitions"]["immediate_post"]["visual_evidence"]
-            self.assertIsNone(post["objective_key"])
             self.assertEqual(post["points"], 0)
 
     def test_canary_failure_is_evidence_required_without_retry(self):
         for outcome in (
             "unchanged",
             "row_missing_points",
-            "wrong_delta",
-            "plus_ten",
             "control_changed",
-            "wrong_objective",
             "overlay",
             "reset",
         ):
@@ -2626,9 +2585,9 @@ class PnsctlDailyClaimTests(unittest.TestCase):
         if max_inputs is not None:
             limit = max_inputs
         variant = (
-            "consume-stamina-dismiss-vip"
+            "aggregate-claim-dismiss-vip"
             if mode == "dismiss-vip-popup"
-            else f"consume-stamina-{mode}"
+            else f"aggregate-claim-{mode}"
         )
         return [
             "development-session",
@@ -2646,7 +2605,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             "--flow-id",
             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
             "--scenario",
-            "consume-stamina-row-claim",
+            "selected-daily-aggregate-claim",
             "--variant",
             variant,
         ]
@@ -2657,9 +2616,9 @@ class PnsctlDailyClaimTests(unittest.TestCase):
         controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
         command = command or self._command(root, mode)
         variant = (
-            "consume-stamina-dismiss-vip"
+            "aggregate-claim-dismiss-vip"
             if mode == "dismiss-vip-popup"
-            else f"consume-stamina-{mode}"
+            else f"aggregate-claim-{mode}"
         )
         if mode == "prepare":
             receipt_class = "reconnaissance"
@@ -2668,16 +2627,16 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             consequence = "navigation_only"
             total = 0
             terminals = ["observed", "evidence_required"]
-            result_identity = "daily-row-claim:prepare:consume_stamina"
+            result_identity = "daily-claim:prepare:aggregate"
             gates = {}
         elif mode == "canary":
             receipt_class = "canary"
-            identities = ["daily-row-claim:consume_stamina"]
+            identities = ["daily-claim:aggregate"]
             classes = ["reward_claim"]
             consequence = "ordinary_development"
             total = 1
             terminals = ["completed", "evidence_required"]
-            result_identity = "daily-row-claim:canary:consume_stamina"
+            result_identity = "daily-claim:canary:aggregate"
             gates = {
                 "implementation_self_check_evidence": "self-check",
                 "independent_read_only_tester_evidence": "tester",
@@ -2707,7 +2666,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             receipt_class=receipt_class,
             agent_identity="luna-agent",
             command_argv=command,
-            scenario="consume-stamina-row-claim",
+            scenario="selected-daily-aggregate-claim",
             variant=variant,
             permitted_action_identities=identities,
             permitted_action_classes=classes,
@@ -2762,7 +2721,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                 agent_identity="luna-agent",
                 task_id="daily-row-claim",
                 flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                scenario="consume-stamina-row-claim",
+                scenario="selected-daily-aggregate-claim",
                 variant=variant,
                 command_argv=self._command(root, mode),
             )
@@ -2825,9 +2784,9 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                 mode="dismiss-vip-popup",
             )
             for field, value in (
-                ("variant", "consume-stamina-canary"),
+                ("variant", "aggregate-claim-canary"),
                 ("max_total_inputs", 2),
-                ("permitted_action_identities", ["daily-row-claim:consume_stamina"]),
+                ("permitted_action_identities", ["daily-claim:aggregate"]),
             ):
                 with self.subTest(field=field):
                     wrong = dict(receipt)
@@ -2902,8 +2861,8 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                         agent_identity="luna-agent",
                         task_id="daily-row-claim",
                         flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                        scenario="consume-stamina-row-claim",
-                        variant="consume-stamina-dismiss-vip",
+                    scenario="selected-daily-aggregate-claim",
+                    variant="aggregate-claim-dismiss-vip",
                         command_argv=self._command(root, "dismiss-vip-popup"),
                     )
 
@@ -2932,9 +2891,9 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             self.assertEqual(result["resource_affecting_inputs"], 0)
             self.assertEqual(result["combat_confirmations"], 0)
             self.assertTrue(result["ownership_released"])
-            self.assertEqual(result["claim"]["objective_key"], "consume_stamina")
-            self.assertEqual(result["claim"]["current_progress"], 36)
-            self.assertEqual(result["claim"]["required_progress"], 20)
+            self.assertNotIn("objective_key", result["claim"])
+            self.assertNotIn("current_progress", result["claim"])
+            self.assertNotIn("required_progress", result["claim"])
             self.assertEqual(result["claim"]["points"], 0)
             self.assertEqual(result["claim"]["reset_timer"], "04:00:00")
             self.assertEqual(result["claim"]["game_day_id"], result["game_day_id"])
@@ -2990,8 +2949,8 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                     receipt_class="reconnaissance",
                     agent_identity="luna-agent",
                     command_argv=command,
-                    scenario="consume-stamina-row-claim",
-                    variant="consume-stamina-prepare",
+                    scenario="selected-daily-aggregate-claim",
+                    variant="aggregate-claim-prepare",
                     permitted_action_identities=identities,
                     permitted_action_classes=classes,
                     action_bindings=[
@@ -3008,7 +2967,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                     max_resource_affecting_inputs=0,
                     max_combat_confirmations=0,
                     permitted_terminal_states=["observed", "evidence_required"],
-                    result_identity="daily-row-claim:prepare:consume_stamina",
+                    result_identity="daily-claim:prepare:aggregate",
                 )
                 with self.assertRaisesRegex(
                     pnsctl.OperatorError,
@@ -3021,8 +2980,8 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                         agent_identity="luna-agent",
                         task_id="daily-row-claim",
                         flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                        scenario="consume-stamina-row-claim",
-                        variant="consume-stamina-prepare",
+                        scenario="selected-daily-aggregate-claim",
+                        variant="aggregate-claim-prepare",
                         command_argv=command,
                     )
                 self.assertEqual(controller.inspect()["status"], "issued")
@@ -3040,8 +2999,8 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                     agent_identity="luna-agent",
                     task_id="daily-row-claim",
                     flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="consume-stamina-row-claim",
-                    variant="consume-stamina-prepare",
+                    scenario="selected-daily-aggregate-claim",
+                    variant="aggregate-claim-prepare",
                     command_argv=command,
                 )
             self.assertEqual(controller.inspect()["status"], "issued")
@@ -3056,7 +3015,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                     agent_identity="luna-agent",
                     task_id="daily-row-claim",
                     flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="consume-stamina-row-claim",
+                    scenario="selected-daily-aggregate-claim",
                     variant="wrong-variant",
                     command_argv=bad_command,
                 )
@@ -3114,8 +3073,8 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                         agent_identity="luna-agent",
                         task_id="daily-row-claim",
                         flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                        scenario="consume-stamina-row-claim",
-                        variant="consume-stamina-prepare",
+                    scenario="selected-daily-aggregate-claim",
+                    variant="aggregate-claim-prepare",
                         command_argv=self._command(root, "prepare"),
                     )
 
@@ -3132,7 +3091,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             self.assertEqual(json.loads(terminal[1])["status"], "evidence_required")
 
 
-class DailyReadyRowArtifactValidationTests(unittest.TestCase):
+class RetiredDailyReadyRowArtifactFixtures:
     """Retained scan artifacts must prove the exact native swipe dispatches."""
 
     _REGION = (100, 520, 700, 1120)
@@ -3431,7 +3390,7 @@ class DailyReadyRowArtifactValidationTests(unittest.TestCase):
                 )
 
 
-class DailyReadyRowScanTests(unittest.TestCase):
+class RetiredDailyReadyRowScanFixtures:
     """Independent row-scan fixtures exercise observation without Claim authority."""
 
     class Runtime:

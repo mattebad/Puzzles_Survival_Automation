@@ -13,7 +13,6 @@ import re
 from typing import Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
-from .profile import PROFILE_ID
 
 
 ENHANCEMENT_SCREEN = "COMMANDER_INFO"
@@ -21,6 +20,7 @@ ENHANCEMENT_TARGET = "enhancement-confirm"
 BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
 BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
 BLUESTACKS_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+LEGACY_BLISS_RUNTIME_PROFILE_ID = "pns-blissos-poc-virgl-800x1280-v1"
 SUPPORTED_VARIANTS = frozenset({"gear", "chip", "module"})
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -59,7 +59,7 @@ class EnhancementObservation:
     evidence_refs: tuple[str, ...] = ()
     overlay_state: str = "none_observed"
     reset_guard_active: bool = False
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = BLUESTACKS_RUNTIME_PROFILE_ID
     recognized: bool = True
     result_spatially_associated: bool = False
 
@@ -88,7 +88,7 @@ def _has_bliss_native_source(observation: EnhancementObservation) -> bool:
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)
         and any(ref.startswith(("evidence/", "synthetic:")) for ref in refs)
-        and observation.runtime_profile_id == PROFILE_ID
+        and observation.runtime_profile_id == LEGACY_BLISS_RUNTIME_PROFILE_ID
     )
 
 

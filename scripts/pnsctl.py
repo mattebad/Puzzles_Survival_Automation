@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Reproducible operator interface for local BlueStacks development and future Bliss porting.
+"""Reproducible operator interface for local BlueStacks development.
 
 Only this checked-in interface owns the routine worker, private ADB, validation, evidence, and
-cleanup commands.  Credentials are read from the project .env for the lifetime of one subprocess
-call and are never printed, serialized, or written to evidence.
+cleanup commands for the local BlueStacks development runtime.
 """
 
 from __future__ import annotations
 
 import argparse
-import base64
 from contextlib import nullcontext
 from datetime import datetime, timezone
 import hashlib
@@ -23,35 +21,19 @@ import subprocess
 import sys
 import tempfile
 import time
-from dataclasses import dataclass
 from pathlib import Path
-from shlex import quote
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-from scripts.bluestacks_adb_readiness import (
+from scripts.bluestacks_adb_readiness import (  # noqa: E402
     ADBReadinessError,
     ensure_adb_ready,
 )
 
-HOST = "nas.local"
-HOST_KEY = "ssh-ed25519 255 f0:b5:ee:95:fb:d2:6c:e5:f5:bf:d2:86:67:9b:21:55"
 PACKAGE = "com.global.ztmslg"
-ACTIVITY = "com.global.ztmslg/.MainActivity"
-SERIAL = "192.168.122.79:5555"
-ADB_SOCKET = "tcp:127.0.0.1:5042"
-ADB_HOST_PATH = "/mnt/cache/domains/PnS-BlissOS-PoC/tools/platform-tools/adb"
-IMAGE = "pns-mvp-quest-to-claim:20260712-navigation-v2"
-REMOTE_BASE = "/mnt/cache/puzzle-survival-runtime/mvp-quest-to-claim/20260713-help-all"
-CONTAINER = "pns-mvp-help-all-20260713"
-REMOTE_WORKSPACE = REMOTE_BASE + "/workspace"
-REMOTE_EVIDENCE = REMOTE_BASE + "/evidence"
-REMOTE_DB = REMOTE_EVIDENCE + "/actions.sqlite3"
-M6_ASSET_ROOT = "evidence/sessions/20260712-m6-dq-bootstrap/assets"
 NAVIGATION_ASSET_ROOT = "tasks/assets/navigation/800x1280"
-CASH_REFERENCE = NAVIGATION_ASSET_ROOT + "/cash_mall_startup.png"
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 BLUESTACKS_ADB = Path(r"C:\Program Files\BlueStacks_nxt\HD-Adb.exe")
 BLUESTACKS_SERIAL = "emulator-5554"
@@ -224,610 +206,6 @@ class OperatorError(RuntimeError):
     pass
 
 
-@dataclass(frozen=True)
-class OperatorConfig:
-    repo_root: Path = REPO_ROOT
-    host: str = HOST
-    host_key: str = HOST_KEY
-    image: str = IMAGE
-    container: str = CONTAINER
-    remote_base: str = REMOTE_BASE
-    remote_workspace: str = REMOTE_WORKSPACE
-    remote_evidence: str = REMOTE_EVIDENCE
-    remote_database: str = REMOTE_DB
-    adb_host_path: str = ADB_HOST_PATH
-    adb_socket: str = ADB_SOCKET
-    serial: str = SERIAL
-    package: str = PACKAGE
-    activity: str = ACTIVITY
-
-
-def load_credentials(env_path: Path | None = None) -> tuple[str, str]:
-    """Load the approved process-only credentials without logging their values."""
-    path = env_path or REPO_ROOT / ".env"
-    values: dict[str, str] = {}
-    if path.exists():
-        for raw in path.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            name, value = line.split("=", 1)
-            if name in {"UNRAID_TEMP_USERNAME", "UNRAID_TEMP_PASSWORD"}:
-                values[name] = value.strip().strip('"').strip("'")
-    values.setdefault(
-        "UNRAID_TEMP_USERNAME", os.environ.get("UNRAID_TEMP_USERNAME", "")
-    )
-    values.setdefault(
-        "UNRAID_TEMP_PASSWORD", os.environ.get("UNRAID_TEMP_PASSWORD", "")
-    )
-    if not values["UNRAID_TEMP_USERNAME"] or not values["UNRAID_TEMP_PASSWORD"]:
-        raise OperatorError(
-            "approved Unraid credentials are not available in the process environment"
-        )
-    return values["UNRAID_TEMP_USERNAME"], values["UNRAID_TEMP_PASSWORD"]
-
-
-def redact_argv(argv: Sequence[str]) -> list[str]:
-    result = list(argv)
-    for index, item in enumerate(result[:-1]):
-        if item == "-pw":
-            result[index + 1] = "<process-only-password>"
-    return result
-
-
-def _plink_argv(cfg: OperatorConfig, command: str) -> list[str]:
-    username, password = load_credentials()
-    return [
-        str(Path("/mnt/c/Program Files/PuTTY/plink.exe")),
-        "-batch",
-        "-hostkey",
-        cfg.host_key,
-        "-pw",
-        password,
-        f"{username}@{cfg.host}",
-        command,
-    ]
-
-
-def run_remote(cfg: OperatorConfig, command: str) -> str:
-    result = subprocess.run(
-        _plink_argv(cfg, command), check=False, capture_output=True, text=True
-    )
-    if result.returncode:
-        detail = "\n".join(
-            part for part in (result.stdout.strip(), result.stderr.strip()) if part
-        )
-        raise OperatorError("remote command failed:\n" + detail)
-    return result.stdout
-
-
-def _windows_path(value: str) -> str:
-    if value.startswith("/mnt/") and len(value) > 6:
-        drive = value[5].upper()
-        return drive + ":/" + value[7:]
-    return value
-
-
-def _pscp_argv(
-    cfg: OperatorConfig,
-    sources: Iterable[str],
-    destination: str,
-    recursive: bool = False,
-    *,
-    local_sources: bool = True,
-    local_destination: bool = False,
-) -> list[str]:
-    username, password = load_credentials()
-    args = [
-        str(Path("/mnt/c/Program Files/PuTTY/pscp.exe")),
-        "-batch",
-        "-hostkey",
-        cfg.host_key,
-        "-pw",
-        password,
-    ]
-    if recursive:
-        args.append("-r")
-    args.extend(
-        _windows_path(source) if local_sources else f"{username}@{cfg.host}:{source}"
-        for source in sources
-    )
-    if local_destination:
-        args.append(_windows_path(destination))
-    else:
-        args.append(f"{username}@{cfg.host}:{destination}")
-    return args
-
-
-def run_pscp(
-    cfg: OperatorConfig,
-    sources: Iterable[str],
-    destination: str,
-    recursive: bool = False,
-    *,
-    local_sources: bool = True,
-    local_destination: bool = False,
-) -> None:
-    result = subprocess.run(
-        _pscp_argv(
-            cfg,
-            sources,
-            destination,
-            recursive,
-            local_sources=local_sources,
-            local_destination=local_destination,
-        ),
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode:
-        raise OperatorError(
-            "evidence/workspace synchronization failed: " + result.stderr.strip()
-        )
-
-
-def _adb_shell(cfg: OperatorConfig, command: str) -> str:
-    script = (
-        "if test -x /opt/adb; then adb_bin=/opt/adb; else adb_bin=$(command -v adb); fi; "
-        "export HOME=/tmp; export ADB_SERVER_PORT=5042; unset ADB_SERVER_SOCKET; "
-        f'exec "$adb_bin" -s {quote(cfg.serial)} {command}'
-    )
-    return (
-        f"docker exec -e ADB_SERVER_SOCKET={quote(cfg.adb_socket)} {quote(cfg.container)} "
-        f"sh -lc {quote(script)}"
-    )
-
-
-def _safe_name(value: str) -> str:
-    if not NAME_RE.fullmatch(value):
-        raise OperatorError(
-            "operation name must contain only letters, numbers, dot, dash, or underscore"
-        )
-    return value
-
-
-def sync_workspace(cfg: OperatorConfig) -> None:
-    run_remote(
-        cfg,
-        f"mkdir -p {quote(cfg.remote_workspace)}/{M6_ASSET_ROOT}",
-    )
-    sources = ["scripts", "tasks", "safe_action_core", "runtime-profile", "tests"]
-    for source in sources:
-        run_pscp(
-            cfg, [str(cfg.repo_root / source)], cfg.remote_workspace, recursive=True
-        )
-    run_pscp(
-        cfg,
-        [str(cfg.repo_root / M6_ASSET_ROOT)],
-        cfg.remote_workspace + "/evidence/sessions/20260712-m6-dq-bootstrap/",
-        recursive=True,
-    )
-
-
-def worker_start(cfg: OperatorConfig) -> str:
-    sync_workspace(cfg)
-    command = f"""
-set -eu
-mkdir -p {quote(cfg.remote_evidence)}
-chown -R 65534:65534 {quote(cfg.remote_evidence)}
-if docker inspect {quote(cfg.container)} >/dev/null 2>&1; then
-  docker ps --filter name=^{re.escape(cfg.container)}$ --format '{{{{.Names}}}} {{{{.Status}}}}'
-  exit 0
-fi
-adb_mount=''
-if test -x {quote(cfg.adb_host_path)}; then adb_mount='-v {quote(cfg.adb_host_path)}:/opt/adb:ro'; fi
-docker run -d --name {quote(cfg.container)} --network host --user 65534:65534 --read-only \\
-  --tmpfs /tmp:rw,noexec,nosuid,size=256m --pids-limit 256 --memory 2g --cpus 2 \\
-  --cap-drop ALL --security-opt no-new-privileges \\
-  -v {quote(cfg.remote_workspace)}:/workspace:ro -v {quote(cfg.remote_evidence)}:/evidence:rw \\
-  $adb_mount -w /workspace {quote(cfg.image)} sh -lc 'exec tail -f /dev/null'
-"""
-    return run_remote(cfg, command)
-
-
-def worker_status(cfg: OperatorConfig) -> str:
-    return run_remote(
-        cfg,
-        f"docker ps -a --filter name=^{re.escape(cfg.container)}$ --format '{{{{.Names}}}} {{{{.Status}}}}'",
-    )
-
-
-def worker_stop(cfg: OperatorConfig) -> str:
-    return run_remote(cfg, f"docker rm -f {quote(cfg.container)} 2>/dev/null || true")
-
-
-def adb_start(cfg: OperatorConfig) -> str:
-    command = (
-        f"docker exec -e ADB_SERVER_SOCKET={quote(cfg.adb_socket)} {quote(cfg.container)} "
-        "sh -lc 'if test -x /opt/adb; then adb_bin=/opt/adb; else adb_bin=$(command -v adb); fi; "
-        'export HOME=/tmp; export ADB_SERVER_PORT=5042; unset ADB_SERVER_SOCKET; "$adb_bin" start-server; '
-        f'"$adb_bin" -s {quote(cfg.serial)} connect {quote(cfg.serial)}; "$adb_bin" devices\''
-    )
-    return run_remote(cfg, command)
-
-
-def launch(cfg: OperatorConfig) -> str:
-    return run_remote(
-        cfg, _adb_shell(cfg, f"shell am start -W -n {quote(cfg.activity)}")
-    )
-
-
-def capture(cfg: OperatorConfig, name: str) -> str:
-    name = _safe_name(name)
-    remote_path = f"{cfg.remote_evidence}/{name}.png"
-    return run_remote(
-        cfg, f"{_adb_shell(cfg, 'exec-out screencap -p')} > {quote(remote_path)}"
-    )
-
-
-def observe(cfg: OperatorConfig, name: str) -> str:
-    capture_started = time.time()
-    capture(cfg, name)
-    capture_completed = time.time()
-    status = run_remote(
-        cfg,
-        _adb_shell(
-            cfg, "shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' | head -2"
-        ),
-    )
-    return json.dumps(
-        {
-            "capture": name,
-            "capture_started_epoch": capture_started,
-            "capture_completed_epoch": capture_completed,
-            "capture_completed_utc": datetime.fromtimestamp(
-                capture_completed, timezone.utc
-            ).isoformat(),
-            "foreground": status.strip(),
-        },
-        sort_keys=True,
-    )
-
-
-NAVIGATION_STEPS = {
-    "cash-home": (
-        "cash",
-        "home",
-        "HOME_BASE",
-        "CASH_MALL_BACK",
-        "standard-game-back-arrow",
-        (45, 5, 130, 60),
-        "tap",
-        None,
-    ),
-    "home-quest": (
-        "home",
-        "quest",
-        "QUEST",
-        "HOME_TO_QUEST",
-        "home-quest-entry",
-        (250, 1130, 410, 1280),
-        "tap",
-        None,
-    ),
-    "quest-daily": (
-        "quest",
-        "daily",
-        "DAILY_QUEST",
-        "QUEST_TO_DAILY",
-        "quest-daily-tab",
-        (300, 70, 500, 140),
-        "tap",
-        None,
-    ),
-    "daily-scroll-up": (
-        "daily",
-        "daily",
-        "DAILY_QUEST",
-        "SCROLL_DAILY_QUEST",
-        "daily-scroll-viewport",
-        (100, 520, 700, 1120),
-        "swipe",
-        (400, 1000, 400, 500, 350),
-    ),
-    "daily-scroll-up-fine": (
-        "daily",
-        "daily",
-        "DAILY_QUEST",
-        "SCROLL_DAILY_QUEST_FINE",
-        "daily-scroll-viewport",
-        (100, 520, 700, 1120),
-        "swipe",
-        (400, 800, 400, 700, 250),
-    ),
-    "daily-scroll-up-micro": (
-        "daily",
-        "daily",
-        "DAILY_QUEST",
-        "SCROLL_DAILY_QUEST_MICRO",
-        "daily-scroll-viewport",
-        (100, 520, 700, 1120),
-        "swipe",
-        (400, 760, 400, 710, 200),
-    ),
-    "daily-scroll-down": (
-        "daily",
-        "daily",
-        "DAILY_QUEST",
-        "SCROLL_DAILY_QUEST",
-        "daily-scroll-viewport",
-        (100, 160, 700, 760),
-        "swipe",
-        (400, 500, 400, 1000, 350),
-    ),
-    "daily-scroll-down-fine": (
-        "daily",
-        "daily",
-        "DAILY_QUEST",
-        "SCROLL_DAILY_QUEST_FINE",
-        "daily-scroll-viewport",
-        (100, 160, 700, 760),
-        "swipe",
-        (400, 700, 400, 800, 250),
-    ),
-    "daily-bioenhancer-go": (
-        "daily_bioenhancer",
-        "bioenhancer",
-        "BIOENHANCER",
-        "DAILY_BIOENHANCER_GO",
-        "daily-bioenhancer-go",
-        (554, 870, 731, 933),
-        "tap",
-        None,
-    ),
-    "bioenhancer-daily-back": (
-        "bioenhancer",
-        "home",
-        "HOME_BASE",
-        "BIOENHANCER_TO_HOME",
-        "bioenhancer-daily-back",
-        (31, 1, 138, 55),
-        "tap",
-        None,
-    ),
-    "daily-supply-depot-go": (
-        "daily",
-        "supply_depot",
-        "SUPPLY_DEPOT",
-        "DAILY_SUPPLY_DEPOT_GO",
-        "daily-supply-depot-go",
-        (554, 786, 731, 878),
-        "tap",
-        None,
-    ),
-    "supply-depot-daily-back": (
-        "supply_depot",
-        "home",
-        "HOME_BASE",
-        "SUPPLY_DEPOT_TO_HOME",
-        "supply-depot-daily-back",
-        (31, 1, 138, 55),
-        "tap",
-        None,
-    ),
-    "alliance-fort-dismiss": (
-        "alliance_fort",
-        "home",
-        "ALLIANCE_FORT_DISMISSED",
-        "DISMISS_ALLIANCE_FORT_WAVE",
-        "alliance-fort-wave-dismiss-x",
-        (620, 360, 735, 455),
-        "tap",
-        None,
-    ),
-}
-
-
-def navigate(cfg: OperatorConfig, step: str) -> str:
-    if step not in NAVIGATION_STEPS:
-        raise OperatorError(
-            "navigate accepts only the checked-in route names: "
-            + ", ".join(sorted(NAVIGATION_STEPS))
-        )
-    (
-        source_mode,
-        expected_mode,
-        expected_state,
-        semantic,
-        target,
-        roi,
-        input_kind,
-        swipe,
-    ) = NAVIGATION_STEPS[step]
-    stamp = str(int(time.time()))
-    args = [
-        "python3",
-        "scripts/mvp_quest_to_claim.py",
-        "--cash-reference",
-        f"/workspace/{CASH_REFERENCE}",
-        "--home-reference",
-        "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png",
-        "--quest-reference",
-        "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
-        "--daily-reference",
-        "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png",
-        "--main-quest-reference",
-        "/workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png",
-        "execute",
-        "--database",
-        f"/evidence/actions-nav-{step}-{stamp}.sqlite3",
-        "--evidence",
-        "/evidence",
-        "--owner",
-        "pnsctl-" + stamp,
-        "--action-id",
-        "nav-" + step + "-" + stamp,
-        "--action-key",
-        "nav-" + step + "-" + stamp,
-        "--source-mode",
-        source_mode,
-        "--expected-mode",
-        expected_mode,
-        "--expected-state",
-        expected_state,
-        "--target",
-        target,
-        "--roi",
-        *map(str, roi),
-        "--semantic-action",
-        semantic,
-    ]
-    if input_kind == "swipe":
-        if swipe is None:
-            raise OperatorError("swipe navigation step is missing its bounded gesture")
-        args.extend(["--input-kind", "swipe", "--swipe", *map(str, swipe)])
-    if source_mode == "home":
-        args.extend(["--observation-max-age", "15", "--dispatch-max-age", "15"])
-    command = _adb_shell(cfg, "")
-    # Reuse the worker's interpreter and ADB environment without creating a second transport.
-    command = (
-        f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 -e PYTHONPATH=/workspace -w /workspace "
-        f"{quote(cfg.container)} " + " ".join(quote(item) for item in args)
-    )
-    return run_remote(cfg, command)
-
-
-def run_task(cfg: OperatorConfig, task: str, game_day: str = "") -> str:
-    stamp = str(int(time.time()))
-    if task == "daily-claim":
-        if not game_day:
-            raise OperatorError(
-                "Daily Claim requires an explicit current game-day identity"
-            )
-        command = (
-            f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 -e PYTHONPATH=/workspace -w /workspace {quote(cfg.container)} "
-            f"python3 scripts/mvp_quest_to_claim.py "
-            f"--cash-reference /workspace/{CASH_REFERENCE} "
-            "--home-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png "
-            "--quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
-            "--daily-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png "
-            "--main-quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
-            f"execute --database /evidence/actions-daily-claim-{stamp}.sqlite3 --evidence /evidence "
-            f"--owner pnsctl-{stamp} --action-id daily-claim-{stamp} --action-key daily-claim-{stamp} "
-            f"--game-day {quote(game_day)} --source-mode daily_claim --expected-mode daily_claimed "
-            "--expected-state DAILY_QUEST_CLAIMED --target daily-quest-claim "
-            "--roi 500 300 780 550 --semantic-action CLAIM_DAILY_QUEST "
-            "--consequence claim_zero_cost_reward --control-class CLAIM --quantity 1"
-        )
-    elif task == "bioenhancer-free-research":
-        if not game_day:
-            raise OperatorError(
-                "Bioenhancer research requires an explicit current game-day identity"
-            )
-        command = (
-            f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 -e PYTHONPATH=/workspace -w /workspace {quote(cfg.container)} "
-            f"python3 scripts/mvp_quest_to_claim.py "
-            f"--cash-reference /workspace/{CASH_REFERENCE} "
-            "--home-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png "
-            "--quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
-            "--daily-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png "
-            "--main-quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
-            f"execute --database /evidence/actions-bioenhancer-free-{stamp}.sqlite3 --evidence /evidence "
-            f"--owner pnsctl-{stamp} --action-id bioenhancer-free-{stamp} --action-key bioenhancer-free-{stamp} "
-            f"--game-day {quote(game_day)} --source-mode bioenhancer_free --expected-mode bioenhancer_free "
-            "--expected-state BIOENHANCER_RESEARCH_SUCCESS --target bioenhancer-free-research "
-            "--roi 94 1133 345 1216 --semantic-action RESEARCH_BIOENHANCER_FREE "
-            "--consequence bioenhancer_research_free --control-class RESEARCH_FREE --quantity 1"
-        )
-    elif task == "alliance-help":
-        command = (
-            f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 {quote(cfg.container)} python3 scripts/alliance_help_live.py "
-            f"--adb /opt/adb --serial {quote(cfg.serial)} --database /evidence/actions-help-all-semantic-fix.sqlite3 "
-            f"--evidence /evidence --result /evidence/alliance-help-semantic-fix-result.json --owner pnsctl-{stamp} "
-            f"--action-id alliance-help-{stamp} --action-key alliance-help-{stamp}"
-        )
-    elif task in {
-        "vip-popup",
-        "praise",
-        "praise-route-evidence",
-        "praise-leaderboard-evidence",
-        "personal-might-claim",
-    }:
-        popup_only = " --popup-only" if task == "vip-popup" else ""
-        navigation_only = (
-            " --navigation-evidence-only" if task == "praise-route-evidence" else ""
-        )
-        leaderboard_only = (
-            " --leaderboard-evidence-only"
-            if task == "praise-leaderboard-evidence"
-            else ""
-        )
-        claim_only = " --claim-only" if task == "personal-might-claim" else ""
-        command = (
-            f"docker exec -e HOME=/tmp -e ADB_SERVER_PORT=5042 {quote(cfg.container)} python3 scripts/personal_might_praise_live.py "
-            f"--adb /opt/adb --serial {quote(cfg.serial)} --database /evidence/actions-praise-{stamp}.sqlite3 "
-            f"--evidence /evidence --owner pnsctl-{stamp} --game-day daily-2026-07-13 "
-            "--daily-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png "
-            "--main-quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png "
-            "--home-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/home-base-settled.png "
-            "--quest-reference /workspace/evidence/sessions/20260712-m6-dq-bootstrap/assets/quest-main-settled.png"
-            + popup_only
-            + navigation_only
-            + leaderboard_only
-            + claim_only
-        )
-    else:
-        raise OperatorError(
-            "requested task is not in the checked-in supervised task allowlist"
-        )
-    return run_remote(cfg, command)
-
-
-def test_command(cfg: OperatorConfig, focused: bool, pattern: str = "test_*.py") -> str:
-    name = "pnsctl-focused-20260713" if focused else "pnsctl-full-20260713"
-    selector = f"-p {quote(pattern)}" if focused else "-p 'test_*.py'"
-    inner = f"python3 -m unittest discover -s tests {selector} 2>&1"
-    command = (
-        f"docker run --rm --name {name} --user 65534:65534 --read-only "
-        f"--tmpfs /tmp:rw,noexec,nosuid,size=256m -v {quote(cfg.remote_workspace)}:/workspace:ro "
-        f"-w /workspace {quote(cfg.image)} sh -lc {quote(inner)}"
-    )
-    return run_remote(cfg, command)
-
-
-def validate(cfg: OperatorConfig) -> str:
-    command = (
-        f"docker run --rm --name pnsctl-validate-20260713 --user 65534:65534 --read-only "
-        f"--tmpfs /tmp:rw,noexec,nosuid,size=256m -v {quote(cfg.remote_workspace)}:/workspace:ro "
-        f"-w /workspace {quote(cfg.image)} sh -lc "
-        "'python3 scripts/validate-runtime-profile.py && "
-        "python3 scripts/daily_quest_bootstrap.py validate-assets "
-        "--manifest evidence/sessions/20260712-m6-dq-bootstrap/assets/asset-manifest.json'"
-    )
-    return run_remote(cfg, command)
-
-
-def preserve_evidence(
-    cfg: OperatorConfig, destination: Path, names: Sequence[str] = ()
-) -> str:
-    if not names:
-        raise OperatorError(
-            "preserve-evidence requires at least one exact --name; cumulative remote evidence "
-            "downloads are intentionally disabled"
-        )
-    destination = (
-        destination if destination.is_absolute() else (cfg.repo_root / destination)
-    )
-    destination = destination.resolve()
-    destination.mkdir(parents=True, exist_ok=True)
-    for name in names:
-        safe_name = _safe_name(name)
-        encoded = run_remote(
-            cfg,
-            f"base64 -w0 {quote(cfg.remote_evidence + '/' + safe_name)}",
-        ).strip()
-        (destination / safe_name).write_bytes(base64.b64decode(encoded))
-    return str(destination)
-
-
-def evidence_status(cfg: OperatorConfig) -> str:
-    return run_remote(
-        cfg,
-        f"find {quote(cfg.remote_evidence)} -maxdepth 1 -type f -printf '%f\n' | sort",
-    )
-
-
 def reconcile(args: argparse.Namespace) -> str:
     source = args.source
     output = args.output
@@ -858,7 +236,7 @@ def reconcile(args: argparse.Namespace) -> str:
             )
             status, reason = "cancelled", "proven_no_effect_mistarget"
         store.audit(
-            "MVP-QUEST-TO-CLAIM",
+            "PNS-FLOW-DELIVERY",
             "manual_reconciliation",
             time.time(),
             {
@@ -880,11 +258,6 @@ def reconcile(args: argparse.Namespace) -> str:
     finally:
         store.close()
     return json.dumps(result, sort_keys=True)
-
-
-def cleanup(cfg: OperatorConfig) -> str:
-    worker_stop(cfg)
-    return run_remote(cfg, "ss -ltn | grep -E ':(5042|5555)\\b' || true")
 
 
 def _load_flow_delivery_state(
@@ -1965,25 +1338,17 @@ def development_session_daily_row_reconnaissance(
 
 DAILY_ROW_CLAIM_TASK_ID = "daily-row-claim"
 DAILY_ROW_CLAIM_FLOW_ID = "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
-DAILY_ROW_CLAIM_SCENARIO = "consume-stamina-row-claim"
-DAILY_ROW_CLAIM_PREPARE_VARIANT = "consume-stamina-prepare"
-DAILY_ROW_CLAIM_CANARY_VARIANT = "consume-stamina-canary"
-DAILY_ROW_CLAIM_DISMISS_VIP_VARIANT = "consume-stamina-dismiss-vip"
-DAILY_ROW_CLAIM_SCAN_VARIANT = "ordinary-row-scan"
-DAILY_ROW_CLAIM_SCAN_SCENARIO = "post-reset-ready-row-scan"
-DAILY_ROW_CLAIM_SCAN_RESULT_IDENTITY = "daily-row-claim:scan:post-reset-ready-row"
-DAILY_ROW_CLAIM_SCAN_ACTION_IDENTITIES = (
-    "daily-row-scan-swipe-1",
-    "daily-row-scan-swipe-2",
-    "daily-row-scan-swipe-3",
-)
-DAILY_ROW_CLAIM_PREPARE_RESULT_IDENTITY = "daily-row-claim:prepare:consume_stamina"
-DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY = "daily-row-claim:canary:consume_stamina"
+DAILY_ROW_CLAIM_SCENARIO = "selected-daily-aggregate-claim"
+DAILY_ROW_CLAIM_PREPARE_VARIANT = "aggregate-claim-prepare"
+DAILY_ROW_CLAIM_CANARY_VARIANT = "aggregate-claim-canary"
+DAILY_ROW_CLAIM_DISMISS_VIP_VARIANT = "aggregate-claim-dismiss-vip"
+DAILY_ROW_CLAIM_PREPARE_RESULT_IDENTITY = "daily-claim:prepare:aggregate"
+DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY = "daily-claim:canary:aggregate"
 DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY = (
     "daily-row-claim:popup-dismiss:vip-points"
 )
 DAILY_ROW_CLAIM_PREPARE_ACTION_IDENTITY = "daily-row-prepare-observation"
-DAILY_ROW_CLAIM_ACTION_IDENTITY = "daily-row-claim:consume_stamina"
+DAILY_ROW_CLAIM_ACTION_IDENTITY = "daily-claim:aggregate"
 DAILY_ROW_CLAIM_DISMISS_VIP_ACTION_IDENTITY = "reset-popup-close"
 
 
@@ -2025,19 +1390,6 @@ def _daily_row_claim_spec(mode: str) -> Mapping[str, Any]:
             "action_classes": ("navigation",),
             "consequence_class": "navigation_only",
             "result_identity": DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY,
-            "terminal_states": ("observed", "evidence_required"),
-        }
-    if mode == "scan-ready-row":
-        return {
-            "mode": mode,
-            "receipt_class": "reconnaissance",
-            "max_inputs": 3,
-            "variant": DAILY_ROW_CLAIM_SCAN_VARIANT,
-            "scenario": DAILY_ROW_CLAIM_SCAN_SCENARIO,
-            "action_identities": DAILY_ROW_CLAIM_SCAN_ACTION_IDENTITIES,
-            "action_classes": ("navigation", "navigation", "navigation"),
-            "consequence_class": "navigation_only",
-            "result_identity": DAILY_ROW_CLAIM_SCAN_RESULT_IDENTITY,
             "terminal_states": ("observed", "evidence_required"),
         }
     raise OperatorError("daily row Claim mode is unsupported")
@@ -2198,30 +1550,6 @@ def _daily_row_claim_artifact_path(
     return resolved
 
 
-def _daily_scan_point(value: object, *, label: str) -> tuple[int, int]:
-    if (
-        not isinstance(value, (list, tuple))
-        or len(value) != 2
-        or any(type(coordinate) is not int for coordinate in value)
-    ):
-        raise OperatorError(f"Daily ready-row scan {label} is malformed")
-    return int(value[0]), int(value[1])
-
-
-def _daily_scan_region(value: object, *, label: str) -> tuple[int, int, int, int]:
-    if (
-        not isinstance(value, (list, tuple))
-        or len(value) != 4
-        or any(type(coordinate) is not int for coordinate in value)
-    ):
-        raise OperatorError(f"Daily ready-row scan {label} is malformed")
-    region = tuple(int(coordinate) for coordinate in value)
-    x0, y0, x1, y1 = region
-    if not (0 <= x0 < x1 <= 800 and 0 <= y0 < y1 <= 1280):
-        raise OperatorError(f"Daily ready-row scan {label} is unsafe")
-    return region
-
-
 def _validate_daily_row_claim_artifacts(
     session_directory: Path,
     payload: Mapping[str, Any],
@@ -2229,7 +1557,6 @@ def _validate_daily_row_claim_artifacts(
     mode: str,
 ) -> None:
     from scripts.bluestacks_native_runtime import captured_native_frame_from_png
-    from scripts.daily_row_claim_bluestacks import DAILY_ROW_SCAN_LIST_REGION
 
     frames = payload.get("frames")
     if not isinstance(frames, Mapping) or "source" not in frames:
@@ -2379,265 +1706,6 @@ def _validate_daily_row_claim_artifacts(
             or successor.get("unblurred") is not True
         ):
             raise OperatorError("Daily VIP popup successor is not selected Daily")
-    elif mode == "scan-ready-row":
-        partial_terminal = payload.get("status") == "evidence_required"
-        expected_region = tuple(DAILY_ROW_SCAN_LIST_REGION)
-        expected_identities = list(DAILY_ROW_CLAIM_SCAN_ACTION_IDENTITIES)
-        declared_region = _daily_scan_region(
-            payload.get("safe_list_region"),
-            label="declared safe list region",
-        )
-        if declared_region != expected_region:
-            raise OperatorError("Daily ready-row scan safe list region is not frozen")
-        if payload.get("scan_budget") != len(expected_identities):
-            raise OperatorError("Daily ready-row scan budget is not frozen")
-        if payload.get("swipe_identities") != expected_identities:
-            raise OperatorError("Daily ready-row scan swipe identity manifest is not frozen")
-        if (
-            type(payload.get("input_count")) is not int
-            or payload["input_count"] < 0
-            or payload["input_count"] > len(expected_identities)
-        ):
-            raise OperatorError("Daily ready-row scan input count is malformed")
-        input_count = int(payload["input_count"])
-        if (
-            payload.get("resource_affecting_inputs") != 0
-            or payload.get("combat_confirmations") != 0
-            or payload.get("claim_authority") is not False
-        ):
-            raise OperatorError("Daily ready-row scan contains a forbidden capability")
-        for field, expected in (
-            ("action_class", "navigation"),
-            ("consequence_class", "navigation_only"),
-        ):
-            if field in payload and payload.get(field) != expected:
-                raise OperatorError(
-                    f"Daily ready-row scan {field} is not navigation-only"
-                )
-
-        actions = payload.get("actions")
-        if not isinstance(actions, list) or len(actions) != input_count:
-            raise OperatorError("Daily ready-row scan action count is malformed")
-        swipes = payload.get("swipes")
-        if not isinstance(swipes, list) or len(swipes) != input_count:
-            raise OperatorError("Daily ready-row scan swipe count is malformed")
-        actual_identities = [
-            row.get("action_identity") if isinstance(row, Mapping) else None
-            for row in swipes
-        ]
-        if actual_identities != expected_identities[:input_count]:
-            raise OperatorError("Daily ready-row scan action identity order is invalid")
-        if any(
-            not isinstance(row, Mapping)
-            or row.get("requested_action") != "navigation"
-            or row.get("action_class") != "navigation"
-            or row.get("label") != expected_identities[index]
-            or row.get("status")
-            not in ({"completed"} if not partial_terminal else {"completed", "unknown"})
-            or row.get("recovery_used") is True
-            or row.get("resource_affecting", False) not in (False, 0)
-            or row.get("combat_confirmation", False) not in (False, 0)
-            for index, row in enumerate(actions)
-        ):
-            raise OperatorError("Daily ready-row scan action record is not navigation")
-
-        declared_start = None
-        if "swipe_start" in payload:
-            declared_start = _daily_scan_point(
-                payload.get("swipe_start"),
-                label="declared swipe start",
-            )
-        declared_end = None
-        if "swipe_end" in payload:
-            declared_end = _daily_scan_point(
-                payload.get("swipe_end"),
-                label="declared swipe end",
-            )
-
-        for index, swipe in enumerate(swipes, start=1):
-            if not isinstance(swipe, Mapping):
-                raise OperatorError("Daily ready-row scan swipe record is malformed")
-            expected_identity = expected_identities[index - 1]
-            if (
-                swipe.get("ordinal") != index
-                or swipe.get("action_identity") != expected_identity
-                or swipe.get("action_class") != "navigation"
-                or swipe.get("consequence_class", "navigation_only")
-                != "navigation_only"
-                or swipe.get("consequential", False) is not False
-                or swipe.get("status")
-                not in ({"completed"} if not partial_terminal else {"completed", "unknown"})
-            ):
-                raise OperatorError(
-                    "Daily ready-row scan swipe action identity or class is invalid"
-                )
-            row_region = _daily_scan_region(
-                swipe.get("safe_list_region"),
-                label=f"swipe {index} safe list region",
-            )
-            if row_region != declared_region:
-                raise OperatorError(
-                    "Daily ready-row scan swipe safe list region is inconsistent"
-                )
-            start = _daily_scan_point(
-                swipe.get("start"),
-                label=f"swipe {index} start",
-            )
-            end = _daily_scan_point(
-                swipe.get("end"),
-                label=f"swipe {index} end",
-            )
-            for point, point_label in ((start, "start"), (end, "end")):
-                if not (
-                    declared_region[0] <= point[0] < declared_region[2]
-                    and declared_region[1] <= point[1] < declared_region[3]
-                ):
-                    raise OperatorError(
-                        f"Daily ready-row scan swipe {index} {point_label} is outside the safe list region"
-                    )
-            if (
-                declared_start is not None
-                and start != declared_start
-                or declared_end is not None
-                and end != declared_end
-            ):
-                raise OperatorError(
-                    "Daily ready-row scan swipe geometry disagrees with the declaration"
-                )
-            before_key = f"swipe_{index:02d}_immediate_before"
-            before_frame = frames.get(before_key)
-            before_ref = swipe.get("before")
-            if not isinstance(before_frame, Mapping) or not isinstance(before_ref, Mapping):
-                raise OperatorError(
-                    f"Daily ready-row scan swipe {index} immediate-before evidence is missing"
-                )
-            if (
-                before_ref.get("path") != before_frame.get("path")
-                or before_ref.get("sha256") != before_frame.get("sha256")
-                or swipe.get("source_frame_sha256") != before_frame.get("sha256")
-            ):
-                raise OperatorError(
-                    f"Daily ready-row scan swipe {index} source hash is not bound to immediate-before"
-                )
-            if not isinstance(swipe.get("source_frame_sha256"), str):
-                raise OperatorError(
-                    f"Daily ready-row scan swipe {index} source hash is malformed"
-                )
-
-        events_value = payload.get("runtime_events_path")
-        if not isinstance(events_value, str) or not events_value.strip():
-            if input_count or not partial_terminal:
-                raise OperatorError("Daily ready-row scan runtime events path is missing")
-        else:
-            events_path = _daily_row_claim_artifact_path(
-                session_directory,
-                events_value,
-                label="runtime events",
-            )
-            try:
-                event_lines = events_path.read_text(encoding="utf-8").splitlines()
-            except (OSError, UnicodeError) as exc:
-                raise OperatorError("Daily ready-row scan runtime events are unreadable") from exc
-            event_rows: list[Mapping[str, Any]] = []
-            for line_number, line in enumerate(event_lines, start=1):
-                if not line.strip():
-                    continue
-                try:
-                    parsed = json.loads(line)
-                except json.JSONDecodeError as exc:
-                    raise OperatorError(
-                        f"Daily ready-row scan runtime event {line_number} is malformed"
-                    ) from exc
-                if not isinstance(parsed, Mapping):
-                    raise OperatorError(
-                        f"Daily ready-row scan runtime event {line_number} is malformed"
-                    )
-                event_rows.append(parsed)
-            dispatches: list[Mapping[str, Any]] = []
-            for event in event_rows:
-                event_type = event.get("type")
-                if event_type == "capture":
-                    continue
-                if event_type != "dispatch":
-                    raise OperatorError(
-                        "Daily ready-row scan contains a forbidden runtime event"
-                    )
-                dispatches.append(event)
-            if len(dispatches) != input_count:
-                raise OperatorError(
-                    "Daily ready-row scan runtime dispatch count does not match input count"
-                )
-            for index, (swipe, event) in enumerate(zip(swipes, dispatches), start=1):
-                expected_identity = expected_identities[index - 1]
-                if (
-                    event.get("action_key") != expected_identity
-                    or event.get("target_identity") != expected_identity
-                    or "gesture" not in event
-                    or event["gesture"] != "swipe"
-                    or "action_class" not in event
-                    or event["action_class"] != "navigation"
-                    or "consequence_class" not in event
-                    or event["consequence_class"] != "navigation_only"
-                    or event.get("consequential", False) is not False
-                    or event.get("resource_affecting", False) is not False
-                    or event.get("combat_confirmation", False) is not False
-                    or any(
-                        event.get(field) != 0
-                        for field in (
-                            "resource_affecting_inputs",
-                            "combat_confirmations",
-                            "resource_count",
-                            "combat_count",
-                        )
-                        if field in event
-                    )
-                    or (
-                        "input_count" in event
-                        and event.get("input_count") != index
-                    )
-                ):
-                    raise OperatorError(
-                        "Daily ready-row scan runtime dispatch identity or class is invalid"
-                    )
-                if (
-                    _daily_scan_point(event.get("start"), label=f"event {index} start")
-                    != tuple(swipe["start"])
-                    or _daily_scan_point(event.get("end"), label=f"event {index} end")
-                    != tuple(swipe["end"])
-                    or event.get("source_sha256") != swipe.get("source_frame_sha256")
-                ):
-                    raise OperatorError(
-                        "Daily ready-row scan runtime dispatch does not match its swipe"
-                    )
-
-        annotation = payload.get("final_annotation")
-        if (
-            not isinstance(annotation, str)
-            or not annotation.strip()
-        ) and not partial_terminal:
-            raise OperatorError("Daily ready-row scan final annotation is missing")
-        if isinstance(annotation, str) and annotation.strip():
-            annotation_path = _daily_row_claim_artifact_path(
-                session_directory,
-                annotation,
-                label="final annotation",
-            )
-            if annotation_path.stat().st_size == 0:
-                raise OperatorError("Daily ready-row scan final annotation is unsafe")
-        if payload.get("status") == "observed":
-            ready = payload.get("ready_row")
-            if (
-                not isinstance(ready, Mapping)
-                or ready.get("status") != "ready"
-                or ready.get("claim_authority") is not False
-                or not ready.get("objective_key")
-                or not ready.get("objective_name")
-                or not ready.get("row_bounds")
-                or not ready.get("claim_roi")
-            ):
-                raise OperatorError("Daily ready-row scan ready-row evidence is missing")
-
-
 def development_session_daily_row_claim(
     *,
     mode: str,
@@ -2671,7 +1739,6 @@ def development_session_daily_row_claim(
         run_daily_row_claim_vip_popup_dismissal,
         run_daily_row_claim_canary,
         run_daily_row_claim_prepare,
-        run_daily_row_claim_ready_row_scan,
     )
     from scripts.flow_delivery_control import DelegatedRuntimeReceiptController
     from scripts.navigation_development_boundary import (
@@ -2798,11 +1865,6 @@ def development_session_daily_row_claim(
                         game_day_id=game_day_id,
                     )
                     if mode == "canary"
-                    else run_daily_row_claim_ready_row_scan(
-                        runtime,
-                        active_session,
-                    )
-                    if mode == "scan-ready-row"
                     else run_daily_row_claim_vip_popup_dismissal(
                         runtime,
                         active_session,
@@ -2821,7 +1883,7 @@ def development_session_daily_row_claim(
             route_result = {
                 **(route_result or {}),
                 "status": "evidence_required",
-                "reason": "Daily ready-row scan mutated a checkpoint artifact",
+                "reason": "Daily Claim mutated a checkpoint artifact",
             }
         status = str((route_result or {}).get("status") or "evidence_required")
         payload = base_payload(status)
@@ -2831,19 +1893,7 @@ def development_session_daily_row_claim(
             payload,
             ownership_released=True,
         )
-        scan_artifacts_present = mode == "scan-ready-row" and any(
-            field in payload
-            for field in (
-                "frames",
-                "swipes",
-                "actions",
-                "runtime_events_path",
-                "final_annotation",
-            )
-        )
-        if status in {"observed", "completed"} or (
-            status == "evidence_required" and scan_artifacts_present
-        ):
+        if status in {"observed", "completed"}:
             _validate_daily_row_claim_artifacts(
                 session_directory,
                 payload,
@@ -6262,7 +5312,7 @@ def parser() -> argparse.ArgumentParser:
     daily_row_claim = development_sub.add_parser("daily-row-claim")
     daily_row_claim.add_argument(
         "--mode",
-        choices=("prepare", "canary", "dismiss-vip-popup", "scan-ready-row"),
+        choices=("prepare", "canary", "dismiss-vip-popup"),
         required=True,
     )
     daily_row_claim.add_argument("--max-inputs", type=int, required=True)
@@ -6301,50 +5351,6 @@ def parser() -> argparse.ArgumentParser:
     development_run.add_argument("--task-id")
     development_run.add_argument("--scenario")
     development_run.add_argument("--variant")
-    for name in (
-        "preflight",
-        "worker-start",
-        "worker-status",
-        "worker-stop",
-        "adb-start",
-        "launch",
-        "capture",
-        "observe",
-        "navigate",
-        "run-task",
-        "test-focused",
-        "test-full",
-        "validate",
-        "preserve-evidence",
-        "evidence-status",
-        "cleanup",
-    ):
-        sub.add_parser(name)
-    sub.choices["capture"].add_argument("--name", default="current")
-    sub.choices["observe"].add_argument("--name", default="observe")
-    sub.choices["navigate"].add_argument(
-        "--step", required=True, choices=tuple(NAVIGATION_STEPS)
-    )
-    sub.choices["run-task"].add_argument(
-        "--task",
-        required=True,
-        choices=(
-            "alliance-help",
-            "vip-popup",
-            "praise-route-evidence",
-            "praise-leaderboard-evidence",
-            "praise",
-            "personal-might-claim",
-            "bioenhancer-free-research",
-            "daily-claim",
-        ),
-    )
-    sub.choices["run-task"].add_argument("--game-day", default="")
-    sub.choices["test-focused"].add_argument("--pattern", default="test_task_module.py")
-    sub.choices["preserve-evidence"].add_argument(
-        "--destination", type=Path, required=True
-    )
-    sub.choices["preserve-evidence"].add_argument("--name", action="append", default=[])
     rec = sub.add_parser("reconcile")
     rec.add_argument("--source", type=Path, required=True)
     rec.add_argument("--output", type=Path, required=True)
@@ -6725,39 +5731,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (OperatorError, OSError, RuntimeError, ValueError) as exc:
             print("pnsctl: " + str(exc), file=sys.stderr)
             return 2
-    cfg = OperatorConfig()
-    handlers = {
-        "preflight": lambda: run_remote(
-            cfg,
-            "set -eu; printf 'vm='; virsh domstate PnS-BlissOS-PoC; printf 'worker='; docker ps --filter name=^%s$ --format '{{.Names}}' || true; printf 'listeners='; ss -ltn | grep -E ':(5037|5042|5555)\\b' || true; test -f /mnt/cache/domains/PnS-BlissOS-PoC/rollback/20260711-rt017-runtime-backup/system.qcow2 && echo backup=intact"
-            % re.escape(cfg.container),
-        ),
-        "worker-start": lambda: worker_start(cfg),
-        "worker-status": lambda: worker_status(cfg),
-        "worker-stop": lambda: worker_stop(cfg),
-        "adb-start": lambda: adb_start(cfg),
-        "launch": lambda: launch(cfg),
-        "capture": lambda: capture(cfg, args.name),
-        "observe": lambda: observe(cfg, args.name),
-        "navigate": lambda: navigate(cfg, args.step),
-        "run-task": lambda: run_task(cfg, args.task, args.game_day),
-        "test-focused": lambda: test_command(cfg, True, args.pattern),
-        "test-full": lambda: test_command(cfg, False),
-        "validate": lambda: validate(cfg),
-        "preserve-evidence": lambda: preserve_evidence(
-            cfg, args.destination, args.name
-        ),
-        "evidence-status": lambda: evidence_status(cfg),
-        "cleanup": lambda: cleanup(cfg),
-    }
-    try:
-        output = handlers[args.command]()
-        if output:
-            print(output, end="" if output.endswith("\n") else "\n")
-        return 0
-    except (OperatorError, OSError, subprocess.SubprocessError) as exc:
-        print("pnsctl: " + str(exc), file=sys.stderr)
-        return 2
+    raise OperatorError("unsupported pnsctl command")
 
 
 if __name__ == "__main__":

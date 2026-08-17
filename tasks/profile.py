@@ -1,6 +1,8 @@
-"""Bliss 800x1280 local navigation profile.
+"""Dormant retained Bliss 800x1280 navigation provenance.
 
 These coordinates are bound to independently captured Bliss evidence, not vendor assets.
+They are not an active runtime profile and must never be imported by pnsctl or
+current BlueStacks operators.
 """
 
 from .contracts import AnchorSpec

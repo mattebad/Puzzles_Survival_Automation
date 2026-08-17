@@ -268,10 +268,10 @@
       "source": "explicit_user_direction_2026-07-23"
     },
     {
-      "policy_id": "ordinary-daily-row-claim",
-      "scope": "daily_claim.ordinary_row",
+      "policy_id": "aggregate-daily-claim",
+      "scope": "daily_claim.selected_daily",
       "status": "supervised_consequential_validation",
-      "decision": "One exact row-local Claim may be validated only after fresh generalized target and positive postcondition evidence exists.",
+      "decision": "One ordinary free non-milestone Claim control may be tapped exactly once on selected Daily. Success requires a positive points delta and all ordinary Claim controls cleared; objective identity and fixed point deltas are not authorization inputs.",
       "source": "execution_matrix"
     },
     {

@@ -609,6 +609,12 @@ Claim example.
 - Objective: prove one bounded, supervised Daily Quest quest-to-claim transition using the selected
   runtime and the minimum safety core, then stop.
 - Established facts:
+  - Current product contract correction (2026-08-17): objective flows only
+    attribute completion. On selected Daily, one ordinary free non-milestone
+    Claim tap claims all available completed quests. Authorization does not
+    bind an objective or row identity, and success requires a positive points
+    delta plus no remaining ordinary Claim controls. The Bioenhancer sequence
+    below is retained as historical evidence, not a per-row product contract.
   - The original scope is exactly: navigate to Daily Quest; determine whether one completed,
     unclaimed row exists; if none exists, complete exactly one approved zero-cost R1 objective;
     verify that row becomes Claim; claim exactly that row; prove the postcondition; stop.
@@ -936,22 +942,25 @@ Claim example.
 
 ### GNB-PHASE-E-DAILY-CLAIMS-OFFLINE — Generalize available Daily Claim contract
 
-- Dependencies: GNB-PHASE-D Passed; fresh generalized Daily Claim evidence is not yet available.
-- Scope: ordinary Daily Quest Claim semantics independent of the Personal Might catalog alias,
-  exact row-local target containment, explicit free/cost-negative requirements, profile/provenance/
-  hash gates, positive row/points postcondition, and synthetic Go/static-reference negatives.
-  No image capture, ADB, pnsctl registration, or live input.
-- Status: Passed (2026-07-14; offline contract and 5 focused tests).
-- Evidence: `tasks/available_daily_claim.py`,
+- Current authority correction (2026-08-17): this is the single aggregate
+  selected-Daily Claim action. It taps one ordinary free non-milestone Claim
+  control, verifies points increased and ordinary Claim controls cleared, and
+  stops. Objective-specific completion providers do not own Claim.
+- Dependencies: GNB-PHASE-D Passed; a fresh BlueStacks-native aggregate Claim target and
+  semantic successor pair are required for live acceptance.
+- Scope: one selected-Daily screen-level action independent of objective identity. Authorization
+  requires a current BlueStacks-native ordinary free non-milestone Claim control, profile/
+  provenance/hash gates, one-tap accounting, and reset identity. Success requires a positive
+  points delta and no remaining available ordinary Claim controls. Go, milestone, cost-bearing,
+  clipped, overlay, stale-source, and unchanged-postcondition cases fail closed.
+- Status: Offline contract passed; live acceptance evidence-gated.
+- Evidence: `tasks/available_daily_claim.py`, `scripts/daily_row_claim_bluestacks.py`,
   `tests/fixtures/phase_e_daily_claim_observations.json`, and
-  `tests/test_available_daily_claim.py`.
-- Result: a non-Personal-Might `Gather Food` semantic case exercises the generalized transaction
-  spec; Go, static-reference, wrong-target, non-free, milestone, clipped, overlay, reset, and
-  unchanged-postcondition cases fail closed.
-- Blocker: no fresh Bliss-native generalized Daily Claim target and positive-postcondition pair
-  exists.
-- Next: acquire navigation-only evidence when permitted, then promote a real generalized Daily
-  Claim target before any handler or dispatch is enabled.
+  `tests/test_available_daily_claim.py`. The retained Bioenhancer and Gather Food fixture results
+  are historical observations only; they are not per-row or per-objective Claim contracts.
+- Blocker: no clean-candidate BlueStacks aggregate Claim canary has been admitted.
+- Next: after a clean candidate is available, run the bounded Home → Quest → Daily flow and at
+  most one aggregate Claim canary when its fresh preconditions are present.
 
 ### GNB-PHASE-E-MILESTONES-OFFLINE — Add activity milestone-chest contract
 

@@ -23,7 +23,7 @@ import subprocess
 import sys
 import time
 import re
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Mapping
 
 import cv2
 import numpy as np
@@ -88,7 +88,6 @@ from tasks.navigation_session import (
     complete_route_at_target_bound,
     compute_pan_gesture_fingerprint,
     create_session,
-    complete_route_at_radial_successor,
     make_pan_action_key,
     mark_blocked,
     mark_dry_run,
@@ -3094,7 +3093,7 @@ def dispatch_verified_campaign_home_building_tap(
         return rebuilt
 
     def post_observe():
-        immediate_post = runtime.capture("campaign-home-building-immediate-post")
+        runtime.capture("campaign-home-building-immediate-post")
         if settle_seconds > 0:
             time.sleep(settle_seconds)
         settled = runtime.capture("campaign-home-building-settled")
@@ -3224,12 +3223,7 @@ def run_verified_campaign_home_atlas_entry(
     )
     lease_owner = nav_session.authorization.owner_operator
     policy = CentralPolicy(
-        supervised_tasks=frozenset(
-            {
-                "MVP-QUEST-TO-CLAIM",
-                nav_session.authorization.task_id,
-            }
-        )
+        supervised_tasks=frozenset({nav_session.authorization.task_id})
     )
     store: SafetyStore | None = None
     last_residual: float | None = None
@@ -4074,12 +4068,7 @@ def command_navigate_building(args) -> int:
     lease_owner = nav_session.authorization.owner_operator
     # Route-local policy allowlist only; does not register the task for production/scheduler.
     policy = CentralPolicy(
-        supervised_tasks=frozenset(
-            {
-                "MVP-QUEST-TO-CLAIM",
-                nav_session.authorization.task_id,
-            }
-        )
+        supervised_tasks=frozenset({nav_session.authorization.task_id})
     )
     store: SafetyStore | None = None
 
@@ -4545,7 +4534,7 @@ def command_supply_depot_radial(args) -> int:
     save_session(nav_session, session_path)
     lease_owner = nav_session.authorization.owner_operator
     policy = CentralPolicy(
-        supervised_tasks=frozenset({"MVP-QUEST-TO-CLAIM", SUPPLY_DEPOT_ROUTE_TASK_ID})
+        supervised_tasks=frozenset({SUPPLY_DEPOT_ROUTE_TASK_ID})
     )
     store: SafetyStore | None = None
     radial_semantics = None

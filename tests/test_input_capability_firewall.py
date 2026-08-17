@@ -61,9 +61,12 @@ from safe_action_core.models import (
 )
 
 
-PROFILE = "pns-blissos-poc-virgl-800x1280-v1"
+PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+RETIRED_PROFILE = "pns-blissos-poc-virgl-800x1280-v1"
 SESSION = "runtime-session-capability-1"
 NAV_ROI = (250, 1130, 410, 1280)
+TEST_TASK_ID = "TEST-CAPABILITY-FIREWALL"
+TEST_TASKS = frozenset({TEST_TASK_ID})
 
 
 class Clock:
@@ -132,7 +135,7 @@ def nav_request(obs: Observation | None = None, **changes) -> PolicyRequest:
     base = PolicyRequest(
         action_id="nav-capability-1",
         action_key="nav:capability:home-quest",
-        task_id="MVP-QUEST-TO-CLAIM",
+        task_id=TEST_TASK_ID,
         task_mode="supervised_validation",
         semantic_action="HOME_TO_QUEST",
         expected_runtime_profile_id=PROFILE,
@@ -154,7 +157,7 @@ def claim_request(obs: Observation | None = None, **changes) -> PolicyRequest:
     base = PolicyRequest(
         action_id="claim-capability-1",
         action_key="day-1:claim:capability",
-        task_id="MVP-QUEST-TO-CLAIM",
+        task_id=TEST_TASK_ID,
         task_mode="supervised_validation",
         semantic_action="CLAIM_DAILY_QUEST",
         expected_runtime_profile_id=PROFILE,
@@ -183,7 +186,7 @@ class CapabilityFirewallTests(unittest.TestCase):
         self.store = SafetyStore(Path(self.temp.name) / "safety.sqlite3")
         self.clock = Clock()
         self.store.acquire_lease("executor-1", self.clock(), 100.0)
-        self.policy = CentralPolicy()
+        self.policy = CentralPolicy(TEST_TASKS)
         self.transport_calls = 0
 
     def tearDown(self) -> None:
@@ -228,6 +231,25 @@ class CapabilityFirewallTests(unittest.TestCase):
         self.assertEqual(result.transport_calls, 1)
         self.assertEqual(self.transport_calls, 1)
         self.assertTrue(issued.capability.consumed)
+
+    def test_retired_profile_agreement_remains_global_lock(self) -> None:
+        result = self.policy.evaluate(
+            nav_request(
+                nav_observation(runtime_profile_id=RETIRED_PROFILE),
+                expected_runtime_profile_id=RETIRED_PROFILE,
+            )
+        )
+        self.assertEqual(result.decision, PolicyDecision.GLOBAL_INPUT_LOCK)
+        self.assertEqual(result.reason_code, "PROFILE_MISMATCH")
+
+    def test_retired_alliance_help_consequence_is_denied(self) -> None:
+        result = self.policy.evaluate(
+            claim_request(
+                claim_observation(consequence="alliance_help_zero_cost"),
+            )
+        )
+        self.assertEqual(result.decision, PolicyDecision.DENY)
+        self.assertEqual(result.reason_code, "CONSEQUENCE_DENIED")
 
     def test_navigation_capability_cannot_dispatch_consequential(self) -> None:
         immediate = nav_observation(frame_sha256="b" * 64, capture_completed_monotonic=999.8)
@@ -686,7 +708,7 @@ class CapabilityFirewallTests(unittest.TestCase):
             InputCapability()
         with self.assertRaises(TypeError):
             InputCapability._mint("not-binding", 1)  # type: ignore[call-arg,arg-type]
-        foreign = CentralPolicy()
+        foreign = CentralPolicy(TEST_TASKS)
         immediate = nav_observation(frame_sha256="b" * 64, capture_completed_monotonic=999.8)
         issued = foreign.issue_capability(nav_request(immediate))
         assert issued.capability is not None
@@ -718,7 +740,7 @@ class CapabilityFirewallTests(unittest.TestCase):
         immediate = nav_observation(frame_sha256="b" * 64, capture_completed_monotonic=999.8)
         mutations = (
             ("_binding", CapabilityAuthorityBinding(
-                task_id="MVP-QUEST-TO-CLAIM",
+                task_id=TEST_TASK_ID,
                 runtime_session_id=SESSION,
                 action_class=ActionClass.NAVIGATION_ONLY,
                 action_id="other",
@@ -750,7 +772,7 @@ class CapabilityFirewallTests(unittest.TestCase):
         immediate = nav_observation(frame_sha256="b" * 64, capture_completed_monotonic=999.8)
         issued = self.policy.issue_capability(nav_request(immediate))
         assert issued.capability is not None
-        replacement_policy = CentralPolicy()
+        replacement_policy = CentralPolicy(TEST_TASKS)
         replacement_policy._issuer_handle = self.policy._issuer_handle
         self.assertEqual(
             replacement_policy.evaluate_capability(issued.capability, nav_request(immediate)).reason_code,
@@ -916,7 +938,7 @@ class CapabilityFirewallTests(unittest.TestCase):
     def test_binding_schema_rejects_bool_and_mutable_collections(self) -> None:
         with self.assertRaises(ValueError):
             CapabilityAuthorityBinding(
-                task_id="MVP-QUEST-TO-CLAIM",
+                task_id=TEST_TASK_ID,
                 runtime_session_id=SESSION,
                 action_class=ActionClass.NAVIGATION_ONLY,
                 action_id="nav-1",
@@ -932,7 +954,7 @@ class CapabilityFirewallTests(unittest.TestCase):
             )
         with self.assertRaises(ValueError):
             CapabilityAuthorityBinding(
-                task_id="MVP-QUEST-TO-CLAIM",
+                task_id=TEST_TASK_ID,
                 runtime_session_id=SESSION,
                 action_class=ActionClass.NAVIGATION_ONLY,
                 action_id="nav-1",

@@ -5,11 +5,9 @@ from pathlib import Path
 
 import cv2
 
-from scripts.personal_might_praise_live import (
-    LiveAdapter,
+from scripts.bluestacks_popup_recognition import (
     MAX_VIP_POPUP_INPUTS,
     OLD_INVALID_CLOSE_POINT,
-    build_vip_popup_artifact,
     point_inside,
     recognize_reset_popup,
     translate_crop_bounds,
@@ -58,27 +56,8 @@ class VipPointsPopupTests(unittest.TestCase):
             (277, 767, 523, 847),
         )
 
-    def test_artifact_enforces_full_frame_center_and_negative_fixture(self):
-        detail = recognize_reset_popup(self.frame)
-        artifact = build_vip_popup_artifact(POPUP_FRAME, self.frame, detail)
-        self.assertTrue(artifact["passed"])
-        self.assertEqual(artifact["coordinate_space"], "FULL_FRAME_800X1280")
-        self.assertEqual(artifact["target_action"], "DISMISS_VIP_POINTS_POPUP")
-        self.assertEqual(artifact["target_control"], "Close")
-        self.assertTrue(artifact["center_y_between_780_and_830"])
-        self.assertTrue(artifact["old_coordinate_320_650_outside_button"])
-
-    def test_center_y_outside_gate_fails_artifact(self):
-        detail = recognize_reset_popup(self.frame)
-        detail = {**detail, "target_center": (400, 760)}
-        artifact = build_vip_popup_artifact(POPUP_FRAME, self.frame, detail)
-        self.assertFalse(artifact["passed"])
-
     def test_one_popup_input_maximum(self):
-        adapter = LiveAdapter.__new__(LiveAdapter)
-        adapter.vip_popup_input_count = MAX_VIP_POPUP_INPUTS
-        with self.assertRaisesRegex(RuntimeError, "refusing second Close tap"):
-            adapter.dismiss_reset_popup({"recognized": True})
+        self.assertEqual(MAX_VIP_POPUP_INPUTS, 1)
 
     def test_disappearance_and_successor_confirm_handling(self):
         before = {"recognized": True}

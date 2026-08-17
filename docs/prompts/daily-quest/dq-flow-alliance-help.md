@@ -1,22 +1,23 @@
 # DQ-FLOW-ALLIANCE-HELP
 
-Repository authority: catalog owns `help_allies`; matrix owns flow status/policy/registration; backlog owns
-task. Preserve live-validated individual Help, Help All, and canonical route `daily_go_to_speedup_help`.
-Exclude Main Quest Claim.
+Repository authority: catalog owns `help_allies`; matrix owns current status,
+Policy, registration, and scheduler eligibility; `BACKLOG.md` owns the task.
+Historical Bliss Help All and individual Help evidence remains immutable but
+does not authorize current gameplay.
 
-Scope: parameterized Alliance Help individual and Help All. Reuse selected Daily inventory,
-Alliance route, safe action core, and validated operator registration. Route: Daily row → Alliance
-Help → individual or Help All. Source: selected Daily row; target: exact Help control; successor:
-help count/row progress and stable screen. Bind all to current frame.
+Scope: selected-Daily completion attribution only. Route: none; the provider
+must not navigate to Alliance Help. Source: the positively selected Daily
+`help_allies` progress row. Target: none. Successor: selected-Daily progress
+reaches the completion target after independently performed gameplay.
 
-Policy: validated zero-cost action; one exact dispatch per selected target, bounded retry. Postcondition:
-requested Help semantic confirmed. Recovery: fail closed on ambiguous target, stale frame, or
-unresolved result. Daily reconciliation uses `help_allies`; Claim remains independently authorized.
-Persistence/scheduler dormant.
+Postcondition: objective completion is attributed from current Daily progress.
+Recovery: fail closed as incomplete when progress or objective identity is
+unreadable; never navigate, bind a Help control, dispatch, or retry gameplay.
+Daily Claim remains the separate aggregate one-tap action. Persistence is
+offline-only. Registration is `NOT_REGISTERED`; scheduler eligibility is
+disabled.
 
-Tests: preserve existing registration and status, route contract, individual/All distinction,
-dispatch cardinality, successor proof, and negative Main recognition. Bliss-native evidence required;
-GnBots is provenance only. Future navigation follows validated routes but no live work now. Prohibit
-ADB, worker/VM changes, lease/journal changes, new registration, scheduler eligibility, and live input.
-Update matrix/status. Commit: `docs(tasks): map every Daily objective to an execution task`.
-Preservation prompt: verify, do not redesign.
+Tests: verify progress parsing/completion attribution and absence of route,
+target, action, Claim, registration, and scheduler authority. Prohibit live
+input, ADB, worker/VM changes, lease/journal changes, and new registration.
+Commit: `docs(tasks): map every Daily objective to an execution task`.

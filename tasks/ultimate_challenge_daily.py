@@ -16,7 +16,7 @@ import re
 from typing import Mapping, Optional
 
 from .contracts import ROI
-from .profile import PROFILE_ID
+BLUESTACKS_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 
 
 FLOW_ID = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
@@ -124,7 +124,7 @@ class UltimateChallengeEntryObservation:
     reset_identity: Optional[str]
     source_frame_sha256: str
     overlay_state: str = "none_observed"
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = BLUESTACKS_RUNTIME_PROFILE_ID
     recognized: bool = True
 
     def __post_init__(self) -> None:
@@ -166,7 +166,7 @@ class UltimateChallengeExecutionObservation:
     auto_battle_visible: bool = False
     refill_visible: bool = False
     already_complete: bool = False
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = BLUESTACKS_RUNTIME_PROFILE_ID
 
     def __post_init__(self) -> None:
         if self.target_roi is not None:
@@ -291,7 +291,7 @@ def evaluate_execution_step(
 
     if not observation.recognized:
         return _execution_blocked(observation, "state is not recognized", reset_identity=identity)
-    if observation.runtime_profile_id != PROFILE_ID or not _SHA256_RE.fullmatch(
+    if observation.runtime_profile_id != BLUESTACKS_RUNTIME_PROFILE_ID or not _SHA256_RE.fullmatch(
         observation.source_frame_sha256 or ""
     ):
         return _execution_blocked(
@@ -480,7 +480,7 @@ def entry_observation_is_bound(observation: UltimateChallengeEntryObservation) -
         and observation.entry_control_identity == ULTIMATE_CHALLENGE_ENTRY_IDENTITY
         and observation.entry_roi is not None
         and observation.overlay_state in {"none", "none_observed"}
-        and observation.runtime_profile_id == PROFILE_ID
+        and observation.runtime_profile_id == BLUESTACKS_RUNTIME_PROFILE_ID
         and bool(_SHA256_RE.fullmatch(observation.source_frame_sha256 or ""))
     )
 

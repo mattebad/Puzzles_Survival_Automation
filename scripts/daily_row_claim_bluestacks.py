@@ -1,8 +1,9 @@
 """Bounded Home -> Quest -> Daily reconnaissance for local BlueStacks.
 
-This module owns only two receipt-authorized navigation taps.  It never claims a
-row, spends resources, performs recovery, or talks to ADB directly.  Runtime
-capture and transport are supplied by ``LocalBlueStacksRuntime``.
+This module owns the selected-Daily aggregate Claim flow and its optional exact
+VIP popup dismissal.  It never spends resources, performs recovery, or talks
+to ADB directly.  Runtime capture and transport are supplied by
+``LocalBlueStacksRuntime``.
 """
 
 from __future__ import annotations
@@ -22,7 +23,6 @@ from tasks.available_daily_claim import (
     AvailableDailyClaimObservation,
     available_daily_claim_authorizeable,
 )
-from tasks.catalog import load_catalog, objective_for_text
 from scripts.world_map_navigation_bluestacks import (
     _visual_popup_panel_candidates as _accepted_visual_popup_panel_candidates,
 )
@@ -41,30 +41,12 @@ QUEST_STATE = "QUEST"
 DAILY_SELECTED_STATE = "DAILY_SELECTED"
 UNKNOWN_STATE = "UNKNOWN"
 DAILY_CLAIM_STATE = "DAILY_CLAIM_READY"
-DAILY_CLAIM_ACTION_IDENTITY = "daily-row-claim:consume_stamina"
-DAILY_CLAIM_OBJECTIVE_KEY = "consume_stamina"
-DAILY_CLAIM_OBJECTIVE_NAME = "Consume 20 Stamina"
-DAILY_CLAIM_REWARD_POINTS = 5
+DAILY_CLAIM_ACTION_IDENTITY = "daily-claim:aggregate"
+DAILY_CLAIM_TARGET_IDENTITY = "daily-quest-claim"
 BLUESTACKS_TARGET_PROVENANCE = "bluestacks-native"
 BLUESTACKS_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 DAILY_CLAIM_CONSEQUENCE_CLASS = "ordinary_development"
 DAILY_CLAIM_ACTION_CLASS = "reward_claim"
-DAILY_ROW_SCAN_MODE = "scan-ready-row"
-DAILY_ROW_SCAN_VARIANT = "ordinary-row-scan"
-DAILY_ROW_SCAN_SCENARIO = "post-reset-ready-row-scan"
-DAILY_ROW_SCAN_RESULT_IDENTITY = "daily-row-claim:scan:post-reset-ready-row"
-DAILY_ROW_SCAN_OBSERVATION_IDENTITY = "daily-row-scan:ordinary-ready-row"
-DAILY_ROW_SCAN_MAX_SWIPES = 3
-DAILY_ROW_SCAN_SWIPE_IDENTITIES = tuple(
-    f"daily-row-scan-swipe-{ordinal}"
-    for ordinal in range(1, DAILY_ROW_SCAN_MAX_SWIPES + 1)
-)
-DAILY_ROW_SCAN_LIST_REGION: NativeBox = (100, 520, 700, 1120)
-DAILY_ROW_SCAN_SWIPE_START = (400, 1000)
-DAILY_ROW_SCAN_SWIPE_END = (400, 560)
-DAILY_ROW_SCAN_SWIPE_DURATION_MS = 350
-DAILY_ROW_SCAN_SETTLE_INTERVAL_SECONDS = 0.25
-DAILY_ROW_SCAN_SETTLE_MAX_ATTEMPTS = 3
 DAILY_CLAIM_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
 DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
 DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS = 20
@@ -677,7 +659,6 @@ def _quest_page_semantics(
     activity = activity_candidates[0]
     context = context_candidates[0]
     daily_x0, daily_y0, daily_x1, daily_y1 = daily.roi
-    daily_center_x = (daily_x0 + daily_x1) / 2.0
     daily_center_y = (daily_y0 + daily_y1) / 2.0
     daily_height = daily_y1 - daily_y0
 
@@ -1342,15 +1323,15 @@ def _free_claim_control_proven(cost_scan: Mapping[str, Any]) -> bool:
     )
 
 
-def _daily_claim_semantics(
+def _daily_aggregate_claim_semantics(
     frame: np.ndarray,
     tokens: Sequence[OCRToken],
     *,
     game_day_id: str | None,
     observed_utc: datetime | str | None = None,
 ) -> tuple[FrameRecognition, AvailableDailyClaimObservation | None]:
-    # The caller supplies full-frame tokens, so retain overlay markers from the
-    # same OCR evidence rather than performing a second recognition pass.
+    """Select one safe target from aggregate Claim controls on selected Daily."""
+
     words = {word for token in tokens for word in token.text.split()}
     overlay_markers = tuple(sorted(words & _OVERLAY_MARKERS))
     milestone_markers = tuple(sorted(words & _MILESTONE_MARKERS))
@@ -1383,21 +1364,6 @@ def _daily_claim_semantics(
         )
     )
     body = tuple(token for token in tokens if _token_center(token)[1] >= 340)
-    objective_tokens = tuple(
-        token
-        for token in body
-        if "consume" in token.text and "stamina" in token.text
-    )
-    # OCR commonly splits the objective into separate words.  Cluster tokens
-    # by row before matching the catalog alias.
-    candidate_lines: list[tuple[OCRToken, ...]] = []
-    for token in sorted(body, key=lambda item: _token_center(item)[1]):
-        center_y = _token_center(token)[1]
-        line = _line_tokens(body, y=center_y, tolerance=14)
-        if line and line not in candidate_lines and "consume" in _line_text(line) and "stamina" in _line_text(line):
-            candidate_lines.append(line)
-    if objective_tokens and not candidate_lines:
-        candidate_lines.append(_line_tokens(body, y=_token_center(objective_tokens[0])[1], tolerance=30))
 
     visual: dict[str, Any] = {
         "full_frame_overlay": {
@@ -1477,14 +1443,23 @@ def _daily_claim_semantics(
         )
     ):
         return failure("Daily reset deadline identity changed")
-    if len(candidate_lines) > 1:
-        return failure("duplicate consume_stamina objective candidates")
-
-    # A selected-Daily successor can remain semantically recognized after the
-    # claimed row disappears.  It is useful for postcondition polling but never
-    # authorizes a new input.
-    if not candidate_lines:
-        visual.update({"claim_ready": False, "same_objective_present": False})
+    claim_tokens = tuple(
+        sorted(
+            (token for token in body if token.text == "claim"),
+            key=lambda token: (
+                _token_center(token)[1],
+                _token_center(token)[0],
+                token.roi,
+            ),
+        )
+    )
+    visual["recognized_claim_controls"] = len(claim_tokens)
+    visual["available_claim_controls"] = 0
+    visual["available_ordinary_claim_controls"] = 0
+    if not claim_tokens:
+        # A selected-Daily successor remains recognized after the aggregate
+        # Claim is consumed, but it never authorizes a second input.
+        visual["claim_ready"] = False
         return (
             FrameRecognition(
                 DAILY_SELECTED_STATE,
@@ -1499,167 +1474,148 @@ def _daily_claim_semantics(
             None,
         )
 
-    objective_line = candidate_lines[0]
-    objective_text = _line_text(objective_line)
-    progress = _parse_progress(objective_text)
-    if progress is None:
-        nearby = _line_tokens(body, y=_token_center(objective_line[0])[1], tolerance=36)
-        progress = _parse_progress(_line_text(nearby))
-    if progress is None:
-        return failure("consume_stamina progress is not exact and spatially bound")
-    current_progress, required_progress = progress
-    clean_name = re.sub(
-        r"\s*\(?\s*\d{1,6}\s*/\s*\d{1,6}\s*\)?\s*$",
-        "",
-        objective_text,
-    ).strip()
-    clean_name = re.sub(r"\s+\d{1,6}\s+\d{1,6}\s*$", "", clean_name).strip()
-    catalog_item = objective_for_text(clean_name)
-    if (
-        catalog_item is None
-        or catalog_item.objective_key != DAILY_CLAIM_OBJECTIVE_KEY
-        or clean_name.casefold() != DAILY_CLAIM_OBJECTIVE_NAME.casefold()
-    ):
-        return failure("objective is not the catalog-reconciled consume_stamina row")
-    if current_progress < required_progress or required_progress != 20:
-        # Recognize the page, but do not expose a claim target for an incomplete
-        # or wrong-quantity row.
-        visual.update(
-            {
-                "claim_ready": False,
-                "same_objective_present": True,
-                "objective_key": catalog_item.objective_key,
-                "objective_name": clean_name,
-                "current_progress": current_progress,
-                "required_progress": required_progress,
-            }
+    candidates: list[dict[str, Any]] = []
+    for ordinal, claim_token in enumerate(claim_tokens, start=1):
+        row_y = _token_center(claim_token)[1]
+        candidate: dict[str, Any] = {
+            "ordinal": ordinal,
+            "claim_ocr_roi": claim_token.roi,
+            "status": "rejected",
+            "eligible": False,
+            "rejection_reasons": [],
+            "row_bounds": None,
+            "claim_roi": None,
+            "button_evidence": None,
+            "cost_scan": None,
+        }
+        panel_geometry = _measure_daily_row_panel(
+            frame,
+            anchor_y=row_y,
+            evidence_tokens=(claim_token,),
         )
-        return (
-            FrameRecognition(
-                DAILY_SELECTED_STATE,
-                True,
-                None,
-                None,
-                full_text,
-                visual,
-                "consume_stamina row is not ready",
-                _token_rows(tokens),
-            ),
-            None,
-        )
+        candidate["row_panel_geometry"] = panel_geometry
+        if panel_geometry is None or not panel_geometry["proven"]:
+            candidate["rejection_reasons"].append("row_panel_not_proven")
+            candidates.append(candidate)
+            continue
 
-    row_y = _token_center(objective_line[0])[1]
-    reward_lines: list[tuple[OCRToken, ...]] = []
-    for token in body:
-        center_y = _token_center(token)[1]
-        line = _line_tokens(body, y=center_y, tolerance=14)
-        line_text = _line_text(line)
-        selected_line = tuple(
-            item
-            for item in line
-            if "reward" in item.text
-            or "pts" in item.text
-            or item.text in {"5", "+5"}
-        )
-        if (
-            selected_line
-            and selected_line not in reward_lines
-            and center_y > row_y + 14
-            and center_y <= row_y + 130
-            and "reward" in line_text
-            and "pts" in line_text
+        row_bounds = tuple(panel_geometry["bounds"])
+        candidate["row_bounds"] = row_bounds
+        if row_bounds[1] <= 340 or row_bounds[3] >= NATIVE_HEIGHT:
+            candidate["rejection_reasons"].append("claim_clipped_or_milestone_region")
+        if not (
+            row_bounds[0] <= claim_token.roi[0]
+            and claim_token.roi[2] <= row_bounds[2]
+            and row_bounds[1] <= claim_token.roi[1]
+            and claim_token.roi[3] <= row_bounds[3]
         ):
-            reward_lines.append(selected_line)
-    if len(reward_lines) != 1:
-        return failure("row-local reward points were not uniquely proven")
-    reward_tokens = reward_lines[0]
-    reward_text = _normalize_text(_line_text(reward_tokens))
-    exact_reward = bool(
-        re.fullmatch(r"reward\s+pts\s+\+?5", reward_text)
-        or re.fullmatch(r"reward\s+pts\s+5", reward_text)
-    )
-    reward_points = _parse_reward_points(_line_text(reward_tokens))
-    if not exact_reward or reward_points != DAILY_CLAIM_REWARD_POINTS:
-        return failure("consume_stamina reward is not exactly Reward: Pts +5")
+            candidate["rejection_reasons"].append("claim_outside_measured_panel")
 
-    evidence_tokens = tuple(objective_line) + tuple(reward_tokens)
-    panel_geometry = _measure_daily_row_panel(
-        frame,
-        anchor_y=row_y,
-        evidence_tokens=evidence_tokens,
-    )
-    if panel_geometry is None or not panel_geometry["proven"]:
-        return failure("current Daily row panel geometry was not independently proven")
-    row_bounds = tuple(panel_geometry["bounds"])
-    if row_bounds[1] <= 340 or row_bounds[3] >= NATIVE_HEIGHT:
-        return failure("consume_stamina row is clipped or in the milestone region")
-    if any(
-        not (
-            row_bounds[0] <= token.roi[0]
-            and token.roi[2] <= row_bounds[2]
-            and row_bounds[1] <= token.roi[1]
-            and token.roi[3] <= row_bounds[3]
+        tx0, ty0, tx1, ty1 = claim_token.roi
+        claim_roi = _clamp_roi((tx0 - 45, ty0 - 25, tx1 + 45, ty1 + 25))
+        candidate["claim_roi"] = claim_roi
+        if claim_roi is None:
+            candidate["rejection_reasons"].append("claim_geometry_out_of_bounds")
+            candidates.append(candidate)
+            continue
+        if not (
+            row_bounds[0] <= claim_roi[0]
+            and claim_roi[2] <= row_bounds[2]
+            and row_bounds[1] <= claim_roi[1]
+            and claim_roi[3] <= row_bounds[3]
+        ):
+            candidate["rejection_reasons"].append("claim_outside_or_straddles_panel")
+
+        button_evidence = _visual_claim_button_evidence(frame, claim_roi)
+        cost_scan = _scan_claim_cost_region(
+            frame,
+            panel=row_bounds,
+            target=claim_roi,
+            tokens=tokens,
+            excluded_tokens=claim_tokens,
         )
-        for token in evidence_tokens
-    ):
-        return failure("objective or reward evidence escaped the measured row panel")
+        candidate["button_evidence"] = button_evidence
+        candidate["cost_scan"] = cost_scan
+        candidate["ordinary_reward_claim"] = bool(
+            selected
+            and button_evidence["button_class"] == "ordinary_claim_button"
+        )
+        candidate["free_control_proven"] = _free_claim_control_proven(cost_scan)
+        candidate["quantity_one_proven"] = True
+        if not button_evidence["recognized"]:
+            candidate["rejection_reasons"].append("ordinary_claim_button_not_proven")
+        if cost_scan["attached_cost"]:
+            candidate["rejection_reasons"].append("claim_attached_cost")
+        if not candidate["ordinary_reward_claim"]:
+            candidate["rejection_reasons"].append("ordinary_claim_semantics_not_proven")
+        if not candidate["free_control_proven"]:
+            candidate["rejection_reasons"].append("free_claim_semantics_not_proven")
+        candidate["eligible"] = not candidate["rejection_reasons"]
+        if candidate["eligible"]:
+            candidate["status"] = "eligible"
+        candidates.append(candidate)
 
-    objective_x0 = min(token.roi[0] for token in objective_line)
-    objective_x1 = max(token.roi[2] for token in objective_line)
-    all_claim_tokens = tuple(
-        token
-        for token in body
-        if token.text == "claim"
-        and _token_center(token)[0] > objective_x1
-    )
-    if len(all_claim_tokens) != 1:
-        return failure("Claim is missing, duplicated, or adjacent to the target row")
-    claim_token = all_claim_tokens[0]
-    tx0, ty0, tx1, ty1 = claim_token.roi
-    claim_roi = _clamp_roi((tx0 - 45, ty0 - 25, tx1 + 45, ty1 + 25))
-    if claim_roi is None:
-        return failure("Claim target geometry is outside native bounds")
-    if not (
-        row_bounds[0] <= claim_roi[0]
-        and claim_roi[2] <= row_bounds[2]
-        and row_bounds[1] <= claim_roi[1]
-        and claim_roi[3] <= row_bounds[3]
-    ):
-        return failure("Claim control is outside or straddles the measured row panel")
-    target_roi = claim_roi
-    button_evidence = _visual_claim_button_evidence(frame, target_roi)
-    if not button_evidence["recognized"]:
-        return failure("ordinary Daily Claim button visual class was not proven")
-    cost_scan = _scan_claim_cost_region(
-        frame,
-        panel=row_bounds,
-        target=target_roi,
-        tokens=tokens,
-        excluded_tokens=tuple(objective_line) + tuple(reward_tokens) + (claim_token,),
-    )
-    if cost_scan["attached_cost"]:
-        return failure("Claim control has an attached currency, amount, or purchase surface")
-    ordinary_reward_claim = bool(
-        selected
-        and exact_reward
-        and button_evidence["button_class"] == "ordinary_claim_button"
-    )
-    if not ordinary_reward_claim:
-        return failure("ordinary Daily reward Claim semantics were not positively proven")
-    free_control_proven = _free_claim_control_proven(cost_scan)
+    # Two OCR tokens that bind to one current visual button are ambiguous and
+    # cannot be treated as two eligible controls or selected opportunistically.
+    physical_groups: dict[tuple[int, int, int, int], list[dict[str, Any]]] = {}
+    for candidate in candidates:
+        if not candidate.get("eligible"):
+            continue
+        button = candidate.get("button_evidence") or {}
+        physical = button.get("button_roi") or candidate.get("claim_roi")
+        if isinstance(physical, (tuple, list)) and len(physical) == 4:
+            physical_groups.setdefault(tuple(int(value) for value in physical), []).append(candidate)
+    for grouped in physical_groups.values():
+        if len(grouped) <= 1:
+            continue
+        for candidate in grouped:
+            candidate["eligible"] = False
+            candidate["status"] = "rejected"
+            candidate["rejection_reasons"].append("ambiguous_duplicate_claim_control")
+
+    eligible = [candidate for candidate in candidates if candidate.get("eligible")]
+    visual["claim_candidates"] = tuple(candidates)
+    visual["available_claim_controls"] = len(eligible)
+    visual["available_ordinary_claim_controls"] = len(eligible)
+    if not eligible:
+        rejection_reasons = {
+            reason
+            for candidate in candidates
+            for reason in candidate["rejection_reasons"]
+        }
+        if (
+            "claim_outside_measured_panel" in rejection_reasons
+            or "claim_outside_or_straddles_panel" in rejection_reasons
+        ):
+            return failure("Claim control escaped the measured panel")
+        if "claim_attached_cost" in rejection_reasons:
+            return failure(
+                "Claim control has an attached currency, amount, or purchase surface"
+            )
+        if "ambiguous_duplicate_claim_control" in rejection_reasons:
+            return failure("Claim control is missing or ambiguous")
+        return failure("no independently safe ordinary free Claim control was proven")
+
+    selected_candidate = eligible[0]
+    claim_token = claim_tokens[int(selected_candidate["ordinal"]) - 1]
+    row_bounds = tuple(selected_candidate["row_bounds"])
+    target_roi = tuple(selected_candidate["claim_roi"])
+    panel_geometry = selected_candidate["row_panel_geometry"]
+    button_evidence = dict(selected_candidate["button_evidence"])
+    cost_scan = dict(selected_candidate["cost_scan"])
+    ordinary_reward_claim = True
+    free_control_proven = True
     quantity_one_proven = True
-    if not free_control_proven:
-        return failure("free Claim control semantics were not positively proven")
 
     observation = AvailableDailyClaimObservation(
         screen_state="DAILY_QUEST",
         selected_daily_quest=True,
-        objective_key=DAILY_CLAIM_OBJECTIVE_KEY,
-        objective_name=clean_name,
-        current_progress=current_progress,
-        required_progress=required_progress,
+        objective_key="",
+        objective_name="",
+        current_progress=0,
+        required_progress=0,
         row_bounds=row_bounds,
-        target_identity="daily-quest-claim",
+        target_identity=DAILY_CLAIM_TARGET_IDENTITY,
         target_roi=target_roi,
         control_class="CLAIM",
         row_fully_visible=True,
@@ -1678,9 +1634,9 @@ def _daily_claim_semantics(
         runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
         recognized=True,
         points=points,
-        reward_points=reward_points,
+        reward_points=None,
         reset_timer=reset_timer,
-        catalog_reconciled=True,
+        catalog_reconciled=False,
         ordinary_reward_claim=ordinary_reward_claim,
         free_control_proven=free_control_proven,
         quantity_one_proven=quantity_one_proven,
@@ -1698,16 +1654,12 @@ def _daily_claim_semantics(
         reset_deadline_tolerance_seconds=visual.get(
             "reset_deadline_tolerance_seconds"
         ),
+        available_claim_controls=len(eligible),
     )
     visual.update(
         {
             "claim_ready": True,
-            "same_objective_present": True,
-            "objective_key": DAILY_CLAIM_OBJECTIVE_KEY,
-            "objective_name": clean_name,
-            "current_progress": current_progress,
-            "required_progress": required_progress,
-            "reward_points": reward_points,
+            "available_ordinary_claim_controls": len(eligible),
             "row_bounds": row_bounds,
             "row_panel_bounds": row_bounds,
             "claim_roi": target_roi,
@@ -1729,13 +1681,14 @@ def _daily_claim_semantics(
             },
             "button_evidence": button_evidence,
             "milestone_reward": False,
+            "available_claim_controls": len(eligible),
         }
     )
     return (
         FrameRecognition(
             DAILY_SELECTED_STATE,
             True,
-            DAILY_CLAIM_ACTION_IDENTITY,
+            DAILY_CLAIM_TARGET_IDENTITY,
             target_roi,
             full_text,
             visual,
@@ -1746,422 +1699,24 @@ def _daily_claim_semantics(
     )
 
 
-def _box_contains(box: NativeBox, point: tuple[float, float]) -> bool:
-    x0, y0, x1, y1 = box
-    return bool(x0 <= point[0] <= x1 and y0 <= point[1] <= y1)
-
-
-def _catalog_matches_for_row_text(
-    text: str,
-    catalog: Sequence[Any],
-) -> tuple[Any, ...]:
-    """Match a row prefix against the independently loaded Daily catalog."""
-
-    normalized = _normalize_text(text)
-    matches: list[Any] = []
-    for item in catalog:
-        for alias in item.aliases:
-            alias_text = _normalize_text(alias)
-            if normalized == alias_text or normalized.startswith(alias_text + " "):
-                matches.append(item)
-                break
-    unique: dict[str, Any] = {
-        str(item.objective_key): item
-        for item in matches
-    }
-    return tuple(unique.values())
-
-
-def _daily_ready_row_semantics(
+def _daily_claim_semantics(
     frame: np.ndarray,
     tokens: Sequence[OCRToken],
     *,
     game_day_id: str | None,
     observed_utc: datetime | str | None = None,
-) -> FrameRecognition:
-    """Recognize selected Daily inventory without granting Claim authority."""
-
-    words = {word for token in tokens for word in token.text.split()}
-    overlay_markers = tuple(sorted(words & _OVERLAY_MARKERS))
-    selected, selected_visual = _selected_daily_visual_context(frame, tokens)
-    full_text = _reading_text(tokens)
-    reset_timer = _parse_reset_timer(full_text)
-    reset_evidence = (
-        reset_deadline_evidence(reset_timer, observed_utc=observed_utc)
-        if reset_timer is not None
-        else None
+) -> tuple[FrameRecognition, AvailableDailyClaimObservation | None]:
+    return _daily_aggregate_claim_semantics(
+        frame,
+        tokens,
+        game_day_id=game_day_id,
+        observed_utc=observed_utc,
     )
-    deadline_identity = (
-        str(reset_evidence["deadline_identity"])
-        if reset_evidence is not None
-        else None
-    )
-    bound_game_day_id = game_day_id or deadline_identity
-    generic_overlay = _generic_modal_overlay_evidence(frame)
-    visual: dict[str, Any] = {
-        "selected_daily": selected,
-        "selected_daily_semantics": selected_visual,
-        "full_frame_overlay": {
-            "recognized": bool(overlay_markers),
-            "markers": overlay_markers,
-        },
-        "generic_modal_overlay": generic_overlay,
-        "points": _parse_points(full_text),
-        "reset_timer": reset_timer,
-        "reset_timer_seconds": (
-            reset_evidence["reset_timer_seconds"] if reset_evidence else None
-        ),
-        "reset_observed_utc": (
-            reset_evidence["observed_utc"] if reset_evidence else None
-        ),
-        "reset_deadline_utc": (
-            reset_evidence["normalized_deadline_utc"] if reset_evidence else None
-        ),
-        "reset_deadline_identity": deadline_identity,
-        "reset_deadline_tolerance_seconds": (
-            reset_evidence["tolerance_seconds"] if reset_evidence else None
-        ),
-        "game_day_id": bound_game_day_id,
-        "runtime_profile_id": BLUESTACKS_RUNTIME_PROFILE_ID,
-        "target_provenance": BLUESTACKS_TARGET_PROVENANCE,
-        "scan_region": DAILY_ROW_SCAN_LIST_REGION,
-        "swipe_start": DAILY_ROW_SCAN_SWIPE_START,
-        "swipe_end": DAILY_ROW_SCAN_SWIPE_END,
-    }
 
-    def failure(reason: str) -> FrameRecognition:
-        visual["reason"] = reason
-        return FrameRecognition(
-            UNKNOWN_STATE,
-            False,
-            None,
-            None,
-            full_text,
-            visual,
-            reason,
-            _token_rows(tokens),
-        )
 
-    if not _frame_shape_ok(frame):
-        return failure("profile_dimensions_mismatch")
-    if overlay_markers:
-        return failure("full-frame overlay/modal detected")
-    if generic_overlay.get("recognized"):
-        return failure("generic modal overlay detected")
-    if not selected:
-        return failure(
-            selected_visual.get(
-                "reason",
-                "selected Daily was not positively recognized",
-            )
-        )
-    if reset_timer is None or reset_evidence is None:
-        return failure("positive Daily reset timer/deadline was not proven")
-    if (
-        isinstance(game_day_id, str)
-        and game_day_id.startswith("reset-deadline:")
-        and not _reset_deadline_identities_match(
-            game_day_id,
-            deadline_identity,
-            tolerance_seconds=RESET_DEADLINE_TOLERANCE_SECONDS,
-        )
-    ):
-        return failure("Daily reset deadline identity changed")
-
-    try:
-        catalog = load_catalog()
-    except (OSError, TypeError, ValueError) as exc:
-        return failure(f"Daily objective catalog is unavailable: {type(exc).__name__}")
-
-    body = tuple(token for token in tokens if _token_center(token)[1] >= 340)
-    candidate_lines: list[tuple[OCRToken, ...]] = []
-    for token in sorted(body, key=lambda item: (_token_center(item)[1], item.roi[0])):
-        line = _line_tokens(body, y=_token_center(token)[1], tolerance=18)
-        if line and line not in candidate_lines:
-            line_text = _line_text(line)
-            if _catalog_matches_for_row_text(line_text, catalog):
-                candidate_lines.append(line)
-
-    inventory_rows: list[dict[str, Any]] = []
-    valid_rows: list[dict[str, Any]] = []
-
-    for objective_line in candidate_lines:
-        line_text = _line_text(objective_line)
-        catalog_matches = _catalog_matches_for_row_text(line_text, catalog)
-        objective_item = catalog_matches[0] if len(catalog_matches) == 1 else None
-        row_y = _token_center(objective_line[0])[1]
-        panel_geometry = _measure_daily_row_panel(
-            frame,
-            anchor_y=row_y,
-            evidence_tokens=objective_line,
-        )
-        base_row: dict[str, Any] = {
-            "objective_key": (
-                str(objective_item.objective_key) if objective_item is not None else None
-            ),
-            "objective_name": (
-                str(objective_item.aliases[0]) if objective_item is not None else line_text
-            ),
-            "observed_name": line_text,
-            "progress_text": line_text,
-            "row_bounds": (
-                tuple(panel_geometry["bounds"])
-                if panel_geometry is not None
-                else None
-            ),
-            "row_panel_source": (
-                str(panel_geometry["source"])
-                if panel_geometry is not None
-                else ""
-            ),
-            "catalog_reconciled": objective_item is not None and len(catalog_matches) == 1,
-            "status": "rejected",
-            "control": None,
-            "control_roi": None,
-            "rejection_reasons": [],
-        }
-        if objective_item is None:
-            base_row["rejection_reasons"] = ["uncatalogued_or_ambiguous_objective"]
-            inventory_rows.append(base_row)
-            continue
-        if panel_geometry is None or not panel_geometry["proven"]:
-            base_row["rejection_reasons"] = ["row_panel_not_proven"]
-            inventory_rows.append(base_row)
-            continue
-
-        row_bounds = tuple(panel_geometry["bounds"])
-        base_row["row_bounds"] = row_bounds
-        row_fully_visible = bool(
-            row_bounds[1] > 340
-            and row_bounds[3] < NATIVE_HEIGHT
-            and all(
-                row_bounds[0] <= token.roi[0]
-                and token.roi[2] <= row_bounds[2]
-                and row_bounds[1] <= token.roi[1]
-                and token.roi[3] <= row_bounds[3]
-                for token in objective_line
-            )
-        )
-        if not row_fully_visible:
-            base_row["rejection_reasons"].append("row_clipped")
-
-        progress = _parse_progress(line_text)
-        base_row["current_progress"] = progress[0] if progress else None
-        base_row["required_progress"] = progress[1] if progress else None
-        if progress is None:
-            base_row["rejection_reasons"].append("progress_not_proven")
-        elif (
-            progress[1] != int(objective_item.completion_quantity)
-            or progress[0] < progress[1]
-        ):
-            base_row["rejection_reasons"].append("row_not_ready")
-
-        objective_x1 = max(token.roi[2] for token in objective_line)
-        controls = tuple(
-            token
-            for token in body
-            if token.text in {"claim", "go"}
-            and _box_contains(row_bounds, _token_center(token))
-            and _token_center(token)[0] > objective_x1
-        )
-        claim_tokens = tuple(token for token in controls if token.text == "claim")
-        go_tokens = tuple(token for token in controls if token.text == "go")
-        claim_token: OCRToken | None = None
-        if len(claim_tokens) == 1 and not go_tokens:
-            control_token = claim_tokens[0]
-            claim_token = control_token
-            base_row["control"] = "Claim"
-            base_row["control_roi"] = control_token.roi
-            claim_roi = _clamp_roi(
-                (
-                    control_token.roi[0] - 45,
-                    control_token.roi[1] - 25,
-                    control_token.roi[2] + 45,
-                    control_token.roi[3] + 25,
-                )
-            )
-            base_row["claim_roi"] = claim_roi
-            if claim_roi is None or not (
-                row_bounds[0] <= claim_roi[0]
-                and claim_roi[2] <= row_bounds[2]
-                and row_bounds[1] <= claim_roi[1]
-                and claim_roi[3] <= row_bounds[3]
-            ):
-                base_row["rejection_reasons"].append("claim_clipped_or_outside_row")
-            else:
-                button_evidence = _visual_claim_button_evidence(frame, claim_roi)
-                base_row["button_evidence"] = button_evidence
-                if not button_evidence["recognized"]:
-                    base_row["rejection_reasons"].append("claim_button_not_proven")
-        elif len(claim_tokens) > 1 or (claim_tokens and go_tokens):
-            base_row["rejection_reasons"].append("claim_missing_or_ambiguous")
-        elif go_tokens:
-            base_row["control"] = "Go"
-            base_row["control_roi"] = go_tokens[0].roi
-            base_row["status"] = "go"
-        else:
-            base_row["rejection_reasons"].append("ordinary_claim_control_missing")
-
-        panel_words = {
-            word
-            for token in body
-            if _box_contains(row_bounds, _token_center(token))
-            for word in token.text.split()
-        }
-        if panel_words & _MILESTONE_MARKERS:
-            base_row["rejection_reasons"].append("milestone_or_chest_region")
-
-        reward_lines = []
-        for token in body:
-            if not _box_contains(row_bounds, _token_center(token)):
-                continue
-            if _token_center(token)[1] <= row_y + 10:
-                continue
-            line = _line_tokens(body, y=_token_center(token)[1], tolerance=14)
-            line_text_value = _line_text(line)
-            if (
-                "reward" in line_text_value
-                or "pts" in line_text_value
-                or "point" in line_text_value
-            ) and line not in reward_lines:
-                reward_lines.append(line)
-        reward_tokens = tuple(
-            token
-            for token in (reward_lines[0] if reward_lines else ())
-            if token.text not in {"claim", "go"}
-            and (
-                "reward" in token.text
-                or "pts" in token.text
-                or token.text in {"5", "+5"}
-            )
-        )
-        reward_text = _line_text(reward_tokens)
-        base_row["reward"] = {
-            "text": reward_text,
-            "points": _parse_reward_points(reward_text) if reward_text else None,
-        }
-        claim_roi = base_row.get("claim_roi")
-        if (
-            claim_token is not None
-            and isinstance(claim_roi, tuple)
-            and len(claim_roi) == 4
-        ):
-            cost_scan = _scan_claim_cost_region(
-                frame,
-                panel=row_bounds,
-                target=claim_roi,
-                tokens=tokens,
-                excluded_tokens=tuple(objective_line)
-                + tuple(reward_tokens)
-                + (claim_token,),
-            )
-            base_row["cost_scan"] = cost_scan
-            base_row["free_control_proven"] = _free_claim_control_proven(cost_scan)
-            if not base_row["free_control_proven"]:
-                base_row["rejection_reasons"].append("claim_attached_cost")
-
-        if not base_row["rejection_reasons"] and base_row["control"] == "Claim":
-            base_row["status"] = "ready"
-            base_row["claim_authority"] = False
-            base_row["target_identity"] = DAILY_ROW_SCAN_OBSERVATION_IDENTITY
-            valid_rows.append(base_row)
-        inventory_rows.append(base_row)
-
-    # Preserve an explicit rejection record for an otherwise row-shaped,
-    # uncatalogued objective.  It can never become a generic ready target.
-    known_control_rois = {
-        tuple(row["control_roi"])
-        for row in inventory_rows
-        if row.get("control_roi") is not None
-    }
-    for control_token in body:
-        if control_token.text not in {"claim", "go"} or control_token.roi in known_control_rois:
-            continue
-        line = _line_tokens(body, y=_token_center(control_token)[1], tolerance=18)
-        objective_tokens = tuple(
-            token for token in line if token.text not in {"claim", "go"}
-        )
-        line_text = _line_text(objective_tokens)
-        if (
-            not line_text
-            or _parse_progress(line_text) is None
-            or _catalog_matches_for_row_text(line_text, catalog)
-        ):
-            continue
-        panel_geometry = _measure_daily_row_panel(
-            frame,
-            anchor_y=_token_center(control_token)[1],
-            evidence_tokens=objective_tokens,
-        )
-        inventory_rows.append(
-            {
-                "objective_key": None,
-                "objective_name": line_text,
-                "observed_name": line_text,
-                "progress_text": line_text,
-                "row_bounds": (
-                    tuple(panel_geometry["bounds"])
-                    if panel_geometry is not None
-                    else None
-                ),
-                "row_panel_source": (
-                    str(panel_geometry["source"])
-                    if panel_geometry is not None
-                    else ""
-                ),
-                "catalog_reconciled": False,
-                "status": "rejected",
-                "control": "Claim" if control_token.text == "claim" else "Go",
-                "control_roi": control_token.roi,
-                "rejection_reasons": ["uncatalogued_or_ambiguous_objective"],
-                "claim_authority": False,
-            }
-        )
-
-    # A repeated objective key is ambiguous even when both rows appear ready.
-    counts: dict[str, int] = {}
-    for row in valid_rows:
-        key = str(row["objective_key"])
-        counts[key] = counts.get(key, 0) + 1
-    if any(count > 1 for count in counts.values()):
-        for row in valid_rows:
-            if counts.get(str(row["objective_key"]), 0) > 1:
-                row["status"] = "rejected"
-                row["claim_authority"] = False
-                row["rejection_reasons"] = ["duplicate_objective_ambiguous"]
-        valid_rows = [
-            row for row in valid_rows
-            if row["status"] == "ready"
-        ]
-
-    ready_row = valid_rows[0] if valid_rows else None
-    visual["inventory_rows"] = inventory_rows
-    visual["ready_row"] = ready_row
-    visual["ready_row_observed"] = ready_row is not None
-    visual["claim_authority"] = False
-    visual["inventory_scan_complete"] = True
-    if ready_row is None:
-        visual["reason"] = "no fully visible ordinary ready row observed"
-        return FrameRecognition(
-            DAILY_SELECTED_STATE,
-            True,
-            None,
-            None,
-            full_text,
-            visual,
-            visual["reason"],
-            _token_rows(tokens),
-        )
-    return FrameRecognition(
-        DAILY_SELECTED_STATE,
-        True,
-        DAILY_ROW_SCAN_OBSERVATION_IDENTITY,
-        tuple(ready_row["claim_roi"]),
-        full_text,
-        visual,
-        None,
-        _token_rows(tokens),
-    )
+def _box_contains(box: NativeBox, point: tuple[float, float]) -> bool:
+    x0, y0, x1, y1 = box
+    return bool(x0 <= point[0] <= x1 and y0 <= point[1] <= y1)
 
 
 class DailyRowClaimRecognizer:
@@ -2359,7 +1914,7 @@ class DailyRowClaimRecognizer:
         observed_utc: datetime | str | None = None,
         wall_utc: datetime | str | None = None,
     ) -> FrameRecognition:
-        """Recognize the exact current-frame consume_stamina Claim row."""
+        """Recognize the current-frame aggregate Daily Claim control."""
 
         if not _frame_shape_ok(frame):
             return FrameRecognition(
@@ -2376,34 +1931,6 @@ class DailyRowClaimRecognizer:
             observed_utc=observed_utc if observed_utc is not None else wall_utc,
         )
         return recognition
-
-    def recognize_daily_ready_rows(
-        self,
-        frame: np.ndarray,
-        *,
-        game_day_id: str | None = None,
-        observed_utc: datetime | str | None = None,
-        wall_utc: datetime | str | None = None,
-    ) -> FrameRecognition:
-        """Inventory catalog-admitted Daily rows without authorizing a Claim."""
-
-        if not _frame_shape_ok(frame):
-            return FrameRecognition(
-                DAILY_SELECTED_STATE,
-                False,
-                reason="profile_dimensions_mismatch",
-            )
-        tokens = _ocr_tokens(frame, FULL_FRAME_SEARCH_ROI, self._ocr)
-        return _daily_ready_row_semantics(
-            frame,
-            tokens,
-            game_day_id=game_day_id,
-            observed_utc=(
-                observed_utc
-                if observed_utc is not None
-                else wall_utc
-            ),
-        )
 
     def recognize_daily_row(
         self,
@@ -2579,7 +2106,7 @@ def daily_claim_observation_from_recognition(
         points=evidence.get("points"),
         reward_points=evidence.get("reward_points"),
         reset_timer=evidence.get("reset_timer"),
-        catalog_reconciled=bool(evidence.get("objective_key") == DAILY_CLAIM_OBJECTIVE_KEY),
+        catalog_reconciled=False,
         ordinary_reward_claim=evidence.get("ordinary_reward_claim"),
         free_control_proven=evidence.get("free_control_proven"),
         quantity_one_proven=evidence.get("quantity_one_proven"),
@@ -2600,6 +2127,12 @@ def daily_claim_observation_from_recognition(
         reset_deadline_tolerance_seconds=evidence.get(
             "reset_deadline_tolerance_seconds"
         ),
+        available_claim_controls=(
+            int(evidence["available_claim_controls"])
+            if isinstance(evidence.get("available_claim_controls"), int)
+            and not isinstance(evidence.get("available_claim_controls"), bool)
+            else None
+        ),
     )
 
 
@@ -2609,14 +2142,14 @@ def daily_claim_postcondition_verified(
     *,
     game_day_id: str,
 ) -> bool:
-    """Require selected Daily plus an independently proven exact +5 points delta."""
+    """Require selected Daily/reset continuity, points increase, and Claim exhaustion."""
 
     before_evidence = dict(before.visual_evidence or {})
     after_evidence = dict((after.visual_evidence if after is not None else {}) or {})
     if (
         not before.recognized
         or before.state != DAILY_SELECTED_STATE
-        or before.target_identity != DAILY_CLAIM_ACTION_IDENTITY
+        or before.target_identity != DAILY_CLAIM_TARGET_IDENTITY
         or before_evidence.get("selected_daily") is not True
         or after is None
         or not after.recognized
@@ -2675,7 +2208,7 @@ def daily_claim_postcondition_verified(
         return False
     if abs((before_seconds - after_seconds) - elapsed) > tolerance + 1.0:
         return False
-    if after_evidence.get("objective_key") != DAILY_CLAIM_OBJECTIVE_KEY:
+    if after_evidence.get("available_ordinary_claim_controls") != 0:
         return False
     before_points = before_evidence.get("points")
     after_points = after_evidence.get("points")
@@ -2686,7 +2219,7 @@ def daily_claim_postcondition_verified(
         or isinstance(after_points, bool)
     ):
         return False
-    return after_points == before_points + DAILY_CLAIM_REWARD_POINTS
+    return after_points > before_points
 
 
 def _failure(
@@ -3160,7 +2693,7 @@ def _annotate_daily_claim_frame(
     cv2.rectangle(image, (tx0, ty0), (tx1 - 1, ty1 - 1), (0, 255, 0), 3)
     cv2.putText(
         image,
-        DAILY_CLAIM_OBJECTIVE_KEY,
+        "aggregate daily claim",
         (max(4, rx0), max(22, ry0 - 6)),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.65,
@@ -3264,13 +2797,12 @@ def run_daily_row_claim_prepare(
         )
         if (
             observation is None
-            or recognition.target_identity != DAILY_CLAIM_ACTION_IDENTITY
+            or recognition.target_identity != DAILY_CLAIM_TARGET_IDENTITY
             or not available_daily_claim_authorizeable(observation)
         ):
             raise DailyRowClaimRecognitionError(
-                recognition.reason or "exact consume_stamina Claim target was not authorized"
+                recognition.reason or "aggregate Daily Claim target was not authorized"
             )
-        visual = dict(recognition.visual_evidence or {})
         annotated = Path(runtime.session) / "annotated-daily-row-claim-source.png"
         _annotate_daily_claim_frame(
             source,
@@ -3279,11 +2811,6 @@ def run_daily_row_claim_prepare(
             output=annotated,
         )
         claim = {
-            "objective_key": observation.objective_key,
-            "objective_name": observation.objective_name,
-            "current_progress": observation.current_progress,
-            "required_progress": observation.required_progress,
-            "reward_points": observation.reward_points,
             "points": observation.points,
             "reset_timer": observation.reset_timer,
             "reset_timer_seconds": observation.reset_timer_seconds,
@@ -3298,12 +2825,16 @@ def run_daily_row_claim_prepare(
             "runtime_profile_id": observation.runtime_profile_id,
             "source_frame_sha256": source.sha256,
             "annotated_source": str(annotated.relative_to(session.session_directory)).replace("\\", "/"),
-            "catalog_reconciled": observation.catalog_reconciled,
+            "selected_daily": observation.selected_daily_quest,
+            "ordinary_reward_claim": observation.ordinary_reward_claim,
+            "free_control_proven": observation.free_control_proven,
+            "milestone_reward": observation.milestone_reward,
+            "available_claim_controls": observation.available_claim_controls,
         }
         session.terminal_status = "observed"
         return _claim_result(
             status="observed",
-            reason="consume_stamina Claim target prepared without input",
+            reason="aggregate Daily Claim target prepared without input",
             session=session,
             frames=frames,
             recognitions=recognitions,
@@ -3442,12 +2973,12 @@ def run_daily_row_claim_canary(
         )
         if (
             before_observation is None
-            or before_recognition.target_identity != DAILY_CLAIM_ACTION_IDENTITY
+            or before_recognition.target_identity != DAILY_CLAIM_TARGET_IDENTITY
             or not available_daily_claim_authorizeable(before_observation)
         ):
             raise DailyRowClaimRecognitionError(
                 before_recognition.reason
-                or "exact consume_stamina Claim target was not authorized"
+                or "aggregate Daily Claim target was not authorized"
             )
 
         def capture(label: str) -> CapturedNativeFrame:
@@ -3474,7 +3005,7 @@ def run_daily_row_claim_canary(
             )
             if (
                 rebound_observation is None
-                or rebound.target_identity != DAILY_CLAIM_ACTION_IDENTITY
+                or rebound.target_identity != DAILY_CLAIM_TARGET_IDENTITY
                 or not available_daily_claim_authorizeable(rebound_observation)
             ):
                 raise DailyRowClaimRecognitionError(
@@ -3541,7 +3072,7 @@ def run_daily_row_claim_canary(
         before_visual = dict(before_recognition.visual_evidence or {})
         return _claim_result(
             status="completed",
-            reason="consume_stamina Claim postcondition proven",
+            reason="aggregate Daily Claim postcondition proven",
             session=session,
             frames=frames,
             recognitions=recognitions,
@@ -3549,10 +3080,8 @@ def run_daily_row_claim_canary(
             game_day_id=game_day_id,
             mode="canary",
             claim={
-                "objective_key": DAILY_CLAIM_OBJECTIVE_KEY,
                 "points_before": before_visual.get("points"),
                 "points_after": dict(terminal_recognition.visual_evidence or {}).get("points"),
-                "reward_points": DAILY_CLAIM_REWARD_POINTS,
                 "reset_timer": before_visual.get("reset_timer"),
                 "reset_timer_seconds": before_visual.get("reset_timer_seconds"),
                 "reset_observed_utc": before_visual.get("reset_observed_utc"),
@@ -3995,568 +3524,3 @@ def run_daily_row_claim_vip_popup_dismissal(
         session.terminal_status = "evidence_required"
         session.blocker = str(exc)
         return result("evidence_required", f"{type(exc).__name__}: {exc}")
-
-
-def _scan_recognition_as_dict(
-    recognition: FrameRecognition | Mapping[str, Any],
-) -> dict[str, Any]:
-    if isinstance(recognition, Mapping):
-        return dict(recognition)
-    return recognition.as_dict()
-
-
-def _scan_recognition_call(
-    recognizer: Any,
-    frame: np.ndarray,
-    *,
-    game_day_id: str | None,
-    wall_utc: Callable[[], datetime] | None,
-) -> FrameRecognition | Mapping[str, Any]:
-    method = getattr(recognizer, "recognize_daily_ready_rows", None)
-    if not callable(method):
-        method = getattr(recognizer, "recognize_daily_selected", None)
-    if not callable(method):
-        raise DailyRowClaimRecognitionError(
-            "selected-Daily ready-row recognizer is not available"
-        )
-    kwargs: dict[str, Any] = {"game_day_id": game_day_id}
-    if wall_utc is not None:
-        kwargs["observed_utc"] = wall_utc()
-    try:
-        return method(frame, **kwargs)
-    except TypeError as exc:
-        # Small independent test doubles may expose only game_day_id.
-        if "observed_utc" not in str(exc):
-            raise
-        return method(frame, game_day_id=game_day_id)
-
-
-def _scan_ready_row(
-    recognition: FrameRecognition | Mapping[str, Any],
-) -> Mapping[str, Any] | None:
-    record = _scan_recognition_as_dict(recognition)
-    visual = record.get("visual_evidence")
-    if not isinstance(visual, Mapping):
-        return None
-    ready = visual.get("ready_row")
-    if not isinstance(ready, Mapping):
-        return None
-    if (
-        ready.get("status") != "ready"
-        or ready.get("claim_authority") is not False
-        or not ready.get("objective_key")
-        or not ready.get("claim_roi")
-        or not ready.get("row_bounds")
-    ):
-        return None
-    return ready
-
-
-def _scan_positive_selected_daily(
-    recognition: FrameRecognition | Mapping[str, Any],
-    *,
-    frame: CapturedNativeFrame,
-    game_day_id: str | None,
-) -> tuple[bool, str | None]:
-    record = _scan_recognition_as_dict(recognition)
-    visual = record.get("visual_evidence")
-    visual = visual if isinstance(visual, Mapping) else {}
-    if (
-        not record.get("recognized")
-        or record.get("state") != DAILY_SELECTED_STATE
-        or visual.get("selected_daily") is not True
-    ):
-        return False, str(record.get("reason") or "selected Daily was not proven")
-    if (
-        visual.get("full_frame_overlay", {}).get("recognized")
-        if isinstance(visual.get("full_frame_overlay"), Mapping)
-        else True
-    ):
-        return False, "full-frame overlay/modal detected"
-    if (
-        visual.get("generic_modal_overlay", {}).get("recognized")
-        if isinstance(visual.get("generic_modal_overlay"), Mapping)
-        else True
-    ):
-        return False, "generic modal overlay detected"
-    reset_timer = visual.get("reset_timer")
-    reset_seconds = visual.get("reset_timer_seconds")
-    deadline_identity = visual.get("reset_deadline_identity")
-    observed = visual.get("reset_observed_utc")
-    deadline = visual.get("reset_deadline_utc")
-    if (
-        not isinstance(reset_timer, str)
-        or not isinstance(reset_seconds, int)
-        or reset_seconds <= 0
-        or not isinstance(deadline_identity, str)
-        or not deadline_identity
-        or not isinstance(observed, str)
-        or not isinstance(deadline, str)
-    ):
-        return False, "positive Daily reset timer/deadline identity was not proven"
-    bound = game_day_id or visual.get("game_day_id") or deadline_identity
-    if not isinstance(bound, str) or not bound:
-        return False, "Daily reset identity is missing"
-    if not _reset_deadline_identities_match(
-        bound,
-        deadline_identity,
-        tolerance_seconds=RESET_DEADLINE_TOLERANCE_SECONDS,
-    ):
-        return False, "Daily reset deadline identity changed"
-    if frame.frame.shape != (NATIVE_HEIGHT, NATIVE_WIDTH, 3):
-        return False, "profile_dimensions_mismatch"
-    return True, None
-
-
-def _scan_relative_artifact(path: Path, session_directory: Any) -> str:
-    try:
-        return str(path.resolve().relative_to(Path(session_directory).resolve())).replace(
-            "\\",
-            "/",
-        )
-    except (OSError, ValueError):
-        return str(path)
-
-
-def _annotate_daily_ready_scan_frame(
-    frame: CapturedNativeFrame,
-    *,
-    inventory_rows: Sequence[Mapping[str, Any]],
-    ready_row: Mapping[str, Any] | None,
-    output: Path,
-) -> None:
-    image = frame.frame.copy()
-    sx0, sy0, sx1, sy1 = DAILY_ROW_SCAN_LIST_REGION
-    cv2.rectangle(image, (sx0, sy0), (sx1 - 1, sy1 - 1), (255, 180, 0), 2)
-    for row in inventory_rows:
-        bounds = row.get("row_bounds")
-        if not isinstance(bounds, (tuple, list)) or len(bounds) != 4:
-            continue
-        x0, y0, x1, y1 = (int(value) for value in bounds)
-        status = str(row.get("status") or "rejected")
-        color = (
-            (0, 255, 0)
-            if status == "ready"
-            else (0, 180, 255)
-            if status == "go"
-            else (0, 0, 255)
-        )
-        cv2.rectangle(image, (x0, y0), (x1 - 1, y1 - 1), color, 2)
-    if ready_row is not None:
-        row_bounds = tuple(int(value) for value in ready_row["row_bounds"])
-        claim_roi = tuple(int(value) for value in ready_row["claim_roi"])
-        cv2.rectangle(
-            image,
-            (row_bounds[0], row_bounds[1]),
-            (row_bounds[2] - 1, row_bounds[3] - 1),
-            (0, 255, 0),
-            4,
-        )
-        cv2.rectangle(
-            image,
-            (claim_roi[0], claim_roi[1]),
-            (claim_roi[2] - 1, claim_roi[3] - 1),
-            (0, 255, 0),
-            4,
-        )
-        label = str(ready_row.get("objective_key") or "ready-row")
-        cv2.putText(
-            image,
-            label,
-            (max(4, row_bounds[0]), max(22, row_bounds[1] - 6)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.65,
-            (0, 255, 0),
-            2,
-            cv2.LINE_AA,
-        )
-    ok, encoded = cv2.imencode(".png", image)
-    if not ok:
-        raise DailyRowClaimRecognitionError("ready-row annotated overlay encoding failed")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_bytes(encoded.tobytes())
-
-
-def _ready_scan_result(
-    *,
-    status: str,
-    reason: str,
-    session: SessionLike,
-    frames: Mapping[str, CapturedNativeFrame],
-    recognitions: Mapping[str, FrameRecognition | Mapping[str, Any]],
-    polls: Sequence[Mapping[str, Any]],
-    swipes: Sequence[Mapping[str, Any]],
-    game_day_id: str | None,
-    final_annotation: str | None,
-    ready_row: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "status": status,
-        "mode": DAILY_ROW_SCAN_MODE,
-        "variant": DAILY_ROW_SCAN_VARIANT,
-        "scenario": DAILY_ROW_SCAN_SCENARIO,
-        "result_identity": DAILY_ROW_SCAN_RESULT_IDENTITY,
-        "reason": reason,
-        "input_count": int(session.input_count),
-        "resource_affecting_inputs": 0,
-        "combat_confirmations": 0,
-        "game_day_id": game_day_id,
-        "reset_identity": game_day_id,
-        "scan_budget": DAILY_ROW_SCAN_MAX_SWIPES,
-        "swipe_identities": list(DAILY_ROW_SCAN_SWIPE_IDENTITIES),
-        "safe_list_region": DAILY_ROW_SCAN_LIST_REGION,
-        "swipe_start": DAILY_ROW_SCAN_SWIPE_START,
-        "swipe_end": DAILY_ROW_SCAN_SWIPE_END,
-        "swipe_duration_ms": DAILY_ROW_SCAN_SWIPE_DURATION_MS,
-        "claim_authority": False,
-        "frames": {
-            name: _frame_ref(frame, session.session_directory)
-            for name, frame in frames.items()
-        },
-        "recognitions": {
-            name: _scan_recognition_as_dict(recognition)
-            for name, recognition in recognitions.items()
-        },
-        "polls": [dict(item) for item in polls],
-        "swipes": [dict(item) for item in swipes],
-        "actions": [dict(item) for item in session.actions],
-        "final_annotation": final_annotation,
-        "ownership_released": False,
-    }
-    if ready_row is not None:
-        payload["ready_row"] = dict(ready_row)
-    else:
-        payload["ready_row"] = None
-    return payload
-
-
-def run_daily_row_claim_ready_row_scan(
-    runtime: RuntimeLike,
-    session: SessionLike,
-    *,
-    game_day_id: str | None = None,
-    recognizer: DailyRowClaimRecognizer | Any | None = None,
-    wall_utc: Callable[[], datetime] | None = None,
-) -> dict[str, Any]:
-    """Scan selected Daily for one catalog-admitted ready row, never Claim it."""
-
-    recognizer = recognizer or DailyRowClaimRecognizer()
-    frames: dict[str, CapturedNativeFrame] = {}
-    recognitions: dict[str, FrameRecognition | Mapping[str, Any]] = {}
-    polls: list[dict[str, Any]] = []
-    swipes: list[dict[str, Any]] = []
-    final_annotation: str | None = None
-
-    def finish(
-        status: str,
-        reason: str,
-        *,
-        final_frame: CapturedNativeFrame | None = None,
-        ready_row: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        nonlocal final_annotation
-        if final_frame is not None:
-            final_recognition: FrameRecognition | Mapping[str, Any] = recognitions.get(
-                "source",
-                {},
-            )
-            for frame_name, candidate_frame in frames.items():
-                if (
-                    candidate_frame is final_frame
-                    or candidate_frame.sha256 == final_frame.sha256
-                ):
-                    final_recognition = recognitions.get(
-                        frame_name,
-                        final_recognition,
-                    )
-            final_record = _scan_recognition_as_dict(final_recognition)
-            final_visual = final_record.get("visual_evidence")
-            final_visual = final_visual if isinstance(final_visual, Mapping) else {}
-            annotation_path = Path(runtime.session) / "annotated-daily-ready-row-final.png"
-            _annotate_daily_ready_scan_frame(
-                final_frame,
-                inventory_rows=(
-                    final_visual.get("inventory_rows", ())
-                    if isinstance(final_visual.get("inventory_rows"), Sequence)
-                    else ()
-                ),
-                ready_row=ready_row,
-                output=annotation_path,
-            )
-            final_annotation = _scan_relative_artifact(
-                annotation_path,
-                session.session_directory,
-            )
-        session.terminal_status = status
-        if status == "evidence_required":
-            session.blocker = reason
-            session.next_action = "retain evidence_required and repair recognition or transport"
-        return _ready_scan_result(
-            status=status,
-            reason=reason,
-            session=session,
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-            swipes=swipes,
-            game_day_id=game_day_id,
-            final_annotation=final_annotation,
-            ready_row=ready_row,
-        )
-
-    if not bool(getattr(runtime, "execute", False)):
-        return finish(
-            "evidence_required",
-            "runtime execution is required for ready-row scanning",
-        )
-
-    try:
-        _ensure_runtime_ready(runtime)
-        source = session.observe(runtime.capture, label="daily-row-scan-source")
-        frames["source"] = source
-        source_recognition = _scan_recognition_call(
-            recognizer,
-            source.frame,
-            game_day_id=game_day_id,
-            wall_utc=wall_utc,
-        )
-        recognitions["source"] = source_recognition
-        source_record = _scan_recognition_as_dict(source_recognition)
-        source_visual = source_record.get("visual_evidence")
-        source_visual = source_visual if isinstance(source_visual, Mapping) else {}
-        if game_day_id is None:
-            derived_identity = source_visual.get("game_day_id")
-            game_day_id = (
-                str(derived_identity)
-                if isinstance(derived_identity, str) and derived_identity
-                else None
-            )
-        valid, invalid_reason = _scan_positive_selected_daily(
-            source_recognition,
-            frame=source,
-            game_day_id=game_day_id,
-        )
-        if not valid:
-            return finish(
-                "evidence_required",
-                invalid_reason or "selected Daily source was not positively proven",
-                final_frame=source,
-            )
-        ready = _scan_ready_row(source_recognition)
-        if ready is not None:
-            return finish(
-                "observed",
-                "catalog-admitted ordinary ready row observed without Claim input",
-                final_frame=source,
-                ready_row=ready,
-            )
-
-        previous_swipe_source_sha: str | None = None
-        for ordinal, action_identity in enumerate(
-            DAILY_ROW_SCAN_SWIPE_IDENTITIES,
-            start=1,
-        ):
-            before = session.observe(
-                runtime.capture,
-                label=f"{action_identity}-immediate-before",
-            )
-            before_key = f"swipe_{ordinal:02d}_immediate_before"
-            frames[before_key] = before
-            before_recognition = _scan_recognition_call(
-                recognizer,
-                before.frame,
-                game_day_id=game_day_id,
-                wall_utc=wall_utc,
-            )
-            recognitions[before_key] = before_recognition
-            valid, invalid_reason = _scan_positive_selected_daily(
-                before_recognition,
-                frame=before,
-                game_day_id=game_day_id,
-            )
-            if not valid:
-                return finish(
-                    "evidence_required",
-                    invalid_reason or "swipe source was not positively selected Daily",
-                    final_frame=before,
-                )
-            ready = _scan_ready_row(before_recognition)
-            if ready is not None:
-                return finish(
-                    "observed",
-                    "catalog-admitted ordinary ready row observed after settle",
-                    final_frame=before,
-                    ready_row=ready,
-                )
-            if (
-                previous_swipe_source_sha is not None
-                and before.sha256 == previous_swipe_source_sha
-            ):
-                return finish(
-                    "evidence_required",
-                    "current Daily frame did not change before the next swipe",
-                    final_frame=before,
-                )
-
-            post_recognition: FrameRecognition | Mapping[str, Any] | None = None
-            post_key = f"swipe_{ordinal:02d}_immediate_post"
-
-            def capture(label: str) -> CapturedNativeFrame:
-                if label == f"{action_identity}-immediate-before":
-                    return before
-                captured = runtime.capture(label)
-                if label == f"{action_identity}-immediate-post":
-                    frames[post_key] = captured
-                return captured
-
-            def dispatch(source_frame: CapturedNativeFrame) -> None:
-                rebound = _scan_recognition_call(
-                    recognizer,
-                    source_frame.frame,
-                    game_day_id=game_day_id,
-                    wall_utc=wall_utc,
-                )
-                recognitions[before_key] = rebound
-                rebound_valid, rebound_reason = _scan_positive_selected_daily(
-                    rebound,
-                    frame=source_frame,
-                    game_day_id=game_day_id,
-                )
-                if not rebound_valid:
-                    raise DailyRowClaimRecognitionError(
-                        rebound_reason or "immediate-before selected Daily revalidation failed"
-                    )
-                if _scan_ready_row(rebound) is not None:
-                    raise DailyRowClaimRecognitionError(
-                        "ready row appeared before swipe dispatch"
-                    )
-                _ensure_fresh(source_frame, runtime)
-                _ensure_runtime_ready(runtime)
-                runtime.swipe(
-                    source_frame,
-                    start=DAILY_ROW_SCAN_SWIPE_START,
-                    end=DAILY_ROW_SCAN_SWIPE_END,
-                    action_key=action_identity,
-                    target_identity=action_identity,
-                )
-
-            def recognize(after: CapturedNativeFrame) -> str:
-                nonlocal post_recognition
-                post_recognition = _scan_recognition_call(
-                    recognizer,
-                    after.frame,
-                    game_day_id=game_day_id,
-                    wall_utc=wall_utc,
-                )
-                recognitions[post_key] = post_recognition
-                if after.sha256 == before.sha256:
-                    return UNKNOWN_STATE
-                valid_after, _reason_after = _scan_positive_selected_daily(
-                    post_recognition,
-                    frame=after,
-                    game_day_id=game_day_id,
-                )
-                return DAILY_SELECTED_STATE if valid_after else UNKNOWN_STATE
-
-            action = session.run_action(
-                action_class=NAVIGATION_ACTION_CLASS,
-                label=action_identity,
-                capture=capture,
-                dispatch=_NativeSwipeDispatch(dispatch).dispatch,
-                recognize=recognize,
-                consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
-            )
-            swipes.append(
-                {
-                    "ordinal": ordinal,
-                    "action_identity": action_identity,
-                    "action_class": NAVIGATION_ACTION_CLASS,
-                    "source_frame_sha256": before.sha256,
-                    "start": DAILY_ROW_SCAN_SWIPE_START,
-                    "end": DAILY_ROW_SCAN_SWIPE_END,
-                    "safe_list_region": DAILY_ROW_SCAN_LIST_REGION,
-                    "status": action.status,
-                    "before": _frame_ref(before, session.session_directory),
-                    "after": (
-                        _frame_ref(frames[post_key], session.session_directory)
-                        if post_key in frames
-                        else None
-                    ),
-                }
-            )
-            if action.status != "completed" or post_recognition is None:
-                return finish(
-                    "evidence_required",
-                    "swipe successor was unknown or did not change the current frame",
-                    final_frame=frames.get(post_key, before),
-                )
-            post_frame = frames[post_key]
-            ready = _scan_ready_row(post_recognition)
-            if ready is not None:
-                return finish(
-                    "observed",
-                    "catalog-admitted ordinary ready row observed after swipe",
-                    final_frame=post_frame,
-                    ready_row=ready,
-                )
-
-            current = post_frame
-            for attempt in range(1, DAILY_ROW_SCAN_SETTLE_MAX_ATTEMPTS + 1):
-                if DAILY_ROW_SCAN_SETTLE_INTERVAL_SECONDS:
-                    time.sleep(DAILY_ROW_SCAN_SETTLE_INTERVAL_SECONDS)
-                label = f"{action_identity}-settle-{attempt:02d}"
-                current = session.observe(runtime.capture, label=label)
-                current_key = f"swipe_{ordinal:02d}_settle_{attempt:02d}"
-                frames[current_key] = current
-                current_recognition = _scan_recognition_call(
-                    recognizer,
-                    current.frame,
-                    game_day_id=game_day_id,
-                    wall_utc=wall_utc,
-                )
-                recognitions[current_key] = current_recognition
-                polls.append(
-                    {
-                        "action_identity": action_identity,
-                        "attempt": attempt,
-                        "label": label,
-                        "frame_name": current_key,
-                        "frame": _frame_ref(current, session.session_directory),
-                        "recognition": _scan_recognition_as_dict(current_recognition),
-                    }
-                )
-                valid_current, current_reason = _scan_positive_selected_daily(
-                    current_recognition,
-                    frame=current,
-                    game_day_id=game_day_id,
-                )
-                if not valid_current:
-                    return finish(
-                        "evidence_required",
-                        current_reason or "settle successor was unknown",
-                        final_frame=current,
-                    )
-                ready = _scan_ready_row(current_recognition)
-                if ready is not None:
-                    return finish(
-                        "observed",
-                        "catalog-admitted ordinary ready row observed after settle",
-                        final_frame=current,
-                        ready_row=ready,
-                    )
-            previous_swipe_source_sha = current.sha256
-
-        return finish(
-            "evidence_required",
-            "no catalog-admitted ordinary ready row observed within swipe budget",
-            final_frame=current if "current" in locals() else source,
-        )
-    except BaseException as exc:
-        session.terminal_status = "evidence_required"
-        session.blocker = str(exc)
-        return finish(
-            "evidence_required",
-            f"{type(exc).__name__}: {exc}",
-            final_frame=frames.get("source"),
-        )
-

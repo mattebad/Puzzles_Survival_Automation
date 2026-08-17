@@ -29,8 +29,11 @@ from safe_action_core.store import (
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = json.loads((ROOT / "runtime-profile/manifest.json").read_text(encoding="utf-8"))
-PROFILE_ID = PROFILE["profile_id"]
+RETAINED_PROFILE_ID = PROFILE["profile_id"]
+PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 M6_MANIFEST = ROOT / "evidence/sessions/20260712-m6-dq-bootstrap/assets/asset-manifest.json"
+TEST_TASK_ID = "TEST-SUPERVISED-R1"
+TEST_TASKS = frozenset({TEST_TASK_ID})
 
 
 class FakeClock:
@@ -74,7 +77,7 @@ def request(obs=None, **changes):
     base = PolicyRequest(
         action_id="action-1",
         action_key="day-1:claim:row-1",
-        task_id="MVP-QUEST-TO-CLAIM",
+        task_id=TEST_TASK_ID,
         task_mode="supervised_validation",
         semantic_action="CLAIM_DAILY_QUEST",
         expected_runtime_profile_id=PROFILE_ID,
@@ -96,7 +99,7 @@ def intent(action_id="action-1", action_key="day-1:claim:row-1"):
     return ActionIntent(
         action_id=action_id,
         action_key=action_key,
-        task_id="MVP-QUEST-TO-CLAIM",
+        task_id=TEST_TASK_ID,
         semantic_action="CLAIM_DAILY_QUEST",
         source_state=obs.source_state,
         target_identity=obs.target_identity,
@@ -119,7 +122,7 @@ class StoreFixture:
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "safety.sqlite3"
         self.store = SafetyStore(self.path)
-        self.policy = CentralPolicy().evaluate(request())
+        self.policy = CentralPolicy(TEST_TASKS).evaluate(request())
 
     def tearDown(self):
         self.store.close()
@@ -288,13 +291,22 @@ class LeaseCase(StoreFixture, unittest.TestCase):
 
 class PolicyCase(unittest.TestCase):
     def setUp(self):
-        self.policy = CentralPolicy()
+        self.policy = CentralPolicy(TEST_TASKS)
 
     def decision(self, req):
         return self.policy.evaluate(req)
 
     def test_valid_supervised_zero_cost_r1(self):
         self.assertEqual(self.decision(request()).decision, PolicyDecision.AUTHORIZE)
+
+    def test_retired_profile_agreement_global_lock(self):
+        retired = request(
+            observation(runtime_profile_id=RETAINED_PROFILE_ID),
+            expected_runtime_profile_id=RETAINED_PROFILE_ID,
+        )
+        result = self.decision(retired)
+        self.assertEqual(result.decision, PolicyDecision.GLOBAL_INPUT_LOCK)
+        self.assertEqual(result.reason_code, "PROFILE_MISMATCH")
 
     def test_stale_frame_denied(self):
         self.assertEqual(
@@ -381,7 +393,7 @@ class ExecutorCase(unittest.TestCase):
     def executor(self, pre=None, posts=None, reconciler=None, transport=None):
         return SafeActionExecutor(
             self.store,
-            CentralPolicy(),
+            CentralPolicy(TEST_TASKS),
             "executor-1",
             self.clock,
             transport or self.transport,
@@ -419,7 +431,7 @@ class ExecutorCase(unittest.TestCase):
             action_class=ActionClass.NAVIGATION_ONLY,
             runtime_session_id="safe-action-core-regression-session",
         )
-        issued = CentralPolicy().issue_capability(nav)
+        issued = CentralPolicy(TEST_TASKS).issue_capability(nav)
         self.assertTrue(issued.authorized)
         self.assertIsNotNone(issued.capability)
 
@@ -547,7 +559,7 @@ class M6FixtureCase(unittest.TestCase):
     def test_six_promoted_assets_match_locked_profile(self):
         manifest = json.loads(M6_MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(len(manifest["assets"]), 6)
-        self.assertTrue(all(asset["profile_id"] == PROFILE_ID for asset in manifest["assets"]))
+        self.assertTrue(all(asset["profile_id"] == RETAINED_PROFILE_ID for asset in manifest["assets"]))
         self.assertTrue(all(asset["profile_content_sha256"] == PROFILE["profile_content_sha256"] for asset in manifest["assets"]))
 
     def test_go_negative_and_clipped_fixture_cannot_authorize_claim(self):
@@ -560,12 +572,12 @@ class M6FixtureCase(unittest.TestCase):
             control_class="GO",
             evidence_refs=(negative["source_evidence_path"],),
         )
-        self.assertEqual(CentralPolicy().evaluate(request(base)).reason_code, "GO_NOT_CLAIM")
+        self.assertEqual(CentralPolicy(TEST_TASKS).evaluate(request(base)).reason_code, "GO_NOT_CLAIM")
         clipped = replace(base, frame_sha256=daily["sha256"], control_class="CLAIM", clipped=True)
-        self.assertEqual(CentralPolicy().evaluate(request(clipped)).reason_code, "CLIPPED_TARGET")
+        self.assertEqual(CentralPolicy(TEST_TASKS).evaluate(request(clipped)).reason_code, "CLIPPED_TARGET")
 
     def test_ambiguous_stale_and_profile_mismatch_fail_closed(self):
-        policy = CentralPolicy()
+        policy = CentralPolicy(TEST_TASKS)
         self.assertEqual(policy.evaluate(request(observation(ambiguous=True))).reason_code, "AMBIGUOUS_TARGET")
         self.assertEqual(
             policy.evaluate(request(observation(capture_completed_monotonic=1))).reason_code,

@@ -18,8 +18,10 @@ from safe_action_core import (
     ocr_reuse_denial,
 )
 
-PROFILE = "pns-blissos-poc-virgl-800x1280-v1"
+PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
 ROI_HASH = "d" * 64
+TEST_TASK_ID = "TEST-PRE-DISPATCH-FRESHNESS"
+TEST_TASKS = frozenset({TEST_TASK_ID})
 
 
 class Clock:
@@ -63,7 +65,7 @@ def request(obs: Observation | None = None, **changes) -> PolicyRequest:
     base = PolicyRequest(
         action_id="freshness-action",
         action_key="freshness-key",
-        task_id="MVP-QUEST-TO-CLAIM",
+        task_id=TEST_TASK_ID,
         task_mode="supervised_validation",
         semantic_action="NAVIGATE_HOME_TO_QUEST",
         expected_runtime_profile_id=PROFILE,
@@ -85,27 +87,27 @@ class FreshnessPolicyCase(unittest.TestCase):
             capture_completed_monotonic=999.9,
             ocr_result_capture_completed_monotonic=999.9,
         )
-        self.assertTrue(CentralPolicy().evaluate(request(completed)).authorized)
+        self.assertTrue(CentralPolicy(TEST_TASKS).evaluate(request(completed)).authorized)
         command_started = replace(
             completed,
             capture_completed_monotonic=996.0,
             ocr_result_capture_completed_monotonic=996.0,
         )
-        self.assertEqual(CentralPolicy().evaluate(request(command_started)).reason_code, "STALE_FRAME")
+        self.assertEqual(CentralPolicy(TEST_TASKS).evaluate(request(command_started)).reason_code, "STALE_FRAME")
 
     def test_ocr_duration_advances_frame_age(self):
         obs = observation(capture_completed_monotonic=100.0)
-        result = CentralPolicy().evaluate(request(obs, monotonic_now=102.1, policy_phase="pre_dispatch"))
+        result = CentralPolicy(TEST_TASKS).evaluate(request(obs, monotonic_now=102.1, policy_phase="pre_dispatch"))
         self.assertEqual(result.reason_code, "STALE_FRAME")
 
     def test_wall_clock_adjustment_does_not_change_policy_freshness(self):
         obs = observation(capture_completed_monotonic=500.0)
-        first = CentralPolicy().evaluate(request(obs, monotonic_now=500.5))
-        second = CentralPolicy().evaluate(request(obs, monotonic_now=500.5))
+        first = CentralPolicy(TEST_TASKS).evaluate(request(obs, monotonic_now=500.5))
+        second = CentralPolicy(TEST_TASKS).evaluate(request(obs, monotonic_now=500.5))
         self.assertEqual((first.decision, first.reason_code), (second.decision, second.reason_code))
 
     def test_frame_hash_timestamp_and_roi_binding_are_snapshot_bound(self):
-        result = CentralPolicy().evaluate(request())
+        result = CentralPolicy(TEST_TASKS).evaluate(request())
         snapshot = result.request_snapshot["observation"]
         self.assertEqual(snapshot["frame_sha256"], "a" * 64)
         self.assertEqual(snapshot["capture_completed_monotonic"], 999.5)
@@ -153,7 +155,7 @@ class ExecutorHarness(unittest.TestCase):
         )
         executor = SafeActionExecutor(
             self.store,
-            CentralPolicy(),
+            CentralPolicy(TEST_TASKS),
             "executor",
             self.monotonic,
             self.transport,
@@ -274,14 +276,14 @@ class ExecutorHarness(unittest.TestCase):
         self.assertEqual((result.status, self.transport_calls), (ActionStatus.CONFIRMED, 1))
 
     def test_restart_after_prepared_reconciles_without_dispatch(self):
-        first_policy = CentralPolicy().evaluate(request())
+        first_policy = CentralPolicy(TEST_TASKS).evaluate(request())
         from safe_action_core.models import ActionIntent
 
         obs = observation()
         intent = ActionIntent(
             action_id="crash-loop",
             action_key="crash-loop-key",
-            task_id="MVP-QUEST-TO-CLAIM",
+            task_id=TEST_TASK_ID,
             semantic_action="NAVIGATE_HOME_TO_QUEST",
             source_state=obs.source_state,
             target_identity=obs.target_identity or "",
@@ -298,7 +300,7 @@ class ExecutorHarness(unittest.TestCase):
             evidence_refs=(),
         )
         self.store.prepare_action(intent, first_policy, self.wall())
-        self.store.audit("MVP-QUEST-TO-CLAIM", "pre_input_attempt", self.wall(), {"attempt": 1, "transport_calls": 0}, "crash-loop")
+        self.store.audit(TEST_TASK_ID, "pre_input_attempt", self.wall(), {"attempt": 1, "transport_calls": 0}, "crash-loop")
         self.store.close()
         self.store = SafetyStore(Path(self.temp.name) / "actions.sqlite3")
         self.assertEqual(self.store.get_action("crash-loop")["final_status"], "prepared")
@@ -315,7 +317,7 @@ class ExecutorHarness(unittest.TestCase):
             ocr_result_frame_sha256="b" * 64,
             ocr_result_capture_completed_monotonic=999.8,
         )
-        policy = CentralPolicy()
+        policy = CentralPolicy(TEST_TASKS)
         issued = policy.issue_capability(
             request(
                 immediate,

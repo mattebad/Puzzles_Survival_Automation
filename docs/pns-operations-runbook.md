@@ -1,58 +1,28 @@
 # Puzzles & Survival operator runbook
 
-Routine Unraid and private-ADB operations use `scripts/pnsctl.py`. Run commands from the project
-root with the approved `UNRAID_TEMP_USERNAME` and `UNRAID_TEMP_PASSWORD` values available in the
-project `.env` or process environment. The CLI never prints or writes those values.
+Local BlueStacks is the sole active gameplay runtime. Run supported operations
+from the project root through `scripts/pnsctl.py`; do not use direct ADB or
+remote-host commands for active development.
 
-The CLI owns the pinned `nas.local` host key, cache-backed workspace, worker image, UID 65534
-worker, read-only root, writable in-memory `/tmp`, task ADB socket `127.0.0.1:5042`, guest serial
-`192.168.122.79:5555`, package/activity, RT-019/M6 validation, evidence synchronization, and
-task cleanup. The approved pre-existing host ADB at `127.0.0.1:5037` is never stopped.
+## Local BlueStacks operations
 
-```text
-python3 scripts/pnsctl.py preflight
-python3 scripts/pnsctl.py worker-start
-python3 scripts/pnsctl.py worker-status
-python3 scripts/pnsctl.py adb-start
-python3 scripts/pnsctl.py launch
-python3 scripts/pnsctl.py capture --name current
-python3 scripts/pnsctl.py observe --name current
-python3 scripts/pnsctl.py navigate --step cash-home
-python3 scripts/pnsctl.py navigate --step home-quest
-python3 scripts/pnsctl.py navigate --step quest-daily
-python3 scripts/pnsctl.py navigate --step daily-scroll-up
-python3 scripts/pnsctl.py navigate --step daily-scroll-down
-python3 scripts/pnsctl.py navigate --step daily-bioenhancer-go
-python3 scripts/pnsctl.py run-task --task alliance-help
-python3 scripts/pnsctl.py run-task --task praise
-python3 scripts/pnsctl.py test-focused --pattern test_task_module.py
-python3 scripts/pnsctl.py test-full
-python3 scripts/pnsctl.py validate
-python3 scripts/pnsctl.py preserve-evidence \
-  --destination evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/remote-complete \
-  --name alliance-help-1783981635-source.png \
-  --name alliance-help-1783981635-immediate-before-1.png \
-  --name alliance-help-1783981635-post-1.png \
-  --name alliance-help-result.json
-python3 scripts/pnsctl.py cleanup
-```
-
-## Local BlueStacks flow-delivery contract
-
-The development-delivery orchestrator uses a separate, local, fixed-profile command family:
+The active command families are:
 
 ```text
 python scripts/pnsctl.py bluestacks preflight
 python scripts/pnsctl.py bluestacks run-flow <flow-id> --live
 python scripts/pnsctl.py bluestacks verify-flow <session-directory>
 python scripts/pnsctl.py bluestacks recover-home
+python scripts/pnsctl.py development-session observe
+python scripts/pnsctl.py development-session daily-row-claim --mode prepare ...
+python scripts/pnsctl.py development-session daily-row-claim --mode canary ...
 ```
 
-This is not the gameplay scheduler. Live commands require the checked-in development queue and a
-parent-held `.local-orchestrator/flow-delivery-lease.json`. The interface fixes the private serial
-to `emulator-5554`, requires native 800×1280 and package `com.global.ztmslg`, accepts only
-checked-in flow IDs, writes under `.local-captures/flow-delivery/`, and returns structured results
-with nonzero failure. It exposes no arbitrary ADB, coordinate, tap, or swipe endpoint.
+These commands are development interfaces, not the gameplay scheduler. They
+fix the private serial to `emulator-5554`, require native 800×1280 and package
+`com.global.ztmslg`, use checked-in flow IDs and bounded receipt manifests,
+and retain structured evidence under `.local-captures/`. No arbitrary ADB,
+coordinate, tap, or swipe endpoint is exposed.
 
 `run-flow` fails closed until the active flow supplies its dedicated checked-in runner.
 `verify-flow` validates the session's result, frames, events, ledger, capability audit, journal,
@@ -60,26 +30,30 @@ runtime owner, and terminal state. `recover-home` delegates only to the existing
 Cultivation-Center-to-Home verified recovery and cannot issue Android Back from an unrecognized
 Home screen.
 
-`navigate` accepts only the checked-in route names and uses the existing safe-action executor.
-`preserve-evidence` requires one or more exact `--name` values. An omitted name fails before
-creating the destination; cumulative `remote_evidence/*` downloads are intentionally disabled.
-The Daily scroll routes are bounded navigation-only swipes; each captures and revalidates the
-selected Daily source before dispatch, then requires a fresh selected-Daily successor.
-`daily-bioenhancer-go` is a bounded navigation-only tap on the freshly observed selected-Daily
-Bioenhancer row; it requires a positively recognized direct Bioenhancer Research successor and
-never presses Free Research or Research 10x.
-`bioenhancer-daily-back` is the bounded navigation-only return from the exact Bioenhancer
-Research back control to Home/Base; continue through `home-quest` and `quest-daily` to rebind
-selected Daily.
-`daily-supply-depot-go` is a bounded navigation-only tap on the current selected-Daily Supply
-Depot row; it requires a positively recognized Supply Depot successor and never collects.
-`supply-depot-daily-back` is the bounded navigation-only return from Supply Depot to Home/Base;
-continue through `home-quest` and `quest-daily` to rebind selected Daily.
-`observe` records capture start/completion epochs and UTC completion time beside foreground
-identity so retained raw frames have explicit capture timing.
-`run-task` exposes bounded task adapters only. `praise` first recognizes and attempts one
-task-scoped dismissal of the reset-time `Get Pts` modal through its local Close ROI, then uses
-the named Personal Might route. It is not a general remote shell or arbitrary tap endpoint.
+Daily Claim is one selected-Daily aggregate action. The flow reuses the
+existing Home → Quest → Daily route, positively recognizes one ordinary,
+free, non-milestone Claim control, taps exactly once, and succeeds only when
+Daily points increase and no ordinary Claim control remains. Objective flows
+may prove completion but never own a Claim tap. There is no per-row loop,
+objective binding, fixed point delta, or identical retry.
+
+## Future Bliss porting toolbox
+
+Reusable remote infrastructure is isolated under `scripts/bliss_porting/` and
+`docker/bliss-porting-tooling.Dockerfile`. It is manual-only and is not
+imported, registered, scheduled, or exposed by `pnsctl`.
+
+Only an explicitly selected future Bliss porting task may invoke:
+
+```text
+python -m scripts.bliss_porting.cli --help
+```
+
+The toolbox requires explicit host, host key, serial, container, image,
+workspace, evidence path, private loopback ADB socket, ADB binary, Plink, and
+PSCP arguments. Temporary credentials remain process-only. It contains no
+gameplay flow identities or fixed gameplay coordinates, and it publishes no
+ADB port.
 
 ## Canonical governance references
 
@@ -95,20 +69,10 @@ This runbook is an operational entry point, not a duplicate authority. Permanent
 - [`evidence-retention-policy.md`](evidence-retention-policy.md) for exact manifests, hashes,
   indexing exclusion, and archive-before-removal.
 
-The current task and exact next action are authoritative only in `CURRENT_HANDOFF.md` and
-`BACKLOG.md`. Offline contracts do not authorize registration or scheduler eligibility.
+The current task and exact next action are authoritative only in
+`CURRENT_HANDOFF.md` and `BACKLOG.md`. Offline contracts do not authorize
+registration or scheduler eligibility. Historical Bliss evidence and journals
+remain immutable evidence, not active operating instructions.
 
-The retained mistarget is reconciled by copying the closed historical database and recording a
-terminal no-effect cancellation in the copy. The original unresolved journal remains immutable:
-
-```text
-python3 scripts/pnsctl.py reconcile \
-  --source evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/actions-after-release.sqlite3 \
-  --output evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/reconciled-actions-20260713.sqlite3 \
-  --action-id alliance-help-20260713-001 \
-  --evidence remote-complete/alliance-help-source-001.png remote-complete/alliance-help-immediate-before-1.png remote-complete/alliance-help-post-001.png
-```
-
-Do not use ad hoc `plink`, Docker, ADB, inline Python, or arbitrary remote commands for routine
-operations. Stop on an account/session hard stop, public ADB exposure, unresolved consequential
-outcome, profile mismatch, or destructive runtime requirement.
+Stop on an account/session hard stop, public ADB exposure, unresolved
+consequential outcome, profile mismatch, or destructive runtime requirement.

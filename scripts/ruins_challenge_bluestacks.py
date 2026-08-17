@@ -53,7 +53,7 @@ from tasks.ruins_challenge_vision import (
     recognize_any_ruins_reward_frame,
 )
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
-from scripts.personal_might_praise_live import recognize_reset_popup
+from scripts import bluestacks_popup_recognition
 
 
 RUINS_HOME_ATLAS_BUILDING_ID = "home.building.ruins"
@@ -214,7 +214,7 @@ class RuinsIntegratedRoute:
 
     def _dismiss_known_vip_popup(self, captured):
         """Close the retained benign VIP-points modal once when positively recognized."""
-        detail = recognize_reset_popup(captured.frame)
+        detail = bluestacks_popup_recognition.recognize_reset_popup(captured.frame)
         if not detail.get("recognized") or not detail.get("target"):
             return captured, None, 0
         self._ordinary_tap(
@@ -226,7 +226,7 @@ class RuinsIntegratedRoute:
         )
         time.sleep(self.post_input_delay)
         settled = self.runtime.capture("ruins-vip-popup-close-immediate-post")
-        if recognize_reset_popup(settled.frame).get("recognized"):
+        if bluestacks_popup_recognition.recognize_reset_popup(settled.frame).get("recognized"):
             return settled, "vip_popup_close_successor_not_recognized", 1
         return settled, None, 1
 

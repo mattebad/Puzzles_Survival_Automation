@@ -8,18 +8,18 @@ status; it must not become an independent status source. All scheduler eligibili
 
 ## Live-validated
 
-- `help_allies`: individual Help and actual lower Help All; canonical route
-  `daily_go_to_speedup_help`; existing operator task `alliance-help`.
-- `personal_might_praise`: exact current-frame Praise route; existing operator task `praise`.
-- Support flow `personal_might_daily_claim`: exact row-local Claim; existing operator task
-  `personal-might-claim`.
+- Historical Bliss evidence for Help, Praise, and Personal Might Claim remains
+  retained, but those legacy gameplay adapters and operator registrations are
+  retired.
 
-These registrations are preserved. They do not imply scheduler eligibility or unattended
-promotion. Praise completion stops before Claim.
+Objective completion attribution remains separate from the single aggregate
+Daily Claim flow. All scheduler eligibility remains false.
 
 ## Offline implemented
 
-- Generalized Daily Claim contract: `tasks/available_daily_claim.py`.
+- Aggregate Daily Claim contract: `tasks/available_daily_claim.py` and
+  `scripts/daily_row_claim_bluestacks.py`; one ordinary free non-milestone
+  Claim tap must increase points and clear all ordinary Claim controls.
 - Milestone Claim contract: `tasks/activity_milestones.py`.
 - Supply Depot free contract and selected-Daily adapter:
   `tasks/supply_depot.py` plus `tasks/daily_supply_depot.py`.
@@ -229,8 +229,9 @@ from the catalogued Defeat Zombie Lair objective.
 ## Separation rules
 
 - Main Quest Claim is explicitly excluded from active scope.
-- Generic Daily row Claim, Personal Might Claim, and milestone Claim are separate flows.
-- Objective completion never authorizes Claim.
+- One aggregate selected-Daily Claim flow owns every ordinary Daily Claim tap;
+  milestone Claim remains separate.
+- Objective flows provide completion attribution only and never own Claim.
 - Static GnBots geometry and calibration output never authorize input.
 - Existing runtime registrations are not inferred from offline modules.
 - No new runtime registration, scheduler eligibility, worker wiring, live task-state row, lease,

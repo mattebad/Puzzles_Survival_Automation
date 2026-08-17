@@ -1,32 +1,32 @@
 # DQ-CLAIM-DAILY
 
-Repository authority: catalog owns objective identity; matrix owns Claim state and policy;
-`BACKLOG.md` owns this task. Preserve generic `CLAIM_DAILY_QUEST` and exact Personal Might Daily
-Claim. Exclude Main Quest Claim automation, route, prompt, and registration.
+Repository authority: catalog owns objective identity; matrix owns Claim state
+and policy; `BACKLOG.md` owns this task. Preserve generic
+`CLAIM_DAILY_QUEST`. Exclude Main Quest and milestone Claim.
 
-Scope: generalized completed Daily row Claim after independently bound inventory; variants are
-all catalog rows, with separate exact Personal Might support. Reusable components: selected Daily
-inventory, Claim contract, safe action core, profile anchors. Route: selected Daily row → Claim.
-Source recognizer: selected Daily row and completion; target recognizer: exact row-local Claim
-control; successor recognizer: yellow Claimed row and stable Daily screen. Bind all to current
-frame. Model row state independently as `INCOMPLETE → READY_TO_CLAIM → CLAIMED`, with `GATED`
-as a distinct prerequisite state. `Go` is optional and never required for completion; list
-position and viewport absence are not semantic state.
+Scope: one aggregate Claim action on positively selected Daily. Reuse the
+current Home → Quest → Daily route. Recognize any ordinary free non-milestone
+Claim control, revalidate it from the immediate-before native frame, and tap
+exactly once. Do not authorize by objective, row identity, progress, catalog
+entry, or fixed point value.
 
-Policy: Claim is independent authorization, zero gameplay objective implication. Transaction:
-one exact dispatch, bounded retry only after unresolved state. Postcondition: requested row Claim
-confirmed, no adjacent row action. Recovery: fail closed on ambiguity, stale frame, or negative
-Main-vs-Daily recognition.
+Source: the current native selected-Daily frame with bound reset identity.
+Target: any independently safe ordinary free non-milestone Claim control.
+Successor: the same selected Daily with increased points and no remaining
+ordinary Claim controls.
 
-Daily reconciliation uses canonical key and alias only. Milestone Claim is separate. Persistence
-and scheduler remain dormant. Tests: generic Claim contract, exact Personal Might path, Daily-tab
-negative recognition, dispatch cardinality, successor confirmation, and Claim-separation tests.
-Bliss evidence must prove source/target/successor; GnBots cannot authorize. The Bioenhancer live
-research evidence proves completion can be caused outside the Daily screen, but it does not prove
-Claim readiness: the post-reset inspection showed Bioenhancer `0/1` for a later Daily reset and
-no Claim input was performed. A future Claim-ready proof must include exact objective text,
-completed progress, row-local Claim bounds, selected-Daily identity, reset/game-day identity,
-and evidence that the row is not yellow Claimed.
+Policy: objective handlers provide completion attribution only and never own
+Claim. Success requires unchanged selected-Daily/reset identity, a positive
+Daily points delta, and no remaining ordinary Claim controls.
+
+Recovery: stop `evidence_required` on ambiguity or missing postcondition;
+never issue a second Claim tap.
+
+Daily reconciliation uses selected-Daily and reset identity. Milestone Claim is
+separate. Persistence and scheduler remain dormant. Tests cover the aggregate
+Claim contract, Daily-tab negatives, dispatch cardinality, successor proof,
+and objective/Claim separation. Historical Bliss evidence remains immutable
+but cannot authorize current BlueStacks input; GnBots cannot authorize.
 
 Future navigation may use validated read-only routes. Prohibit Main Quest Claim, ADB, worker/VM
 changes, leases, journal migration, live input, new registration, and scheduler eligibility.

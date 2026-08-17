@@ -76,7 +76,6 @@ class AuthorityConsistencyTests(unittest.TestCase):
     def test_affected_queue_flows_are_evidence_gated_and_not_live_authorized(self) -> None:
         queue = _read(QUEUE)
         affected = {
-            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "NANOWEAPON-BLUESTACKS-INTEGRATION",
             "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
             "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
@@ -90,8 +89,13 @@ class AuthorityConsistencyTests(unittest.TestCase):
         for flow_id in (
             "RECRUITMENT-BLUESTACKS-INTEGRATION",
             "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
         ):
             self.assertEqual(by_id[flow_id]["status"], "completed")
+        for flow_id in (
+            "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+        ):
             self.assertEqual(by_id[flow_id]["live_attempt_count"], 5)
             self.assertFalse(queue["gameplay_scheduler"])
         campaign = by_id[CAMPAIGN_FLOW_ID]
@@ -166,10 +170,6 @@ class AuthorityConsistencyTests(unittest.TestCase):
         )
         self.assertIn(
             "safe_action_core/policy.py",
-            survey["implementation_allowlist_seed"],
-        )
-        self.assertIn(
-            "scripts/personal_might_praise_live.py",
             survey["implementation_allowlist_seed"],
         )
         self.assertEqual(survey["blocked_reason"], "")
@@ -271,7 +271,7 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertEqual(by_id[CAMPAIGN_FLOW_ID]["status"], "completed")
         self.assertEqual(
             by_id["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]["status"],
-            "blocked",
+            "completed",
         )
 
     def test_recruitment_native_evidence_is_complete_without_registration_promotion(self) -> None:

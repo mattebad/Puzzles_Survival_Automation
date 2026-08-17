@@ -5,7 +5,6 @@ import json
 import hashlib
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from types import SimpleNamespace
 import time
 from unittest.mock import patch
 import unittest
@@ -558,7 +557,7 @@ class IntegratedRouteTests(unittest.TestCase):
         runtime = FakeRuntime()
         route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Tue", post_input_delay=0)
         detail = {"recognized": True, "target": (260, 760, 540, 870)}
-        with patch("scripts.ruins_challenge_bluestacks.recognize_reset_popup", side_effect=(detail, {"recognized": False})):
+        with patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", side_effect=(detail, {"recognized": False})):
             settled, reason, actions = route._dismiss_known_vip_popup(runtime.frames[0])
         self.assertIsNotNone(settled)
         self.assertIsNone(reason)
@@ -569,7 +568,7 @@ class IntegratedRouteTests(unittest.TestCase):
     def test_ruins_unknown_popup_is_not_dismissed_and_gameplay_allowlist_rejects_controls(self):
         runtime = FakeRuntime()
         route = RuinsIntegratedRoute(runtime, reset_identity=RESET, current_day="Tue", post_input_delay=0)
-        with patch("scripts.ruins_challenge_bluestacks.recognize_reset_popup", return_value={"recognized": False}):
+        with patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", return_value={"recognized": False}):
             _settled, reason, actions = route._dismiss_known_vip_popup(runtime.frames[0])
         self.assertIsNone(reason)
         self.assertEqual(actions, 0)

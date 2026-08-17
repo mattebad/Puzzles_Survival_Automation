@@ -1,10 +1,4 @@
-"""Offline generalized Daily Quest Claim contract for Phase E.
-
-The passed Personal Might Claim path remains unchanged.  This separate contract models any
-available ordinary Daily Quest Claim.  Bliss-native observations retain their historical
-contract, while the evidence-bound BlueStacks path requires current native provenance and a
-catalog-reconciled objective.
-"""
+"""Offline contract for the aggregate Daily Quest Claim control."""
 
 from __future__ import annotations
 
@@ -13,12 +7,10 @@ import re
 from typing import Mapping, Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
-from .profile import PROFILE_ID
 
 
 DAILY_QUEST_SCREEN = "DAILY_QUEST"
 DAILY_QUEST_CLAIM_TARGET = "daily-quest-claim"
-BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
 BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
 BLUESTACKS_NATIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -26,7 +18,11 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 @dataclass(frozen=True)
 class AvailableDailyClaimObservation:
-    """Semantic evidence for one ordinary completed Daily Quest row."""
+    """Evidence for one aggregate ordinary Daily Claim control.
+
+    Objective and progress fields remain descriptive legacy observation data so retained
+    evidence can load, but authorization intentionally does not inspect them.
+    """
 
     screen_state: str
     selected_daily_quest: bool
@@ -51,7 +47,7 @@ class AvailableDailyClaimObservation:
     clipped: bool = False
     overlay_state: str = "none_observed"
     reset_guard_active: bool = False
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = BLUESTACKS_NATIVE_RUNTIME_PROFILE_ID
     recognized: bool = True
     points: Optional[int] = None
     reward_points: Optional[int] = None
@@ -72,6 +68,7 @@ class AvailableDailyClaimObservation:
     reset_deadline_utc: Optional[str] = None
     reset_deadline_identity: Optional[str] = None
     reset_deadline_tolerance_seconds: Optional[int] = None
+    available_claim_controls: Optional[int] = None
 
 
 def _target_inside_row(observation: AvailableDailyClaimObservation) -> bool:
@@ -81,18 +78,6 @@ def _target_inside_row(observation: AvailableDailyClaimObservation) -> bool:
     except (TypeError, ValueError):
         return False
     return bool(rx0 <= tx0 < tx1 <= rx1 and ry0 <= ty0 < ty1 <= ry1)
-
-
-def _has_bliss_native_source(observation: AvailableDailyClaimObservation) -> bool:
-    refs = tuple(str(ref) for ref in observation.evidence_refs)
-    return bool(
-        observation.target_provenance == BLISS_NATIVE_TARGET_PROVENANCE
-        and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
-        and refs
-        and all(ref and "local-reference" not in ref for ref in refs)
-        and any(ref.startswith(("evidence/", "synthetic:")) for ref in refs)
-        and observation.runtime_profile_id == PROFILE_ID
-    )
 
 
 def _has_bluestacks_native_source(observation: AvailableDailyClaimObservation) -> bool:
@@ -205,33 +190,12 @@ def _reset_identity_is_bound(observation: AvailableDailyClaimObservation) -> boo
     )
 
 
-def _catalog_reconciles_objective(observation: AvailableDailyClaimObservation) -> bool:
-    """Match the observed objective name to the durable Daily catalog key."""
-
-    if observation.catalog_reconciled:
-        return True
-    try:
-        from .catalog import objective_for_text
-
-        catalog_item = objective_for_text(observation.objective_name)
-    except (OSError, ValueError, TypeError):
-        return False
-    return bool(
-        catalog_item is not None
-        and catalog_item.objective_key == observation.objective_key
-    )
-
-
 def available_daily_claim_authorizeable(observation: AvailableDailyClaimObservation) -> bool:
-    """Require a generalized, ordinary, free Daily Quest Claim target."""
+    """Require a current selected-Daily aggregate Claim target."""
 
     return bool(
         observation.screen_state == DAILY_QUEST_SCREEN
         and observation.selected_daily_quest
-        and bool(observation.objective_key.strip())
-        and bool(observation.objective_name.strip())
-        and observation.required_progress >= 1
-        and observation.current_progress >= observation.required_progress
         and observation.row_fully_visible
         and observation.claim_fully_visible
         and observation.target_identity == DAILY_QUEST_CLAIM_TARGET
@@ -254,13 +218,7 @@ def available_daily_claim_authorizeable(observation: AvailableDailyClaimObservat
         and not observation.reset_guard_active
         and _reset_identity_is_bound(observation)
         and observation.recognized
-        and (
-            _has_bliss_native_source(observation)
-            or (
-                _has_bluestacks_native_source(observation)
-                and _catalog_reconciles_objective(observation)
-            )
-        )
+        and _has_bluestacks_native_source(observation)
     )
 
 
@@ -270,7 +228,7 @@ def available_daily_claim_transaction_spec(observation: AvailableDailyClaimObser
     return ActionTransactionSpec(
         action_kind="CLAIM_DAILY_QUEST",
         expected_source_screen=DAILY_QUEST_SCREEN,
-        subject=observation.objective_name,
+        subject="Selected Daily aggregate Claim",
         quantity=1,
         resource_or_currency=None,
         maximum_cost=0,
@@ -279,12 +237,16 @@ def available_daily_claim_transaction_spec(observation: AvailableDailyClaimObser
         semantic_preconditions=(
             "daily_quest_screen",
             "selected_daily_quest",
-            "exact_completed_row_local_claim",
             "accepted_native_target_evidence",
             "explicit_zero_cost",
+            "ordinary_claim_control",
             "not_milestone",
         ),
-        semantic_postconditions=("same_objective_row_disappears_or_points_increase",),
+        semantic_postconditions=(
+            "same_selected_daily_and_reset_identity",
+            "points_increase",
+            "no_available_ordinary_claim_controls",
+        ),
     )
 
 
@@ -296,14 +258,13 @@ def available_daily_claim_postcondition_verified(
     points_after: Optional[int] = None,
     row_disappeared: bool = False,
 ) -> bool:
-    """Require the same generalized Daily row to change or an explicitly positive points delta."""
+    """Require selected Daily/reset continuity, points increase, and Claim exhaustion."""
 
     if not available_daily_claim_authorizeable(before) or after is None:
         return False
     if (
         after.screen_state != DAILY_QUEST_SCREEN
         or not after.selected_daily_quest
-        or after.objective_key != before.objective_key
         or after.game_day_id != before.game_day_id
     ):
         return False
@@ -355,18 +316,26 @@ def available_daily_claim_postcondition_verified(
                     return False
             except (TypeError, ValueError):
                 return False
-    row_changed = bool(
-        row_disappeared
-        or after.target_identity != DAILY_QUEST_CLAIM_TARGET
-        or after.control_class != "CLAIM"
-        or not after.claim_fully_visible
+    controls_exhausted = bool(
+        after.available_claim_controls == 0
+        if after.available_claim_controls is not None
+        else (
+            row_disappeared
+            or after.target_identity != DAILY_QUEST_CLAIM_TARGET
+            or after.control_class != "CLAIM"
+            or not after.claim_fully_visible
+        )
     )
+    observed_points_before = before.points if points_before is None else points_before
+    observed_points_after = after.points if points_after is None else points_after
     points_changed = (
-        points_before is not None
-        and points_after is not None
-        and points_after > points_before
+        isinstance(observed_points_before, int)
+        and not isinstance(observed_points_before, bool)
+        and isinstance(observed_points_after, int)
+        and not isinstance(observed_points_after, bool)
+        and observed_points_after > observed_points_before
     )
-    return bool(row_changed or points_changed)
+    return bool(controls_exhausted and points_changed)
 
 
 def available_daily_claim_perform_one_pulse(
@@ -393,6 +362,6 @@ def available_daily_claim_perform_one_pulse(
         return TaskResult(TaskOutcome.FAILED_SAFE, "DAILY_CLAIM_POSTCONDITION_NOT_PROVEN", state=DAILY_QUEST_SCREEN)
     return TaskResult.done(
         "generalized Daily Quest Claim postcondition verified",
-        f"daily-quest:{before.objective_key}:claimed",
+        "daily-quest:aggregate-claimed",
         DAILY_QUEST_SCREEN,
     )

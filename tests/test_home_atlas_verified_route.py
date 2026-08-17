@@ -53,7 +53,6 @@ from tasks.home_atlas import (
 )
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, frame_digest
 from tasks.home_context import HomeReadyObservation
-from tasks.navigation_observability import report_navigation_session
 from tasks.navigation_session import (
     AuthorizationScope,
     create_session,
@@ -255,7 +254,7 @@ def _args(directory: Path, *, building_id: str, execute: bool = True) -> SimpleN
 
 
 def _policy_for(task_id: str) -> CentralPolicy:
-    return CentralPolicy(supervised_tasks=frozenset({"MVP-QUEST-TO-CLAIM", task_id}))
+    return CentralPolicy(supervised_tasks=frozenset({task_id}))
 
 
 def _ready() -> HomeReadyObservation:

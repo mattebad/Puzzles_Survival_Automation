@@ -12,11 +12,13 @@ and scheduler-ineligible; offline contracts and retained evidence do not authori
 
 ## Admission rule
 
-An objective enters catalog and matrix only with raw/lossless Bliss evidence or an inventory record
-derived from such frames, positive Quest recognition, positive selected-Daily recognition, visible
-objective-list text, non-Main classification, and exact source provenance. Backlog/plan prose,
-generic task specifications, GnBots actions, unknown-tab OCR, and synthetic fixtures are
-non-admitting evidence.
+The retained objective catalog was admitted historically from raw/lossless Bliss evidence or an
+inventory record derived from such frames, positive Quest recognition, positive selected-Daily
+recognition, visible objective-list text, non-Main classification, and exact source provenance.
+That provenance remains immutable catalog history; it does not authorize current implementation,
+promotion, registration, scheduling, or input. New active evidence and every future promotion gate
+must be BlueStacks-native. Backlog/plan prose, generic task specifications, GnBots actions,
+unknown-tab OCR, and synthetic fixtures are non-admitting evidence.
 
 ## Reconciled scope
 
@@ -191,7 +193,7 @@ objective is unregistered and scheduler-ineligible.
 | `defeat_zombie_lair` | zombie_lair / first eligible Home-notification join | `home_lair_notification` | legacy offline support | evidence-gated | none | DQ-FLOW-ZOMBIE-LAIR |
 | `consume_stamina` | stamina / consume | `daily_go_to_stamina_action` | disabled | disabled | none | DQ-FLOW-STAMINA |
 | `consume_ap` | campaign_ap / configured-stage Auto Battle | `daily_go_to_campaign` | retained controller replay | evidence-gated production replay | none | DQ-FLOW-CAMPAIGN-AP |
-| `help_allies` | alliance_help / Help All, individual | `daily_go_to_speedup_help` | live validated | live validated | `alliance-help` | DQ-FLOW-ALLIANCE-HELP |
+| `help_allies` | alliance_help / completion attribution | `completion_attribution_only` | completion attribution only | retired | none (retired) | DQ-FLOW-ALLIANCE-HELP |
 | `buy_box` | purchases / box | `daily_go_to_purchase` | disabled | disabled | none | DQ-FLOW-PURCHASES |
 | `gather_wood` | gathering / wood, 30,000 | `daily_go_to_world` | offline contract | evidence-gated | none | DQ-FLOW-GATHERING |
 | `gather_steel` | gathering / steel, 6,000 | `daily_go_to_world` | offline contract | evidence-gated | none | DQ-FLOW-GATHERING |
@@ -203,7 +205,7 @@ objective is unregistered and scheduler-ineligible.
 | `speedup_using_items` | speedups / 180 minutes | `daily_go_to_speedup` | disabled | disabled | none | DQ-FLOW-SPEEDUP |
 | `bioenhancer_research` | bioenhancer / one free | `daily_go_to_bioenhancer` | pre-dispatch ready | evidence-gated | none | DQ-FLOW-BIOENHANCER |
 | `craft_nanoweapon` | nanoweapon / one Normal Craft per reset | `daily_go_to_nanoweapon` | legacy offline support | evidence-gated | none | DQ-FLOW-NANOWEAPON |
-| `personal_might_praise` | personal_might_praise / one Praise | `daily_go_to_personal_might` | live validated | live validated | `praise` | DQ-FLOW-PERSONAL-MIGHT-PRAISE |
+| `personal_might_praise` | personal_might_praise / completion attribution | `completion_attribution_only` | completion attribution only | retired | none (retired) | DQ-FLOW-PERSONAL-MIGHT-PRAISE |
 | `enhance_chip` | enhancement / Chip | `daily_go_to_chip` | offline contract | evidence-gated | none | DQ-FLOW-ENHANCE-CHIP |
 | `enhance_module` | enhancement / Module | `daily_go_to_module` | offline contract | evidence-gated | none | DQ-FLOW-ENHANCE-MODULE |
 | `enhance_gear` | enhancement / Gear | `daily_go_to_gear` | offline contract | evidence-gated | none | DQ-FLOW-ENHANCE-GEAR |
@@ -216,8 +218,7 @@ objective is unregistered and scheduler-ineligible.
 Support flows are not objective keys and do not affect the catalog count:
 
 - selected Daily-tab recognition and bounded inventory;
-- generalized ordinary Daily row Claim;
-- exact Personal Might Daily Claim;
+- one aggregate selected-Daily ordinary Claim;
 - activity milestone-chest Claim;
 - SQLite task-state persistence;
 - one-pulse scheduler;
@@ -233,9 +234,11 @@ Independent gameplay maintenance identities are support flows, not new catalog o
 the selected-Daily row catalog. The complete reconciled eight-identity coverage is recorded in
 `tasks/flow_delivery_coverage.json` and `docs/flow_delivery_coverage.md`.
 
-Praise, Personal Might Claim, individual Help, and Help All remain live-validated at their proven
-effective boundaries. Existing operator registrations are recorded from checked-in `pnsctl.py`; no
-offline contract is treated as registration. No scheduler eligibility is enabled.
+Historical Praise, Personal Might Claim, individual Help, and Help All evidence
+remains retained, but their Bliss gameplay adapters and operator registrations
+are retired. Objective handlers now provide completion attribution only; the
+single aggregate Daily Claim flow owns ordinary Claim. No scheduler eligibility
+is enabled.
 
 ## Per-entry contract
 

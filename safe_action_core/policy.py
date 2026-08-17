@@ -16,7 +16,6 @@ from .models import (
     CAPABILITY_CONSUMED,
     CAPABILITY_DISPATCH_ALLOWED,
     CAPABILITY_DISPATCH_REJECTED,
-    CAPABILITY_DRY_RUN_ZERO_TRANSPORT,
     CAPABILITY_EVALUATED,
     CAPABILITY_FORGERY,
     CAPABILITY_ISSUED,
@@ -52,11 +51,13 @@ from .promotional import (
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_SIZE = (800, 1280)
-DEFAULT_SUPERVISED_TASKS = frozenset({"MVP-QUEST-TO-CLAIM"})
+ACTIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+# Supervised authorization is task-owned.  Retired legacy flows must not
+# remain enabled implicitly; active callers provide their reviewed task set.
+DEFAULT_SUPERVISED_TASKS = frozenset()
 ALLOWED_R1_CONSEQUENCES = frozenset(
     {
         "claim_zero_cost_reward",
-        "alliance_help_zero_cost",
         "praise_zero_cost",
         "supply_depot_free_claim",
         "bioenhancer_research_free",
@@ -797,7 +798,10 @@ class CentralPolicy:
         except (AttributeError, TypeError, ValueError):
             return deny, CAPABILITY_TIMING_INVALID, "policy timing fields are malformed"
 
-        if obs.runtime_profile_id != req.expected_runtime_profile_id:
+        if (
+            obs.runtime_profile_id != req.expected_runtime_profile_id
+            or req.expected_runtime_profile_id != ACTIVE_RUNTIME_PROFILE_ID
+        ):
             return lock, "PROFILE_MISMATCH", "runtime profile does not match the locked profile"
         if not obs.valid_png or obs.corrupt or obs.black or (obs.width, obs.height) != EXPECTED_SIZE:
             return lock, "INVALID_FRAME", "frame is corrupt, black, invalid, or profile-sized incorrectly"

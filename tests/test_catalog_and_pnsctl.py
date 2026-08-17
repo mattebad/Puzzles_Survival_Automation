@@ -2,15 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import tempfile
-import unittest
 from pathlib import Path
+import unittest
 from unittest.mock import patch
 
 from scripts import pnsctl
 from tasks.catalog import CATALOG_PATH, catalog_summary, load_catalog, objective_for_text
 from tasks.daily_quest import AllianceHelpHandler, AllianceHelpObservation
-from tasks.profile import HELP_ALL_ACTION, INDIVIDUAL_HELP_ACTION
 
 
 class CatalogTests(unittest.TestCase):
@@ -47,244 +45,110 @@ class OperatorCliTests(unittest.TestCase):
             payload = (asset_root / asset["path"]).read_bytes()
             self.assertEqual(hashlib.sha256(payload).hexdigest(), asset["sha256"])
 
-    def test_required_operator_subcommands_exist(self):
-        for name in (
-            "preflight", "worker-start", "worker-status", "worker-stop", "adb-start", "launch",
-            "capture", "observe", "navigate", "run-task", "test-focused", "test-full", "validate",
-            "preserve-evidence", "cleanup",
+    def test_local_operator_surface_remains_available(self):
+        parser = pnsctl.parser()
+        for command in (
+            "development-session",
+            "reconcile",
+            "nova-praise-pulse",
+            "noahs-tavern-nav",
+            "noahs-tavern-recruit",
+            "nova-praise-supervised-guard",
+            "bluestacks",
+            "automation-service",
         ):
-            extra = []
-            if name == "navigate":
-                extra = ["--step", "home-quest"]
-            elif name == "run-task":
-                extra = ["--task", "alliance-help"]
-            elif name == "preserve-evidence":
-                extra = [
-                    "--destination", "/tmp/pnsctl-test-evidence",
-                    "--name", "action-result.json",
-                ]
-            parsed = pnsctl.parser().parse_args([name] + extra)
-            self.assertEqual(parsed.command, name)
-        self.assertEqual(
-            pnsctl.parser().parse_args(["run-task", "--task", "praise"]).task,
-            "praise",
-        )
-        self.assertEqual(
-            pnsctl.parser().parse_args(["run-task", "--task", "praise-route-evidence"]).task,
-            "praise-route-evidence",
-        )
-        self.assertEqual(
-            pnsctl.parser().parse_args(["run-task", "--task", "praise-leaderboard-evidence"]).task,
-            "praise-leaderboard-evidence",
-        )
-        self.assertEqual(
-            pnsctl.parser().parse_args(["run-task", "--task", "personal-might-claim"]).task,
-            "personal-might-claim",
-        )
+            with self.subTest(command=command):
+                self.assertIn(command, parser._subparsers._group_actions[0].choices)
 
-    def test_worker_command_is_private_and_bounded(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.sync_workspace"), patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.worker_start(cfg)
-        command = remote.call_args.args[1]
-        self.assertIn("--user 65534:65534", command)
-        self.assertIn("--read-only", command)
-        self.assertIn("--tmpfs /tmp:rw,noexec,nosuid,size=256m", command)
-        self.assertIn("--network host", command)
-        self.assertNotIn(":5037", command)
+    def test_removed_remote_commands_are_rejected(self):
+        parser = pnsctl.parser()
+        for command in (
+            "preflight",
+            "worker-start",
+            "worker-status",
+            "worker-stop",
+            "adb-start",
+            "launch",
+            "capture",
+            "observe",
+            "navigate",
+            "run-task",
+            "test-focused",
+            "test-full",
+            "validate",
+            "preserve-evidence",
+            "evidence-status",
+            "cleanup",
+        ):
+            with self.subTest(command=command), self.assertRaises(SystemExit):
+                parser.parse_args([command])
 
-    def test_workspace_sync_uses_promoted_assets_not_raw_session_trees(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value=""), patch(
-            "scripts.pnsctl.run_pscp"
-        ) as transfer:
-            pnsctl.sync_workspace(cfg)
-        transferred_sources = [
-            str(source)
-            for call in transfer.call_args_list
-            for source in call.args[1]
-        ]
-        self.assertIn(str(cfg.repo_root / "tasks"), transferred_sources)
-        self.assertIn(str(cfg.repo_root / pnsctl.M6_ASSET_ROOT), transferred_sources)
-        raw_session_transfers = [
-            source for source in transferred_sources
-            if "evidence\\sessions" in source or "evidence/sessions" in source
-        ]
-        self.assertEqual(raw_session_transfers, [str(cfg.repo_root / pnsctl.M6_ASSET_ROOT)])
+    def test_pnsctl_has_no_legacy_remote_transport_or_task_literals(self):
+        source = Path(pnsctl.__file__).read_text(encoding="utf-8")
+        for forbidden in (
+            "nas.local",
+            "192.168.122.79",
+            "PnS-BlissOS-PoC",
+            "UNRAID_TEMP_",
+            "plink",
+            "pscp",
+            "docker",
+            "mvp_quest_to_claim",
+            "MVP-QUEST-TO-CLAIM",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
 
-    def test_preserve_evidence_requires_exact_names_before_writing(self):
-        cfg = pnsctl.OperatorConfig()
-        with tempfile.TemporaryDirectory() as temp:
-            destination = Path(temp) / "evidence"
-            with self.assertRaisesRegex(pnsctl.OperatorError, "exact --name"):
-                pnsctl.preserve_evidence(cfg, destination)
-            self.assertFalse(destination.exists())
-
-    def test_preserve_evidence_fetches_only_requested_name(self):
-        cfg = pnsctl.OperatorConfig()
-        with tempfile.TemporaryDirectory() as temp, patch(
-            "scripts.pnsctl.run_remote", return_value="eA=="
-        ) as remote, patch("scripts.pnsctl.run_pscp") as transfer:
-            destination = Path(temp) / "evidence"
-            pnsctl.preserve_evidence(cfg, destination, ["action-result.json"])
-            self.assertEqual((destination / "action-result.json").read_bytes(), b"x")
-        self.assertIn("action-result.json", remote.call_args.args[1])
-        transfer.assert_not_called()
-
-    def test_navigation_runs_from_synced_workspace(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.navigate(cfg, "quest-daily")
-        command = remote.call_args.args[1]
-        self.assertIn("-e PYTHONPATH=/workspace", command)
-        self.assertIn("-w /workspace", command)
-        self.assertIn("scripts/mvp_quest_to_claim.py", command)
-        self.assertIn("/evidence/actions-nav-quest-daily-", command)
-        self.assertNotIn("--database /evidence/actions.sqlite3", command)
-
-    def test_observe_reports_capture_timestamp(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.capture"), patch(
-            "scripts.pnsctl.run_remote", return_value="mCurrentFocus=game"
-        ), patch("scripts.pnsctl.time.time", side_effect=(10.0, 11.0)):
-            result = json.loads(pnsctl.observe(cfg, "fresh"))
-        self.assertEqual(result["capture"], "fresh")
-        self.assertEqual(result["capture_started_epoch"], 10.0)
-        self.assertEqual(result["capture_completed_epoch"], 11.0)
-        self.assertEqual(result["capture_completed_utc"], "1970-01-01T00:00:11+00:00")
-
-    def test_daily_scroll_uses_bounded_swipe_navigation(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.navigate(cfg, "daily-scroll-up")
-        command = remote.call_args.args[1]
-        self.assertIn("--source-mode daily", command)
-        self.assertIn("--expected-mode daily", command)
-        self.assertIn("--semantic-action SCROLL_DAILY_QUEST", command)
-        self.assertIn("--input-kind swipe --swipe 400 1000 400 500 350", command)
-        self.assertNotIn("--consequence spend_or_strategic", command)
-
-    def test_bioenhancer_go_uses_nova_successor_and_exact_row_roi(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.navigate(cfg, "daily-bioenhancer-go")
-        command = remote.call_args.args[1]
-        self.assertIn("--source-mode daily_bioenhancer", command)
-        self.assertIn("--expected-mode bioenhancer", command)
-        self.assertIn("--semantic-action DAILY_BIOENHANCER_GO", command)
-        self.assertIn("--roi 554 870 731 933", command)
-        self.assertNotIn("--input-kind swipe", command)
-
-    def test_bioenhancer_back_uses_research_source_and_home_successor(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.navigate(cfg, "bioenhancer-daily-back")
-        command = remote.call_args.args[1]
-        self.assertIn("--source-mode bioenhancer", command)
-        self.assertIn("--expected-mode home", command)
-        self.assertIn("--semantic-action BIOENHANCER_TO_HOME", command)
-        self.assertIn("--roi 31 1 138 55", command)
-        self.assertNotIn("--input-kind swipe", command)
-
-    def test_supply_depot_go_uses_daily_source_and_exact_row_roi(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.navigate(cfg, "daily-supply-depot-go")
-        command = remote.call_args.args[1]
-        self.assertIn("--source-mode daily", command)
-        self.assertIn("--expected-mode supply_depot", command)
-        self.assertIn("--semantic-action DAILY_SUPPLY_DEPOT_GO", command)
-        self.assertIn("--roi 554 786 731 878", command)
-        self.assertNotIn("--input-kind swipe", command)
-
-    def test_supply_depot_back_uses_supply_source_and_home_successor(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.navigate(cfg, "supply-depot-daily-back")
-        command = remote.call_args.args[1]
-        self.assertIn("--source-mode supply_depot", command)
-        self.assertIn("--expected-mode home", command)
-        self.assertIn("--semantic-action SUPPLY_DEPOT_TO_HOME", command)
-        self.assertIn("--roi 31 1 138 55", command)
-        self.assertNotIn("--input-kind swipe", command)
-
-    def test_credentials_are_redacted_from_operator_output(self):
-        rendered = " ".join(pnsctl.redact_argv(["plink", "-pw", "secret", "root@nas.local", "date"]))
-        self.assertNotIn("secret", rendered)
-        self.assertIn("<process-only-password>", rendered)
-
-    def test_test_command_quotes_the_complete_shell_program(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.test_command(cfg, focused=False)
-        command = remote.call_args.args[1]
-        expected = pnsctl.quote("python3 -m unittest discover -s tests -p 'test_*.py' 2>&1")
-        self.assertIn("sh -lc " + expected, command)
-        self.assertEqual(command.count("python3 -m unittest discover"), 1)
-
-    def test_praise_task_uses_checked_in_adapter(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.run_task(cfg, "praise")
-        command = remote.call_args.args[1]
-        self.assertIn("personal_might_praise_live.py", command)
-        self.assertIn("--daily-reference", command)
-        self.assertNotIn("input tap", command)
-
-    def test_personal_might_claim_uses_explicit_claim_only_mode(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.run_task(cfg, "personal-might-claim")
-        command = remote.call_args.args[1]
-        self.assertIn("personal_might_praise_live.py", command)
-        self.assertIn("--claim-only", command)
-
-    def test_route_evidence_task_stops_before_praise(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.run_task(cfg, "praise-route-evidence")
-        command = remote.call_args.args[1]
-        self.assertIn("personal_might_praise_live.py", command)
-        self.assertIn("--navigation-evidence-only", command)
-
-    def test_leaderboard_evidence_task_stops_before_praise(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.run_task(cfg, "praise-leaderboard-evidence")
-        self.assertIn("--leaderboard-evidence-only", remote.call_args.args[1])
+    def test_removed_remote_implementation_symbols_are_absent(self):
+        for symbol in (
+            "OperatorConfig",
+            "load_credentials",
+            "run_remote",
+            "run_pscp",
+            "worker_start",
+            "worker_status",
+            "worker_stop",
+            "adb_start",
+            "navigate",
+            "run_task",
+            "test_command",
+            "validate",
+            "preserve_evidence",
+            "evidence_status",
+            "cleanup",
+        ):
+            with self.subTest(symbol=symbol):
+                self.assertFalse(hasattr(pnsctl, symbol))
 
 
-class HelpAllContractTests(unittest.TestCase):
+class HelpCompletionAttributionTests(unittest.TestCase):
     def _observation(self, **changes):
         values = dict(
-            screen_state="SPEEDUP_HELP", objective_name="Help allies", current_progress=0,
-            required_progress=10, target_identity=HELP_ALL_ACTION.name, target_roi=HELP_ALL_ACTION.roi,
-            zero_cost_evidence=True, available_request_count=1, help_all_visible=True,
-            request_controls_count=1,
+            screen_state="DAILY_QUEST",
+            objective_name="Help allies",
+            current_progress=0,
+            required_progress=10,
         )
         values.update(changes)
         return AllianceHelpObservation(**values)
 
-    def test_upper_button_is_individual_help_not_help_all(self):
-        self.assertTrue(INDIVIDUAL_HELP_ACTION.roi[0] <= 641 < INDIVIDUAL_HELP_ACTION.roi[2])
-        self.assertTrue(INDIVIDUAL_HELP_ACTION.roi[1] <= 302 < INDIVIDUAL_HELP_ACTION.roi[3])
-        self.assertFalse(HELP_ALL_ACTION.roi[1] <= 302 < HELP_ALL_ACTION.roi[3])
-        old = self._observation(target_identity=INDIVIDUAL_HELP_ACTION.name,
-                                target_roi=INDIVIDUAL_HELP_ACTION.roi,
-                                help_all_visible=False, individual_help_visible=True)
-        self.assertTrue(AllianceHelpHandler.authorizeable(old))
-        self.assertEqual(AllianceHelpHandler.transaction_spec(old).action_kind, "ALLIANCE_HELP_ONE")
-
-    def test_help_all_disappearance_is_a_positive_postcondition(self):
+    def test_help_provider_attributes_completion_only(self):
         before = self._observation()
-        after = self._observation(help_all_visible=False, available_request_count=0, request_controls_count=0, empty_state=True)
-        self.assertTrue(AllianceHelpHandler.postcondition_verified(before, after))
-        self.assertEqual(AllianceHelpHandler.perform_one_pulse(before, after).outcome.value, "progress")
-
-    def test_help_all_requires_zero_cost_and_exact_target(self):
-        self.assertTrue(AllianceHelpHandler.authorizeable(self._observation()))
-        self.assertFalse(AllianceHelpHandler.authorizeable(self._observation(zero_cost_evidence=False)))
-        self.assertFalse(AllianceHelpHandler.authorizeable(self._observation(help_all_visible=False)))
+        after = self._observation(current_progress=10)
+        self.assertEqual(AllianceHelpHandler.remaining(before), 10)
+        self.assertTrue(AllianceHelpHandler.completion_check(after))
+        self.assertFalse(
+            AllianceHelpHandler.completion_check(
+                self._observation(current_progress=11)
+            )
+        )
+        for name in (
+            "authorizeable",
+            "transaction_spec",
+            "perform_one_pulse",
+            "postcondition_verified",
+        ):
+            self.assertFalse(hasattr(AllianceHelpHandler, name))
 
 
 if __name__ == "__main__":

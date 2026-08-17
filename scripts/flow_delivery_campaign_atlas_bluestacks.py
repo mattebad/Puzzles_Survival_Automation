@@ -34,12 +34,7 @@ from safe_action_core import (
 from scripts.bluestacks_flow_collector import ADBRunner
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from scripts.campaign_atlas_bluestacks import report_from_dict
-from scripts.personal_might_praise_live import (
-    MAX_VIP_POPUP_INPUTS,
-    RESET_POPUP_CLOSE_REGION,
-    recognize_reset_popup,
-    vip_popup_handled,
-)
+from scripts import bluestacks_popup_recognition
 from scripts.home_atlas_bluestacks import (
     BlueStacksLocalizeFirstHomeDriver,
     CAMPAIGN_HOME_ATLAS_BUILDING_ID,
@@ -277,7 +272,7 @@ def production_survey_call_graph() -> dict[str, str]:
             "scripts.flow_delivery_campaign_atlas_bluestacks."
             "dismiss_campaign_vip_reset_popup"
         ),
-        "vip_reset_recognizer": "scripts.personal_might_praise_live.recognize_reset_popup",
+        "vip_reset_recognizer": "scripts.bluestacks_popup_recognition.recognize_reset_popup",
         "home_to_campaign_entry": "scripts.home_atlas_bluestacks.run_verified_campaign_home_atlas_entry",
         "safe_action_executor": "safe_action_core.SafeActionExecutor",
         "campaign_recognizer": "tasks.campaign_auto_battle_vision.recognize_campaign_frame",
@@ -537,7 +532,7 @@ def recover_home_zoom_before_campaign_entry(
 
 
 def _vip_close_critical_roi_hashes(frame: np.ndarray) -> tuple[tuple[str, str], ...]:
-    x0, y0, x1, y1 = RESET_POPUP_CLOSE_REGION
+    x0, y0, x1, y1 = bluestacks_popup_recognition.RESET_POPUP_CLOSE_REGION
     crop = frame[y0:y1, x0:x1]
     digest = hashlib.sha256(np.ascontiguousarray(crop).tobytes()).hexdigest()
     return (("popup_close", digest),)
@@ -593,7 +588,10 @@ def dismiss_campaign_vip_reset_popup(
     successor becomes terminal unresolved when transport occurred.
     """
 
-    if getattr(op, "vip_popup_input_count", 0) >= MAX_VIP_POPUP_INPUTS:
+    if (
+        getattr(op, "vip_popup_input_count", 0)
+        >= bluestacks_popup_recognition.MAX_VIP_POPUP_INPUTS
+    ):
         return {
             "status": "blocked",
             "reason": "vip_popup_input_limit_reached",
@@ -602,7 +600,7 @@ def dismiss_campaign_vip_reset_popup(
 
     action_key = VIP_RESET_CLOSE_ACTION_KEY
     fresh, _fresh_prov = op.capture(f"{action_key}-immediate-before")
-    detail = recognize_reset_popup(fresh.frame)
+    detail = bluestacks_popup_recognition.recognize_reset_popup(fresh.frame)
     fresh_rel = _rel(op.session, fresh.path)
     if not detail.get("recognized") or not detail.get("target") or not detail.get("target_center"):
         return {
@@ -672,7 +670,10 @@ def dismiss_campaign_vip_reset_popup(
         )
 
     def transport_fn(_intent) -> TransportResult:
-        if op.vip_popup_input_count >= MAX_VIP_POPUP_INPUTS:
+        if (
+            op.vip_popup_input_count
+            >= bluestacks_popup_recognition.MAX_VIP_POPUP_INPUTS
+        ):
             raise RuntimeError("VIP popup input limit reached during dispatch")
         transport_gate["attempted"] = True
         reject_direct_survey_transport(authorized_token=_SURVEY_TRANSPORT_SEAL)
@@ -693,7 +694,9 @@ def dismiss_campaign_vip_reset_popup(
         post, post_prov = op.capture(f"{action_key}-post")
         post_holder["post"] = post
         post_holder["post_prov"] = post_prov
-        post_holder["popup_after"] = recognize_reset_popup(post.frame)
+        post_holder["popup_after"] = bluestacks_popup_recognition.recognize_reset_popup(
+            post.frame
+        )
         post_holder["campaign_after"] = op.recognize(post.frame)
         still_popup = bool(post_holder["popup_after"].get("recognized"))
         tier_map = (
@@ -725,7 +728,7 @@ def dismiss_campaign_vip_reset_popup(
         if post is None or campaign_after is None:
             return False
         return bool(
-            vip_popup_handled(
+            bluestacks_popup_recognition.vip_popup_handled(
                 detail,
                 popup_after,
                 recognized_successor=(
@@ -2043,7 +2046,7 @@ class _SurveyOperator:
         self.lifecycle_path = session / LIFECYCLE_PATH
         self.journal_path = session / "journal.jsonl"
         self.events_path = session / "events.jsonl"
-        self.policy = CentralPolicy(supervised_tasks=frozenset({FLOW_ID, "MVP-QUEST-TO-CLAIM"}))
+        self.policy = CentralPolicy(supervised_tasks=frozenset({FLOW_ID}))
         self.store = SafetyStore(session / "campaign-atlas-survey-safety.sqlite3")
         self.store.acquire_lease(lease_owner, time.time(), 3600.0)
         self.vip_popup_input_count = 0
@@ -3002,7 +3005,7 @@ def _run_live_survey_when_admissible(
         before_screen = op.recognize(before.frame).observation.screen
         if before_screen != CampaignScreen.HOME_BASE:
             # Bounded VIP Close recovery before unsupported-start failure.
-            vip_gate = recognize_reset_popup(before.frame)
+            vip_gate = bluestacks_popup_recognition.recognize_reset_popup(before.frame)
             if not vip_gate.get("recognized"):
                 raise RuntimeError(
                     f"unsupported survey start screen: {before_screen.value}"

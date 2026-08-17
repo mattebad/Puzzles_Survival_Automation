@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
 
 from safe_action_core.popup import (
     ALLIANCE_FORT_WAVE_ALERT,
@@ -12,7 +11,6 @@ from safe_action_core.popup import (
     classify_popup_semantics,
     popup_dismissal_verified,
 )
-from scripts import pnsctl
 from tasks.contracts import PopupMode, PopupOutcome
 
 
@@ -59,30 +57,6 @@ class AllianceFortPopupTests(unittest.TestCase):
         self.assertFalse(
             popup_dismissal_verified(ALLIANCE_FORT_WAVE_ALERT, True, False, False)
         )
-
-    def test_pnsctl_route_is_exact_x_dismissal(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.navigate(cfg, "alliance-fort-dismiss")
-        command = remote.call_args.args[1]
-        self.assertIn("--source-mode alliance_fort", command)
-        self.assertIn("--semantic-action DISMISS_ALLIANCE_FORT_WAVE", command)
-        self.assertIn("--target alliance-fort-wave-dismiss-x", command)
-        self.assertIn("--expected-state ALLIANCE_FORT_DISMISSED", command)
-        self.assertNotIn("--consequence spend_or_strategic", command)
-
-    def test_pnsctl_bioenhancer_task_is_single_free_research(self):
-        cfg = pnsctl.OperatorConfig()
-        with patch("scripts.pnsctl.run_remote", return_value="") as remote:
-            pnsctl.run_task(cfg, "bioenhancer-free-research", "daily-2026-07-14")
-        command = remote.call_args.args[1]
-        self.assertIn("--source-mode bioenhancer_free", command)
-        self.assertIn("--semantic-action RESEARCH_BIOENHANCER_FREE", command)
-        self.assertIn("--consequence bioenhancer_research_free", command)
-        self.assertIn("--quantity 1", command)
-        self.assertIn("--game-day daily-2026-07-14", command)
-        self.assertNotIn("Research 10x", command)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -265,33 +265,29 @@ class DailyQuestPlanningTests(unittest.TestCase):
             owners.setdefault(row["objective_key"], []).append(owner)
         self.assertTrue(all(len(values) == 1 for values in owners.values()))
 
-    def test_live_and_registered_states_match_checked_in_operator_surface(self):
-        expected_registered = {
-            "help_allies",
-            "personal_might_praise",
-        }
+    def test_retired_help_and_praise_are_completion_attribution_only(self):
         actual_registered = {
             key
             for key, row in self.matrix_by_key.items()
             if row["current_runtime_registration_status"] != "NOT_REGISTERED"
         }
-        self.assertEqual(actual_registered, expected_registered)
-        self.assertIn("alliance-help", (ROOT / "scripts" / "pnsctl.py").read_text())
-        pnsctl = (ROOT / "scripts" / "pnsctl.py").read_text()
-        self.assertIn('"praise"', pnsctl)
-        self.assertIn('"personal-might-claim"', pnsctl)
+        self.assertEqual(actual_registered, set())
         self.assertNotIn("REGISTERED_RUNTIME", {
             row["current_runtime_registration_status"]
             for row in self.matrix["objectives"] + self.matrix["support_flows"]
         })
-        self.assertEqual(
-            self.matrix_by_key["help_allies"]["promotion_state"],
-            "LIVE_VALIDATED",
-        )
-        self.assertEqual(
-            self.matrix_by_key["personal_might_praise"]["promotion_state"],
-            "LIVE_VALIDATED",
-        )
+        for key in ("help_allies", "personal_might_praise"):
+            row = self.matrix_by_key[key]
+            self.assertEqual(row["handler_variant"], "completion_attribution")
+            self.assertEqual(row["route"], "completion_attribution_only")
+            self.assertEqual(row["consequence_class"], "observation_only")
+            self.assertEqual(row["promotion_state"], "OFFLINE_ONLY")
+            self.assertEqual(
+                row["current_runtime_registration_status"],
+                "NOT_REGISTERED",
+            )
+            self.assertFalse(row["scheduler_eligibility"])
+            self.assertIn("no gameplay dispatch", row["action_transaction_boundary"])
 
     def test_disabled_flows_are_unregistered_and_ineligible(self):
         for row in self.matrix["objectives"]:
@@ -318,7 +314,7 @@ class DailyQuestPlanningTests(unittest.TestCase):
         daily_claim = next(
             flow
             for flow in self.matrix["support_flows"]
-            if flow["flow_key"] == "generalized_daily_row_claim"
+            if flow["flow_key"] == "aggregate_daily_claim"
         )
         self.assertIn("separate", milestone["claim_behavior"])
         self.assertNotEqual(milestone["route"], daily_claim["route"])

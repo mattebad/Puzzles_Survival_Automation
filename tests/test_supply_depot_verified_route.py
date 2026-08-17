@@ -200,7 +200,7 @@ def _home_successor(frame: np.ndarray) -> SimpleNamespace:
 
 def _policy() -> CentralPolicy:
     return CentralPolicy(
-        supervised_tasks=frozenset({"MVP-QUEST-TO-CLAIM", SUPPLY_DEPOT_ROUTE_TASK_ID})
+        supervised_tasks=frozenset({SUPPLY_DEPOT_ROUTE_TASK_ID})
     )
 
 
@@ -213,7 +213,9 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
             def bind(frame, *, source_frame=None):
                 return _binding(frame)
 
-            recognizer = lambda frame, *, source_frame=None: _successor(frame)
+            def recognizer(frame, *, source_frame=None):
+                return _successor(frame)
+
             args = SimpleNamespace(
                 execute=True,
                 yes=True,

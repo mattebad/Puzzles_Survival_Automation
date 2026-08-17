@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
-import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -113,7 +112,7 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
         )
         self.assertEqual(
             graph["vip_reset_recognizer"],
-            "scripts.personal_might_praise_live.recognize_reset_popup",
+            "scripts.bluestacks_popup_recognition.recognize_reset_popup",
         )
         self.assertIn(SURVEY_RUNNER_ID, pnsctl._BLUESTACKS_FLOW_RUNNERS)
         self.assertIn(SURVEY_EVIDENCE_VALIDATOR_ID, pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS)
@@ -2370,12 +2369,13 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
             self.assertEqual(runtime.taps[0]["sha256"], runtime.captured_frames[0][1].sha256)
 
     def test_vip_reset_dismiss_wrong_text_zero_transport(self) -> None:
+        import numpy as np
+
         from scripts.flow_delivery_campaign_atlas_bluestacks import (
             _SurveyOperator,
             dismiss_campaign_vip_reset_popup,
         )
         from scripts.bluestacks_native_runtime import CapturedNativeFrame
-        import numpy as np
 
         class _FakeRuntime:
             def __init__(self, session: Path) -> None:
@@ -2433,7 +2433,6 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
         from unittest.mock import patch
 
         import cv2
-        import numpy as np
 
         from scripts.bluestacks_native_runtime import CapturedNativeFrame
         from scripts.flow_delivery_campaign_atlas_bluestacks import (
@@ -2516,7 +2515,6 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
             dismiss_campaign_vip_reset_popup,
         )
         from scripts.bluestacks_native_runtime import CapturedNativeFrame
-        import numpy as np
 
         class _FakeRuntime:
             def __init__(self, session: Path) -> None:
@@ -2557,7 +2555,7 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
         unsupported = source.index('unsupported survey start screen:')
         vip_call = source.index("dismiss_campaign_vip_reset_popup(")
         self.assertLess(vip_call, unsupported)
-        self.assertIn("recognize_reset_popup(before.frame)", source)
+        self.assertIn("bluestacks_popup_recognition.recognize_reset_popup(before.frame)", source)
         self.assertIn('vip_dismiss.get("status") != "dismissed"', source)
         self.assertIn("DISMISS_RESET_POPUP", source)
         self.assertIn("CAMPAIGN_TIER_MAP", source)
@@ -2650,7 +2648,7 @@ class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
             action_class=ActionClass.NAVIGATION_ONLY,
             runtime_session_id=session.name,
         )
-        policy = CentralPolicy(supervised_tasks=frozenset({FLOW_ID, "MVP-QUEST-TO-CLAIM"}))
+        policy = CentralPolicy(supervised_tasks=frozenset({FLOW_ID}))
         decision = policy.evaluate(request)
         intent = ActionIntent(
             action_id=action_id,
@@ -2824,8 +2822,6 @@ class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
         return session
 
     def test_capture_provenance_separates_transport_and_semantic_sha(self) -> None:
-        from types import SimpleNamespace
-
         import hashlib
         import numpy as np
 

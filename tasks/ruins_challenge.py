@@ -7,13 +7,13 @@ gameplay workflow.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass
 from enum import Enum
 import hashlib
 from typing import Optional
 
 from .contracts import ROI, TaskOutcome, TaskResult
-from .profile import PROFILE_ID
+BLUESTACKS_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 
 
 class RuinsChallengeId(str, Enum):
@@ -135,7 +135,7 @@ class RuinsScreenObservation:
     ruins_building_recognized: bool = False
     safe_back_control: RuinsControlState = RuinsControlState.UNKNOWN
     forbidden_controls_seen: tuple[str, ...] = ()
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = BLUESTACKS_RUNTIME_PROFILE_ID
 
     def row(self, identity: str) -> Optional[RuinsChallengeRow]:
         return next((item for item in self.rows if item.identity == identity), None)
