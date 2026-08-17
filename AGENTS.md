@@ -137,7 +137,9 @@ P&S project workflow constraints:
   frozen stages and eight managed turns; each stage has one implementation,
   one initial review, at most one consolidated repair and one recheck, one
   integration checkpoint, and one live iteration. Further architecture work
-  requires a compact handoff and fresh chat.
+  requires a compact handoff, explicit user continuation, and a refrozen stage.
+  It may continue in the same chat while the conversation-level stage and turn
+  budgets remain available.
   Localized deterministic work may close from passing checks and tester evidence.
   Heavy, safety-critical, or cross-contract work requires one bounded
   architecture/integration checkpoint containing only the manifest, changed
@@ -168,8 +170,9 @@ One initial live failure alone does not require promotion or an extra review.
 - Do not impose file-count or LOC budgets unless the user explicitly requests them.
 - Permit at most one consolidated Luna repair and one Terra recheck per frozen
   stage. Keep repairs serial and limit each to parent-classified findings.
-  A second repair requires explicit user continuation, a refrozen manifest, a
-  compact handoff, and a fresh execution chat.
+  A second repair requires explicit user continuation, a refrozen manifest, and
+  a compact handoff. It may continue in the same chat while the
+  conversation-level stage and turn budgets remain available.
 - Every mutable Luna implementation or repair turn must explicitly select GPT-5.6 Luna XHigh. If a resume cannot preserve that selection, launch a fresh bounded XHigh turn instead.
 - Keep solutions proportionate; do not let perfect be the enemy of good.
 <!-- codex-workflow-project-personalization-end -->

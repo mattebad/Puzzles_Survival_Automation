@@ -35,7 +35,9 @@ goes to the escalation architect through a compact checkpoint packet.
 6. If the slice fails, the Sol parent classifies the defect and may authorize at most one
    consolidated repair and one Terra recheck for that stage. A product-precondition failure
    terminates the stage without worker iteration. A further repair requires a compact handoff and
-   fresh chat; a new architecture decision requires escalation.
+   explicit user continuation under a refrozen stage. It may continue in the same chat while the
+   conversation-level stage and turn budgets remain available; a new architecture decision
+   requires escalation.
 7. Run the focused tests for the active flow. Run architecture/full/governance validation only
    when the changed scope or task contract requires it.
 8. Give the independent Terra code-and-acceptance reviewer a bounded read-only package when
