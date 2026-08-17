@@ -4,19 +4,31 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import subprocess
 import sys
 from typing import Any, Mapping
 
+import cv2
+import numpy as np
+
 from scripts.flow_delivery_evidence import (
     FlowEvidenceIntegrityError,
     require_operator_evidence,
 )
+from tasks.ultimate_challenge_daily import (
+    TERMINAL_COMPLETE_FOR_RESET,
+    load_reset_window_state,
+    record_verified_home_success,
+    save_reset_window_state,
+)
+from tasks.home_nav_recognition import recognize_home_nav
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+MAX_TOTAL_INPUTS = 16
 UC_RUNNER_ID = "ultimate_challenge_navigation_only_runner"
 UC_EVIDENCE_VALIDATOR_ID = "ultimate_challenge_navigation_only_evidence"
 UC_RECOVERY_HANDLER_ID = "ultimate_challenge_navigation_only_recovery"
@@ -27,6 +39,41 @@ UC_DAILY_RECOVERY_HANDLER_ID = "ultimate_challenge_daily_recovery"
 
 def _utc_stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+
+
+def _current_reset_identity() -> str:
+    return f"game-day-{datetime.now(timezone.utc).date().isoformat()}"
+
+
+def _reset_window_state_path() -> Path:
+    """Return the stable, untracked per-flow reset state location."""
+
+    return REPO_ROOT / ".local-captures" / "ultimate-challenge-daily-reset-window.json"
+
+
+def _verified_home_evidence(
+    session_directory: Path,
+    result: Mapping[str, Any],
+) -> tuple[bool, Path | None]:
+    """Safely reload the child-retained Home PNG and independently verify it."""
+
+    if result.get("home_nav_recognized") is not True:
+        return False, None
+    relative = result.get("home_frame")
+    if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
+        return False, None
+    session = session_directory.resolve()
+    candidate = (session / relative).resolve()
+    if session not in candidate.parents or not candidate.is_file():
+        return False, None
+    payload = candidate.read_bytes()
+    expected_hash = str(result.get("home_frame_sha256") or result.get("home_sha256") or "")
+    if hashlib.sha256(payload).hexdigest() != expected_hash:
+        return False, None
+    frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if frame is None or not recognize_home_nav(frame).is_home:
+        return False, None
+    return True, candidate
 
 
 def _pnsctl():
@@ -74,10 +121,18 @@ def run_ultimate_challenge_navigation_only(
             f"Ultimate Challenge executable/evidence-integrity failure: {exc}"
         ) from exc
     terminal = uc_result.get("terminal")
-    ok = completed.returncode == 0 and terminal in {
-        "navigation_only_complete",
-        "already_completed",
-    }
+    home_verified = False
+    if terminal == "navigation_only_complete":
+        ok = (
+            completed.returncode == 0
+            and uc_result.get("terminal_runtime_state")
+            == "ultimate_challenge_entry_recognized"
+        )
+    elif terminal == "already_completed":
+        home_verified, _home_path = _verified_home_evidence(uc_session, uc_result)
+        ok = completed.returncode == 0 and home_verified
+    else:
+        ok = False
     events_rel = "events.jsonl"
     delivery = {
         "schema_version": 1,
@@ -87,7 +142,15 @@ def run_ultimate_challenge_navigation_only(
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": lease["owner"],
-        "terminal_runtime_state": "recognized_home" if ok else "safe_blocked_terminal",
+        "terminal_runtime_state": (
+            "recognized_home"
+            if terminal == "already_completed" and home_verified
+            else (
+                "ultimate_challenge_entry_recognized"
+                if terminal == "navigation_only_complete" and ok
+                else "safe_blocked_terminal"
+            )
+        ),
         "ultimate_challenge_result": uc_result,
         "actions": [
             {
@@ -134,18 +197,18 @@ def run_ultimate_challenge_daily(
     stamp = _utc_stamp()
     session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"daily-{stamp}"
     session.mkdir(parents=True, exist_ok=False)
-    post_flee_home_only = any(
-        "gold Flee input" in str(attempt.get("diagnosis") or "")
-        for attempt in flow.get("live_attempts", [])
-    )
+    reset_identity = _current_reset_identity()
+    reset_state_path = _reset_window_state_path()
     command = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "bluestacks_ultimate_challenge.py"),
-        "--post-flee-home-only" if post_flee_home_only else "--daily",
+        "--daily",
         "--adb", str(pnsctl.BLUESTACKS_ADB),
         "--serial", pnsctl.BLUESTACKS_SERIAL,
         "--execute", "--yes",
-        "--reset-identity", "local-2026-07-26-ultimate",
+        "--reset-identity", reset_identity,
+        "--reset-state-path", str(reset_state_path),
+        "--max-total-inputs", "16",
         "--output-directory", str(session),
     ]
     completed = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
@@ -158,7 +221,31 @@ def run_ultimate_challenge_daily(
     except FlowEvidenceIntegrityError as exc:
         raise pnsctl.OperatorError(f"Ultimate Challenge executable/evidence-integrity failure: {exc}") from exc
     terminal = uc_result.get("terminal")
-    ok = completed.returncode == 0 and terminal in {"complete_for_reset", "already_completed"}
+    home_verified, home_path = _verified_home_evidence(uc_session, uc_result)
+    input_count = uc_result.get("input_count")
+    ok = (
+        completed.returncode == 0
+        and terminal in {"complete_for_reset", "already_completed"}
+        and home_verified
+        and type(input_count) is int
+        and 0 <= input_count <= MAX_TOTAL_INPUTS
+    )
+    if terminal == TERMINAL_COMPLETE_FOR_RESET:
+        if not home_verified:
+            raise pnsctl.OperatorError(
+                "Ultimate Challenge completion lacks verified template Home evidence"
+            )
+        try:
+            state = load_reset_window_state(reset_state_path)
+            updated = record_verified_home_success(
+                state,
+                reset_identity=reset_identity,
+            )
+            save_reset_window_state(reset_state_path, updated)
+        except (OSError, TypeError, ValueError) as exc:
+            raise pnsctl.OperatorError(
+                f"Ultimate Challenge reset-window persistence failed: {exc}"
+            ) from exc
     delivery = {
         "schema_version": 1,
         "flow_id": FLOW_ID,
@@ -167,7 +254,7 @@ def run_ultimate_challenge_daily(
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": lease["owner"],
-        "terminal_runtime_state": "recognized_home" if ok else "safe_blocked_terminal",
+        "terminal_runtime_state": "recognized_home" if home_verified else "safe_blocked_terminal",
         "ultimate_challenge_result": uc_result,
         "actions": [{"action_class": "zero_resource_flee", "path": "home_to_ultimate_challenge_flee_home", "outcome": terminal}],
         "events_path": "events.jsonl",
@@ -176,7 +263,13 @@ def run_ultimate_challenge_daily(
         "journal_path": "journal.jsonl",
         "frames": frame_names,
         "operator_returncode": completed.returncode,
+        "input_count": input_count,
         "attempt_budget": int(flow.get("maximum_live_attempts") or 0),
+        "reset_identity": reset_identity,
+        "reset_state_path": str(reset_state_path),
+        "verified_home_path": str(home_path.relative_to(uc_session)).replace("\\", "/")
+        if home_path is not None
+        else None,
     }
     (uc_session / "flow-delivery-result.json").write_text(json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if not ok:
@@ -200,8 +293,21 @@ def verify_ultimate_challenge_navigation_only(
         raise pnsctl.OperatorError(
             "Ultimate Challenge evidence terminal is not navigation_only_complete/already_completed"
         )
-    if result.get("terminal_runtime_state") != "recognized_home":
-        raise pnsctl.OperatorError("Ultimate Challenge evidence terminal runtime state is unsafe")
+    if terminal == "navigation_only_complete":
+        if (
+            result.get("terminal_runtime_state")
+            != "ultimate_challenge_entry_recognized"
+            or uc.get("terminal_runtime_state")
+            != "ultimate_challenge_entry_recognized"
+        ):
+            raise pnsctl.OperatorError("Ultimate Challenge entry evidence state is unsafe")
+    else:
+        home_verified, _home_path = _verified_home_evidence(
+            Path(str(structure["session_directory"])),
+            uc,
+        )
+        if not home_verified or result.get("terminal_runtime_state") != "recognized_home":
+            raise pnsctl.OperatorError("Ultimate Challenge already_completed Home evidence is unsafe")
     flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
     if "already_completed" not in flow.get("required_terminal_states", []):
         raise pnsctl.OperatorError("Ultimate Challenge flow contract missing already_completed")
@@ -252,6 +358,12 @@ def verify_ultimate_challenge_daily(
     uc = result.get("ultimate_challenge_result") or {}
     if uc.get("terminal") not in {"complete_for_reset", "already_completed"}:
         raise pnsctl.OperatorError("Ultimate Challenge Daily did not prove the reset terminal")
+    session_directory = Path(str(structure["session_directory"]))
+    home_verified, home_path = _verified_home_evidence(session_directory, uc)
+    if not home_verified:
+        raise pnsctl.OperatorError("Ultimate Challenge terminal lacks independently verified Home evidence")
+    if type(uc.get("input_count")) is not int or not 0 <= uc["input_count"] <= MAX_TOTAL_INPUTS:
+        raise pnsctl.OperatorError("Ultimate Challenge aggregate input count exceeds 16 or is missing")
     if result.get("terminal_runtime_state") != "recognized_home":
         raise pnsctl.OperatorError("Ultimate Challenge terminal runtime state is unsafe")
     flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
@@ -259,7 +371,7 @@ def verify_ultimate_challenge_daily(
     used = int(flow.get("live_attempt_count") or 0)
     if maximum <= 0 or used > maximum:
         raise pnsctl.OperatorError("Ultimate Challenge attempt accounting exceeds its configured ceiling")
-    return {"status": "verified", "flow_id": FLOW_ID, "terminal": uc.get("terminal"), "session_directory": structure["session_directory"], "actions": result.get("actions", []), "terminal_runtime_state": result["terminal_runtime_state"]}
+    return {"status": "verified", "flow_id": FLOW_ID, "terminal": uc.get("terminal"), "session_directory": structure["session_directory"], "actions": result.get("actions", []), "terminal_runtime_state": result["terminal_runtime_state"], "verified_home_path": str(home_path.relative_to(session_directory.resolve())).replace("\\", "/")}
 
 
 def recover_ultimate_challenge_daily(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:

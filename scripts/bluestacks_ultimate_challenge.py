@@ -19,7 +19,10 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import sys
 import time
@@ -40,40 +43,35 @@ from home_atlas_bluestacks import (
     require_campaign_home_atlas_building,
     run_verified_ultimate_challenge_campaign_door,
 )
+from world_map_navigation_bluestacks import _visual_popup_panel_candidates
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
+from tasks.home_nav_recognition import recognize_home_nav
 from tasks.ultimate_challenge_daily import (
     FLOW_ID,
     TERMINAL_ALREADY_COMPLETED,
     TERMINAL_BLOCKED,
     TERMINAL_COMPLETE_FOR_RESET,
     TERMINAL_NAVIGATION_ONLY_COMPLETE,
-    ULTIMATE_CHALLENGE_ENTRY_SEARCH_ROI,
+    ULTIMATE_CHALLENGE_ENTRY_IDENTITY,
+    UltimateChallengeEntryObservation,
     empty_reset_window_state,
     evaluate_already_completed,
     evaluate_navigation_only,
     load_reset_window_state,
-    recognize_ultimate_challenge_entry_from_texts,
-    ultimate_challenge_entry_roi_from_ocr_hits,
+    ultimate_challenge_already_completed_from_ocr_hits,
 )
 
-# Independent retained native ground truth for the Campaign-map Ultimate Challenge label.
-# Coordinates are used only to crop the retained template; live binding is re-measured by
-# bounded template matching on the fresh frame below.
-_UC_RETAINED_SOURCE = (
-    REPO_ROOT
-    / ".local-captures"
-    / "flow-delivery"
-    / "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
-    / "survey-20260724T021222146973Z"
-    / "runtime"
-    / "frames"
-    / "0001-source.png"
-)
-_UC_RETAINED_ROI = (457, 943, 543, 965)
-_UC_LIVE_TEMPLATE_SEARCH_ROI = (400, 880, 700, 1010)
+MAX_TOTAL_INPUTS = 16
+
 _UC_PORTAL_SEARCH_ROI = (400, 700, 700, 970)
-_UC_PORTAL_INTERIOR_ROI = (480, 760, 640, 920)
+_UC_ENTRY_SEMANTIC_ROI = (400, 850, 700, 1030)
+_UC_TITLE_ROI = (120, 0, 680, 90)
+_FLEE_MODAL_ROI = (65, 365, 735, 745)
+_FLEE_MODAL_TEXT_ROI = (120, 450, 680, 590)
+_FLEE_FIGHT_SEARCH_ROI = (80, 590, 390, 740)
+_FLEE_FLEE_SEARCH_ROI = (390, 590, 720, 740)
+
 import pytesseract
 from pytesseract import Output
 
@@ -112,7 +110,6 @@ _CAMPAIGN_ENTRY_OPEN_SCREENS = frozenset(
         CampaignScreen.TIER_MAP,
         CampaignScreen.CHAPTER_MAP,
         CampaignScreen.STAGE_DIALOG,
-        CampaignScreen.HERO_LINEUP,
     }
 )
 
@@ -225,10 +222,13 @@ def _prepare_canonical_home(
         )
 
 
-def _ocr_entry_hits(frame: np.ndarray) -> dict[str, tuple[int, int, int, int]]:
-    """OCR word boxes inside the Ultimate Challenge entry search ROI."""
+def _ocr_region_hits(
+    frame: np.ndarray,
+    region: tuple[int, int, int, int],
+) -> dict[str, tuple[int, int, int, int]]:
+    """OCR boxes inside one state-specific semantic ROI."""
 
-    x0, y0, x1, y1 = ULTIMATE_CHALLENGE_ENTRY_SEARCH_ROI
+    x0, y0, x1, y1 = region
     crop = frame[y0:y1, x0:x1]
     scale = 3
     enlarged = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
@@ -250,60 +250,198 @@ def _ocr_entry_hits(frame: np.ndarray) -> dict[str, tuple[int, int, int, int]]:
     return hits
 
 
-def _bind_ultimate_challenge_entry(frame: np.ndarray, *, reset_identity: str | None):
-    # Destination-free Campaign-open classification; never selects a Campaign AP story destination.
+def _visual_popup_candidates(frame: np.ndarray) -> list[tuple[int, int, int, int]]:
+    """Reuse the checked-in visual panel primitive without broad OCR."""
+
+    return _visual_popup_panel_candidates(frame)
+
+
+def _roi_area(roi: tuple[int, int, int, int]) -> int:
+    return max(0, roi[2] - roi[0]) * max(0, roi[3] - roi[1])
+
+
+def _roi_intersection_area(
+    left: tuple[int, int, int, int],
+    right: tuple[int, int, int, int],
+) -> int:
+    return max(0, min(left[2], right[2]) - max(left[0], right[0])) * max(
+        0, min(left[3], right[3]) - max(left[1], right[1])
+    )
+
+
+def _flee_modal_popup_iou(
+    popup: tuple[int, int, int, int],
+) -> float:
+    intersection = _roi_intersection_area(popup, _FLEE_MODAL_ROI)
+    union = _roi_area(popup) + _roi_area(_FLEE_MODAL_ROI) - intersection
+    return intersection / union if intersection > 0 and union > 0 else 0.0
+
+
+def _flee_popup_is_materially_overbroad(
+    popup: tuple[int, int, int, int],
+) -> bool:
+    """Keep a frame-anchored candidate too large for the bounded modal separate."""
+
+    # The shared Hough primitive emits many nested interior rectangles from
+    # one modal.  Preserve those for duplicate collapse, but keep a genuinely
+    # broad panel that is anchored to the native frame independently visible.
+    x0, y0, x1, y1 = popup
+    modal_area = _roi_area(_FLEE_MODAL_ROI)
+    materially_large = _roi_area(popup) >= modal_area * 2.0
+    frame_anchored = x0 <= 10 or y0 <= 10 or x1 >= 790 or y1 >= 1270
+    return materially_large and frame_anchored
+
+
+def _flee_popup_panel_candidates(
+    frame: np.ndarray,
+) -> list[tuple[int, int, int, int]]:
+    """Collapse modal duplicates while preserving independent panel evidence."""
+
+    raw = _visual_popup_candidates(frame)
+    clusters: list[list[tuple[int, int, int, int]]] = []
+    for candidate in raw:
+        area = _roi_area(candidate)
+        joined = False
+        for cluster in clusters:
+            for existing in cluster:
+                if (
+                    _flee_popup_is_materially_overbroad(candidate)
+                    or _flee_popup_is_materially_overbroad(existing)
+                ):
+                    continue
+                overlap = _roi_intersection_area(candidate, existing)
+                if overlap and (
+                    overlap / max(1, min(area, _roi_area(existing))) >= 0.60
+                    or overlap / max(1, area + _roi_area(existing) - overlap) >= 0.35
+                ):
+                    cluster.append(candidate)
+                    joined = True
+                    break
+            if joined:
+                break
+        if not joined:
+            clusters.append([candidate])
+    return [
+        max(cluster, key=_flee_modal_popup_iou)
+        for cluster in clusters
+    ]
+
+
+def _central_popup_candidates(
+    frame: np.ndarray,
+) -> list[tuple[int, int, int, int]]:
+    """Keep only bounded, central popup geometry from the shared detector."""
+
+    candidates = []
+    for x0, y0, x1, y1 in _visual_popup_candidates(frame):
+        if (
+            x0 <= 160
+            and x1 >= 640
+            and 350 <= y0 <= 800
+            and 450 <= y1 <= 1100
+            and 400 <= x1 - x0 <= 780
+            and 220 <= y1 - y0 <= 700
+        ):
+            candidates.append((x0, y0, x1, y1))
+    return candidates
+
+
+def _unexpected_visual_popup(frame: np.ndarray) -> bool:
+    """Reject bounded unexpected panels, including resource/purchase prompts."""
+
+    panels = _central_popup_candidates(frame)
+    if not panels:
+        return False
+    # An unexpected panel is denied by geometry alone.  Resource/purchase/refill
+    # semantics, when present, are corroboration rather than authorization.
+    return True
+
+
+def _home_nav_terminal(frame: np.ndarray) -> bool:
+    """Recognize template Home only when no unexpected popup is visible."""
+
+    return not _unexpected_visual_popup(frame) and recognize_home_nav(frame).is_home
+
+
+def _campaign_context_recognized(frame: np.ndarray) -> bool:
+    """Recognize only a Campaign context; never infer it from generic OCR."""
+
+    if _unexpected_visual_popup(frame):
+        return False
     recognition = _classify_campaign_ui_open(frame)
-    campaign_open = (
+    return bool(
         recognition.observation.recognized
         and recognition.observation.screen in _CAMPAIGN_ENTRY_OPEN_SCREENS
     )
-    hits = _ocr_entry_hits(frame)
-    label_bound = ultimate_challenge_entry_roi_from_ocr_hits(hits) is not None
-    if not label_bound:
-        # The label is visibly present in the retained Campaign atlas evidence, but OCR can
-        # miss the outlined text on a live frame.  Match only that independent native crop in
-        # a narrow current-frame ROI, then bind the measured match geometry (never stale coords).
-        source = cv2.imread(str(_UC_RETAINED_SOURCE), cv2.IMREAD_GRAYSCALE)
-        current = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        if source is not None:
-            sx0, sy0, sx1, sy1 = _UC_RETAINED_ROI
-            template = source[sy0:sy1, sx0:sx1]
-            x0, y0, x1, y1 = _UC_LIVE_TEMPLATE_SEARCH_ROI
-            search = current[y0:y1, x0:x1]
-            if template.size and search.shape[0] >= template.shape[0] and search.shape[1] >= template.shape[1]:
-                scores = cv2.matchTemplate(search, template, cv2.TM_CCOEFF_NORMED)
-                _min, score, _min_loc, location = cv2.minMaxLoc(scores)
-                if score >= 0.90:
-                    label_bound = True
-    # The text label is semantic context, not the clickable control.  Bind the fresh
-    # blue vortex geometry above it and use a conservative interior ROI whose center
-    # cannot overlap the adjacent Eclipolis / Chapter 2 node.
-    if label_bound:
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        blue = cv2.inRange(hsv, np.array([90, 110, 90]), np.array([135, 255, 255]))
-        x0, y0, x1, y1 = _UC_PORTAL_SEARCH_ROI
-        bounded = np.zeros_like(blue)
-        bounded[y0:y1, x0:x1] = blue[y0:y1, x0:x1]
-        count, _labels, stats, centroids = cv2.connectedComponentsWithStats(bounded)
-        candidates: list[tuple[int, int]] = []
-        for index in range(1, count):
-            area = int(stats[index, cv2.CC_STAT_AREA])
-            width = int(stats[index, cv2.CC_STAT_WIDTH])
-            height = int(stats[index, cv2.CC_STAT_HEIGHT])
-            cx, cy = centroids[index]
-            if area >= 15000 and width >= 150 and height >= 150 and 480 <= cx <= 640 and 760 <= cy <= 920:
-                candidates.append((area, index))
-        if len(candidates) == 1:
-            hits["Ultimate Challenge"] = _UC_PORTAL_INTERIOR_ROI
-        else:
-            hits = {text: roi for text, roi in hits.items() if "ultimate" not in text.casefold() and "challenge" not in text.casefold()}
-    digest = recognition.frame_sha256 or frame_sha256(frame)
-    # Marker auto-derived inside recognize: generic claimed/already-complet require UC entry bind.
-    return recognize_ultimate_challenge_entry_from_texts(
+
+
+def _blue_vortex_candidates(frame: np.ndarray) -> list[tuple[int, int, int, int]]:
+    """Find fresh, bounded blue-vortex geometry on the Campaign map."""
+
+    if frame is None or frame.shape[:2] != (1280, 800):
+        return []
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    blue = cv2.inRange(hsv, np.array([90, 110, 90]), np.array([135, 255, 255]))
+    x0, y0, x1, y1 = _UC_PORTAL_SEARCH_ROI
+    bounded = np.zeros_like(blue)
+    bounded[y0:y1, x0:x1] = blue[y0:y1, x0:x1]
+    count, _labels, stats, centroids = cv2.connectedComponentsWithStats(bounded)
+    candidates: list[tuple[int, int, int, int]] = []
+    for index in range(1, count):
+        area = int(stats[index, cv2.CC_STAT_AREA])
+        x = int(stats[index, cv2.CC_STAT_LEFT])
+        y = int(stats[index, cv2.CC_STAT_TOP])
+        width = int(stats[index, cv2.CC_STAT_WIDTH])
+        height = int(stats[index, cv2.CC_STAT_HEIGHT])
+        cx, cy = centroids[index]
+        if (
+            area >= 15000
+            and width >= 150
+            and height >= 150
+            and 480 <= cx <= 640
+            and 760 <= cy <= 920
+        ):
+            candidates.append((x, y, x + width, y + height))
+    return candidates
+
+
+def _bind_ultimate_challenge_entry(
+    frame: np.ndarray,
+    *,
+    reset_identity: str | None,
+) -> UltimateChallengeEntryObservation:
+    """Bind the blue vortex only after Campaign context and uniqueness checks."""
+
+    if _unexpected_visual_popup(frame):
+        return UltimateChallengeEntryObservation(
+            campaign_screen_recognized=False,
+            entry_control_visible=False,
+            entry_control_identity="",
+            entry_roi=None,
+            already_completed_marker=False,
+            reset_identity=reset_identity,
+            source_frame_sha256=frame_sha256(frame),
+        )
+    campaign_open = _campaign_context_recognized(frame)
+    candidates = _blue_vortex_candidates(frame) if campaign_open else []
+    entry_roi = candidates[0] if len(candidates) == 1 else None
+    semantic_hits = _ocr_region_hits(frame, _UC_ENTRY_SEMANTIC_ROI) if entry_roi else {}
+    marker = (
+        ultimate_challenge_already_completed_from_ocr_hits(
+            semantic_hits,
+            entry_control_visible=entry_roi is not None,
+        )
+        if entry_roi is not None
+        else False
+    )
+    return UltimateChallengeEntryObservation(
         campaign_screen_recognized=campaign_open,
-        ocr_hits=hits,
-        source_frame_sha256=digest,
+        entry_control_visible=entry_roi is not None,
+        entry_control_identity=ULTIMATE_CHALLENGE_ENTRY_IDENTITY if entry_roi else "",
+        entry_roi=entry_roi,
+        already_completed_marker=marker,
         reset_identity=reset_identity,
+        source_frame_sha256=frame_sha256(frame),
     )
 
 
@@ -315,44 +453,52 @@ def _write_result(session: Path, result: dict[str, object]) -> None:
     print(json.dumps(result, sort_keys=True, default=str))
 
 
-def _ocr_boxes(frame: np.ndarray) -> list[tuple[str, tuple[int, int, int, int]]]:
-    """Return native-frame OCR boxes used only for current-frame target binding."""
+def _retain_top_level_frame(
+    session: Path,
+    source_frame,
+    filename: str,
+) -> tuple[str, str]:
+    """Copy an exact native runtime capture into operator top-level evidence."""
 
-    data = pytesseract.image_to_data(frame, config="--psm 11", output_type=Output.DICT)
-    hits: list[tuple[str, tuple[int, int, int, int]]] = []
-    for index, raw in enumerate(data.get("text", [])):
-        text = str(raw).strip()
-        try:
-            confidence = float(data["conf"][index])
-        except (TypeError, ValueError, KeyError, IndexError):
-            confidence = -1.0
-        if text and confidence >= 25:
-            left = max(0, int(data["left"][index]))
-            top = max(0, int(data["top"][index]))
-            width = max(1, int(data["width"][index]))
-            height = max(1, int(data["height"][index]))
-            if left + width <= 800 and top + height <= 1280:
-                hits.append((text, (left, top, left + width, top + height)))
-    return hits
+    target = session / "frames" / filename
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_frame.path, target)
+    payload = target.read_bytes()
+    return (
+        str(target.relative_to(session)).replace("\\", "/"),
+        hashlib.sha256(payload).hexdigest(),
+    )
 
 
-def _bind_text_target(
+def _ocr_region_text(
     frame: np.ndarray,
-    terms: tuple[str, ...],
+    region: tuple[int, int, int, int],
     *,
-    region: tuple[int, int, int, int] | None = None,
-) -> tuple[str, tuple[int, int, int, int]] | None:
-    """Bind one target from fresh native OCR with a strict spatial region."""
+    psm: int = 7,
+) -> str:
+    """Read semantic corroboration from one narrow state ROI."""
 
-    x0, y0, x1, y1 = region or (0, 0, 800, 1280)
-    folded_terms = tuple(term.casefold() for term in terms)
-    for text, roi in _ocr_boxes(frame):
-        folded = text.casefold()
-        if any(term in folded for term in folded_terms):
-            rx0, ry0, rx1, ry1 = roi
-            if x0 <= (rx0 + rx1) // 2 <= x1 and y0 <= (ry0 + ry1) // 2 <= y1:
-                return text, roi
-    return None
+    x0, y0, x1, y1 = region
+    crop = frame[y0:y1, x0:x1]
+    if crop.size == 0:
+        return ""
+    enlarged = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    return " ".join(
+        str(pytesseract.image_to_string(enlarged, config=f"--psm {psm}")).casefold().split()
+    )
+
+
+def _recognize_ultimate_main(frame: np.ndarray) -> tuple[int, int, int, int] | None:
+    """Require the lower red Challenge control and narrow title corroboration."""
+
+    if _unexpected_visual_popup(frame):
+        return None
+    challenge_roi = _bind_red_challenge_button(frame)
+    title = _ocr_region_text(frame, _UC_TITLE_ROI, psm=7)
+    compact_title = "".join(character for character in title if character.isalpha())
+    if challenge_roi is None or "ultimatechallenge" not in compact_title:
+        return None
+    return challenge_roi
 
 
 def _bind_red_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int] | None:
@@ -371,7 +517,14 @@ def _bind_red_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int] |
         width = int(stats[index, cv2.CC_STAT_WIDTH])
         height = int(stats[index, cv2.CC_STAT_HEIGHT])
         cx, cy = centroids[index]
-        if area >= 8000 and width >= 170 and height >= 50 and 360 <= cx <= 440 and 1190 <= cy <= 1245 and x >= 260 and y >= 1170:
+        if (
+            area >= 8000
+            and width >= 150
+            and height >= 45
+            and 1180 <= cy <= 1260
+            and x >= 200
+            and y >= 1160
+        ):
             candidates.append(index)
     if len(candidates) != 1:
         return None
@@ -381,6 +534,8 @@ def _bind_red_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int] |
 def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bind the gold Hero Lineup Challenge control from current native geometry."""
 
+    if _unexpected_visual_popup(frame):
+        return None
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     gold = cv2.inRange(hsv, np.array([10, 80, 80]), np.array([35, 255, 255]))
     bounded = np.zeros_like(gold)
@@ -411,6 +566,10 @@ def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int
 def _bind_active_battle_exit(frame: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bind the icon-only upper-right Exit after proving the native puzzle board."""
 
+    if _unexpected_visual_popup(frame):
+        return None
+    if _has_warning_modal_geometry(frame):
+        return None
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     saturated = cv2.inRange(hsv, np.array([0, 90, 70]), np.array([179, 255, 255]))
     bounded = np.zeros_like(saturated)
@@ -430,18 +589,68 @@ def _bind_active_battle_exit(frame: np.ndarray) -> tuple[int, int, int, int] | N
     return (700, 20, 750, 75)
 
 
-def _bind_flee_warning_button(frame: np.ndarray) -> tuple[int, int, int, int] | None:
-    """Bind only the gold Flee button on the exact failure-warning modal."""
+def _has_warning_modal_geometry(frame: np.ndarray) -> bool:
+    """Recognize the bounded warning panel before considering its controls."""
 
-    folded = _ocr_folded(frame)
-    if "flee now" not in folded or "failure" not in folded:
-        return None
+    x0, y0, x1, y1 = _FLEE_MODAL_ROI
+    if frame is None or frame.shape[:2] != (1280, 800):
+        return False
+    modal = frame[y0:y1, x0:x1]
+    gray = cv2.cvtColor(modal, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 150)
+    header = modal[:70]
+    header_hsv = cv2.cvtColor(header, cv2.COLOR_BGR2HSV)
+    red_header = cv2.inRange(
+        header_hsv, np.array([0, 35, 35]), np.array([15, 255, 220])
+    )
+    dark_center = gray[75:-45, 45:-45]
+    panel_shape = bool(
+        np.count_nonzero(edges) >= 1800
+        and np.count_nonzero(red_header) >= 900
+        and float(np.mean(dark_center)) <= 115.0
+    )
+    if not panel_shape:
+        return False
+    fight = _visual_control_candidates(
+        frame,
+        search_roi=_FLEE_FIGHT_SEARCH_ROI,
+        hsv_lower=(0, 60, 60),
+        hsv_upper=(15, 255, 255),
+        min_area=8000,
+        min_width=170,
+        min_height=45,
+    )
+    flee = _visual_control_candidates(
+        frame,
+        search_roi=_FLEE_FLEE_SEARCH_ROI,
+        hsv_lower=(10, 80, 80),
+        hsv_upper=(35, 255, 255),
+        min_area=12000,
+        min_width=190,
+        min_height=55,
+    )
+    return len(fight) == 1 and len(flee) == 1
+
+
+def _visual_control_candidates(
+    frame: np.ndarray,
+    *,
+    search_roi: tuple[int, int, int, int],
+    hsv_lower: tuple[int, int, int],
+    hsv_upper: tuple[int, int, int],
+    min_area: int,
+    min_width: int,
+    min_height: int,
+) -> list[tuple[int, int, int, int]]:
+    """Return all color/geometry candidates inside one bounded control ROI."""
+
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    gold = cv2.inRange(hsv, np.array([10, 80, 80]), np.array([35, 255, 255]))
-    bounded = np.zeros_like(gold)
-    bounded[600:730, 380:730] = gold[600:730, 380:730]
+    mask = cv2.inRange(hsv, np.array(hsv_lower), np.array(hsv_upper))
+    bounded = np.zeros_like(mask)
+    x0, y0, x1, y1 = search_roi
+    bounded[y0:y1, x0:x1] = mask[y0:y1, x0:x1]
     count, _labels, stats, centroids = cv2.connectedComponentsWithStats(bounded)
-    candidates: list[int] = []
+    candidates: list[tuple[int, int, int, int]] = []
     for index in range(1, count):
         area = int(stats[index, cv2.CC_STAT_AREA])
         x = int(stats[index, cv2.CC_STAT_LEFT])
@@ -449,15 +658,83 @@ def _bind_flee_warning_button(frame: np.ndarray) -> tuple[int, int, int, int] | 
         width = int(stats[index, cv2.CC_STAT_WIDTH])
         height = int(stats[index, cv2.CC_STAT_HEIGHT])
         cx, cy = centroids[index]
-        if area >= 16000 and width >= 220 and height >= 65 and x >= 420 and y >= 610 and 540 <= cx <= 580 and 650 <= cy <= 685:
-            candidates.append(index)
-    if len(candidates) != 1:
+        if area >= min_area and width >= min_width and height >= min_height:
+            candidates.append((x, y, x + width, y + height))
+    return candidates
+
+
+def _flee_modal_popup_matches(
+    popup: tuple[int, int, int, int],
+) -> bool:
+    """Require a bounded two-way spatial match to the expected Flee modal."""
+
+    intersection = _roi_intersection_area(popup, _FLEE_MODAL_ROI)
+    popup_area = _roi_area(popup)
+    modal_area = _roi_area(_FLEE_MODAL_ROI)
+    if intersection <= 0 or popup_area <= 0 or modal_area <= 0:
+        return False
+    return (
+        intersection / popup_area >= 0.75
+        and intersection / modal_area >= 0.75
+        and _flee_modal_popup_iou(popup) >= 0.60
+    )
+
+
+def _recognize_flee_warning(
+    frame: np.ndarray,
+) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]] | None:
+    """Require modal geometry, both controls, and narrow warning text."""
+
+    popup_panels = _flee_popup_panel_candidates(frame)
+    if len(popup_panels) != 1:
         return None
-    return (470, 645, 650, 700)
+    popup = popup_panels[0]
+    if not _flee_modal_popup_matches(popup):
+        return None
+    if not _has_warning_modal_geometry(frame):
+        return None
+    fight = _visual_control_candidates(
+        frame,
+        search_roi=_FLEE_FIGHT_SEARCH_ROI,
+        hsv_lower=(0, 60, 60),
+        hsv_upper=(15, 255, 255),
+        min_area=8000,
+        min_width=170,
+        min_height=45,
+    )
+    flee = _visual_control_candidates(
+        frame,
+        search_roi=_FLEE_FLEE_SEARCH_ROI,
+        hsv_lower=(10, 80, 80),
+        hsv_upper=(35, 255, 255),
+        min_area=12000,
+        min_width=190,
+        min_height=55,
+    )
+    text = _ocr_region_text(frame, _FLEE_MODAL_TEXT_ROI, psm=6)
+    if len(fight) != 1 or len(flee) != 1:
+        return None
+    if "flee now" not in text or "failure" not in text:
+        return None
+    return fight[0], flee[0]
 
 
-def _ocr_folded(frame: np.ndarray) -> str:
-    return " ".join(text for text, _roi in _ocr_boxes(frame)).casefold()
+def _bind_flee_warning_button(frame: np.ndarray) -> tuple[int, int, int, int] | None:
+    """Bind only the gold Flee button on the exact failure-warning modal."""
+
+    controls = _recognize_flee_warning(frame)
+    if controls is None:
+        return None
+    _fight_roi, flee_roi = controls
+    return flee_roi
+
+
+def _recognize_active_battle(frame: np.ndarray) -> tuple[int, int, int, int] | None:
+    """Bind Exit only on an active puzzle board, never under the warning modal."""
+
+    if _has_warning_modal_geometry(frame):
+        return None
+    return _bind_active_battle_exit(frame)
 
 
 def _capture_until(
@@ -492,51 +769,124 @@ def _write_operator_artifacts(session: Path, terminal: str) -> None:
 
 
 def _run_post_flee_home_route(
-    *, runner: ADBRunner, session: Path, events: Path, reset_identity: str, post_input_delay: float
+    *,
+    runner: ADBRunner,
+    session: Path,
+    events: Path,
+    reset_identity: str,
+    post_input_delay: float,
+    runtime: LocalBlueStacksRuntime | None = None,
+    completed_actions: list[dict[str, object]] | None = None,
 ) -> tuple[str, dict[str, object]]:
     """Return UC main → Campaign tier map → canonical Home with verified transitions."""
 
-    runtime = LocalBlueStacksRuntime(runner, session / "runtime", execute=True)
+    runtime = runtime or LocalBlueStacksRuntime(runner, session / "runtime", execute=True)
+    completed_actions = list(completed_actions or [])
     uc = runtime.capture("post-flee-ultimate-immediate-before")
-    if "ultimate challenge" not in _ocr_folded(uc.frame) or _bind_red_challenge_button(uc.frame) is None:
-        return TERMINAL_BLOCKED, {"reason": "post-Flee Ultimate Challenge main not positively recognized"}
-    back_roi = (55, 10, 135, 65)
-    runtime.tap(uc, target_identity="ultimate-challenge-back", target_roi=back_roi, action_key=f"uc-back-{utc_stamp()}", consequential=False)
+    if _recognize_ultimate_main(uc.frame) is None:
+        return TERMINAL_BLOCKED, {
+            "reason": "post-Flee Ultimate Challenge main not positively recognized",
+            "completed_actions": completed_actions,
+        }
+    uc_back_key = f"uc-back-{utc_stamp()}"
+    runtime.back(
+        uc,
+        target_identity="ultimate-challenge-back",
+        action_key=uc_back_key,
+    )
     campaign = _capture_until(
         runtime,
         label="campaign-tier-map-successor",
-        predicate=lambda frame: _bind_ultimate_challenge_entry(frame, reset_identity=reset_identity).campaign_screen_recognized,
+        predicate=_campaign_context_recognized,
         attempts=6,
         settle_seconds=max(0.8, post_input_delay),
     )
     if campaign is None:
-        return TERMINAL_BLOCKED, {"reason": "Campaign tier-map successor not captured after Ultimate Challenge back"}
-    campaign_observation = _bind_ultimate_challenge_entry(campaign.frame, reset_identity=reset_identity)
-    if not campaign_observation.campaign_screen_recognized:
-        return TERMINAL_BLOCKED, {"reason": "Campaign tier-map successor not positively recognized after Ultimate Challenge back", "campaign_sha256": campaign.sha256}
-    runtime.tap(campaign, target_identity="campaign-back-to-home", target_roi=back_roi, action_key=f"campaign-back-{utc_stamp()}", consequential=False)
+        return TERMINAL_BLOCKED, {
+            "reason": "Campaign successor not captured after Ultimate Challenge back",
+            "completed_actions": completed_actions,
+        }
+    if not _campaign_context_recognized(campaign.frame):
+        return TERMINAL_BLOCKED, {
+            "reason": "Campaign successor not positively recognized after Ultimate Challenge back",
+            "campaign_sha256": campaign.sha256,
+            "completed_actions": completed_actions,
+        }
+    runtime.reconcile(
+        uc_back_key,
+        "confirmed",
+        campaign,
+        "Campaign context recognized after Ultimate Challenge back",
+    )
+    completed_actions.append(
+        {
+            "action": "back_uc_to_campaign",
+            "before_sha256": uc.sha256,
+            "post_sha256": campaign.sha256,
+        }
+    )
+    campaign_back_key = f"campaign-back-{utc_stamp()}"
+    runtime.back(
+        campaign,
+        target_identity="campaign-back-to-home",
+        action_key=campaign_back_key,
+    )
     home = _capture_until(
         runtime,
         label="canonical-home-successor",
-        predicate=lambda frame: any(token in _ocr_folded(frame) for token in ("base", "build", "hero")),
+        predicate=_home_nav_terminal,
         attempts=8,
         settle_seconds=max(0.8, post_input_delay),
     )
-    if home is None or not any(token in _ocr_folded(home.frame) for token in ("base", "build", "hero")):
-        return TERMINAL_BLOCKED, {"reason": "canonical Home terminal not positively recognized after Campaign back", "campaign_sha256": campaign.sha256}
-    append_event(events, {"type": "post_flee_home_route", "ultimate_sha256": uc.sha256, "campaign_sha256": campaign.sha256, "home_sha256": home.sha256})
+    if home is None or not _home_nav_terminal(home.frame):
+        return TERMINAL_BLOCKED, {
+            "reason": "canonical Home terminal not positively recognized after Campaign back",
+            "campaign_sha256": campaign.sha256,
+            "completed_actions": completed_actions,
+        }
+    runtime.reconcile(
+        campaign_back_key,
+        "confirmed",
+        home,
+        "template Home recognized after Campaign back",
+    )
+    completed_actions.append(
+        {
+            "action": "back_campaign_to_home",
+            "before_sha256": campaign.sha256,
+            "post_sha256": home.sha256,
+        }
+    )
+    append_event(
+        events,
+        {
+            "type": "post_flee_home_route",
+            "ultimate_sha256": uc.sha256,
+            "campaign_sha256": campaign.sha256,
+            "home_sha256": home.sha256,
+            "home_nav_recognized": True,
+        },
+    )
+    home_frame, home_frame_sha256 = _retain_top_level_frame(
+        session, home, "canonical-home-terminal.png"
+    )
     return TERMINAL_COMPLETE_FOR_RESET, {
         "reason": "Flee completion retained and canonical Home recognized through verified back transitions",
-        "completed_actions": [],
+        "completed_actions": completed_actions,
         "home_sha256": home.sha256,
+        "home_frame": home_frame,
+        "home_frame_sha256": home_frame_sha256,
+        "home_nav_recognized": True,
         "reset_identity": reset_identity,
+        "input_count": runtime.input_count,
+        "navigation_input_count": runtime.input_count,
         "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0},
     }
 
 
 def _run_daily_route(
     *,
-    runner: ADBRunner,
+    runtime: LocalBlueStacksRuntime,
     session: Path,
     frames: Path,
     events: Path,
@@ -549,9 +899,6 @@ def _run_daily_route(
 ) -> tuple[str, dict[str, object]]:
     """Execute the exact bounded Challenge → Exit → Flee → Home route."""
 
-    if starting_state == "campaign_entry" and (not entry_observation.entry_control_visible or entry_observation.entry_roi is None):
-        return TERMINAL_BLOCKED, {"reason": "Ultimate Challenge entry was not positively bound"}
-    runtime = LocalBlueStacksRuntime(runner, session / "runtime", execute=True)
     completed_actions: list[dict[str, object]] = []
     if starting_state == "flee_warning":
         warning = runtime.capture("flee-warning-resume-source")
@@ -562,7 +909,7 @@ def _run_daily_route(
         append_event(events, {"type": "flee_warning_resume_accepted", "source_sha256": warning.sha256, "target_roi": flee_roi})
     elif starting_state == "active_battle":
         active = runtime.capture("active-battle-resume-source")
-        exit_roi = _bind_active_battle_exit(active.frame)
+        exit_roi = _recognize_active_battle(active.frame)
         if exit_roi is None:
             return TERMINAL_BLOCKED, {"reason": "fresh active-battle resume source or icon-only Exit not positively bound", "completed_actions": completed_actions}
         exit_bound = ("icon-only Exit", exit_roi)
@@ -578,10 +925,22 @@ def _run_daily_route(
         append_event(events, {"type": "ultimate_challenge_resume_accepted", "source_sha256": current.sha256})
     else:
         source = runtime.capture("uc-entry-immediate-before")
+        fresh_entry = _bind_ultimate_challenge_entry(
+            source.frame,
+            reset_identity=reset_identity,
+        )
+        if (
+            not fresh_entry.entry_control_visible
+            or fresh_entry.entry_roi is None
+        ):
+            return TERMINAL_BLOCKED, {
+                "reason": "Ultimate Challenge entry was not positively rebound on immediate-before frame",
+                "completed_actions": completed_actions,
+            }
         runtime.tap(
             source,
             target_identity="ultimate-challenge-entry",
-            target_roi=entry_observation.entry_roi,
+            target_roi=fresh_entry.entry_roi,
             action_key=f"ultimate-entry-{utc_stamp()}",
             consequential=False,
         )
@@ -591,8 +950,8 @@ def _run_daily_route(
 
     if starting_state not in {"hero_lineup", "active_battle", "flee_warning"}:
         before = runtime.capture("tap_challenge-immediate-before")
-        challenge_roi = _bind_red_challenge_button(before.frame)
-        if challenge_roi is None or "ultimate" not in _ocr_folded(before.frame):
+        challenge_roi = _recognize_ultimate_main(before.frame)
+        if challenge_roi is None:
             return TERMINAL_BLOCKED, {"reason": "actual red Challenge button not bound on Ultimate Challenge main", "completed_actions": completed_actions}
         challenge_key = f"tap_challenge-1-{utc_stamp()}"
         runtime.tap(before, target_identity="tap_challenge", target_roi=challenge_roi, action_key=challenge_key, consequential=True)
@@ -616,13 +975,13 @@ def _run_daily_route(
         active = _capture_until(
             runtime,
             label="active-challenge-successor",
-            predicate=lambda frame: _bind_active_battle_exit(frame) is not None,
+            predicate=lambda frame: _recognize_active_battle(frame) is not None,
             attempts=10,
             settle_seconds=max(0.8, post_input_delay),
         )
         if active is None:
             return TERMINAL_BLOCKED, {"reason": "active challenge successor not captured", "completed_actions": completed_actions, "lineup_action_key": lineup_key}
-        exit_roi = _bind_active_battle_exit(active.frame)
+        exit_roi = _recognize_active_battle(active.frame)
         if exit_roi is None:
             return TERMINAL_BLOCKED, {"reason": "upper-right icon-only Exit not positively bound after Hero Lineup Challenge", "completed_actions": completed_actions, "lineup_action_key": lineup_key, "active_sha256": active.sha256}
         exit_bound = ("icon-only Exit", exit_roi)
@@ -657,40 +1016,25 @@ def _run_daily_route(
     fled = _capture_until(
         runtime,
         label="flee-confirmed-successor",
-        predicate=lambda frame: "ultimate challenge" in _ocr_folded(frame) and _bind_red_challenge_button(frame) is not None,
+        predicate=lambda frame: _recognize_ultimate_main(frame) is not None,
         attempts=6,
         settle_seconds=max(0.8, post_input_delay),
     )
-    if fled is None or "ultimate challenge" not in _ocr_folded(fled.frame) or _bind_red_challenge_button(fled.frame) is None:
+    if fled is None or _recognize_ultimate_main(fled.frame) is None:
         return TERMINAL_BLOCKED, {"reason": "Flee completion not positively recognized", "completed_actions": completed_actions, "flee_action_key": flee_key}
     runtime.reconcile(flee_key, "confirmed", fled, "Ultimate Challenge main recognized after Flee")
     completed_actions.append({"action": "tap_flee", "target_text": flee_text, "target_roi": flee_roi, "before_sha256": warning.sha256, "post_sha256": fled.sha256})
     append_event(events, {"type": "consequential_step", "action": "tap_flee", "target_text": flee_text, "target_roi": flee_roi, "before_sha256": warning.sha256, "post_sha256": fled.sha256, "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0}})
 
-    # Flee completion is followed by the checked-in canonical Home route. Its output is retained
-    # as semantic successor evidence; no generic popup cleanup or blind retry is permitted.
-    return_home = [
-        sys.executable,
-        str(REPO_ROOT / "scripts" / "home_atlas_bluestacks.py"),
-        "return-canonical",
-        "--adb", str(runner.executable), "--serial", runner.serial,
-        "--atlas", str(atlas_path), "--output-directory", str(session / "return-home"),
-        "--execute", "--yes",
-    ]
-    returned = subprocess.run(return_home, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
-    (session / "return-home-stdout.log").write_text(returned.stdout or "", encoding="utf-8")
-    (session / "return-home-stderr.log").write_text(returned.stderr or "", encoding="utf-8")
-    home = runtime.capture("canonical-home-terminal")
-    home_text = " ".join(text for text, _roi in _ocr_boxes(home.frame)).casefold()
-    if returned.returncode != 0 or not any(token in home_text for token in ("base", "build", "hero")):
-        return TERMINAL_BLOCKED, {"reason": "canonical Home terminal was not positively recognized", "completed_actions": completed_actions, "home_sha256": home.sha256}
-    return TERMINAL_COMPLETE_FOR_RESET, {
-        "reason": "Flee completed with zero resource delta and canonical Home terminal",
-        "completed_actions": completed_actions,
-        "home_sha256": home.sha256,
-        "reset_identity": reset_identity,
-        "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0},
-    }
+    return _run_post_flee_home_route(
+        runner=runtime.runner,
+        session=session,
+        events=events,
+        reset_identity=reset_identity,
+        post_input_delay=post_input_delay,
+        runtime=runtime,
+        completed_actions=completed_actions,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -733,10 +1077,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--maximum-pans", type=int, default=4)
     parser.add_argument("--post-input-delay", type=float, default=1.0)
+    parser.add_argument("--max-total-inputs", type=int, default=MAX_TOTAL_INPUTS)
     args = parser.parse_args(argv)
 
     if sum(bool(value) for value in (args.navigation_only, args.daily, args.post_flee_home_only)) != 1:
         parser.error("select exactly one of --navigation-only, --daily, or --post-flee-home-only")
+    if args.max_total_inputs != MAX_TOTAL_INPUTS:
+        parser.error("Ultimate Challenge aggregate input ceiling is exactly 16")
     if not is_permitted_local_bluestacks_serial(args.serial):
         parser.error("serial is not a permitted local BlueStacks endpoint")
     require_campaign_home_atlas_building(args.atlas)
@@ -750,20 +1097,65 @@ def main(argv: list[str] | None = None) -> int:
     if precheck.terminal == TERMINAL_ALREADY_COMPLETED:
         session = args.output_directory / f"already-completed-{utc_stamp()}"
         session.mkdir(parents=True, exist_ok=False)
+        frames = session / "frames"
+        frames.mkdir(parents=True, exist_ok=False)
+        home_nav_recognized = False
+        home_frame = None
+        home_frame_sha256 = None
+        if args.execute:
+            runner = ADBRunner(args.adb, args.serial)
+            devices = {device.serial: device.state for device in runner.list_devices()}
+            if devices.get(args.serial) != "device" or runner.get_state() != "device":
+                raise RuntimeError("exact BlueStacks serial is not in device state")
+            runtime = LocalBlueStacksRuntime(runner, session / "runtime", execute=True)
+            source = runtime.capture("already-completed-home-source")
+            home_frame, home_frame_sha256 = _retain_top_level_frame(
+                session, source, "canonical-home-terminal.png"
+            )
+            home_nav_recognized = _home_nav_terminal(source.frame)
+            append_event(
+                session / "events.jsonl",
+                {
+                    "type": "already_completed_home_source",
+                    "home_nav_recognized": home_nav_recognized,
+                    "home_frame": home_frame,
+                    "home_frame_sha256": home_frame_sha256,
+                    "source_sha256": source.sha256,
+                    "input_count": runtime.input_count,
+                },
+            )
+            _write_operator_artifacts(
+                session,
+                TERMINAL_ALREADY_COMPLETED if home_nav_recognized else TERMINAL_BLOCKED,
+            )
+        terminal = TERMINAL_ALREADY_COMPLETED if home_nav_recognized else TERMINAL_BLOCKED
         result = {
-            "status": TERMINAL_ALREADY_COMPLETED,
-            "terminal": TERMINAL_ALREADY_COMPLETED,
-            "reason": precheck.reason,
+            "status": terminal,
+            "terminal": terminal,
+            "reason": (
+                precheck.reason
+                if home_nav_recognized
+                else "already_completed state requires a current template Home source"
+            ),
             "session": str(session),
             "flow_id": FLOW_ID,
-            "navigation_only": True,
+            "navigation_only": not args.daily,
             "dispatch": False,
             "campaign_home_atlas_building_id": CAMPAIGN_HOME_ATLAS_BUILDING_ID,
             "reset_identity": args.reset_identity,
             "navigation_input_count": 0,
+            "input_count": 0,
+            "home_nav_recognized": home_nav_recognized,
+            "home_frame": home_frame,
+            "home_frame_sha256": home_frame_sha256,
+            "terminal_runtime_state": (
+                "recognized_home"
+                if terminal == TERMINAL_ALREADY_COMPLETED and home_nav_recognized
+                else "safe_blocked_terminal"
+            ),
         }
         _write_result(session, result)
-        return 0
+        return 0 if terminal == TERMINAL_ALREADY_COMPLETED else 3
     if precheck.terminal == TERMINAL_BLOCKED and precheck.reason != "not already_completed":
         session = args.output_directory / f"blocked-{utc_stamp()}"
         session.mkdir(parents=True, exist_ok=False)
@@ -797,6 +1189,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = str(args.max_total_inputs)
+
     if not args.yes:
         answer = input(
             f"Confirm exact BlueStacks serial '{args.serial}' for Ultimate Challenge? [y/N]: "
@@ -816,6 +1210,7 @@ def main(argv: list[str] | None = None) -> int:
     events = session / "events.jsonl"
     started = time.monotonic()
     navigation_inputs = 0
+    runtime = LocalBlueStacksRuntime(runner, session / "runtime", execute=True)
 
     if args.post_flee_home_only:
         terminal, detail = _run_post_flee_home_route(
@@ -824,21 +1219,23 @@ def main(argv: list[str] | None = None) -> int:
             events=events,
             reset_identity=args.reset_identity or "",
             post_input_delay=args.post_input_delay,
+            runtime=runtime,
         )
         _write_operator_artifacts(session, terminal)
-        result = {"status": terminal, "terminal": terminal, "flow_id": FLOW_ID, "session": str(session), "navigation_only": False, "dispatch": terminal == TERMINAL_COMPLETE_FOR_RESET, "navigation_input_count": 2, **detail}
+        if runtime.input_count > args.max_total_inputs:
+            terminal = TERMINAL_BLOCKED
+            detail["reason"] = "aggregate runtime input count exceeded 16"
+        result = {"status": terminal, "terminal": terminal, "flow_id": FLOW_ID, "session": str(session), "navigation_only": False, "dispatch": terminal == TERMINAL_COMPLETE_FOR_RESET, **detail, "input_count": runtime.input_count, "navigation_input_count": runtime.input_count}
         _write_result(session, result)
         return 0 if terminal == TERMINAL_COMPLETE_FOR_RESET else 3
 
-    resume_path = frames / "campaign-resume-source.png"
-    resume_frame = capture(runner, resume_path)
-    resume_text = _ocr_folded(resume_frame)
-    ultimate_already_open = (
-        "ultimate challenge" in resume_text
-        and _bind_red_challenge_button(resume_frame) is not None
+    resume_frame = runtime.capture("campaign-resume-source")
+    resume_path, _resume_hash = _retain_top_level_frame(
+        session, resume_frame, "campaign-resume-source.png"
     )
+    ultimate_already_open = _recognize_ultimate_main(resume_frame) is not None
     hero_lineup_already_open = _bind_lineup_challenge_button(resume_frame) is not None
-    active_battle_already_open = _bind_active_battle_exit(resume_frame) is not None
+    active_battle_already_open = _recognize_active_battle(resume_frame) is not None
     flee_warning_already_open = _bind_flee_warning_button(resume_frame) is not None
     resume_observation = _bind_ultimate_challenge_entry(
         resume_frame, reset_identity=args.reset_identity
@@ -912,18 +1309,9 @@ def main(argv: list[str] | None = None) -> int:
                 "entry_roi": resume_observation.entry_roi,
             },
         )
-    else:
+    elif _home_nav_terminal(resume_frame):
         resumed_campaign = False
-        _prepare_canonical_home(
-            adb=Path(args.adb),
-            serial=args.serial,
-            session=session,
-            atlas_path=args.atlas,
-        )
-        append_event(events, {"type": "home_prepared", "flow_id": FLOW_ID})
-
         entry_session = session / f"home-atlas-entry-{utc_stamp()}"
-        runtime = LocalBlueStacksRuntime(runner, entry_session, execute=True)
         entry = run_verified_ultimate_challenge_campaign_door(
             runtime,
             atlas_path=args.atlas,
@@ -932,6 +1320,14 @@ def main(argv: list[str] | None = None) -> int:
             settle_seconds=args.post_input_delay,
             semantic_opened_check=_campaign_entry_semantically_opened,
         )
+    else:
+        resumed_campaign = False
+        entry_session = session
+        entry = {
+            "status": "blocked_fail_closed",
+            "reason": "canonical Daily start requires current template Home or a recognized resume state",
+            "records": [],
+        }
     append_event(
         events,
         {
@@ -951,7 +1347,8 @@ def main(argv: list[str] | None = None) -> int:
             "session": str(session),
             "flow_id": FLOW_ID,
             "home_atlas_entry": entry,
-            "navigation_input_count": navigation_inputs,
+            "input_count": runtime.input_count,
+            "navigation_input_count": runtime.input_count,
             "home_recovery_latency_seconds": time.monotonic() - started,
         }
         _write_result(session, result)
@@ -959,7 +1356,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if (flee_warning_already_open or active_battle_already_open or hero_lineup_already_open or ultimate_already_open) and args.daily:
         terminal, detail = _run_daily_route(
-            runner=runner,
+            runtime=runtime,
             session=session,
             frames=frames,
             events=events,
@@ -970,6 +1367,9 @@ def main(argv: list[str] | None = None) -> int:
             entry_observation=resume_observation,
             starting_state="flee_warning" if flee_warning_already_open else ("active_battle" if active_battle_already_open else ("hero_lineup" if hero_lineup_already_open else "ultimate_challenge")),
         )
+        if runtime.input_count > args.max_total_inputs:
+            terminal = TERMINAL_BLOCKED
+            detail["reason"] = "aggregate runtime input count exceeded 16"
         _write_operator_artifacts(session, terminal)
         result = {
             "status": terminal,
@@ -980,14 +1380,17 @@ def main(argv: list[str] | None = None) -> int:
             "navigation_only": False,
             "dispatch": terminal == TERMINAL_COMPLETE_FOR_RESET,
             "reset_identity": args.reset_identity,
-            "navigation_input_count": navigation_inputs,
             **detail,
+            "input_count": runtime.input_count,
+            "navigation_input_count": runtime.input_count,
         }
         _write_result(session, result)
         return 0 if terminal in {TERMINAL_COMPLETE_FOR_RESET, TERMINAL_ALREADY_COMPLETED} else 3
 
-    frame_path = frames / "uc-entry-bind.png"
-    frame = capture(runner, frame_path)
+    frame = runtime.capture("uc-entry-bind")
+    frame_path, _entry_bind_hash = _retain_top_level_frame(
+        session, frame, "uc-entry-bind.png"
+    )
     observation = _bind_ultimate_challenge_entry(frame, reset_identity=args.reset_identity)
     append_event(
         events,
@@ -1010,21 +1413,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.daily:
         if decision.terminal == TERMINAL_ALREADY_COMPLETED:
-            _write_operator_artifacts(session, TERMINAL_ALREADY_COMPLETED)
+            _write_operator_artifacts(session, TERMINAL_BLOCKED)
             result = {
-                "status": TERMINAL_ALREADY_COMPLETED,
-                "terminal": TERMINAL_ALREADY_COMPLETED,
-                "reason": decision.reason,
+                "status": TERMINAL_BLOCKED,
+                "terminal": TERMINAL_BLOCKED,
+                "reason": "already_completed marker requires a current template Home source",
                 "session": str(session),
                 "flow_id": FLOW_ID,
                 "navigation_only": False,
                 "dispatch": False,
                 "reset_identity": args.reset_identity,
-                "navigation_input_count": navigation_inputs,
+                "input_count": runtime.input_count,
+                "navigation_input_count": runtime.input_count,
                 "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0},
             }
             _write_result(session, result)
-            return 0
+            return 3
         if decision.terminal == TERMINAL_BLOCKED:
             _write_operator_artifacts(session, TERMINAL_BLOCKED)
             result = {
@@ -1036,12 +1440,13 @@ def main(argv: list[str] | None = None) -> int:
                 "navigation_only": False,
                 "dispatch": False,
                 "reset_identity": args.reset_identity,
-                "navigation_input_count": navigation_inputs,
+                "input_count": runtime.input_count,
+                "navigation_input_count": runtime.input_count,
             }
             _write_result(session, result)
             return 3
         terminal, detail = _run_daily_route(
-            runner=runner,
+            runtime=runtime,
             session=session,
             frames=frames,
             events=events,
@@ -1051,6 +1456,9 @@ def main(argv: list[str] | None = None) -> int:
             post_input_delay=args.post_input_delay,
             entry_observation=observation,
         )
+        if runtime.input_count > args.max_total_inputs:
+            terminal = TERMINAL_BLOCKED
+            detail["reason"] = "aggregate runtime input count exceeded 16"
         _write_operator_artifacts(session, terminal)
         result = {
             "status": terminal,
@@ -1061,8 +1469,9 @@ def main(argv: list[str] | None = None) -> int:
             "navigation_only": False,
             "dispatch": terminal == TERMINAL_COMPLETE_FOR_RESET,
             "reset_identity": args.reset_identity,
-            "navigation_input_count": navigation_inputs,
             **detail,
+            "input_count": runtime.input_count,
+            "navigation_input_count": runtime.input_count,
         }
         _write_result(session, result)
         return 0 if terminal in {TERMINAL_COMPLETE_FOR_RESET, TERMINAL_ALREADY_COMPLETED} else 3
@@ -1074,6 +1483,9 @@ def main(argv: list[str] | None = None) -> int:
         "flow_id": FLOW_ID,
         "navigation_only": True,
         "dispatch": False,
+        "terminal_runtime_state": "ultimate_challenge_entry_recognized"
+        if decision.terminal == TERMINAL_NAVIGATION_ONLY_COMPLETE
+        else "safe_blocked_terminal",
         "entry_roi": decision.entry_roi,
         "reset_identity": decision.reset_identity,
         "campaign_home_atlas_building_id": CAMPAIGN_HOME_ATLAS_BUILDING_ID,
