@@ -213,6 +213,64 @@ class ReceiptTests(unittest.TestCase):
             with self.assertRaisesRegex(control.FlowDeliveryError, "self-check"):
                 self._issue(controller, gates=False)
 
+    def test_zero_input_observation_capability_issues_and_cannot_reserve(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            controller = self._controller(Path(directory))
+            receipt = self._issue(
+                controller,
+                receipt_class="reconnaissance",
+                command=["development-session", "observe", "--max-inputs", "0"],
+                total=0,
+                identities=["daily-row-prepare-observation"],
+                classes=["observation"],
+                terminals=["observed", "evidence_required"],
+                gates=False,
+                action_bindings=[
+                    {
+                        "action_identity": "daily-row-prepare-observation",
+                        "action_class": "observation",
+                        "consequence_class": "navigation_only",
+                        "resource_affecting": False,
+                        "combat_confirmation": False,
+                    }
+                ],
+            )
+            self.assertEqual(receipt["max_total_inputs"], 0)
+            self.assertEqual(receipt["permitted_action_classes"], ["observation"])
+            consumed = self._consume(controller, receipt)
+            with self.assertRaisesRegex(control.FlowDeliveryError, "budget exhausted"):
+                controller.reserve_input(
+                    consumed,
+                    action_identity="daily-row-prepare-observation",
+                    action_class="observation",
+                    consequence_class="navigation_only",
+                    action_key="prepare-observation",
+                )
+
+    def test_reconnaissance_rejects_old_claim_prepare_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            controller = self._controller(Path(directory))
+            with self.assertRaisesRegex(control.FlowDeliveryError, "forbidden capability"):
+                self._issue(
+                    controller,
+                    receipt_class="reconnaissance",
+                    command=["development-session", "observe", "--max-inputs", "0"],
+                    total=0,
+                    identities=["daily-row-claim-prepare-observation"],
+                    classes=["observation"],
+                    terminals=["observed", "evidence_required"],
+                    gates=False,
+                    action_bindings=[
+                        {
+                            "action_identity": "daily-row-claim-prepare-observation",
+                            "action_class": "observation",
+                            "consequence_class": "navigation_only",
+                            "resource_affecting": False,
+                            "combat_confirmation": False,
+                        }
+                    ],
+                )
+
     def test_budget_reservation_precedes_transport_and_unresolved_never_reopens(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             controller = self._controller(Path(directory))

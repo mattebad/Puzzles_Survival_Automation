@@ -100,6 +100,7 @@
 - Success requires an immediate selected-Daily successor proving the same `consume_stamina` row no longer has a ready Claim or Daily Quest points increased by exactly `5`. Unchanged/ambiguous/wrong-objective successors remain `evidence_required`; no retry.
 - The exact canary tightens this to selected Daily under the same displayed-countdown-derived reset identity and an independently parsed Daily Quest points increase of exactly `5`; row disappearance or OCR absence alone is diagnostic and never success.
 - Validation accepted: 112 affected package tests passed; the focused nine-test profile passed with receipt digest `d3b58ad94c9ab85e35413938c4745de3738415c5237c2c2ebb4bbc91400088f0`. Independent Terra High recheck `f3f6404d-0ce5-44bb-b090-e892681c695a` accepted with no material findings, and parent integration acceptance is `accepted`.
+- Prepare receipt schema integration accepted: the neutral inert binding is `daily-row-prepare-observation` / `observation` under max inputs `0`; the old identity containing `claim` is forbidden. The affected suite passed 115 tests and focused validation passed 9 with digest `6b55f7c410a26503644bc16bf45dbc5e5d92e464a94778938dccbe8e21d13d1b`; Terra recheck `70ba550e-a061-49ad-9181-a8d3556b3dc4` and parent integration both accepted.
 
 ## Deferred evidence-bound implementation paths
 These paths are candidates only and are not writable under `FROZEN_RECONNAISSANCE`:

@@ -1957,8 +1957,8 @@ DAILY_ROW_CLAIM_PREPARE_VARIANT = "consume-stamina-prepare"
 DAILY_ROW_CLAIM_CANARY_VARIANT = "consume-stamina-canary"
 DAILY_ROW_CLAIM_PREPARE_RESULT_IDENTITY = "daily-row-claim:prepare:consume_stamina"
 DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY = "daily-row-claim:canary:consume_stamina"
-DAILY_ROW_CLAIM_ACTION_IDENTITY = "daily-row-claim:consume_stamina"
 DAILY_ROW_CLAIM_PREPARE_ACTION_IDENTITY = "daily-row-prepare-observation"
+DAILY_ROW_CLAIM_ACTION_IDENTITY = "daily-row-claim:consume_stamina"
 
 
 def _daily_row_claim_spec(mode: str) -> Mapping[str, Any]:

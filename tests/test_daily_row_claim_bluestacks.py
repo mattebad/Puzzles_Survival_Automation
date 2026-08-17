@@ -2228,6 +2228,15 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                 "independent_read_only_tester_evidence": "tester",
                 "parent_integration_acceptance": "accepted",
             }
+        action_bindings = [
+            {
+                "action_identity": identities[0],
+                "action_class": classes[0],
+                "consequence_class": consequence,
+                "resource_affecting": False,
+                "combat_confirmation": False,
+            }
+        ]
         receipt = controller.issue(
             task_id="daily-row-claim",
             flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
@@ -2238,15 +2247,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             variant=f"consume-stamina-{mode}",
             permitted_action_identities=identities,
             permitted_action_classes=classes,
-            action_bindings=[
-                {
-                    "action_identity": identities[0],
-                    "action_class": classes[0],
-                    "consequence_class": consequence,
-                    "resource_affecting": False,
-                    "combat_confirmation": False,
-                }
-            ],
+            action_bindings=action_bindings,
             consequence_class=consequence,
             max_total_inputs=total,
             max_resource_affecting_inputs=0,
@@ -2319,6 +2320,19 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                 receipt["permitted_action_identities"],
                 ["daily-row-prepare-observation"],
             )
+            self.assertEqual(receipt["permitted_action_classes"], ["observation"])
+            self.assertEqual(
+                receipt["action_bindings"],
+                [
+                    {
+                        "action_identity": "daily-row-prepare-observation",
+                        "action_class": "observation",
+                        "consequence_class": "navigation_only",
+                        "resource_affecting": False,
+                        "combat_confirmation": False,
+                    }
+                ],
+            )
             pnsctl._validate_daily_row_claim_receipt(receipt, mode="prepare")
             self.assertEqual(controller.inspect()["status"], "issued")
 
@@ -2359,6 +2373,73 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             finally:
                 connection.close()
             self.assertEqual(terminal[0], "observed")
+
+    def test_prepare_rejects_wrong_identity_or_class_before_receipt_consumption(self):
+        cases = (
+            (
+                "permitted_action_identities",
+                ["daily-row-prepare-capability"],
+                ["observation"],
+                "daily-row-prepare-capability",
+                "observation",
+            ),
+            (
+                "permitted_action_classes",
+                ["daily-row-prepare-observation"],
+                ["navigation"],
+                "daily-row-prepare-observation",
+                "navigation",
+            ),
+        )
+        for field, identities, classes, identity, action_class in cases:
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                state = root / "receipts.sqlite3"
+                command = self._command(root, "prepare")
+                controller = control.DelegatedRuntimeReceiptController(state)
+                controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
+                controller.issue(
+                    task_id="daily-row-claim",
+                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                    receipt_class="reconnaissance",
+                    agent_identity="luna-agent",
+                    command_argv=command,
+                    scenario="consume-stamina-row-claim",
+                    variant="consume-stamina-prepare",
+                    permitted_action_identities=identities,
+                    permitted_action_classes=classes,
+                    action_bindings=[
+                        {
+                            "action_identity": identity,
+                            "action_class": action_class,
+                            "consequence_class": "navigation_only",
+                            "resource_affecting": False,
+                            "combat_confirmation": False,
+                        }
+                    ],
+                    consequence_class="navigation_only",
+                    max_total_inputs=0,
+                    max_resource_affecting_inputs=0,
+                    max_combat_confirmations=0,
+                    permitted_terminal_states=["observed", "evidence_required"],
+                    result_identity="daily-row-claim:prepare:consume_stamina",
+                )
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError,
+                    f"daily row Claim receipt {field}",
+                ):
+                    pnsctl.development_session_daily_row_claim(
+                        mode="prepare",
+                        max_inputs=0,
+                        delegated_receipt=state,
+                        agent_identity="luna-agent",
+                        task_id="daily-row-claim",
+                        flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                        scenario="consume-stamina-row-claim",
+                        variant="consume-stamina-prepare",
+                        command_argv=command,
+                    )
+                self.assertEqual(controller.inspect()["status"], "issued")
 
     def test_prepare_rejects_mismatched_variant_or_budget_before_receipt_consumption(self):
         with tempfile.TemporaryDirectory() as directory:
