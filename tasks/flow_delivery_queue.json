@@ -58,9 +58,9 @@
       {
         "task_id": "ultimate-challenge-daily",
         "execution_flow_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
-        "queue_record_state": "next_authority_reconciliation",
+        "queue_record_state": "blocked_product_state",
         "depends_on": ["campaign-atlas-navigation"],
-        "blocker": "queue completion and retained zero-resource Flee-to-Home evidence conflict with the stale gameplay contract that forbids production input; Sol must reconcile authority before a lean live stage"
+        "blocker": "lean authority and implementation are reconciled, but the current native Home frame is not at the supported fully-zoomed-out atlas identity; current canary stopped LOCALIZATION_NOT_RECOGNIZED with zero input, so no retry is authorized until canonical Home is independently established"
       },
       {
         "task_id": "nova-praise-free-pulse",
@@ -1166,7 +1166,7 @@
       "title": "Integrate Ultimate Challenge daily task with BlueStacks",
       "kind": "daily_challenge_integration",
       "priority": 15,
-      "status": "completed",
+      "status": "blocked",
       "backlog_task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
       "dependencies": [
         "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
@@ -1373,10 +1373,10 @@
         "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "",
-      "next_concrete_action": "Acquire the sole runtime lease, activate the flow, positively bind the fresh exact-warning gold Flee control, then use attempt 13 without repeating Challenge, lineup Challenge, or Exit.",
-      "last_completed_stage": "completed",
-      "last_commit": "b22b13ca038c2e227779b20854441a93b9ee2e15",
+      "blocked_reason": "Current native Home is at an unsupported zoom. The latest lean canary retained blocked_fail_closed/LOCALIZATION_NOT_RECOGNIZED with input_count=0 and released singleton ownership. Attempt 14's alleged Home frame is Resource Shop and is not valid current authority.",
+      "next_concrete_action": "Manually establish the supported fully-zoomed-out canonical Home surface, then perform a new zero-input observation and refreeze one canary stage; do not repeat from the current frame.",
+      "last_completed_stage": "product_precondition_blocked",
+      "last_commit": "fa2bcdf",
       "artifact_root": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
       "acceptance_criteria": [
         "separate flow identity from Campaign AP farming",

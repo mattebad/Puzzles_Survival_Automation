@@ -5472,19 +5472,25 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION
 - Task ID: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION`.
 - Title: Integrate Ultimate Challenge daily task as a distinct BlueStacks flow.
-- Status: Completed (2026-07-26; live `complete_for_reset` and canonical Home proven on attempt 14).
+- Status: Blocked on current product state (2026-08-17; lean implementation/review accepted, but the
+  current native Home frame is not at the supported fully-zoomed-out atlas identity).
 - Milestone: Ultimate Challenge evidence-independent controller integration.
 - Dependencies: completed `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY`, committed product-policy reconciliation `9c281a7`, retained Campaign Home Atlas
   entry, Ultimate Challenge entry/reset-idempotency implementation, gameplay contract schema, and
   explicit 2026-07-23 product policy.
-- Blocked by: none. Attempt 13 proved exact Flee completion with zero resource delta; attempt 14
-  proved Ultimate Challenge main → Campaign tier map → canonical Home. Retained production evidence
-  validates as `complete_for_reset` with `terminal_runtime_state=recognized_home`.
+- Blocked by: current product precondition. The accepted lean candidate uses current-frame color/
+  geometry gates, a unique-popup Flee check, a shared 16-input ceiling, and hash-bound template Home
+  verification. The latest canary retained `blocked_fail_closed`, reason
+  `LOCALIZATION_NOT_RECOGNIZED`, and `input_count=0`; singleton ownership released. The retained
+  attempt-14 frame previously labeled Home is Resource Shop and cannot authorize completion.
+- Exact unblock: manually establish the supported fully-zoomed-out canonical Home surface, then
+  perform a fresh zero-input observation and refreeze one canary. Do not retry from the current frame.
 - Objective: implement every evidence-independent execution invariant and a truthful zero-transport
   evidence gate without manufacturing selector or replay proof.
-- Established facts: retained work proves Campaign entry, Ultimate Challenge entry OCR,
-  already-complete/reset persistence, and navigation-only seams; it does not prove the
-  consequential sequence or canonical Home terminal.
+- Established facts: retained attempt 13 proves the gold Flee action and Ultimate-main successor
+  with zero resource delta. Current code and tests prove deterministic visual gates, truthful
+  development-session ownership/accounting, complete fail-closed evidence, and template Home
+  persistence. A new canonical Home round trip remains unproved.
 - Direct implementation files: `tasks/ultimate_challenge_daily.py`, its gameplay contract,
   `tasks/gameplay_flow_contracts.py`, `tasks/gameplay_flow_contracts/schema.json`, queue,
   coverage/docs, focused tests, `BACKLOG.md`, `tasks/backlog_task_index.json`, and
@@ -5533,8 +5539,9 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Resource consumption policy: no resource or refill transaction is permitted.
 - Premium or strategic restrictions: Auto Battle, paid/premium/item-backed action, Campaign AP
   dispatch, and any refill are prohibited.
-- Active evidence manifest: None; retained sessions contain navigation/pre-entry evidence only and
-  no promotable consequential replay.
+- Active evidence manifest:
+  `.local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20260817T221345463012Z/nav-20260817T221345891535Z/result.json`;
+  zero-input product-state block at unsupported Home zoom.
 - Required artifacts: controller policy, replay gate, contract/queue/coverage/docs, focused tests,
   backlog index, handoff, validation results, and one focused local commit.
 - Immediate-before/immediate-post/result/journal: NOT_APPLICABLE for runtime because transport is
