@@ -234,7 +234,12 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         *,
         terminal: str,
         home_nav_recognized: bool,
+        child_returncode: int | None = None,
+        input_count: int = 0,
+        expect_failure: bool | None = None,
         queue_diagnosis: str = "historical gold Flee input diagnosis",
+        queue_context: dict | None = None,
+        lease_context: dict | None = None,
     ):
         fake_pnsctl = self.FakePnsctl(root / "artifacts")
         commands: list[list[str]] = []
@@ -243,7 +248,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             "terminal": terminal,
             "status": terminal,
             "home_nav_recognized": home_nav_recognized,
-            "input_count": 0,
+            "input_count": input_count,
             "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0},
         }
 
@@ -266,9 +271,16 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             payload = frame_path.read_bytes()
             result["home_frame"] = "frames/canonical-home-terminal.png"
             result["home_frame_sha256"] = hashlib.sha256(payload).hexdigest()
-            return __import__("subprocess").CompletedProcess(command, 0 if terminal != "blocked_fail_closed" else 3, "", "")
+            return __import__("subprocess").CompletedProcess(
+                command,
+                child_returncode
+                if child_returncode is not None
+                else (0 if terminal != "blocked_fail_closed" else 3),
+                "",
+                "",
+            )
 
-        queue = {
+        queue = queue_context or {
             "flows": [
                 {
                     "flow_id": FLOW_ID,
@@ -277,7 +289,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 }
             ]
         }
-        lease = {"owner": "test-owner"}
+        lease = lease_context or {"owner": "test-owner"}
         state_path = root / ".local-captures" / "reset-window.json"
         with patch.object(delivery, "_pnsctl", return_value=fake_pnsctl), patch.object(
             delivery, "_reset_window_state_path", return_value=state_path
@@ -290,16 +302,92 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         ) as record_home, patch.object(
             delivery, "save_reset_window_state"
         ) as save_state:
-            if terminal == "blocked_fail_closed" or (
-                terminal == "complete_for_reset" and not home_nav_recognized
-            ) or (
-                terminal == "already_completed" and not home_nav_recognized
-            ):
+            if expect_failure is None:
+                expect_failure = terminal == "blocked_fail_closed" or (
+                    terminal == "complete_for_reset" and not home_nav_recognized
+                ) or (
+                    terminal == "already_completed" and not home_nav_recognized
+                )
+            if expect_failure:
                 with self.assertRaises(RuntimeError):
                     delivery.run_ultimate_challenge_daily(queue, lease)
             else:
                 delivery.run_ultimate_challenge_daily(queue, lease)
         return commands[0], load_state, record_home, save_state
+
+    def test_daily_wrapper_accepts_minimal_development_session_context(self) -> None:
+        queue = {"active_flow_id": FLOW_ID, "development_session": True}
+        lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+            "development_session": True,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            command, _load_state, _record_home, _save_state = self._run_wrapper(
+                root,
+                terminal="already_completed",
+                home_nav_recognized=True,
+                queue_context=queue,
+                lease_context=lease,
+            )
+            result_paths = list(
+                (root / "artifacts" / FLOW_ID).glob(
+                    "daily-*/nav-child/flow-delivery-result.json"
+                )
+            )
+            self.assertEqual(len(result_paths), 1)
+            delivery_result = json.loads(result_paths[0].read_text(encoding="utf-8"))
+
+        self.assertEqual(command[command.index("--max-total-inputs") + 1], "16")
+        self.assertIsNone(delivery_result["attempt_budget"])
+        self.assertIsNone(delivery_result["legacy_attempt_budget"])
+        self.assertEqual(delivery_result["max_inputs"], 16)
+        self.assertEqual(delivery_result["session_max_inputs"], 16)
+
+    def test_daily_wrapper_rejects_invalid_development_session_context_before_child(
+        self,
+    ) -> None:
+        valid_queue = {"active_flow_id": FLOW_ID, "development_session": True}
+        valid_lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+            "development_session": True,
+        }
+        invalid_contexts = []
+        for label, queue, lease in (
+            (
+                "wrong flow",
+                {**valid_queue, "active_flow_id": "OTHER-FLOW"},
+                valid_lease,
+            ),
+            ("missing flow", {"development_session": True}, valid_lease),
+            (
+                "released runtime",
+                valid_queue,
+                {**valid_lease, "runtime_ownership_state": "released"},
+            ),
+            (
+                "missing ceiling",
+                valid_queue,
+                {key: value for key, value in valid_lease.items() if key != "max_inputs"},
+            ),
+            ("invalid ceiling", valid_queue, {**valid_lease, "max_inputs": "16"}),
+            ("over ceiling", valid_queue, {**valid_lease, "max_inputs": 17}),
+        ):
+            invalid_contexts.append((label, queue, lease))
+
+        for label, queue, lease in invalid_contexts:
+            with self.subTest(context=label), tempfile.TemporaryDirectory() as directory:
+                fake_pnsctl = self.FakePnsctl(Path(directory) / "artifacts")
+                with patch.object(
+                    delivery, "_pnsctl", return_value=fake_pnsctl
+                ), patch.object(delivery.subprocess, "run") as child:
+                    with self.assertRaisesRegex(RuntimeError, "Ultimate Challenge"):
+                        delivery.run_ultimate_challenge_daily(queue, lease)
+                child.assert_not_called()
 
     def test_daily_wrapper_uses_current_reset_and_ignores_history(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -334,6 +422,32 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 load_state.assert_not_called()
                 record_home.assert_not_called()
                 save_state.assert_not_called()
+
+    def test_complete_for_reset_nonzero_child_exit_does_not_persist(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _command, load_state, record_home, save_state = self._run_wrapper(
+                Path(directory),
+                terminal="complete_for_reset",
+                home_nav_recognized=True,
+                child_returncode=3,
+                expect_failure=True,
+            )
+        load_state.assert_not_called()
+        record_home.assert_not_called()
+        save_state.assert_not_called()
+
+    def test_complete_for_reset_over_budget_does_not_persist(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _command, load_state, record_home, save_state = self._run_wrapper(
+                Path(directory),
+                terminal="complete_for_reset",
+                home_nav_recognized=True,
+                input_count=delivery.MAX_TOTAL_INPUTS + 1,
+                expect_failure=True,
+            )
+        load_state.assert_not_called()
+        record_home.assert_not_called()
+        save_state.assert_not_called()
 
     def test_already_completed_is_idempotent_without_persistence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

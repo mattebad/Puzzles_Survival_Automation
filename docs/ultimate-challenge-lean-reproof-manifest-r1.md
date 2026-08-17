@@ -118,3 +118,19 @@ All other paths are read-only during implementation.
 - The exact expected modal plus any additional overbroad/full-frame panel must fail closed.
 - Add a self-contained regression with `_FLEE_MODAL_ROI` and `(0, 0, 800, 1280)` together.
 - One Luna implementation and one Terra review are authorized. No live input before parent acceptance.
+
+## Refrozen stage r4 — development-session runner contract
+- User continuation exception: the explicit reset/bypass instruction authorizes redesign of this narrow integration boundary after two distinct zero-input admission failures.
+- Revision ID: `ultimate-challenge-lean-reproof-r4`.
+- Failure class: `core_contract`.
+- Both failed admissions sent zero input and released singleton ownership:
+  - the obsolete lease-bound `bluestacks run-flow` command failed before ownership acquisition;
+  - the supported `development-session run-flow` acquired ownership, captured its source, then failed before operator dispatch because the runner required the legacy queue `flows` array.
+- Writable paths:
+  - `scripts/flow_delivery_ultimate_challenge_bluestacks.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- The Daily runner must accept the current development-session contexts: queue with `active_flow_id`, and runtime context with owner, held ownership, and `max_inputs`.
+- It must positively require the active flow ID, held singleton ownership, and a runtime ceiling no greater than 16.
+- Legacy controller queue metadata may remain supported, but must not be required for development-session execution. Evidence metadata must truthfully distinguish a legacy configured attempt budget from session-local execution.
+- Add a focused regression invoking the Daily wrapper with the minimal current development-session contexts.
+- One Luna implementation and one Terra review are authorized. No further live input before parent acceptance and a fresh clean candidate commit.

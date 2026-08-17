@@ -187,13 +187,82 @@ def run_ultimate_challenge_navigation_only(
     )
 
 
+def _legacy_daily_flow(queue: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    flows = queue.get("flows")
+    if flows is None:
+        return None
+    if not isinstance(flows, list):
+        raise _pnsctl().OperatorError("legacy flow-delivery queue flows must be a list")
+    matches = [
+        item
+        for item in flows
+        if isinstance(item, Mapping) and item.get("flow_id") == FLOW_ID
+    ]
+    if len(matches) != 1:
+        raise _pnsctl().OperatorError(
+            "legacy flow-delivery queue does not identify exactly one Ultimate Challenge flow"
+        )
+    return matches[0]
+
+
+def _daily_runtime_context(
+    queue: Mapping[str, Any], lease: Mapping[str, Any]
+) -> tuple[Mapping[str, Any] | None, int]:
+    """Validate the current session contract before creating or launching a child."""
+
+    marker_present = (
+        "development_session" in queue or "development_session" in lease
+    )
+    if marker_present:
+        if queue.get("development_session") is not True or lease.get(
+            "development_session"
+        ) is not True:
+            raise _pnsctl().OperatorError(
+                "Ultimate Challenge development-session markers are required"
+            )
+        if queue.get("active_flow_id") != FLOW_ID:
+            raise _pnsctl().OperatorError(
+                "Ultimate Challenge development session has the wrong active flow"
+            )
+        if lease.get("runtime_ownership_state") != "held":
+            raise _pnsctl().OperatorError(
+                "Ultimate Challenge development session requires held runtime ownership"
+            )
+        owner = lease.get("owner")
+        if not isinstance(owner, str) or not owner.strip():
+            raise _pnsctl().OperatorError(
+                "Ultimate Challenge development session owner is required"
+            )
+        maximum = lease.get("max_inputs")
+        if type(maximum) is not int or not 1 <= maximum <= MAX_TOTAL_INPUTS:
+            raise _pnsctl().OperatorError(
+                "Ultimate Challenge development session max_inputs must be an integer "
+                "between 1 and 16"
+            )
+        return None, maximum
+
+    if "runtime_ownership_state" in lease and lease.get(
+        "runtime_ownership_state"
+    ) != "held":
+        raise _pnsctl().OperatorError(
+            "Ultimate Challenge runner requires held runtime ownership"
+        )
+    flow = _legacy_daily_flow(queue)
+    maximum = lease.get("max_inputs", MAX_TOTAL_INPUTS)
+    if type(maximum) is not int or not 1 <= maximum <= MAX_TOTAL_INPUTS:
+        raise _pnsctl().OperatorError(
+            "Ultimate Challenge max_inputs must be an integer between 1 and 16"
+        )
+    return flow, maximum
+
+
 def run_ultimate_challenge_daily(
     queue: Mapping[str, Any], lease: Mapping[str, Any]
 ) -> str:
     """Run the approved zero-resource Flee route through the production operator."""
 
     pnsctl = _pnsctl()
-    flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
+    flow, maximum = _daily_runtime_context(queue, lease)
     stamp = _utc_stamp()
     session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"daily-{stamp}"
     session.mkdir(parents=True, exist_ok=False)
@@ -208,7 +277,7 @@ def run_ultimate_challenge_daily(
         "--execute", "--yes",
         "--reset-identity", reset_identity,
         "--reset-state-path", str(reset_state_path),
-        "--max-total-inputs", "16",
+        "--max-total-inputs", str(maximum),
         "--output-directory", str(session),
     ]
     completed = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
@@ -228,9 +297,9 @@ def run_ultimate_challenge_daily(
         and terminal in {"complete_for_reset", "already_completed"}
         and home_verified
         and type(input_count) is int
-        and 0 <= input_count <= MAX_TOTAL_INPUTS
+        and 0 <= input_count <= maximum
     )
-    if terminal == TERMINAL_COMPLETE_FOR_RESET:
+    if terminal == TERMINAL_COMPLETE_FOR_RESET and ok:
         if not home_verified:
             raise pnsctl.OperatorError(
                 "Ultimate Challenge completion lacks verified template Home evidence"
@@ -264,7 +333,14 @@ def run_ultimate_challenge_daily(
         "frames": frame_names,
         "operator_returncode": completed.returncode,
         "input_count": input_count,
-        "attempt_budget": int(flow.get("maximum_live_attempts") or 0),
+        "attempt_budget": (
+            flow.get("maximum_live_attempts") if flow is not None else None
+        ),
+        "legacy_attempt_budget": (
+            flow.get("maximum_live_attempts") if flow is not None else None
+        ),
+        "max_inputs": maximum,
+        "session_max_inputs": maximum,
         "reset_identity": reset_identity,
         "reset_state_path": str(reset_state_path),
         "verified_home_path": str(home_path.relative_to(uc_session)).replace("\\", "/")
