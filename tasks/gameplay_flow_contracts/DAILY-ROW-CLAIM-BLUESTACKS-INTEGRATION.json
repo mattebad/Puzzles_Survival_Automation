@@ -65,7 +65,7 @@
     {
       "id": "selected-daily-aggregate-claim",
       "mode": "consequential_supervised",
-      "notes": "Terminal 2026-08-17 evidence_required checkpoint stopped at fresh Home recognition before input; selected Daily and Claim eligibility were not reached. A future stage still permits at most one ordinary Claim tap with no row loop or provider-specific Claim."
+      "notes": "Live-validated 2026-08-17 on local BlueStacks through the canonical receipt-bound route. Template Home recognition reached selected Daily; one free ordinary gold Claim increased points 20 to 25 and cleared ordinary Claim controls. Receipt c2ddc2ea-60b4-404a-a7b3-784ffaff9d08; no row loop, milestone, cost, red Go, resource spend, or provider-specific Claim."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -77,6 +77,6 @@
     "ambiguous_account_or_server_identity",
     "blocking_unknown_modal"
   ],
-  "implementation_status": "reference_implemented",
-  "proof_state": "evidence_required"
+  "implementation_status": "live_validated_supervised",
+  "proof_state": "accepted"
 }

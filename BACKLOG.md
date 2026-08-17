@@ -946,37 +946,35 @@ Claim example.
   selected-Daily Claim action. It taps one ordinary free non-milestone Claim
   control, verifies points increased and ordinary Claim controls cleared, and
   stops. Objective-specific completion providers do not own Claim.
-- Dependencies: GNB-PHASE-D Passed; a fresh BlueStacks-native aggregate Claim target and
-  semantic successor pair are required for live acceptance.
+- Dependencies: GNB-PHASE-D Passed; BlueStacks-native aggregate Claim target
+  and semantic successor are now proven.
 - Scope: one selected-Daily screen-level action independent of objective identity. Authorization
   requires a current BlueStacks-native ordinary free non-milestone Claim control, profile/
   provenance/hash gates, one-tap accounting, and reset identity. Success requires a positive
   points delta and no remaining available ordinary Claim controls. Go, milestone, cost-bearing,
   clipped, overlay, stale-source, and unchanged-postcondition cases fail closed.
-- Status: Offline contract passed; BlueStacks live acceptance remains
-  `evidence_required`.
+- Status: `LIVE_VALIDATED` (2026-08-17) for the supervised aggregate ordinary
+  Claim route; registration and scheduler eligibility remain disabled.
 - Evidence: `tasks/available_daily_claim.py`, `scripts/daily_row_claim_bluestacks.py`,
   `tests/fixtures/phase_e_daily_claim_observations.json`, and
   `tests/test_available_daily_claim.py`. The retained Bioenhancer and Gather Food fixture results
   are historical observations only; they are not per-row or per-objective Claim contracts.
-  Candidate `926659f` passed 69 Daily row tests, focused validation (9), shared-navigation
-  validation (18), and the final Terra repair recheck.
-- Live checkpoint (2026-08-17): zero-input observation passed. The first
-  receipt-bound Home → Quest → Daily reconnaissance failed before input when
-  Quest was recognized but Hero was not. Fresh evidence justified the bounded
-  right-side `Bag → Mail → More` repair in `926659f`. The final reconnaissance
-  then failed before input for a materially different OCR condition: the fresh
-  native Home frame visibly contains Quest, Bag, and Mail, while recognition
-  found only World and More. No selected-Daily frame was reached and no Claim
-  tap was issued.
-- Blocker: two materially different fresh-live Home recognition failures
-  exhausted the third Heavy stage revision. Claim live admission also retains
-  the independent-review finding that successor points are compared with the
-  earlier source recognition rather than the tap-authorizing immediate-before
-  recognition.
-- Next: require explicit user continuation and a new Sol-frozen redesign stage.
-  Do not rerun reconnaissance or issue a Claim receipt in the completed
-  conversation.
+  Candidate `4ffce57` passed 76 Daily row tests, 3 Home-template tests, 9
+  aggregate-contract tests, focused validation (9), shared-navigation
+  validation (18), and final Terra High recheck with no material findings.
+- Live checkpoint (2026-08-17): template Home recognition completed Home →
+  Quest; the first Daily successor exposed and then repaired the remaining
+  selected-title OCR dependency. Zero-input preparation then proved exactly one
+  free ordinary gold Claim at Daily points 20, with no milestone, cost, overlay,
+  or red Go authorization. Receipt `c2ddc2ea-60b4-404a-a7b3-784ffaff9d08`
+  dispatched exactly one aggregate Claim. Daily points increased 20 → 25,
+  ordinary Claim controls cleared, reset identity remained within the
+  two-second deadline tolerance, and singleton ownership released.
+- Blocker: none for supervised aggregate Claim acceptance.
+- Next: retain this as the sole ordinary Daily Claim owner. Do not rebuild a
+  per-row Claim path; milestone Claim remains a separate flow. Scheduler
+  promotion remains blocked until the selected portfolio flows are individually
+  live-proven.
 
 ### GNB-PHASE-E-MILESTONES-OFFLINE — Add activity milestone-chest contract
 
@@ -1800,8 +1798,10 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Promotion/unlocks: `LIVE_VALIDATED`; unlocks only future unattended gate.
 
 ### DQ-FLOW-BIOENHANCER
-- Status: `BIOENHANCER_SAME_DAY_END_TO_END_CONFIRMED` (2026-07-15 UTC); execution validated;
-  Daily reconciliation validated; Claim execution not performed.
+- Status: `BIOENHANCER_SAME_DAY_END_TO_END_CONFIRMED` (2026-07-15 UTC);
+  accepted existing supervised canary for the free Bioenhancer objective and
+  same-day Daily reconciliation. Its separate ordinary Claim is now owned by
+  the aggregate Daily Claim flow, live-validated on 2026-08-17.
 - Active parity subtask: `BIOENHANCER-GNBOTS-PARITY` completed offline on 2026-07-15 with
   primary outcome `GNBOTS_REFERENCE_DOES_NOT_IMPLEMENT_BIOENHANCER`. The decoded GnBots reference
   has generic Daily claim/recruit/depot/leaderboard behavior and malformed generic town research,
@@ -1830,11 +1830,14 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   remains. The benign reset-popup navigation diagnostic is terminally classified in
   `evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json`
   without altering either research transaction.
-- Claim/persistence/registration/scheduler: separate Claim; dormant; not registered; false.
+- Claim/persistence/registration/scheduler: objective-specific Claim remains
+  intentionally absent; the accepted aggregate Daily Claim route is the sole
+  ordinary Claim owner. Bioenhancer remains dormant, not registered, and
+  scheduler-ineligible.
 - Promotion/unlocks: `LIVE_VALIDATED` under `SUPERVISED_VALIDATION` for research and same-day
-  reconciliation; Claim remains independently unperformed. No registration or scheduler
-  eligibility. Next atomic backlog task is `DQ-CLAIM-DAILY`; no Claim dispatch is authorized in
-  this closure.
+  reconciliation. Aggregate ordinary Claim is independently `LIVE_VALIDATED`
+  under `DQ-CLAIM-DAILY`; milestone Claim remains separate. No registration or
+  scheduler eligibility.
 - Parity conclusion: no implementation change; GnBots does not implement this objective. The
   verified new reset removed the prior day-boundary ambiguity, and the same-day objective
   progression is now proven. Research 10x and Claim were not dispatched.

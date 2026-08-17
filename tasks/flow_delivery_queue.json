@@ -44,9 +44,9 @@
       {
         "task_id": "daily-row-claim",
         "execution_flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-        "queue_record_state": "existing_blocked",
+        "queue_record_state": "accepted_existing",
         "depends_on": [],
-        "blocker": "fresh ordinary-row Claim target and semantic successor evidence"
+        "blocker": null
       },
       {
         "task_id": "daily-milestone-claim",
@@ -3177,7 +3177,7 @@
       "title": "Integrate generalized Daily row Claim with BlueStacks",
       "kind": "maintenance_integration",
       "priority": 70,
-      "status": "blocked",
+      "status": "completed",
       "backlog_task_id": "DQ-CLAIM-DAILY",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -3187,12 +3187,20 @@
       ],
       "navigation_model": "selected_daily_row_local_binding",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "One supervised exact ordinary-row Claim only after fresh target and postcondition evidence exists.",
+      "live_validation_scope": "Completed one supervised aggregate ordinary Claim with fresh target and semantic successor proof.",
       "consequence_policy": "Objective completion never implies Claim readiness; unknown row, target, game day, or successor fails closed.",
       "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 1,
-      "live_attempt_count": 0,
-      "live_attempts": [],
+      "live_attempt_count": 1,
+      "live_attempts": [
+        {
+          "ordinal": 1,
+          "repository_head": "4ffce57faf7bf2af2a7af4ec2257678e73f52158",
+          "session_directory": ".local-captures/development-sessions/delegated-c2ddc2ea-60b4-404a-a7b3-784ffaff9d08",
+          "terminal_outcome": "completed",
+          "diagnosis": "Canonical receipt-bound aggregate Claim completed: one free ordinary gold Claim increased Daily points 20 to 25, cleared ordinary Claim controls, preserved reset identity, and released singleton ownership."
+        }
+      ],
       "focused_tests": [
         "tests/test_available_daily_claim.py"
       ],
@@ -3200,10 +3208,10 @@
       "performance_metrics_required": [
         "claim_binding_latency_seconds"
       ],
-      "blocked_reason": "Terminal evidence_required: two materially different fresh-live Home recognition failures prevented selected-Daily inspection; no Claim input was issued.",
-      "next_concrete_action": "After explicit user continuation, freeze a new Sol redesign stage for current-frame Home navigation OCR and the immediate-before Claim points baseline.",
-      "last_completed_stage": "navigation_validation",
-      "last_commit": "926659f0068156872e5558b562a8cb6d69a0ad21",
+      "blocked_reason": "",
+      "next_concrete_action": "Retain as the sole ordinary Daily Claim owner; keep registration and scheduler eligibility disabled until portfolio promotion.",
+      "last_completed_stage": "completed",
+      "last_commit": "4ffce57faf7bf2af2a7af4ec2257678e73f52158",
       "artifact_root": ".local-captures/flow-delivery/DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
     },
     {
