@@ -27,7 +27,7 @@
 | `escalation_architect` | `not used` | None |
 
 ## Frozen architecture
-- Keep `scripts/pnsctl.py bluestacks run-flow ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION --live` as the sole live entry. Its outer `NavigationDevelopmentSession` owns singleton runtime access.
+- Keep `scripts/pnsctl.py development-session run-flow ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION --live --yes --max-inputs 16` as the sole live entry. Its outer `DevelopmentSession` owns singleton runtime access.
 - Remove historical-attempt sniffing that permanently forces `post-flee-home-only`. Every new reset evaluates persistent state and otherwise starts the canonical route.
 - Pass a current UTC game-day identity and an untracked persistent state path. Persist success only after positively verified template Home; never at Flee or an intermediate screen.
 - Actionable controls remain visual-primary:
