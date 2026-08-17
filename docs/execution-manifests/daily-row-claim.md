@@ -3,7 +3,7 @@
 ## Task ID and objective
 - Task ID: `daily-row-claim`
 - Flow ID: `DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION`
-- Manifest state: `QUEST_CONTINUATION_REACCEPTED`
+- Manifest state: `CLAIM_PACKAGE_ACCEPTED_PREPARE_ADMITTED`
 - Frozen repository candidate: `main@324d80badfa76ad3d1031b797dc600fcde8e6b40`
 - Corrected freeze UTC: `2026-08-16T22:06:31.525Z`
 - Objective: acquire current local-BlueStacks ordinary Daily row evidence, then deliver one exact free row-local Claim without registering or scheduling the handler.
@@ -87,6 +87,19 @@
 - Receipt `d7e12b72-121a-48ff-a8fc-717f2e90e3d0` sent zero inputs because Tesseract did not extract the stylized top `Quest` title. The same current native frame reliably extracted spatially associated `Daily` + `Quest`, `Alliance` + `Activity`, and `Recom'd` semantics, and independently bound the Daily tab.
 - One bounded recognition repair may replace the brittle title-only gate with current-frame Quest-page semantics requiring the Daily Quest tab pair, Alliance Activity tab pair, and recommendation/list context in their expected relative layout. It must remain negative for unrelated screens, selected Daily, missing/fragmented tab pairs, overlays, and out-of-layout text. The Daily target remains OCR-derived and immediately revalidated.
 - The repaired continuation passed 81 package tests and the five-test focused profile with receipt digest `5e0879e445fa9c365c0f89d04f201d50997fe25b2b6c55125e8e974175ece727`. Independent Terra High recheck `2e730112-4980-4f42-a4d6-60b375618089` accepted with no material findings, and parent integration acceptance is `accepted`.
+- Receipt `3715f787-11f2-4ba2-8048-dc9f098c6797` dispatched exactly one `quest-daily-tab` input and retained selected-Daily terminal frame `runtime/daily-row-reconnaissance-20260816T233831898689Z/frames/0007-quest-daily-tab-poll-04.png`, SHA-256 `7bc93840435f41d274b7b6b12fa863df9d0789924545ef614178b8a62d8882f6`. Ownership released; no resource or combat input occurred.
+- Parent visual inspection accepts that native `800x1280` frame as selected Daily source evidence. It shows Daily Quest points `0`, a positive reset timer, and three fully visible ordinary ready rows with row-local Claim controls.
+- The evidence-bound implementation target is the second visible row only: catalog objective `consume_stamina`, displayed `Consume 20 Stamina (36/20)`, reward `Pts +5`. Progress authorization is `current >= required`, not exact equality. The first Zombie Lair row and third Speedup row are excluded from this canary.
+- The implementation must dynamically rebind the selected Daily state, exact catalog objective text, progress, ordinary row panel, row-local Claim control, points, and reset timer from the current native frame. It must reject Main, milestone chests, `Go`, clipped rows, adjacent Claim controls, duplicate objective candidates, overlays, nonzero/unknown cost surfaces, and any mismatch with `consume_stamina`.
+- Before Claim dispatch, a receipt-bound zero-input prepare mode must retain the raw native frame, source hash, independently measurable row bounds, Claim ROI, OCR/visual semantics, game-day/reset identity, and an annotated full-frame overlay. Parent must visually accept that overlay. Prepare authority cannot dispatch.
+- Exact prepare command:
+  `python scripts/pnsctl.py development-session daily-row-claim --mode prepare --max-inputs 0 --delegated-receipt <RECEIPT_DB> --agent-identity <LUNA_AGENT_ID> --task-id daily-row-claim --flow-id DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION --scenario consume-stamina-row-claim --variant consume-stamina-prepare`
+- Canary mode may then consume one canary receipt bound only to action identity `daily-row-claim:consume_stamina`, action class `reward_claim`, consequence class `ordinary_development`, one total input, zero resource inputs, and zero combat confirmations. It must recapture and revalidate immediately before transport and reserve before dispatch.
+- Exact canary command:
+  `python scripts/pnsctl.py development-session daily-row-claim --mode canary --max-inputs 1 --delegated-receipt <RECEIPT_DB> --agent-identity <LUNA_AGENT_ID> --task-id daily-row-claim --flow-id DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION --scenario consume-stamina-row-claim --variant consume-stamina-canary`
+- Success requires an immediate selected-Daily successor proving the same `consume_stamina` row no longer has a ready Claim or Daily Quest points increased by exactly `5`. Unchanged/ambiguous/wrong-objective successors remain `evidence_required`; no retry.
+- The exact canary tightens this to selected Daily under the same displayed-countdown-derived reset identity and an independently parsed Daily Quest points increase of exactly `5`; row disappearance or OCR absence alone is diagnostic and never success.
+- Validation accepted: 112 affected package tests passed; the focused nine-test profile passed with receipt digest `d3b58ad94c9ab85e35413938c4745de3738415c5237c2c2ebb4bbc91400088f0`. Independent Terra High recheck `f3f6404d-0ce5-44bb-b090-e892681c695a` accepted with no material findings, and parent integration acceptance is `accepted`.
 
 ## Deferred evidence-bound implementation paths
 These paths are candidates only and are not writable under `FROZEN_RECONNAISSANCE`:
@@ -99,6 +112,17 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - `tests/test_gameplay_flow_contracts.py`
 - `tests/test_flow_delivery_daily_row_claim.py`
 - `tests/test_daily_row_claim_bluestacks.py`
+
+## Frozen evidence-bound Claim writable paths
+- Production: `tasks/available_daily_claim.py`
+- Production: `scripts/daily_row_claim_bluestacks.py`
+- Production: `scripts/pnsctl.py`
+- Production: `scripts/bluestacks_native_runtime.py` only for a backward-compatible optional delegated action-class parameter on `tap`; default behavior remains navigation.
+- Tests: `tests/test_available_daily_claim.py`
+- Tests: `tests/test_daily_row_claim_bluestacks.py`
+- Tests: `tests/test_delegated_runtime_receipts.py`
+- Tests: `tests/test_bluestacks_native_runtime.py`
+- No flow registry, queue, catalog, matrix, scheduler, composition, M6, or registration mutation is authorized.
 
 ## Required states and transitions
 - Reconnaissance: `FROZEN_RECONNAISSANCE_REPAIR -> OBSERVER_REPAIRED -> TESTER_ACCEPTED -> PARENT_INTEGRATION_ACCEPTED -> RECONNAISSANCE_RECEIPT_ISSUED -> ZERO_INPUT_OBSERVED -> SOURCE_EVIDENCE_ACCEPTED`.
@@ -172,4 +196,4 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - Stop after any unknown runtime, ownership, transport, evidence, or semantic result; do not retry identically.
 
 ## Next authorized action
-- Commit the reaccepted continuation candidate locally without push, then issue one fresh max-one `quest-daily-continuation` receipt and run it once.
+- Commit the accepted Claim package locally without push, issue one exact zero-input prepare receipt, run prepare once, and visually inspect the annotated immediate source before any canary receipt.

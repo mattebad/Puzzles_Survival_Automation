@@ -1,15 +1,16 @@
 """Offline generalized Daily Quest Claim contract for Phase E.
 
 The passed Personal Might Claim path remains unchanged.  This separate contract models any
-available ordinary Daily Quest Claim and is deliberately not registered for transport until a
-fresh Bliss-native target and positive postcondition pair is promoted.
+available ordinary Daily Quest Claim.  Bliss-native observations retain their historical
+contract, while the evidence-bound BlueStacks path requires current native provenance and a
+catalog-reconciled objective.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 import re
-from typing import Optional
+from typing import Mapping, Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
 from .profile import PROFILE_ID
@@ -18,6 +19,8 @@ from .profile import PROFILE_ID
 DAILY_QUEST_SCREEN = "DAILY_QUEST"
 DAILY_QUEST_CLAIM_TARGET = "daily-quest-claim"
 BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
+BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
+BLUESTACKS_NATIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -50,6 +53,25 @@ class AvailableDailyClaimObservation:
     reset_guard_active: bool = False
     runtime_profile_id: str = PROFILE_ID
     recognized: bool = True
+    points: Optional[int] = None
+    reward_points: Optional[int] = None
+    reset_timer: Optional[str] = None
+    catalog_reconciled: bool = False
+    # These fields are deliberately separate from the legacy cost/quantity
+    # values.  A production recognizer must positively prove the ordinary
+    # reward control rather than treating missing OCR as proof of "free".
+    ordinary_reward_claim: Optional[bool] = None
+    free_control_proven: Optional[bool] = None
+    quantity_one_proven: Optional[bool] = None
+    cost_region_scan: Optional[Mapping[str, object]] = None
+    cost_icon_scan: Optional[Mapping[str, object]] = None
+    row_panel_proven: Optional[bool] = None
+    row_panel_source: str = ""
+    reset_timer_seconds: Optional[int] = None
+    reset_observed_utc: Optional[str] = None
+    reset_deadline_utc: Optional[str] = None
+    reset_deadline_identity: Optional[str] = None
+    reset_deadline_tolerance_seconds: Optional[int] = None
 
 
 def _target_inside_row(observation: AvailableDailyClaimObservation) -> bool:
@@ -73,6 +95,133 @@ def _has_bliss_native_source(observation: AvailableDailyClaimObservation) -> boo
     )
 
 
+def _has_bluestacks_native_source(observation: AvailableDailyClaimObservation) -> bool:
+    """Require a current native BlueStacks source, never a synthetic reference."""
+
+    refs = tuple(str(ref).strip() for ref in observation.evidence_refs)
+    return bool(
+        observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
+        and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
+        and refs
+        and all(ref and "synthetic:" not in ref and "local-reference" not in ref for ref in refs)
+        and observation.runtime_profile_id == BLUESTACKS_NATIVE_RUNTIME_PROFILE_ID
+    )
+
+
+def _positive_free_semantics(observation: AvailableDailyClaimObservation) -> bool:
+    """Require positive control semantics when the recognizer supplies them.
+
+    ``None`` is retained as a compatibility value for the older offline
+    contract fixtures.  The BlueStacks recognizer always supplies explicit
+    booleans, so a false production finding cannot pass through this fallback.
+    """
+
+    if observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE:
+        return bool(
+            observation.ordinary_reward_claim is True
+            and observation.free_control_proven is True
+            and observation.quantity_one_proven is True
+        )
+    return bool(
+        observation.ordinary_reward_claim is not False
+        and observation.free_control_proven is not False
+        and observation.quantity_one_proven is not False
+    )
+
+
+def _cost_scan_is_clear(observation: AvailableDailyClaimObservation) -> bool:
+    scan = observation.cost_region_scan
+    if scan is None:
+        if observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE:
+            return False
+        return observation.cost_icon_scan is None
+    if not isinstance(scan, Mapping):
+        return False
+    clear = bool(
+        scan.get("attached_cost") is not True
+        and scan.get("numeric_only_cost") is not True
+        and scan.get("icon_only_cost") is not True
+        and scan.get("currency_icon") is not True
+        and scan.get("currency_amount") is not True
+    )
+    icon_scan = observation.cost_icon_scan
+    if icon_scan is not None:
+        if not isinstance(icon_scan, Mapping):
+            return False
+        clear = clear and icon_scan.get("currency_icon") is not True
+    return clear
+
+
+def _reset_deadline_identities_match(
+    expected: object,
+    actual: object,
+    *,
+    tolerance_seconds: int,
+) -> bool:
+    if expected == actual:
+        return True
+    if not (
+        isinstance(expected, str)
+        and isinstance(actual, str)
+        and expected.startswith("reset-deadline:")
+        and actual.startswith("reset-deadline:")
+    ):
+        return False
+    try:
+        from datetime import datetime
+
+        expected_utc = datetime.fromisoformat(expected.split(":", 1)[1].replace("Z", "+00:00"))
+        actual_utc = datetime.fromisoformat(actual.split(":", 1)[1].replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    return abs((expected_utc - actual_utc).total_seconds()) <= max(0, tolerance_seconds)
+
+
+def _reset_identity_is_bound(observation: AvailableDailyClaimObservation) -> bool:
+    values = (
+        observation.reset_deadline_identity,
+        observation.reset_deadline_utc,
+        observation.reset_observed_utc,
+        observation.reset_timer_seconds,
+    )
+    if all(value is None for value in values):
+        # Historical pure observations predate deadline evidence.  They still
+        # require the explicit non-empty game-day value below.
+        return observation.target_provenance != BLUESTACKS_NATIVE_TARGET_PROVENANCE
+    if not all(value is not None for value in values):
+        return False
+    return bool(
+        _reset_deadline_identities_match(
+            observation.reset_deadline_identity,
+            observation.game_day_id,
+            tolerance_seconds=observation.reset_deadline_tolerance_seconds or 0,
+        )
+        and isinstance(observation.reset_timer_seconds, int)
+        and observation.reset_timer_seconds > 0
+        and isinstance(observation.reset_deadline_utc, str)
+        and isinstance(observation.reset_observed_utc, str)
+        and isinstance(observation.reset_deadline_tolerance_seconds, int)
+        and observation.reset_deadline_tolerance_seconds >= 0
+    )
+
+
+def _catalog_reconciles_objective(observation: AvailableDailyClaimObservation) -> bool:
+    """Match the observed objective name to the durable Daily catalog key."""
+
+    if observation.catalog_reconciled:
+        return True
+    try:
+        from .catalog import objective_for_text
+
+        catalog_item = objective_for_text(observation.objective_name)
+    except (OSError, ValueError, TypeError):
+        return False
+    return bool(
+        catalog_item is not None
+        and catalog_item.objective_key == observation.objective_key
+    )
+
+
 def available_daily_claim_authorizeable(observation: AvailableDailyClaimObservation) -> bool:
     """Require a generalized, ordinary, free Daily Quest Claim target."""
 
@@ -82,7 +231,7 @@ def available_daily_claim_authorizeable(observation: AvailableDailyClaimObservat
         and bool(observation.objective_key.strip())
         and bool(observation.objective_name.strip())
         and observation.required_progress >= 1
-        and observation.current_progress == observation.required_progress
+        and observation.current_progress >= observation.required_progress
         and observation.row_fully_visible
         and observation.claim_fully_visible
         and observation.target_identity == DAILY_QUEST_CLAIM_TARGET
@@ -90,14 +239,28 @@ def available_daily_claim_authorizeable(observation: AvailableDailyClaimObservat
         and observation.cost_type == "none"
         and observation.cost_amount == 0
         and observation.quantity == 1
+        and _positive_free_semantics(observation)
+        and _cost_scan_is_clear(observation)
+        and (
+            observation.row_panel_proven is True
+            if observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
+            else observation.row_panel_proven is not False
+        )
         and _target_inside_row(observation)
         and not observation.milestone_reward
         and not observation.clipped
         and observation.overlay_state in {"none", "none_observed"}
         and bool(observation.game_day_id)
         and not observation.reset_guard_active
+        and _reset_identity_is_bound(observation)
         and observation.recognized
-        and _has_bliss_native_source(observation)
+        and (
+            _has_bliss_native_source(observation)
+            or (
+                _has_bluestacks_native_source(observation)
+                and _catalog_reconciles_objective(observation)
+            )
+        )
     )
 
 
@@ -117,7 +280,7 @@ def available_daily_claim_transaction_spec(observation: AvailableDailyClaimObser
             "daily_quest_screen",
             "selected_daily_quest",
             "exact_completed_row_local_claim",
-            "bliss_native_target_evidence",
+            "accepted_native_target_evidence",
             "explicit_zero_cost",
             "not_milestone",
         ),
@@ -144,6 +307,54 @@ def available_daily_claim_postcondition_verified(
         or after.game_day_id != before.game_day_id
     ):
         return False
+    if (
+        before.reset_deadline_identity is not None
+        or after.reset_deadline_identity is not None
+    ):
+        if (
+            before.reset_deadline_identity is None
+            or after.reset_deadline_identity is None
+            or not _reset_deadline_identities_match(
+                before.reset_deadline_identity,
+                after.reset_deadline_identity,
+                tolerance_seconds=(
+                    after.reset_deadline_tolerance_seconds
+                    if after.reset_deadline_tolerance_seconds is not None
+                    else before.reset_deadline_tolerance_seconds or 0
+                ),
+            )
+        ):
+            return False
+        tolerance = max(
+            0,
+            int(
+                after.reset_deadline_tolerance_seconds
+                if after.reset_deadline_tolerance_seconds is not None
+                else before.reset_deadline_tolerance_seconds or 0
+            ),
+        )
+        if (
+            before.reset_timer_seconds is None
+            or after.reset_timer_seconds is None
+            or after.reset_timer_seconds - before.reset_timer_seconds > tolerance
+        ):
+            return False
+        if before.reset_observed_utc and after.reset_observed_utc:
+            try:
+                from datetime import datetime
+
+                before_utc = datetime.fromisoformat(
+                    before.reset_observed_utc.replace("Z", "+00:00")
+                )
+                after_utc = datetime.fromisoformat(
+                    after.reset_observed_utc.replace("Z", "+00:00")
+                )
+                elapsed = max(0.0, (after_utc - before_utc).total_seconds())
+                countdown_delta = before.reset_timer_seconds - after.reset_timer_seconds
+                if abs(countdown_delta - elapsed) > tolerance + 1.0:
+                    return False
+            except (TypeError, ValueError):
+                return False
     row_changed = bool(
         row_disappeared
         or after.target_identity != DAILY_QUEST_CLAIM_TARGET

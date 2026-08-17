@@ -1950,6 +1950,449 @@ def development_session_daily_row_reconnaissance(
         raise exc.with_traceback(exc.__traceback__)
 
 
+DAILY_ROW_CLAIM_TASK_ID = "daily-row-claim"
+DAILY_ROW_CLAIM_FLOW_ID = "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
+DAILY_ROW_CLAIM_SCENARIO = "consume-stamina-row-claim"
+DAILY_ROW_CLAIM_PREPARE_VARIANT = "consume-stamina-prepare"
+DAILY_ROW_CLAIM_CANARY_VARIANT = "consume-stamina-canary"
+DAILY_ROW_CLAIM_PREPARE_RESULT_IDENTITY = "daily-row-claim:prepare:consume_stamina"
+DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY = "daily-row-claim:canary:consume_stamina"
+DAILY_ROW_CLAIM_ACTION_IDENTITY = "daily-row-claim:consume_stamina"
+DAILY_ROW_CLAIM_PREPARE_ACTION_IDENTITY = "daily-row-prepare-observation"
+
+
+def _daily_row_claim_spec(mode: str) -> Mapping[str, Any]:
+    if mode == "prepare":
+        return {
+            "mode": mode,
+            "receipt_class": "reconnaissance",
+            "max_inputs": 0,
+            "variant": DAILY_ROW_CLAIM_PREPARE_VARIANT,
+            "action_identities": (DAILY_ROW_CLAIM_PREPARE_ACTION_IDENTITY,),
+            "action_classes": ("observation",),
+            "consequence_class": "navigation_only",
+            "result_identity": DAILY_ROW_CLAIM_PREPARE_RESULT_IDENTITY,
+            "terminal_states": ("observed", "evidence_required"),
+        }
+    if mode == "canary":
+        return {
+            "mode": mode,
+            "receipt_class": "canary",
+            "max_inputs": 1,
+            "variant": DAILY_ROW_CLAIM_CANARY_VARIANT,
+            "action_identities": (DAILY_ROW_CLAIM_ACTION_IDENTITY,),
+            "action_classes": ("reward_claim",),
+            "consequence_class": "ordinary_development",
+            "result_identity": DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY,
+            "terminal_states": ("completed", "evidence_required"),
+        }
+    raise OperatorError("daily row Claim mode is unsupported")
+
+
+def _validate_daily_row_claim_receipt(
+    receipt: Mapping[str, Any],
+    *,
+    mode: str,
+) -> None:
+    spec = _daily_row_claim_spec(mode)
+    expected = {
+        "receipt_class": spec["receipt_class"],
+        "task_id": DAILY_ROW_CLAIM_TASK_ID,
+        "flow_id": DAILY_ROW_CLAIM_FLOW_ID,
+        "scenario": DAILY_ROW_CLAIM_SCENARIO,
+        "variant": spec["variant"],
+        "consequence_class": spec["consequence_class"],
+        "max_total_inputs": spec["max_inputs"],
+        "max_resource_affecting_inputs": 0,
+        "max_combat_confirmations": 0,
+        "permitted_action_identities": list(spec["action_identities"]),
+        "permitted_action_classes": list(spec["action_classes"]),
+        "permitted_terminal_states": list(spec["terminal_states"]),
+    }
+    for field, value in expected.items():
+        actual = receipt.get(field)
+        if field == "permitted_terminal_states":
+            if set(actual or ()) != set(value):
+                raise OperatorError(f"daily row Claim receipt {field} is not frozen")
+        elif actual != value:
+            raise OperatorError(f"daily row Claim receipt {field} is not frozen")
+    expected_bindings = [
+        {
+            "action_identity": identity,
+            "action_class": action_class,
+            "consequence_class": spec["consequence_class"],
+            "resource_affecting": False,
+            "combat_confirmation": False,
+        }
+        for identity, action_class in zip(
+            spec["action_identities"], spec["action_classes"]
+        )
+    ]
+    if receipt.get("action_bindings") != expected_bindings:
+        raise OperatorError("daily row Claim receipt action bindings are not frozen")
+    binding = receipt.get("evidence_result_binding")
+    if not isinstance(binding, Mapping) or binding.get("result_identity") != spec["result_identity"]:
+        raise OperatorError("daily row Claim result identity is not frozen")
+    command = receipt.get("command_argv")
+    expected_prefix = [
+        "development-session",
+        "daily-row-claim",
+        "--mode",
+        mode,
+        "--max-inputs",
+        str(spec["max_inputs"]),
+    ]
+    if (
+        not isinstance(command, list)
+        or len(command) != 18
+        or command[:6] != expected_prefix
+        or command[6] != "--delegated-receipt"
+        or not isinstance(command[7], str)
+        or not command[7]
+        or command[8] != "--agent-identity"
+        or not isinstance(command[9], str)
+        or not command[9]
+        or command[10:12] != ["--task-id", DAILY_ROW_CLAIM_TASK_ID]
+        or command[12:14] != ["--flow-id", DAILY_ROW_CLAIM_FLOW_ID]
+        or command[14:16] != ["--scenario", DAILY_ROW_CLAIM_SCENARIO]
+        or command[16:18] != ["--variant", spec["variant"]]
+    ):
+        raise OperatorError("daily row Claim command shape is not frozen")
+
+
+def _write_daily_row_claim_artifacts(
+    session_directory: Path,
+    payload: Mapping[str, Any],
+    *,
+    ownership_released: bool,
+) -> None:
+    session_directory.mkdir(parents=True, exist_ok=True)
+    result = {**dict(payload), "ownership_released": ownership_released}
+    (session_directory / "result.json").write_text(
+        json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
+    )
+    actions = result.get("actions")
+    summary = {
+        "status": result.get("status"),
+        "receipt_id": result.get("receipt_id"),
+        "receipt_digest": result.get("receipt_digest"),
+        "evidence_result_identity": result.get("evidence_result_identity"),
+        "input_count": result.get("input_count", 0),
+        "action_count": len(actions) if isinstance(actions, list) else 0,
+        "dispatch": bool(result.get("input_count", 0)),
+        "ownership_released": ownership_released,
+        "lifecycle_state_created": False,
+    }
+    claim = result.get("claim")
+    if isinstance(claim, Mapping):
+        for reset_field in (
+            "reset_timer",
+            "reset_timer_seconds",
+            "reset_observed_utc",
+            "reset_deadline_utc",
+            "reset_deadline_identity",
+            "reset_deadline_tolerance_seconds",
+        ):
+            if reset_field in claim:
+                summary[reset_field] = claim[reset_field]
+    if result.get("reason"):
+        summary["blocker"] = result["reason"]
+    (session_directory / "summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _validate_daily_row_claim_artifacts(
+    session_directory: Path,
+    payload: Mapping[str, Any],
+    *,
+    mode: str,
+) -> None:
+    from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+
+    frames = payload.get("frames")
+    if not isinstance(frames, Mapping) or "source" not in frames:
+        raise OperatorError("Daily row Claim source frame is missing")
+    for name, reference in frames.items():
+        if not isinstance(reference, Mapping):
+            raise OperatorError(f"Daily row Claim frame reference is malformed: {name}")
+        path_value = reference.get("path")
+        if not isinstance(path_value, str):
+            raise OperatorError(f"Daily row Claim frame path is missing: {name}")
+        path = (session_directory / path_value).resolve()
+        try:
+            path.relative_to(session_directory.resolve())
+        except ValueError as exc:
+            raise OperatorError("Daily row Claim frame escaped the session") from exc
+        if path.is_symlink() or not path.is_file():
+            raise OperatorError(f"Daily row Claim frame is missing or unsafe: {name}")
+        raw = path.read_bytes()
+        declared = reference.get("sha256")
+        if hashlib.sha256(raw).hexdigest() != declared:
+            raise OperatorError(f"Daily row Claim frame hash mismatch: {name}")
+        captured_native_frame_from_png(
+            raw,
+            captured_monotonic=float(reference.get("captured_monotonic", 0.0)),
+            path=path,
+        )
+    if mode == "prepare":
+        claim = payload.get("claim")
+        if not isinstance(claim, Mapping) or not claim.get("annotated_source"):
+            raise OperatorError("Daily row Claim annotated prepare overlay is missing")
+        required_reset_fields = (
+            "reset_timer",
+            "reset_timer_seconds",
+            "reset_observed_utc",
+            "reset_deadline_utc",
+            "reset_deadline_identity",
+            "reset_deadline_tolerance_seconds",
+        )
+        if any(claim.get(field) is None for field in required_reset_fields):
+            raise OperatorError("Daily row Claim reset deadline evidence is missing")
+        annotated = (session_directory / str(claim["annotated_source"])).resolve()
+        if annotated.is_symlink() or not annotated.is_file() or annotated.stat().st_size == 0:
+            raise OperatorError("Daily row Claim annotated prepare overlay is unsafe")
+    else:
+        actions = payload.get("actions")
+        if not isinstance(actions, list) or len(actions) != 1:
+            raise OperatorError("Daily row Claim canary action count is not one")
+        if payload.get("input_count") != 1:
+            raise OperatorError("Daily row Claim canary input count is not one")
+        if "immediate_before" not in frames or "immediate_post" not in frames:
+            raise OperatorError("Daily row Claim canary immediate evidence is missing")
+        claim = payload.get("claim")
+        if not isinstance(claim, Mapping) or not claim.get("annotated_immediate_before"):
+            raise OperatorError("Daily row Claim annotated immediate-before overlay is missing")
+        required_reset_fields = (
+            "reset_timer",
+            "reset_timer_seconds",
+            "reset_observed_utc",
+            "reset_deadline_utc",
+            "reset_deadline_identity",
+            "reset_deadline_tolerance_seconds",
+        )
+        if any(claim.get(field) is None for field in required_reset_fields):
+            raise OperatorError("Daily row Claim reset deadline evidence is missing")
+        annotated = (session_directory / str(claim["annotated_immediate_before"])).resolve()
+        try:
+            annotated.relative_to(session_directory.resolve())
+        except ValueError as exc:
+            raise OperatorError("Daily row Claim annotated overlay escaped the session") from exc
+        if annotated.is_symlink() or not annotated.is_file() or annotated.stat().st_size == 0:
+            raise OperatorError("Daily row Claim annotated immediate-before overlay is unsafe")
+
+
+def development_session_daily_row_claim(
+    *,
+    mode: str,
+    max_inputs: int,
+    delegated_receipt: Path,
+    agent_identity: str,
+    task_id: str,
+    flow_id: str,
+    scenario: str,
+    variant: str,
+    command_argv: Sequence[str] | None = None,
+) -> str:
+    """Run the receipt-bound zero-input prepare or one-input Claim canary."""
+
+    spec = _daily_row_claim_spec(mode)
+    if max_inputs != spec["max_inputs"]:
+        raise OperatorError(
+            f"daily row Claim {mode} requires --max-inputs {spec['max_inputs']}"
+        )
+    if (
+        task_id != DAILY_ROW_CLAIM_TASK_ID
+        or flow_id != DAILY_ROW_CLAIM_FLOW_ID
+        or scenario != DAILY_ROW_CLAIM_SCENARIO
+        or variant != spec["variant"]
+        or command_argv is None
+    ):
+        raise OperatorError("daily row Claim bindings are not frozen")
+
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    from scripts.daily_row_claim_bluestacks import (
+        run_daily_row_claim_canary,
+        run_daily_row_claim_prepare,
+    )
+    from scripts.flow_delivery_control import DelegatedRuntimeReceiptController
+    from scripts.navigation_development_boundary import (
+        DevelopmentSession,
+        delegated_runtime_context,
+    )
+
+    inspected = DelegatedRuntimeReceiptController(delegated_receipt).inspect()
+    _validate_daily_row_claim_receipt(inspected["receipt"], mode=mode)
+    _controller, receipt, context = _consume_delegated_receipt(
+        delegated_receipt,
+        command_argv=command_argv,
+        agent_identity=agent_identity,
+        task_id=task_id,
+        flow_id=flow_id,
+        receipt_class=spec["receipt_class"],
+        scenario=scenario,
+        variant=variant,
+        max_inputs=spec["max_inputs"],
+    )
+    _validate_daily_row_claim_receipt(receipt, mode=mode)
+
+    invocation_id = f"delegated-{receipt['receipt_id']}"
+    session_directory = _development_session_directory(invocation_id)
+    session: Any | None = None
+    runtime: Any | None = None
+    route_result: dict[str, Any] | None = None
+    terminal_recorded = False
+    # Daily reset authority is bound from the displayed in-game countdown
+    # after the source frame is captured.  A host date is not a game-day
+    # identity and must never authorize this flow.
+    game_day_id: str | None = None
+    reset_identity: str | None = None
+    previous_limit = os.environ.get("PNS_DEVELOPMENT_MAX_INPUTS")
+
+    def base_payload(status: str, reason: str | None = None) -> dict[str, Any]:
+        nonlocal game_day_id, reset_identity
+        payload: dict[str, Any] = {
+            "status": status,
+            "mode": mode,
+            "task_id": task_id,
+            "flow_id": flow_id,
+            "scenario": scenario,
+            "variant": variant,
+            "receipt_id": receipt["receipt_id"],
+            "receipt_digest": receipt["receipt_digest"],
+            "evidence_result_identity": context.result_identity,
+            "session_directory": str(session_directory),
+            "input_count": int(getattr(session, "input_count", 0)),
+            "resource_affecting_inputs": 0,
+            "combat_confirmations": 0,
+            "dispatch": int(getattr(session, "input_count", 0)) > 0,
+            "ownership_released": False,
+            "game_day_id": game_day_id,
+            "reset_identity": reset_identity,
+        }
+        if reason:
+            payload["reason"] = reason
+        if route_result:
+            bound_identity = route_result.get("game_day_id")
+            if isinstance(bound_identity, str) and bound_identity:
+                game_day_id = bound_identity
+                reset_identity = bound_identity
+            payload.update(route_result)
+            payload.update(
+                {
+                    "status": status,
+                    "mode": mode,
+                    "task_id": task_id,
+                    "flow_id": flow_id,
+                    "scenario": scenario,
+                    "variant": variant,
+                    "receipt_id": receipt["receipt_id"],
+                    "receipt_digest": receipt["receipt_digest"],
+                    "evidence_result_identity": context.result_identity,
+                    "session_directory": str(session_directory),
+                    "game_day_id": game_day_id,
+                    "reset_identity": reset_identity,
+                }
+            )
+        if runtime is not None:
+            runtime_session = Path(runtime.session)
+            try:
+                relative = runtime_session.resolve().relative_to(session_directory.resolve())
+                runtime_relative = str(relative).replace("\\", "/")
+            except (OSError, ValueError):
+                runtime_relative = str(runtime_session)
+            payload["runtime_session_directory"] = runtime_relative
+            payload["runtime_events_path"] = f"{runtime_relative}/events.jsonl"
+        return payload
+
+    try:
+        # LocalBlueStacksRuntime uses a positive internal input ceiling even
+        # during the zero-input prepare session; DevelopmentSession remains the
+        # authoritative zero-input boundary.
+        os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = str(max(1, spec["max_inputs"]))
+        with delegated_runtime_context(context):
+            with DevelopmentSession(
+                owner=f"pnsctl-delegated-daily-row-claim:{mode}",
+                invocation_id=invocation_id,
+                session_directory=session_directory,
+                max_inputs=spec["max_inputs"],
+                allow_zero_inputs=mode == "prepare",
+            ) as active_session:
+                session = active_session
+                runtime = LocalBlueStacksRuntime.connect(
+                    adb=str(BLUESTACKS_ADB),
+                    serial=BLUESTACKS_SERIAL,
+                    output_directory=session_directory / "runtime",
+                    workflow="daily-row-claim",
+                    execute=True,
+                )
+                route_result = (
+                    run_daily_row_claim_prepare(
+                        runtime,
+                        active_session,
+                        game_day_id=game_day_id,
+                    )
+                    if mode == "prepare"
+                    else run_daily_row_claim_canary(
+                        runtime,
+                        active_session,
+                        game_day_id=game_day_id,
+                    )
+                )
+                active_session.terminal_status = route_result.get(
+                    "status", "evidence_required"
+                )
+        if previous_limit is None:
+            os.environ.pop("PNS_DEVELOPMENT_MAX_INPUTS", None)
+        else:
+            os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = previous_limit
+        if session is None or session._ownership.lock.held:
+            raise OperatorError("Daily row Claim ownership release is unproven")
+        status = str((route_result or {}).get("status") or "evidence_required")
+        payload = base_payload(status)
+        payload["ownership_released"] = True
+        _write_daily_row_claim_artifacts(
+            session_directory,
+            payload,
+            ownership_released=True,
+        )
+        if status in {"observed", "completed"}:
+            _validate_daily_row_claim_artifacts(
+                session_directory,
+                payload,
+                mode=mode,
+            )
+        context.record_terminal(status=status, payload=payload)
+        terminal_recorded = True
+        return json.dumps(payload, sort_keys=True, default=str)
+    except BaseException as exc:
+        if previous_limit is None:
+            os.environ.pop("PNS_DEVELOPMENT_MAX_INPUTS", None)
+        else:
+            os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = previous_limit
+        ownership_released = not bool(
+            getattr(getattr(getattr(session, "_ownership", None), "lock", None), "held", True)
+        )
+        failure = base_payload(
+            "evidence_required",
+            f"{type(exc).__name__}: {exc}",
+        )
+        failure["ownership_released"] = ownership_released
+        if not terminal_recorded:
+            # Durable controller terminal evidence must be recorded before
+            # fallible JSON/artifact persistence.
+            context.record_terminal(status="evidence_required", payload=failure)
+            terminal_recorded = True
+        _write_daily_row_claim_artifacts(
+            session_directory,
+            failure,
+            ownership_released=ownership_released,
+        )
+        raise
+
+
 def development_session_observe(
     *,
     max_inputs: int = 12,
@@ -5331,6 +5774,15 @@ def parser() -> argparse.ArgumentParser:
     daily_row_recon.add_argument("--flow-id", required=True)
     daily_row_recon.add_argument("--scenario", required=True)
     daily_row_recon.add_argument("--variant", required=True)
+    daily_row_claim = development_sub.add_parser("daily-row-claim")
+    daily_row_claim.add_argument("--mode", choices=("prepare", "canary"), required=True)
+    daily_row_claim.add_argument("--max-inputs", type=int, required=True)
+    daily_row_claim.add_argument("--delegated-receipt", type=Path, required=True)
+    daily_row_claim.add_argument("--agent-identity", required=True)
+    daily_row_claim.add_argument("--task-id", required=True)
+    daily_row_claim.add_argument("--flow-id", required=True)
+    daily_row_claim.add_argument("--scenario", required=True)
+    daily_row_claim.add_argument("--variant", required=True)
     delegated_dry_run = development_sub.add_parser("delegated-dry-run")
     delegated_dry_run.add_argument("--delegated-receipt", type=Path, required=True)
     delegated_dry_run.add_argument("--agent-identity", required=True)
@@ -5666,6 +6118,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             elif args.development_command == "daily-row-reconnaissance":
                 output = development_session_daily_row_reconnaissance(
+                    max_inputs=args.max_inputs,
+                    delegated_receipt=args.delegated_receipt,
+                    agent_identity=args.agent_identity,
+                    task_id=args.task_id,
+                    flow_id=args.flow_id,
+                    scenario=args.scenario,
+                    variant=args.variant,
+                    command_argv=command_argv,
+                )
+            elif args.development_command == "daily-row-claim":
+                output = development_session_daily_row_claim(
+                    mode=args.mode,
                     max_inputs=args.max_inputs,
                     delegated_receipt=args.delegated_receipt,
                     agent_identity=args.agent_identity,

@@ -857,6 +857,59 @@ class ReceiptTests(unittest.TestCase):
                     payload={},
                 )
 
+    def test_daily_claim_canary_reserves_exact_reward_claim_class_once(self) -> None:
+        bindings = [
+            {
+                "action_identity": "daily-row-claim:consume_stamina",
+                "action_class": "reward_claim",
+                "consequence_class": "ordinary_development",
+                "resource_affecting": False,
+                "combat_confirmation": False,
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            controller = self._controller(root)
+            receipt = self._issue(
+                controller,
+                identities=["daily-row-claim:consume_stamina"],
+                classes=["reward_claim"],
+                action_bindings=bindings,
+                consequence_class="ordinary_development",
+                total=1,
+                terminals=["completed", "evidence_required"],
+            )
+            consumed = self._consume(controller, receipt)
+            context = control.DelegatedRuntimeContext(
+                controller, consumed, result_identity="result-a"
+            )
+            reservation = context.reserve_input(
+                action_identity="daily-row-claim:consume_stamina",
+                action_class="reward_claim",
+                consequence_class="ordinary_development",
+                source_evidence_hash="a" * 64,
+                action_key="daily-row-claim:consume_stamina",
+            )
+            self.assertEqual(reservation["ordinal"], 1)
+            connection = controller._connection()
+            try:
+                stored = connection.execute(
+                    "SELECT action_class, consequence_class, status "
+                    "FROM delegated_reservations WHERE receipt_id=?",
+                    (receipt["receipt_id"],),
+                ).fetchone()
+            finally:
+                connection.close()
+            self.assertEqual(tuple(stored), ("reward_claim", "ordinary_development", "reserved"))
+            context.mark_reconciled("daily-row-claim:consume_stamina")
+            with self.assertRaisesRegex(control.FlowDeliveryError, "identical action retry"):
+                context.reserve_input(
+                    action_identity="daily-row-claim:consume_stamina",
+                    action_class="reward_claim",
+                    consequence_class="ordinary_development",
+                    action_key="retry",
+                )
+
 
 def time_now(value: str):
     from datetime import datetime

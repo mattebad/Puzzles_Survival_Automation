@@ -117,6 +117,7 @@ class NativeRuntimePort(Protocol):
         target_identity: str,
         target_roi: NativeBox,
         action_key: str,
+        action_class: str = "navigation",
         consequential: bool = False,
         continuation_of: str | None = None,
     ) -> None: ...
@@ -297,8 +298,11 @@ class LocalBlueStacksRuntime:
         target_roi: NativeBox | None,
         consequential: bool,
         continuation_of: str | None,
+        action_class: str = "navigation",
     ) -> None:
         reject_real_money_confirmation(target_identity, action_key)
+        if not isinstance(action_class, str) or not action_class.strip():
+            raise RuntimeError("action class is required")
         age = time.monotonic() - source.captured_monotonic
         if age < 0 or age > self.frame_max_age_seconds:
             raise RuntimeError("dispatch source frame is stale")
@@ -313,7 +317,11 @@ class LocalBlueStacksRuntime:
         if delegated is not None:
             delegated.reserve_input(
                 action_identity=target_identity,
-                action_class="combat_confirmation" if consequential else "navigation",
+                action_class=(
+                    "combat_confirmation"
+                    if consequential
+                    else action_class
+                ),
                 consequence_class=(
                     "combat_confirmation"
                     if consequential
@@ -351,6 +359,7 @@ class LocalBlueStacksRuntime:
         target_identity: str,
         target_roi: NativeBox,
         action_key: str,
+        action_class: str = "navigation",
         consequential: bool = False,
         continuation_of: str | None = None,
     ) -> None:
@@ -361,6 +370,7 @@ class LocalBlueStacksRuntime:
             target_identity=target_identity,
             target_roi=target_roi,
             consequential=consequential,
+            action_class=action_class,
             continuation_of=continuation_of,
         )
         self._event(
@@ -371,6 +381,7 @@ class LocalBlueStacksRuntime:
                 "target_roi": target_roi,
                 "point": point,
                 "source_sha256": source.sha256,
+                "action_class": action_class,
                 "consequential": consequential,
                 "execute": self.execute,
             },

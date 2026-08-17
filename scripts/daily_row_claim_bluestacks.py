@@ -8,6 +8,8 @@ capture and transport are supplied by ``LocalBlueStacksRuntime``.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 import re
 import time
 from typing import Any, Callable, Mapping, Protocol, Sequence
@@ -16,6 +18,11 @@ import cv2
 import numpy as np
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, NativeBox
+from tasks.available_daily_claim import (
+    AvailableDailyClaimObservation,
+    available_daily_claim_authorizeable,
+)
+from tasks.catalog import objective_for_text
 
 
 NATIVE_WIDTH = 800
@@ -30,6 +37,19 @@ HOME_STATE = "HOME"
 QUEST_STATE = "QUEST"
 DAILY_SELECTED_STATE = "DAILY_SELECTED"
 UNKNOWN_STATE = "UNKNOWN"
+DAILY_CLAIM_STATE = "DAILY_CLAIM_READY"
+DAILY_CLAIM_ACTION_IDENTITY = "daily-row-claim:consume_stamina"
+DAILY_CLAIM_OBJECTIVE_KEY = "consume_stamina"
+DAILY_CLAIM_OBJECTIVE_NAME = "Consume 20 Stamina"
+DAILY_CLAIM_REWARD_POINTS = 5
+BLUESTACKS_TARGET_PROVENANCE = "bluestacks-native"
+BLUESTACKS_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+DAILY_CLAIM_CONSEQUENCE_CLASS = "ordinary_development"
+DAILY_CLAIM_ACTION_CLASS = "reward_claim"
+DAILY_CLAIM_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
+DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
+DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS = 20
+RESET_DEADLINE_TOLERANCE_SECONDS = 2
 
 HOME_QUEST_IDENTITY = "home-quest-entry"
 QUEST_DAILY_IDENTITY = "quest-daily-tab"
@@ -43,6 +63,7 @@ _HOME_WORDS = frozenset({"quest", "world", "hero", "bag", "mail", "alliance", "m
 _OVERLAY_MARKERS = frozenset(
     {"loading", "retry", "cancel", "confirm", "purchase", "payment", "popup", "captcha"}
 )
+_MILESTONE_MARKERS = frozenset({"milestone", "chest"})
 
 
 class DailyRowClaimRecognitionError(RuntimeError):
@@ -62,6 +83,7 @@ class RuntimeLike(Protocol):
         target_identity: str,
         target_roi: NativeBox,
         action_key: str,
+        action_class: str = NAVIGATION_ACTION_CLASS,
         consequential: bool = False,
         continuation_of: str | None = None,
     ) -> None: ...
@@ -697,6 +719,957 @@ def _tab_probe_token(
     return OCRToken(text="tab-probe", roi=roi)
 
 
+def _token_center(token: OCRToken) -> tuple[float, float]:
+    x0, y0, x1, y1 = token.roi
+    return ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
+
+
+def _line_tokens(tokens: Sequence[OCRToken], *, y: float, tolerance: float = 24.0) -> tuple[OCRToken, ...]:
+    return tuple(
+        sorted(
+            (
+                token
+                for token in tokens
+                if abs(_token_center(token)[1] - y) <= tolerance
+            ),
+            key=lambda token: token.roi[0],
+        )
+    )
+
+
+def _line_text(tokens: Sequence[OCRToken]) -> str:
+    return " ".join(token.text for token in sorted(tokens, key=lambda item: item.roi[0])).strip()
+
+
+def _reading_text(tokens: Sequence[OCRToken]) -> str:
+    return " ".join(
+        token.text
+        for token in sorted(tokens, key=lambda item: (item.roi[1], item.roi[0]))
+    ).strip()
+
+
+def _parse_progress(text: str) -> tuple[int, int] | None:
+    match = re.search(r"\(?\s*(\d{1,6})\s*/\s*(\d{1,6})\s*\)?", text)
+    if match is not None:
+        return int(match.group(1)), int(match.group(2))
+    numbers = re.findall(r"\b\d{1,6}\b", text)
+    if len(numbers) >= 2:
+        return int(numbers[-2]), int(numbers[-1])
+    return None
+
+
+def _parse_points(text: str) -> int | None:
+    match = re.search(r"(?:daily\s+quest\s+)?pts?[^0-9]{0,12}(\d{1,6})", text)
+    return int(match.group(1)) if match else None
+
+
+def _parse_reward_points(text: str) -> int | None:
+    match = re.search(r"reward[^0-9+-]*pts?[^0-9+-]*\+?\s*(\d{1,6})", text)
+    return int(match.group(1)) if match else None
+
+
+def _parse_reset_timer(text: str) -> str | None:
+    match = re.search(
+        r"reset\s*(?:time\s*)?[^0-9]*(\d{1,2}:\d{2}:\d{2})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        spaced = re.search(
+            r"reset\s*(?:time\s*)?[^0-9]*(\d{1,2})\s+(\d{2})\s+(\d{2})",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if spaced is not None:
+            value = ":".join(spaced.groups())
+            hours, minutes, seconds = (int(part) for part in value.split(":"))
+            if minutes <= 59 and seconds <= 59 and hours + minutes + seconds > 0:
+                return value
+        return None
+    value = match.group(1)
+    hours, minutes, seconds = (int(part) for part in value.split(":"))
+    if minutes > 59 or seconds > 59 or hours + minutes + seconds <= 0:
+        return None
+    return value
+
+
+def _reset_timer_seconds(value: str | None) -> int | None:
+    if not value:
+        return None
+    try:
+        hours, minutes, seconds = (int(part) for part in value.split(":"))
+    except (AttributeError, TypeError, ValueError):
+        return None
+    if minutes > 59 or seconds > 59 or hours < 0:
+        return None
+    total = hours * 3600 + minutes * 60 + seconds
+    return total if total > 0 else None
+
+
+def _coerce_wall_utc(value: datetime | str | None) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def reset_deadline_evidence(
+    reset_timer: str,
+    *,
+    observed_utc: datetime | str | None = None,
+    tolerance_seconds: int = RESET_DEADLINE_TOLERANCE_SECONDS,
+) -> dict[str, Any] | None:
+    """Resolve a displayed countdown to a stable, evidence-bound deadline."""
+
+    seconds = _reset_timer_seconds(reset_timer)
+    if seconds is None or tolerance_seconds < 0:
+        return None
+    observed = _coerce_wall_utc(observed_utc)
+    # The game display is second-granular.  Flooring the observed wall time
+    # makes consecutive frames with a decrementing timer resolve identically.
+    normalized = (observed + timedelta(seconds=seconds)).replace(microsecond=0)
+    deadline = normalized.isoformat().replace("+00:00", "Z")
+    identity = f"reset-deadline:{deadline}"
+    return {
+        "displayed_timer": reset_timer,
+        "reset_timer_seconds": seconds,
+        "observed_utc": observed.isoformat().replace("+00:00", "Z"),
+        "normalized_deadline_utc": deadline,
+        "deadline_identity": identity,
+        "tolerance_seconds": int(tolerance_seconds),
+    }
+
+
+def _reset_deadline_identities_match(
+    expected: object,
+    actual: object,
+    *,
+    tolerance_seconds: int,
+) -> bool:
+    if expected == actual:
+        return True
+    if not (
+        isinstance(expected, str)
+        and isinstance(actual, str)
+        and expected.startswith("reset-deadline:")
+        and actual.startswith("reset-deadline:")
+    ):
+        return False
+    try:
+        expected_utc = _coerce_wall_utc(expected.split(":", 1)[1])
+        actual_utc = _coerce_wall_utc(actual.split(":", 1)[1])
+    except (TypeError, ValueError):
+        return False
+    return abs((expected_utc - actual_utc).total_seconds()) <= max(0, tolerance_seconds)
+
+
+def _selected_daily_visual_context(
+    frame: np.ndarray,
+    tokens: Sequence[OCRToken],
+) -> tuple[bool, dict[str, Any]]:
+    """Prove the center Daily tab from current geometry and neighboring labels."""
+
+    top_tokens = tuple(
+        token for token in tokens if _token_center(token)[1] <= 230
+    )
+    daily = [
+        token for token in top_tokens if token.text in {"daily", "daily quest"}
+    ]
+    main = [
+        token
+        for token in top_tokens
+        if token.text in {"main", "main quest", "quest"}
+    ]
+    alliance = [
+        token
+        for token in top_tokens
+        if token.text in {"alliance", "alliance activity"}
+    ]
+    activity = [token for token in top_tokens if token.text == "activity"]
+    details: dict[str, Any] = {
+        "daily_candidates": tuple(token.roi for token in daily),
+        "main_candidates": tuple(token.roi for token in main),
+        "alliance_candidates": tuple(token.roi for token in alliance),
+        "activity_candidates": tuple(token.roi for token in activity),
+        "title_ocr_present": bool(daily),
+    }
+    main_token = max(main, key=lambda token: token.roi[2]) if main else None
+    alliance_token = min(alliance, key=lambda token: token.roi[0]) if alliance else None
+    if alliance_token is None and activity:
+        alliance_token = min(activity, key=lambda token: token.roi[0])
+
+    daily_token = daily[0] if len(daily) == 1 else None
+    if main_token is None or alliance_token is None:
+        details["reason"] = "main-alliance-daily-context-is-missing"
+        return False, details
+    main_center = _token_center(main_token)
+    alliance_center = _token_center(alliance_token)
+    if not main_center[0] < alliance_center[0]:
+        details["reason"] = "main-alliance-context-order-is-invalid"
+        return False, details
+
+    if daily_token is not None:
+        daily_center = _token_center(daily_token)
+        geometry_proven = bool(
+            main_center[0] < daily_center[0] < alliance_center[0]
+            and abs(daily_center[1] - main_center[1]) <= 75
+            and abs(daily_center[1] - alliance_center[1]) <= 75
+        )
+        daily_score = _tab_visual_score(frame, daily_token)
+        main_score = _tab_visual_score(frame, main_token)
+        selected_by_geometry = bool(
+            geometry_proven
+            and daily_score >= 0.12
+            and daily_score >= main_score + 0.015
+        )
+        details["daily_center"] = (round(daily_center[0], 3), round(daily_center[1], 3))
+        details.update(
+            {
+                "daily_tab_score": daily_score,
+                "main_tab_score": main_score,
+                "selected_margin": round(daily_score - main_score, 6),
+            }
+        )
+    else:
+        # If the stylized Daily title is missed, use the current frame's center
+        # tab between the positively associated Main and Alliance labels.
+        center_x = (main_token.roi[2] + alliance_token.roi[0]) / 2.0
+        y0 = max(45, min(main_token.roi[1], alliance_token.roi[1]) - 18)
+        y1 = min(150, max(main_token.roi[3], alliance_token.roi[3]) + 32)
+        center_roi = _clamp_roi((int(main_token.roi[2]), y0, int(alliance_token.roi[0]), y1))
+        if center_roi is None:
+            details["reason"] = "center-daily-tab-geometry-is-invalid"
+            return False, details
+        cx0, cy0, cx1, cy1 = center_roi
+        left_roi = _clamp_roi((max(0, cx0 - max(20, cx1 - cx0)), cy0, cx0, cy1))
+        right_roi = _clamp_roi((cx1, cy0, min(NATIVE_WIDTH, cx1 + max(20, cx1 - cx0)), cy1))
+
+        def score(roi: NativeBox | None) -> float:
+            if roi is None:
+                return 0.0
+            x0, y0, x1, y1 = roi
+            patch = frame[y0:y1, x0:x1]
+            if patch.size == 0:
+                return 0.0
+            hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
+            red = np.asarray(patch[:, :, 2], dtype=np.float32)
+            blue = np.asarray(patch[:, :, 0], dtype=np.float32)
+            return float(np.mean(hsv[:, :, 1]) / 255.0 + np.mean(red - blue) / 255.0)
+
+        center_score = score(center_roi)
+        left_score = score(left_roi)
+        right_score = score(right_roi)
+        selected_by_geometry = bool(
+            center_score >= max(left_score, right_score) + 0.02
+        )
+        details.update(
+            {
+                "daily_center": (round(center_x, 3), round((cy0 + cy1) / 2.0, 3)),
+                "daily_tab_probe": center_roi,
+                "daily_tab_score": round(center_score, 6),
+                "main_tab_score": round(left_score, 6),
+                "alliance_tab_score": round(right_score, 6),
+            }
+        )
+    details["recognized"] = selected_by_geometry
+    if not selected_by_geometry:
+        details["reason"] = "center-daily-tab-selection-not-proven"
+    return selected_by_geometry, details
+
+
+def _visual_claim_button_candidates(
+    frame: np.ndarray,
+    *,
+    row_y: float,
+    minimum_x: int,
+) -> tuple[NativeBox, ...]:
+    """Find current-frame orange Claim button bodies in a measured row panel."""
+
+    y0 = max(0, int(row_y) - 180)
+    y1 = min(NATIVE_HEIGHT, int(row_y) + 180)
+    x0 = max(0, int(minimum_x))
+    patch = frame[y0:y1, x0:NATIVE_WIDTH]
+    if patch.size == 0:
+        return ()
+    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, (0, 50, 80), (40, 255, 255))
+    count, _labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    candidates: list[NativeBox] = []
+    for component in range(1, count):
+        left, top, width, height, area = (int(value) for value in stats[component])
+        if width < 80 or height < 28 or area < 1000:
+            continue
+        candidates.append((x0 + left, y0 + top, x0 + left + width, y0 + top + height))
+    return tuple(candidates)
+
+
+def _horizontal_separator_rows(frame: np.ndarray) -> tuple[int, ...]:
+    """Return long current-frame horizontal panel edges."""
+
+    if frame.size == 0:
+        return ()
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 140)
+    counts = np.count_nonzero(edges, axis=1)
+    threshold = max(160, int(round(frame.shape[1] * 0.42)))
+    rows = np.flatnonzero(counts >= threshold)
+    if rows.size == 0:
+        return ()
+    groups: list[list[int]] = [[int(rows[0])]]
+    for row in rows[1:]:
+        if int(row) <= groups[-1][-1] + 4:
+            groups[-1].append(int(row))
+        else:
+            groups.append([int(row)])
+    return tuple(int(round(sum(group) / len(group))) for group in groups)
+
+
+def _measure_daily_row_panel(
+    frame: np.ndarray,
+    *,
+    anchor_y: float,
+    evidence_tokens: Sequence[OCRToken],
+) -> dict[str, Any] | None:
+    """Measure one row panel from current pixels, never from Claim proximity."""
+
+    if not evidence_tokens:
+        return None
+    separators = _horizontal_separator_rows(frame)
+    anchor = int(round(anchor_y))
+    above = [row for row in separators if 320 < row < anchor - 18]
+    below = [row for row in separators if anchor + 18 < row < min(NATIVE_HEIGHT, anchor + 240)]
+    if above and below:
+        if (
+            len(above) > 1
+            and above[-1] - above[-2] < 30
+            or len(below) > 1
+            and below[1] - below[0] < 30
+        ):
+            return None
+        top = max(above) + 2
+        bottom = min(below) - 2
+        source = "visual-horizontal-separators"
+        proven = True
+    else:
+        # A panel may have a filled background without a crisp edge.  Require
+        # broad support across the frame and measure its contiguous vertical
+        # run around the objective evidence.
+        y0 = max(320, min(token.roi[1] for token in evidence_tokens) - 24)
+        y1 = min(NATIVE_HEIGHT, max(token.roi[3] for token in evidence_tokens) + 24)
+        support = np.count_nonzero(np.any(frame[y0:y1] != 0, axis=2), axis=1)
+        broad = support >= int(round(frame.shape[1] * 0.45))
+        if broad.size and bool(np.any(broad)):
+            indexes = np.flatnonzero(broad)
+            containing = indexes[
+                (indexes >= max(0, anchor - y0 - 24))
+                & (indexes <= min(broad.size - 1, anchor - y0 + 24))
+            ]
+            if containing.size:
+                start = int(containing[0])
+                end = int(containing[-1])
+                while start > 0 and broad[start - 1]:
+                    start -= 1
+                while end + 1 < broad.size and broad[end + 1]:
+                    end += 1
+                top, bottom = y0 + start, y0 + end + 1
+                source = "visual-background-support"
+                proven = True
+            else:
+                top = bottom = 0
+                source = "unproven"
+                proven = False
+        else:
+            top = bottom = 0
+            source = "unproven"
+            proven = False
+
+    if not (0 <= top < bottom <= NATIVE_HEIGHT):
+        return None
+    token_x0 = max(0, min(token.roi[0] for token in evidence_tokens) - 18)
+    token_x1 = min(NATIVE_WIDTH, max(token.roi[2] for token in evidence_tokens) + 18)
+    if token_x0 >= token_x1:
+        return None
+    # If only a long horizontal separator proves the panel, its horizontal
+    # extent is the native content frame.  A filled background is narrowed
+    # below only when broad current pixels independently expose its edges.
+    panel_x0, panel_x1 = token_x0, token_x1
+    if source == "visual-horizontal-separators":
+        panel_edges = cv2.Canny(
+            cv2.cvtColor(frame[top:bottom], cv2.COLOR_BGR2GRAY),
+            50,
+            140,
+        )
+        column_counts = np.count_nonzero(panel_edges, axis=0)
+        columns = np.flatnonzero(
+            column_counts >= max(24, int(round((bottom - top) * 0.35)))
+        )
+        if columns.size:
+            groups: list[list[int]] = [[int(columns[0])]]
+            for column in columns[1:]:
+                if int(column) <= groups[-1][-1] + 2:
+                    groups[-1].append(int(column))
+                else:
+                    groups.append([int(column)])
+            if len(groups) >= 2:
+                panel_x0 = max(0, groups[0][-1] + 2)
+                panel_x1 = min(NATIVE_WIDTH, groups[-1][0] - 1)
+            else:
+                panel_x0, panel_x1 = 0, NATIVE_WIDTH
+    # Current visual panel evidence proves the vertical ownership.  Horizontal
+    # bounds remain a conservative measured content span, and every selected
+    # control must fit fully within it.
+    return {
+        "bounds": (panel_x0, top, panel_x1, bottom),
+        "source": source,
+        "proven": proven,
+        "horizontal_separators": separators,
+    }
+
+
+def _visual_claim_button_evidence(
+    frame: np.ndarray,
+    target: NativeBox,
+) -> dict[str, Any]:
+    """Prove an ordinary rectangular Claim button, not an icon or amount."""
+
+    tx0, ty0, tx1, ty1 = target
+    candidates = _visual_claim_button_candidates(
+        frame,
+        row_y=(ty0 + ty1) / 2.0,
+        minimum_x=max(0, tx0 - 80),
+    )
+    matching = tuple(
+        box
+        for box in candidates
+        if box[0] < tx1 and tx0 < box[2] and box[1] < ty1 and ty0 < box[3]
+    )
+    if len(matching) != 1:
+        return {
+            "recognized": False,
+            "button_class": "unknown",
+            "candidates": matching,
+        }
+    bx0, by0, bx1, by1 = matching[0]
+    width, height = bx1 - bx0, by1 - by0
+    ordinary = bool(width >= 50 and height >= 20 and width / max(1, height) >= 1.2)
+    return {
+        "recognized": ordinary,
+        "button_class": "ordinary_claim_button" if ordinary else "unknown",
+        "button_roi": matching[0],
+        "candidates": matching,
+        "aspect_ratio": round(width / max(1, height), 4),
+    }
+
+
+def _scan_claim_cost_region(
+    frame: np.ndarray,
+    *,
+    panel: NativeBox,
+    target: NativeBox,
+    tokens: Sequence[OCRToken],
+    excluded_tokens: Sequence[OCRToken],
+) -> dict[str, Any]:
+    """Scan only the region attached to the Claim control for cost evidence."""
+
+    px0, py0, px1, py1 = panel
+    tx0, ty0, _tx1, ty1 = target
+    region = _clamp_roi(
+        (
+            max(px0, tx0 - 140),
+            max(py0, ty0 - 24),
+            min(px1, tx0),
+            min(py1, ty1 + 24),
+        )
+    )
+    if region is None:
+        return {
+            "roi": None,
+            "currency_words": (),
+            "numeric_tokens": (),
+            "currency_icon": False,
+            "attached_cost": True,
+            "numeric_only_cost": False,
+            "icon_only_cost": False,
+        }
+    excluded = {token.roi for token in excluded_tokens}
+    currency_words = {
+        "gem",
+        "gems",
+        "diamond",
+        "diamonds",
+        "cost",
+        "purchase",
+        "buy",
+        "usd",
+        "dollar",
+        "price",
+    }
+    rx0, ry0, rx1, ry1 = region
+    attached = [
+        token
+        for token in tokens
+        if token.roi not in excluded
+        and rx0 <= _token_center(token)[0] <= rx1
+        and ry0 <= _token_center(token)[1] <= ry1
+    ]
+    words = tuple(
+        sorted(
+            {
+                word
+                for token in attached
+                for word in token.text.split()
+                if word in currency_words
+            }
+        )
+    )
+    numeric = tuple(
+        sorted(
+            token.text
+            for token in attached
+            if re.fullmatch(r"\d+(?:\.\d+)?", token.text)
+        )
+    )
+    crop = frame[ry0:ry1, rx0:rx1]
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV) if crop.size else np.zeros((0, 0, 3), dtype=np.uint8)
+    saturated = cv2.inRange(hsv, (0, 80, 70), (179, 255, 255)) if crop.size else np.zeros((0, 0), dtype=np.uint8)
+    count, _labels, stats, _ = cv2.connectedComponentsWithStats(saturated, 8)
+    icon_components = []
+    for component in range(1, count):
+        left, top, width, height, area = (int(value) for value in stats[component])
+        if (
+            8 <= width <= 60
+            and 8 <= height <= 60
+            and area >= 30
+            and left > 0
+            and top > 0
+            and left + width < saturated.shape[1]
+            and top + height < saturated.shape[0]
+        ):
+            icon_components.append((rx0 + left, ry0 + top, rx0 + left + width, ry0 + top + height))
+    currency_icon = bool(icon_components)
+    return {
+        "roi": region,
+        "currency_words": words,
+        "numeric_tokens": numeric,
+        "currency_icon": currency_icon,
+        "icon_components": tuple(icon_components),
+        "attached_cost": bool(words or numeric or currency_icon),
+        "numeric_only_cost": bool(numeric and not words),
+        "icon_only_cost": bool(currency_icon and not words and not numeric),
+    }
+
+
+def _daily_claim_semantics(
+    frame: np.ndarray,
+    tokens: Sequence[OCRToken],
+    *,
+    game_day_id: str | None,
+    observed_utc: datetime | str | None = None,
+) -> tuple[FrameRecognition, AvailableDailyClaimObservation | None]:
+    # The caller supplies full-frame tokens, so retain overlay markers from the
+    # same OCR evidence rather than performing a second recognition pass.
+    words = {word for token in tokens for word in token.text.split()}
+    overlay_markers = tuple(sorted(words & _OVERLAY_MARKERS))
+    milestone_markers = tuple(sorted(words & _MILESTONE_MARKERS))
+    selected, selected_visual = _selected_daily_visual_context(frame, tokens)
+    full_text = _reading_text(tokens)
+    points = _parse_points(full_text)
+    reset_timer = _parse_reset_timer(full_text)
+    reset_evidence = (
+        reset_deadline_evidence(reset_timer, observed_utc=observed_utc)
+        if reset_timer is not None
+        else None
+    )
+    deadline_identity = (
+        str(reset_evidence["deadline_identity"])
+        if reset_evidence is not None
+        else None
+    )
+    bound_game_day_id = game_day_id or deadline_identity
+    deadline_bound_to_game_day = bool(
+        deadline_identity is not None
+        and (
+            game_day_id is None
+            or _reset_deadline_identities_match(
+                game_day_id,
+                deadline_identity,
+                tolerance_seconds=(
+                    reset_evidence["tolerance_seconds"] if reset_evidence else 0
+                ),
+            )
+        )
+    )
+    body = tuple(token for token in tokens if _token_center(token)[1] >= 340)
+    objective_tokens = tuple(
+        token
+        for token in body
+        if "consume" in token.text and "stamina" in token.text
+    )
+    # OCR commonly splits the objective into separate words.  Cluster tokens
+    # by row before matching the catalog alias.
+    candidate_lines: list[tuple[OCRToken, ...]] = []
+    for token in sorted(body, key=lambda item: _token_center(item)[1]):
+        center_y = _token_center(token)[1]
+        line = _line_tokens(body, y=center_y, tolerance=14)
+        if line and line not in candidate_lines and "consume" in _line_text(line) and "stamina" in _line_text(line):
+            candidate_lines.append(line)
+    if objective_tokens and not candidate_lines:
+        candidate_lines.append(_line_tokens(body, y=_token_center(objective_tokens[0])[1], tolerance=30))
+
+    visual: dict[str, Any] = {
+        "full_frame_overlay": {
+            "recognized": bool(overlay_markers),
+            "markers": overlay_markers,
+        },
+        "milestone_markers": milestone_markers,
+        "selected_daily_semantics": selected_visual,
+        "selected_daily": selected,
+        "points": points,
+        "reset_timer": reset_timer,
+        "game_day_id": bound_game_day_id,
+        "reset_timer_seconds": (
+            reset_evidence["reset_timer_seconds"]
+            if reset_evidence and deadline_bound_to_game_day
+            else None
+        ),
+        "reset_observed_utc": (
+            reset_evidence["observed_utc"]
+            if reset_evidence and deadline_bound_to_game_day
+            else None
+        ),
+        "reset_deadline_utc": (
+            reset_evidence["normalized_deadline_utc"]
+            if reset_evidence and deadline_bound_to_game_day
+            else None
+        ),
+        "reset_deadline_identity": (
+            deadline_identity if deadline_bound_to_game_day else None
+        ),
+        "reset_deadline_tolerance_seconds": (
+            reset_evidence["tolerance_seconds"]
+            if reset_evidence and deadline_bound_to_game_day
+            else None
+        ),
+        "runtime_profile_id": BLUESTACKS_RUNTIME_PROFILE_ID,
+        "target_provenance": BLUESTACKS_TARGET_PROVENANCE,
+    }
+
+    def failure(reason: str) -> tuple[FrameRecognition, None]:
+        visual["reason"] = reason
+        return (
+            FrameRecognition(
+                UNKNOWN_STATE,
+                False,
+                None,
+                None,
+                full_text,
+                visual,
+                reason,
+                _token_rows(tokens),
+            ),
+            None,
+        )
+
+    if overlay_markers:
+        return failure("full-frame overlay/modal detected")
+    if milestone_markers:
+        return failure("milestone reward is not row-local")
+    if not selected:
+        return failure(selected_visual.get("reason", "selected Daily was not proven"))
+    if points is None:
+        return failure("Daily Quest points were not proven")
+    if reset_timer is None:
+        return failure("positive Daily reset timer was not proven")
+    if reset_evidence is None:
+        return failure("Daily reset deadline identity was not proven")
+    if (
+        isinstance(game_day_id, str)
+        and game_day_id.startswith("reset-deadline:")
+        and not _reset_deadline_identities_match(
+            game_day_id,
+            deadline_identity,
+            tolerance_seconds=(
+                reset_evidence["tolerance_seconds"] if reset_evidence else 0
+            ),
+        )
+    ):
+        return failure("Daily reset deadline identity changed")
+    if len(candidate_lines) > 1:
+        return failure("duplicate consume_stamina objective candidates")
+
+    # A selected-Daily successor can remain semantically recognized after the
+    # claimed row disappears.  It is useful for postcondition polling but never
+    # authorizes a new input.
+    if not candidate_lines:
+        visual.update({"claim_ready": False, "same_objective_present": False})
+        return (
+            FrameRecognition(
+                DAILY_SELECTED_STATE,
+                True,
+                None,
+                None,
+                full_text,
+                visual,
+                None,
+                _token_rows(tokens),
+            ),
+            None,
+        )
+
+    objective_line = candidate_lines[0]
+    objective_text = _line_text(objective_line)
+    progress = _parse_progress(objective_text)
+    if progress is None:
+        nearby = _line_tokens(body, y=_token_center(objective_line[0])[1], tolerance=36)
+        progress = _parse_progress(_line_text(nearby))
+    if progress is None:
+        return failure("consume_stamina progress is not exact and spatially bound")
+    current_progress, required_progress = progress
+    clean_name = re.sub(
+        r"\s*\(?\s*\d{1,6}\s*/\s*\d{1,6}\s*\)?\s*$",
+        "",
+        objective_text,
+    ).strip()
+    clean_name = re.sub(r"\s+\d{1,6}\s+\d{1,6}\s*$", "", clean_name).strip()
+    catalog_item = objective_for_text(clean_name)
+    if (
+        catalog_item is None
+        or catalog_item.objective_key != DAILY_CLAIM_OBJECTIVE_KEY
+        or clean_name.casefold() != DAILY_CLAIM_OBJECTIVE_NAME.casefold()
+    ):
+        return failure("objective is not the catalog-reconciled consume_stamina row")
+    if current_progress < required_progress or required_progress != 20:
+        # Recognize the page, but do not expose a claim target for an incomplete
+        # or wrong-quantity row.
+        visual.update(
+            {
+                "claim_ready": False,
+                "same_objective_present": True,
+                "objective_key": catalog_item.objective_key,
+                "objective_name": clean_name,
+                "current_progress": current_progress,
+                "required_progress": required_progress,
+            }
+        )
+        return (
+            FrameRecognition(
+                DAILY_SELECTED_STATE,
+                True,
+                None,
+                None,
+                full_text,
+                visual,
+                "consume_stamina row is not ready",
+                _token_rows(tokens),
+            ),
+            None,
+        )
+
+    row_y = _token_center(objective_line[0])[1]
+    reward_lines: list[tuple[OCRToken, ...]] = []
+    for token in body:
+        center_y = _token_center(token)[1]
+        line = _line_tokens(body, y=center_y, tolerance=14)
+        line_text = _line_text(line)
+        selected_line = tuple(
+            item
+            for item in line
+            if "reward" in item.text
+            or "pts" in item.text
+            or item.text in {"5", "+5"}
+        )
+        if (
+            selected_line
+            and selected_line not in reward_lines
+            and center_y > row_y + 14
+            and center_y <= row_y + 130
+            and "reward" in line_text
+            and "pts" in line_text
+        ):
+            reward_lines.append(selected_line)
+    if len(reward_lines) != 1:
+        return failure("row-local reward points were not uniquely proven")
+    reward_tokens = reward_lines[0]
+    reward_text = _normalize_text(_line_text(reward_tokens))
+    exact_reward = bool(
+        re.fullmatch(r"reward\s+pts\s+\+?5", reward_text)
+        or re.fullmatch(r"reward\s+pts\s+5", reward_text)
+    )
+    reward_points = _parse_reward_points(_line_text(reward_tokens))
+    if not exact_reward or reward_points != DAILY_CLAIM_REWARD_POINTS:
+        return failure("consume_stamina reward is not exactly Reward: Pts +5")
+
+    evidence_tokens = tuple(objective_line) + tuple(reward_tokens)
+    panel_geometry = _measure_daily_row_panel(
+        frame,
+        anchor_y=row_y,
+        evidence_tokens=evidence_tokens,
+    )
+    if panel_geometry is None or not panel_geometry["proven"]:
+        return failure("current Daily row panel geometry was not independently proven")
+    row_bounds = tuple(panel_geometry["bounds"])
+    if row_bounds[1] <= 340 or row_bounds[3] >= NATIVE_HEIGHT:
+        return failure("consume_stamina row is clipped or in the milestone region")
+    if any(
+        not (
+            row_bounds[0] <= token.roi[0]
+            and token.roi[2] <= row_bounds[2]
+            and row_bounds[1] <= token.roi[1]
+            and token.roi[3] <= row_bounds[3]
+        )
+        for token in evidence_tokens
+    ):
+        return failure("objective or reward evidence escaped the measured row panel")
+
+    objective_x0 = min(token.roi[0] for token in objective_line)
+    objective_x1 = max(token.roi[2] for token in objective_line)
+    all_claim_tokens = tuple(
+        token
+        for token in body
+        if token.text == "claim"
+        and _token_center(token)[0] > objective_x1
+    )
+    if len(all_claim_tokens) != 1:
+        return failure("Claim is missing, duplicated, or adjacent to the target row")
+    claim_token = all_claim_tokens[0]
+    tx0, ty0, tx1, ty1 = claim_token.roi
+    claim_roi = _clamp_roi((tx0 - 45, ty0 - 25, tx1 + 45, ty1 + 25))
+    if claim_roi is None:
+        return failure("Claim target geometry is outside native bounds")
+    if not (
+        row_bounds[0] <= claim_roi[0]
+        and claim_roi[2] <= row_bounds[2]
+        and row_bounds[1] <= claim_roi[1]
+        and claim_roi[3] <= row_bounds[3]
+    ):
+        return failure("Claim control is outside or straddles the measured row panel")
+    target_roi = claim_roi
+    button_evidence = _visual_claim_button_evidence(frame, target_roi)
+    if not button_evidence["recognized"]:
+        return failure("ordinary Daily Claim button visual class was not proven")
+    cost_scan = _scan_claim_cost_region(
+        frame,
+        panel=row_bounds,
+        target=target_roi,
+        tokens=tokens,
+        excluded_tokens=tuple(objective_line) + tuple(reward_tokens) + (claim_token,),
+    )
+    if cost_scan["attached_cost"]:
+        return failure("Claim control has an attached currency, amount, or purchase surface")
+    ordinary_reward_claim = bool(
+        selected
+        and exact_reward
+        and button_evidence["button_class"] == "ordinary_claim_button"
+    )
+    if not ordinary_reward_claim:
+        return failure("ordinary Daily reward Claim semantics were not positively proven")
+    free_control_proven = bool(
+        not cost_scan["attached_cost"]
+        and not cost_scan["currency_icon"]
+        and not cost_scan["numeric_tokens"]
+    )
+    quantity_one_proven = True
+    if not free_control_proven:
+        return failure("free Claim control semantics were not positively proven")
+
+    observation = AvailableDailyClaimObservation(
+        screen_state="DAILY_QUEST",
+        selected_daily_quest=True,
+        objective_key=DAILY_CLAIM_OBJECTIVE_KEY,
+        objective_name=clean_name,
+        current_progress=current_progress,
+        required_progress=required_progress,
+        row_bounds=row_bounds,
+        target_identity="daily-quest-claim",
+        target_roi=target_roi,
+        control_class="CLAIM",
+        row_fully_visible=True,
+        claim_fully_visible=True,
+        cost_type="none",
+        cost_amount=0,
+        quantity=1,
+        game_day_id=bound_game_day_id,
+        target_provenance=BLUESTACKS_TARGET_PROVENANCE,
+        source_frame_sha256="",
+        evidence_refs=(),
+        milestone_reward=False,
+        clipped=False,
+        overlay_state="none",
+        reset_guard_active=False,
+        runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+        recognized=True,
+        points=points,
+        reward_points=reward_points,
+        reset_timer=reset_timer,
+        catalog_reconciled=True,
+        ordinary_reward_claim=ordinary_reward_claim,
+        free_control_proven=free_control_proven,
+        quantity_one_proven=quantity_one_proven,
+        cost_region_scan=cost_scan,
+        cost_icon_scan={
+            "currency_icon": bool(cost_scan.get("currency_icon")),
+            "icon_components": cost_scan.get("icon_components", ()),
+        },
+        row_panel_proven=True,
+        row_panel_source=str(panel_geometry["source"]),
+        reset_timer_seconds=visual.get("reset_timer_seconds"),
+        reset_observed_utc=visual.get("reset_observed_utc"),
+        reset_deadline_utc=visual.get("reset_deadline_utc"),
+        reset_deadline_identity=visual.get("reset_deadline_identity"),
+        reset_deadline_tolerance_seconds=visual.get(
+            "reset_deadline_tolerance_seconds"
+        ),
+    )
+    visual.update(
+        {
+            "claim_ready": True,
+            "same_objective_present": True,
+            "objective_key": DAILY_CLAIM_OBJECTIVE_KEY,
+            "objective_name": clean_name,
+            "current_progress": current_progress,
+            "required_progress": required_progress,
+            "reward_points": reward_points,
+            "row_bounds": row_bounds,
+            "row_panel_bounds": row_bounds,
+            "claim_roi": target_roi,
+            "claim_ocr_roi": claim_token.roi,
+            "row_panel_geometry": panel_geometry,
+            "panel_geometry_proven": bool(panel_geometry["proven"]),
+            "row_fully_visible": True,
+            "claim_fully_visible": True,
+            "cost_type": "none",
+            "cost_amount": 0,
+            "quantity": 1,
+            "ordinary_reward_claim": ordinary_reward_claim,
+            "free_control_proven": free_control_proven,
+            "quantity_one_proven": quantity_one_proven,
+            "cost_region_scan": cost_scan,
+            "cost_icon_scan": {
+                "currency_icon": bool(cost_scan.get("currency_icon")),
+                "icon_components": cost_scan.get("icon_components", ()),
+            },
+            "button_evidence": button_evidence,
+            "milestone_reward": False,
+        }
+    )
+    return (
+        FrameRecognition(
+            DAILY_SELECTED_STATE,
+            True,
+            DAILY_CLAIM_ACTION_IDENTITY,
+            target_roi,
+            full_text,
+            visual,
+            None,
+            _token_rows(tokens),
+        ),
+        observation,
+    )
+
+
 class DailyRowClaimRecognizer:
     """Recognize only the three states needed by the frozen route."""
 
@@ -884,6 +1857,49 @@ class DailyRowClaimRecognizer:
 
         return self.recognize_quest(frame)
 
+    def recognize_daily_claim(
+        self,
+        frame: np.ndarray,
+        *,
+        game_day_id: str | None = None,
+        observed_utc: datetime | str | None = None,
+        wall_utc: datetime | str | None = None,
+    ) -> FrameRecognition:
+        """Recognize the exact current-frame consume_stamina Claim row."""
+
+        if not _frame_shape_ok(frame):
+            return FrameRecognition(
+                DAILY_SELECTED_STATE,
+                False,
+                reason="profile_dimensions_mismatch",
+            )
+        tokens = _ocr_tokens(frame, FULL_FRAME_SEARCH_ROI, self._ocr)
+        identity = game_day_id
+        recognition, _observation = _daily_claim_semantics(
+            frame,
+            tokens,
+            game_day_id=identity,
+            observed_utc=observed_utc if observed_utc is not None else wall_utc,
+        )
+        return recognition
+
+    def recognize_daily_row(
+        self,
+        frame: np.ndarray,
+        *,
+        game_day_id: str | None = None,
+        observed_utc: datetime | str | None = None,
+        wall_utc: datetime | str | None = None,
+    ) -> FrameRecognition:
+        """Compatibility alias for the exact Daily row recognizer."""
+
+        return self.recognize_daily_claim(
+            frame,
+            game_day_id=game_day_id,
+            observed_utc=observed_utc,
+            wall_utc=wall_utc,
+        )
+
     def recognize_daily_selected(self, frame: np.ndarray) -> FrameRecognition:
         if not _frame_shape_ok(frame):
             return FrameRecognition(DAILY_SELECTED_STATE, False, reason="profile_dimensions_mismatch")
@@ -949,6 +1965,19 @@ def _ensure_runtime_ready(runtime: RuntimeLike) -> None:
         raise DailyRowClaimRecognitionError("Puzzles & Survival is not the foreground package")
 
 
+def _recognize_daily_claim(
+    recognizer: DailyRowClaimRecognizer | Any,
+    frame: np.ndarray,
+    *,
+    game_day_id: str | None,
+    wall_utc: Callable[[], datetime] | None = None,
+) -> FrameRecognition:
+    kwargs: dict[str, Any] = {"game_day_id": game_day_id}
+    if wall_utc is not None and hasattr(recognizer, "_ocr"):
+        kwargs["observed_utc"] = wall_utc() if wall_utc is not None else None
+    return recognizer.recognize_daily_claim(frame, **kwargs)
+
+
 def _require_recognition(
     recognition: FrameRecognition,
     *,
@@ -975,6 +2004,167 @@ def _frame_ref(frame: CapturedNativeFrame, session_directory: Any) -> dict[str, 
         "sha256": frame.sha256,
         "captured_monotonic": frame.captured_monotonic,
     }
+
+
+def daily_claim_observation_from_recognition(
+    recognition: FrameRecognition,
+    *,
+    source_frame_sha256: str,
+    evidence_ref: str,
+    game_day_id: str | None,
+) -> AvailableDailyClaimObservation | None:
+    """Project one current-frame recognition into the offline claim contract."""
+
+    evidence = dict(recognition.visual_evidence or {})
+    if not evidence.get("selected_daily"):
+        return None
+    row_bounds = evidence.get("row_bounds") or (0, 0, 1, 1)
+    target_roi = evidence.get("claim_roi") or (0, 0, 1, 1)
+    if not (
+        isinstance(row_bounds, (tuple, list))
+        and len(row_bounds) == 4
+        and isinstance(target_roi, (tuple, list))
+        and len(target_roi) == 4
+    ):
+        return None
+    bound_game_day_id = str(game_day_id or evidence.get("game_day_id") or "")
+    return AvailableDailyClaimObservation(
+        screen_state="DAILY_QUEST",
+        selected_daily_quest=True,
+        objective_key=str(evidence.get("objective_key") or ""),
+        objective_name=str(evidence.get("objective_name") or ""),
+        current_progress=int(evidence.get("current_progress") or 0),
+        required_progress=int(evidence.get("required_progress") or 0),
+        row_bounds=tuple(int(value) for value in row_bounds),
+        target_identity="daily-quest-claim" if evidence.get("claim_ready") else "",
+        target_roi=tuple(int(value) for value in target_roi),
+        control_class="CLAIM" if evidence.get("claim_ready") else "",
+        row_fully_visible=bool(evidence.get("row_fully_visible")),
+        claim_fully_visible=bool(evidence.get("claim_fully_visible")),
+        cost_type=str(evidence.get("cost_type") or "unknown"),
+        cost_amount=evidence.get("cost_amount"),
+        quantity=int(evidence.get("quantity") or 0) if evidence.get("quantity") is not None else None,
+        game_day_id=bound_game_day_id,
+        target_provenance=BLUESTACKS_TARGET_PROVENANCE,
+        source_frame_sha256=source_frame_sha256,
+        evidence_refs=(evidence_ref,),
+        milestone_reward=bool(evidence.get("milestone_reward")),
+        clipped=not bool(evidence.get("row_fully_visible")),
+        overlay_state="none" if not evidence.get("full_frame_overlay", {}).get("recognized") else "unknown",
+        reset_guard_active=False,
+        runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+        recognized=bool(recognition.recognized),
+        points=evidence.get("points"),
+        reward_points=evidence.get("reward_points"),
+        reset_timer=evidence.get("reset_timer"),
+        catalog_reconciled=bool(evidence.get("objective_key") == DAILY_CLAIM_OBJECTIVE_KEY),
+        ordinary_reward_claim=evidence.get("ordinary_reward_claim"),
+        free_control_proven=evidence.get("free_control_proven"),
+        quantity_one_proven=evidence.get("quantity_one_proven"),
+        cost_region_scan=evidence.get("cost_region_scan"),
+        cost_icon_scan=evidence.get("cost_icon_scan"),
+        row_panel_proven=evidence.get("row_panel_geometry", {}).get("proven")
+        if isinstance(evidence.get("row_panel_geometry"), Mapping)
+        else None,
+        row_panel_source=str(
+            evidence.get("row_panel_geometry", {}).get("source") or ""
+        )
+        if isinstance(evidence.get("row_panel_geometry"), Mapping)
+        else "",
+        reset_timer_seconds=evidence.get("reset_timer_seconds"),
+        reset_observed_utc=evidence.get("reset_observed_utc"),
+        reset_deadline_utc=evidence.get("reset_deadline_utc"),
+        reset_deadline_identity=evidence.get("reset_deadline_identity"),
+        reset_deadline_tolerance_seconds=evidence.get(
+            "reset_deadline_tolerance_seconds"
+        ),
+    )
+
+
+def daily_claim_postcondition_verified(
+    before: FrameRecognition,
+    after: FrameRecognition | None,
+    *,
+    game_day_id: str,
+) -> bool:
+    """Require selected Daily plus an independently proven exact +5 points delta."""
+
+    before_evidence = dict(before.visual_evidence or {})
+    after_evidence = dict((after.visual_evidence if after is not None else {}) or {})
+    if (
+        not before.recognized
+        or before.state != DAILY_SELECTED_STATE
+        or before.target_identity != DAILY_CLAIM_ACTION_IDENTITY
+        or before_evidence.get("selected_daily") is not True
+        or after is None
+        or not after.recognized
+        or after.state != DAILY_SELECTED_STATE
+        or after_evidence.get("selected_daily") is not True
+        or before_evidence.get("game_day_id") != game_day_id
+        or after_evidence.get("game_day_id") != game_day_id
+        or after_evidence.get("reset_timer") is None
+        or bool(after_evidence.get("full_frame_overlay", {}).get("recognized"))
+    ):
+        return False
+    before_deadline = before_evidence.get("reset_deadline_identity")
+    after_deadline = after_evidence.get("reset_deadline_identity")
+    if (
+        not isinstance(before_deadline, str)
+        or not isinstance(after_deadline, str)
+        or not _reset_deadline_identities_match(
+            before_deadline,
+            after_deadline,
+            tolerance_seconds=RESET_DEADLINE_TOLERANCE_SECONDS,
+        )
+        or not _reset_deadline_identities_match(
+            before_deadline,
+            game_day_id,
+            tolerance_seconds=RESET_DEADLINE_TOLERANCE_SECONDS,
+        )
+    ):
+        return False
+    before_seconds = before_evidence.get("reset_timer_seconds")
+    after_seconds = after_evidence.get("reset_timer_seconds")
+    if not isinstance(before_seconds, int) or not isinstance(after_seconds, int):
+        return False
+    tolerance = max(
+        0,
+        int(
+            after_evidence.get("reset_deadline_tolerance_seconds")
+            or before_evidence.get("reset_deadline_tolerance_seconds")
+            or RESET_DEADLINE_TOLERANCE_SECONDS
+        ),
+    )
+    # A countdown may stay on the same displayed second briefly, but it
+    # must never jump forward.  This explicitly rejects 00:00:02 ->
+    # 23:59:58 at rollover even when the successor remains otherwise
+    # plausible.
+    if after_seconds - before_seconds > tolerance:
+        return False
+    before_observed = before_evidence.get("reset_observed_utc")
+    after_observed = after_evidence.get("reset_observed_utc")
+    if not isinstance(before_observed, str) or not isinstance(after_observed, str):
+        return False
+    try:
+        before_utc = _coerce_wall_utc(before_observed)
+        after_utc = _coerce_wall_utc(after_observed)
+        elapsed = max(0.0, (after_utc - before_utc).total_seconds())
+    except (TypeError, ValueError):
+        return False
+    if abs((before_seconds - after_seconds) - elapsed) > tolerance + 1.0:
+        return False
+    if after_evidence.get("objective_key") != DAILY_CLAIM_OBJECTIVE_KEY:
+        return False
+    before_points = before_evidence.get("points")
+    after_points = after_evidence.get("points")
+    if (
+        not isinstance(before_points, int)
+        or isinstance(before_points, bool)
+        or not isinstance(after_points, int)
+        or isinstance(after_points, bool)
+    ):
+        return False
+    return after_points == before_points + DAILY_CLAIM_REWARD_POINTS
 
 
 def _failure(
@@ -1413,5 +2603,460 @@ def run_quest_daily_continuation(
             frames=frames,
             recognitions=recognitions,
             polls=polls,
+        )
+
+
+def _claim_frame_label_map(label: str) -> str | None:
+    if label == "daily-row-claim-source":
+        return "source"
+    if label in {
+        "daily-row-claim-immediate-before",
+        f"{DAILY_CLAIM_ACTION_IDENTITY}-immediate-before",
+    }:
+        return "immediate_before"
+    if label in {
+        "daily-row-claim-immediate-post",
+        f"{DAILY_CLAIM_ACTION_IDENTITY}-immediate-post",
+    }:
+        return "immediate_post"
+    if label.startswith("daily-row-claim-poll-"):
+        return f"poll_{label.rsplit('-', 1)[-1]}"
+    return None
+
+
+def _annotate_daily_claim_frame(
+    frame: CapturedNativeFrame,
+    *,
+    row_bounds: NativeBox,
+    target_roi: NativeBox,
+    output: Any,
+) -> None:
+    image = frame.frame.copy()
+    rx0, ry0, rx1, ry1 = row_bounds
+    tx0, ty0, tx1, ty1 = target_roi
+    cv2.rectangle(image, (rx0, ry0), (rx1 - 1, ry1 - 1), (255, 180, 0), 3)
+    cv2.rectangle(image, (tx0, ty0), (tx1 - 1, ty1 - 1), (0, 255, 0), 3)
+    cv2.putText(
+        image,
+        DAILY_CLAIM_OBJECTIVE_KEY,
+        (max(4, rx0), max(22, ry0 - 6)),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
+        (0, 255, 0),
+        2,
+        cv2.LINE_AA,
+    )
+    ok, encoded = cv2.imencode(".png", image)
+    if not ok:
+        raise DailyRowClaimRecognitionError("annotated target overlay encoding failed")
+    output.write_bytes(encoded.tobytes())
+
+
+def _claim_result(
+    *,
+    status: str,
+    reason: str,
+    session: SessionLike,
+    frames: Mapping[str, CapturedNativeFrame],
+    recognitions: Mapping[str, FrameRecognition],
+    polls: Sequence[Mapping[str, Any]],
+    game_day_id: str,
+    mode: str,
+    claim: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "status": status,
+        "mode": mode,
+        "reason": reason,
+        "input_count": int(session.input_count),
+        "resource_affecting_inputs": 0,
+        "combat_confirmations": 0,
+        "game_day_id": game_day_id,
+        "frames": {
+            name: _frame_ref(frame, session.session_directory)
+            for name, frame in frames.items()
+        },
+        "recognitions": {
+            name: recognition.as_dict()
+            for name, recognition in recognitions.items()
+        },
+        "polls": [dict(item) for item in polls],
+        "actions": [dict(item) for item in session.actions],
+    }
+    if claim is not None:
+        payload["claim"] = dict(claim)
+    return payload
+
+
+def run_daily_row_claim_prepare(
+    runtime: RuntimeLike,
+    session: SessionLike,
+    *,
+    game_day_id: str | None = None,
+    recognizer: DailyRowClaimRecognizer | Any | None = None,
+    wall_utc: Callable[[], datetime] | None = None,
+) -> dict[str, Any]:
+    """Capture and annotate one zero-input native BlueStacks Claim target."""
+
+    recognizer = recognizer or DailyRowClaimRecognizer()
+    if game_day_id is None and not hasattr(recognizer, "_ocr"):
+        # Test doubles predating reset-deadline evidence cannot derive pixels;
+        # keep their deterministic contract explicit without using host date.
+        game_day_id = "test-reset-deadline-bound"
+    frames: dict[str, CapturedNativeFrame] = {}
+    recognitions: dict[str, FrameRecognition] = {}
+    if not bool(getattr(runtime, "execute", False)):
+        return _claim_result(
+            status="evidence_required",
+            reason="runtime execution is required for Daily Claim preparation",
+            session=session,
+            frames=frames,
+            recognitions=recognitions,
+            polls=(),
+            game_day_id=game_day_id,
+            mode="prepare",
+        )
+    try:
+        source = session.observe(runtime.capture, label="daily-row-claim-source")
+        frames["source"] = source
+        recognition = _recognize_daily_claim(
+            recognizer,
+            source.frame,
+            game_day_id=game_day_id,
+            wall_utc=wall_utc,
+        )
+        recognitions["source"] = recognition
+        if game_day_id is None:
+            game_day_id = str(
+                (recognition.visual_evidence or {}).get("game_day_id") or ""
+            )
+        if not game_day_id:
+            raise DailyRowClaimRecognitionError(
+                "reset deadline identity was not bound at Daily Claim source"
+            )
+        observation = daily_claim_observation_from_recognition(
+            recognition,
+            source_frame_sha256=source.sha256,
+            evidence_ref=str(source.path),
+            game_day_id=game_day_id,
+        )
+        if (
+            observation is None
+            or recognition.target_identity != DAILY_CLAIM_ACTION_IDENTITY
+            or not available_daily_claim_authorizeable(observation)
+        ):
+            raise DailyRowClaimRecognitionError(
+                recognition.reason or "exact consume_stamina Claim target was not authorized"
+            )
+        visual = dict(recognition.visual_evidence or {})
+        annotated = Path(runtime.session) / "annotated-daily-row-claim-source.png"
+        _annotate_daily_claim_frame(
+            source,
+            row_bounds=observation.row_bounds,
+            target_roi=observation.target_roi,
+            output=annotated,
+        )
+        claim = {
+            "objective_key": observation.objective_key,
+            "objective_name": observation.objective_name,
+            "current_progress": observation.current_progress,
+            "required_progress": observation.required_progress,
+            "reward_points": observation.reward_points,
+            "points": observation.points,
+            "reset_timer": observation.reset_timer,
+            "reset_timer_seconds": observation.reset_timer_seconds,
+            "reset_observed_utc": observation.reset_observed_utc,
+            "reset_deadline_utc": observation.reset_deadline_utc,
+            "reset_deadline_identity": observation.reset_deadline_identity,
+            "reset_deadline_tolerance_seconds": observation.reset_deadline_tolerance_seconds,
+            "game_day_id": observation.game_day_id,
+            "row_bounds": observation.row_bounds,
+            "claim_roi": observation.target_roi,
+            "target_provenance": observation.target_provenance,
+            "runtime_profile_id": observation.runtime_profile_id,
+            "source_frame_sha256": source.sha256,
+            "annotated_source": str(annotated.relative_to(session.session_directory)).replace("\\", "/"),
+            "catalog_reconciled": observation.catalog_reconciled,
+        }
+        session.terminal_status = "observed"
+        return _claim_result(
+            status="observed",
+            reason="consume_stamina Claim target prepared without input",
+            session=session,
+            frames=frames,
+            recognitions=recognitions,
+            polls=(),
+            game_day_id=game_day_id,
+            mode="prepare",
+            claim=claim,
+        )
+    except BaseException as exc:
+        session.terminal_status = "evidence_required"
+        session.blocker = str(exc)
+        return _claim_result(
+            status="evidence_required",
+            reason=f"{type(exc).__name__}: {exc}",
+            session=session,
+            frames=frames,
+            recognitions=recognitions,
+            polls=(),
+            game_day_id=game_day_id,
+            mode="prepare",
+        )
+
+
+def _settle_daily_claim_successor(
+    *,
+    session: SessionLike,
+    runtime: RuntimeLike,
+    recognizer: DailyRowClaimRecognizer | Any,
+    immediate_post: CapturedNativeFrame,
+    before: FrameRecognition,
+    game_day_id: str,
+    wall_utc: Callable[[], datetime] | None,
+    frames: dict[str, CapturedNativeFrame],
+    recognitions: dict[str, FrameRecognition],
+    polls: list[dict[str, Any]],
+) -> FrameRecognition | None:
+    def inspect(frame: CapturedNativeFrame, label: str, attempt: int) -> FrameRecognition:
+        recognition = _recognize_daily_claim(
+            recognizer,
+            frame.frame,
+            game_day_id=game_day_id,
+            wall_utc=wall_utc,
+        )
+        frame_name = _claim_frame_label_map(label)
+        if frame_name is not None:
+            frames[frame_name] = frame
+            recognitions[frame_name] = recognition
+        polls.append(
+            {
+                "action_identity": DAILY_CLAIM_ACTION_IDENTITY,
+                "attempt": attempt,
+                "label": label,
+                "frame_name": frame_name,
+                "frame": _frame_ref(frame, session.session_directory),
+                "recognition": recognition.as_dict(),
+            }
+        )
+        return recognition
+
+    current = inspect(immediate_post, "daily-row-claim-immediate-post", 0)
+    if daily_claim_postcondition_verified(before, current, game_day_id=game_day_id):
+        return current
+    deadline = time.monotonic() + DAILY_CLAIM_SUCCESS_POLL_TIMEOUT_SECONDS
+    attempts = 0
+    while attempts < DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        interval = max(0.0, min(DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS, remaining))
+        if interval:
+            time.sleep(interval)
+        if time.monotonic() >= deadline:
+            break
+        attempts += 1
+        label = f"daily-row-claim-poll-{attempts:02d}"
+        current_frame = session.observe(runtime.capture, label=label)
+        current = inspect(current_frame, label, attempts)
+        if daily_claim_postcondition_verified(before, current, game_day_id=game_day_id):
+            return current
+    return None
+
+
+def run_daily_row_claim_canary(
+    runtime: RuntimeLike,
+    session: SessionLike,
+    *,
+    game_day_id: str | None = None,
+    recognizer: DailyRowClaimRecognizer | Any | None = None,
+    wall_utc: Callable[[], datetime] | None = None,
+) -> dict[str, Any]:
+    """Dispatch exactly one receipt-bound free Claim and prove its successor."""
+
+    recognizer = recognizer or DailyRowClaimRecognizer()
+    if game_day_id is None and not hasattr(recognizer, "_ocr"):
+        game_day_id = "test-reset-deadline-bound"
+    frames: dict[str, CapturedNativeFrame] = {}
+    recognitions: dict[str, FrameRecognition] = {}
+    polls: list[dict[str, Any]] = []
+    before_recognition: FrameRecognition | None = None
+    terminal_recognition: FrameRecognition | None = None
+    annotated_immediate_before: str | None = None
+    if not bool(getattr(runtime, "execute", False)):
+        return _claim_result(
+            status="evidence_required",
+            reason="runtime execution is required for Daily Claim canary",
+            session=session,
+            frames=frames,
+            recognitions=recognitions,
+            polls=polls,
+            game_day_id=game_day_id,
+            mode="canary",
+        )
+    try:
+        source = session.observe(runtime.capture, label="daily-row-claim-source")
+        frames["source"] = source
+        before_recognition = _recognize_daily_claim(
+            recognizer,
+            source.frame,
+            game_day_id=game_day_id,
+            wall_utc=wall_utc,
+        )
+        recognitions["source"] = before_recognition
+        if game_day_id is None:
+            game_day_id = str(
+                (before_recognition.visual_evidence or {}).get("game_day_id") or ""
+            )
+        if not game_day_id:
+            raise DailyRowClaimRecognitionError(
+                "reset deadline identity was not bound at Daily Claim source"
+            )
+        before_observation = daily_claim_observation_from_recognition(
+            before_recognition,
+            source_frame_sha256=source.sha256,
+            evidence_ref=str(source.path),
+            game_day_id=game_day_id,
+        )
+        if (
+            before_observation is None
+            or before_recognition.target_identity != DAILY_CLAIM_ACTION_IDENTITY
+            or not available_daily_claim_authorizeable(before_observation)
+        ):
+            raise DailyRowClaimRecognitionError(
+                before_recognition.reason
+                or "exact consume_stamina Claim target was not authorized"
+            )
+
+        def capture(label: str) -> CapturedNativeFrame:
+            frame = runtime.capture(label)
+            frame_name = _claim_frame_label_map(label)
+            if frame_name is not None:
+                frames[frame_name] = frame
+            return frame
+
+        def dispatch(before_frame: CapturedNativeFrame) -> None:
+            nonlocal annotated_immediate_before
+            rebound = _recognize_daily_claim(
+                recognizer,
+                before_frame.frame,
+                game_day_id=game_day_id,
+                wall_utc=wall_utc,
+            )
+            recognitions["immediate_before"] = rebound
+            rebound_observation = daily_claim_observation_from_recognition(
+                rebound,
+                source_frame_sha256=before_frame.sha256,
+                evidence_ref=str(before_frame.path),
+                game_day_id=game_day_id,
+            )
+            if (
+                rebound_observation is None
+                or rebound.target_identity != DAILY_CLAIM_ACTION_IDENTITY
+                or not available_daily_claim_authorizeable(rebound_observation)
+            ):
+                raise DailyRowClaimRecognitionError(
+                    rebound.reason or "immediate-before Claim revalidation failed"
+                )
+            _ensure_fresh(before_frame, runtime)
+            _ensure_runtime_ready(runtime)
+            annotated = Path(runtime.session) / "annotated-daily-row-claim-immediate-before.png"
+            _annotate_daily_claim_frame(
+                before_frame,
+                row_bounds=tuple(rebound.visual_evidence["row_bounds"]),  # type: ignore[index]
+                target_roi=rebound.target_roi,  # type: ignore[arg-type]
+                output=annotated,
+            )
+            try:
+                annotated_immediate_before = str(
+                    annotated.resolve()
+                    .relative_to(session.session_directory.resolve())
+                ).replace("\\", "/")
+            except (OSError, ValueError):
+                annotated_immediate_before = str(annotated)
+            runtime.tap(
+                before_frame,
+                target_identity=DAILY_CLAIM_ACTION_IDENTITY,
+                target_roi=rebound.target_roi,  # type: ignore[arg-type]
+                action_key=DAILY_CLAIM_ACTION_IDENTITY,
+                action_class=DAILY_CLAIM_ACTION_CLASS,
+                consequential=False,
+            )
+
+        def recognize_successor(after: CapturedNativeFrame) -> str:
+            nonlocal terminal_recognition
+            terminal_recognition = _settle_daily_claim_successor(
+                session=session,
+                runtime=runtime,
+                recognizer=recognizer,
+                immediate_post=after,
+                before=before_recognition,  # type: ignore[arg-type]
+                game_day_id=game_day_id,
+                wall_utc=wall_utc,
+                frames=frames,
+                recognitions=recognitions,
+                polls=polls,
+            )
+            return (
+                DAILY_SELECTED_STATE
+                if terminal_recognition is not None
+                else UNKNOWN_STATE
+            )
+
+        action = session.run_action(
+            action_class=DAILY_CLAIM_ACTION_CLASS,
+            label=DAILY_CLAIM_ACTION_IDENTITY,
+            capture=capture,
+            dispatch=_NativeTapDispatch(dispatch).dispatch,
+            recognize=recognize_successor,
+            consequence_class=DAILY_CLAIM_CONSEQUENCE_CLASS,
+        )
+        if action.status != "completed" or terminal_recognition is None:
+            raise DailyRowClaimRecognitionError(
+                "Daily Claim semantic postcondition was not proven"
+            )
+        session.terminal_status = "completed"
+        before_visual = dict(before_recognition.visual_evidence or {})
+        return _claim_result(
+            status="completed",
+            reason="consume_stamina Claim postcondition proven",
+            session=session,
+            frames=frames,
+            recognitions=recognitions,
+            polls=polls,
+            game_day_id=game_day_id,
+            mode="canary",
+            claim={
+                "objective_key": DAILY_CLAIM_OBJECTIVE_KEY,
+                "points_before": before_visual.get("points"),
+                "points_after": dict(terminal_recognition.visual_evidence or {}).get("points"),
+                "reward_points": DAILY_CLAIM_REWARD_POINTS,
+                "reset_timer": before_visual.get("reset_timer"),
+                "reset_timer_seconds": before_visual.get("reset_timer_seconds"),
+                "reset_observed_utc": before_visual.get("reset_observed_utc"),
+                "reset_deadline_utc": before_visual.get("reset_deadline_utc"),
+                "reset_deadline_identity": before_visual.get(
+                    "reset_deadline_identity"
+                ),
+                "reset_deadline_tolerance_seconds": before_visual.get(
+                    "reset_deadline_tolerance_seconds"
+                ),
+                "action_class": DAILY_CLAIM_ACTION_CLASS,
+                "consequence_class": DAILY_CLAIM_CONSEQUENCE_CLASS,
+                "annotated_immediate_before": annotated_immediate_before,
+            },
+        )
+    except BaseException as exc:
+        session.terminal_status = "evidence_required"
+        session.blocker = str(exc)
+        return _claim_result(
+            status="evidence_required",
+            reason=f"{type(exc).__name__}: {exc}",
+            session=session,
+            frames=frames,
+            recognitions=recognitions,
+            polls=polls,
+            game_day_id=game_day_id,
+            mode="canary",
         )
 
