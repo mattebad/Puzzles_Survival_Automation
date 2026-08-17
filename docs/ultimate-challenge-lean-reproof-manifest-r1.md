@@ -134,3 +134,16 @@ All other paths are read-only during implementation.
 - Legacy controller queue metadata may remain supported, but must not be required for development-session execution. Evidence metadata must truthfully distinguish a legacy configured attempt budget from session-local execution.
 - Add a focused regression invoking the Daily wrapper with the minimal current development-session contexts.
 - One Luna implementation and one Terra review are authorized. No further live input before parent acceptance and a fresh clean candidate commit.
+
+## Refrozen stage r5 — native capture type integrity
+- User continuation exception: the explicit reset/bypass instruction authorizes this zero-input local-defect stage.
+- Revision ID: `ultimate-challenge-lean-reproof-r5`.
+- Failure class: `local_defect`.
+- The r4 canary acquired singleton ownership, captured a native source, then crashed before any input because `LocalBlueStacksRuntime.capture()` returned `CapturedNativeFrame` while the main resume recognizers received that wrapper instead of its NumPy `.frame`. `result.json` was therefore absent and the delivery wrapper failed closed. A subsequent zero-input observation proved singleton ownership released.
+- Writable paths:
+  - `scripts/bluestacks_ultimate_challenge.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- Every recognizer, binder, frame hash helper, and semantic observation must receive the correct NumPy frame or explicitly supported capture type. Dispatch/reconcile must retain the `CapturedNativeFrame` object.
+- Audit all direct `runtime.capture()` uses in this operator, including navigation-only entry binding, for the same type mismatch.
+- Add focused tests using a real `CapturedNativeFrame`-shaped object so NumPy-only mocks cannot conceal this boundary.
+- One Luna implementation and one Terra review are authorized. No live input before parent acceptance and a fresh clean candidate commit.

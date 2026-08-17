@@ -37,7 +37,7 @@ if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bluestacks_flow_collector import ADBRunner, is_permitted_local_bluestacks_serial
-from bluestacks_native_runtime import LocalBlueStacksRuntime
+from bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
 from home_atlas_bluestacks import (
     CAMPAIGN_HOME_ATLAS_BUILDING_ID,
     require_campaign_home_atlas_building,
@@ -455,7 +455,7 @@ def _write_result(session: Path, result: dict[str, object]) -> None:
 
 def _retain_top_level_frame(
     session: Path,
-    source_frame,
+    source_frame: CapturedNativeFrame,
     filename: str,
 ) -> tuple[str, str]:
     """Copy an exact native runtime capture into operator top-level evidence."""
@@ -1229,9 +1229,10 @@ def main(argv: list[str] | None = None) -> int:
         _write_result(session, result)
         return 0 if terminal == TERMINAL_COMPLETE_FOR_RESET else 3
 
-    resume_frame = runtime.capture("campaign-resume-source")
+    resume_capture = runtime.capture("campaign-resume-source")
+    resume_frame = resume_capture.frame
     resume_path, _resume_hash = _retain_top_level_frame(
-        session, resume_frame, "campaign-resume-source.png"
+        session, resume_capture, "campaign-resume-source.png"
     )
     ultimate_already_open = _recognize_ultimate_main(resume_frame) is not None
     hero_lineup_already_open = _bind_lineup_challenge_button(resume_frame) is not None
@@ -1387,11 +1388,14 @@ def main(argv: list[str] | None = None) -> int:
         _write_result(session, result)
         return 0 if terminal in {TERMINAL_COMPLETE_FOR_RESET, TERMINAL_ALREADY_COMPLETED} else 3
 
-    frame = runtime.capture("uc-entry-bind")
+    entry_capture = runtime.capture("uc-entry-bind")
     frame_path, _entry_bind_hash = _retain_top_level_frame(
-        session, frame, "uc-entry-bind.png"
+        session, entry_capture, "uc-entry-bind.png"
     )
-    observation = _bind_ultimate_challenge_entry(frame, reset_identity=args.reset_identity)
+    observation = _bind_ultimate_challenge_entry(
+        entry_capture.frame,
+        reset_identity=args.reset_identity,
+    )
     append_event(
         events,
         {

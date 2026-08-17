@@ -14,9 +14,15 @@ import cv2
 import numpy as np
 
 from scripts import bluestacks_ultimate_challenge as ultimate
+from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts import flow_delivery_ultimate_challenge_bluestacks as delivery
 from tasks.home_nav_recognition import recognize_home_nav
-from tasks.ultimate_challenge_daily import FLOW_ID, empty_reset_window_state
+from tasks.ultimate_challenge_daily import (
+    FLOW_ID,
+    ULTIMATE_CHALLENGE_ENTRY_IDENTITY,
+    UltimateChallengeEntryObservation,
+    empty_reset_window_state,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -227,6 +233,156 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
 
         def __init__(self, root: Path) -> None:
             self.BLUESTACKS_ARTIFACT_ROOT = root
+
+    def test_main_unwraps_captured_frames_for_resume_and_navigation_binding(self) -> None:
+        captured_frames: list[CapturedNativeFrame] = []
+        runtime_instances = []
+
+        class FakeRunner:
+            def __init__(self, *_args) -> None:
+                pass
+
+            def list_devices(self):
+                return [type("Device", (), {"serial": "emulator-5554", "state": "device"})()]
+
+            def get_state(self) -> str:
+                return "device"
+
+        class FakeRuntime:
+            input_count = 0
+
+            def __init__(self, _runner, session: Path, *, execute: bool) -> None:
+                self.session = session
+                self.execute = execute
+                self.frame_directory = session / "frames"
+                self.frame_directory.mkdir(parents=True, exist_ok=True)
+
+            def capture(self, label: str) -> CapturedNativeFrame:
+                frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+                encoded_ok, encoded = cv2.imencode(".png", frame)
+                assert encoded_ok
+                payload = encoded.tobytes()
+                path = self.frame_directory / f"{len(captured_frames) + 1:04d}-{label}.png"
+                path.write_bytes(payload)
+                captured = CapturedNativeFrame(
+                    frame=frame,
+                    png=payload,
+                    sha256=hashlib.sha256(payload).hexdigest(),
+                    captured_monotonic=0.0,
+                    path=path,
+                )
+                captured_frames.append(captured)
+                return captured
+
+        def fake_runtime(*args, **kwargs):
+            runtime = FakeRuntime(*args, **kwargs)
+            runtime_instances.append(runtime)
+            return runtime
+
+        def recognize_main(frame):
+            self.assertIsInstance(frame, np.ndarray)
+            cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            return (320, 1195, 480, 1245)
+
+        def recognize_other(frame):
+            self.assertIsInstance(frame, np.ndarray)
+            cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            return None
+
+        def bind_entry(frame, *, reset_identity):
+            self.assertIsInstance(frame, np.ndarray)
+            cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            return UltimateChallengeEntryObservation(
+                campaign_screen_recognized=True,
+                entry_control_visible=True,
+                entry_control_identity=ULTIMATE_CHALLENGE_ENTRY_IDENTITY,
+                entry_roi=(480, 780, 620, 920),
+                already_completed_marker=False,
+                reset_identity=reset_identity,
+                source_frame_sha256=ultimate.frame_sha256(frame),
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            with patch.object(ultimate, "ADBRunner", FakeRunner), patch.object(
+                ultimate, "LocalBlueStacksRuntime", side_effect=fake_runtime
+            ), patch.object(
+                ultimate, "is_permitted_local_bluestacks_serial", return_value=True
+            ), patch.object(
+                ultimate, "require_campaign_home_atlas_building"
+            ), patch.object(
+                ultimate, "_recognize_ultimate_main", side_effect=recognize_main
+            ), patch.object(
+                ultimate, "_bind_lineup_challenge_button", side_effect=recognize_other
+            ), patch.object(
+                ultimate, "_recognize_active_battle", side_effect=recognize_other
+            ), patch.object(
+                ultimate, "_bind_flee_warning_button", side_effect=recognize_other
+            ), patch.object(
+                ultimate, "_bind_ultimate_challenge_entry", side_effect=bind_entry
+            ):
+                result = ultimate.main(
+                    [
+                        "--adb",
+                        "unused-adb",
+                        "--serial",
+                        "emulator-5554",
+                        "--navigation-only",
+                        "--execute",
+                        "--yes",
+                        "--output-directory",
+                        str(output),
+                        "--reset-identity",
+                        "game-day-2026-08-17",
+                    ]
+                )
+                session_directories = list(output.glob("nav-*"))
+                evidence_paths = [
+                    session_directories[0] / "frames" / "campaign-resume-source.png",
+                    session_directories[0] / "frames" / "uc-entry-bind.png",
+                ] if len(session_directories) == 1 else []
+                self.assertEqual(len(session_directories), 1)
+                self.assertTrue(all(path.is_file() for path in evidence_paths))
+
+        self.assertEqual(result, 0)
+        self.assertEqual(len(runtime_instances), 1)
+        self.assertGreaterEqual(len(captured_frames), 2)
+        self.assertTrue(all(isinstance(frame, CapturedNativeFrame) for frame in captured_frames))
+
+    def test_capture_until_passes_numpy_frame_but_returns_capture_object(self) -> None:
+        class Runtime:
+            def __init__(self, captured: CapturedNativeFrame) -> None:
+                self.captured = captured
+
+            def capture(self, _label: str) -> CapturedNativeFrame:
+                return self.captured
+
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        captured = CapturedNativeFrame(
+            frame=frame,
+            png=b"png",
+            sha256="a" * 64,
+            captured_monotonic=0.0,
+            path=Path("capture.png"),
+        )
+        seen: list[np.ndarray] = []
+
+        def predicate(candidate: np.ndarray) -> bool:
+            seen.append(candidate)
+            cv2.cvtColor(candidate, cv2.COLOR_BGR2HSV)
+            return True
+
+        result = ultimate._capture_until(
+            Runtime(captured),
+            label="strict-capture-boundary",
+            predicate=predicate,
+            attempts=1,
+            settle_seconds=0,
+        )
+
+        self.assertIs(result, captured)
+        self.assertEqual(len(seen), 1)
+        self.assertIs(seen[0], frame)
 
     def _run_wrapper(
         self,
