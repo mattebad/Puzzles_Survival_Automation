@@ -953,9 +953,10 @@ Claim example.
   provenance/hash gates, one-tap accounting, and reset identity. Success requires a positive
   points delta and no remaining available ordinary Claim controls. Go, milestone, cost-bearing,
   clipped, overlay, stale-source, and unchanged-postcondition cases fail closed.
-- Status: Claim subaction `LIVE_VALIDATED` (2026-08-17); end-to-end flow
-  `evidence_required` because successful completion must return to positively
-  verified Base/Home. Registration and scheduler eligibility remain disabled.
+- Status: end-to-end flow `LIVE_VALIDATED` (2026-08-17). The accepted Claim
+  increased points 20 to 25 and cleared ordinary Claim controls; the bounded
+  continuation then dispatched one Back and positively verified template
+  Base/Home. Registration and scheduler eligibility remain disabled.
 - Evidence: `tasks/available_daily_claim.py`, `scripts/daily_row_claim_bluestacks.py`,
   `tests/fixtures/phase_e_daily_claim_observations.json`, and
   `tests/test_available_daily_claim.py`. The retained Bioenhancer and Gather Food fixture results
@@ -1804,8 +1805,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Status: `BIOENHANCER_SAME_DAY_END_TO_END_CONFIRMED` (2026-07-15 UTC);
   accepted existing supervised canary for the free Bioenhancer objective and
   same-day Daily reconciliation. Its separate ordinary Claim is now owned by
-  the aggregate Daily Claim flow; the Claim subaction was live-validated on
-  2026-08-17, while return-to-Base completion remains pending.
+  the aggregate Daily Claim flow; its Claim and verified return-to-Base
+  terminal behavior were live-validated on 2026-08-17.
 - Active parity subtask: `BIOENHANCER-GNBOTS-PARITY` completed offline on 2026-07-15 with
   primary outcome `GNBOTS_REFERENCE_DOES_NOT_IMPLEMENT_BIOENHANCER`. The decoded GnBots reference
   has generic Daily claim/recruit/depot/leaderboard behavior and malformed generic town research,
@@ -1840,9 +1841,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   scheduler-ineligible.
 - Promotion/unlocks: `LIVE_VALIDATED` under `SUPERVISED_VALIDATION` for research and same-day
   reconciliation. Aggregate ordinary Claim execution is independently proven
-  under `DQ-CLAIM-DAILY`, but its required return-to-Base terminal step remains
-  `evidence_required`; milestone Claim remains separate. No registration or
-  scheduler eligibility.
+  under `DQ-CLAIM-DAILY`, including its verified return-to-Base terminal step;
+  milestone Claim remains separate. No registration or scheduler eligibility.
 - Parity conclusion: no implementation change; GnBots does not implement this objective. The
   verified new reset removed the prior day-boundary ambiguity, and the same-day objective
   progression is now proven. Research 10x and Claim were not dispatched.

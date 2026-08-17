@@ -74,7 +74,7 @@
     {
       "id": "selected-daily-aggregate-claim",
       "mode": "consequential_supervised",
-      "notes": "Claim subaction validated 2026-08-17 on local BlueStacks through the canonical receipt-bound route. Template Home recognition reached selected Daily; one free ordinary gold Claim increased points 20 to 25 and cleared ordinary Claim controls. Receipt c2ddc2ea-60b4-404a-a7b3-784ffaff9d08; no row loop, milestone, cost, red Go, resource spend, or provider-specific Claim. End-to-end acceptance remains evidence_required because that run stopped on Daily instead of backing out to verified Base/Home."
+      "notes": "End-to-end behavior validated 2026-08-17 on local BlueStacks through the canonical receipt-bound route. Claim receipt c2ddc2ea-60b4-404a-a7b3-784ffaff9d08 increased points 20 to 25 and cleared ordinary Claim controls. Return receipt d4a6822b-a486-44a9-a2b7-4b71a0f5265c then started from positively recognized selected Daily, dispatched exactly one Back with no Claim/resource/combat input, and verified template Home at correlation 0.9613733291625977. Ownership released after both sessions."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -86,6 +86,6 @@
     "ambiguous_account_or_server_identity",
     "blocking_unknown_modal"
   ],
-  "implementation_status": "return_home_repair_required",
-  "proof_state": "evidence_required"
+  "implementation_status": "live_validated",
+  "proof_state": "accepted"
 }
