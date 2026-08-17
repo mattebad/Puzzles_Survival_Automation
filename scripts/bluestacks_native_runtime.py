@@ -179,6 +179,7 @@ class NativeRuntimePort(Protocol):
         source: CapturedNativeFrame,
         *,
         action_key: str,
+        target_identity: str = "android-back",
         continuation_of: str | None = None,
     ) -> None: ...
 
@@ -641,12 +642,13 @@ class LocalBlueStacksRuntime:
         source: CapturedNativeFrame,
         *,
         action_key: str,
+        target_identity: str = "android-back",
         continuation_of: str | None = None,
     ) -> None:
         self._authorize_dispatch(
             source,
             action_key=action_key,
-            target_identity="android-back",
+            target_identity=target_identity,
             target_roi=None,
             consequential=False,
             continuation_of=continuation_of,
@@ -655,7 +657,7 @@ class LocalBlueStacksRuntime:
             "dispatch",
             {
                 "action_key": action_key,
-                "target_identity": "android-back",
+                "target_identity": target_identity,
                 "source_sha256": source.sha256,
                 "consequential": False,
                 "execute": self.execute,

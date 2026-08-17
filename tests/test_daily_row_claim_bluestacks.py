@@ -2322,6 +2322,7 @@ class ClaimCanaryRuntime:
         self.events = self.session / "events.jsonl"
         self.labels: list[str] = []
         self.taps: list[dict[str, object]] = []
+        self.backs: list[dict[str, object]] = []
         self.reservations: list[dict[str, object]] = []
         self.input_count = 0
         self._ordinal = 0
@@ -2353,16 +2354,26 @@ class ClaimCanaryRuntime:
             {
                 "action_identity": target_identity,
                 "action_class": action_class,
-                "consequence_class": "ordinary_development",
+                "consequence_class": (
+                    getattr(delegated, "receipt", {}).get(
+                        "consequence_class",
+                        "ordinary_development",
+                    )
+                    if (delegated := boundary.current_delegated_runtime_context())
+                    is not None
+                    else "ordinary_development"
+                ),
                 "source_sha256": source.sha256,
             }
         )
-        delegated = boundary.current_delegated_runtime_context()
         if delegated is not None:
+            consequence_class = str(
+                delegated.receipt.get("consequence_class", "ordinary_development")
+            )
             delegated.reserve_input(
                 action_identity=target_identity,
                 action_class=action_class,
-                consequence_class="ordinary_development",
+                consequence_class=consequence_class,
                 source_evidence_hash=source.sha256,
                 action_key=action_key,
             )
@@ -2386,6 +2397,64 @@ class ClaimCanaryRuntime:
                         "target_identity": target_identity,
                         "target_roi": target_roi,
                         "action_class": action_class,
+                    }
+                )
+                + "\n"
+            )
+
+    def back(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        action_key: str,
+        target_identity: str = "android-back",
+        continuation_of: str | None = None,
+    ) -> None:
+        self.reservations.append(
+            {
+                "action_identity": target_identity,
+                "action_class": "navigation",
+                "consequence_class": (
+                    getattr(delegated, "receipt", {}).get(
+                        "consequence_class",
+                        "ordinary_development",
+                    )
+                    if (delegated := boundary.current_delegated_runtime_context())
+                    is not None
+                    else "ordinary_development"
+                ),
+                "source_sha256": source.sha256,
+            }
+        )
+        if delegated is not None:
+            consequence_class = str(
+                delegated.receipt.get("consequence_class", "ordinary_development")
+            )
+            delegated.reserve_input(
+                action_identity=target_identity,
+                action_class="navigation",
+                consequence_class=consequence_class,
+                source_evidence_hash=source.sha256,
+                action_key=action_key,
+            )
+            delegated.mark_transported(action_key)
+        self.backs.append(
+            {
+                "action_key": action_key,
+                "target_identity": target_identity,
+                "source_sha256": source.sha256,
+                "continuation_of": continuation_of,
+            }
+        )
+        self.input_count += 1
+        with self.events.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "type": "dispatch",
+                        "action_key": action_key,
+                        "target_identity": "android-back",
+                        "action_class": "navigation",
                     }
                 )
                 + "\n"
@@ -2517,9 +2586,20 @@ class SelectedDailySuccessorFake:
 
 
 class ScriptedClaimRecognizer:
-    def __init__(self, outcome: str, *, available_controls: int = 1):
+    def __init__(
+        self,
+        outcome: str,
+        *,
+        available_controls: int = 1,
+        selected_daily: bool = True,
+        home: bool = True,
+        template_home: bool = True,
+    ):
         self.outcome = outcome
         self.available_controls = available_controls
+        self.selected_daily = selected_daily
+        self.home = home
+        self.template_home = template_home
         self.calls = 0
 
     def recognize_daily_claim(
@@ -2617,6 +2697,46 @@ class ScriptedClaimRecognizer:
             None if recognized else "full-frame overlay/modal detected",
         )
 
+    def recognize_daily_selected(
+        self,
+        _frame: np.ndarray,
+    ) -> daily.FrameRecognition:
+        recognized = self.selected_daily and self.outcome not in {"selected_unknown", "overlay"}
+        return daily.FrameRecognition(
+            daily.DAILY_SELECTED_STATE if recognized else daily.UNKNOWN_STATE,
+            recognized,
+            "daily-quest-selected" if recognized else None,
+            (280, 80, 370, 110) if recognized else None,
+            "selected Daily",
+            {
+                "selected_daily": recognized,
+                "unblurred": True,
+                "blurred": False,
+                "full_frame_overlay": {"recognized": not recognized},
+            },
+            None if recognized else "selected Daily is unknown",
+        )
+
+    def recognize_home(
+        self,
+        _frame: np.ndarray,
+    ) -> daily.FrameRecognition:
+        recognized = self.home and self.outcome not in {"non_home", "home_unknown"}
+        return daily.FrameRecognition(
+            daily.HOME_STATE if recognized else daily.QUEST_STATE,
+            recognized,
+            "home-quest-entry" if recognized else None,
+            (180, 1028, 231, 1078) if recognized else None,
+            "Home" if recognized else "Quest",
+            {
+                "template_home": {
+                    "recognized": self.template_home and recognized
+                },
+                "full_frame_overlay": {"recognized": False},
+            },
+            None if recognized else "Home template was not recognized",
+        )
+
 
 class ImmediateBeforeBaselineClaimRecognizer(ScriptedClaimRecognizer):
     """Make the source baseline differ from the tap-authorizing frame."""
@@ -2673,12 +2793,16 @@ class DailyClaimCanaryTests(unittest.TestCase):
         )
         with patch.object(daily, "DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS", 0.0), patch.object(
             daily, "DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS", 2
+        ), patch.object(
+            daily, "DAILY_RETURN_HOME_SUCCESS_POLL_INTERVAL_SECONDS", 0.0
+        ), patch.object(
+            daily, "DAILY_RETURN_HOME_SUCCESS_POLL_MAX_ATTEMPTS", 2
         ), patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
             with boundary.DevelopmentSession(
                 owner="test-daily-claim-canary",
                 invocation_id=f"test-{outcome}",
                 session_directory=root / "session",
-                max_inputs=1,
+                max_inputs=2,
             ) as session:
                 result = daily.run_daily_row_claim_canary(
                     runtime,
@@ -2695,13 +2819,24 @@ class DailyClaimCanaryTests(unittest.TestCase):
             )
 
             self.assertEqual(result["status"], "completed")
-            self.assertEqual(result["input_count"], 1)
+            self.assertEqual(result["input_count"], 2)
             self.assertEqual(len(runtime.taps), 1)
+            self.assertEqual(len(runtime.backs), 1)
             self.assertEqual(runtime.taps[0]["target_identity"], "daily-claim:aggregate")
             self.assertEqual(runtime.taps[0]["target_roi"], (605, 455, 755, 535))
-            self.assertEqual(runtime.reservations[0]["action_class"], "reward_claim")
+            self.assertEqual(
+                [item["action_identity"] for item in runtime.reservations],
+                ["daily-claim:aggregate", "daily-return-home"],
+            )
+            self.assertEqual(
+                [item["action_class"] for item in runtime.reservations],
+                ["reward_claim", "navigation"],
+            )
             self.assertEqual(result["claim"]["points_before"], 0)
             self.assertEqual(result["claim"]["points_after"], 5)
+            self.assertTrue(result["home"]["verified"])
+            self.assertEqual(result["home"]["state"], daily.HOME_STATE)
+            self.assertIn("return_home_final", result["frames"])
             self.assertTrue(session._ownership.lock.held is False)
             self.assertIn("immediate_before", result["frames"])
             self.assertIn("immediate_post", result["frames"])
@@ -2718,7 +2853,9 @@ class DailyClaimCanaryTests(unittest.TestCase):
             )
 
         self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["input_count"], 2)
         self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(len(runtime.backs), 1)
         self.assertEqual(result["claim"]["points_before"], 0)
         self.assertEqual(result["claim"]["points_after"], 5)
         self.assertEqual(
@@ -2730,6 +2867,41 @@ class DailyClaimCanaryTests(unittest.TestCase):
             0,
         )
 
+    def test_canary_requires_final_template_home_and_never_retries_back(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime, _recognizer, _session = self._run_canary(
+                Path(directory),
+                "points",
+                recognizer=ScriptedClaimRecognizer("points", home=False),
+            )
+
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(result["input_count"], 2)
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(len(runtime.backs), 1)
+        self.assertNotIn("home", result)
+        self.assertEqual(
+            result["recognitions"]["return_home_immediate_post"]["state"],
+            daily.QUEST_STATE,
+        )
+
+    def test_canary_selected_daily_source_failure_does_not_dispatch_back(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime, _recognizer, _session = self._run_canary(
+                Path(directory),
+                "points",
+                recognizer=ScriptedClaimRecognizer(
+                    "points",
+                    selected_daily=False,
+                ),
+            )
+
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(runtime.backs, [])
+        self.assertEqual(result["claim"]["points_after"], 5)
+
     def test_canary_with_multiple_eligible_controls_still_dispatches_once(self):
         with tempfile.TemporaryDirectory() as directory:
             result, runtime, _recognizer, _session = self._run_canary(
@@ -2739,8 +2911,9 @@ class DailyClaimCanaryTests(unittest.TestCase):
             )
 
         self.assertEqual(result["status"], "completed")
-        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(result["input_count"], 2)
         self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(len(runtime.backs), 1)
         self.assertEqual(
             result["recognitions"]["source"]["visual_evidence"][
                 "available_ordinary_claim_controls"
@@ -2789,6 +2962,165 @@ class DailyClaimCanaryTests(unittest.TestCase):
                         for poll in result["polls"]
                     )
                 )
+
+
+class DailyReturnHomeTests(unittest.TestCase):
+    def _run(
+        self,
+        root: Path,
+        *,
+        recognizer: ScriptedClaimRecognizer | None = None,
+        runtime: ClaimCanaryRuntime | None = None,
+    ):
+        runtime = runtime or ClaimCanaryRuntime(root)
+        recognizer = recognizer or ScriptedClaimRecognizer("points")
+        with patch.object(
+            daily,
+            "DAILY_RETURN_HOME_SUCCESS_POLL_INTERVAL_SECONDS",
+            0.0,
+        ), patch.object(
+            daily,
+            "DAILY_RETURN_HOME_SUCCESS_POLL_MAX_ATTEMPTS",
+            2,
+        ), patch.object(
+            boundary,
+            "RUNTIME_INPUT_LOCK_PATH",
+            root / "lock.sqlite3",
+        ):
+            with boundary.DevelopmentSession(
+                owner="test-daily-return-home",
+                invocation_id="test-daily-return-home",
+                session_directory=root / "session",
+                max_inputs=1,
+            ) as session:
+                result = daily.run_daily_row_claim_return_home(
+                    runtime,
+                    session,
+                    recognizer=recognizer,
+                )
+        return result, runtime
+
+    def test_selected_daily_return_home_dispatches_one_back_without_claim(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result, runtime = self._run(root)
+
+        self.assertEqual(result["status"], "observed")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(runtime.taps, [])
+        self.assertEqual(len(runtime.backs), 1)
+        self.assertEqual(
+            result["actions"][0]["label"],
+            "daily-return-home",
+        )
+        self.assertEqual(
+            result["recognitions"]["source"]["state"],
+            daily.DAILY_SELECTED_STATE,
+        )
+        self.assertEqual(
+            result["recognitions"]["return_home_immediate_before"]["state"],
+            daily.DAILY_SELECTED_STATE,
+        )
+        self.assertEqual(result["home"]["state"], daily.HOME_STATE)
+        self.assertIn("return_home_final", result["frames"])
+
+    def test_return_home_rejects_non_selected_sources_without_input(self):
+        for label, recognizer in (
+            ("home", ScriptedClaimRecognizer("points", selected_daily=False)),
+            ("quest", ScriptedClaimRecognizer("points", selected_daily=False)),
+            ("unknown", ScriptedClaimRecognizer("points", selected_daily=False)),
+            ("overlay", ScriptedClaimRecognizer("points", selected_daily=False)),
+        ):
+            with self.subTest(source=label), tempfile.TemporaryDirectory() as directory:
+                result, runtime = self._run(
+                    Path(directory),
+                    recognizer=recognizer,
+                )
+                self.assertEqual(result["status"], "evidence_required")
+                self.assertEqual(result["input_count"], 0)
+                self.assertEqual(runtime.backs, [])
+
+    def test_return_home_rejects_stale_immediate_before_without_input(self):
+        class StaleImmediateBeforeRuntime(ClaimCanaryRuntime):
+            def capture(self, label: str) -> CapturedNativeFrame:
+                frame = super().capture(label)
+                if label == "daily-return-home-immediate-before":
+                    return _frame(
+                        self.session,
+                        "stale-immediate-before",
+                        age=60.0,
+                    )
+                return frame
+
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime = self._run(
+                Path(directory),
+                runtime=StaleImmediateBeforeRuntime(Path(directory)),
+            )
+
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(result["input_count"], 0)
+        self.assertEqual(runtime.backs, [])
+        self.assertIn("return_home_immediate_before", result["frames"])
+
+    def test_return_home_rejects_wrong_dimensions_without_input(self):
+        class WrongDimensionsRuntime(ClaimCanaryRuntime):
+            def capture(self, label: str) -> CapturedNativeFrame:
+                super().capture(label)
+                return _frame(
+                    self.session,
+                    "wrong-dimensions",
+                    image=np.zeros((720, 400, 3), dtype=np.uint8),
+                )
+
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime = self._run(
+                Path(directory),
+                runtime=WrongDimensionsRuntime(Path(directory)),
+            )
+
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(result["input_count"], 0)
+        self.assertEqual(runtime.backs, [])
+
+    def test_return_home_non_home_successor_is_evidence_required_without_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime = self._run(
+                Path(directory),
+                recognizer=ScriptedClaimRecognizer("points", home=False),
+            )
+
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(len(runtime.backs), 1)
+        self.assertNotIn("home", result)
+        self.assertEqual(
+            result["recognitions"]["return_home_immediate_post"]["state"],
+            daily.QUEST_STATE,
+        )
+
+    def test_generic_home_without_template_proof_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime = self._run(
+                Path(directory),
+                recognizer=ScriptedClaimRecognizer(
+                    "points",
+                    template_home=False,
+                ),
+            )
+
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(len(runtime.backs), 1)
+        self.assertEqual(
+            result["recognitions"]["return_home_immediate_post"]["state"],
+            daily.HOME_STATE,
+        )
+        self.assertFalse(
+            result["recognitions"]["return_home_immediate_post"][
+                "visual_evidence"
+            ]["template_home"]["recognized"]
+        )
 
 
 class VipPopupDismissalTests(unittest.TestCase):
@@ -2944,12 +3276,20 @@ class VipPopupDismissalTests(unittest.TestCase):
 
 class PnsctlDailyClaimTests(unittest.TestCase):
     def _command(self, root: Path, mode: str, *, max_inputs: int | None = None) -> list[str]:
-        limit = 0 if mode == "prepare" else 1
+        limit = (
+            0
+            if mode == "prepare"
+            else 2
+            if mode == "canary"
+            else 1
+        )
         if max_inputs is not None:
             limit = max_inputs
         variant = (
             "aggregate-claim-dismiss-vip"
             if mode == "dismiss-vip-popup"
+            else "aggregate-claim-return-home"
+            if mode == "return-home"
             else f"aggregate-claim-{mode}"
         )
         return [
@@ -2981,6 +3321,8 @@ class PnsctlDailyClaimTests(unittest.TestCase):
         variant = (
             "aggregate-claim-dismiss-vip"
             if mode == "dismiss-vip-popup"
+            else "aggregate-claim-return-home"
+            if mode == "return-home"
             else f"aggregate-claim-{mode}"
         )
         if mode == "prepare":
@@ -2994,10 +3336,10 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             gates = {}
         elif mode == "canary":
             receipt_class = "canary"
-            identities = ["daily-claim:aggregate"]
-            classes = ["reward_claim"]
+            identities = ["daily-claim:aggregate", "daily-return-home"]
+            classes = ["reward_claim", "navigation"]
             consequence = "ordinary_development"
-            total = 1
+            total = 2
             terminals = ["completed", "evidence_required"]
             result_identity = "daily-claim:canary:aggregate"
             gates = {
@@ -3005,6 +3347,15 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                 "independent_read_only_tester_evidence": "tester",
                 "parent_integration_acceptance": "accepted",
             }
+        elif mode == "return-home":
+            receipt_class = "reconnaissance"
+            identities = ["daily-return-home"]
+            classes = ["navigation"]
+            consequence = "navigation_only"
+            total = 1
+            terminals = ["observed", "evidence_required"]
+            result_identity = "daily-claim:return-home:verified"
+            gates = {}
         else:
             receipt_class = "reconnaissance"
             identities = ["reset-popup-close"]
@@ -3016,12 +3367,13 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             gates = {}
         action_bindings = [
             {
-                "action_identity": identities[0],
-                "action_class": classes[0],
+                "action_identity": identity,
+                "action_class": action_class,
                 "consequence_class": consequence,
                 "resource_affecting": False,
                 "combat_confirmation": False,
             }
+            for identity, action_class in zip(identities, classes)
         ]
         receipt = controller.issue(
             task_id="daily-row-claim",
@@ -3079,7 +3431,13 @@ class PnsctlDailyClaimTests(unittest.TestCase):
         ):
             output = pnsctl.development_session_daily_row_claim(
                 mode=mode,
-                max_inputs=0 if mode == "prepare" else 1,
+                max_inputs=(
+                    0
+                    if mode == "prepare"
+                    else 2
+                    if mode == "canary"
+                    else 1
+                ),
                 delegated_receipt=state,
                 agent_identity="luna-agent",
                 task_id="daily-row-claim",
@@ -3159,6 +3517,34 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                             wrong,
                             mode="dismiss-vip-popup",
                         )
+            self.assertEqual(controller.inspect()["status"], "issued")
+
+    def test_parser_and_return_home_receipt_freeze_navigation_contract(self):
+        command = self._command(Path("receipt.sqlite3"), "return-home")
+        parsed = pnsctl.parser().parse_args(command)
+        self.assertEqual(parsed.mode, "return-home")
+        self.assertEqual(parsed.max_inputs, 1)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            controller, receipt = self._receipt(root, "return-home")
+            self.assertEqual(receipt["receipt_class"], "reconnaissance")
+            self.assertEqual(receipt["variant"], "aggregate-claim-return-home")
+            self.assertEqual(receipt["max_total_inputs"], 1)
+            self.assertEqual(
+                receipt["permitted_action_identities"],
+                ["daily-return-home"],
+            )
+            self.assertEqual(receipt["permitted_action_classes"], ["navigation"])
+            self.assertEqual(receipt["consequence_class"], "navigation_only")
+            self.assertEqual(
+                receipt["evidence_result_binding"]["result_identity"],
+                "daily-claim:return-home:verified",
+            )
+            pnsctl._validate_daily_row_claim_receipt(
+                receipt,
+                mode="return-home",
+            )
             self.assertEqual(controller.inspect()["status"], "issued")
 
     def test_dismiss_artifact_failure_records_durable_evidence_required_terminal(self):
@@ -3390,14 +3776,38 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             result, controller, _receipt = self._run_pnsctl(root, "canary")
 
             self.assertEqual(result["status"], "completed")
-            self.assertEqual(result["input_count"], 1)
-            self.assertEqual(len(result["actions"]), 1)
+            self.assertEqual(result["input_count"], 2)
+            self.assertEqual(len(result["actions"]), 2)
             self.assertEqual(result["actions"][0]["requested_action"], "reward_claim")
+            self.assertEqual(result["actions"][1]["requested_action"], "navigation")
+            self.assertEqual(
+                [row["label"] for row in result["actions"]],
+                ["daily-claim:aggregate", "daily-return-home"],
+            )
             self.assertEqual(result["claim"]["points_after"], 5)
             self.assertIn("immediate_before", result["frames"])
             self.assertIn("immediate_post", result["frames"])
+            self.assertTrue(result["home"]["verified"])
             self.assertTrue(result["claim"]["annotated_immediate_before"])
             self.assertEqual(controller.inspect()["status"], "consumed")
+
+    def test_artifacts_reject_generic_home_without_template_proof(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result, _controller, _receipt = self._run_pnsctl(root, "canary")
+            final = result["recognitions"]["return_home_final"]
+            visual = dict(final["visual_evidence"])
+            visual["template_home"] = {"recognized": False}
+            final["visual_evidence"] = visual
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError,
+                "final Home is not recognized",
+            ):
+                pnsctl._validate_daily_row_claim_artifacts(
+                    Path(result["session_directory"]),
+                    result,
+                    mode="canary",
+                )
 
     def test_prepare_failure_records_durable_evidence_required_before_fallback_write(self):
         with tempfile.TemporaryDirectory() as directory:

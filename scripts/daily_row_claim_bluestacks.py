@@ -1,9 +1,9 @@
 """Bounded Home -> Quest -> Daily reconnaissance for local BlueStacks.
 
-This module owns the selected-Daily aggregate Claim flow and its optional exact
-VIP popup dismissal.  It never spends resources, performs recovery, or talks
-to ADB directly.  Runtime capture and transport are supplied by
-``LocalBlueStacksRuntime``.
+This module owns the selected-Daily aggregate Claim flow, its bounded
+return-Home continuation, and its optional exact VIP popup dismissal.  It
+never spends resources, performs recovery, or talks to ADB directly.  Runtime
+capture and transport are supplied by ``LocalBlueStacksRuntime``.
 """
 
 from __future__ import annotations
@@ -51,6 +51,12 @@ DAILY_CLAIM_ACTION_CLASS = "reward_claim"
 DAILY_CLAIM_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
 DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
 DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS = 20
+DAILY_RETURN_HOME_ACTION_IDENTITY = "daily-return-home"
+DAILY_RETURN_HOME_ACTION_CLASS = "navigation"
+DAILY_RETURN_HOME_CONSEQUENCE_CLASS = "navigation_only"
+DAILY_RETURN_HOME_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
+DAILY_RETURN_HOME_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
+DAILY_RETURN_HOME_SUCCESS_POLL_MAX_ATTEMPTS = 20
 VIP_POPUP_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
 VIP_POPUP_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
 VIP_POPUP_SUCCESS_POLL_MAX_ATTEMPTS = 20
@@ -103,6 +109,15 @@ class RuntimeLike(Protocol):
         action_key: str,
         action_class: str = NAVIGATION_ACTION_CLASS,
         consequential: bool = False,
+        continuation_of: str | None = None,
+    ) -> None: ...
+
+    def back(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        action_key: str,
+        target_identity: str = "android-back",
         continuation_of: str | None = None,
     ) -> None: ...
 
@@ -2807,6 +2822,14 @@ def _claim_frame_label_map(label: str) -> str | None:
         return "immediate_post"
     if label.startswith("daily-row-claim-poll-"):
         return f"poll_{label.rsplit('-', 1)[-1]}"
+    if label == "daily-row-claim-return-home-source":
+        return "return_home_source"
+    if label == f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-immediate-before":
+        return "return_home_immediate_before"
+    if label == f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-immediate-post":
+        return "return_home_immediate_post"
+    if label.startswith(f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-poll-"):
+        return f"return_home_poll_{label.rsplit('-', 1)[-1]}"
     return None
 
 
@@ -2844,12 +2867,20 @@ def _claim_result(
     reason: str,
     session: SessionLike,
     frames: Mapping[str, CapturedNativeFrame],
-    recognitions: Mapping[str, FrameRecognition],
+    recognitions: Mapping[str, FrameRecognition | Mapping[str, Any]],
     polls: Sequence[Mapping[str, Any]],
     game_day_id: str,
     mode: str,
     claim: Mapping[str, Any] | None = None,
+    extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    def recognition_record(
+        recognition: FrameRecognition | Mapping[str, Any],
+    ) -> dict[str, Any]:
+        if isinstance(recognition, Mapping):
+            return dict(recognition)
+        return recognition.as_dict()
+
     payload: dict[str, Any] = {
         "status": status,
         "mode": mode,
@@ -2863,7 +2894,7 @@ def _claim_result(
             for name, frame in frames.items()
         },
         "recognitions": {
-            name: recognition.as_dict()
+            name: recognition_record(recognition)
             for name, recognition in recognitions.items()
         },
         "polls": [dict(item) for item in polls],
@@ -2871,6 +2902,8 @@ def _claim_result(
     }
     if claim is not None:
         payload["claim"] = dict(claim)
+    if extra is not None:
+        payload.update(dict(extra))
     return payload
 
 
@@ -3048,6 +3081,204 @@ def _settle_daily_claim_successor(
     return None
 
 
+def _recognition_record(
+    recognition: FrameRecognition | Mapping[str, Any],
+) -> dict[str, Any]:
+    if isinstance(recognition, Mapping):
+        return dict(recognition)
+    if hasattr(recognition, "as_dict"):
+        return dict(recognition.as_dict())
+    return dict(asdict(recognition))
+
+
+def _home_successor_verified(
+    recognition: FrameRecognition | Mapping[str, Any],
+) -> bool:
+    record = _recognition_record(recognition)
+    visual = record.get("visual_evidence")
+    visual = visual if isinstance(visual, Mapping) else {}
+    overlay = visual.get("full_frame_overlay")
+    overlay = overlay if isinstance(overlay, Mapping) else {}
+    template = visual.get("template_home")
+    template = template if isinstance(template, Mapping) else None
+    return bool(
+        record.get("recognized")
+        and record.get("state") == HOME_STATE
+        and not bool(overlay.get("recognized"))
+        and template is not None
+        and template.get("recognized") is True
+    )
+
+
+def _settle_daily_return_home_successor(
+    *,
+    session: SessionLike,
+    runtime: RuntimeLike,
+    recognizer: DailyRowClaimRecognizer | Any,
+    immediate_post: CapturedNativeFrame,
+    frames: dict[str, CapturedNativeFrame],
+    recognitions: dict[str, FrameRecognition | Mapping[str, Any]],
+    polls: list[dict[str, Any]],
+) -> FrameRecognition | Mapping[str, Any] | None:
+    def inspect(
+        frame: CapturedNativeFrame,
+        label: str,
+        attempt: int,
+    ) -> FrameRecognition | Mapping[str, Any]:
+        method = getattr(recognizer, "recognize_home", None)
+        if not callable(method):
+            raise DailyRowClaimRecognitionError(
+                "template Home recognizer is not available"
+            )
+        recognition = method(frame.frame)
+        frame_name = _claim_frame_label_map(label)
+        if frame_name is not None:
+            frames[frame_name] = frame
+            recognitions[frame_name] = recognition
+        polls.append(
+            {
+                "action_identity": DAILY_RETURN_HOME_ACTION_IDENTITY,
+                "attempt": attempt,
+                "label": label,
+                "frame_name": frame_name,
+                "frame": _frame_ref(frame, session.session_directory),
+                "recognition": _recognition_record(recognition),
+            }
+        )
+        return recognition
+
+    current = inspect(
+        immediate_post,
+        f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-immediate-post",
+        0,
+    )
+    if _home_successor_verified(current):
+        frames["return_home_final"] = immediate_post
+        recognitions["return_home_final"] = current
+        return current
+
+    deadline = time.monotonic() + DAILY_RETURN_HOME_SUCCESS_POLL_TIMEOUT_SECONDS
+    attempts = 0
+    while attempts < DAILY_RETURN_HOME_SUCCESS_POLL_MAX_ATTEMPTS:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        interval = max(
+            0.0,
+            min(DAILY_RETURN_HOME_SUCCESS_POLL_INTERVAL_SECONDS, remaining),
+        )
+        if interval:
+            time.sleep(interval)
+        if time.monotonic() >= deadline:
+            break
+        attempts += 1
+        label = f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-poll-{attempts:02d}"
+        current_frame = session.observe(runtime.capture, label=label)
+        current = inspect(current_frame, label, attempts)
+        if _home_successor_verified(current):
+            frames["return_home_final"] = current_frame
+            recognitions["return_home_final"] = current
+            return current
+    return None
+
+
+def _run_daily_return_home_action(
+    runtime: RuntimeLike,
+    session: SessionLike,
+    *,
+    recognizer: DailyRowClaimRecognizer | Any,
+    expected_consequence_class: str,
+    frames: dict[str, CapturedNativeFrame],
+    recognitions: dict[str, FrameRecognition | Mapping[str, Any]],
+    polls: list[dict[str, Any]],
+) -> tuple[Any, FrameRecognition | Mapping[str, Any] | None]:
+    """Authorize one selected-Daily Back and prove template Home."""
+
+    def capture(label: str) -> CapturedNativeFrame:
+        frame = runtime.capture(label)
+        frame_name = _claim_frame_label_map(label)
+        if frame_name is not None:
+            frames[frame_name] = frame
+        if label == "daily-row-claim-return-home-source":
+            if not _frame_shape_ok(frame.frame):
+                raise DailyRowClaimRecognitionError(
+                    "return-home source profile dimensions mismatch"
+                )
+            _ensure_fresh(frame, runtime)
+            source, source_record = _daily_selected_successor(recognizer, frame)
+            recognitions["return_home_source"] = source_record or source
+            if not bool(source_record and source_record.get("successor_proven")):
+                raise DailyRowClaimRecognitionError(
+                    str(
+                        (source_record or {}).get("reason")
+                        or "selected Daily source was not positively recognized"
+                    )
+                )
+        elif label == f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-immediate-before":
+            # Reject stale, malformed, or non-selected-Daily immediate evidence
+            # before DevelopmentSession accounts an input or invokes dispatch.
+            if not _frame_shape_ok(frame.frame):
+                raise DailyRowClaimRecognitionError(
+                    "return-home immediate-before profile dimensions mismatch"
+                )
+            _ensure_fresh(frame, runtime)
+            immediate, immediate_record = _daily_selected_successor(recognizer, frame)
+            recognitions["return_home_immediate_before"] = immediate_record or immediate
+            if not bool(
+                immediate_record and immediate_record.get("successor_proven")
+            ):
+                raise DailyRowClaimRecognitionError(
+                    str(
+                        (immediate_record or {}).get("reason")
+                        or "return-home immediate-before selected Daily revalidation failed"
+                    )
+                )
+        return frame
+
+    source = session.observe(
+        capture,
+        label="daily-row-claim-return-home-source",
+    )
+    # The source is checked again here because DevelopmentSession validates
+    # native geometry, but deliberately does not own this route's freshness
+    # policy.
+    _ensure_fresh(source, runtime)
+
+    def dispatch(before: CapturedNativeFrame) -> None:
+        _ensure_fresh(before, runtime)
+        _ensure_runtime_ready(runtime)
+        runtime.back(
+            before,
+            action_key=DAILY_RETURN_HOME_ACTION_IDENTITY,
+            target_identity=DAILY_RETURN_HOME_ACTION_IDENTITY,
+        )
+
+    terminal: FrameRecognition | Mapping[str, Any] | None = None
+
+    def recognize_successor(after: CapturedNativeFrame) -> str:
+        nonlocal terminal
+        terminal = _settle_daily_return_home_successor(
+            session=session,
+            runtime=runtime,
+            recognizer=recognizer,
+            immediate_post=after,
+            frames=frames,
+            recognitions=recognitions,
+            polls=polls,
+        )
+        return HOME_STATE if terminal is not None else UNKNOWN_STATE
+
+    action = session.run_action(
+        action_class=DAILY_RETURN_HOME_ACTION_CLASS,
+        label=DAILY_RETURN_HOME_ACTION_IDENTITY,
+        capture=capture,
+        dispatch=_NativeTapDispatch(dispatch).dispatch,
+        recognize=recognize_successor,
+        consequence_class=expected_consequence_class,
+    )
+    return action, terminal
+
+
 def run_daily_row_claim_canary(
     runtime: RuntimeLike,
     session: SessionLike,
@@ -3056,7 +3287,7 @@ def run_daily_row_claim_canary(
     recognizer: DailyRowClaimRecognizer | Any | None = None,
     wall_utc: Callable[[], datetime] | None = None,
 ) -> dict[str, Any]:
-    """Dispatch exactly one receipt-bound free Claim and prove its successor."""
+    """Claim once, then return Home with exactly one bounded Android Back."""
 
     recognizer = recognizer or DailyRowClaimRecognizer()
     if game_day_id is None and not hasattr(recognizer, "_ocr"):
@@ -3068,6 +3299,7 @@ def run_daily_row_claim_canary(
     authorization_recognition: FrameRecognition | None = None
     terminal_recognition: FrameRecognition | None = None
     annotated_immediate_before: str | None = None
+    claim_evidence: dict[str, Any] | None = None
     if not bool(getattr(runtime, "execute", False)):
         return _claim_result(
             status="evidence_required",
@@ -3199,40 +3431,78 @@ def run_daily_row_claim_canary(
             recognize=recognize_successor,
             consequence_class=DAILY_CLAIM_CONSEQUENCE_CLASS,
         )
+
+        def visual_for(
+            recognition: FrameRecognition | Mapping[str, Any] | None,
+        ) -> dict[str, Any]:
+            if recognition is None:
+                return {}
+            visual = _recognition_record(recognition).get("visual_evidence")
+            return dict(visual) if isinstance(visual, Mapping) else {}
+
+        before_visual = visual_for(authorization_recognition or before_recognition)
+        after_visual = visual_for(
+            terminal_recognition or recognitions.get("immediate_post")
+        )
+        claim_evidence = {
+            "points_before": before_visual.get("points"),
+            "points_after": after_visual.get("points"),
+            "reset_timer": before_visual.get("reset_timer"),
+            "reset_timer_seconds": before_visual.get("reset_timer_seconds"),
+            "reset_observed_utc": before_visual.get("reset_observed_utc"),
+            "reset_deadline_utc": before_visual.get("reset_deadline_utc"),
+            "reset_deadline_identity": before_visual.get(
+                "reset_deadline_identity"
+            ),
+            "reset_deadline_tolerance_seconds": before_visual.get(
+                "reset_deadline_tolerance_seconds"
+            ),
+            "action_class": DAILY_CLAIM_ACTION_CLASS,
+            "consequence_class": DAILY_CLAIM_CONSEQUENCE_CLASS,
+            "annotated_immediate_before": annotated_immediate_before,
+        }
         if action.status != "completed" or terminal_recognition is None:
             raise DailyRowClaimRecognitionError(
                 "Daily Claim semantic postcondition was not proven"
             )
-        session.terminal_status = "completed"
-        before_visual = dict(
-            (authorization_recognition or before_recognition).visual_evidence or {}
+
+        return_home_action, final_home = _run_daily_return_home_action(
+            runtime,
+            session,
+            recognizer=recognizer,
+            expected_consequence_class=DAILY_CLAIM_CONSEQUENCE_CLASS,
+            frames=frames,
+            recognitions=recognitions,
+            polls=polls,
         )
+        if return_home_action.status != "completed" or final_home is None:
+            raise DailyRowClaimRecognitionError(
+                "template Home return postcondition was not proven"
+            )
+
+        session.terminal_status = "completed"
+        final_frame = frames.get("return_home_final")
+        home_evidence = {
+            "verified": True,
+            "state": HOME_STATE,
+            "frame": (
+                _frame_ref(final_frame, session.session_directory)
+                if final_frame is not None
+                else None
+            ),
+            "recognition": _recognition_record(final_home),
+        }
         return _claim_result(
             status="completed",
-            reason="aggregate Daily Claim postcondition proven",
+            reason="aggregate Daily Claim and template Home postconditions proven",
             session=session,
             frames=frames,
             recognitions=recognitions,
             polls=polls,
             game_day_id=game_day_id,
             mode="canary",
-            claim={
-                "points_before": before_visual.get("points"),
-                "points_after": dict(terminal_recognition.visual_evidence or {}).get("points"),
-                "reset_timer": before_visual.get("reset_timer"),
-                "reset_timer_seconds": before_visual.get("reset_timer_seconds"),
-                "reset_observed_utc": before_visual.get("reset_observed_utc"),
-                "reset_deadline_utc": before_visual.get("reset_deadline_utc"),
-                "reset_deadline_identity": before_visual.get(
-                    "reset_deadline_identity"
-                ),
-                "reset_deadline_tolerance_seconds": before_visual.get(
-                    "reset_deadline_tolerance_seconds"
-                ),
-                "action_class": DAILY_CLAIM_ACTION_CLASS,
-                "consequence_class": DAILY_CLAIM_CONSEQUENCE_CLASS,
-                "annotated_immediate_before": annotated_immediate_before,
-            },
+            claim=claim_evidence,
+            extra={"home": home_evidence},
         )
     except BaseException as exc:
         session.terminal_status = "evidence_required"
@@ -3246,6 +3516,99 @@ def run_daily_row_claim_canary(
             polls=polls,
             game_day_id=game_day_id,
             mode="canary",
+            claim=claim_evidence,
+        )
+
+
+def run_daily_row_claim_return_home(
+    runtime: RuntimeLike,
+    session: SessionLike,
+    *,
+    recognizer: DailyRowClaimRecognizer | Any | None = None,
+) -> dict[str, Any]:
+    """Return from an already-claimed selected Daily screen without Claim."""
+
+    recognizer = recognizer or DailyRowClaimRecognizer()
+    frames: dict[str, CapturedNativeFrame] = {}
+    recognitions: dict[str, FrameRecognition | Mapping[str, Any]] = {}
+    polls: list[dict[str, Any]] = []
+
+    def alias_source_evidence() -> None:
+        if "return_home_source" in frames:
+            frames["source"] = frames["return_home_source"]
+        if "return_home_source" in recognitions:
+            recognitions["source"] = recognitions["return_home_source"]
+
+    binding = {
+        "action_identity": DAILY_RETURN_HOME_ACTION_IDENTITY,
+        "action_class": DAILY_RETURN_HOME_ACTION_CLASS,
+        "consequence_class": DAILY_RETURN_HOME_CONSEQUENCE_CLASS,
+    }
+    if not bool(getattr(runtime, "execute", False)):
+        return _claim_result(
+            status="evidence_required",
+            reason="runtime execution is required for Daily return-home",
+            session=session,
+            frames=frames,
+            recognitions=recognitions,
+            polls=polls,
+            game_day_id=None,
+            mode="return-home",
+            extra=binding,
+        )
+
+    try:
+        action, final_home = _run_daily_return_home_action(
+            runtime,
+            session,
+            recognizer=recognizer,
+            expected_consequence_class=DAILY_RETURN_HOME_CONSEQUENCE_CLASS,
+            frames=frames,
+            recognitions=recognitions,
+            polls=polls,
+        )
+        alias_source_evidence()
+        if action.status != "completed" or final_home is None:
+            raise DailyRowClaimRecognitionError(
+                "template Home return postcondition was not proven"
+            )
+        final_frame = frames.get("return_home_final")
+        home_evidence = {
+            "verified": True,
+            "state": HOME_STATE,
+            "frame": (
+                _frame_ref(final_frame, session.session_directory)
+                if final_frame is not None
+                else None
+            ),
+            "recognition": _recognition_record(final_home),
+        }
+        session.terminal_status = "observed"
+        return _claim_result(
+            status="observed",
+            reason="selected Daily returned to template Home",
+            session=session,
+            frames=frames,
+            recognitions=recognitions,
+            polls=polls,
+            game_day_id=None,
+            mode="return-home",
+            extra={**binding, "home": home_evidence},
+        )
+    except BaseException as exc:
+        alias_source_evidence()
+        session.terminal_status = "evidence_required"
+        session.blocker = str(exc)
+        return _claim_result(
+            status="evidence_required",
+            reason=f"{type(exc).__name__}: {exc}",
+            session=session,
+            frames=frames,
+            recognitions=recognitions,
+            polls=polls,
+            game_day_id=None,
+            mode="return-home",
+            extra=binding,
         )
 
 
@@ -3404,6 +3767,7 @@ def _daily_selected_successor(
     positive = bool(
         record.get("recognized")
         and record.get("state") == DAILY_SELECTED_STATE
+        and visual.get("selected_daily") is True
         and not bool(overlay.get("recognized"))
         and visual.get("blurred") is not True
         and visual.get("unblurred") is not False

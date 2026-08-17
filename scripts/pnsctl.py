@@ -1341,14 +1341,17 @@ DAILY_ROW_CLAIM_FLOW_ID = "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
 DAILY_ROW_CLAIM_SCENARIO = "selected-daily-aggregate-claim"
 DAILY_ROW_CLAIM_PREPARE_VARIANT = "aggregate-claim-prepare"
 DAILY_ROW_CLAIM_CANARY_VARIANT = "aggregate-claim-canary"
+DAILY_ROW_CLAIM_RETURN_HOME_VARIANT = "aggregate-claim-return-home"
 DAILY_ROW_CLAIM_DISMISS_VIP_VARIANT = "aggregate-claim-dismiss-vip"
 DAILY_ROW_CLAIM_PREPARE_RESULT_IDENTITY = "daily-claim:prepare:aggregate"
 DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY = "daily-claim:canary:aggregate"
+DAILY_ROW_CLAIM_RETURN_HOME_RESULT_IDENTITY = "daily-claim:return-home:verified"
 DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY = (
     "daily-row-claim:popup-dismiss:vip-points"
 )
 DAILY_ROW_CLAIM_PREPARE_ACTION_IDENTITY = "daily-row-prepare-observation"
 DAILY_ROW_CLAIM_ACTION_IDENTITY = "daily-claim:aggregate"
+DAILY_ROW_CLAIM_RETURN_HOME_ACTION_IDENTITY = "daily-return-home"
 DAILY_ROW_CLAIM_DISMISS_VIP_ACTION_IDENTITY = "reset-popup-close"
 
 
@@ -1370,14 +1373,30 @@ def _daily_row_claim_spec(mode: str) -> Mapping[str, Any]:
         return {
             "mode": mode,
             "receipt_class": "canary",
-            "max_inputs": 1,
+            "max_inputs": 2,
             "variant": DAILY_ROW_CLAIM_CANARY_VARIANT,
             "scenario": DAILY_ROW_CLAIM_SCENARIO,
-            "action_identities": (DAILY_ROW_CLAIM_ACTION_IDENTITY,),
-            "action_classes": ("reward_claim",),
+            "action_identities": (
+                DAILY_ROW_CLAIM_ACTION_IDENTITY,
+                DAILY_ROW_CLAIM_RETURN_HOME_ACTION_IDENTITY,
+            ),
+            "action_classes": ("reward_claim", "navigation"),
             "consequence_class": "ordinary_development",
             "result_identity": DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY,
             "terminal_states": ("completed", "evidence_required"),
+        }
+    if mode == "return-home":
+        return {
+            "mode": mode,
+            "receipt_class": "reconnaissance",
+            "max_inputs": 1,
+            "variant": DAILY_ROW_CLAIM_RETURN_HOME_VARIANT,
+            "scenario": DAILY_ROW_CLAIM_SCENARIO,
+            "action_identities": (DAILY_ROW_CLAIM_RETURN_HOME_ACTION_IDENTITY,),
+            "action_classes": ("navigation",),
+            "consequence_class": "navigation_only",
+            "result_identity": DAILY_ROW_CLAIM_RETURN_HOME_RESULT_IDENTITY,
+            "terminal_states": ("observed", "evidence_required"),
         }
     if mode == "dismiss-vip-popup":
         return {
@@ -1558,6 +1577,18 @@ def _validate_daily_row_claim_artifacts(
 ) -> None:
     from scripts.bluestacks_native_runtime import captured_native_frame_from_png
 
+    def template_home_proven(recognition: object) -> bool:
+        if not isinstance(recognition, Mapping):
+            return False
+        visual = recognition.get("visual_evidence")
+        if not isinstance(visual, Mapping):
+            return False
+        template = visual.get("template_home")
+        return (
+            isinstance(template, Mapping)
+            and template.get("recognized") is True
+        )
+
     frames = payload.get("frames")
     if not isinstance(frames, Mapping) or "source" not in frames:
         raise OperatorError("Daily row Claim source frame is missing")
@@ -1602,12 +1633,38 @@ def _validate_daily_row_claim_artifacts(
             raise OperatorError("Daily row Claim annotated prepare overlay is unsafe")
     elif mode == "canary":
         actions = payload.get("actions")
-        if not isinstance(actions, list) or len(actions) != 1:
-            raise OperatorError("Daily row Claim canary action count is not one")
-        if payload.get("input_count") != 1:
-            raise OperatorError("Daily row Claim canary input count is not one")
-        if "immediate_before" not in frames or "immediate_post" not in frames:
+        if not isinstance(actions, list) or len(actions) != 2:
+            raise OperatorError("Daily row Claim canary action count is not two")
+        if payload.get("input_count") != 2:
+            raise OperatorError("Daily row Claim canary input count is not two")
+        required_frames = {
+            "immediate_before",
+            "immediate_post",
+            "return_home_source",
+            "return_home_immediate_before",
+            "return_home_immediate_post",
+            "return_home_final",
+        }
+        if not required_frames <= set(frames):
             raise OperatorError("Daily row Claim canary immediate evidence is missing")
+        expected_actions = [
+            ("daily-claim:aggregate", "reward_claim"),
+            ("daily-return-home", "navigation"),
+        ]
+        if [
+            (
+                row.get("action_key") or row.get("label"),
+                row.get("requested_action"),
+            )
+            for row in actions
+            if isinstance(row, Mapping)
+        ] != expected_actions:
+            raise OperatorError("Daily row Claim canary action identity order is invalid")
+        if any(
+            not isinstance(row, Mapping) or row.get("status") != "completed"
+            for row in actions
+        ):
+            raise OperatorError("Daily row Claim canary action records are not completed")
         claim = payload.get("claim")
         if not isinstance(claim, Mapping) or not claim.get("annotated_immediate_before"):
             raise OperatorError("Daily row Claim annotated immediate-before overlay is missing")
@@ -1628,6 +1685,87 @@ def _validate_daily_row_claim_artifacts(
             raise OperatorError("Daily row Claim annotated overlay escaped the session") from exc
         if annotated.is_symlink() or not annotated.is_file() or annotated.stat().st_size == 0:
             raise OperatorError("Daily row Claim annotated immediate-before overlay is unsafe")
+        recognitions = payload.get("recognitions")
+        if not isinstance(recognitions, Mapping):
+            raise OperatorError("Daily row Claim recognitions are missing")
+        for name in ("return_home_source", "return_home_immediate_before"):
+            recognition = recognitions.get(name)
+            if (
+                not isinstance(recognition, Mapping)
+                or recognition.get("state") != "DAILY_SELECTED"
+                or recognition.get("successor_proven") is not True
+            ):
+                raise OperatorError(
+                    f"Daily row Claim {name} is not selected Daily"
+                )
+        final_home = recognitions.get("return_home_final")
+        if (
+            not isinstance(final_home, Mapping)
+            or final_home.get("state") != "HOME"
+            or final_home.get("recognized") is not True
+            or not template_home_proven(final_home)
+        ):
+            raise OperatorError("Daily row Claim final Home is not recognized")
+        home = payload.get("home")
+        if not isinstance(home, Mapping) or home.get("verified") is not True:
+            raise OperatorError("Daily row Claim final Home evidence is missing")
+    elif mode == "return-home":
+        actions = payload.get("actions")
+        if not isinstance(actions, list) or len(actions) != 1:
+            raise OperatorError("Daily return-home action count is not one")
+        if payload.get("input_count") != 1:
+            raise OperatorError("Daily return-home input count is not one")
+        if (
+            payload.get("resource_affecting_inputs") != 0
+            or payload.get("combat_confirmations") != 0
+        ):
+            raise OperatorError("Daily return-home contains a forbidden budget")
+        if (
+            payload.get("action_identity") != "daily-return-home"
+            or payload.get("action_class") != "navigation"
+            or payload.get("consequence_class") != "navigation_only"
+        ):
+            raise OperatorError("Daily return-home action binding is not frozen")
+        action = actions[0]
+        if (
+            not isinstance(action, Mapping)
+            or action.get("requested_action") != "navigation"
+            or action.get("label") != "daily-return-home"
+            or action.get("status") != "completed"
+        ):
+            raise OperatorError("Daily return-home action record is not frozen")
+        required_frames = {
+            "source",
+            "return_home_immediate_before",
+            "return_home_immediate_post",
+            "return_home_final",
+        }
+        if not required_frames <= set(frames):
+            raise OperatorError("Daily return-home evidence is missing")
+        recognitions = payload.get("recognitions")
+        if not isinstance(recognitions, Mapping):
+            raise OperatorError("Daily return-home recognitions are missing")
+        for name in ("source", "return_home_immediate_before"):
+            recognition = recognitions.get(name)
+            if (
+                not isinstance(recognition, Mapping)
+                or recognition.get("state") != "DAILY_SELECTED"
+                or recognition.get("successor_proven") is not True
+            ):
+                raise OperatorError(
+                    f"Daily return-home {name} is not selected Daily"
+                )
+        final_home = recognitions.get("return_home_final")
+        if (
+            not isinstance(final_home, Mapping)
+            or final_home.get("state") != "HOME"
+            or final_home.get("recognized") is not True
+            or not template_home_proven(final_home)
+        ):
+            raise OperatorError("Daily return-home final Home is not recognized")
+        home = payload.get("home")
+        if not isinstance(home, Mapping) or home.get("verified") is not True:
+            raise OperatorError("Daily return-home final Home evidence is missing")
     elif mode == "dismiss-vip-popup":
         actions = payload.get("actions")
         if not isinstance(actions, list) or len(actions) != 1:
@@ -1739,6 +1877,7 @@ def development_session_daily_row_claim(
         run_daily_row_claim_vip_popup_dismissal,
         run_daily_row_claim_canary,
         run_daily_row_claim_prepare,
+        run_daily_row_claim_return_home,
     )
     from scripts.flow_delivery_control import DelegatedRuntimeReceiptController
     from scripts.navigation_development_boundary import (
@@ -1865,6 +2004,11 @@ def development_session_daily_row_claim(
                         game_day_id=game_day_id,
                     )
                     if mode == "canary"
+                    else run_daily_row_claim_return_home(
+                        runtime,
+                        active_session,
+                    )
+                    if mode == "return-home"
                     else run_daily_row_claim_vip_popup_dismissal(
                         runtime,
                         active_session,
@@ -5312,7 +5456,7 @@ def parser() -> argparse.ArgumentParser:
     daily_row_claim = development_sub.add_parser("daily-row-claim")
     daily_row_claim.add_argument(
         "--mode",
-        choices=("prepare", "canary", "dismiss-vip-popup"),
+        choices=("prepare", "canary", "return-home", "dismiss-vip-popup"),
         required=True,
     )
     daily_row_claim.add_argument("--max-inputs", type=int, required=True)
