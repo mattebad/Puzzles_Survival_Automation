@@ -20,15 +20,23 @@
       "to": "aggregate_claim_complete",
       "via": "one ordinary Claim tap",
       "notes": "One tap claims all available completed Daily quests."
+    },
+    {
+      "from": "aggregate_claim_complete",
+      "to": "home_ready",
+      "via": "bounded Back navigation",
+      "notes": "A successful Daily Claim flow always returns to and positively verifies Base/Home before terminal completion."
     }
   ],
   "permitted_inputs": [
-    "one current-frame-bound ordinary Claim tap"
+    "one current-frame-bound ordinary Claim tap",
+    "bounded Back navigation from selected Daily to verified Base/Home"
   ],
   "local_postconditions": [
     "Daily points increased",
     "ordinary Claim controls cleared",
-    "same selected Daily and reset identity"
+    "same selected Daily and reset identity before exit",
+    "Base/Home positively recognized after bounded Back navigation"
   ],
   "consequential_action_class": "ordinary_development",
   "cost_quantity_requirements": {
@@ -38,7 +46,7 @@
     "resource_or_currency": null,
     "notes": "Ordinary free Claim only; milestone controls are excluded."
   },
-  "completion_identity": "daily-row-claim-bluestacks-integration:complete",
+  "completion_identity": "daily-row-claim-bluestacks-integration:home-complete",
   "terminal_outcomes": [
     "complete_for_reset",
     "deferred",
@@ -51,7 +59,8 @@
     "current native 800x1280 selected-Daily source and immediate-before frame",
     "ordinary free non-milestone Claim-control proof",
     "one-tap accounting",
-    "points increase and ordinary Claim-control exhaustion"
+    "points increase and ordinary Claim-control exhaustion",
+    "post-Claim bounded Back transport and positive Base/Home successor"
   ],
   "replay_fixture_requirements": [
     {
@@ -65,7 +74,7 @@
     {
       "id": "selected-daily-aggregate-claim",
       "mode": "consequential_supervised",
-      "notes": "Live-validated 2026-08-17 on local BlueStacks through the canonical receipt-bound route. Template Home recognition reached selected Daily; one free ordinary gold Claim increased points 20 to 25 and cleared ordinary Claim controls. Receipt c2ddc2ea-60b4-404a-a7b3-784ffaff9d08; no row loop, milestone, cost, red Go, resource spend, or provider-specific Claim."
+      "notes": "Claim subaction validated 2026-08-17 on local BlueStacks through the canonical receipt-bound route. Template Home recognition reached selected Daily; one free ordinary gold Claim increased points 20 to 25 and cleared ordinary Claim controls. Receipt c2ddc2ea-60b4-404a-a7b3-784ffaff9d08; no row loop, milestone, cost, red Go, resource spend, or provider-specific Claim. End-to-end acceptance remains evidence_required because that run stopped on Daily instead of backing out to verified Base/Home."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -77,6 +86,6 @@
     "ambiguous_account_or_server_identity",
     "blocking_unknown_modal"
   ],
-  "implementation_status": "live_validated_supervised",
-  "proof_state": "accepted"
+  "implementation_status": "return_home_repair_required",
+  "proof_state": "evidence_required"
 }

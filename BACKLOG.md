@@ -953,8 +953,9 @@ Claim example.
   provenance/hash gates, one-tap accounting, and reset identity. Success requires a positive
   points delta and no remaining available ordinary Claim controls. Go, milestone, cost-bearing,
   clipped, overlay, stale-source, and unchanged-postcondition cases fail closed.
-- Status: `LIVE_VALIDATED` (2026-08-17) for the supervised aggregate ordinary
-  Claim route; registration and scheduler eligibility remain disabled.
+- Status: Claim subaction `LIVE_VALIDATED` (2026-08-17); end-to-end flow
+  `evidence_required` because successful completion must return to positively
+  verified Base/Home. Registration and scheduler eligibility remain disabled.
 - Evidence: `tasks/available_daily_claim.py`, `scripts/daily_row_claim_bluestacks.py`,
   `tests/fixtures/phase_e_daily_claim_observations.json`, and
   `tests/test_available_daily_claim.py`. The retained Bioenhancer and Gather Food fixture results
@@ -970,11 +971,13 @@ Claim example.
   dispatched exactly one aggregate Claim. Daily points increased 20 → 25,
   ordinary Claim controls cleared, reset identity remained within the
   two-second deadline tolerance, and singleton ownership released.
-- Blocker: none for supervised aggregate Claim acceptance.
-- Next: retain this as the sole ordinary Daily Claim owner. Do not rebuild a
-  per-row Claim path; milestone Claim remains a separate flow. Scheduler
-  promotion remains blocked until the selected portfolio flows are individually
-  live-proven.
+- Blocker: receipt `c2ddc2ea-60b4-404a-a7b3-784ffaff9d08` proved the Claim
+  itself but terminated on selected Daily; no post-Claim Base/Home successor was
+  attempted or proven.
+- Next: extend the canonical flow with bounded Back navigation and template
+  Base/Home verification. Retain it as the sole ordinary Daily Claim owner; do
+  not rebuild a per-row Claim path or repeat the current-reset Claim. Milestone
+  Claim remains separate, and scheduler promotion remains blocked.
 
 ### GNB-PHASE-E-MILESTONES-OFFLINE — Add activity milestone-chest contract
 
@@ -1801,7 +1804,8 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Status: `BIOENHANCER_SAME_DAY_END_TO_END_CONFIRMED` (2026-07-15 UTC);
   accepted existing supervised canary for the free Bioenhancer objective and
   same-day Daily reconciliation. Its separate ordinary Claim is now owned by
-  the aggregate Daily Claim flow, live-validated on 2026-08-17.
+  the aggregate Daily Claim flow; the Claim subaction was live-validated on
+  2026-08-17, while return-to-Base completion remains pending.
 - Active parity subtask: `BIOENHANCER-GNBOTS-PARITY` completed offline on 2026-07-15 with
   primary outcome `GNBOTS_REFERENCE_DOES_NOT_IMPLEMENT_BIOENHANCER`. The decoded GnBots reference
   has generic Daily claim/recruit/depot/leaderboard behavior and malformed generic town research,
@@ -1835,8 +1839,9 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   ordinary Claim owner. Bioenhancer remains dormant, not registered, and
   scheduler-ineligible.
 - Promotion/unlocks: `LIVE_VALIDATED` under `SUPERVISED_VALIDATION` for research and same-day
-  reconciliation. Aggregate ordinary Claim is independently `LIVE_VALIDATED`
-  under `DQ-CLAIM-DAILY`; milestone Claim remains separate. No registration or
+  reconciliation. Aggregate ordinary Claim execution is independently proven
+  under `DQ-CLAIM-DAILY`, but its required return-to-Base terminal step remains
+  `evidence_required`; milestone Claim remains separate. No registration or
   scheduler eligibility.
 - Parity conclusion: no implementation change; GnBots does not implement this objective. The
   verified new reset removed the prior day-boundary ambiguity, and the same-day objective
