@@ -7,6 +7,7 @@ import hashlib
 from pathlib import Path
 import json
 import tempfile
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -18,6 +19,16 @@ from scripts import bluestacks_ultimate_challenge as ultimate
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts import flow_delivery_ultimate_challenge_bluestacks as delivery
 from scripts.flow_delivery_evidence import require_operator_evidence
+from tasks.home_atlas import (
+    AmbiguityState,
+    AtlasViewport,
+    HomeAtlas,
+    LocalizationResult,
+    PlatformProfile,
+    SemanticBuilding,
+    ZoomIdentity,
+)
+from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, frame_digest
 from tasks.home_nav_recognition import recognize_home_nav
 from tasks.ultimate_challenge_daily import (
     FLOW_ID,
@@ -246,6 +257,492 @@ class UltimateChallengeVisualTests(unittest.TestCase):
         self.assertIn("fresh_entry = _bind_ultimate_challenge_entry", source)
         self.assertEqual(ultimate.MAX_TOTAL_INPUTS, 16)
         self.assertIn("--max-total-inputs", source)
+
+
+class UltimateHomeNormalizationTests(unittest.TestCase):
+    @staticmethod
+    def _home_frame(*, marker: int = 0) -> np.ndarray:
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        template = cv2.imread(
+            str(ROOT / "tasks/assets/home_nav/800x1280/home_nav_strip.png"),
+            cv2.IMREAD_COLOR,
+        )
+        frame[1213:1280] = template
+        if marker:
+            frame[300, 300] = (marker, marker, marker)
+        return frame
+
+    @staticmethod
+    def _atlas() -> HomeAtlas:
+        return HomeAtlas(
+            3,
+            "ultimate-normalization-test",
+            "1",
+            PlatformProfile(
+                BLUESTACKS_PLATFORM,
+                BLUESTACKS_PROFILE_ID,
+                (800, 1280),
+                "com.global.ztmslg",
+            ),
+            "fully_zoomed_out",
+            "atlas pixels",
+            (0, 0),
+            800,
+            1280,
+            "atlas.png",
+            "test",
+            "test",
+            (
+                (
+                    (0, 0),
+                    (800, 0),
+                    (800, 1280),
+                    (0, 1280),
+                ),
+            ),
+            (),
+            (
+                AtlasViewport(
+                    "viewport-001",
+                    "unused.png",
+                    "a" * 64,
+                    "now",
+                    ((1, 0, 0), (0, 1, 0), (0, 0, 1)),
+                    ((0, 0), (800, 0), (800, 1280), (0, 1280)),
+                    1,
+                    0,
+                    "translation",
+                ),
+            ),
+            (
+                SemanticBuilding(
+                    "home.building.campaign",
+                    "Campaign",
+                    ((300, 400), (440, 400), (440, 540), (300, 540)),
+                    0.98,
+                    ("test",),
+                    recognition={"bluestacks": {"label": "Campaign"}},
+                    semantic_proof=("test Campaign label",),
+                    interaction_eligible=True,
+                    platform_binding_policy={"bluestacks": {"label": "Campaign"}},
+                ),
+            ),
+            (
+                (
+                    (0, 0),
+                    (800, 0),
+                    (800, 1280),
+                    (0, 1280),
+                ),
+            ),
+            (0.0, 0.0, 800.0, 1280.0),
+        )
+
+    class _Localizer:
+        def __init__(self, initial: np.ndarray, canonical: np.ndarray, *, unknown: bool = False):
+            self.initial = initial
+            self.canonical_reference = canonical
+            self.unknown = unknown
+
+        def localize(self, frame: np.ndarray) -> LocalizationResult:
+            digest = frame_digest(frame)
+            if self.unknown:
+                return LocalizationResult(
+                    False,
+                    BLUESTACKS_PLATFORM,
+                    BLUESTACKS_PROFILE_ID,
+                    ZoomIdentity.UNKNOWN,
+                    None,
+                    (),
+                    0.0,
+                    (),
+                    None,
+                    AmbiguityState.INSUFFICIENT_LANDMARKS,
+                    "unknown",
+                    digest,
+                    "now",
+                )
+            if np.array_equal(frame, self.canonical_reference):
+                return LocalizationResult(
+                    True,
+                    BLUESTACKS_PLATFORM,
+                    BLUESTACKS_PROFILE_ID,
+                    ZoomIdentity.FULLY_ZOOMED_OUT,
+                    ((1, 0, 0), (0, 1, 0), (0, 0, 1)),
+                    ((0, 0), (800, 0), (800, 1280), (0, 1280)),
+                    0.95,
+                    ("landmark-1",),
+                    0.0,
+                    AmbiguityState.NONE,
+                    "interior",
+                    digest,
+                    "now",
+                )
+            return LocalizationResult(
+                False,
+                BLUESTACKS_PLATFORM,
+                BLUESTACKS_PROFILE_ID,
+                ZoomIdentity.ZOOMED_IN,
+                None,
+                (),
+                0.92,
+                ("landmark-1",),
+                0.1,
+                AmbiguityState.NONE,
+                "interior",
+                digest,
+                "now",
+            )
+
+    class _Runtime:
+        execute = True
+        max_inputs = ultimate.MAX_TOTAL_INPUTS
+
+        def __init__(self, root: Path, initial: np.ndarray, factory, *, input_count: int = 0):
+            self.session = root / "runtime"
+            self.session.mkdir(parents=True)
+            self.current = initial
+            self.factory = factory
+            self.input_count = input_count
+            self.capture_count = 0
+            self.captures_by_label: dict[str, CapturedNativeFrame] = {}
+            self.zoom_dispatches: list[str] = []
+            self.action_keys: set[str] = set()
+            self.dispatched_external_zoom_key: str | None = None
+            self.reconciliations: list[tuple[str, str]] = []
+            self.reconciliation_attempts: list[tuple[str, str]] = []
+            self.reconciliation_posts: list[CapturedNativeFrame] = []
+            self.reconciliation_errors: list[str] = []
+            self.runner = SimpleNamespace()
+
+        def _captured(self, label: str) -> CapturedNativeFrame:
+            self.capture_count += 1
+            ok, encoded = cv2.imencode(".png", self.current)
+            assert ok
+            payload = encoded.tobytes()
+            path = self.session / f"{self.capture_count:04d}-{label}.png"
+            path.write_bytes(payload)
+            captured = CapturedNativeFrame(
+                self.current.copy(),
+                payload,
+                hashlib.sha256(payload).hexdigest(),
+                time.monotonic(),
+                path,
+            )
+            self.captures_by_label[label] = captured
+            return captured
+
+        def capture(self, label: str) -> CapturedNativeFrame:
+            return self._captured(label)
+
+        def measure_foreground_package(self) -> str:
+            return "com.global.ztmslg"
+
+        def measure_device_state(self) -> str:
+            return "device"
+
+        def dispatch_external_zoom(self, source, *, action_key: str, transport) -> None:
+            if self.input_count >= self.max_inputs:
+                raise RuntimeError("development session input limit reached")
+            self.input_count += 1
+            self.action_keys.add(action_key)
+            self.zoom_dispatches.append(action_key)
+            self.dispatched_external_zoom_key = action_key
+            transport()
+            self.current = self.factory(self.input_count)
+
+        def reconcile(self, action_key: str, status: str, post, reason: str) -> None:
+            self.reconciliation_attempts.append((action_key, status))
+            if action_key != self.dispatched_external_zoom_key:
+                self.reconciliation_errors.append(action_key)
+                raise AssertionError(
+                    "reconciliation key does not match dispatched external-zoom key"
+                )
+            self.reconciliation_posts.append(post)
+            self.reconciliations.append((action_key, status))
+
+    class _Transport:
+        instances: list["UltimateHomeNormalizationTests._Transport"] = []
+        fail = False
+
+        def __init__(self, **_kwargs):
+            self.calls = 0
+            self.instances.append(self)
+
+        def zoom_out_once(self) -> None:
+            self.calls += 1
+            if self.fail:
+                raise RuntimeError("synthetic zoom transport failure")
+
+    def _run_normalizer(
+        self,
+        *,
+        factory,
+        unknown: bool = False,
+        input_count: int = 0,
+        overlay: bool = False,
+        transport_failure: bool = False,
+        initial_canonical: bool = False,
+        guard_denial: bool = False,
+        driver_accounting_failure: bool = False,
+    ):
+        root = Path(tempfile.mkdtemp())
+        initial = self._home_frame(marker=0 if initial_canonical else 1)
+        canonical = self._home_frame()
+        runtime = self._Runtime(root, initial, factory, input_count=input_count)
+        source = runtime._captured("source")
+        localizer = self._Localizer(initial, canonical, unknown=unknown)
+        self._Transport.instances = []
+        self._Transport.fail = transport_failure
+        def fake_zoom_classification(frame, _canonical_reference):
+            marker = int(frame[300, 300, 0])
+            return SimpleNamespace(
+                scale=0.70 + min(marker, ultimate.MAX_HOME_ZOOM_INPUTS) * 0.02,
+                identity=ZoomIdentity.ZOOMED_IN,
+            )
+        with patch.object(ultimate, "load_home_atlas", return_value=self._atlas()), patch.object(
+            ultimate, "BlueStacksHomeLocalizer", return_value=localizer
+        ), patch.object(
+            ultimate, "ScrcpyMotionEventZoomTransport", self._Transport
+        ), patch.object(
+            ultimate, "classify_zoom", side_effect=fake_zoom_classification
+        ):
+            popup_patch = patch.object(ultimate, "_unexpected_visual_popup", return_value=True) if overlay else patch.object(
+                ultimate, "_unexpected_visual_popup", wraps=ultimate._unexpected_visual_popup
+            )
+            with popup_patch:
+                def run_normalizer():
+                    return ultimate._normalize_ultimate_home_before_campaign(
+                        runtime=runtime,
+                        session=root,
+                        events=root / "events.jsonl",
+                        atlas_path=root / "atlas.json",
+                        adb=Path("fake-adb"),
+                        serial="emulator-5554",
+                        source=source,
+                        maximum_pans=4,
+                        post_input_delay=0,
+                    )
+
+                if guard_denial:
+                    with patch.object(
+                        ultimate.NavigationGuardedRuntime,
+                        "dispatch_zoom_out",
+                        side_effect=RuntimeError("synthetic guard denial"),
+                    ):
+                        ok, detail = run_normalizer()
+                elif driver_accounting_failure:
+                    with patch.object(
+                        ultimate.BlueStacksLocalizeFirstHomeDriver,
+                        "record_zoom_input_dispatched",
+                        side_effect=RuntimeError("synthetic driver accounting failure"),
+                    ):
+                        ok, detail = run_normalizer()
+                else:
+                    ok, detail = run_normalizer()
+        return root, runtime, ok, detail
+
+    def test_already_canonical_home_uses_zero_zoom_and_campaign_continues(self) -> None:
+        canonical = self._home_frame()
+        root, runtime, ok, detail = self._run_normalizer(
+            factory=lambda _count: canonical,
+            initial_canonical=True,
+        )
+        self.assertTrue(ok)
+        self.assertEqual(detail["zoom_input_count"], 0)
+        self.assertEqual(runtime.input_count, 0)
+        self.assertEqual(runtime.zoom_dispatches, [])
+        with patch.object(
+            ultimate,
+            "run_verified_ultimate_challenge_campaign_door",
+            return_value={"status": "opened", "records": []},
+        ) as campaign:
+            campaign(runtime, atlas_path=root / "atlas.json", execute=True)
+        self.assertIs(campaign.call_args.args[0], runtime)
+
+    def test_recoverable_zoom_uses_guarded_counted_transport(self) -> None:
+        canonical = self._home_frame()
+        root, runtime, ok, detail = self._run_normalizer(
+            factory=lambda _count: canonical,
+        )
+        self.assertTrue(ok)
+        self.assertEqual(detail["zoom_input_count"], 1)
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(len(runtime.zoom_dispatches), 1)
+        self.assertEqual(runtime.reconciliations[0][1], "confirmed")
+        self.assertEqual(
+            runtime.reconciliations[0][0],
+            runtime.dispatched_external_zoom_key,
+        )
+        self.assertEqual(self._Transport.instances[0].calls, 1)
+        action_keys = [
+            record["action_key"]
+            for record in detail["records"]
+            if "action_key" in record
+        ]
+        self.assertEqual(len(action_keys), len(set(action_keys)))
+
+    def test_zoom_reconciliation_joins_exact_dispatched_key_on_success_and_failure(self) -> None:
+        canonical = self._home_frame()
+        _root, success_runtime, ok, _detail = self._run_normalizer(
+            factory=lambda _count: canonical,
+        )
+        self.assertTrue(ok)
+        self.assertEqual(
+            success_runtime.reconciliations,
+            [(success_runtime.dispatched_external_zoom_key, "confirmed")],
+        )
+        success_plan = [
+            record for record in _detail["records"] if "action_key" in record
+        ]
+        self.assertEqual(
+            success_plan[0]["action_key"],
+            success_runtime.dispatched_external_zoom_key,
+        )
+
+        _root, failure_runtime, ok, detail = self._run_normalizer(
+            factory=lambda _count: self._home_frame(marker=1),
+            transport_failure=True,
+        )
+        self.assertFalse(ok)
+        self.assertEqual(failure_runtime.input_count, 1)
+        self.assertEqual(
+            failure_runtime.action_keys,
+            {failure_runtime.dispatched_external_zoom_key},
+        )
+        self.assertEqual(
+            failure_runtime.reconciliation_attempts,
+            [(failure_runtime.dispatched_external_zoom_key, "unresolved")],
+        )
+        self.assertEqual(
+            failure_runtime.reconciliations,
+            [(failure_runtime.dispatched_external_zoom_key, "unresolved")],
+        )
+        self.assertEqual(failure_runtime.reconciliation_errors, [])
+        failure_plan = [
+            record for record in detail["records"] if "action_key" in record
+        ]
+        self.assertEqual(
+            failure_plan[0]["action_key"],
+            failure_runtime.dispatched_external_zoom_key,
+        )
+        self.assertTrue(
+            all(
+                "reconciliation_error" not in record
+                for record in detail["records"]
+                if "action_key" in record
+            )
+        )
+
+    def test_guard_denial_before_inner_dispatch_does_not_reconcile_unreserved_key(self) -> None:
+        _root, runtime, ok, detail = self._run_normalizer(
+            factory=lambda _count: self._home_frame(marker=1),
+            guard_denial=True,
+        )
+        self.assertFalse(ok)
+        self.assertEqual(runtime.input_count, 0)
+        self.assertEqual(runtime.action_keys, set())
+        self.assertEqual(runtime.zoom_dispatches, [])
+        self.assertEqual(runtime.reconciliation_attempts, [])
+        self.assertEqual(runtime.reconciliation_errors, [])
+        plan = [record for record in detail["records"] if "action_key" in record]
+        self.assertEqual(len(plan), 1)
+        self.assertFalse(plan[0]["runtime_accounted"])
+        self.assertEqual(detail["zoom_input_count"], 0)
+
+    def test_driver_accounting_failure_reconciles_exact_runtime_key_unresolved(self) -> None:
+        _root, runtime, ok, detail = self._run_normalizer(
+            factory=lambda _count: self._home_frame(),
+            driver_accounting_failure=True,
+        )
+        self.assertFalse(ok)
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(runtime.action_keys, {runtime.dispatched_external_zoom_key})
+        self.assertEqual(
+            runtime.reconciliation_attempts,
+            [(runtime.dispatched_external_zoom_key, "unresolved")],
+        )
+        self.assertEqual(runtime.reconciliations, runtime.reconciliation_attempts)
+        self.assertEqual(runtime.reconciliation_errors, [])
+        self.assertEqual(len(runtime.reconciliation_posts), 1)
+        self.assertIs(
+            runtime.reconciliation_posts[0],
+            runtime.captures_by_label["ultimate-home-zoom-01-settled"],
+        )
+        self.assertIsNot(
+            runtime.reconciliation_posts[0],
+            runtime.captures_by_label["ultimate-home-zoom-01-immediate-post"],
+        )
+        plan = [record for record in detail["records"] if "action_key" in record]
+        self.assertEqual(len(plan), 1)
+        self.assertTrue(plan[0]["runtime_accounted"])
+        self.assertEqual(plan[0]["status"], "unresolved")
+        self.assertEqual(detail["zoom_input_count"], 1)
+
+    def test_no_progress_home_successor_is_failed_confirmed_after_reobservation(self) -> None:
+        _root, runtime, ok, detail = self._run_normalizer(
+            factory=lambda _count: self._home_frame(marker=1),
+        )
+        self.assertFalse(ok)
+        self.assertEqual(
+            runtime.reconciliations,
+            [(runtime.dispatched_external_zoom_key, "failed_confirmed")],
+        )
+        self.assertEqual(detail["reason"], "repeated_zoom_recovery_frame")
+        plan_records = [
+            record for record in detail["records"] if "action_key" in record
+        ]
+        self.assertEqual(len(plan_records), 1)
+        self.assertEqual(plan_records[0]["status"], "failed_confirmed")
+
+    def test_wrong_unknown_overlay_repeated_and_transport_failure_block(self) -> None:
+        canonical = self._home_frame()
+        cases = (
+            ("wrong_or_unknown", dict(factory=lambda _count: canonical, unknown=True), 0),
+            ("overlay", dict(factory=lambda _count: canonical, overlay=True), 0),
+            (
+                "repeated",
+                dict(factory=lambda _count: self._home_frame(marker=1)),
+                1,
+            ),
+            (
+                "wrong_screen_successor",
+                dict(factory=lambda _count: np.zeros((1280, 800, 3), dtype=np.uint8)),
+                1,
+            ),
+            (
+                "transport",
+                dict(factory=lambda _count: self._home_frame(marker=1), transport_failure=True),
+                1,
+            ),
+        )
+        for label, kwargs, expected_inputs in cases:
+            with self.subTest(case=label):
+                _root, runtime, ok, detail = self._run_normalizer(**kwargs)
+                self.assertFalse(ok)
+                self.assertEqual(runtime.input_count, expected_inputs)
+                self.assertTrue(detail["reason"])
+                self.assertLessEqual(detail["zoom_input_count"], ultimate.MAX_HOME_ZOOM_INPUTS)
+
+    def test_exhaustion_and_aggregate_ceiling_are_fail_closed(self) -> None:
+        def changing_zoom(count: int) -> np.ndarray:
+            return self._home_frame(marker=(count % 200) + 1)
+
+        _root, runtime, ok, detail = self._run_normalizer(factory=changing_zoom)
+        self.assertFalse(ok)
+        self.assertEqual(runtime.input_count, ultimate.MAX_HOME_ZOOM_INPUTS)
+        self.assertLessEqual(detail["zoom_input_count"], ultimate.MAX_HOME_ZOOM_INPUTS)
+        self.assertIn("maximum", str(detail["reason"]))
+
+        canonical = self._home_frame()
+        _root, runtime, ok, detail = self._run_normalizer(
+            factory=lambda _count: canonical,
+            input_count=ultimate.MAX_TOTAL_INPUTS - 1,
+        )
+        self.assertTrue(ok)
+        self.assertEqual(runtime.input_count, ultimate.MAX_TOTAL_INPUTS)
+        self.assertEqual(detail["zoom_input_count"], 1)
+        self.assertEqual(ultimate.MAX_TOTAL_INPUTS, 16)
 
 
 class UltimateChallengeOperatorTests(unittest.TestCase):
@@ -597,7 +1094,10 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             session = sessions[0]
             result = json.loads((session / "result.json").read_text(encoding="utf-8"))
             self.assertEqual(result["terminal"], "blocked_fail_closed")
-            self.assertEqual(result["reason"], "LOCALIZATION_NOT_RECOGNIZED")
+            self.assertEqual(
+                result["reason"],
+                "fresh template Home was not positively recognized",
+            )
             self.assertEqual(result["input_count"], 0)
             for name in ("ledger.jsonl", "capability-audit.jsonl", "journal.jsonl"):
                 self.assertGreater((session / name).stat().st_size, 0)
@@ -822,7 +1322,11 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 }
             ]
         }
-        lease = lease_context or {"owner": "test-owner"}
+        lease = lease_context or {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+        }
         state_path = root / ".local-captures" / "reset-window.json"
         with patch.object(delivery, "_pnsctl", return_value=fake_pnsctl), patch.object(
             delivery, "_reset_window_state_path", return_value=state_path
@@ -898,9 +1402,48 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             ),
             ("missing flow", {"development_session": True}, valid_lease),
             (
+                "missing queue marker",
+                {"active_flow_id": FLOW_ID},
+                valid_lease,
+            ),
+            (
+                "missing lease marker",
+                valid_queue,
+                {
+                    key: value
+                    for key, value in valid_lease.items()
+                    if key != "development_session"
+                },
+            ),
+            (
+                "queue marker false",
+                {**valid_queue, "development_session": False},
+                valid_lease,
+            ),
+            (
+                "lease marker false",
+                valid_queue,
+                {**valid_lease, "development_session": False},
+            ),
+            (
+                "missing owner",
+                valid_queue,
+                {key: value for key, value in valid_lease.items() if key != "owner"},
+            ),
+            ("empty owner", valid_queue, {**valid_lease, "owner": "  "}),
+            (
                 "released runtime",
                 valid_queue,
                 {**valid_lease, "runtime_ownership_state": "released"},
+            ),
+            (
+                "missing runtime ownership",
+                valid_queue,
+                {
+                    key: value
+                    for key, value in valid_lease.items()
+                    if key != "runtime_ownership_state"
+                },
             ),
             (
                 "missing ceiling",
@@ -908,6 +1451,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 {key: value for key, value in valid_lease.items() if key != "max_inputs"},
             ),
             ("invalid ceiling", valid_queue, {**valid_lease, "max_inputs": "16"}),
+            ("smaller ceiling", valid_queue, {**valid_lease, "max_inputs": 12}),
             ("over ceiling", valid_queue, {**valid_lease, "max_inputs": 17}),
         ):
             invalid_contexts.append((label, queue, lease))
@@ -921,6 +1465,368 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "Ultimate Challenge"):
                         delivery.run_ultimate_challenge_daily(queue, lease)
                 child.assert_not_called()
+                self.assertFalse(
+                    (Path(directory) / "artifacts" / FLOW_ID).exists()
+                )
+
+    def test_daily_wrapper_accepts_legacy_context_and_propagates_explicit_ceiling(
+        self,
+    ) -> None:
+        queue = {
+            "active_flow_id": FLOW_ID,
+            "flows": [
+                {
+                    "flow_id": FLOW_ID,
+                    "maximum_live_attempts": 4,
+                    "live_attempts": [{"diagnosis": "legacy context"}],
+                }
+            ]
+        }
+        lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            command, _load_state, _record_home, _save_state = self._run_wrapper(
+                Path(directory),
+                terminal="already_completed",
+                home_nav_recognized=True,
+                queue_context=queue,
+                lease_context=lease,
+            )
+        self.assertEqual(command[command.index("--max-total-inputs") + 1], "16")
+
+    def test_daily_wrapper_rejects_legacy_missing_flows_before_child(self) -> None:
+        queue = {}
+        lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_pnsctl = self.FakePnsctl(root / "artifacts")
+            with patch.object(
+                delivery, "_pnsctl", return_value=fake_pnsctl
+            ), patch.object(delivery.subprocess, "run") as child:
+                with self.assertRaisesRegex(RuntimeError, "flows"):
+                    delivery.run_ultimate_challenge_daily(queue, lease)
+            child.assert_not_called()
+            self.assertFalse((root / "artifacts" / FLOW_ID).exists())
+
+    def test_daily_wrapper_rejects_legacy_missing_authority_or_ceiling_before_child(
+        self,
+    ) -> None:
+        queue = {
+            "active_flow_id": FLOW_ID,
+            "flows": [
+                {
+                    "flow_id": FLOW_ID,
+                    "maximum_live_attempts": 4,
+                    "live_attempts": [{"diagnosis": "legacy context"}],
+                }
+            ]
+        }
+        valid_lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+        }
+        invalid_leases = (
+            (
+                "missing runtime ownership",
+                {
+                    key: value
+                    for key, value in valid_lease.items()
+                    if key != "runtime_ownership_state"
+                },
+            ),
+            (
+                "missing max ceiling",
+                {
+                    key: value
+                    for key, value in valid_lease.items()
+                    if key != "max_inputs"
+                },
+            ),
+        )
+        for label, lease in invalid_leases:
+            with self.subTest(context=label), tempfile.TemporaryDirectory() as directory:
+                fake_pnsctl = self.FakePnsctl(Path(directory) / "artifacts")
+                with patch.object(
+                    delivery, "_pnsctl", return_value=fake_pnsctl
+                ), patch.object(delivery.subprocess, "run") as child:
+                    with self.assertRaisesRegex(RuntimeError, "Ultimate Challenge"):
+                        delivery.run_ultimate_challenge_daily(queue, lease)
+                child.assert_not_called()
+                self.assertFalse(
+                    (Path(directory) / "artifacts" / FLOW_ID).exists()
+                )
+
+    def test_legacy_flow_context_requires_exactly_one_matching_flow(self) -> None:
+        invalid_queues = (
+            ("missing flows", {}),
+            ("null flows", {"flows": None}),
+            ("non-list flows", {"flows": {"flow_id": FLOW_ID}}),
+            ("empty flows", {"flows": []}),
+            ("wrong flow", {"flows": [{"flow_id": "OTHER-FLOW"}]}),
+            (
+                "duplicate matching flows",
+                {"flows": [{"flow_id": FLOW_ID}, {"flow_id": FLOW_ID}]},
+            ),
+        )
+        for label, queue in invalid_queues:
+            with self.subTest(context=label):
+                with patch.object(
+                    delivery,
+                    "_pnsctl",
+                    return_value=self.FakePnsctl(Path(".")),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "legacy flow"):
+                        delivery._legacy_daily_flow(queue)
+
+    def _run_navigation_wrapper(
+        self,
+        root: Path,
+        *,
+        queue_context: dict,
+        lease_context: dict,
+    ) -> list[str]:
+        fake_pnsctl = self.FakePnsctl(root / "artifacts")
+        commands: list[list[str]] = []
+        result = {
+            "flow_id": FLOW_ID,
+            "terminal": "navigation_only_complete",
+            "status": "navigation_only_complete",
+            "terminal_runtime_state": "ultimate_challenge_entry_recognized",
+        }
+
+        def fake_run(command, **_kwargs):
+            commands.append(command)
+            return __import__("subprocess").CompletedProcess(
+                command,
+                0,
+                "",
+                "",
+            )
+
+        with patch.object(
+            delivery, "_pnsctl", return_value=fake_pnsctl
+        ), patch.object(
+            delivery.subprocess, "run", side_effect=fake_run
+        ), patch.object(
+            delivery,
+            "require_operator_evidence",
+            return_value=(result, ["frames/source.png"]),
+        ):
+            delivery.run_ultimate_challenge_navigation_only(
+                queue_context,
+                lease_context,
+            )
+        return commands[0]
+
+    def test_navigation_wrapper_accepts_minimal_development_session_context(
+        self,
+    ) -> None:
+        queue = {"active_flow_id": FLOW_ID, "development_session": True}
+        lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+            "development_session": True,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            command = self._run_navigation_wrapper(
+                Path(directory),
+                queue_context=queue,
+                lease_context=lease,
+            )
+            session_root = Path(directory) / "artifacts" / FLOW_ID
+            self.assertEqual(len(list(session_root.glob("nav-ultimate-challenge-*"))), 1)
+        self.assertIn("--navigation-only", command)
+        self.assertEqual(
+            command[command.index("--max-total-inputs") + 1],
+            "16",
+        )
+
+    def test_navigation_wrapper_rejects_invalid_development_session_context_before_child(
+        self,
+    ) -> None:
+        valid_queue = {"active_flow_id": FLOW_ID, "development_session": True}
+        valid_lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+            "development_session": True,
+        }
+        invalid_contexts = (
+            (
+                "wrong flow",
+                {**valid_queue, "active_flow_id": "OTHER-FLOW"},
+                valid_lease,
+            ),
+            ("missing flow", {"development_session": True}, valid_lease),
+            (
+                "missing queue marker",
+                {"active_flow_id": FLOW_ID},
+                valid_lease,
+            ),
+            (
+                "missing lease marker",
+                valid_queue,
+                {
+                    key: value
+                    for key, value in valid_lease.items()
+                    if key != "development_session"
+                },
+            ),
+            (
+                "queue marker false",
+                {**valid_queue, "development_session": False},
+                valid_lease,
+            ),
+            (
+                "lease marker false",
+                valid_queue,
+                {**valid_lease, "development_session": False},
+            ),
+            (
+                "missing owner",
+                valid_queue,
+                {key: value for key, value in valid_lease.items() if key != "owner"},
+            ),
+            ("empty owner", valid_queue, {**valid_lease, "owner": "  "}),
+            (
+                "released runtime",
+                valid_queue,
+                {**valid_lease, "runtime_ownership_state": "released"},
+            ),
+            (
+                "missing runtime ownership",
+                valid_queue,
+                {
+                    key: value
+                    for key, value in valid_lease.items()
+                    if key != "runtime_ownership_state"
+                },
+            ),
+            (
+                "missing ceiling",
+                valid_queue,
+                {key: value for key, value in valid_lease.items() if key != "max_inputs"},
+            ),
+            ("invalid ceiling", valid_queue, {**valid_lease, "max_inputs": "16"}),
+            ("smaller ceiling", valid_queue, {**valid_lease, "max_inputs": 12}),
+            ("over ceiling", valid_queue, {**valid_lease, "max_inputs": 17}),
+        )
+
+        for label, queue, lease in invalid_contexts:
+            with self.subTest(context=label), tempfile.TemporaryDirectory() as directory:
+                fake_pnsctl = self.FakePnsctl(Path(directory) / "artifacts")
+                with patch.object(
+                    delivery, "_pnsctl", return_value=fake_pnsctl
+                ), patch.object(delivery.subprocess, "run") as child:
+                    with self.assertRaisesRegex(RuntimeError, "Ultimate Challenge"):
+                        delivery.run_ultimate_challenge_navigation_only(queue, lease)
+                child.assert_not_called()
+                self.assertFalse(
+                    (Path(directory) / "artifacts" / FLOW_ID).exists()
+                )
+
+    def test_navigation_wrapper_accepts_legacy_context_and_propagates_explicit_ceiling(
+        self,
+    ) -> None:
+        queue = {
+            "active_flow_id": FLOW_ID,
+            "flows": [
+                {
+                    "flow_id": FLOW_ID,
+                    "maximum_live_attempts": 4,
+                    "live_attempts": [{"diagnosis": "legacy context"}],
+                }
+            ]
+        }
+        lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            command = self._run_navigation_wrapper(
+                Path(directory),
+                queue_context=queue,
+                lease_context=lease,
+            )
+        self.assertEqual(command[command.index("--max-total-inputs") + 1], "16")
+
+    def test_navigation_wrapper_rejects_legacy_missing_flows_before_child(
+        self,
+    ) -> None:
+        queue = {}
+        lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_pnsctl = self.FakePnsctl(root / "artifacts")
+            with patch.object(
+                delivery, "_pnsctl", return_value=fake_pnsctl
+            ), patch.object(delivery.subprocess, "run") as child:
+                with self.assertRaisesRegex(RuntimeError, "flows"):
+                    delivery.run_ultimate_challenge_navigation_only(queue, lease)
+            child.assert_not_called()
+            self.assertFalse((root / "artifacts" / FLOW_ID).exists())
+
+    def test_navigation_wrapper_rejects_legacy_missing_authority_or_ceiling_before_child(
+        self,
+    ) -> None:
+        queue = {
+            "flows": [
+                {
+                    "flow_id": FLOW_ID,
+                    "maximum_live_attempts": 4,
+                    "live_attempts": [{"diagnosis": "legacy context"}],
+                }
+            ]
+        }
+        valid_lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+        }
+        invalid_leases = (
+            (
+                "missing runtime ownership",
+                {
+                    key: value
+                    for key, value in valid_lease.items()
+                    if key != "runtime_ownership_state"
+                },
+            ),
+            (
+                "missing max ceiling",
+                {
+                    key: value
+                    for key, value in valid_lease.items()
+                    if key != "max_inputs"
+                },
+            ),
+        )
+        for label, lease in invalid_leases:
+            with self.subTest(context=label), tempfile.TemporaryDirectory() as directory:
+                fake_pnsctl = self.FakePnsctl(Path(directory) / "artifacts")
+                with patch.object(
+                    delivery, "_pnsctl", return_value=fake_pnsctl
+                ), patch.object(delivery.subprocess, "run") as child:
+                    with self.assertRaisesRegex(RuntimeError, "Ultimate Challenge"):
+                        delivery.run_ultimate_challenge_navigation_only(queue, lease)
+                child.assert_not_called()
+                self.assertFalse(
+                    (Path(directory) / "artifacts" / FLOW_ID).exists()
+                )
 
     def test_daily_wrapper_uses_current_reset_and_ignores_history(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

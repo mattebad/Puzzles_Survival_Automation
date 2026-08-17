@@ -174,3 +174,81 @@ All other paths are read-only during implementation.
 - Those tests may not patch the recognizer under test or its popup geometry, control detection, OCR, or template-matching gates. Synthetic native frames must use independently hard-coded geometry and labels rather than importing production ROI constants as expected truth.
 - Local retained-frame checks remain supplementary development evidence only. They must not be skippable authoritative unit-test acceptance; remove or clearly separate them from the deterministic acceptance suite.
 - One Luna implementation and one Terra review are authorized. This stage has no live admission.
+
+## Refrozen stage r8 — in-session canonical Home normalization
+- User authorization: on 2026-08-17 the user authorized autonomous continuation and redesign around non-absolute blockers, superseding procedural stage/turn limits without weakening runtime safety.
+- Revision ID: `ultimate-challenge-lean-reproof-r8`.
+- Failure class: `local_defect` over the prior `product_state` observation; the retained current frame is positively template Home (`correlation=0.9582439064979553`) and independently classifies as recoverable `zoomed_in` (`scale=0.7399789216899773`, `confidence=0.926858801166622`, residual `0.15232662856578827`).
+- Architecture:
+  - Normalize only after fresh template Home recognition and before Home Atlas Campaign binding.
+  - Reuse `BlueStacksLocalizeFirstHomeDriver` for planning, `NavigationGuardedRuntime.dispatch_zoom_out` for source-state authorization, and `ScrcpyMotionEventZoomTransport.zoom_out_once` for the two-pointer gesture.
+  - Use the Ultimate child’s existing `LocalBlueStacksRuntime`; injected zoom dispatch must route through `dispatch_external_zoom` so every gesture increments the same aggregate input counter.
+  - Maximum zoom inputs: four. Existing Campaign pans/open, challenge actions, and return Backs remain inside the unchanged aggregate ceiling of 16.
+  - For each gesture retain immediate-before, immediate-post, settled, transport, and semantic evidence. Revalidate Home after transport, recapture before the next plan, reject repeated source frames, and stop on any unknown/ambiguous/wrong-screen result.
+  - After positive fully-zoomed-out/localized proof, recapture through the existing Campaign-door route. Transport success alone never authorizes Campaign coordinates.
+  - The dead `_prepare_canonical_home` subprocess helper must not be revived; nested runtimes and uncounted subprocess zoom/return-canonical operations remain prohibited.
+- Writable paths:
+  - `scripts/bluestacks_ultimate_challenge.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- Acceptance:
+  - already-canonical Home uses zero zoom inputs;
+  - recoverable zoom dispatches at most four uniquely bound, truthfully counted gestures and then reaches the existing Campaign binding path;
+  - wrong screen, overlay, unknown zoom, repeated frame, no progress, transport failure, or exhausted budget fails closed with complete evidence;
+  - focused Ultimate/Home/navigation/session-accounting checks pass and Terra reports no material findings.
+- One Luna implementation, one Terra review, at most one consolidated repair/recheck, and one clean-candidate live canary are authorized. No live input before parent integration acceptance.
+
+## Refrozen stage r9 — exact zoom dispatch reconciliation
+- User authorization: autonomous iteration remains active; this narrow stage resolves the remaining r8 recheck evidence.
+- Revision ID: `ultimate-challenge-lean-reproof-r9`.
+- Failure class: `local_defect`.
+- Writable paths:
+  - `scripts/bluestacks_ultimate_challenge.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- A guard/source-safety denial that never reaches `LocalBlueStacksRuntime.dispatch_external_zoom` must not call runtime reconciliation for an unreserved key.
+- A transport exception after the runtime has accounted/reserved the exact zoom key must reconcile that key as `unresolved`.
+- If `driver.record_zoom_input_dispatched()` fails after successful accounted transport, the retained immediate-post/settled evidence must reconcile the exact dispatched key as `unresolved` before the route fails closed.
+- Determine dispatch/accounting from the runtime’s actual recorded action identity/count, not from the fact that `guarded.dispatch_zoom_out()` was invoked.
+- Add strict regressions for pre-dispatch guard denial, post-accounting transport failure, and post-dispatch driver-accounting failure. Every branch must prove whether reconciliation is absent or uses the exact dispatched key/status.
+- One Luna implementation and one Terra review are authorized. No live input before parent acceptance.
+
+## Refrozen stage r10 — consistent Ultimate wrapper admission
+- User authorization: autonomous continuation remains active; this stage closes the read-only accounting audit before live admission.
+- Revision ID: `ultimate-challenge-lean-reproof-r10`.
+- Failure class: `core_contract`.
+- Writable paths:
+  - `scripts/flow_delivery_ultimate_challenge_bluestacks.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- Both Daily and navigation-only wrappers must validate the current development-session context before creating a child artifact directory or process:
+  - exact active flow ID;
+  - both development-session markers;
+  - nonempty owner;
+  - `runtime_ownership_state=held`;
+  - exact Ultimate aggregate `max_inputs=16`.
+- A smaller/default parent ceiling must fail at admission rather than launch a child whose parser independently requires 16. Legacy controller contexts may remain supported only with held ownership and a truthful exact ceiling.
+- Navigation-only must stop discarding queue authority and must pass explicit `--max-total-inputs 16` to the child.
+- Add strict tests proving invalid contexts never create a child process/artifact session and valid minimal contexts propagate the exact ceiling for both wrappers.
+- One Luna implementation and one Terra review are authorized. No live input before parent integration acceptance and a clean candidate commit.
+
+## Refrozen stage r11 — require legacy flow identity
+- User authorization: autonomous continuation and procedural-limit bypass remain active; r11 resolves the single remaining r10 recheck defect without changing architecture.
+- Revision ID: `ultimate-challenge-lean-reproof-r11`.
+- Failure class: `core_contract`.
+- Writable paths:
+  - `scripts/flow_delivery_ultimate_challenge_bluestacks.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- A legacy context must contain a `flows` list identifying exactly one mapping whose `flow_id` is the Ultimate Challenge flow. Missing `flows`, a non-list value, zero matches, duplicate matches, or a wrong flow must fail before artifact creation or subprocess launch.
+- Preserve the accepted held-ownership, nonempty-owner, and explicit integer `max_inputs=16` requirements for both wrappers.
+- Add strict Daily and navigation wrapper coverage for the missing-`flows` case; preserve valid legacy propagation tests.
+- One Luna implementation and one Terra review are authorized. No live input before parent integration acceptance and a clean candidate commit.
+
+## Refrozen stage r12 — distinguish legacy controller context
+- User authorization: autonomous continuation and procedural-limit bypass remain active; r12 resolves the remaining legacy-schema classification defect.
+- Revision ID: `ultimate-challenge-lean-reproof-r12`.
+- Failure class: `core_contract`.
+- Writable paths:
+  - `scripts/flow_delivery_ultimate_challenge_bluestacks.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- Select the development-session branch only when at least one explicit `development_session` marker is present; the branch must still require both markers to be exactly true.
+- A legacy controller queue may contain its standard `active_flow_id`; that field alone must not select the development-session branch. It must instead reach legacy validation for exact `flows` identity, held ownership, nonempty owner, and explicit integer `max_inputs=16`.
+- Add valid legacy Daily and navigation tests using the standard `active_flow_id` plus `flows`, and preserve all malformed-context pre-launch assertions.
+- One Luna implementation and one Terra review are authorized. No live input before parent integration acceptance and a clean candidate commit.

@@ -23,7 +23,6 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess
 import sys
 import time
 
@@ -36,18 +35,40 @@ if str(REPO_ROOT) not in sys.path:
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from bluestacks_flow_collector import ADBRunner, is_permitted_local_bluestacks_serial
-from bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
+from bluestacks_flow_collector import (
+    ADBRunner,
+    EXPECTED_PACKAGE,
+    is_permitted_local_bluestacks_serial,
+)
+from bluestacks_native_runtime import (
+    CapturedNativeFrame,
+    LocalBlueStacksRuntime,
+    NATIVE_RUNTIME_PROFILE_ID,
+)
 from home_atlas_bluestacks import (
     CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+    BlueStacksHomeLocalizer,
+    BlueStacksLocalizeFirstHomeDriver,
+    HomeDriverDisposition,
+    ScrcpyMotionEventZoomTransport,
+    load_home_atlas,
     require_campaign_home_atlas_building,
     run_verified_ultimate_challenge_campaign_door,
+)
+from navigation_development_boundary import (
+    NavigationGuardedRuntime,
+    NavigationRouteDeclaration,
+    make_source_safety_facts,
 )
 from scripts.flow_delivery_evidence import require_operator_evidence
 from world_map_navigation_bluestacks import _visual_popup_panel_candidates
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
+from tasks.home_atlas import ZoomIdentity
+from tasks.home_context import HomeReadyObservation
+from tasks.home_atlas_vision import classify_zoom
 from tasks.home_nav_recognition import recognize_home_nav
+from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 from tasks.ultimate_challenge_daily import (
     FLOW_ID,
     TERMINAL_ALREADY_COMPLETED,
@@ -64,6 +85,9 @@ from tasks.ultimate_challenge_daily import (
 )
 
 MAX_TOTAL_INPUTS = 16
+MAX_HOME_ZOOM_INPUTS = 4
+_ULTIMATE_HOME_ZOOM_SOURCE_STATE = "ULTIMATE_HOME_TEMPLATE"
+_ULTIMATE_HOME_ZOOM_TARGET_IDENTITY = "home-zoom-out"
 
 _UC_PORTAL_SEARCH_ROI = (400, 700, 700, 970)
 _UC_ENTRY_SEMANTIC_ROI = (400, 850, 700, 1030)
@@ -133,94 +157,6 @@ def _campaign_entry_semantically_opened(frame: np.ndarray) -> bool:
         recognition.observation.recognized
         and recognition.observation.screen in _CAMPAIGN_ENTRY_OPEN_SCREENS
     )
-
-
-def _prepare_canonical_home(
-    *,
-    adb: Path,
-    serial: str,
-    session: Path,
-    atlas_path: Path,
-) -> None:
-    canonical_reference = atlas_path.parent / "tiles" / "viewport-001.png"
-    if not canonical_reference.is_file():
-        raise RuntimeError("Home Atlas viewport-001.png reference is missing for zoom-out")
-    zoom = [
-        sys.executable,
-        str(REPO_ROOT / "scripts" / "home_atlas_bluestacks.py"),
-        "zoom-out",
-        "--adb",
-        str(adb),
-        "--serial",
-        serial,
-        "--canonical-reference",
-        str(canonical_reference),
-        "--output-directory",
-        str(session / "zoom-out"),
-        "--execute",
-        "--yes",
-    ]
-    zoomed = subprocess.run(zoom, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
-    (session / "zoom-out-stdout.log").write_text(zoomed.stdout or "", encoding="utf-8")
-    (session / "zoom-out-stderr.log").write_text(zoomed.stderr or "", encoding="utf-8")
-    if zoomed.returncode != 0:
-        # The Win32 zoom gesture is optional when a fresh ADB-bound atlas localization
-        # already proves the supported fully-zoomed-out Home surface.  This fallback
-        # is deliberately narrow: any unrecognized or wrong-zoom frame still blocks.
-        localize = [
-            sys.executable,
-            str(REPO_ROOT / "scripts" / "home_atlas_bluestacks.py"),
-            "localize",
-            "--adb", str(adb), "--serial", serial,
-            "--atlas", str(atlas_path),
-            "--output-directory", str(session / "localize-fallback"),
-        ]
-        localized = subprocess.run(localize, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
-        (session / "localize-fallback-stdout.log").write_text(localized.stdout or "", encoding="utf-8")
-        (session / "localize-fallback-stderr.log").write_text(localized.stderr or "", encoding="utf-8")
-        try:
-            localization = json.loads((localized.stdout or "").strip().splitlines()[-1])
-        except (json.JSONDecodeError, IndexError):
-            localization = {}
-        if not (
-            localized.returncode == 0
-            and isinstance(localization, dict)
-            and localization.get("recognized") is True
-            and localization.get("zoom_identity") == "fully_zoomed_out"
-        ):
-            raise RuntimeError(
-                "Ultimate Challenge pre-entry zoom-out failed and ADB localization fallback was not canonical: "
-                f"{zoomed.stderr or zoomed.stdout or 'unknown'}"
-            )
-        (session / "canonical-prepared-via-adb-localization.json").write_text(
-            json.dumps(localization, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
-        return
-    command = [
-        sys.executable,
-        str(REPO_ROOT / "scripts" / "home_atlas_bluestacks.py"),
-        "return-canonical",
-        "--adb",
-        str(adb),
-        "--serial",
-        serial,
-        "--atlas",
-        str(atlas_path),
-        "--output-directory",
-        str(session / "return-canonical"),
-        "--execute",
-        "--yes",
-    ]
-    completed = subprocess.run(
-        command, cwd=REPO_ROOT, capture_output=True, text=True, check=False
-    )
-    (session / "return-canonical-stdout.log").write_text(completed.stdout or "", encoding="utf-8")
-    (session / "return-canonical-stderr.log").write_text(completed.stderr or "", encoding="utf-8")
-    if completed.returncode != 0:
-        raise RuntimeError(
-            "Ultimate Challenge pre-entry return-canonical failed: "
-            f"{completed.stderr or completed.stdout or 'unknown'}"
-        )
 
 
 def _ocr_region_hits(
@@ -362,6 +298,571 @@ def _home_nav_terminal(frame: np.ndarray) -> bool:
     """Recognize template Home only when no unexpected popup is visible."""
 
     return not _unexpected_visual_popup(frame) and recognize_home_nav(frame).is_home
+
+
+def _ultimate_home_zoom_route_declaration() -> NavigationRouteDeclaration:
+    """Declare only the supervised, navigation-only Ultimate Home zoom route."""
+
+    return NavigationRouteDeclaration(
+        allowed_source_states=frozenset({_ULTIMATE_HOME_ZOOM_SOURCE_STATE}),
+        allowed_target_identities=frozenset({_ULTIMATE_HOME_ZOOM_TARGET_IDENTITY}),
+        allowed_gesture_classes=frozenset({"zoom_out"}),
+        consequence_class="navigation_only",
+    )
+
+
+def _ultimate_home_ready_observation(
+    runtime: LocalBlueStacksRuntime,
+    source: CapturedNativeFrame,
+) -> HomeReadyObservation:
+    """Build the supervised-local Home precondition without production identity claims."""
+
+    foreground = runtime.measure_foreground_package()
+    device_state = runtime.measure_device_state()
+    native = source.frame.shape == (1280, 800, 3)
+    identity = VerifiedRuntimeIdentity(
+        runtime_scope="ultimate-challenge-supervised-local",
+        account_id="supervised-local-account",
+        server_id="supervised-local-server",
+        reset_id=None,
+        assurance=RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
+        evidence_refs=(
+            "operator:supervised-local",
+            f"source-frame:{source.sha256}",
+        ),
+    )
+    return HomeReadyObservation(
+        game_foregrounded=foreground == EXPECTED_PACKAGE and device_state == "device",
+        expected_native_profile=native,
+        identity=identity,
+        manual_only_state=False,
+        blocking_unknown_modal=False,
+    )
+
+
+def _ultimate_home_zoom_safety_facts(
+    runtime: LocalBlueStacksRuntime,
+    source: CapturedNativeFrame,
+) -> object:
+    """Describe the exact current Home source consumed by the navigation firewall."""
+
+    return make_source_safety_facts(
+        recognized=True,
+        source_state=_ULTIMATE_HOME_ZOOM_SOURCE_STATE,
+        overlay_state="none_observed",
+        manual_required=False,
+        hard_stop=False,
+        unknown_state=False,
+        frame_width=int(source.frame.shape[1]),
+        frame_height=int(source.frame.shape[0]),
+        runtime_profile_id=NATIVE_RUNTIME_PROFILE_ID,
+        foreground_package=str(runtime.measure_foreground_package()),
+        device_state=str(runtime.measure_device_state()),
+        frame_sha256=source.sha256,
+        captured_monotonic=source.captured_monotonic,
+        now_monotonic=time.monotonic(),
+    )
+
+
+def _ultimate_home_zoom_step_detail(
+    ordinal: int,
+    step,
+    *,
+    source: CapturedNativeFrame | None = None,
+) -> dict[str, object]:
+    localization = getattr(step, "localization", None)
+    return {
+        "ordinal": ordinal,
+        "disposition": getattr(getattr(step, "disposition", None), "value", str(getattr(step, "disposition", ""))),
+        "reason": str(getattr(step, "reason", "")),
+        "source_frame_sha256": str(getattr(step, "source_frame_sha256", "")),
+        "runtime_source_sha256": source.sha256 if source is not None else None,
+        "zoom_identity": getattr(
+            getattr(localization, "zoom_identity", None),
+            "value",
+            str(getattr(localization, "zoom_identity", "")),
+        ),
+        "localization_recognized": bool(getattr(localization, "recognized", False)),
+        "localization_confidence": getattr(localization, "confidence", None),
+        "localization_residual_px": getattr(localization, "residual_px", None),
+        "overlay": bool(getattr(localization, "overlay", False)),
+        "ambiguity_state": getattr(
+            getattr(localization, "ambiguity_state", None),
+            "value",
+            str(getattr(localization, "ambiguity_state", "")),
+        ),
+    }
+
+
+def _ultimate_home_zoom_is_fully_out(step) -> bool:
+    localization = getattr(step, "localization", None)
+    return bool(
+        getattr(localization, "recognized", False)
+        and getattr(localization, "screen_to_atlas", None) is not None
+        and getattr(localization, "zoom_identity", None) is ZoomIdentity.FULLY_ZOOMED_OUT
+        and not getattr(localization, "overlay", False)
+        and not getattr(localization, "stale", False)
+        and getattr(
+            getattr(localization, "ambiguity_state", None),
+            "value",
+            "",
+        )
+        == "none"
+    )
+
+
+def _ultimate_home_zoom_progressed(
+    before: CapturedNativeFrame,
+    settled: CapturedNativeFrame,
+    *,
+    canonical_reference: np.ndarray,
+) -> tuple[bool, str]:
+    """Require measurable zoom progress when the driver still requests recovery."""
+
+    before_digest = frame_sha256(before.frame)
+    settled_digest = frame_sha256(settled.frame)
+    if before_digest == settled_digest:
+        return False, "no_progress_repeated_settled_frame"
+    before_zoom = classify_zoom(before.frame, canonical_reference)
+    settled_zoom = classify_zoom(settled.frame, canonical_reference)
+    if before_zoom.scale is None or settled_zoom.scale is None:
+        return False, "unknown_zoom_progress_geometry"
+    if settled_zoom.scale <= before_zoom.scale + 0.005:
+        return False, "no_progress_zoom_scale"
+    return True, "measurable_zoom_progress"
+
+
+def _runtime_input_count(runtime: object) -> int | None:
+    value = getattr(runtime, "input_count", None)
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _runtime_action_keys(runtime: object) -> frozenset[str] | None:
+    value = getattr(runtime, "action_keys", None)
+    if value is None:
+        return None
+    try:
+        return frozenset(str(key) for key in value)
+    except TypeError:
+        return None
+
+
+def _zoom_runtime_dispatch_was_accounted(
+    runtime: object,
+    *,
+    action_key: str,
+    input_count_before: int | None,
+    action_keys_before: frozenset[str] | None,
+    dispatched_key_before: object,
+) -> bool:
+    """Prove one exact runtime-accounted slot before reconciling it."""
+
+    input_count_after = _runtime_input_count(runtime)
+    if (
+        input_count_before is None
+        or input_count_after is None
+        or input_count_after - input_count_before != 1
+    ):
+        return False
+    action_keys_after = _runtime_action_keys(runtime)
+    if action_keys_after is not None:
+        return (
+            action_key in action_keys_after
+            and action_key not in (action_keys_before or frozenset())
+        )
+    dispatched_key_after = getattr(runtime, "dispatched_external_zoom_key", None)
+    return (
+        dispatched_key_after == action_key
+        and dispatched_key_after != dispatched_key_before
+    )
+
+
+def _normalize_ultimate_home_before_campaign(
+    *,
+    runtime: LocalBlueStacksRuntime,
+    session: Path,
+    events: Path,
+    atlas_path: Path,
+    adb: Path,
+    serial: str,
+    source: CapturedNativeFrame,
+    maximum_pans: int,
+    post_input_delay: float,
+) -> tuple[bool, dict[str, object]]:
+    """Normalize a fresh template Home in-session before Campaign Atlas binding."""
+
+    records: list[dict[str, object]] = []
+    detail: dict[str, object] = {
+        "status": "blocked_fail_closed",
+        "zoom_input_count": 0,
+        "max_zoom_inputs": MAX_HOME_ZOOM_INPUTS,
+        "records": records,
+        "zoom_records": records,
+    }
+    home_nav = recognize_home_nav(source.frame)
+    if not home_nav.is_home or _unexpected_visual_popup(source.frame):
+        detail["reason"] = "fresh template Home was not positively recognized"
+        return False, detail
+
+    try:
+        ready = _ultimate_home_ready_observation(runtime, source)
+        atlas = load_home_atlas(atlas_path)
+        localizer = BlueStacksHomeLocalizer(atlas, atlas_path)
+        driver = BlueStacksLocalizeFirstHomeDriver(
+            atlas,
+            atlas_path,
+            ready,
+            CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            localizer=localizer,
+            maximum_pans=maximum_pans,
+            maximum_zoom_inputs=MAX_HOME_ZOOM_INPUTS,
+        )
+        guarded = NavigationGuardedRuntime(
+            runtime,
+            _ultimate_home_zoom_route_declaration(),
+        )
+    except Exception as exc:
+        detail["reason"] = f"Home normalization precondition failed: {type(exc).__name__}: {exc}"
+        return False, detail
+
+    current = source
+    transport = None
+    try:
+        step = driver.observe(current.frame)
+    except Exception as exc:
+        detail["reason"] = f"Home normalization observation failed: {type(exc).__name__}: {exc}"
+        return False, detail
+    for ordinal in range(1, MAX_HOME_ZOOM_INPUTS + 1):
+        plan_detail = _ultimate_home_zoom_step_detail(ordinal, step, source=current)
+        if _ultimate_home_zoom_is_fully_out(step) and getattr(
+            step, "disposition", None
+        ) is not HomeDriverDisposition.BLOCKED:
+            detail.update(
+                {
+                    "status": "completed",
+                    "reason": "fresh Home already fully localized for Campaign Atlas",
+                    "zoom_input_count": driver.zoom_inputs,
+                    "terminal_source_sha256": current.sha256,
+                    "terminal_semantic_frame_sha256": frame_sha256(current.frame),
+                    "terminal_zoom_identity": ZoomIdentity.FULLY_ZOOMED_OUT.value,
+                }
+            )
+            append_event(
+                events,
+                {
+                    "type": "ultimate_home_normalization_complete",
+                    "flow_id": FLOW_ID,
+                    **detail,
+                },
+            )
+            return True, detail
+        if getattr(step, "disposition", None) is HomeDriverDisposition.BLOCKED:
+            detail["reason"] = str(getattr(step, "reason", "Home normalization blocked"))
+            records.append(plan_detail)
+            append_event(
+                events,
+                {
+                    "type": "ultimate_home_normalization_blocked",
+                    "flow_id": FLOW_ID,
+                    **detail,
+                },
+            )
+            return False, detail
+        if getattr(step, "disposition", None) is not HomeDriverDisposition.RECOVER_ZOOM:
+            detail["reason"] = (
+                "Home normalization produced an unsupported non-zoom disposition: "
+                f"{getattr(step, 'reason', 'unknown')}"
+            )
+            records.append(plan_detail)
+            return False, detail
+
+        planned_source = str(getattr(step, "source_frame_sha256", ""))
+        immediate_before = runtime.capture(
+            f"ultimate-home-zoom-{ordinal:02d}-immediate-before"
+        )
+        immediate_semantic = frame_sha256(immediate_before.frame)
+        plan_detail.update(
+            {
+                "action_key": f"home-zoom-out:{immediate_before.sha256}",
+                "immediate_before_sha256": immediate_before.sha256,
+                "immediate_before_semantic_frame_sha256": immediate_semantic,
+            }
+        )
+        if (
+            not _home_nav_terminal(immediate_before.frame)
+            or immediate_semantic != planned_source
+        ):
+            plan_detail["status"] = "blocked"
+            plan_detail["failure"] = "immediate_before_home_revalidation_failed"
+            records.append(plan_detail)
+            detail["reason"] = "Home zoom immediate-before revalidation failed"
+            return False, detail
+        try:
+            immediate_localization = localizer.localize(immediate_before.frame)
+            if (
+                immediate_localization.frame_sha256 != immediate_semantic
+                or immediate_localization.overlay
+                or immediate_localization.stale
+            ):
+                raise RuntimeError("immediate-before localization was stale or mismatched")
+            facts = _ultimate_home_zoom_safety_facts(runtime, immediate_before)
+        except Exception as exc:
+            plan_detail["status"] = "blocked"
+            plan_detail["failure"] = f"source_safety_facts_failed:{type(exc).__name__}:{exc}"
+            records.append(plan_detail)
+            detail["reason"] = "Home zoom source safety facts were not established"
+            return False, detail
+
+        action_key = str(plan_detail["action_key"])
+        input_count_before = _runtime_input_count(runtime)
+        action_keys_before = _runtime_action_keys(runtime)
+        dispatched_key_before = getattr(
+            runtime, "dispatched_external_zoom_key", None
+        )
+        if transport is None:
+            try:
+                transport = ScrcpyMotionEventZoomTransport(
+                    adb=adb,
+                    serial=serial,
+                    evidence_directory=session / "home-normalization",
+                )
+            except Exception as exc:
+                plan_detail["status"] = "blocked"
+                plan_detail["failure"] = f"zoom_transport_unavailable:{type(exc).__name__}:{exc}"
+                records.append(plan_detail)
+                detail["reason"] = "Home zoom transport was unavailable"
+                return False, detail
+
+        transport_error: BaseException | None = None
+        try:
+            guarded.dispatch_zoom_out(
+                immediate_before,
+                facts,
+                transport=transport.zoom_out_once,
+                target_identity=_ULTIMATE_HOME_ZOOM_TARGET_IDENTITY,
+            )
+        except BaseException as exc:
+            transport_error = exc
+
+        immediate_post = runtime.capture(
+            f"ultimate-home-zoom-{ordinal:02d}-immediate-post"
+        )
+        if post_input_delay > 0:
+            time.sleep(post_input_delay)
+        settled = runtime.capture(f"ultimate-home-zoom-{ordinal:02d}-settled")
+        plan_detail.update(
+            {
+                "immediate_post_sha256": immediate_post.sha256,
+                "settled_sha256": settled.sha256,
+                "runtime_input_count_before": input_count_before,
+                "runtime_input_count_after": _runtime_input_count(runtime),
+            }
+        )
+        runtime_accounted = _zoom_runtime_dispatch_was_accounted(
+            runtime,
+            action_key=action_key,
+            input_count_before=input_count_before,
+            action_keys_before=action_keys_before,
+            dispatched_key_before=dispatched_key_before,
+        )
+        plan_detail["runtime_accounted"] = runtime_accounted
+
+        if transport_error is not None:
+            plan_detail["status"] = "transport_failed"
+            plan_detail["failure"] = (
+                f"{type(transport_error).__name__}:{transport_error}"
+            )
+            plan_detail["home_successor_recognized"] = bool(
+                _home_nav_terminal(immediate_post.frame)
+                and _home_nav_terminal(settled.frame)
+            )
+            if runtime_accounted:
+                runtime.reconcile(
+                    action_key,
+                    "unresolved",
+                    settled,
+                    "Home zoom transport failed after runtime accounting; outcome remains unresolved",
+                )
+            else:
+                plan_detail["status"] = "blocked"
+                plan_detail["failure"] = (
+                    "zoom transport failed before runtime accounting: "
+                    f"{type(transport_error).__name__}:{transport_error}"
+                )
+                records.append(plan_detail)
+                detail["reason"] = (
+                    "Home zoom transport was denied before runtime accounting; "
+                    "route blocked fail-closed"
+                )
+                detail["zoom_input_count"] = _runtime_input_count(runtime) or 0
+                return False, detail
+            records.append(plan_detail)
+            try:
+                failed_step = driver.observe(settled.frame)
+                failed_reobservation = _ultimate_home_zoom_step_detail(
+                    ordinal,
+                    failed_step,
+                    source=settled,
+                )
+                failed_reobservation["phase"] = "driver_reobservation_after_transport_failure"
+                records.append(failed_reobservation)
+            except Exception as exc:
+                plan_detail["reobservation_error"] = f"{type(exc).__name__}:{exc}"
+            detail["reason"] = "Home zoom transport failed; route blocked fail-closed"
+            detail["zoom_input_count"] = getattr(runtime, "input_count", 0)
+            return False, detail
+
+        try:
+            driver.record_zoom_input_dispatched(planned_source)
+        except Exception as exc:
+            plan_detail["status"] = "unresolved" if runtime_accounted else "blocked"
+            plan_detail["failure"] = f"zoom_accounting_failed:{type(exc).__name__}:{exc}"
+            if runtime_accounted:
+                runtime.reconcile(
+                    action_key,
+                    "unresolved",
+                    settled,
+                    "Home zoom driver accounting failed after runtime-accounted transport",
+                )
+            records.append(plan_detail)
+            detail["reason"] = (
+                "Home zoom driver accounting rejected the dispatched source"
+                if runtime_accounted
+                else "Home zoom transport succeeded without runtime accounting"
+            )
+            detail["zoom_input_count"] = _runtime_input_count(runtime) or 0
+            return False, detail
+
+        home_successor_recognized = bool(
+            _home_nav_terminal(immediate_post.frame)
+            and _home_nav_terminal(settled.frame)
+        )
+        plan_detail["home_successor_recognized"] = home_successor_recognized
+        try:
+            step = driver.observe(settled.frame)
+        except Exception as exc:
+            plan_detail["status"] = "unresolved"
+            plan_detail["failure"] = (
+                f"home_reobservation_failed:{type(exc).__name__}:{exc}"
+            )
+            runtime.reconcile(
+                action_key,
+                "unresolved",
+                settled,
+                "Home zoom outcome remained unknown after driver re-observation failure",
+            )
+            records.append(plan_detail)
+            detail["reason"] = (
+                f"Home re-observation failed: {type(exc).__name__}: {exc}"
+            )
+            detail["zoom_input_count"] = driver.zoom_inputs
+            return False, detail
+        reobserved = _ultimate_home_zoom_step_detail(
+            ordinal,
+            step,
+            source=settled,
+        )
+        reobserved["phase"] = "driver_reobservation"
+
+        def finalize_reconciliation(status: str, reason: str) -> bool:
+            runtime.reconcile(action_key, status, settled, reason)
+            plan_detail["status"] = status
+            records.extend((plan_detail, reobserved))
+            return True
+
+        if (
+            home_successor_recognized
+            and _ultimate_home_zoom_is_fully_out(step)
+            and getattr(step, "disposition", None) is not HomeDriverDisposition.BLOCKED
+        ):
+            if not finalize_reconciliation(
+                "confirmed",
+                "template Home successor and canonical zoom outcome recognized after guarded zoom",
+            ):
+                return False, detail
+            detail.update(
+                {
+                    "status": "completed",
+                    "reason": "Home fully localized after guarded zoom recovery",
+                    "zoom_input_count": driver.zoom_inputs,
+                    "terminal_source_sha256": settled.sha256,
+                    "terminal_semantic_frame_sha256": frame_sha256(settled.frame),
+                    "terminal_zoom_identity": ZoomIdentity.FULLY_ZOOMED_OUT.value,
+                }
+            )
+            append_event(
+                events,
+                {
+                    "type": "ultimate_home_normalization_complete",
+                    "flow_id": FLOW_ID,
+                    **detail,
+                },
+            )
+            return True, detail
+        if getattr(step, "disposition", None) is HomeDriverDisposition.BLOCKED:
+            step_reason = str(getattr(step, "reason", "Home normalization blocked"))
+            no_progress_confirmed = (
+                home_successor_recognized
+                and step_reason == "repeated_zoom_recovery_frame"
+            )
+            reconciliation_status = (
+                "failed_confirmed" if no_progress_confirmed else "unresolved"
+            )
+            if not finalize_reconciliation(reconciliation_status, step_reason):
+                return False, detail
+            detail["reason"] = step_reason
+            detail["zoom_input_count"] = driver.zoom_inputs
+            return False, detail
+        if getattr(step, "disposition", None) is not HomeDriverDisposition.RECOVER_ZOOM:
+            unsupported_reason = (
+                "Home re-observation produced an unsupported disposition: "
+                f"{getattr(step, 'reason', 'unknown')}"
+            )
+            if not finalize_reconciliation("unresolved", unsupported_reason):
+                return False, detail
+            detail["reason"] = unsupported_reason
+            detail["zoom_input_count"] = driver.zoom_inputs
+            return False, detail
+        progressed, progress_reason = _ultimate_home_zoom_progressed(
+            immediate_before,
+            settled,
+            canonical_reference=localizer.canonical_reference,
+        )
+        plan_detail["progress_reason"] = progress_reason
+        if progressed and home_successor_recognized:
+            if not finalize_reconciliation(
+                "confirmed",
+                "template Home successor recognized after measurable guarded zoom progress",
+            ):
+                return False, detail
+            current = settled
+            continue
+        no_progress_confirmed = (
+            home_successor_recognized
+            and not progressed
+            and progress_reason
+            in {"no_progress_repeated_settled_frame", "no_progress_zoom_scale"}
+        )
+        reconciliation_status = (
+            "failed_confirmed" if no_progress_confirmed else "unresolved"
+        )
+        if not finalize_reconciliation(reconciliation_status, progress_reason):
+            return False, detail
+        if not progressed:
+            detail["reason"] = progress_reason
+        else:
+            detail["reason"] = "Home successor recognition remained unknown after zoom"
+        detail["zoom_input_count"] = driver.zoom_inputs
+        return False, detail
+
+    detail["reason"] = "maximum_zoom_recovery_inputs"
+    detail["zoom_input_count"] = getattr(driver, "zoom_inputs", 0)
+    return False, detail
 
 
 def _campaign_context_recognized(frame: np.ndarray) -> bool:
@@ -1339,6 +1840,7 @@ def main(argv: list[str] | None = None) -> int:
     resume_observation = _bind_ultimate_challenge_entry(
         resume_frame, reset_identity=args.reset_identity
     )
+    home_normalization_detail: dict[str, object] | None = None
     if flee_warning_already_open:
         resumed_campaign = True
         entry_session = session / "flee-warning-resume"
@@ -1411,14 +1913,37 @@ def main(argv: list[str] | None = None) -> int:
     elif _home_nav_terminal(resume_frame):
         resumed_campaign = False
         entry_session = session / f"home-atlas-entry-{utc_stamp()}"
-        entry = run_verified_ultimate_challenge_campaign_door(
-            runtime,
+        normalized, home_normalization_detail = _normalize_ultimate_home_before_campaign(
+            runtime=runtime,
+            session=session,
+            events=events,
             atlas_path=args.atlas,
+            adb=args.adb,
+            serial=args.serial,
+            source=resume_capture,
             maximum_pans=args.maximum_pans,
-            execute=True,
-            settle_seconds=args.post_input_delay,
-            semantic_opened_check=_campaign_entry_semantically_opened,
+            post_input_delay=args.post_input_delay,
         )
+        if not normalized:
+            entry = {
+                "status": "blocked_fail_closed",
+                "reason": home_normalization_detail.get(
+                    "reason",
+                    "Ultimate Home normalization failed closed",
+                ),
+                "records": [],
+                "home_normalization": home_normalization_detail,
+            }
+        else:
+            entry = run_verified_ultimate_challenge_campaign_door(
+                runtime,
+                atlas_path=args.atlas,
+                maximum_pans=args.maximum_pans,
+                execute=True,
+                settle_seconds=args.post_input_delay,
+                semantic_opened_check=_campaign_entry_semantically_opened,
+            )
+            entry["home_normalization"] = home_normalization_detail
     else:
         resumed_campaign = False
         entry_session = session
@@ -1446,6 +1971,7 @@ def main(argv: list[str] | None = None) -> int:
             "session": str(session),
             "flow_id": FLOW_ID,
             "home_atlas_entry": entry,
+            "home_normalization": home_normalization_detail,
             "input_count": runtime.input_count,
             "navigation_input_count": runtime.input_count,
             "home_recovery_latency_seconds": time.monotonic() - started,
@@ -1478,6 +2004,7 @@ def main(argv: list[str] | None = None) -> int:
             "navigation_only": False,
             "dispatch": terminal == TERMINAL_COMPLETE_FOR_RESET,
             "reset_identity": args.reset_identity,
+            "home_normalization": home_normalization_detail,
             **detail,
             "input_count": runtime.input_count,
             "navigation_input_count": runtime.input_count,
@@ -1567,6 +2094,7 @@ def main(argv: list[str] | None = None) -> int:
             "navigation_only": False,
             "dispatch": terminal == TERMINAL_COMPLETE_FOR_RESET,
             "reset_identity": args.reset_identity,
+            "home_normalization": home_normalization_detail,
             **detail,
             "input_count": runtime.input_count,
             "navigation_input_count": runtime.input_count,
@@ -1588,7 +2116,9 @@ def main(argv: list[str] | None = None) -> int:
         "reset_identity": decision.reset_identity,
         "campaign_home_atlas_building_id": CAMPAIGN_HOME_ATLAS_BUILDING_ID,
         "home_atlas_entry": {k: v for k, v in entry.items() if k != "tap_telemetry"},
-        "navigation_input_count": navigation_inputs,
+        "home_normalization": home_normalization_detail,
+        "input_count": runtime.input_count,
+        "navigation_input_count": runtime.input_count,
         "home_recovery_latency_seconds": time.monotonic() - started,
     }
     _write_result(session, result)

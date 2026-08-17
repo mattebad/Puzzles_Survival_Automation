@@ -86,7 +86,7 @@ def run_ultimate_challenge_navigation_only(
     queue: Mapping[str, Any], lease: Mapping[str, Any]
 ) -> str:
     pnsctl = _pnsctl()
-    del queue
+    _legacy_flow, maximum = _ultimate_runtime_context(queue, lease)
     stamp = _utc_stamp()
     session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"nav-ultimate-challenge-{stamp}"
     session.mkdir(parents=True, exist_ok=False)
@@ -100,6 +100,8 @@ def run_ultimate_challenge_navigation_only(
         "--navigation-only",
         "--execute",
         "--yes",
+        "--max-total-inputs",
+        str(maximum),
         "--output-directory",
         str(session),
     ]
@@ -190,7 +192,9 @@ def run_ultimate_challenge_navigation_only(
 def _legacy_daily_flow(queue: Mapping[str, Any]) -> Mapping[str, Any] | None:
     flows = queue.get("flows")
     if flows is None:
-        return None
+        raise _pnsctl().OperatorError(
+            "legacy flow-delivery queue flows are required"
+        )
     if not isinstance(flows, list):
         raise _pnsctl().OperatorError("legacy flow-delivery queue flows must be a list")
     matches = [
@@ -205,13 +209,14 @@ def _legacy_daily_flow(queue: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return matches[0]
 
 
-def _daily_runtime_context(
+def _ultimate_runtime_context(
     queue: Mapping[str, Any], lease: Mapping[str, Any]
 ) -> tuple[Mapping[str, Any] | None, int]:
     """Validate the current session contract before creating or launching a child."""
 
     marker_present = (
-        "development_session" in queue or "development_session" in lease
+        "development_session" in queue
+        or "development_session" in lease
     )
     if marker_present:
         if queue.get("development_session") is not True or lease.get(
@@ -234,26 +239,30 @@ def _daily_runtime_context(
                 "Ultimate Challenge development session owner is required"
             )
         maximum = lease.get("max_inputs")
-        if type(maximum) is not int or not 1 <= maximum <= MAX_TOTAL_INPUTS:
+        if type(maximum) is not int or maximum != MAX_TOTAL_INPUTS:
             raise _pnsctl().OperatorError(
-                "Ultimate Challenge development session max_inputs must be an integer "
-                "between 1 and 16"
+                "Ultimate Challenge development session max_inputs must be exactly 16"
             )
-        return None, maximum
+        return None, MAX_TOTAL_INPUTS
 
-    if "runtime_ownership_state" in lease and lease.get(
-        "runtime_ownership_state"
-    ) != "held":
+    if lease.get("runtime_ownership_state") != "held":
         raise _pnsctl().OperatorError(
             "Ultimate Challenge runner requires held runtime ownership"
         )
+    owner = lease.get("owner")
+    if not isinstance(owner, str) or not owner.strip():
+        raise _pnsctl().OperatorError("Ultimate Challenge runner owner is required")
     flow = _legacy_daily_flow(queue)
-    maximum = lease.get("max_inputs", MAX_TOTAL_INPUTS)
-    if type(maximum) is not int or not 1 <= maximum <= MAX_TOTAL_INPUTS:
+    maximum = lease.get("max_inputs")
+    if "max_inputs" not in lease:
         raise _pnsctl().OperatorError(
-            "Ultimate Challenge max_inputs must be an integer between 1 and 16"
+            "Ultimate Challenge legacy context max_inputs must be explicitly set to 16"
         )
-    return flow, maximum
+    if type(maximum) is not int or maximum != MAX_TOTAL_INPUTS:
+        raise _pnsctl().OperatorError(
+            "Ultimate Challenge max_inputs must be exactly 16"
+        )
+    return flow, MAX_TOTAL_INPUTS
 
 
 def run_ultimate_challenge_daily(
@@ -262,7 +271,7 @@ def run_ultimate_challenge_daily(
     """Run the approved zero-resource Flee route through the production operator."""
 
     pnsctl = _pnsctl()
-    flow, maximum = _daily_runtime_context(queue, lease)
+    flow, maximum = _ultimate_runtime_context(queue, lease)
     stamp = _utc_stamp()
     session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"daily-{stamp}"
     session.mkdir(parents=True, exist_ok=False)
