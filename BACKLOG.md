@@ -953,14 +953,30 @@ Claim example.
   provenance/hash gates, one-tap accounting, and reset identity. Success requires a positive
   points delta and no remaining available ordinary Claim controls. Go, milestone, cost-bearing,
   clipped, overlay, stale-source, and unchanged-postcondition cases fail closed.
-- Status: Offline contract passed; live acceptance evidence-gated.
+- Status: Offline contract passed; BlueStacks live acceptance remains
+  `evidence_required`.
 - Evidence: `tasks/available_daily_claim.py`, `scripts/daily_row_claim_bluestacks.py`,
   `tests/fixtures/phase_e_daily_claim_observations.json`, and
   `tests/test_available_daily_claim.py`. The retained Bioenhancer and Gather Food fixture results
   are historical observations only; they are not per-row or per-objective Claim contracts.
-- Blocker: no clean-candidate BlueStacks aggregate Claim canary has been admitted.
-- Next: after a clean candidate is available, run the bounded Home → Quest → Daily flow and at
-  most one aggregate Claim canary when its fresh preconditions are present.
+  Candidate `926659f` passed 69 Daily row tests, focused validation (9), shared-navigation
+  validation (18), and the final Terra repair recheck.
+- Live checkpoint (2026-08-17): zero-input observation passed. The first
+  receipt-bound Home → Quest → Daily reconnaissance failed before input when
+  Quest was recognized but Hero was not. Fresh evidence justified the bounded
+  right-side `Bag → Mail → More` repair in `926659f`. The final reconnaissance
+  then failed before input for a materially different OCR condition: the fresh
+  native Home frame visibly contains Quest, Bag, and Mail, while recognition
+  found only World and More. No selected-Daily frame was reached and no Claim
+  tap was issued.
+- Blocker: two materially different fresh-live Home recognition failures
+  exhausted the third Heavy stage revision. Claim live admission also retains
+  the independent-review finding that successor points are compared with the
+  earlier source recognition rather than the tap-authorizing immediate-before
+  recognition.
+- Next: require explicit user continuation and a new Sol-frozen redesign stage.
+  Do not rerun reconnaissance or issue a Claim receipt in the completed
+  conversation.
 
 ### GNB-PHASE-E-MILESTONES-OFFLINE — Add activity milestone-chest contract
 

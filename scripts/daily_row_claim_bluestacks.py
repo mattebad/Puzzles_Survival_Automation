@@ -23,6 +23,7 @@ from tasks.available_daily_claim import (
     AvailableDailyClaimObservation,
     available_daily_claim_authorizeable,
 )
+from tasks.home_nav_recognition import recognize_home_nav
 from scripts.world_map_navigation_bluestacks import (
     _visual_popup_panel_candidates as _accepted_visual_popup_panel_candidates,
 )
@@ -54,6 +55,17 @@ VIP_POPUP_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
 VIP_POPUP_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
 VIP_POPUP_SUCCESS_POLL_MAX_ATTEMPTS = 20
 RESET_DEADLINE_TOLERANCE_SECONDS = 2
+
+# The Daily action column is stable on the native BlueStacks profile.  Gold
+# Claim bodies are separated from red Go controls by hue; no stylized Claim
+# OCR is needed for the actionable binding.
+CLAIM_BUTTON_COLUMN = (560, 780)
+CLAIM_SCAN_TOP_Y = 440
+CLAIM_HUE_RANGE = (10, 22)
+CLAIM_MIN_SAT = 120
+CLAIM_MIN_VAL = 140
+CLAIM_MIN_WIDTH = 60
+CLAIM_MIN_HEIGHT = 25
 
 HOME_QUEST_IDENTITY = "home-quest-entry"
 QUEST_DAILY_IDENTITY = "quest-daily-tab"
@@ -1092,23 +1104,45 @@ def _visual_claim_button_candidates(
     row_y: float,
     minimum_x: int,
 ) -> tuple[NativeBox, ...]:
-    """Find current-frame orange Claim button bodies in a measured row panel."""
+    """Find current-frame gold Claim bodies and reject red Go controls."""
 
-    y0 = max(0, int(row_y) - 180)
-    y1 = min(NATIVE_HEIGHT, int(row_y) + 180)
-    x0 = max(0, int(minimum_x))
-    patch = frame[y0:y1, x0:NATIVE_WIDTH]
-    if patch.size == 0:
+    if not _frame_shape_ok(frame):
         return ()
-    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, (0, 50, 80), (40, 255, 255))
-    count, _labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    x0, x1 = CLAIM_BUTTON_COLUMN
+    x0 = max(x0, int(minimum_x))
+    if x0 >= x1:
+        return ()
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    region = hsv[CLAIM_SCAN_TOP_Y:NATIVE_HEIGHT, x0:x1]
+    if region.size == 0:
+        return ()
+    hue, saturation, value = (
+        region[:, :, 0],
+        region[:, :, 1],
+        region[:, :, 2],
+    )
+    gold = (
+        (hue >= CLAIM_HUE_RANGE[0])
+        & (hue <= CLAIM_HUE_RANGE[1])
+        & (saturation >= CLAIM_MIN_SAT)
+        & (value >= CLAIM_MIN_VAL)
+    ).astype(np.uint8) * 255
+    full = np.zeros((NATIVE_HEIGHT, NATIVE_WIDTH), dtype=np.uint8)
+    full[CLAIM_SCAN_TOP_Y:NATIVE_HEIGHT, x0:x1] = gold
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (31, 15))
+    closed = cv2.morphologyEx(full, cv2.MORPH_CLOSE, kernel)
+    contours, _ = cv2.findContours(
+        closed,
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE,
+    )
     candidates: list[NativeBox] = []
-    for component in range(1, count):
-        left, top, width, height, area = (int(value) for value in stats[component])
-        if width < 80 or height < 28 or area < 1000:
+    for contour in contours:
+        left, top, width, height = cv2.boundingRect(contour)
+        if width < CLAIM_MIN_WIDTH or height < CLAIM_MIN_HEIGHT:
             continue
-        candidates.append((x0 + left, y0 + top, x0 + left + width, y0 + top + height))
+        candidates.append((left, top, left + width, top + height))
+    candidates.sort(key=lambda box: (box[1], box[0], box[2], box[3]))
     return tuple(candidates)
 
 
@@ -1137,12 +1171,10 @@ def _measure_daily_row_panel(
     frame: np.ndarray,
     *,
     anchor_y: float,
-    evidence_tokens: Sequence[OCRToken],
+    evidence_tokens: Sequence[OCRToken] = (),
 ) -> dict[str, Any] | None:
     """Measure one row panel from current pixels, never from Claim proximity."""
 
-    if not evidence_tokens:
-        return None
     separators = _horizontal_separator_rows(frame)
     anchor = int(round(anchor_y))
     above = [row for row in separators if 320 < row < anchor - 18]
@@ -1163,8 +1195,15 @@ def _measure_daily_row_panel(
         # A panel may have a filled background without a crisp edge.  Require
         # broad support across the frame and measure its contiguous vertical
         # run around the objective evidence.
-        y0 = max(320, min(token.roi[1] for token in evidence_tokens) - 24)
-        y1 = min(NATIVE_HEIGHT, max(token.roi[3] for token in evidence_tokens) + 24)
+        if evidence_tokens:
+            y0 = max(320, min(token.roi[1] for token in evidence_tokens) - 24)
+            y1 = min(NATIVE_HEIGHT, max(token.roi[3] for token in evidence_tokens) + 24)
+        else:
+            # Color binding intentionally does not depend on stylized Claim
+            # OCR.  Use a bounded native band around the color control only
+            # to locate independently visible panel support.
+            y0 = max(320, anchor - 120)
+            y1 = min(NATIVE_HEIGHT, anchor + 120)
         support = np.count_nonzero(np.any(frame[y0:y1] != 0, axis=2), axis=1)
         broad = support >= int(round(frame.shape[1] * 0.45))
         if broad.size and bool(np.any(broad)):
@@ -1194,10 +1233,13 @@ def _measure_daily_row_panel(
 
     if not (0 <= top < bottom <= NATIVE_HEIGHT):
         return None
-    token_x0 = max(0, min(token.roi[0] for token in evidence_tokens) - 18)
-    token_x1 = min(NATIVE_WIDTH, max(token.roi[2] for token in evidence_tokens) + 18)
-    if token_x0 >= token_x1:
-        return None
+    if evidence_tokens:
+        token_x0 = max(0, min(token.roi[0] for token in evidence_tokens) - 18)
+        token_x1 = min(NATIVE_WIDTH, max(token.roi[2] for token in evidence_tokens) + 18)
+        if token_x0 >= token_x1:
+            return None
+    else:
+        token_x0, token_x1 = 0, NATIVE_WIDTH
     # If only a long horizontal separator proves the panel, its horizontal
     # extent is the native content frame.  A filled background is narrowed
     # below only when broad current pixels independently expose its edges.
@@ -1508,10 +1550,15 @@ def _daily_aggregate_claim_semantics(
             ),
         )
     )
-    visual["recognized_claim_controls"] = len(claim_tokens)
+    claim_controls = _visual_claim_button_candidates(
+        frame,
+        row_y=NATIVE_HEIGHT / 2.0,
+        minimum_x=CLAIM_BUTTON_COLUMN[0],
+    )
+    visual["recognized_claim_controls"] = len(claim_controls)
     visual["available_claim_controls"] = 0
     visual["available_ordinary_claim_controls"] = 0
-    if not claim_tokens:
+    if not claim_controls:
         # A selected-Daily successor remains recognized after the aggregate
         # Claim is consumed, but it never authorizes a second input.
         visual["claim_ready"] = False
@@ -1530,11 +1577,22 @@ def _daily_aggregate_claim_semantics(
         )
 
     candidates: list[dict[str, Any]] = []
-    for ordinal, claim_token in enumerate(claim_tokens, start=1):
-        row_y = _token_center(claim_token)[1]
+    for ordinal, claim_roi in enumerate(claim_controls, start=1):
+        row_y = (claim_roi[1] + claim_roi[3]) / 2.0
+        claim_token = next(
+            (
+                token
+                for token in claim_tokens
+                if token.roi[0] < claim_roi[2]
+                and claim_roi[0] < token.roi[2]
+                and token.roi[1] < claim_roi[3]
+                and claim_roi[1] < token.roi[3]
+            ),
+            None,
+        )
         candidate: dict[str, Any] = {
             "ordinal": ordinal,
-            "claim_ocr_roi": claim_token.roi,
+            "claim_ocr_roi": claim_token.roi if claim_token is not None else None,
             "status": "rejected",
             "eligible": False,
             "rejection_reasons": [],
@@ -1546,7 +1604,6 @@ def _daily_aggregate_claim_semantics(
         panel_geometry = _measure_daily_row_panel(
             frame,
             anchor_y=row_y,
-            evidence_tokens=(claim_token,),
         )
         candidate["row_panel_geometry"] = panel_geometry
         if panel_geometry is None or not panel_geometry["proven"]:
@@ -1556,23 +1613,21 @@ def _daily_aggregate_claim_semantics(
 
         row_bounds = tuple(panel_geometry["bounds"])
         candidate["row_bounds"] = row_bounds
-        if row_bounds[1] <= 340 or row_bounds[3] >= NATIVE_HEIGHT:
+        if (
+            row_bounds[1] <= 340
+            or row_bounds[3] >= NATIVE_HEIGHT - 20
+            or claim_roi[3] >= NATIVE_HEIGHT - 20
+        ):
             candidate["rejection_reasons"].append("claim_clipped_or_milestone_region")
         if not (
-            row_bounds[0] <= claim_token.roi[0]
-            and claim_token.roi[2] <= row_bounds[2]
-            and row_bounds[1] <= claim_token.roi[1]
-            and claim_token.roi[3] <= row_bounds[3]
+            row_bounds[0] <= claim_roi[0]
+            and claim_roi[2] <= row_bounds[2]
+            and row_bounds[1] <= claim_roi[1]
+            and claim_roi[3] <= row_bounds[3]
         ):
             candidate["rejection_reasons"].append("claim_outside_measured_panel")
 
-        tx0, ty0, tx1, ty1 = claim_token.roi
-        claim_roi = _clamp_roi((tx0 - 45, ty0 - 25, tx1 + 45, ty1 + 25))
         candidate["claim_roi"] = claim_roi
-        if claim_roi is None:
-            candidate["rejection_reasons"].append("claim_geometry_out_of_bounds")
-            candidates.append(candidate)
-            continue
         if not (
             row_bounds[0] <= claim_roi[0]
             and claim_roi[2] <= row_bounds[2]
@@ -1652,7 +1707,6 @@ def _daily_aggregate_claim_semantics(
         return failure("no independently safe ordinary free Claim control was proven")
 
     selected_candidate = eligible[0]
-    claim_token = claim_tokens[int(selected_candidate["ordinal"]) - 1]
     row_bounds = tuple(selected_candidate["row_bounds"])
     target_roi = tuple(selected_candidate["claim_roi"])
     panel_geometry = selected_candidate["row_panel_geometry"]
@@ -1718,7 +1772,7 @@ def _daily_aggregate_claim_semantics(
             "row_bounds": row_bounds,
             "row_panel_bounds": row_bounds,
             "claim_roi": target_roi,
-            "claim_ocr_roi": claim_token.roi,
+            "claim_ocr_roi": selected_candidate.get("claim_ocr_roi"),
             "row_panel_geometry": panel_geometry,
             "panel_geometry_proven": bool(panel_geometry["proven"]),
             "row_fully_visible": True,
@@ -1787,32 +1841,39 @@ class DailyRowClaimRecognizer:
     def recognize_home(self, frame: np.ndarray) -> FrameRecognition:
         if not _frame_shape_ok(frame):
             return FrameRecognition(HOME_STATE, False, reason="profile_dimensions_mismatch")
+        template = recognize_home_nav(frame)
         overlay_markers = _full_frame_overlay_markers(frame, self._ocr)
-        tokens = _ocr_tokens(frame, HOME_SEARCH_ROI, self._ocr)
-        quest_tokens = [token for token in tokens if token.text == "quest"]
-        quest = quest_tokens[0] if len(quest_tokens) == 1 else None
-        navigation_geometry = (
-            _home_navigation_geometry(tokens, quest) if quest is not None else None
+        quest_point = template.quest_tap_point()
+        target = (
+            _clamp_roi(
+                (
+                    quest_point[0] - 30,
+                    quest_point[1] - 24,
+                    quest_point[0] + 30,
+                    quest_point[1] + 24,
+                )
+            )
+            if quest_point is not None
+            else None
         )
-        target = None
         visual: dict[str, Any] = {
-            "bottom_navigation": navigation_geometry is not None,
-            "known_navigation_labels": sorted(
-                {word for token in tokens for word in token.text.split()} & _HOME_WORDS
-            ),
+            "bottom_navigation": bool(template.is_home),
+            "template_home": {
+                "recognized": bool(template.is_home),
+                "native_ok": bool(template.native_ok),
+                "correlation": template.correlation,
+                "reason": template.reason,
+                "quest_tap_point": quest_point,
+            },
             "full_frame_overlay": {
                 "recognized": bool(overlay_markers),
                 "markers": overlay_markers,
             },
         }
-        if quest is not None:
-            target, binding = _bind_home_quest_target(frame, quest, tokens)
-            visual["quest_binding"] = binding
         recognized = bool(
-            len(quest_tokens) == 1
-            and navigation_geometry is not None
+            template.is_home
+            and template.native_ok
             and target is not None
-            and not _contains_overlay_marker(tokens)
             and not overlay_markers
         )
         reason = (
@@ -1820,6 +1881,8 @@ class DailyRowClaimRecognizer:
             if overlay_markers
             else None
             if recognized
+            else template.reason
+            if not template.is_home
             else "home-quest-target-not-proven"
         )
         return FrameRecognition(
@@ -1827,10 +1890,10 @@ class DailyRowClaimRecognizer:
             recognized,
             HOME_QUEST_IDENTITY if recognized else None,
             target if recognized else None,
-            " ".join(token.text for token in tokens),
+            "",
             visual,
             reason,
-            _token_rows(tokens),
+            (),
         )
 
     def recognize_quest(self, frame: np.ndarray) -> FrameRecognition:
@@ -2989,6 +3052,7 @@ def run_daily_row_claim_canary(
     recognitions: dict[str, FrameRecognition] = {}
     polls: list[dict[str, Any]] = []
     before_recognition: FrameRecognition | None = None
+    authorization_recognition: FrameRecognition | None = None
     terminal_recognition: FrameRecognition | None = None
     annotated_immediate_before: str | None = None
     if not bool(getattr(runtime, "execute", False)):
@@ -3044,7 +3108,7 @@ def run_daily_row_claim_canary(
             return frame
 
         def dispatch(before_frame: CapturedNativeFrame) -> None:
-            nonlocal annotated_immediate_before
+            nonlocal annotated_immediate_before, authorization_recognition
             rebound = _recognize_daily_claim(
                 recognizer,
                 before_frame.frame,
@@ -3066,6 +3130,9 @@ def run_daily_row_claim_canary(
                 raise DailyRowClaimRecognitionError(
                     rebound.reason or "immediate-before Claim revalidation failed"
                 )
+            # Successor semantics must use the exact fresh frame that passed
+            # the final authorization gate, never the earlier source frame.
+            authorization_recognition = rebound
             _ensure_fresh(before_frame, runtime)
             _ensure_runtime_ready(runtime)
             annotated = Path(runtime.session) / "annotated-daily-row-claim-immediate-before.png"
@@ -3098,7 +3165,7 @@ def run_daily_row_claim_canary(
                 runtime=runtime,
                 recognizer=recognizer,
                 immediate_post=after,
-                before=before_recognition,  # type: ignore[arg-type]
+                before=authorization_recognition,  # type: ignore[arg-type]
                 game_day_id=game_day_id,
                 wall_utc=wall_utc,
                 frames=frames,
@@ -3124,7 +3191,9 @@ def run_daily_row_claim_canary(
                 "Daily Claim semantic postcondition was not proven"
             )
         session.terminal_status = "completed"
-        before_visual = dict(before_recognition.visual_evidence or {})
+        before_visual = dict(
+            (authorization_recognition or before_recognition).visual_evidence or {}
+        )
         return _claim_result(
             status="completed",
             reason="aggregate Daily Claim postcondition proven",
