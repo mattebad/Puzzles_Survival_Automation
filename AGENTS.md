@@ -48,44 +48,50 @@ The parent selects the proportionate route unless the user selects one:
 
 - **Light**: direct parent execution for leaf work; no workers.
 - **Medium**: parent plans, implements, verifies, and closes localized work.
-- **Heavy**: the parent defines one atomic manifest and assigns exactly one
-  bounded mutable production turn to Luna. A read-only tester then reports
-  findings to the parent. After classifying those findings, the parent may
-  authorize at most one consolidated Luna repair turn. The parent may finally
-  provide verified terminal facts to one documentation-only End-of-Session
-  pass.
+- **Heavy**: the Sol parent defines one atomic manifest and owns the control
+  plane. It assigns exactly one bounded mutable production turn to Luna and
+  one read-only Terra review, then may authorize at most one consolidated
+  repair and recheck. A stage has one live attempt; a conversation has at most
+  three stages and eight managed turns.
 
 Legacy route guides are inactive compatibility assets. This file is the active
 route contract.
 
 ## Parent Authority
 
-The parent alone owns architecture, integration acceptance, defect
-classification, live-runtime ownership, official task status, and termination.
-Workers cannot expand scope, alter the manifest, admit live work, communicate
-around the parent, or claim completion. The parent preserves unrelated work,
-keeps mutable workers serial, and treats test and transport success as evidence
-rather than acceptance.
+The Sol parent is the mandatory `control_plane_owner` for Heavy live work and
+alone owns stage freeze, product-precondition and live-failure classification,
+architecture, integration acceptance, live-runtime ownership, official task
+status, escalation, and termination. Workers cannot expand scope, alter the
+manifest, admit live work, communicate around the parent, or claim completion.
+The parent preserves unrelated work, keeps mutable workers serial, and treats
+test and transport success as evidence rather than acceptance.
 
 For Heavy work the parent must:
 
-1. Lock a task ID, architecture statement, exact safe allowlist,
-   production/test/documentation classifications, one mutable worker, and
-   optional file and line budgets.
+1. Lock a task ID, revision, architecture statement, exact safe allowlist,
+   production/test/documentation classifications, product precondition, live
+   failure class, one mutable worker, and budgets.
 2. Give Luna only assigned paths and acceptance checks. Luna self-checks and
-   reports; it does not decide architecture or integration.
-3. Give the tester a read-only verification package. The tester reports defects
-   only to the parent and cannot initiate repair.
-4. Classify findings and either reject, accept, or authorize one consolidated
-   repair batch. Re-freeze changed production and require fresh receipts.
-5. Accept integration explicitly before any live admission. One live attempt is
-   allowed per iteration; ambiguous evidence remains `evidence_required`.
-6. After termination, optionally assign one documentation-only pass using only
-   parent-provided terminal facts and exact durable-document paths.
+   reports; it does not decide architecture, stage transitions, or integration.
+3. Give Terra a read-only verification package. Terra reports findings only to
+   the parent and cannot initiate repair.
+4. Permit one implementation, one review, at most one consolidated repair and
+   one recheck per frozen stage. A product-precondition failure terminates the
+   stage without worker iteration.
+5. Classify every live failure as `product_state`, `core_contract`,
+   `local_defect`, or `process_state` before considering another worker.
+   Two materially different failures, budget exhaustion, stale handoff, or
+   architecture-disproving evidence route to Sol redesign or termination.
+6. Accept integration explicitly before any live admission. One live attempt is
+   allowed per stage; ambiguous evidence remains `evidence_required`.
+7. Keep frozen manifests immutable between revision IDs; runtime/evidence
+   records remain history and `CURRENT_HANDOFF.md` contains current truth only.
 
-At 60 elapsed minutes the parent warns the user. At 90 minutes further live
-admission requires an explicit parent checkpoint. Shared-worktree parallel
-mutation is forbidden.
+At 60 elapsed minutes the parent records a visible checkpoint. At 90 minutes
+further managed delegation or live admission requires a recorded user
+continuation later than the stage start. Shared-worktree parallel mutation is
+forbidden.
 
 ## Platform Paths
 
@@ -95,14 +101,17 @@ the current operating system and shell when running filesystem commands.
 
 <!-- codex-workflow-project-personalization-start -->
 P&S project workflow constraints:
-- Use the host-neutral execution roles below. The parent/controller retains final
-  integration acceptance, live-runtime ownership, defect classification,
-  official task status, and termination:
+- Use the host-neutral execution roles below. The Sol parent/control plane
+  owner retains stage freeze, integration acceptance, live-runtime ownership,
+  defect classification, official task status, and termination:
   - `architecture_planner`: freezes architecture and the execution manifest,
     resolves initial ambiguity, and does not perform routine implementation loops.
-  - `execution_coordinator`: follows the frozen manifest, dispatches bounded
-    workers, runs prescribed checks, collects receipts, and enforces budgets and
-    stages without redesigning architecture.
+  - `control_plane_owner`: the Sol parent; freezes stages, classifies product
+    preconditions and failures, owns integration/live admission, and terminates
+    the task.
+  - `procedure_coordinator`: optional Luna procedural assistance under an
+    already-frozen checklist; it cannot own stage transitions, architecture,
+    integration acceptance, or live admission.
   - `bounded_implementer`: mutates only assigned files and self-checks against
     manifest acceptance criteria.
   - `independent_tester`: serves as the independent code-and-acceptance reviewer,
@@ -114,31 +123,32 @@ P&S project workflow constraints:
     a plausible local path, and perfection-oriented refactors.
   - `escalation_architect`: resolves new architecture, safety, or evidence
     conflicts from a compact packet rather than the full transcript.
-- The execution coordinator may make procedural decisions authorized by the
-  manifest, but must not change architecture, expand writable scope, weaken
-  acceptance, alter safety authority, invent live actions, or override
-  contradictory evidence. Escalate only for a contradictory or incomplete plan,
-  a genuinely new architecture decision, ambiguous safety authority, conflicting
-  tester and implementation evidence, two materially different failed repair
-  hypotheses, or live evidence disproving the accepted design. Ordinary test
-  failures, syntax errors, and known repairs do not justify escalation.
+- The procedure coordinator may only perform checklist work explicitly
+  authorized by the Sol parent. It must not change architecture, expand
+  writable scope, weaken acceptance, alter safety authority, invent live
+  actions, own stage transitions, or override contradictory evidence.
+  Escalate only for a contradictory or incomplete plan, a genuinely new
+  architecture decision, ambiguous safety authority, conflicting tester and
+  implementation evidence, two materially different failed repair hypotheses,
+  or live evidence disproving the accepted design. Ordinary test failures,
+  syntax errors, and known repairs do not justify escalation.
 - Use [`docs/execution-manifest-template.md`](docs/execution-manifest-template.md)
-  for compact frozen manifests. One execution chat may contain one implementation
-  package, one initial tester package, up to three consolidated repair turns
-  with a read-only tester recheck after each, one integration checkpoint, and
-  one live iteration. Further architecture work or another substantial live
-  cycle requires a compact handoff and fresh chat.
+  for compact frozen manifests. One execution chat may contain at most three
+  frozen stages and eight managed turns; each stage has one implementation,
+  one initial review, at most one consolidated repair and one recheck, one
+  integration checkpoint, and one live iteration. Further architecture work
+  requires a compact handoff and fresh chat.
   Localized deterministic work may close from passing checks and tester evidence.
   Heavy, safety-critical, or cross-contract work requires one bounded
   architecture/integration checkpoint containing only the manifest, changed
   paths, compact diff summary, test receipts, tester findings, and unresolved
   decisions.
-- In each execution manifest, record the exact usage-export model slug including
-  reasoning level, never a display name. Record start UTC immediately before an
-  assigned turn and completion UTC immediately after it using RFC 3339 UTC with
-  millisecond precision (`YYYY-MM-DDTHH:MM:SS.sssZ`). Never invent missing
-  timestamps; mark them `not recorded` and add an exact matched usage-event UTC
-  later when one can be established from retained evidence.
+- In each frozen manifest, record exact usage-export model slugs including
+  reasoning level, never display names, plus immutable stage metadata and
+  budgets. Do not put receipt chronology, mutable turn logs, or a mutable next
+  action in the manifest; compact development-session and evidence records
+  remain the execution history. Never invent missing timestamps in those
+  records.
 - For substantive behavior changes, run the existing deterministic validation hierarchy—focused and flow-specific checks followed by any required architecture or integration gate—before any live emulator canary. Use the local BlueStacks / P&S emulator for current live verification; use Bliss only for an explicitly selected future porting or Bliss-validation task.
 - For cross-cutting changes involving state recognition, navigation, recovery or retry behavior, ADB contracts, or multiple interacting production packages, the parent performs the integration review and owns the final integration decision; do not automatically spawn a child `executor_sol`.
 - Never use `git add .`. Never automatically commit unrelated working-tree changes. Stage only explicitly enumerated active-task paths and preserve all pre-existing user modifications; this overrides automatic closure Git defaults.
@@ -148,17 +158,18 @@ P&S project workflow constraints:
 | --- | --- | --- |
 | Trivial or leaf | Light direct fast path | No delegation required |
 | Localized/offline, including one-file fixes | Medium; main-agent owned | Promote when a trigger in the Heavy row appears |
-| Substantive live gameplay-flow development | Heavy; parent orchestration with `executor_luna` bounded production ownership | Promote Medium to Heavy for cross-cutting recognizer, navigation, recovery, retry, or ADB behavior, multiple interacting production packages, or a second materially distinct live failure |
+| Substantive live gameplay-flow development | Heavy; Sol control-plane ownership with bounded Luna production ownership | Promote Medium to Heavy for cross-cutting recognizer, navigation, recovery, retry, or ADB behavior, multiple interacting production packages, or a second materially distinct live failure |
 One initial live failure alone does not require promotion or an extra review.
-- The parent owns architecture and one coherent pre-canary integration acceptance after the Luna executor self-check and the named tester package are complete. Do not request incremental patch reviews unless a new cross-contract decision appears; no child Sol review is automatic.
+- The Sol parent owns architecture and one coherent pre-canary integration
+  acceptance after the bounded Luna self-check and named Terra package are
+  complete. Do not request incremental patch reviews unless a new
+  cross-contract decision appears; no child Sol review is automatic.
 - Use the compact ladder in [`docs/flow-delivery-validation-policy.md`](docs/flow-delivery-validation-policy.md): exact regression during repair; each affected package suite once; the focused profile once before canary; shared-navigation only when navigation is touched; one parent integration gate; zero-input `pnsctl development-session observe`; live execution; semantic verification. Full repository discovery is manual-only (`full --manual`). Reuse the checked-in runner's compact output and receipts; do not create a second validation framework.
 - Do not impose file-count or LOC budgets unless the user explicitly requests them.
-- Permit up to three consolidated Luna repair turns per execution chat and at
-  most three across the active task. This project-local rule overrides the
-  one-repair workflow default above. Keep repairs serial, limit each to
-  parent-classified findings, and require a fresh independent read-only tester
-  recheck after each. A fourth repair requires explicit user authorization, a
-  refrozen manifest, a compact handoff, and a fresh execution chat.
+- Permit at most one consolidated Luna repair and one Terra recheck per frozen
+  stage. Keep repairs serial and limit each to parent-classified findings.
+  A second repair requires explicit user continuation, a refrozen manifest, a
+  compact handoff, and a fresh execution chat.
 - Every mutable Luna implementation or repair turn must explicitly select GPT-5.6 Luna XHigh. If a resume cannot preserve that selection, launch a fresh bounded XHigh turn instead.
 - Keep solutions proportionate; do not let perfect be the enemy of good.
 <!-- codex-workflow-project-personalization-end -->

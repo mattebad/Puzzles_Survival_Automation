@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "kind": "agentic_workflow_control",
+  "managed_agent_types": {
+    "pns-flow-implementer": {
+      "role": "bounded_implementer",
+      "canonical_model": "gpt-5.6-luna-xhigh",
+      "accepted_model_slugs": [
+        "gpt-5.6-luna-xhigh",
+        "cursor-gpt-5.6-luna-xhigh"
+      ],
+      "turn_kinds": [
+        "implementation",
+        "repair"
+      ]
+    },
+    "terra-reviewer": {
+      "role": "independent_tester",
+      "canonical_model": "gpt-5.6-terra-high",
+      "accepted_model_slugs": [
+        "gpt-5.6-terra-high",
+        "cursor-gpt-5.6-terra-high"
+      ],
+      "turn_kinds": [
+        "review",
+        "recheck"
+      ]
+    }
+  },
+  "limits": {
+    "per_stage": {
+      "implementation": 1,
+      "repair": 1,
+      "review": 1,
+      "recheck": 1
+    },
+    "per_parent_conversation": {
+      "managed_turns": 8,
+      "stage_revisions": 3
+    }
+  },
+  "timing_minutes": {
+    "visible_checkpoint": 60,
+    "hard_stop": 90
+  },
+  "product_preconditions": [
+    "proven",
+    "not_applicable",
+    "evidence_required",
+    "failed"
+  ],
+  "failure_classes": [
+    "product_state",
+    "core_contract",
+    "local_defect",
+    "process_state",
+    "none"
+  ],
+  "counter_directory": ".local-orchestrator/agentic-workflow-control"
+}

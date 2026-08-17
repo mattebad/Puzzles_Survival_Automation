@@ -6,10 +6,13 @@ disable-model-invocation: true
 
 # Plan-execute-escalate PnS flow delivery
 
-The architecture planner freezes the manifest. The execution coordinator follows that manifest and
-retains final integration acceptance, runtime ownership, evidence acceptance, commits, and queue
-transitions without redesigning architecture. New architecture, safety ambiguity, or contradictory
-evidence goes to the escalation architect through a compact checkpoint packet.
+The architecture planner freezes the manifest. The Sol parent is the mandatory
+`control_plane_owner` for Heavy work and retains stage freeze, product/failure
+classification, integration acceptance, runtime ownership, evidence acceptance,
+commits, queue transitions, and termination. Optional `procedure_coordinator`
+assistance follows the frozen checklist and cannot own stage transitions or
+architecture. New architecture, safety ambiguity, or contradictory evidence
+goes to the escalation architect through a compact checkpoint packet.
 
 ## Development loop
 
@@ -19,29 +22,35 @@ evidence goes to the escalation architect through a compact checkpoint packet.
    unresolved-action state, and the current live-attempt budget.
 3. Acquire or heartbeat the development lease with `scripts/flow_delivery_control.py`. The lease
    protects one active flow and one runtime operator; it does not choose a model or agent.
-4. Follow the frozen manifest and select its smallest coherent implementation slice. The
-   coordinator may edit directly only when the selected route permits parent-owned implementation.
+4. Apply the product-precondition gate before implementation or canary: diagnostic probes may
+   begin at `evidence_required`, but implementation/review requires `proven` or `not_applicable`.
+   Follow the frozen manifest and select its smallest coherent implementation slice. Optional
+   procedural assistance may not edit outside its explicit checklist authority; the bounded Luna
+   implementer edits only its assigned paths.
 5. When delegation is useful, invoke the optional `pns-flow-implementer` once for that slice. Give
    it the parent-approved allowlist and exact deliverable. Immediately before invocation, reserve
    the writer lane with `begin-delegation`; after its terminal result, release the same ID with
    `end-delegation`. Keep it foreground and single-writer. Do not launch reconnaissance, review,
    or evidence agents merely because a correction is needed.
-6. If the slice fails, reproduce the defect and authorize at most one consolidated repair in the
-   execution chat. A further substantial repair requires a compact handoff and fresh chat; a new
-   architecture decision requires escalation.
+6. If the slice fails, the Sol parent classifies the defect and may authorize at most one
+   consolidated repair and one Terra recheck for that stage. A product-precondition failure
+   terminates the stage without worker iteration. A further repair requires a compact handoff and
+   fresh chat; a new architecture decision requires escalation.
 7. Run the focused tests for the active flow. Run architecture/full/governance validation only
    when the changed scope or task contract requires it.
-8. Give the independent code-and-acceptance reviewer a bounded read-only package when required by
-   the selected route. Require material, actionable findings tied to the manifest or a plausible
-   private/local-project impact; reject cosmetic, speculative, or perfection-oriented findings.
+8. Give the independent Terra code-and-acceptance reviewer a bounded read-only package when
+   required by the selected route. Require material, actionable findings tied to the manifest or a
+   plausible private/local-project impact; reject cosmetic, speculative, or perfection-oriented
+   findings.
    Use `record-stage` as a lightweight task ledger; descriptive stages are not agent gates.
-9. If live validation is required, the parent alone uses `scripts/pnsctl.py`, one flow at a time,
+9. If live validation is required, the Sol parent alone uses `scripts/pnsctl.py`, one flow at a time,
    with current raw-frame binding, immediate-before revalidation, attempt accounting, and the
    unresolved-action gate.
 10. Preserve the required source, transport, semantic-result, journal, and terminal evidence.
     Review evidence proportionally; do not create a separate reviewer invocation by default.
-11. Create a focused commit only after tests, runtime state, evidence, and attribution are
-    terminal. Complete the queue transition atomically, then record counted completion.
+11. The Sol parent creates a focused commit only after tests, runtime state, evidence, and
+    attribution are terminal. Complete the queue transition atomically, then record counted
+    completion.
 
 ## Non-negotiable safety boundaries
 
@@ -57,7 +66,7 @@ evidence goes to the escalation architect through a compact checkpoint packet.
 
 ## Parent conversation rollover
 
-The controller policy in `tasks/flow_delivery_loop_policy.json` is the sole source of the maximum
-number of completed gameplay flows per parent conversation. At a safe terminal boundary, stop with
-`PARENT_CONVERSATION_ROLLOVER_REQUIRED` and use the checked-in resume invocation. Do not hardcode a
-competing numeric maximum or begin another flow after rollover.
+The checked-in `tasks/agentic_workflow_policy.json` is the source of managed
+turn, stage, checkpoint, and parent-conversation limits. At a safe terminal
+boundary, stop with `PARENT_CONVERSATION_ROLLOVER_REQUIRED` and use the
+checked-in resume invocation. Do not begin another stage after rollover.

@@ -10,7 +10,30 @@ flow queue contract.
 
 The route matrix and review ownership are authoritative in [`../AGENTS.md`](../AGENTS.md). An
 explicit user route selection wins and remains active until changed; otherwise use the matrix
-before entering this ladder. This document keeps only the runnable validation mechanics.
+before entering this ladder. This document keeps the runnable validation mechanics and the stage
+admission contract.
+
+## Stage admission
+
+The Sol parent is the mandatory `control_plane_owner` for Heavy work. Before
+implementation, review, or canary, the parent records the frozen revision,
+stage type, failure class, budgets, and product precondition. Diagnostic probes
+may begin at `evidence_required`; implementation and review require `proven` or
+`not_applicable`. A failed product precondition terminates the stage without
+Luna/Terra iteration. Any live failure is classified as `product_state`,
+`core_contract`, `local_defect`, or `process_state` before continuation is
+considered.
+
+Each stage permits one implementation, one initial review, at most one
+consolidated repair and one recheck, and one live attempt. A parent conversation
+permits at most three stage revisions and eight managed turns. The frozen
+manifest is immutable between revision IDs and contains architecture and
+budgets only; compact development-session and evidence records remain history.
+`CURRENT_HANDOFF.md` is current truth and its latest modifying commit must be
+the live Git head before managed delegation. This avoids an impossible
+self-referential commit hash inside the tracked handoff while still rejecting a
+handoff skipped by a later commit. At 60 minutes record a visible checkpoint;
+at 90 minutes require a recorded user continuation later than the stage start.
 
 ## Compact validation ladder
 

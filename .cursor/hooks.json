@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "subagentStart": [
+      {
+        "command": "python .cursor/hooks/pns_agent_workflow_guard.py",
+        "timeout": 10,
+        "failClosed": true
+      }
+    ]
+  }
+}
