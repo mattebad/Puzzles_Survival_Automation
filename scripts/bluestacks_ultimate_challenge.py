@@ -43,6 +43,7 @@ from home_atlas_bluestacks import (
     require_campaign_home_atlas_building,
     run_verified_ultimate_challenge_campaign_door,
 )
+from scripts.flow_delivery_evidence import require_operator_evidence
 from world_map_navigation_bluestacks import _visual_popup_panel_candidates
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
@@ -446,10 +447,15 @@ def _bind_ultimate_challenge_entry(
 
 
 def _write_result(session: Path, result: dict[str, object]) -> None:
+    terminal = result.get("terminal")
+    if not isinstance(terminal, str) or not terminal.strip():
+        raise ValueError("operator result requires a terminal identity")
+    _write_operator_artifacts(session, terminal)
     (session / "result.json").write_text(
         json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
     )
+    require_operator_evidence(session)
     print(json.dumps(result, sort_keys=True, default=str))
 
 
@@ -468,6 +474,33 @@ def _retain_top_level_frame(
         str(target.relative_to(session)).replace("\\", "/"),
         hashlib.sha256(payload).hexdigest(),
     )
+
+
+def _capture_and_retain_terminal_source(
+    runtime: LocalBlueStacksRuntime,
+    *,
+    session: Path,
+    events: Path,
+    capture_label: str,
+    frame_filename: str,
+    event_type: str,
+    event_payload: dict[str, object] | None = None,
+) -> tuple[CapturedNativeFrame, str, str]:
+    """Retain truthful source evidence before a terminal result is written."""
+
+    source = runtime.capture(capture_label)
+    frame_path, frame_hash = _retain_top_level_frame(session, source, frame_filename)
+    event = {
+        "type": event_type,
+        "flow_id": FLOW_ID,
+        "capture_label": capture_label,
+        "frame": frame_path,
+        "source_frame_sha256": source.sha256,
+    }
+    if event_payload:
+        event.update(event_payload)
+    append_event(events, event)
+    return source, frame_path, frame_hash
 
 
 def _ocr_region_text(
@@ -755,17 +788,51 @@ def _capture_until(
 
 
 def _write_operator_artifacts(session: Path, terminal: str) -> None:
-    """Ensure the flow wrapper has substantive journal/ledger artifacts."""
+    """Ensure substantive artifacts carry the current terminal identity."""
 
+    if not isinstance(terminal, str) or not terminal.strip():
+        raise ValueError("operator artifacts require a terminal identity")
     rows = {
-        "ledger.jsonl": {"flow_id": FLOW_ID, "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0}},
-        "capability-audit.jsonl": {"flow_id": FLOW_ID, "action_class": "ultimate_challenge_zero_resource_flee", "dispatch_policy": "SafeAction/NativeRuntime"},
-        "journal.jsonl": {"flow_id": FLOW_ID, "terminal": terminal, "unresolved_action": False},
+        "ledger.jsonl": {
+            "flow_id": FLOW_ID,
+            "record_type": "operator_terminal",
+            "terminal": terminal,
+            "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0},
+        },
+        "capability-audit.jsonl": {
+            "flow_id": FLOW_ID,
+            "record_type": "operator_terminal",
+            "terminal": terminal,
+            "action_class": "ultimate_challenge_zero_resource_flee",
+            "dispatch_policy": "SafeAction/NativeRuntime",
+        },
+        "journal.jsonl": {
+            "flow_id": FLOW_ID,
+            "record_type": "operator_terminal",
+            "terminal": terminal,
+            "unresolved_action": False,
+        },
     }
     for name, payload in rows.items():
         path = session / name
         if not path.exists() or path.stat().st_size == 0:
             path.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+            continue
+        try:
+            existing_rows = [
+                json.loads(line)
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            existing_rows = []
+        last = existing_rows[-1] if existing_rows else None
+        if not (
+            isinstance(last, dict)
+            and last.get("record_type") == "operator_terminal"
+            and last.get("terminal") == terminal
+        ):
+            append_event(path, payload)
 
 
 def _run_post_flee_home_route(
@@ -782,11 +849,21 @@ def _run_post_flee_home_route(
 
     runtime = runtime or LocalBlueStacksRuntime(runner, session / "runtime", execute=True)
     completed_actions = list(completed_actions or [])
-    uc = runtime.capture("post-flee-ultimate-immediate-before")
+    uc, uc_frame, uc_frame_sha256 = _capture_and_retain_terminal_source(
+        runtime,
+        session=session,
+        events=events,
+        capture_label="post-flee-ultimate-immediate-before",
+        frame_filename="post-flee-ultimate-immediate-before.png",
+        event_type="post_flee_home_source",
+        event_payload={"state": "ultimate_challenge_main"},
+    )
     if _recognize_ultimate_main(uc.frame) is None:
         return TERMINAL_BLOCKED, {
             "reason": "post-Flee Ultimate Challenge main not positively recognized",
             "completed_actions": completed_actions,
+            "source_frame": uc_frame,
+            "source_frame_sha256": uc_frame_sha256,
         }
     uc_back_key = f"uc-back-{utc_stamp()}"
     runtime.back(
@@ -1099,35 +1176,35 @@ def main(argv: list[str] | None = None) -> int:
         session.mkdir(parents=True, exist_ok=False)
         frames = session / "frames"
         frames.mkdir(parents=True, exist_ok=False)
-        home_nav_recognized = False
-        home_frame = None
-        home_frame_sha256 = None
-        if args.execute:
-            runner = ADBRunner(args.adb, args.serial)
-            devices = {device.serial: device.state for device in runner.list_devices()}
-            if devices.get(args.serial) != "device" or runner.get_state() != "device":
-                raise RuntimeError("exact BlueStacks serial is not in device state")
-            runtime = LocalBlueStacksRuntime(runner, session / "runtime", execute=True)
-            source = runtime.capture("already-completed-home-source")
-            home_frame, home_frame_sha256 = _retain_top_level_frame(
-                session, source, "canonical-home-terminal.png"
-            )
-            home_nav_recognized = _home_nav_terminal(source.frame)
-            append_event(
-                session / "events.jsonl",
-                {
-                    "type": "already_completed_home_source",
-                    "home_nav_recognized": home_nav_recognized,
-                    "home_frame": home_frame,
-                    "home_frame_sha256": home_frame_sha256,
-                    "source_sha256": source.sha256,
-                    "input_count": runtime.input_count,
-                },
-            )
-            _write_operator_artifacts(
-                session,
-                TERMINAL_ALREADY_COMPLETED if home_nav_recognized else TERMINAL_BLOCKED,
-            )
+        runner = ADBRunner(args.adb, args.serial)
+        devices = {device.serial: device.state for device in runner.list_devices()}
+        if devices.get(args.serial) != "device" or runner.get_state() != "device":
+            raise RuntimeError("exact BlueStacks serial is not in device state")
+        runtime = LocalBlueStacksRuntime(runner, session / "runtime", execute=args.execute)
+        source, home_frame, home_frame_sha256 = _capture_and_retain_terminal_source(
+            runtime,
+            session=session,
+            events=session / "events.jsonl",
+            capture_label="already-completed-home-source",
+            frame_filename="canonical-home-terminal.png",
+            event_type="already_completed_home_source",
+            event_payload={
+                "reset_identity": args.reset_identity,
+                "input_count": runtime.input_count,
+            },
+        )
+        home_nav_recognized = _home_nav_terminal(source.frame)
+        append_event(
+            session / "events.jsonl",
+            {
+                "type": "already_completed_home_recognition",
+                "home_nav_recognized": home_nav_recognized,
+                "home_frame": home_frame,
+                "home_frame_sha256": home_frame_sha256,
+                "source_sha256": source.sha256,
+                "input_count": runtime.input_count,
+            },
+        )
         terminal = TERMINAL_ALREADY_COMPLETED if home_nav_recognized else TERMINAL_BLOCKED
         result = {
             "status": terminal,
@@ -1159,6 +1236,25 @@ def main(argv: list[str] | None = None) -> int:
     if precheck.terminal == TERMINAL_BLOCKED and precheck.reason != "not already_completed":
         session = args.output_directory / f"blocked-{utc_stamp()}"
         session.mkdir(parents=True, exist_ok=False)
+        (session / "frames").mkdir(parents=True, exist_ok=False)
+        runner = ADBRunner(args.adb, args.serial)
+        devices = {device.serial: device.state for device in runner.list_devices()}
+        if devices.get(args.serial) != "device" or runner.get_state() != "device":
+            raise RuntimeError("exact BlueStacks serial is not in device state")
+        runtime = LocalBlueStacksRuntime(runner, session / "runtime", execute=args.execute)
+        _source, source_frame, source_frame_sha256 = _capture_and_retain_terminal_source(
+            runtime,
+            session=session,
+            events=session / "events.jsonl",
+            capture_label="reset-precheck-blocked-source",
+            frame_filename="reset-precheck-blocked-source.png",
+            event_type="reset_precheck_blocked",
+            event_payload={
+                "blocked_reason": precheck.reason,
+                "reset_identity": args.reset_identity,
+                "input_count": runtime.input_count,
+            },
+        )
         result = {
             "status": TERMINAL_BLOCKED,
             "terminal": TERMINAL_BLOCKED,
@@ -1168,7 +1264,10 @@ def main(argv: list[str] | None = None) -> int:
             "navigation_only": True,
             "dispatch": False,
             "reset_identity": args.reset_identity,
-            "navigation_input_count": 0,
+            "source_frame": source_frame,
+            "source_frame_sha256": source_frame_sha256,
+            "input_count": runtime.input_count,
+            "navigation_input_count": runtime.input_count,
         }
         _write_result(session, result)
         return 3
@@ -1221,7 +1320,6 @@ def main(argv: list[str] | None = None) -> int:
             post_input_delay=args.post_input_delay,
             runtime=runtime,
         )
-        _write_operator_artifacts(session, terminal)
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
             detail["reason"] = "aggregate runtime input count exceeded 16"
@@ -1371,7 +1469,6 @@ def main(argv: list[str] | None = None) -> int:
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
             detail["reason"] = "aggregate runtime input count exceeded 16"
-        _write_operator_artifacts(session, terminal)
         result = {
             "status": terminal,
             "terminal": terminal,
@@ -1417,7 +1514,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.daily:
         if decision.terminal == TERMINAL_ALREADY_COMPLETED:
-            _write_operator_artifacts(session, TERMINAL_BLOCKED)
             result = {
                 "status": TERMINAL_BLOCKED,
                 "terminal": TERMINAL_BLOCKED,
@@ -1434,7 +1530,6 @@ def main(argv: list[str] | None = None) -> int:
             _write_result(session, result)
             return 3
         if decision.terminal == TERMINAL_BLOCKED:
-            _write_operator_artifacts(session, TERMINAL_BLOCKED)
             result = {
                 "status": TERMINAL_BLOCKED,
                 "terminal": TERMINAL_BLOCKED,
@@ -1463,7 +1558,6 @@ def main(argv: list[str] | None = None) -> int:
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
             detail["reason"] = "aggregate runtime input count exceeded 16"
-        _write_operator_artifacts(session, terminal)
         result = {
             "status": terminal,
             "terminal": terminal,

@@ -147,3 +147,30 @@ All other paths are read-only during implementation.
 - Audit all direct `runtime.capture()` uses in this operator, including navigation-only entry binding, for the same type mismatch.
 - Add focused tests using a real `CapturedNativeFrame`-shaped object so NumPy-only mocks cannot conceal this boundary.
 - One Luna implementation and one Terra review are authorized. No live input before parent acceptance and a fresh clean candidate commit.
+
+## Refrozen stage r6 — fail-closed evidence completeness
+- User continuation exception: the explicit reset/bypass instruction authorizes this offline evidence repair.
+- Revision ID: `ultimate-challenge-lean-reproof-r6`.
+- Live classification:
+  - The r5 canary sent zero input and positively retained `blocked_fail_closed`, reason `LOCALIZATION_NOT_RECOGNIZED`, with input count `0`.
+  - The current screen is Home at an unsupported zoom. This is a `product_state` precondition failure; no live retry is authorized until canonical fully-zoomed-out Home is independently established.
+  - Singleton ownership released and was proved by a subsequent zero-input observation.
+- Local defect: the blocked operator wrote `result.json` and events but omitted required nonempty `ledger.jsonl`, `capability-audit.jsonl`, and `journal.jsonl`, causing the wrapper to obscure the truthful terminal with an evidence-integrity error.
+- Writable paths:
+  - `scripts/bluestacks_ultimate_challenge.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- Every normal operator terminal that writes `result.json`, including early fail-closed exits, must first retain the required substantive artifacts with the same terminal identity.
+- Add focused coverage for the localization-blocked early return and other centralized result-writing paths.
+- One Luna implementation and one Terra review are authorized. This stage has no live admission.
+
+## Refrozen stage r7 — non-skipping visual contract proof
+- User continuation exception: the explicit reset/bypass instruction authorizes this test-only proof stage.
+- Revision ID: `ultimate-challenge-lean-reproof-r7`.
+- Failure class: `local_defect`.
+- Writable paths:
+  - `tests/test_bluestacks_ultimate_challenge.py`
+  - deterministic synthetic test fixtures under `tests/fixtures/ultimate_challenge/` only if runtime-generated fixtures cannot remain clear and stable.
+- Authoritative focused tests must exercise the real production recognition path for Ultimate main, active battle, exact Flee warning, wrong/ambiguous negatives, and Home-template rejection of a non-Home shop-like frame.
+- Those tests may not patch the recognizer under test or its popup geometry, control detection, OCR, or template-matching gates. Synthetic native frames must use independently hard-coded geometry and labels rather than importing production ROI constants as expected truth.
+- Local retained-frame checks remain supplementary development evidence only. They must not be skippable authoritative unit-test acceptance; remove or clearly separate them from the deterministic acceptance suite.
+- One Luna implementation and one Terra review are authorized. This stage has no live admission.

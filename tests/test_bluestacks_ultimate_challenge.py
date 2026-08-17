@@ -8,6 +8,7 @@ from pathlib import Path
 import json
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import cv2
@@ -16,6 +17,7 @@ import numpy as np
 from scripts import bluestacks_ultimate_challenge as ultimate
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts import flow_delivery_ultimate_challenge_bluestacks as delivery
+from scripts.flow_delivery_evidence import require_operator_evidence
 from tasks.home_nav_recognition import recognize_home_nav
 from tasks.ultimate_challenge_daily import (
     FLOW_ID,
@@ -26,71 +28,133 @@ from tasks.ultimate_challenge_daily import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RETAINED = {
-    "ultimate_main": ROOT
-    / ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/"
-    "daily-20260726T233710531717Z/nav-20260726T233711004690Z/runtime/frames/"
-    "0001-post-flee-ultimate-immediate-before.png",
-    "active_battle": ROOT
-    / ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/"
-    "daily-20260726T232707275062Z/nav-20260726T232707732974Z/runtime/frames/"
-    "0001-active-battle-resume-source.png",
-    "flee_warning": ROOT
-    / ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/"
-    "daily-20260726T233344160030Z/nav-20260726T233344610221Z/runtime/frames/"
-    "0001-flee-warning-resume-source.png",
-    "flee_successor": ROOT
-    / ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/"
-    "daily-20260726T233344160030Z/nav-20260726T233344610221Z/runtime/frames/"
-    "0002-flee-confirmed-successor-01.png",
-    "resource_shop": ROOT
-    / ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/"
-    "daily-20260726T233710531717Z/nav-20260726T233711004690Z/runtime/frames/"
-    "0003-canonical-home-successor-01.png",
-}
 
 
 class UltimateChallengeVisualTests(unittest.TestCase):
-    def _load_available(self, name: str) -> np.ndarray:
-        path = RETAINED[name]
-        if not path.is_file():
-            self.skipTest(f"retained frame absent for {name}")
-        frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
-        self.assertIsNotNone(frame, f"could not read retained frame {path}")
+    @staticmethod
+    def _main_frame(title: str = "Ultimate Challenge") -> np.ndarray:
+        """Build a native frame with independently measured main-screen geometry."""
+        frame = np.full((1280, 800, 3), (24, 28, 36), dtype=np.uint8)
+        cv2.putText(
+            frame,
+            title,
+            (170, 58),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.25,
+            (255, 255, 255),
+            3,
+            cv2.LINE_AA,
+        )
+        cv2.rectangle(frame, (280, 1170), (520, 1260), (0, 0, 220), -1)
         return frame
 
-    def test_retained_frames_bind_only_their_correct_state_targets(self) -> None:
-        available = [name for name, path in RETAINED.items() if path.is_file()]
-        if not available:
-            self.skipTest("no retained Ultimate Challenge frames present")
+    @staticmethod
+    def _active_battle_frame() -> np.ndarray:
+        """Build a native frame with an independently measured puzzle board."""
+        frame = np.full((1280, 800, 3), (24, 28, 36), dtype=np.uint8)
+        for row in range(4):
+            for column in range(5):
+                x0 = 55 + column * 135
+                y0 = 540 + row * 105
+                cv2.rectangle(
+                    frame,
+                    (x0, y0),
+                    (x0 + 55, y0 + 55),
+                    (0, 180, 255),
+                    -1,
+                )
+        cv2.rectangle(frame, (700, 20), (750, 75), (255, 255, 255), -1)
+        return frame
 
-        for name in available:
-            with self.subTest(screen=name):
-                frame = self._load_available(name)
-                main = ultimate._recognize_ultimate_main(frame)
-                active = ultimate._recognize_active_battle(frame)
-                warning = ultimate._recognize_flee_warning(frame)
-                if name in {"ultimate_main", "flee_successor"}:
-                    self.assertIsNotNone(main)
-                    self.assertIsNone(active)
-                    self.assertIsNone(warning)
-                elif name == "active_battle":
-                    self.assertIsNone(main)
-                    self.assertIsNotNone(active)
-                    self.assertIsNone(warning)
-                elif name == "flee_warning":
-                    self.assertIsNone(main)
-                    self.assertIsNone(active)
-                    self.assertIsNotNone(warning)
-                    self.assertIsNotNone(ultimate._bind_flee_warning_button(frame))
-                else:
-                    self.assertIsNone(main)
-                    self.assertIsNone(active)
-                    self.assertIsNone(warning)
+    @staticmethod
+    def _flee_warning_frame(
+        *,
+        extra_panel: bool = False,
+        text: str = "Flee now: failure",
+    ) -> np.ndarray:
+        """Build a native warning modal with independently measured geometry."""
+        frame = np.full((1280, 800, 3), (24, 28, 36), dtype=np.uint8)
+        cv2.rectangle(frame, (60, 360), (740, 750), (48, 48, 48), -1)
+        cv2.rectangle(frame, (60, 360), (740, 750), (220, 220, 220), 12)
+        cv2.rectangle(frame, (72, 372), (728, 435), (0, 0, 180), -1)
+        cv2.putText(
+            frame,
+            text,
+            (180, 535),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.15,
+            (255, 255, 255),
+            3,
+            cv2.LINE_AA,
+        )
+        cv2.rectangle(frame, (100, 600), (330, 700), (0, 0, 220), -1)
+        cv2.rectangle(frame, (470, 600), (700, 700), (0, 180, 220), -1)
+        if extra_panel:
+            cv2.rectangle(frame, (5, 20), (795, 320), (180, 180, 180), 12)
+        return frame
 
-    def test_resource_shop_is_rejected_as_home(self) -> None:
-        frame = self._load_available("resource_shop")
-        result = recognize_home_nav(frame)
+    @staticmethod
+    def _shop_like_frame() -> np.ndarray:
+        """Build a non-Home shop surface without copying the Home nav template."""
+        frame = np.full((1280, 800, 3), (35, 45, 65), dtype=np.uint8)
+        cv2.rectangle(frame, (80, 120), (720, 1160), (35, 45, 65), -1)
+        cv2.rectangle(frame, (120, 180), (680, 260), (25, 150, 210), -1)
+        cv2.putText(
+            frame,
+            "Resource Shop",
+            (190, 235),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.2,
+            (255, 255, 255),
+            3,
+            cv2.LINE_AA,
+        )
+        cv2.rectangle(frame, (140, 360), (360, 520), (40, 170, 210), -1)
+        cv2.rectangle(frame, (440, 360), (660, 520), (40, 170, 210), -1)
+        cv2.rectangle(frame, (120, 1213), (680, 1280), (20, 20, 20), -1)
+        return frame
+
+    def test_real_production_recognizers_accept_deterministic_native_frames(self) -> None:
+        main = ultimate._recognize_ultimate_main(self._main_frame())
+        self.assertIsNotNone(main)
+        self.assertTrue(280 <= main[0] < main[2] <= 520)
+        self.assertTrue(1170 <= main[1] < main[3] <= 1260)
+
+        active = ultimate._recognize_active_battle(self._active_battle_frame())
+        self.assertIsNotNone(active)
+        self.assertTrue(700 <= active[0] < active[2] <= 750)
+        self.assertTrue(20 <= active[1] < active[3] <= 75)
+
+        warning = ultimate._recognize_flee_warning(self._flee_warning_frame())
+        self.assertIsNotNone(warning)
+        fight, flee = warning
+        self.assertTrue(100 <= fight[0] < fight[2] <= 331)
+        self.assertTrue(470 <= flee[0] < flee[2] <= 701)
+
+    def test_real_production_recognizers_reject_wrong_and_ambiguous_frames(self) -> None:
+        main = self._main_frame()
+        active = self._active_battle_frame()
+        self.assertIsNone(ultimate._recognize_ultimate_main(active))
+        self.assertIsNone(ultimate._recognize_active_battle(main))
+        self.assertIsNone(ultimate._recognize_flee_warning(main))
+        self.assertIsNone(ultimate._recognize_ultimate_main(self._main_frame("Resource Shop")))
+        self.assertIsNone(
+            ultimate._recognize_flee_warning(
+                self._flee_warning_frame(text="Flee now: success")
+            )
+        )
+
+        ambiguous_main = self._main_frame()
+        cv2.rectangle(ambiguous_main, (280, 1170), (520, 1260), (24, 28, 36), -1)
+        cv2.rectangle(ambiguous_main, (205, 1170), (385, 1260), (0, 0, 220), -1)
+        cv2.rectangle(ambiguous_main, (415, 1170), (595, 1260), (0, 0, 220), -1)
+        self.assertIsNone(ultimate._recognize_ultimate_main(ambiguous_main))
+
+        ambiguous_warning = self._flee_warning_frame(extra_panel=True)
+        self.assertIsNone(ultimate._recognize_flee_warning(ambiguous_warning))
+
+    def test_home_template_rejects_deterministic_shop_like_frame(self) -> None:
+        result = recognize_home_nav(self._shop_like_frame())
         self.assertFalse(result.is_home)
         self.assertIsNone(result.quest_tap_point())
 
@@ -146,64 +210,25 @@ class UltimateChallengeVisualTests(unittest.TestCase):
             self.assertIsNone(ultimate._bind_active_battle_exit(blank))
 
     def test_flee_warning_requires_one_bounded_spatially_matched_popup(self) -> None:
-        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        """R7 acceptance: an extra full-frame popup must fail closed."""
+        valid_frame = self._flee_warning_frame()
+        self.assertIsNotNone(ultimate._recognize_flee_warning(valid_frame))
 
-        def controls(_frame, *, search_roi, **_kwargs):
-            if search_roi == ultimate._FLEE_FIGHT_SEARCH_ROI:
-                return [(100, 600, 300, 700)]
-            if search_roi == ultimate._FLEE_FLEE_SEARCH_ROI:
-                return [(450, 600, 700, 700)]
-            raise AssertionError(f"unexpected control search ROI: {search_roi}")
-
-        def recognize_with(panels):
-            with patch.object(
-                ultimate,
-                "_visual_popup_candidates",
-                return_value=panels,
-            ), patch.object(
-                ultimate,
-                "_has_warning_modal_geometry",
-                return_value=True,
-            ), patch.object(
-                ultimate,
-                "_visual_control_candidates",
-                side_effect=controls,
-            ), patch.object(
-                ultimate,
-                "_ocr_region_text",
-                return_value="flee now failure",
-            ):
-                return ultimate._recognize_flee_warning(frame)
-
-        self.assertIsNotNone(recognize_with([(80, 380, 720, 730)]))
-        for panels in (
-            [
-                ultimate._FLEE_MODAL_ROI,
-                (0, 0, 200, 200),
-            ],
-            [
-                ultimate._FLEE_MODAL_ROI,
-                (0, 0, 800, 1280),
-            ],
-            [(0, 0, 200, 200)],
-            [(65, 365, 400, 745)],
-            [(0, 0, 200, 500)],
-            [(0, 0, 800, 1280)],
-        ):
-            with self.subTest(panels=panels):
-                self.assertIsNone(recognize_with(panels))
-
-    def test_overbroad_popup_remains_visible_beside_expected_modal(self) -> None:
-        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        panels = [ultimate._FLEE_MODAL_ROI, (0, 0, 800, 1280)]
-        with patch.object(
-            ultimate,
-            "_visual_popup_candidates",
-            return_value=panels,
-        ):
-            self.assertEqual(ultimate._flee_popup_panel_candidates(frame), panels)
+        overbroad_frame = valid_frame.copy()
+        # Independently measured full-frame panel, deliberately separate from
+        # the modal geometry above and from production ROI constants.
+        cv2.rectangle(
+            overbroad_frame,
+            (8, 18),
+            (792, 1262),
+            (180, 180, 180),
+            12,
+        )
+        self.assertEqual(overbroad_frame.shape, (1280, 800, 3))
+        self.assertIsNone(ultimate._recognize_flee_warning(overbroad_frame))
 
     def test_flee_popup_collapses_duplicate_modal_detections(self) -> None:
+        """Candidate-clustering unit coverage, separate from r7 acceptance."""
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         duplicate = (67, 367, 733, 743)
         with patch.object(
@@ -233,6 +258,358 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
 
         def __init__(self, root: Path) -> None:
             self.BLUESTACKS_ARTIFACT_ROOT = root
+
+    def test_result_writer_centralizes_terminal_artifacts_and_preserves_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            session = Path(directory)
+            existing = {"flow_id": FLOW_ID, "event": "substantive-existing-row"}
+            (session / "frames").mkdir()
+            (session / "frames" / "source.png").write_bytes(b"native-source")
+            (session / "events.jsonl").write_text(
+                json.dumps(
+                    {
+                        "flow_id": FLOW_ID,
+                        "type": "substantive-source-event",
+                        "source_frame_sha256": "a" * 64,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            for name in ("ledger.jsonl", "capability-audit.jsonl", "journal.jsonl"):
+                (session / name).write_text(
+                    json.dumps(existing) + "\n",
+                    encoding="utf-8",
+                )
+
+            with patch("builtins.print"):
+                ultimate._write_result(
+                    session,
+                    {
+                        "flow_id": FLOW_ID,
+                        "status": "blocked_fail_closed",
+                        "terminal": "blocked_fail_closed",
+                        "reason": "LOCALIZATION_NOT_RECOGNIZED",
+                        "input_count": 0,
+                    },
+                )
+                ultimate._write_result(
+                    session,
+                    {
+                        "flow_id": FLOW_ID,
+                        "status": "blocked_fail_closed",
+                        "terminal": "blocked_fail_closed",
+                        "reason": "LOCALIZATION_NOT_RECOGNIZED",
+                        "input_count": 0,
+                    },
+                )
+
+            result = json.loads((session / "result.json").read_text(encoding="utf-8"))
+            self.assertEqual(result["terminal"], "blocked_fail_closed")
+            for name in ("ledger.jsonl", "capability-audit.jsonl", "journal.jsonl"):
+                rows = [
+                    json.loads(line)
+                    for line in (session / name).read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+                self.assertEqual(rows[0], existing)
+                self.assertEqual(rows[-1]["terminal"], result["terminal"])
+                self.assertEqual(
+                    sum(row.get("record_type") == "operator_terminal" for row in rows),
+                    1,
+                )
+
+    def test_reset_precheck_blocked_terminal_retains_current_evidence(self) -> None:
+        captured_frames: list[CapturedNativeFrame] = []
+
+        class FakeRunner:
+            def __init__(self, *_args) -> None:
+                pass
+
+            def list_devices(self):
+                return [type("Device", (), {"serial": "emulator-5554", "state": "device"})()]
+
+            def get_state(self) -> str:
+                return "device"
+
+        class FakeRuntime:
+            input_count = 0
+
+            def __init__(self, runner, session: Path, *, execute: bool) -> None:
+                self.runner = runner
+                self.session = session
+                self.execute = execute
+                self.frame_directory = session / "frames"
+                self.frame_directory.mkdir(parents=True, exist_ok=True)
+
+            def capture(self, label: str) -> CapturedNativeFrame:
+                frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+                encoded_ok, encoded = cv2.imencode(".png", frame)
+                assert encoded_ok
+                payload = encoded.tobytes()
+                path = self.frame_directory / f"{len(captured_frames) + 1:04d}-{label}.png"
+                path.write_bytes(payload)
+                captured = CapturedNativeFrame(
+                    frame=frame,
+                    png=payload,
+                    sha256=hashlib.sha256(payload).hexdigest(),
+                    captured_monotonic=0.0,
+                    path=path,
+                )
+                captured_frames.append(captured)
+                return captured
+
+        blocked_reason = "completion_state=completed but last success is outside current reset window"
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            with patch.object(ultimate, "ADBRunner", FakeRunner), patch.object(
+                ultimate, "LocalBlueStacksRuntime", FakeRuntime
+            ), patch.object(
+                ultimate, "is_permitted_local_bluestacks_serial", return_value=True
+            ), patch.object(
+                ultimate, "require_campaign_home_atlas_building"
+            ), patch.object(
+                ultimate,
+                "evaluate_already_completed",
+                return_value=SimpleNamespace(
+                    terminal="blocked_fail_closed",
+                    reason=blocked_reason,
+                ),
+            ):
+                code = ultimate.main(
+                    [
+                        "--adb",
+                        "unused-adb",
+                        "--serial",
+                        "emulator-5554",
+                        "--daily",
+                        "--execute",
+                        "--yes",
+                        "--output-directory",
+                        str(output),
+                        "--reset-identity",
+                        "game-day-2026-08-17",
+                    ]
+                )
+
+            sessions = list(output.glob("blocked-*"))
+            self.assertEqual(code, 3)
+            self.assertEqual(len(sessions), 1)
+            session = sessions[0]
+            retained, frame_paths = require_operator_evidence(session)
+            self.assertEqual(retained["reason"], blocked_reason)
+            self.assertEqual(retained["input_count"], 0)
+            self.assertEqual(frame_paths, ["frames/reset-precheck-blocked-source.png"])
+            events = [
+                json.loads(line)
+                for line in (session / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertTrue(any(event["type"] == "reset_precheck_blocked" for event in events))
+            self.assertEqual(len(captured_frames), 1)
+
+    def test_post_flee_home_immediate_failure_retains_current_evidence(self) -> None:
+        captured_frames: list[CapturedNativeFrame] = []
+
+        class FakeRunner:
+            def __init__(self, *_args) -> None:
+                pass
+
+            def list_devices(self):
+                return [type("Device", (), {"serial": "emulator-5554", "state": "device"})()]
+
+            def get_state(self) -> str:
+                return "device"
+
+        class FakeRuntime:
+            input_count = 0
+
+            def __init__(self, runner, session: Path, *, execute: bool) -> None:
+                self.runner = runner
+                self.session = session
+                self.execute = execute
+                self.frame_directory = session / "frames"
+                self.frame_directory.mkdir(parents=True, exist_ok=True)
+
+            def capture(self, label: str) -> CapturedNativeFrame:
+                frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+                encoded_ok, encoded = cv2.imencode(".png", frame)
+                assert encoded_ok
+                payload = encoded.tobytes()
+                path = self.frame_directory / f"{len(captured_frames) + 1:04d}-{label}.png"
+                path.write_bytes(payload)
+                captured = CapturedNativeFrame(
+                    frame=frame,
+                    png=payload,
+                    sha256=hashlib.sha256(payload).hexdigest(),
+                    captured_monotonic=0.0,
+                    path=path,
+                )
+                captured_frames.append(captured)
+                return captured
+
+        blocked_reason = "post-Flee Ultimate Challenge main not positively recognized"
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            with patch.object(ultimate, "ADBRunner", FakeRunner), patch.object(
+                ultimate, "LocalBlueStacksRuntime", FakeRuntime
+            ), patch.object(
+                ultimate, "is_permitted_local_bluestacks_serial", return_value=True
+            ), patch.object(
+                ultimate, "require_campaign_home_atlas_building"
+            ), patch.object(
+                ultimate, "_recognize_ultimate_main", return_value=None
+            ):
+                code = ultimate.main(
+                    [
+                        "--adb",
+                        "unused-adb",
+                        "--serial",
+                        "emulator-5554",
+                        "--post-flee-home-only",
+                        "--execute",
+                        "--yes",
+                        "--output-directory",
+                        str(output),
+                        "--reset-identity",
+                        "game-day-2026-08-17",
+                    ]
+                )
+
+            sessions = list(output.glob("nav-*"))
+            self.assertEqual(code, 3)
+            self.assertEqual(len(sessions), 1)
+            session = sessions[0]
+            retained, frame_paths = require_operator_evidence(session)
+            self.assertEqual(retained["reason"], blocked_reason)
+            self.assertEqual(retained["input_count"], 0)
+            self.assertEqual(
+                frame_paths,
+                ["frames/post-flee-ultimate-immediate-before.png"],
+            )
+            events = [
+                json.loads(line)
+                for line in (session / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertTrue(any(event["type"] == "post_flee_home_source" for event in events))
+            self.assertEqual(len(captured_frames), 1)
+
+    def test_localization_blocked_early_return_retains_zero_input_evidence(self) -> None:
+        captured_frames: list[CapturedNativeFrame] = []
+
+        class FakeRunner:
+            def __init__(self, *_args) -> None:
+                pass
+
+            def list_devices(self):
+                return [type("Device", (), {"serial": "emulator-5554", "state": "device"})()]
+
+            def get_state(self) -> str:
+                return "device"
+
+        class FakeRuntime:
+            input_count = 0
+
+            def __init__(self, _runner, session: Path, *, execute: bool) -> None:
+                self.session = session
+                self.execute = execute
+                self.frame_directory = session / "frames"
+                self.frame_directory.mkdir(parents=True, exist_ok=True)
+
+            def capture(self, label: str) -> CapturedNativeFrame:
+                frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+                encoded_ok, encoded = cv2.imencode(".png", frame)
+                assert encoded_ok
+                payload = encoded.tobytes()
+                path = self.frame_directory / f"{len(captured_frames) + 1:04d}-{label}.png"
+                path.write_bytes(payload)
+                captured = CapturedNativeFrame(
+                    frame=frame,
+                    png=payload,
+                    sha256=hashlib.sha256(payload).hexdigest(),
+                    captured_monotonic=0.0,
+                    path=path,
+                )
+                captured_frames.append(captured)
+                return captured
+
+        def fake_entry(frame, *, reset_identity):
+            self.assertIsInstance(frame, np.ndarray)
+            return UltimateChallengeEntryObservation(
+                campaign_screen_recognized=False,
+                entry_control_visible=False,
+                entry_control_identity="",
+                entry_roi=None,
+                already_completed_marker=False,
+                reset_identity=reset_identity,
+                source_frame_sha256=ultimate.frame_sha256(frame),
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            with patch.object(ultimate, "ADBRunner", FakeRunner), patch.object(
+                ultimate, "LocalBlueStacksRuntime", FakeRuntime
+            ), patch.object(
+                ultimate, "is_permitted_local_bluestacks_serial", return_value=True
+            ), patch.object(
+                ultimate, "require_campaign_home_atlas_building"
+            ), patch.object(
+                ultimate, "_recognize_ultimate_main", return_value=None
+            ), patch.object(
+                ultimate, "_bind_lineup_challenge_button", return_value=None
+            ), patch.object(
+                ultimate, "_recognize_active_battle", return_value=None
+            ), patch.object(
+                ultimate, "_bind_flee_warning_button", return_value=None
+            ), patch.object(
+                ultimate, "_bind_ultimate_challenge_entry", side_effect=fake_entry
+            ), patch.object(
+                ultimate, "_home_nav_terminal", return_value=True
+            ), patch.object(
+                ultimate,
+                "run_verified_ultimate_challenge_campaign_door",
+                return_value={
+                    "status": "blocked_fail_closed",
+                    "reason": "LOCALIZATION_NOT_RECOGNIZED",
+                    "records": [],
+                },
+            ):
+                code = ultimate.main(
+                    [
+                        "--adb",
+                        "unused-adb",
+                        "--serial",
+                        "emulator-5554",
+                        "--daily",
+                        "--execute",
+                        "--yes",
+                        "--output-directory",
+                        str(output),
+                        "--reset-identity",
+                        "game-day-2026-08-17",
+                    ]
+                )
+
+            sessions = list(output.glob("nav-*"))
+            self.assertEqual(code, 3)
+            self.assertEqual(len(sessions), 1)
+            session = sessions[0]
+            result = json.loads((session / "result.json").read_text(encoding="utf-8"))
+            self.assertEqual(result["terminal"], "blocked_fail_closed")
+            self.assertEqual(result["reason"], "LOCALIZATION_NOT_RECOGNIZED")
+            self.assertEqual(result["input_count"], 0)
+            for name in ("ledger.jsonl", "capability-audit.jsonl", "journal.jsonl"):
+                self.assertGreater((session / name).stat().st_size, 0)
+            retained, frames = require_operator_evidence(session)
+            self.assertEqual(retained, result)
+            self.assertEqual(
+                json.loads(
+                    (session / "journal.jsonl").read_text(encoding="utf-8").splitlines()[-1]
+                )["terminal"],
+                result["terminal"],
+            )
+            self.assertTrue(frames)
 
     def test_main_unwraps_captured_frames_for_resume_and_navigation_binding(self) -> None:
         captured_frames: list[CapturedNativeFrame] = []
