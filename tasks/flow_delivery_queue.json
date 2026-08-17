@@ -42,11 +42,32 @@
     "scheduler_eligibility": false,
     "entries": [
       {
+        "task_id": "bioenhancer-free-objective",
+        "execution_flow_id": null,
+        "queue_record_state": "accepted_existing",
+        "depends_on": [],
+        "blocker": null
+      },
+      {
         "task_id": "daily-row-claim",
         "execution_flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
         "queue_record_state": "accepted_existing",
         "depends_on": [],
         "blocker": null
+      },
+      {
+        "task_id": "ultimate-challenge-daily",
+        "execution_flow_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+        "queue_record_state": "next_authority_reconciliation",
+        "depends_on": ["campaign-atlas-navigation"],
+        "blocker": "queue completion and retained zero-resource Flee-to-Home evidence conflict with the stale gameplay contract that forbids production input; Sol must reconcile authority before a lean live stage"
+      },
+      {
+        "task_id": "nova-praise-free-pulse",
+        "execution_flow_id": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+        "queue_record_state": "existing_candidate_revalidation_required",
+        "depends_on": ["ultimate-challenge-daily"],
+        "blocker": "current lean Free-availability, one-pulse idempotency, and canonical return evidence must be rechecked before scheduler admission"
       },
       {
         "task_id": "daily-milestone-claim",
@@ -68,6 +89,20 @@
         "queue_record_state": "staged_non_executable",
         "depends_on": ["SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT"],
         "blocker": "all-free-attempt through Free disappearance plus independent Daily 5/5 proof is missing"
+      },
+      {
+        "task_id": "recruitment-basic-five-daily",
+        "execution_flow_id": "RECRUITMENT-BLUESTACKS-INTEGRATION",
+        "queue_record_state": "existing_candidate_revalidation_required",
+        "depends_on": ["nova-praise-free-pulse"],
+        "blocker": "current Basic-five Daily free-attempt count, exactly five free recruits, Daily successor, and no premium/ticket fallback require lean live proof"
+      },
+      {
+        "task_id": "recruitment-tier-maintenance",
+        "execution_flow_id": "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+        "queue_record_state": "existing_candidate_revalidation_required",
+        "depends_on": ["recruitment-basic-five-daily"],
+        "blocker": "independent tier Free availability, exhaustion, and no paid/10x fallback require current lean live proof"
       },
       {
         "task_id": "alliance-tech-donation",
@@ -147,6 +182,20 @@
         "blocker": "fresh Module semantics and one bounded native canary are missing"
       },
       {
+        "task_id": "campaign-natural-ap-auto-battle",
+        "execution_flow_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+        "queue_record_state": "existing_candidate_revalidation_required",
+        "depends_on": ["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"],
+        "blocker": "configured stage, current natural AP affordability, no-refill branch, bounded Auto Battle, and terminal successor require lean live proof"
+      },
+      {
+        "task_id": "troop-training-four-variants",
+        "execution_flow_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+        "queue_record_state": "existing_candidate_variant_revalidation_required",
+        "depends_on": [],
+        "blocker": "Fighter, Rider, Shooter, and Vehicle variants each require current lean one-queue proof and no speedup/premium fallback"
+      },
+      {
         "task_id": "gathering-search-level5",
         "execution_flow_id": "GATHERING-BLUESTACKS-INTEGRATION",
         "queue_record_state": "existing_blocked_stage",
@@ -180,6 +229,13 @@
         "queue_record_state": "staged_non_executable",
         "depends_on": ["gathering-march-dispatch"],
         "blocker": "independent Wood, Steel, and Gas canaries are missing"
+      },
+      {
+        "task_id": "vip-get-points-popup-dismissal",
+        "execution_flow_id": null,
+        "queue_record_state": "shared_prerequisite_revalidation_required",
+        "depends_on": [],
+        "blocker": "one fresh exact VIP Get Pts popup, bounded close, settled successor, and zero resource/combat proof are required before scheduler admission"
       }
     ],
     "deferred": [
