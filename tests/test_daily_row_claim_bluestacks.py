@@ -733,6 +733,87 @@ class DailyRowRecognizerTests(unittest.TestCase):
         self.assertGreater(binding["clearance"], 0.0)
         self.assertEqual(binding["raw_support_result"]["complete_3x3"], True)
 
+    def test_retained_home_source_binds_current_quest_icon_component(self) -> None:
+        source_path = (
+            Path(__file__).resolve().parents[1]
+            / ".local-captures/development-sessions/delegated-9ba8b6e5-3c79-49df-9d96-8ac24a9421fd"
+            / "runtime/daily-row-reconnaissance-20260817T022942663935Z/frames/0001-home-source.png"
+        )
+        if not source_path.is_file():
+            self.skipTest("retained Home source is unavailable in this checkout")
+        payload = source_path.read_bytes()
+        self.assertEqual(
+            hashlib.sha256(payload).hexdigest(),
+            "0efd272a66314b944978f1b7acd82c9482d3ba02b13585b5ac4dd2694be80d8e",
+        )
+        frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        assert frame is not None
+        recognizer = daily.DailyRowClaimRecognizer(
+            ocr=self._ocr_for(
+                [
+                    ("world", 30 * 2, (1242 - 1000) * 2, (137 - 30) * 2, (1268 - 1242) * 2),
+                    ("quest", 284 * 2, (1242 - 1000) * 2, (359 - 284) * 2, (1266 - 1242) * 2),
+                    ("bag", 406 * 2, (1244 - 1000) * 2, (450 - 406) * 2, (1266 - 1244) * 2),
+                ]
+            )
+        )
+
+        recognition = recognizer.recognize_home(frame)
+
+        self.assertTrue(recognition.recognized)
+        self.assertEqual(recognition.target_identity, daily.HOME_QUEST_IDENTITY)
+        self.assertEqual(recognition.target_roi, (318, 1202, 321, 1205))
+        binding = recognition.visual_evidence["quest_binding"]
+        self.assertEqual(binding["component_count"], 1)
+        self.assertEqual(binding["component_roi"], (311, 1196, 333, 1215))
+        self.assertEqual(binding["selected_point"], (319, 1203))
+        self.assertEqual(binding["ownership_lane"], (202, 375))
+        self.assertEqual(binding["icon_band"], (202, 1146, 375, 1242))
+
+    def test_current_home_icon_morphology_excludes_low_value_background(self) -> None:
+        frame = self._home_frame()
+        # The muted, saturated navigation background is deliberately present
+        # across the OCR-derived icon band; only the brighter icon remains
+        # eligible for the raw high-saturation component pass.
+        cv2.rectangle(frame, (282, 1020), (437, 1099), (61, 100, 100), -1)
+        cv2.rectangle(frame, (330, 1038), (389, 1081), (25, 90, 150), -1)
+
+        recognition = self._home_recognizer().recognize_home(frame)
+
+        self.assertTrue(recognition.recognized)
+        binding = recognition.visual_evidence["quest_binding"]
+        self.assertEqual(binding["component_count"], 1)
+        self.assertGreaterEqual(binding["component_roi"][0], 330)
+        self.assertLessEqual(binding["component_roi"][2], 390)
+
+    def test_home_quest_preserves_muted_antialiased_icon_support(self) -> None:
+        frame = self._home_frame()
+        # BGR (109, 180, 180) is approximately HSV saturation 100/value 180.
+        cv2.rectangle(frame, (330, 1038), (389, 1081), (109, 180, 180), -1)
+
+        recognition = self._home_recognizer().recognize_home(frame)
+
+        self.assertTrue(recognition.recognized)
+        self.assertEqual(
+            recognition.visual_evidence["quest_binding"]["component_count"],
+            1,
+        )
+
+    def test_home_quest_rejects_low_value_muted_background_without_icon(self) -> None:
+        frame = self._home_frame()
+        # BGR (61, 100, 100) is approximately HSV saturation 100/value 100
+        # and is the deliberately excluded low-value navigation background.
+        cv2.rectangle(frame, (330, 1038), (389, 1081), (61, 100, 100), -1)
+
+        recognition = self._home_recognizer().recognize_home(frame)
+
+        self.assertFalse(recognition.recognized)
+        self.assertEqual(
+            recognition.visual_evidence["quest_binding"]["reason"],
+            "no_unique_home_quest_visual_component",
+        )
+
     def test_home_and_quest_targets_are_derived_from_current_ocr_geometry(self) -> None:
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         rendered_component = (175, 1038, 226, 1089)
@@ -884,6 +965,34 @@ class DailyRowRecognizerTests(unittest.TestCase):
         binding = recognition.visual_evidence["quest_binding"]
         self.assertGreaterEqual(binding["component_roi"][0], 282)
         self.assertGreaterEqual(binding["selected_point"][0], 330)
+
+    def test_home_quest_rejects_out_of_lane_and_wrong_label_evidence(self) -> None:
+        out_of_lane = self._home_frame()
+        cv2.rectangle(out_of_lane, (240, 1040), (270, 1070), (0, 180, 255), -1)
+        out_of_lane_recognition = self._home_recognizer().recognize_home(out_of_lane)
+        self.assertFalse(out_of_lane_recognition.recognized)
+        self.assertEqual(
+            out_of_lane_recognition.visual_evidence["quest_binding"]["reason"],
+            "no_unique_home_quest_visual_component",
+        )
+
+        wrong_label = self._home_frame()
+        cv2.rectangle(wrong_label, (330, 1040), (390, 1080), (0, 180, 255), -1)
+        wrong_label_recognizer = daily.DailyRowClaimRecognizer(
+            ocr=self._ocr_for(
+                [
+                    ("world", 180 * 2, 100 * 2, 50 * 2, 20 * 2),
+                    ("quest", 330 * 2, 100 * 2, 60 * 2, 20 * 2),
+                    ("settings", 490 * 2, 100 * 2, 50 * 2, 20 * 2),
+                ]
+            )
+        )
+        wrong_label_recognition = wrong_label_recognizer.recognize_home(wrong_label)
+        self.assertFalse(wrong_label_recognition.recognized)
+        self.assertEqual(
+            wrong_label_recognition.visual_evidence["quest_binding"]["reason"],
+            "quest_and_adjacent_navigation_labels_not_proven",
+        )
 
     def test_raw_gap_rejects_morphology_only_bridge(self) -> None:
         frame = self._home_frame()

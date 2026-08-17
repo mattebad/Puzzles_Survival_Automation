@@ -412,29 +412,36 @@ def _home_support_mask(frame: np.ndarray, roi: NativeBox) -> np.ndarray:
         return np.zeros((0, 0), dtype=np.uint8)
     hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
     saturated = cv2.inRange(hsv, (0, 60, 45), (179, 255, 255))
+    # The retained Home frame has a low-value, moderately saturated
+    # navigation-bar background that joins neighboring controls.  Exclude
+    # only that band; brighter muted icon pixels and neutral details remain
+    # accepted by the original thresholds.
+    low_value_navigation = cv2.inRange(hsv, (0, 60, 45), (179, 119, 154))
+    saturated = cv2.bitwise_and(saturated, cv2.bitwise_not(low_value_navigation))
     bright_neutral = cv2.inRange(hsv, (0, 0, 155), (179, 85, 255))
     # This mask is intentionally never closed, opened, dilated, or otherwise
     # changed.  Only pixels present in this raw mask may authorize a target.
     return cv2.bitwise_or(saturated, bright_neutral)
 
 
-def _home_component_records(
+def _home_component_records_for_mask(
     frame: np.ndarray,
     geometry: Mapping[str, Any],
+    candidate_mask: np.ndarray,
+    support_mask: np.ndarray,
 ) -> tuple[dict[str, Any], ...]:
-    """Return raw-mask components that satisfy the supported-point gates."""
+    """Return candidate-mask components with raw support-point gates."""
 
     icon_band = geometry["icon_band"]
     lane_left, lane_right = geometry["ownership_lane"]
     quest_center_x = geometry["quest_center"][0]
     quest_width = geometry["quest_ocr_roi"][2] - geometry["quest_ocr_roi"][0]
     quest_height = geometry["quest_ocr_roi"][3] - geometry["quest_ocr_roi"][1]
-    raw_mask = _home_support_mask(frame, icon_band)
-    if raw_mask.size == 0:
+    if candidate_mask.size == 0:
         return ()
 
-    count, component_labels, stats, _ = cv2.connectedComponentsWithStats(raw_mask, 8)
-    band_height, band_width = raw_mask.shape
+    count, component_labels, stats, _ = cv2.connectedComponentsWithStats(candidate_mask, 8)
+    band_height, band_width = candidate_mask.shape
     minimum_dimension = max(10, quest_height // 2)
     records: list[dict[str, Any]] = []
     for component_id in range(1, count):
@@ -479,7 +486,7 @@ def _home_component_records(
         for point_y, point_x in max_points:
             if point_y <= 0 or point_x <= 0 or point_y >= band_height - 1 or point_x >= band_width - 1:
                 continue
-            neighborhood = raw_mask[point_y - 1 : point_y + 2, point_x - 1 : point_x + 2]
+            neighborhood = support_mask[point_y - 1 : point_y + 2, point_x - 1 : point_x + 2]
             if neighborhood.shape == (3, 3) and bool(np.all(neighborhood != 0)):
                 selected_point = (
                     icon_band[0] + int(point_x),
@@ -503,6 +510,29 @@ def _home_component_records(
             }
         )
     return tuple(records)
+
+
+def _home_component_records(
+    frame: np.ndarray,
+    geometry: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return one supported component from the current-frame icon band."""
+
+    support_mask = _home_support_mask(frame, geometry["icon_band"])
+    records = _home_component_records_for_mask(frame, geometry, support_mask, support_mask)
+    if records:
+        return records
+
+    # A low-value navigation background can still connect the retained
+    # support pixels.  Re-evaluate only with a raw, high-saturation icon mask;
+    # the selected point must still be present in the original support mask.
+    hsv = cv2.cvtColor(
+        frame[geometry["icon_band"][1] : geometry["icon_band"][3],
+              geometry["icon_band"][0] : geometry["icon_band"][2]],
+        cv2.COLOR_BGR2HSV,
+    )
+    icon_core = cv2.inRange(hsv, (0, 120, 60), (179, 255, 255))
+    return _home_component_records_for_mask(frame, geometry, icon_core, support_mask)
 
 
 def _home_visual_components(
