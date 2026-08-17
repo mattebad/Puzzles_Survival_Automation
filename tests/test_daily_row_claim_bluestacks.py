@@ -1980,6 +1980,130 @@ class ClaimCanaryRuntime:
             )
 
 
+class VipPopupRuntime(FakeRuntime):
+    def __init__(self, root: Path, *, modal_post: bool = False) -> None:
+        super().__init__(root)
+        self.action_classes: list[str] = []
+        self.modal_post = modal_post
+
+    def capture(self, label: str) -> CapturedNativeFrame:
+        self.labels.append(label)
+        image = np.zeros((1280, 800, 3), dtype=np.uint8)
+        cv2.rectangle(image, (0, 60), (267, 145), (70, 70, 70), -1)
+        cv2.rectangle(image, (268, 60), (533, 145), (0, 180, 255), -1)
+        cv2.rectangle(image, (534, 60), (799, 145), (70, 70, 70), -1)
+        if self.modal_post and (
+            label == "reset-popup-close-immediate-post"
+            or label.startswith("reset-popup-close-poll-")
+        ):
+            image = cv2.addWeighted(image, 0.25, np.zeros_like(image), 0.75, 0)
+            cv2.rectangle(image, (96, 260), (704, 948), (255, 255, 255), 8)
+        captured = _frame(self.session, label, image=image)
+        with self.events.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"type": "capture", "label": label}) + "\n")
+        return captured
+
+    def tap(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        target_identity: str,
+        target_roi: tuple[int, int, int, int],
+        action_key: str,
+        action_class: str = "navigation",
+        consequential: bool = False,
+        continuation_of: str | None = None,
+    ) -> None:
+        self.action_classes.append(action_class)
+        super().tap(
+            source,
+            target_identity=target_identity,
+            target_roi=target_roi,
+            action_key=action_key,
+            consequential=consequential,
+            continuation_of=continuation_of,
+        )
+
+
+class IndependentVipPopupFake:
+    """Independent popup contract fake; production OCR is not reused."""
+
+    def __init__(
+        self,
+        states: list[str],
+        *,
+        mismatch_hash: bool = False,
+        invalid_roi: bool = False,
+    ) -> None:
+        self.states = states
+        self.mismatch_hash = mismatch_hash
+        self.invalid_roi = invalid_roi
+        self.calls = 0
+
+    def __call__(
+        self,
+        _frame: np.ndarray,
+        *,
+        source_frame_sha256: str,
+    ) -> dict[str, object]:
+        index = min(self.calls, len(self.states) - 1)
+        state = self.states[index]
+        self.calls += 1
+        if state != "allowed":
+            return {
+                "status": state,
+                "popup_identity": None,
+                "target_identity": None,
+                "target_roi": None,
+                "source_frame_sha256": source_frame_sha256,
+                "semantic_evidence": (),
+                "reason": f"scripted-{state}",
+            }
+        return {
+            "status": "allowed",
+            "popup_identity": "VIP_POINTS_GET_PTS",
+            "target_identity": "reset-popup-close",
+            "target_roi": (100, 700, 300, 780) if not self.invalid_roi else (900, 700, 950, 780),
+            "source_frame_sha256": (
+                "0" * 64 if self.mismatch_hash else source_frame_sha256
+            ),
+            "semantic_evidence": (
+                "Get Pts",
+                "Log in every day to get VIP pts",
+                "Close",
+                "spatially_associated_close_control",
+            ),
+            "reason": "",
+        }
+
+
+class SelectedDailySuccessorFake:
+    def __init__(self, *, recognized: bool = True, blurred: bool = False) -> None:
+        self.recognized = recognized
+        self.blurred = blurred
+        self.calls = 0
+
+    def recognize_daily_selected(
+        self,
+        _frame: np.ndarray,
+    ) -> daily.FrameRecognition:
+        self.calls += 1
+        return daily.FrameRecognition(
+            daily.DAILY_SELECTED_STATE if self.recognized else daily.UNKNOWN_STATE,
+            self.recognized,
+            "daily-quest-selected" if self.recognized else None,
+            (280, 80, 370, 110) if self.recognized else None,
+            "selected Daily",
+            {
+                "selected_daily": self.recognized,
+                "unblurred": not self.blurred,
+                "blurred": self.blurred,
+                "full_frame_overlay": {"recognized": self.blurred},
+            },
+            None if self.recognized else "selected Daily is unknown",
+        )
+
+
 class ScriptedClaimRecognizer:
     def __init__(self, outcome: str):
         self.outcome = outcome
@@ -2175,11 +2299,167 @@ class DailyClaimCanaryTests(unittest.TestCase):
                 )
 
 
+class VipPopupDismissalTests(unittest.TestCase):
+    def _run(
+        self,
+        root: Path,
+        popup: IndependentVipPopupFake,
+        *,
+        daily_successor: SelectedDailySuccessorFake | None = None,
+        max_attempts: int = 2,
+        modal_post: bool = False,
+    ):
+        runtime = VipPopupRuntime(root, modal_post=modal_post)
+        daily_successor = daily_successor or SelectedDailySuccessorFake()
+        with patch.object(
+            daily,
+            "VIP_POPUP_SUCCESS_POLL_INTERVAL_SECONDS",
+            0.0,
+        ), patch.object(
+            daily,
+            "VIP_POPUP_SUCCESS_POLL_MAX_ATTEMPTS",
+            max_attempts,
+        ), patch.object(
+            boundary,
+            "RUNTIME_INPUT_LOCK_PATH",
+            root / "lock.sqlite3",
+        ):
+            with boundary.DevelopmentSession(
+                owner="test-vip-popup-dismissal",
+                invocation_id="test-vip-popup",
+                session_directory=root / "session",
+                max_inputs=1,
+            ) as session:
+                result = daily.run_daily_row_claim_vip_popup_dismissal(
+                    runtime,
+                    session,
+                    popup_recognizer=popup,
+                    daily_recognizer=daily_successor,
+                )
+        return result, runtime, daily_successor
+
+    def test_exact_vip_popup_dispatches_once_and_observes_selected_daily(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime, successor = self._run(
+                Path(directory),
+                IndependentVipPopupFake(["allowed", "allowed", "absent"]),
+            )
+
+        self.assertEqual(result["status"], "observed")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(runtime.action_classes, ["navigation"])
+        self.assertEqual(runtime.taps[0]["target_identity"], "reset-popup-close")
+        self.assertEqual(
+            set(result["frames"]),
+            {"source", "immediate_before", "immediate_post"},
+        )
+        self.assertEqual(
+            result["popup_recognitions"]["source"]["popup_identity"],
+            "VIP_POINTS_GET_PTS",
+        )
+        for name in ("source", "immediate_before"):
+            self.assertEqual(
+                result["popup_recognitions"][name]["source_frame_sha256"],
+                result["frames"][name]["sha256"],
+            )
+        self.assertTrue(result["successor"]["popup_absent"])
+        self.assertTrue(result["successor"]["unblurred"])
+        self.assertEqual(successor.calls, 1)
+
+    def test_non_vip_central_modal_blocks_selected_daily_successor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime, _successor = self._run(
+                Path(directory),
+                IndependentVipPopupFake(["allowed", "allowed", "absent"]),
+                modal_post=True,
+            )
+
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertIsNotNone(result["polls"][0]["recognition"])
+        self.assertTrue(
+            result["polls"][0]["recognition"]["visual_evidence"][
+                "generic_modal_overlay"
+            ]["recognized"]
+        )
+        self.assertEqual(
+            result["polls"][0]["recognition"]["visual_evidence"][
+                "generic_modal_overlay"
+            ]["state"],
+            "modal",
+        )
+
+    def test_clean_selected_daily_has_no_visual_panel_false_positive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, runtime, _successor = self._run(
+                Path(directory),
+                IndependentVipPopupFake(["allowed", "allowed", "absent"]),
+            )
+
+        self.assertEqual(result["status"], "observed")
+        self.assertEqual(len(runtime.taps), 1)
+        generic_overlay = result["successor"]["recognition"]["visual_evidence"][
+            "generic_modal_overlay"
+        ]
+        self.assertFalse(generic_overlay["recognized"])
+        self.assertEqual(generic_overlay["state"], "none_observed")
+
+    def test_wrong_or_unknown_popup_does_not_dispatch(self):
+        for state in ("unknown", "wrong-popup"):
+            with self.subTest(state=state), tempfile.TemporaryDirectory() as directory:
+                result, runtime, _successor = self._run(
+                    Path(directory),
+                    IndependentVipPopupFake([state]),
+                )
+                self.assertEqual(result["status"], "evidence_required")
+                self.assertEqual(result["input_count"], 0)
+                self.assertEqual(runtime.taps, [])
+
+    def test_mismatched_close_geometry_or_hash_does_not_dispatch(self):
+        for kwargs in (
+            {"invalid_roi": True},
+            {"mismatch_hash": True},
+        ):
+            with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as directory:
+                result, runtime, _successor = self._run(
+                    Path(directory),
+                    IndependentVipPopupFake(["allowed"], **kwargs),
+                )
+                self.assertEqual(result["status"], "evidence_required")
+                self.assertEqual(runtime.taps, [])
+
+    def test_popup_still_present_or_unknown_successor_never_retries_input(self):
+        cases = (
+            (["allowed", "allowed", "allowed"], SelectedDailySuccessorFake()),
+            (["allowed", "allowed", "unknown"], SelectedDailySuccessorFake()),
+            (["allowed", "allowed", "absent"], SelectedDailySuccessorFake(recognized=False)),
+        )
+        for popup_states, successor in cases:
+            with self.subTest(popup_states=popup_states), tempfile.TemporaryDirectory() as directory:
+                result, runtime, _successor = self._run(
+                    Path(directory),
+                    IndependentVipPopupFake(popup_states),
+                    daily_successor=successor,
+                    max_attempts=2,
+                )
+                self.assertEqual(result["status"], "evidence_required")
+                self.assertEqual(result["input_count"], 1)
+                self.assertEqual(len(runtime.taps), 1)
+                self.assertGreaterEqual(len(result["polls"]), 1)
+
+
 class PnsctlDailyClaimTests(unittest.TestCase):
     def _command(self, root: Path, mode: str, *, max_inputs: int | None = None) -> list[str]:
         limit = 0 if mode == "prepare" else 1
         if max_inputs is not None:
             limit = max_inputs
+        variant = (
+            "consume-stamina-dismiss-vip"
+            if mode == "dismiss-vip-popup"
+            else f"consume-stamina-{mode}"
+        )
         return [
             "development-session",
             "daily-row-claim",
@@ -2198,7 +2478,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             "--scenario",
             "consume-stamina-row-claim",
             "--variant",
-            f"consume-stamina-{mode}",
+            variant,
         ]
 
     def _receipt(self, root: Path, mode: str, *, command: list[str] | None = None):
@@ -2206,6 +2486,11 @@ class PnsctlDailyClaimTests(unittest.TestCase):
         controller = control.DelegatedRuntimeReceiptController(state)
         controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
         command = command or self._command(root, mode)
+        variant = (
+            "consume-stamina-dismiss-vip"
+            if mode == "dismiss-vip-popup"
+            else f"consume-stamina-{mode}"
+        )
         if mode == "prepare":
             receipt_class = "reconnaissance"
             identities = ["daily-row-prepare-observation"]
@@ -2215,7 +2500,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             terminals = ["observed", "evidence_required"]
             result_identity = "daily-row-claim:prepare:consume_stamina"
             gates = {}
-        else:
+        elif mode == "canary":
             receipt_class = "canary"
             identities = ["daily-row-claim:consume_stamina"]
             classes = ["reward_claim"]
@@ -2228,6 +2513,15 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                 "independent_read_only_tester_evidence": "tester",
                 "parent_integration_acceptance": "accepted",
             }
+        else:
+            receipt_class = "reconnaissance"
+            identities = ["reset-popup-close"]
+            classes = ["navigation"]
+            consequence = "navigation_only"
+            total = 1
+            terminals = ["observed", "evidence_required"]
+            result_identity = "daily-row-claim:popup-dismiss:vip-points"
+            gates = {}
         action_bindings = [
             {
                 "action_identity": identities[0],
@@ -2244,7 +2538,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             agent_identity="luna-agent",
             command_argv=command,
             scenario="consume-stamina-row-claim",
-            variant=f"consume-stamina-{mode}",
+            variant=variant,
             permitted_action_identities=identities,
             permitted_action_classes=classes,
             action_bindings=action_bindings,
@@ -2261,6 +2555,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
     def _run_pnsctl(self, root: Path, mode: str):
         state = root / "receipts.sqlite3"
         controller, receipt = self._receipt(root, mode)
+        variant = str(receipt["variant"])
 
         def connect(**kwargs):
             return ClaimCanaryRuntime(Path(kwargs["output_directory"]))
@@ -2298,7 +2593,7 @@ class PnsctlDailyClaimTests(unittest.TestCase):
                 task_id="daily-row-claim",
                 flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
                 scenario="consume-stamina-row-claim",
-                variant=f"consume-stamina-{mode}",
+                variant=variant,
                 command_argv=self._command(root, mode),
             )
         return json.loads(output), controller, receipt
@@ -2335,6 +2630,127 @@ class PnsctlDailyClaimTests(unittest.TestCase):
             )
             pnsctl._validate_daily_row_claim_receipt(receipt, mode="prepare")
             self.assertEqual(controller.inspect()["status"], "issued")
+
+    def test_parser_and_dismiss_receipt_freeze_popup_navigation_before_consume(self):
+        command = self._command(Path("receipt.sqlite3"), "dismiss-vip-popup")
+        parsed = pnsctl.parser().parse_args(command)
+        self.assertEqual(parsed.development_command, "daily-row-claim")
+        self.assertEqual(parsed.mode, "dismiss-vip-popup")
+        self.assertEqual(parsed.max_inputs, 1)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            controller, receipt = self._receipt(root, "dismiss-vip-popup")
+            self.assertEqual(receipt["receipt_class"], "reconnaissance")
+            self.assertEqual(receipt["max_total_inputs"], 1)
+            self.assertEqual(receipt["permitted_action_identities"], ["reset-popup-close"])
+            self.assertEqual(receipt["permitted_action_classes"], ["navigation"])
+            self.assertEqual(receipt["consequence_class"], "navigation_only")
+            self.assertEqual(
+                receipt["evidence_result_binding"]["result_identity"],
+                "daily-row-claim:popup-dismiss:vip-points",
+            )
+            pnsctl._validate_daily_row_claim_receipt(
+                receipt,
+                mode="dismiss-vip-popup",
+            )
+            for field, value in (
+                ("variant", "consume-stamina-canary"),
+                ("max_total_inputs", 2),
+                ("permitted_action_identities", ["daily-row-claim:consume_stamina"]),
+            ):
+                with self.subTest(field=field):
+                    wrong = dict(receipt)
+                    wrong[field] = value
+                    with self.assertRaises(pnsctl.OperatorError):
+                        pnsctl._validate_daily_row_claim_receipt(
+                            wrong,
+                            mode="dismiss-vip-popup",
+                        )
+            self.assertEqual(controller.inspect()["status"], "issued")
+
+    def test_dismiss_artifact_failure_records_durable_evidence_required_terminal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "receipts.sqlite3"
+            controller, receipt = self._receipt(root, "dismiss-vip-popup")
+            route_result = {
+                "status": "observed",
+                "mode": "dismiss-vip-popup",
+                "input_count": 1,
+                "resource_affecting_inputs": 0,
+                "combat_confirmations": 0,
+                "actions": [
+                    {
+                        "label": "reset-popup-close",
+                        "requested_action": "navigation",
+                        "status": "completed",
+                    }
+                ],
+            }
+
+            def connect(**kwargs):
+                return VipPopupRuntime(Path(kwargs["output_directory"]))
+
+            with patch.object(
+                pnsctl,
+                "DEVELOPMENT_SESSION_ROOT",
+                root / "sessions",
+            ), patch.object(
+                pnsctl,
+                "DEVELOPMENT_CHECKPOINT_PATHS",
+                (),
+            ), patch.object(
+                control,
+                "DelegatedRuntimeReceiptController",
+                return_value=controller,
+            ), patch.object(
+                LocalBlueStacksRuntime,
+                "connect",
+                side_effect=connect,
+            ), patch.object(
+                daily,
+                "run_daily_row_claim_vip_popup_dismissal",
+                return_value=route_result,
+            ), patch.object(
+                pnsctl,
+                "_write_daily_row_claim_artifacts",
+                side_effect=OSError("fallback artifact write failed"),
+            ), patch.object(
+                boundary,
+                "RUNTIME_INPUT_LOCK_PATH",
+                root / "lock.sqlite3",
+            ):
+                with self.assertRaisesRegex(
+                    OSError,
+                    "fallback artifact write failed",
+                ):
+                    pnsctl.development_session_daily_row_claim(
+                        mode="dismiss-vip-popup",
+                        max_inputs=1,
+                        delegated_receipt=state,
+                        agent_identity="luna-agent",
+                        task_id="daily-row-claim",
+                        flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                        scenario="consume-stamina-row-claim",
+                        variant="consume-stamina-dismiss-vip",
+                        command_argv=self._command(root, "dismiss-vip-popup"),
+                    )
+
+            connection = controller._connection()
+            try:
+                terminal = connection.execute(
+                    "SELECT status, payload_json FROM delegated_results WHERE receipt_id=?",
+                    (receipt["receipt_id"],),
+                ).fetchone()
+            finally:
+                connection.close()
+            self.assertIsNotNone(terminal)
+            self.assertEqual(terminal[0], "evidence_required")
+            self.assertEqual(
+                json.loads(terminal[1])["status"],
+                "evidence_required",
+            )
 
     def test_prepare_fake_runtime_retains_native_hashes_overlay_semantics_and_releases(self):
         with tempfile.TemporaryDirectory() as directory:

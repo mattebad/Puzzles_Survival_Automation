@@ -238,7 +238,10 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(receipt["max_total_inputs"], 0)
             self.assertEqual(receipt["permitted_action_classes"], ["observation"])
             consumed = self._consume(controller, receipt)
-            with self.assertRaisesRegex(control.FlowDeliveryError, "budget exhausted"):
+            with self.assertRaisesRegex(
+                control.FlowDeliveryError,
+                "budget exhausted|identical action retry",
+            ):
                 controller.reserve_input(
                     consumed,
                     action_identity="daily-row-prepare-observation",
@@ -965,6 +968,86 @@ class ReceiptTests(unittest.TestCase):
                     action_identity="daily-row-claim:consume_stamina",
                     action_class="reward_claim",
                     consequence_class="ordinary_development",
+                    action_key="retry",
+                )
+
+
+    def test_daily_vip_popup_receipt_reserves_one_navigation_close_only(self) -> None:
+        bindings = [
+            {
+                "action_identity": "reset-popup-close",
+                "action_class": "navigation",
+                "consequence_class": "navigation_only",
+                "resource_affecting": False,
+                "combat_confirmation": False,
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            controller = self._controller(root)
+            command = [
+                "development-session",
+                "daily-row-claim",
+                "--mode",
+                "dismiss-vip-popup",
+                "--max-inputs",
+                "1",
+                "--delegated-receipt",
+                str(root / "receipts.sqlite3"),
+                "--agent-identity",
+                "luna-1",
+                "--task-id",
+                "daily-row-claim",
+                "--flow-id",
+                "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                "--scenario",
+                "consume-stamina-row-claim",
+                "--variant",
+                "consume-stamina-dismiss-vip",
+            ]
+            receipt = controller.issue(
+                task_id="daily-row-claim",
+                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                receipt_class="reconnaissance",
+                agent_identity="luna-1",
+                command_argv=command,
+                scenario="consume-stamina-row-claim",
+                variant="consume-stamina-dismiss-vip",
+                permitted_action_identities=["reset-popup-close"],
+                permitted_action_classes=["navigation"],
+                action_bindings=bindings,
+                consequence_class="navigation_only",
+                max_total_inputs=1,
+                max_resource_affecting_inputs=0,
+                max_combat_confirmations=0,
+                permitted_terminal_states=["observed", "evidence_required"],
+                result_identity="daily-row-claim:popup-dismiss:vip-points",
+            )
+            self.assertEqual(receipt["receipt_class"], "reconnaissance")
+            self.assertEqual(receipt["max_total_inputs"], 1)
+            consumed = self._consume(controller, receipt)
+            context = control.DelegatedRuntimeContext(
+                controller,
+                consumed,
+                result_identity="daily-row-claim:popup-dismiss:vip-points",
+            )
+            reservation = context.reserve_input(
+                action_identity="reset-popup-close",
+                action_class="navigation",
+                consequence_class="navigation_only",
+                source_evidence_hash="a" * 64,
+                action_key="reset-popup-close",
+            )
+            self.assertEqual(reservation["ordinal"], 1)
+            context.mark_reconciled("reset-popup-close")
+            with self.assertRaisesRegex(
+                control.FlowDeliveryError,
+                "budget exhausted|identical action retry",
+            ):
+                context.reserve_input(
+                    action_identity="reset-popup-close",
+                    action_class="navigation",
+                    consequence_class="navigation_only",
                     action_key="retry",
                 )
 

@@ -1752,6 +1752,19 @@ def _write_daily_recon_artifacts(
         "ownership_released": ownership_released,
         "lifecycle_state_created": False,
     }
+    frame_records = result.get("frames")
+    if isinstance(frame_records, Mapping):
+        summary["frame_sha256"] = {
+            name: reference.get("sha256")
+            for name, reference in frame_records.items()
+            if isinstance(reference, Mapping)
+        }
+    if result.get("popup_identity"):
+        summary["popup_identity"] = result.get("popup_identity")
+    if result.get("action_identity"):
+        summary["action_identity"] = result.get("action_identity")
+    if result.get("successor"):
+        summary["successor"] = result.get("successor")
     if result.get("reason"):
         summary["blocker"] = result["reason"]
     (session_directory / "summary.json").write_text(
@@ -1955,10 +1968,15 @@ DAILY_ROW_CLAIM_FLOW_ID = "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
 DAILY_ROW_CLAIM_SCENARIO = "consume-stamina-row-claim"
 DAILY_ROW_CLAIM_PREPARE_VARIANT = "consume-stamina-prepare"
 DAILY_ROW_CLAIM_CANARY_VARIANT = "consume-stamina-canary"
+DAILY_ROW_CLAIM_DISMISS_VIP_VARIANT = "consume-stamina-dismiss-vip"
 DAILY_ROW_CLAIM_PREPARE_RESULT_IDENTITY = "daily-row-claim:prepare:consume_stamina"
 DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY = "daily-row-claim:canary:consume_stamina"
+DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY = (
+    "daily-row-claim:popup-dismiss:vip-points"
+)
 DAILY_ROW_CLAIM_PREPARE_ACTION_IDENTITY = "daily-row-prepare-observation"
 DAILY_ROW_CLAIM_ACTION_IDENTITY = "daily-row-claim:consume_stamina"
+DAILY_ROW_CLAIM_DISMISS_VIP_ACTION_IDENTITY = "reset-popup-close"
 
 
 def _daily_row_claim_spec(mode: str) -> Mapping[str, Any]:
@@ -1985,6 +2003,18 @@ def _daily_row_claim_spec(mode: str) -> Mapping[str, Any]:
             "consequence_class": "ordinary_development",
             "result_identity": DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY,
             "terminal_states": ("completed", "evidence_required"),
+        }
+    if mode == "dismiss-vip-popup":
+        return {
+            "mode": mode,
+            "receipt_class": "reconnaissance",
+            "max_inputs": 1,
+            "variant": DAILY_ROW_CLAIM_DISMISS_VIP_VARIANT,
+            "action_identities": (DAILY_ROW_CLAIM_DISMISS_VIP_ACTION_IDENTITY,),
+            "action_classes": ("navigation",),
+            "consequence_class": "navigation_only",
+            "result_identity": DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY,
+            "terminal_states": ("observed", "evidence_required"),
         }
     raise OperatorError("daily row Claim mode is unsupported")
 
@@ -2154,7 +2184,7 @@ def _validate_daily_row_claim_artifacts(
         annotated = (session_directory / str(claim["annotated_source"])).resolve()
         if annotated.is_symlink() or not annotated.is_file() or annotated.stat().st_size == 0:
             raise OperatorError("Daily row Claim annotated prepare overlay is unsafe")
-    else:
+    elif mode == "canary":
         actions = payload.get("actions")
         if not isinstance(actions, list) or len(actions) != 1:
             raise OperatorError("Daily row Claim canary action count is not one")
@@ -2182,6 +2212,84 @@ def _validate_daily_row_claim_artifacts(
             raise OperatorError("Daily row Claim annotated overlay escaped the session") from exc
         if annotated.is_symlink() or not annotated.is_file() or annotated.stat().st_size == 0:
             raise OperatorError("Daily row Claim annotated immediate-before overlay is unsafe")
+    elif mode == "dismiss-vip-popup":
+        actions = payload.get("actions")
+        if not isinstance(actions, list) or len(actions) != 1:
+            raise OperatorError("Daily VIP popup action count is not one")
+        if payload.get("input_count") != 1:
+            raise OperatorError("Daily VIP popup input count is not one")
+        if (
+            payload.get("resource_affecting_inputs") != 0
+            or payload.get("combat_confirmations") != 0
+        ):
+            raise OperatorError("Daily VIP popup contains a forbidden budget")
+        if payload.get("action_identity") != "reset-popup-close":
+            raise OperatorError("Daily VIP popup action identity is not frozen")
+        if payload.get("action_class") != "navigation":
+            raise OperatorError("Daily VIP popup action class is not frozen")
+        if payload.get("consequence_class") != "navigation_only":
+            raise OperatorError("Daily VIP popup consequence is not frozen")
+        action = actions[0]
+        if (
+            not isinstance(action, Mapping)
+            or action.get("requested_action") != "navigation"
+            or action.get("label") != "reset-popup-close"
+            or action.get("status") != "completed"
+        ):
+            raise OperatorError("Daily VIP popup action record is not frozen")
+        for name in ("source", "immediate_before", "immediate_post"):
+            if name not in frames:
+                raise OperatorError(f"Daily VIP popup {name} evidence is missing")
+        popup_records = payload.get("popup_recognitions")
+        if not isinstance(popup_records, Mapping):
+            raise OperatorError("Daily VIP popup recognitions are missing")
+        required_semantics = {
+            "get pts",
+            "log in every day to get vip pts",
+            "close",
+            "spatially associated close control",
+        }
+        for name in ("source", "immediate_before"):
+            popup = popup_records.get(name)
+            frame = frames.get(name)
+            if not isinstance(popup, Mapping) or not isinstance(frame, Mapping):
+                raise OperatorError(f"Daily VIP popup {name} recognition is missing")
+            if (
+                popup.get("status") != "allowed"
+                or popup.get("popup_identity") != "VIP_POINTS_GET_PTS"
+                or popup.get("target_identity") != "reset-popup-close"
+                or popup.get("source_frame_sha256") != frame.get("sha256")
+                or not required_semantics.issubset(
+                    {
+                        str(value).casefold().replace("_", " ")
+                        for value in popup.get("semantic_evidence", ())
+                    }
+                )
+            ):
+                raise OperatorError(
+                    f"Daily VIP popup {name} exact identity or hash is not frozen"
+                )
+            target_roi = popup.get("target_roi")
+            if (
+                not isinstance(target_roi, (list, tuple))
+                or len(target_roi) != 4
+                or not (
+                    0 <= int(target_roi[0]) < int(target_roi[2]) <= 800
+                    and 0 <= int(target_roi[1]) < int(target_roi[3]) <= 1280
+                )
+            ):
+                raise OperatorError(f"Daily VIP popup {name} target ROI is unsafe")
+        polls = payload.get("polls")
+        if not isinstance(polls, list) or not polls:
+            raise OperatorError("Daily VIP popup polls are missing")
+        successor = payload.get("successor")
+        if (
+            not isinstance(successor, Mapping)
+            or successor.get("state") != "DAILY_SELECTED"
+            or successor.get("popup_absent") is not True
+            or successor.get("unblurred") is not True
+        ):
+            raise OperatorError("Daily VIP popup successor is not selected Daily")
 
 
 def development_session_daily_row_claim(
@@ -2196,7 +2304,7 @@ def development_session_daily_row_claim(
     variant: str,
     command_argv: Sequence[str] | None = None,
 ) -> str:
-    """Run the receipt-bound zero-input prepare or one-input Claim canary."""
+    """Run the receipt-bound Daily prepare, Claim, or VIP popup continuation."""
 
     spec = _daily_row_claim_spec(mode)
     if max_inputs != spec["max_inputs"]:
@@ -2214,6 +2322,7 @@ def development_session_daily_row_claim(
 
     from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
     from scripts.daily_row_claim_bluestacks import (
+        run_daily_row_claim_vip_popup_dismissal,
         run_daily_row_claim_canary,
         run_daily_row_claim_prepare,
     )
@@ -2339,6 +2448,11 @@ def development_session_daily_row_claim(
                         runtime,
                         active_session,
                         game_day_id=game_day_id,
+                    )
+                    if mode == "canary"
+                    else run_daily_row_claim_vip_popup_dismissal(
+                        runtime,
+                        active_session,
                     )
                 )
                 active_session.terminal_status = route_result.get(
@@ -5775,7 +5889,11 @@ def parser() -> argparse.ArgumentParser:
     daily_row_recon.add_argument("--scenario", required=True)
     daily_row_recon.add_argument("--variant", required=True)
     daily_row_claim = development_sub.add_parser("daily-row-claim")
-    daily_row_claim.add_argument("--mode", choices=("prepare", "canary"), required=True)
+    daily_row_claim.add_argument(
+        "--mode",
+        choices=("prepare", "canary", "dismiss-vip-popup"),
+        required=True,
+    )
     daily_row_claim.add_argument("--max-inputs", type=int, required=True)
     daily_row_claim.add_argument("--delegated-receipt", type=Path, required=True)
     daily_row_claim.add_argument("--agent-identity", required=True)

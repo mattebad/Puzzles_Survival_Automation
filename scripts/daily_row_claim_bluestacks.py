@@ -23,6 +23,9 @@ from tasks.available_daily_claim import (
     available_daily_claim_authorizeable,
 )
 from tasks.catalog import objective_for_text
+from scripts.world_map_navigation_bluestacks import (
+    _visual_popup_panel_candidates as _accepted_visual_popup_panel_candidates,
+)
 
 
 NATIVE_WIDTH = 800
@@ -49,12 +52,17 @@ DAILY_CLAIM_ACTION_CLASS = "reward_claim"
 DAILY_CLAIM_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
 DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
 DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS = 20
+VIP_POPUP_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
+VIP_POPUP_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
+VIP_POPUP_SUCCESS_POLL_MAX_ATTEMPTS = 20
 RESET_DEADLINE_TOLERANCE_SECONDS = 2
 
 HOME_QUEST_IDENTITY = "home-quest-entry"
 QUEST_DAILY_IDENTITY = "quest-daily-tab"
 NAVIGATION_ACTION_CLASS = "navigation"
 NAVIGATION_CONSEQUENCE_CLASS = "navigation_only"
+VIP_POINTS_POPUP_IDENTITY = "VIP_POINTS_GET_PTS"
+VIP_POINTS_POPUP_CLOSE_IDENTITY = "reset-popup-close"
 SUCCESSOR_POLL_TIMEOUT_SECONDS = 5.0
 SUCCESSOR_POLL_INTERVAL_SECONDS = 0.25
 SUCCESSOR_POLL_MAX_ATTEMPTS = 20
@@ -3059,4 +3067,418 @@ def run_daily_row_claim_canary(
             game_day_id=game_day_id,
             mode="canary",
         )
+
+
+def _popup_value(recognition: Any, key: str, default: Any = None) -> Any:
+    if isinstance(recognition, Mapping):
+        return recognition.get(key, default)
+    return getattr(recognition, key, default)
+
+
+def _popup_record(recognition: Any) -> dict[str, Any]:
+    target_roi = _popup_value(recognition, "target_roi")
+    if isinstance(target_roi, list):
+        target_roi = tuple(target_roi)
+    return {
+        "status": _popup_value(recognition, "status"),
+        "recognized": bool(
+            _popup_value(
+                recognition,
+                "recognized",
+                _popup_value(recognition, "status") == "allowed",
+            )
+        ),
+        "popup_identity": _popup_value(recognition, "popup_identity"),
+        "target_identity": _popup_value(recognition, "target_identity"),
+        "target_roi": target_roi,
+        "source_frame_sha256": _popup_value(recognition, "source_frame_sha256", ""),
+        "semantic_evidence": tuple(
+            _popup_value(recognition, "semantic_evidence", ()) or ()
+        ),
+        "reason": _popup_value(recognition, "reason", ""),
+    }
+
+
+def _popup_recognizer_call(
+    recognizer: Any,
+    frame: np.ndarray,
+    *,
+    source_frame_sha256: str,
+) -> Any:
+    if recognizer is None:
+        from scripts.world_map_navigation_bluestacks import recognize_allowlisted_popup
+
+        return recognize_allowlisted_popup(
+            frame,
+            source_frame_sha256=source_frame_sha256,
+        )
+    if callable(recognizer):
+        return recognizer(frame, source_frame_sha256=source_frame_sha256)
+    method = getattr(recognizer, "recognize_allowlisted_popup", None)
+    if callable(method):
+        return method(frame, source_frame_sha256=source_frame_sha256)
+    method = getattr(recognizer, "recognize_popup", None)
+    if callable(method):
+        return method(frame, source_frame_sha256=source_frame_sha256)
+    raise DailyRowClaimRecognitionError("VIP popup recognizer is not callable")
+
+
+def _require_exact_vip_popup(
+    recognition: Any,
+    frame: CapturedNativeFrame,
+    *,
+    phase: str,
+) -> dict[str, Any]:
+    record = _popup_record(recognition)
+    target_roi = record["target_roi"]
+    semantics = {
+        _normalize_text(value)
+        for value in record["semantic_evidence"]
+    }
+    required_semantics = {
+        "get pts",
+        "log in every day to get vip pts",
+        "close",
+        "spatially associated close control",
+    }
+    if (
+        record["status"] != "allowed"
+        or record["popup_identity"] != VIP_POINTS_POPUP_IDENTITY
+        or record["target_identity"] != VIP_POINTS_POPUP_CLOSE_IDENTITY
+        or record["source_frame_sha256"] != frame.sha256
+        or not isinstance(target_roi, (tuple, list))
+        or len(target_roi) != 4
+        or not all(isinstance(value, (int, np.integer)) for value in target_roi)
+        or not (
+            0 <= int(target_roi[0]) < int(target_roi[2]) <= NATIVE_WIDTH
+            and 0 <= int(target_roi[1]) < int(target_roi[3]) <= NATIVE_HEIGHT
+        )
+        or not required_semantics.issubset(semantics)
+    ):
+        raise DailyRowClaimRecognitionError(
+            f"{phase} is not the exact VIP_POINTS_GET_PTS popup contract"
+        )
+    record["target_roi"] = tuple(int(value) for value in target_roi)
+    return record
+
+
+def _generic_modal_overlay_evidence(frame: np.ndarray) -> dict[str, Any]:
+    """Prove that no large current-frame modal panel remains after close."""
+
+    if not _frame_shape_ok(frame):
+        return {
+            "recognized": True,
+            "state": "unknown",
+            "panel_candidates": (),
+            "reason": "profile_dimensions_mismatch",
+        }
+    try:
+        panel_candidates = tuple(_accepted_visual_popup_panel_candidates(frame))
+    except Exception as exc:
+        return {
+            "recognized": True,
+            "state": "unknown",
+            "panel_candidates": (),
+            "reason": f"visual-panel-detector-failed:{type(exc).__name__}",
+        }
+    if panel_candidates:
+        return {
+            "recognized": True,
+            "state": "modal",
+            "panel_candidates": panel_candidates,
+            "reason": "current-frame-visual-popup-panel-detected",
+        }
+    return {
+        "recognized": False,
+        "state": "none_observed",
+        "panel_candidates": (),
+        "reason": "no-current-frame-visual-popup-panel-detected",
+    }
+
+
+def _daily_selected_successor(
+    recognizer: Any,
+    frame: CapturedNativeFrame,
+) -> tuple[FrameRecognition | Mapping[str, Any] | None, dict[str, Any] | None]:
+    method = getattr(recognizer, "recognize_daily_selected", None)
+    if not callable(method):
+        raise DailyRowClaimRecognitionError(
+            "selected-Daily successor recognizer is not available"
+        )
+    result = method(frame.frame)
+    if isinstance(result, Mapping):
+        record = dict(result)
+    elif hasattr(result, "as_dict"):
+        record = dict(result.as_dict())
+    else:
+        record = dict(asdict(result))
+    visual = record.get("visual_evidence")
+    visual = visual if isinstance(visual, Mapping) else {}
+    overlay = visual.get("full_frame_overlay")
+    overlay = overlay if isinstance(overlay, Mapping) else {}
+    generic_overlay = _generic_modal_overlay_evidence(frame.frame)
+    record = dict(record)
+    visual = dict(visual)
+    visual["generic_modal_overlay"] = generic_overlay
+    record["visual_evidence"] = visual
+    positive = bool(
+        record.get("recognized")
+        and record.get("state") == DAILY_SELECTED_STATE
+        and not bool(overlay.get("recognized"))
+        and visual.get("blurred") is not True
+        and visual.get("unblurred") is not False
+        and visual.get("overlay_state") not in {"blurred", "modal"}
+        and not generic_overlay["recognized"]
+    )
+    record["successor_proven"] = positive
+    return result, record
+
+
+def _popup_dismiss_result(
+    *,
+    status: str,
+    reason: str,
+    session: SessionLike,
+    frames: Mapping[str, CapturedNativeFrame],
+    popup_recognitions: Mapping[str, Mapping[str, Any]],
+    recognitions: Mapping[str, FrameRecognition | Mapping[str, Any]],
+    polls: Sequence[Mapping[str, Any]],
+    successor: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "status": status,
+        "mode": "dismiss-vip-popup",
+        "reason": reason,
+        "input_count": int(session.input_count),
+        "resource_affecting_inputs": 0,
+        "combat_confirmations": 0,
+        "action_identity": VIP_POINTS_POPUP_CLOSE_IDENTITY,
+        "action_class": NAVIGATION_ACTION_CLASS,
+        "consequence_class": NAVIGATION_CONSEQUENCE_CLASS,
+        "popup_identity": VIP_POINTS_POPUP_IDENTITY,
+        "frames": {
+            name: _frame_ref(frame, session.session_directory)
+            for name, frame in frames.items()
+        },
+        "popup_recognitions": {
+            name: dict(recognition)
+            for name, recognition in popup_recognitions.items()
+        },
+        "recognitions": {
+            name: (
+                dict(recognition)
+                if isinstance(recognition, Mapping)
+                else recognition.as_dict()
+            )
+            for name, recognition in recognitions.items()
+        },
+        "polls": [dict(item) for item in polls],
+        "successor": dict(successor) if successor is not None else None,
+        "actions": [dict(item) for item in session.actions],
+    }
+
+
+def run_daily_row_claim_vip_popup_dismissal(
+    runtime: RuntimeLike,
+    session: SessionLike,
+    *,
+    recognizer: Any | None = None,
+    popup_recognizer: Any | None = None,
+    daily_recognizer: Any | None = None,
+) -> dict[str, Any]:
+    """Dismiss only the exact VIP Points popup, then observe selected Daily."""
+
+    if popup_recognizer is None and recognizer is not None:
+        popup_recognizer = (
+            getattr(recognizer, "recognize_allowlisted_popup", None)
+            or getattr(recognizer, "recognize_popup", None)
+            or recognizer
+        )
+    if daily_recognizer is None and recognizer is not None:
+        candidate = getattr(recognizer, "recognize_daily_selected", None)
+        if callable(candidate):
+            daily_recognizer = recognizer
+    daily_recognizer = daily_recognizer or DailyRowClaimRecognizer()
+    frames: dict[str, CapturedNativeFrame] = {}
+    popup_recognitions: dict[str, dict[str, Any]] = {}
+    recognitions: dict[str, FrameRecognition | Mapping[str, Any]] = {}
+    polls: list[dict[str, Any]] = []
+    successor: dict[str, Any] | None = None
+    terminal_recognition: FrameRecognition | Mapping[str, Any] | None = None
+
+    def result(status: str, reason: str) -> dict[str, Any]:
+        return _popup_dismiss_result(
+            status=status,
+            reason=reason,
+            session=session,
+            frames=frames,
+            popup_recognitions=popup_recognitions,
+            recognitions=recognitions,
+            polls=polls,
+            successor=successor,
+        )
+
+    if not bool(getattr(runtime, "execute", False)):
+        session.terminal_status = "evidence_required"
+        session.blocker = "runtime execution is required for VIP popup dismissal"
+        return result("evidence_required", session.blocker)
+
+    try:
+        source = session.observe(runtime.capture, label="daily-row-claim-source")
+        frames["source"] = source
+        source_popup = _popup_recognizer_call(
+            popup_recognizer,
+            source.frame,
+            source_frame_sha256=source.sha256,
+        )
+        popup_recognitions["source"] = _popup_record(source_popup)
+        _require_exact_vip_popup(source_popup, source, phase="source")
+
+        def capture(label: str) -> CapturedNativeFrame:
+            frame = runtime.capture(label)
+            if label == f"{VIP_POINTS_POPUP_CLOSE_IDENTITY}-immediate-before":
+                frames["immediate_before"] = frame
+            elif label == f"{VIP_POINTS_POPUP_CLOSE_IDENTITY}-immediate-post":
+                frames["immediate_post"] = frame
+            elif label.startswith(f"{VIP_POINTS_POPUP_CLOSE_IDENTITY}-poll-"):
+                frames[f"poll_{label.rsplit('-', 1)[-1]}"] = frame
+            return frame
+
+        def dispatch(before_frame: CapturedNativeFrame) -> None:
+            before_popup = _popup_recognizer_call(
+                popup_recognizer,
+                before_frame.frame,
+                source_frame_sha256=before_frame.sha256,
+            )
+            popup_recognitions["immediate_before"] = _popup_record(before_popup)
+            exact = _require_exact_vip_popup(
+                before_popup,
+                before_frame,
+                phase="immediate-before",
+            )
+            _ensure_fresh(before_frame, runtime)
+            _ensure_runtime_ready(runtime)
+            runtime.tap(
+                before_frame,
+                target_identity=VIP_POINTS_POPUP_CLOSE_IDENTITY,
+                target_roi=exact["target_roi"],
+                action_key=VIP_POINTS_POPUP_CLOSE_IDENTITY,
+                action_class=NAVIGATION_ACTION_CLASS,
+                consequential=False,
+            )
+
+        def inspect_successor(
+            frame: CapturedNativeFrame,
+            label: str,
+            attempt: int,
+        ) -> FrameRecognition | Mapping[str, Any] | None:
+            nonlocal successor
+            popup = _popup_recognizer_call(
+                popup_recognizer,
+                frame.frame,
+                source_frame_sha256=frame.sha256,
+            )
+            popup_record = _popup_record(popup)
+            popup_recognitions[label] = popup_record
+            daily_result: FrameRecognition | Mapping[str, Any] | None = None
+            daily_record: dict[str, Any] | None = None
+            if popup_record["status"] == "absent":
+                daily_result, daily_record = _daily_selected_successor(
+                    daily_recognizer,
+                    frame,
+                )
+                if daily_record is not None and daily_record.get("successor_proven"):
+                    successor = {
+                        "state": DAILY_SELECTED_STATE,
+                        "popup_absent": True,
+                        "unblurred": True,
+                        "frame_name": (
+                            "immediate_post"
+                            if label == "immediate_post"
+                            else f"poll_{attempt:02d}"
+                        ),
+                        "frame_sha256": frame.sha256,
+                        "recognition": daily_record,
+                    }
+            poll = {
+                "action_identity": VIP_POINTS_POPUP_CLOSE_IDENTITY,
+                "attempt": attempt,
+                "label": label,
+                "frame_name": (
+                    "immediate_post"
+                    if label == "immediate_post"
+                    else f"poll_{attempt:02d}"
+                ),
+                "frame": _frame_ref(frame, session.session_directory),
+                "popup": popup_record,
+                "recognition": daily_record,
+            }
+            polls.append(poll)
+            if daily_result is not None:
+                recognitions[label] = daily_result
+            return (
+                daily_result
+                if daily_record is not None
+                and bool(daily_record.get("successor_proven"))
+                else None
+            )
+
+        def recognize_successor(
+            immediate_post: CapturedNativeFrame,
+        ) -> str:
+            nonlocal terminal_recognition
+            terminal_recognition = inspect_successor(
+                immediate_post,
+                "immediate_post",
+                0,
+            )
+            if terminal_recognition is not None:
+                return DAILY_SELECTED_STATE
+            deadline = time.monotonic() + VIP_POPUP_SUCCESS_POLL_TIMEOUT_SECONDS
+            attempts = 0
+            while attempts < VIP_POPUP_SUCCESS_POLL_MAX_ATTEMPTS:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                interval = max(
+                    0.0,
+                    min(VIP_POPUP_SUCCESS_POLL_INTERVAL_SECONDS, remaining),
+                )
+                if interval:
+                    time.sleep(interval)
+                if time.monotonic() >= deadline:
+                    break
+                attempts += 1
+                label = f"{VIP_POINTS_POPUP_CLOSE_IDENTITY}-poll-{attempts:02d}"
+                current = session.observe(runtime.capture, label=label)
+                terminal_recognition = inspect_successor(
+                    current,
+                    f"poll_{attempts:02d}",
+                    attempts,
+                )
+                if terminal_recognition is not None:
+                    return DAILY_SELECTED_STATE
+            return UNKNOWN_STATE
+
+        action = session.run_action(
+            action_class=NAVIGATION_ACTION_CLASS,
+            label=VIP_POINTS_POPUP_CLOSE_IDENTITY,
+            capture=capture,
+            dispatch=_NativeTapDispatch(dispatch).dispatch,
+            recognize=recognize_successor,
+            consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
+        )
+        if action.status != "completed" or terminal_recognition is None:
+            raise DailyRowClaimRecognitionError(
+                "VIP popup dismissal selected-Daily successor was not proven"
+            )
+        session.terminal_status = "observed"
+        return result(
+            "observed",
+            "VIP_POINTS_GET_PTS popup dismissed; selected Daily successor observed",
+        )
+    except BaseException as exc:
+        session.terminal_status = "evidence_required"
+        session.blocker = str(exc)
+        return result("evidence_required", f"{type(exc).__name__}: {exc}")
 

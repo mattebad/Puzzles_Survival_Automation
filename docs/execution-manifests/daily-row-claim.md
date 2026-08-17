@@ -3,7 +3,7 @@
 ## Task ID and objective
 - Task ID: `daily-row-claim`
 - Flow ID: `DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION`
-- Manifest state: `CLAIM_PACKAGE_ACCEPTED_PREPARE_ADMITTED`
+- Manifest state: `VIP_POINTS_POPUP_DISMISS_ACCEPTED`
 - Frozen repository candidate: `main@324d80badfa76ad3d1031b797dc600fcde8e6b40`
 - Corrected freeze UTC: `2026-08-16T22:06:31.525Z`
 - Objective: acquire current local-BlueStacks ordinary Daily row evidence, then deliver one exact free row-local Claim without registering or scheduling the handler.
@@ -101,6 +101,11 @@
 - The exact canary tightens this to selected Daily under the same displayed-countdown-derived reset identity and an independently parsed Daily Quest points increase of exactly `5`; row disappearance or OCR absence alone is diagnostic and never success.
 - Validation accepted: 112 affected package tests passed; the focused nine-test profile passed with receipt digest `d3b58ad94c9ab85e35413938c4745de3738415c5237c2c2ebb4bbc91400088f0`. Independent Terra High recheck `f3f6404d-0ce5-44bb-b090-e892681c695a` accepted with no material findings, and parent integration acceptance is `accepted`.
 - Prepare receipt schema integration accepted: the neutral inert binding is `daily-row-prepare-observation` / `observation` under max inputs `0`; the old identity containing `claim` is forbidden. The affected suite passed 115 tests and focused validation passed 9 with digest `6b55f7c410a26503644bc16bf45dbc5e5d92e464a94778938dccbe8e21d13d1b`; Terra recheck `70ba550e-a061-49ad-9181-a8d3556b3dc4` and parent integration both accepted.
+- Zero-input prepare receipt `b003b7dc-4041-47f4-89c6-0dd3da4b80e8` retained frame SHA-256 `03f94fc4bdb4c5c74b1616801f7f481b073b087739c268d282219063f07d3ad3` and dispatched zero inputs. It shows the allowlisted `VIP_POINTS_GET_PTS` modal with spatially associated `Close`; underlying selected Daily is blurred. Ownership released and terminal is `evidence_required`.
+- One bounded popup continuation may reuse `world_map_navigation_bluestacks.recognize_allowlisted_popup` and its fixed `reset-popup-close` identity. It must positively revalidate that exact VIP popup and Close control immediately before one navigation-only tap, then capture a successor with the popup absent. No generic popup, Back, Claim, resource, combat, or recovery authority is added.
+- Exact popup command:
+  `python scripts/pnsctl.py development-session daily-row-claim --mode dismiss-vip-popup --max-inputs 1 --delegated-receipt <RECEIPT_DB> --agent-identity <LUNA_AGENT_ID> --task-id daily-row-claim --flow-id DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION --scenario consume-stamina-row-claim --variant consume-stamina-dismiss-vip`
+- Popup package validation accepted: 124 affected tests passed; focused validation passed 9 with digest `6ea8539aff559c3cf9a0e8585eb6d3f5bd23269e8eb378934df31361472d2854`. Terra recheck `bf58b5c0-49f0-4ece-839a-f12967f6b626` and parent integration accepted the exact VIP and generic-modal successor gates.
 
 ## Deferred evidence-bound implementation paths
 These paths are candidates only and are not writable under `FROZEN_RECONNAISSANCE`:
@@ -197,4 +202,4 @@ These paths are candidates only and are not writable under `FROZEN_RECONNAISSANC
 - Stop after any unknown runtime, ownership, transport, evidence, or semantic result; do not retry identically.
 
 ## Next authorized action
-- Commit the accepted Claim package locally without push, issue one exact zero-input prepare receipt, run prepare once, and visually inspect the annotated immediate source before any canary receipt.
+- Commit the accepted popup package locally without push, issue one exact max-one popup receipt, dismiss it once, then rerun zero-input Claim prepare from the resulting selected-Daily state.
