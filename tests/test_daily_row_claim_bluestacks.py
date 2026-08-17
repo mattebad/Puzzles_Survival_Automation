@@ -663,7 +663,7 @@ class DailyRowRecognizerTests(unittest.TestCase):
             if image.shape[0] != 390:
                 return DailyRowRecognizerTests._ocr_for([])(image)
             data = base(image)
-            if float(np.mean(image[:, :534])) >= float(np.mean(image[:, 536:1066])):
+            if float(np.mean(image[:, 536:1066])) <= float(np.mean(image[:, :534])):
                 return data
             extra = DailyRowRecognizerTests._ocr_for(
                 [("Main", 100 * 2, (70 - 35) * 2, 80 * 2, 20 * 2)]
@@ -1300,6 +1300,7 @@ class DailyRowRecognizerTests(unittest.TestCase):
                 [
                     ("main", 100, 70, 70, 20),
                     ("daily", 820, 70, 140, 20),
+                    ("alliance", 1240, 70, 140, 20),
                 ]
             )
         ).recognize_daily_selected(frame)
@@ -1309,6 +1310,93 @@ class DailyRowRecognizerTests(unittest.TestCase):
             recognition.visual_evidence["selected_margin"],
             0.015,
         )
+
+    def test_selected_daily_fallback_rejects_disassociated_alliance_row(self) -> None:
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        cv2.rectangle(frame, (170, 52), (620, 150), (0, 210, 255), -1)
+        recognition = daily.DailyRowClaimRecognizer(
+            ocr=self._ocr_for(
+                [
+                    ("main", 100 * 2, (70 - 35) * 2, 70 * 2, 20 * 2),
+                    ("alliance", 620 * 2, (180 - 35) * 2, 140 * 2, 20 * 2),
+                ]
+            )
+        ).recognize_daily_selected(frame)
+
+        self.assertFalse(recognition.recognized)
+        self.assertEqual(recognition.state, daily.UNKNOWN_STATE)
+        self.assertGreater(recognition.visual_evidence["selected_margin"], 0.02)
+        self.assertFalse(recognition.visual_evidence["tab_row_compatible"])
+        self.assertEqual(
+            recognition.visual_evidence["reason"],
+            "main-alliance-tab-row-is-vertically-incompatible",
+        )
+
+    def test_retained_selected_daily_uses_center_tab_without_daily_ocr(self) -> None:
+        captures = Path(__file__).resolve().parents[1] / ".local-captures"
+        daily_path = (
+            captures
+            / "development-sessions/delegated-ff8e1873-88d5-4ad6-8a2d-52a22782e49c"
+            / "runtime/daily-row-reconnaissance-20260817T201002000223Z/frames"
+            / "0010-quest-daily-tab-poll-04.png"
+        )
+        main_path = (
+            captures
+            / "development-sessions/delegated-ff8e1873-88d5-4ad6-8a2d-52a22782e49c"
+            / "runtime/daily-row-reconnaissance-20260817T201002000223Z/frames"
+            / "0004-home-quest-entry-poll-01.png"
+        )
+        if not daily_path.is_file() or not main_path.is_file():
+            self.skipTest("retained Daily/Main frames are unavailable")
+
+        def retained_tab_context_ocr(image: np.ndarray) -> dict[str, list[object]]:
+            if image.shape[0] == daily.NATIVE_HEIGHT * 2:
+                tokens: list[tuple[str, int, int, int, int]] = []
+            else:
+                tokens = [
+                    ("Main", 42 * 2, (83 - 35) * 2, (172 - 42) * 2, (103 - 83) * 2),
+                    (
+                        "Alliance",
+                        493 * 2,
+                        (74 - 35) * 2,
+                        (594 - 493) * 2,
+                        (94 - 74) * 2,
+                    ),
+                    (
+                        "Activity",
+                        493 * 2,
+                        (96 - 35) * 2,
+                        (594 - 493) * 2,
+                        (114 - 96) * 2,
+                    ),
+                ]
+            return {
+                "text": [item[0] for item in tokens],
+                "left": [item[1] for item in tokens],
+                "top": [item[2] for item in tokens],
+                "width": [item[3] for item in tokens],
+                "height": [item[4] for item in tokens],
+                "conf": ["95"] * len(tokens),
+            }
+
+        daily_frame = cv2.imread(str(daily_path))
+        main_frame = cv2.imread(str(main_path))
+        self.assertIsNotNone(daily_frame)
+        self.assertIsNotNone(main_frame)
+        assert daily_frame is not None
+        assert main_frame is not None
+
+        recognizer = daily.DailyRowClaimRecognizer(ocr=retained_tab_context_ocr)
+        selected = recognizer.recognize_daily_selected(daily_frame)
+        self.assertTrue(selected.recognized)
+        self.assertEqual(selected.state, daily.DAILY_SELECTED_STATE)
+        self.assertNotIn("daily", selected.ocr_text.split())
+        self.assertGreater(selected.visual_evidence["selected_margin"], 0.02)
+
+        main = recognizer.recognize_daily_selected(main_frame)
+        self.assertFalse(main.recognized)
+        self.assertEqual(main.state, daily.UNKNOWN_STATE)
+        self.assertLessEqual(main.visual_evidence["selected_margin"], 0.02)
 
     def test_quest_recognizes_split_context_without_stylized_title(self) -> None:
         recognition = daily.DailyRowClaimRecognizer(

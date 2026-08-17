@@ -1014,7 +1014,12 @@ def _selected_daily_visual_context(
         "activity_candidates": tuple(token.roi for token in activity),
         "title_ocr_present": bool(daily),
     }
-    main_token = max(main, key=lambda token: token.roi[2]) if main else None
+    explicit_main = [token for token in main if token.text in {"main", "main quest"}]
+    main_token = (
+        max(explicit_main or main, key=lambda token: token.roi[2])
+        if main
+        else None
+    )
     alliance_token = min(alliance, key=lambda token: token.roi[0]) if alliance else None
     if alliance_token is None and activity:
         alliance_token = min(activity, key=lambda token: token.roi[0])
@@ -1054,6 +1059,8 @@ def _selected_daily_visual_context(
     else:
         # If the stylized Daily title is missed, use the current frame's center
         # tab between the positively associated Main and Alliance labels.
+        tab_row_vertical_delta = abs(main_center[1] - alliance_center[1])
+        tab_row_compatible = tab_row_vertical_delta <= 75
         center_x = (main_token.roi[2] + alliance_token.roi[0]) / 2.0
         y0 = max(45, min(main_token.roi[1], alliance_token.roi[1]) - 18)
         y1 = min(150, max(main_token.roi[3], alliance_token.roi[3]) + 32)
@@ -1081,7 +1088,8 @@ def _selected_daily_visual_context(
         left_score = score(left_roi)
         right_score = score(right_roi)
         selected_by_geometry = bool(
-            center_score >= max(left_score, right_score) + 0.02
+            tab_row_compatible
+            and center_score >= max(left_score, right_score) + 0.02
         )
         details.update(
             {
@@ -1090,11 +1098,22 @@ def _selected_daily_visual_context(
                 "daily_tab_score": round(center_score, 6),
                 "main_tab_score": round(left_score, 6),
                 "alliance_tab_score": round(right_score, 6),
+                "selected_margin": round(
+                    center_score - max(left_score, right_score),
+                    6,
+                ),
+                "tab_row_vertical_delta": round(tab_row_vertical_delta, 3),
+                "tab_row_compatible": tab_row_compatible,
             }
         )
     details["recognized"] = selected_by_geometry
     if not selected_by_geometry:
-        details["reason"] = "center-daily-tab-selection-not-proven"
+        details["reason"] = (
+            "main-alliance-tab-row-is-vertically-incompatible"
+            if daily_token is None
+            and not details.get("tab_row_compatible", True)
+            else "center-daily-tab-selection-not-proven"
+        )
     return selected_by_geometry, details
 
 
@@ -2072,28 +2091,22 @@ class DailyRowClaimRecognizer:
             return FrameRecognition(DAILY_SELECTED_STATE, False, reason="profile_dimensions_mismatch")
         overlay_markers = _full_frame_overlay_markers(frame, self._ocr)
         tokens = _ocr_tokens(frame, DAILY_TAB_SEARCH_ROI, self._ocr)
-        daily = next((token for token in tokens if token.text == "daily"), None)
-        main = next(
-            (token for token in tokens if token.text in {"main", "main quest", "quest"}),
-            None,
+        selected, selected_visual = _selected_daily_visual_context(frame, tokens)
+        visual: dict[str, Any] = dict(selected_visual)
+        visual.update(
+            {
+                "selected_daily": selected,
+                "main_tab_present": bool(selected_visual.get("main_candidates")),
+                "full_frame_overlay": {
+                    "recognized": bool(overlay_markers),
+                    "markers": overlay_markers,
+                },
+            }
         )
-        daily_score = _tab_visual_score(frame, daily) if daily else 0.0
-        main_score = _tab_visual_score(frame, main) if main else 0.0
-        visual: dict[str, Any] = {
-            "daily_tab_score": daily_score,
-            "main_tab_score": main_score,
-            "selected_margin": round(daily_score - main_score, 6),
-            "main_tab_present": main is not None,
-            "full_frame_overlay": {
-                "recognized": bool(overlay_markers),
-                "markers": overlay_markers,
-            },
-        }
+        daily_candidates = selected_visual.get("daily_candidates", ())
+        daily = daily_candidates[0] if len(daily_candidates) == 1 else None
         recognized = bool(
-            daily is not None
-            and main is not None
-            and daily_score >= 0.12
-            and daily_score >= main_score + 0.015
+            selected
             and not _contains_overlay_marker(tokens)
             and not overlay_markers
         )
@@ -2108,7 +2121,7 @@ class DailyRowClaimRecognizer:
             DAILY_SELECTED_STATE if recognized else UNKNOWN_STATE,
             recognized,
             "daily-quest-selected" if recognized else None,
-            daily.roi if recognized and daily else None,
+            daily if recognized else None,
             " ".join(token.text for token in tokens),
             visual,
             reason,
