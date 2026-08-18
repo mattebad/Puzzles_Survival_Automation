@@ -53,6 +53,7 @@ from tasks.home_atlas import (
 )
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, frame_digest
 from tasks.home_context import HomeReadyObservation
+from tasks.home_atlas_planner import PlanDisposition
 from tasks.navigation_session import (
     AuthorizationScope,
     create_session,
@@ -288,7 +289,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
         self.assertEqual({item[2] for item in decoded}, {1, 2})
         self.assertEqual({(item[5], item[6]) for item in decoded}, {(800, 1280)})
 
-    def test_localize_first_driver_binds_visible_noncanonical_home_without_pan(self) -> None:
+    def test_localize_first_driver_planner_pan_wins_over_visible_binding(self) -> None:
         target = _building()
         world = _atlas(target)
         frame = np.zeros((1280, 800, 3), np.uint8)
@@ -320,9 +321,92 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 localizer=localizer,
             )
             step = driver.observe(frame)
+        self.assertEqual(step.disposition, HomeDriverDisposition.PAN)
+        self.assertIs(step.binding, binding)
+        self.assertIsNotNone(step.plan)
+        self.assertEqual(step.plan.disposition, PlanDisposition.PAN)
+        self.assertEqual(driver.navigator.pan_count, 1)
+
+    def test_localize_first_driver_planner_approved_binding_completes(self) -> None:
+        target = _building()
+        world = _atlas(target)
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        digest = frame_digest(frame)
+        localization = replace(
+            _localization(digest),
+            frame_sha256=digest,
+        )
+        binding = BuildingBinding(
+            target.semantic_id,
+            (320, 420, 420, 520),
+            digest,
+            0.95,
+            ("current-frame OCR: Bank",),
+        )
+        localizer = SimpleNamespace(
+            localize=lambda _frame: localization,
+            canonical_reference=frame,
+        )
+        with patch(
+            "scripts.home_atlas_bluestacks.bind_visible_building",
+            return_value=binding,
+        ):
+            driver = BlueStacksLocalizeFirstHomeDriver(
+                world,
+                Path("atlas.json"),
+                _ready(),
+                target.semantic_id,
+                localizer=localizer,
+            )
+            step = driver.observe(frame)
         self.assertEqual(step.disposition, HomeDriverDisposition.COMPLETE)
         self.assertIs(step.binding, binding)
+        self.assertIsNotNone(step.plan)
+        self.assertEqual(step.plan.disposition, PlanDisposition.COMPLETE)
         self.assertEqual(driver.navigator.pan_count, 0)
+
+    def test_unbound_safe_preview_does_not_poison_same_camera_binding(self) -> None:
+        target = _building()
+        world = _atlas(target)
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        digest = frame_digest(frame)
+        localization = replace(
+            _localization(digest),
+            frame_sha256=digest,
+        )
+        binding = BuildingBinding(
+            target.semantic_id,
+            (320, 420, 420, 520),
+            digest,
+            0.95,
+            ("current-frame OCR: Bank",),
+        )
+        localizer = SimpleNamespace(
+            localize=lambda _frame: localization,
+            canonical_reference=frame,
+        )
+        with patch(
+            "scripts.home_atlas_bluestacks.bind_visible_building",
+            side_effect=(None, binding),
+        ):
+            driver = BlueStacksLocalizeFirstHomeDriver(
+                world,
+                Path("atlas.json"),
+                _ready(),
+                target.semantic_id,
+                localizer=localizer,
+            )
+            preview_step = driver.observe(frame)
+            preview_seen_viewports = set(driver.navigator.seen_viewports)
+            bound_step = driver.observe(frame)
+        self.assertEqual(preview_step.disposition, HomeDriverDisposition.BIND)
+        self.assertIsNotNone(preview_step.plan)
+        self.assertEqual(preview_step.plan.disposition, PlanDisposition.BIND)
+        self.assertEqual(preview_seen_viewports, set())
+        self.assertEqual(bound_step.disposition, HomeDriverDisposition.COMPLETE)
+        self.assertIs(bound_step.binding, binding)
+        self.assertIsNotNone(bound_step.plan)
+        self.assertEqual(bound_step.plan.disposition, PlanDisposition.COMPLETE)
 
     def test_localize_first_driver_plans_bounded_pan_for_offscreen_building(self) -> None:
         target = _far_building()

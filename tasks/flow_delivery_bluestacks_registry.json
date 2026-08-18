@@ -56,6 +56,12 @@
       "evidence_validator": "world_map_navigation_foundation_evidence",
       "recovery_handler": "world_map_navigation_foundation_recovery",
       "consequence_class": "navigation_only"
+    },
+    "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": {
+      "runner": "nova_praise_supervised_one_free_pulse_runner",
+      "evidence_validator": "nova_praise_supervised_one_free_pulse_evidence",
+      "recovery_handler": "nova_praise_supervised_one_free_pulse_recovery",
+      "consequence_class": "consequential"
     }
   }
 }

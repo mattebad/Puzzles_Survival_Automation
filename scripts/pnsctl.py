@@ -54,24 +54,16 @@ NOAHS_TAVERN_NAV_OUTPUT_DEFAULT = (
 )
 NOVA_SUPERVISED_PULSE_FLOW_ID = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
 NOVA_SUPERVISED_PULSE_SCENARIO_ID = "nova_praise_one_free_pulse"
-NOVA_SUPERVISED_PULSE_RESET_ID = "game-day-2026-07-22"
+NOVA_SUPERVISED_PULSE_MAX_INPUTS = 8
+NOVA_SUPERVISED_PRAISE_MAX_INPUTS = 1
 NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT = (
     BLUESTACKS_ARTIFACT_ROOT / NOVA_SUPERVISED_PULSE_FLOW_ID
 )
 NOVA_SUPERVISED_ACTION_DATABASE = (
     REPO_ROOT / ".local-orchestrator" / "bluestacks-actions.sqlite3"
 )
-NOVA_SUPERVISED_INVOCATION_GUARD = (
-    REPO_ROOT
-    / ".local-orchestrator"
-    / "nova-praise-one-free-pulse-game-day-2026-07-22.guard.json"
-)
-NOVA_SUPERVISED_GUARD_ARCHIVE_DIR = (
-    REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-archive"
-)
-NOVA_SUPERVISED_GUARD_RECEIPT_DIR = (
-    REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-receipts"
-)
+NOVA_SUPERVISED_GUARD_ARCHIVE_DIR = REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-archive"
+NOVA_SUPERVISED_GUARD_RECEIPT_DIR = REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-receipts"
 FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
 FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
@@ -161,6 +153,14 @@ def _register_checked_in_bluestacks_handlers() -> None:
         from flow_delivery_world_map_bluestacks import (
             register as register_world_map,
         )
+    try:
+        from scripts.flow_delivery_nova_praise_bluestacks import (
+            register as register_nova_praise,
+        )
+    except ImportError:
+        from flow_delivery_nova_praise_bluestacks import (
+            register as register_nova_praise,
+        )
 
     register_campaign(
         _BLUESTACKS_FLOW_RUNNERS,
@@ -197,6 +197,11 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
+    register_nova_praise(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
 
 
 _register_checked_in_bluestacks_handlers()
@@ -204,6 +209,92 @@ _register_checked_in_bluestacks_handlers()
 
 class OperatorError(RuntimeError):
     pass
+
+
+_NOVA_RESET_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+
+
+def _validate_nova_reset_id(reset_id: object) -> str:
+    """Validate a reset identity before using it as a filesystem component."""
+
+    if not isinstance(reset_id, str):
+        raise OperatorError("Nova reset_id must be a string")
+    value = reset_id.strip()
+    if (
+        value != reset_id
+        or value in {".", ".."}
+        or not _NOVA_RESET_ID_RE.fullmatch(value)
+    ):
+        raise OperatorError("Nova reset_id contains unsafe path characters")
+    return value
+
+
+def _nova_supervised_guard_path(reset_id: object) -> Path:
+    """Return the immutable-reset-scoped active guard path."""
+
+    selected_reset = _validate_nova_reset_id(reset_id)
+    configured_root = REPO_ROOT / ".local-orchestrator"
+    if os.path.islink(configured_root):
+        raise OperatorError("Nova supervised guard root must not be a symlink")
+    orchestrator = configured_root.resolve()
+    path = orchestrator / (
+        f"nova-praise-one-free-pulse-{selected_reset}.guard.json"
+    )
+    if path.parent != orchestrator or os.path.islink(path):
+        raise OperatorError("Nova supervised guard path is unsafe")
+    return path
+
+
+def _nova_supervised_guard_archive_dir() -> Path:
+    configured = Path(NOVA_SUPERVISED_GUARD_ARCHIVE_DIR)
+    if os.path.islink(configured):
+        raise OperatorError("Nova supervised guard archive must not be a symlink")
+    configured_root = configured.parent.resolve()
+    repo_root = (REPO_ROOT / ".local-orchestrator").resolve()
+    archive = (
+        configured
+        if configured_root == repo_root
+        else REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-archive"
+    ).resolve()
+    if archive.exists() and os.path.islink(archive):
+        raise OperatorError("Nova supervised guard archive must not be a symlink")
+    return archive
+
+
+def _nova_supervised_guard_receipt_dir() -> Path:
+    configured = Path(NOVA_SUPERVISED_GUARD_RECEIPT_DIR)
+    if os.path.islink(configured):
+        raise OperatorError("Nova supervised guard receipt directory is unsafe")
+    configured_root = configured.parent.resolve()
+    repo_root = (REPO_ROOT / ".local-orchestrator").resolve()
+    receipt = (
+        configured
+        if configured_root == repo_root
+        else REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-receipts"
+    ).resolve()
+    if receipt.exists() and os.path.islink(receipt):
+        raise OperatorError("Nova supervised guard receipt directory is unsafe")
+    return receipt
+
+
+def _infer_single_nova_reset_id() -> str:
+    """Compatibility for retained offline guard fixtures; live callers pass it explicitly."""
+
+    root = (REPO_ROOT / ".local-orchestrator").resolve()
+    candidates = sorted(root.glob("nova-praise-one-free-pulse-*.guard.json"))
+    if len(candidates) != 1:
+        raise OperatorError("Nova guard reset_id is required when multiple guards exist")
+    payload_path = candidates[0]
+    match = re.fullmatch(
+        r"nova-praise-one-free-pulse-(?P<reset>[A-Za-z0-9][A-Za-z0-9_.-]{0,127})\.guard\.json",
+        payload_path.name,
+    )
+    if match is None:
+        raise OperatorError("Nova guard path does not contain a valid reset_id")
+    selected = _validate_nova_reset_id(match.group("reset"))
+    if _nova_supervised_guard_path(selected) != payload_path:
+        raise OperatorError("Nova guard path/reset binding is invalid")
+    return selected
 
 
 def reconcile(args: argparse.Namespace) -> str:
@@ -2248,6 +2339,11 @@ def development_session_run_flow(
     task_id: str | None = None,
     scenario: str | None = None,
     variant: str | None = None,
+    runtime_scope: str | None = None,
+    account_id: str | None = None,
+    server_id: str | None = None,
+    reset_id: str | None = None,
+    identity_evidence: Path | None = None,
     command_argv: Sequence[str] | None = None,
 ) -> str:
     """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
@@ -2301,6 +2397,28 @@ def development_session_run_flow(
     contract = _load_bluestacks_flow_registry().get(flow_id)
     if contract is None or contract["runner"] not in _BLUESTACKS_FLOW_RUNNERS:
         raise OperatorError("DEVELOPMENT_FLOW_RUNNER_UNAVAILABLE")
+    nova_identity = None
+    if flow_id == NOVA_SUPERVISED_PULSE_FLOW_ID:
+        if not 1 <= int(max_inputs) <= NOVA_SUPERVISED_PULSE_MAX_INPUTS:
+            raise OperatorError(
+                f"Nova supervised development-session max_inputs must be between 1 and "
+                f"{NOVA_SUPERVISED_PULSE_MAX_INPUTS}"
+            )
+        nova_identity, missing = _nova_supervised_identity(
+            argparse.Namespace(
+                runtime_scope=runtime_scope,
+                account_id=account_id,
+                server_id=server_id,
+                reset_id=reset_id,
+                identity_evidence=identity_evidence,
+            )
+        )
+        if missing:
+            raise OperatorError(
+                "Nova development-session identity is incomplete: "
+                + ", ".join(missing)
+            )
+        _validate_nova_reset_id(nova_identity.reset_id)
     if live and not yes:
         raise OperatorError("live development session requires --yes")
     if recovery_only:
@@ -2444,6 +2562,11 @@ def development_session_run_flow(
                     and flow_id == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
                 ),
                 "max_inputs": max_inputs,
+                "nova_identity": nova_identity,
+                "nova_reset_id": (
+                    nova_identity.reset_id if nova_identity is not None else None
+                ),
+                "development_session": session,
             }
             runner = _BLUESTACKS_FLOW_RUNNERS[contract["runner"]]
             if "live" in inspect.signature(runner).parameters:
@@ -2912,13 +3035,16 @@ def _create_nova_supervised_invocation_guard(
     candidate_commit: str,
     reset_id: str,
 ) -> Path:
-    guard_path = NOVA_SUPERVISED_INVOCATION_GUARD
+    selected_reset = _validate_nova_reset_id(reset_id)
+    if not re.fullmatch(r"[0-9a-f]{40}", candidate_commit):
+        raise OperatorError("Nova supervised guard candidate_commit is invalid")
+    guard_path = _nova_supervised_guard_path(selected_reset)
     guard_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema_version": 1,
         "flow_id": NOVA_SUPERVISED_PULSE_FLOW_ID,
         "scenario_id": NOVA_SUPERVISED_PULSE_SCENARIO_ID,
-        "reset_id": reset_id,
+        "reset_id": selected_reset,
         "candidate_commit": candidate_commit,
         "status": "started",
         "started_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -2947,8 +3073,10 @@ def _finalize_nova_supervised_invocation_guard(
     terminal_status: str,
     result_status: str | None,
     session_directory: str | None,
+    reset_id: str,
 ) -> None:
-    path = NOVA_SUPERVISED_INVOCATION_GUARD
+    selected_reset = _validate_nova_reset_id(reset_id)
+    path = _nova_supervised_guard_path(selected_reset)
     if not path.is_file():
         raise OperatorError("supervised invocation guard is missing at finalization")
     try:
@@ -2957,6 +3085,8 @@ def _finalize_nova_supervised_invocation_guard(
         raise OperatorError("supervised invocation guard is unreadable") from exc
     if not isinstance(payload, dict):
         raise OperatorError("supervised invocation guard must be an object")
+    if payload.get("reset_id") != selected_reset:
+        raise OperatorError("guard reset_id mismatch at finalization")
     payload["status"] = terminal_status
     payload["terminal_status"] = terminal_status
     payload["result_status"] = result_status
@@ -2974,18 +3104,36 @@ def _finalize_nova_supervised_invocation_guard(
     payload["finished_at"] = (
         datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    if os.path.islink(path):
+        raise OperatorError("supervised invocation guard is unsafe at finalization")
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with tmp.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        os.replace(str(tmp), str(path))
+    except Exception:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
-def _bind_nova_supervised_invocation_guard_session(session_directory: str) -> None:
+def _bind_nova_supervised_invocation_guard_session(
+    session_directory: str,
+    *,
+    reset_id: str | None = None,
+) -> None:
     """Atomically bind the active guard to a session as soon as it exists.
 
     Preserves guard identity/status fields. Never deletes the guard or weakens O_EXCL.
     """
 
-    path = NOVA_SUPERVISED_INVOCATION_GUARD
+    selected_reset = _validate_nova_reset_id(
+        reset_id if reset_id is not None else _infer_single_nova_reset_id()
+    )
+    path = _nova_supervised_guard_path(selected_reset)
     if os.path.islink(path) or not path.is_file():
         raise OperatorError("supervised invocation guard is missing or unsafe")
     try:
@@ -3007,7 +3155,7 @@ def _bind_nova_supervised_invocation_guard_session(session_directory: str) -> No
         raise OperatorError("guard flow_id mismatch during session bind")
     if payload.get("scenario_id") != NOVA_SUPERVISED_PULSE_SCENARIO_ID:
         raise OperatorError("guard scenario_id mismatch during session bind")
-    if payload.get("reset_id") != NOVA_SUPERVISED_PULSE_RESET_ID:
+    if payload.get("reset_id") != selected_reset:
         raise OperatorError("guard reset_id mismatch during session bind")
     if not isinstance(payload.get("candidate_commit"), str) or not re.fullmatch(
         r"[0-9a-f]{40}", payload["candidate_commit"]
@@ -3033,6 +3181,8 @@ def _bind_nova_supervised_invocation_guard_session(session_directory: str) -> No
         datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
     tmp = path.with_suffix(path.suffix + ".tmp")
+    if os.path.islink(tmp):
+        raise OperatorError("supervised invocation guard temporary path is unsafe")
     encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     flags = os.O_CREAT | os.O_TRUNC | os.O_WRONLY
     fd = os.open(str(tmp), flags)
@@ -3355,19 +3505,11 @@ def _verify_nova_supervised_proven_no_effect_session(
             continue
         if result_value not in (None, "") and journal_value != result_value:
             raise OperatorError(f"journal {key} does not match result")
-    if guard.get("reset_id") != NOVA_SUPERVISED_PULSE_RESET_ID:
-        raise OperatorError("guard reset_id / game-day mismatch")
+    _validate_nova_reset_id(guard.get("reset_id"))
 
     events = _read_jsonl_objects(session / "events.jsonl", "events.jsonl")
     if not events:
         raise OperatorError("events.jsonl must be nonempty")
-    capability_audit = _read_jsonl_objects(
-        session / "capability-audit.jsonl",
-        "capability-audit.jsonl",
-    )
-    if not capability_audit:
-        raise OperatorError("capability-audit.jsonl must be nonempty")
-
     praise_transport_field_present = "praise_transport_calls" in result
     praise = (
         result.get("praise_transport_calls") if praise_transport_field_present else None
@@ -3375,6 +3517,18 @@ def _verify_nova_supervised_proven_no_effect_session(
     if praise_transport_field_present:
         if type(praise) is not int or praise != 0:
             raise OperatorError("proven_no_effect requires praise_transport_calls == 0")
+    capability_audit = _read_jsonl_objects(
+        session / "capability-audit.jsonl",
+        "capability-audit.jsonl",
+    )
+    zero_input_block = (
+        result.get("status") == "blocked"
+        and nav == 0
+        and praise_transport_field_present
+        and praise == 0
+    )
+    if not capability_audit and not zero_input_block:
+        raise OperatorError("capability-audit.jsonl must be nonempty")
 
     consequential_dispatches = [
         event
@@ -3780,17 +3934,17 @@ def _verify_nova_supervised_proven_no_effect_session(
                 "AND input_attempt_at IS NULL "
                 "AND transport_result_json IS NULL"
             )
-            action_count = connection.execute(
-                f"SELECT COUNT(*) AS n FROM actions WHERE NOT ({no_effect_clause})"
-            ).fetchone()["n"]
             nova_count = connection.execute(
-                f"SELECT COUNT(*) AS n FROM actions WHERE task_id=? AND NOT ({no_effect_clause})",
-                (NOVA_TASK_ID,),
+                f"SELECT COUNT(*) AS n FROM actions "
+                f"WHERE task_id=? AND game_day_id=? AND NOT ({no_effect_clause})",
+                (NOVA_TASK_ID, guard["reset_id"]),
             ).fetchone()["n"]
         finally:
             connection.close()
-        if int(action_count) != 0 or int(nova_count) != 0:
-            raise OperatorError("SafetyStore has action rows; not proven_no_effect")
+        if int(nova_count) != 0:
+            raise OperatorError(
+                "SafetyStore has current-reset Nova action rows; not proven_no_effect"
+            )
         from safe_action_core import SafetyStore
         from safe_action_core.store import is_no_effect_cancelled
 
@@ -3803,7 +3957,8 @@ def _verify_nova_supervised_proven_no_effect_session(
             remaining_nova_actions = [
                 row
                 for row in store.list_actions_for_task(NOVA_TASK_ID)
-                if not is_no_effect_cancelled(row)
+                if row.get("game_day_id") == guard["reset_id"]
+                and not is_no_effect_cancelled(row)
             ]
             if remaining_nova_actions:
                 raise OperatorError(
@@ -3854,12 +4009,16 @@ def _verify_nova_supervised_proven_no_effect_session(
 def reconcile_nova_supervised_invocation_guard_proven_no_effect(
     session_directory: Path,
     *,
+    reset_id: str | None = None,
     legacy_null_session_recovery: bool = False,
     expected_candidate_commit: str | None = None,
 ) -> str:
     """Archive the active Nova supervised guard only after audited proven-no-effect proof."""
 
-    guard_path = NOVA_SUPERVISED_INVOCATION_GUARD
+    selected_reset = _validate_nova_reset_id(
+        reset_id if reset_id is not None else _infer_single_nova_reset_id()
+    )
+    guard_path = _nova_supervised_guard_path(selected_reset)
     if os.path.islink(guard_path) or not guard_path.is_file():
         raise OperatorError("supervised invocation guard is missing or unsafe")
     try:
@@ -3874,7 +4033,7 @@ def reconcile_nova_supervised_invocation_guard_proven_no_effect(
         raise OperatorError("guard flow_id mismatch")
     if guard.get("scenario_id") != NOVA_SUPERVISED_PULSE_SCENARIO_ID:
         raise OperatorError("guard scenario_id mismatch")
-    if guard.get("reset_id") != NOVA_SUPERVISED_PULSE_RESET_ID:
+    if guard.get("reset_id") != selected_reset:
         raise OperatorError("guard reset_id mismatch")
     terminal = guard.get("terminal_status") or guard.get("status")
     guard_result_status = guard.get("result_status")
@@ -4019,15 +4178,17 @@ def reconcile_nova_supervised_invocation_guard_proven_no_effect(
     ).hexdigest()
     receipt["receipt_digest"] = receipt_digest
 
-    NOVA_SUPERVISED_GUARD_RECEIPT_DIR.mkdir(parents=True, exist_ok=True)
-    NOVA_SUPERVISED_GUARD_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    receipt_dir = _nova_supervised_guard_receipt_dir()
+    archive_dir = _nova_supervised_guard_archive_dir()
+    receipt_dir.mkdir(parents=True, exist_ok=True)
+    archive_dir.mkdir(parents=True, exist_ok=True)
     receipt_path = (
-        NOVA_SUPERVISED_GUARD_RECEIPT_DIR
+        receipt_dir
         / f"proven-no-effect-{stamp}-{receipt_digest[:16]}.json"
     )
     archive_path = (
-        NOVA_SUPERVISED_GUARD_ARCHIVE_DIR
-        / f"nova-praise-one-free-pulse-game-day-2026-07-22.guard.{stamp}.{guard_sha256[:16]}.json"
+        archive_dir
+        / f"nova-praise-one-free-pulse-{selected_reset}.guard.{stamp}.{guard_sha256[:16]}.json"
     )
     if receipt_path.exists() or archive_path.exists():
         raise OperatorError("reconciliation receipt or archive path already exists")
@@ -4079,10 +4240,10 @@ def _confine_nova_supervised_paths(args: argparse.Namespace) -> None:
 
 
 def _require_nova_supervised_reset(args: argparse.Namespace, identity) -> None:
-    if getattr(args, "reset_id", None) != NOVA_SUPERVISED_PULSE_RESET_ID:
-        raise OperatorError("supervised pulse requires reset_id=game-day-2026-07-22")
-    if getattr(identity, "reset_id", None) != NOVA_SUPERVISED_PULSE_RESET_ID:
-        raise OperatorError("supervised identity reset_id must be game-day-2026-07-22")
+    selected = _validate_nova_reset_id(getattr(args, "reset_id", None))
+    verified = _validate_nova_reset_id(getattr(identity, "reset_id", None))
+    if selected != verified:
+        raise OperatorError("supervised pulse reset_id does not match verified identity")
 
 
 def _verify_nova_supervised_one_free_pulse_session(
@@ -4675,6 +4836,8 @@ def _nova_supervised_identity(args: argparse.Namespace):
         missing.append("identity_evidence")
     if missing:
         return None, sorted(set(missing))
+    if os.path.islink(args.identity_evidence) or not args.identity_evidence.is_file():
+        raise OperatorError("Nova supervised identity evidence is missing or unsafe")
     for name, value in values.items():
         if not NAME_RE.fullmatch(value):
             raise OperatorError(f"Nova {name} contains unsupported characters")
@@ -4779,6 +4942,7 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
         )
     if args.scenario == NOVA_SUPERVISED_PULSE_SCENARIO_ID:
         _require_nova_supervised_reset(args, identity)
+        selected_reset_id = _validate_nova_reset_id(identity.reset_id)
         _confine_nova_supervised_paths(args)
         if args.preflight_only:
             return json.dumps(
@@ -4786,7 +4950,7 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                     "status": "preflight_passed",
                     "scenario_id": NOVA_SUPERVISED_PULSE_SCENARIO_ID,
                     "flow_id": NOVA_SUPERVISED_PULSE_FLOW_ID,
-                    "reset_id": NOVA_SUPERVISED_PULSE_RESET_ID,
+                    "reset_id": selected_reset_id,
                     "candidate_commit": candidate_commit,
                     "runtime_connected": False,
                     "transport_calls": 0,
@@ -4799,7 +4963,7 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
 
         _create_nova_supervised_invocation_guard(
             candidate_commit=candidate_commit,
-            reset_id=NOVA_SUPERVISED_PULSE_RESET_ID,
+            reset_id=selected_reset_id,
         )
         session = ""
         result_status: str | None = None
@@ -4853,8 +5017,12 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                 session = str(route_result.get("session_directory") or "")
                 result_status = status
                 route_result["candidate_commit"] = candidate_commit
+                route_result["reset_id"] = selected_reset_id
                 if session:
-                    _bind_nova_supervised_invocation_guard_session(session)
+                    _bind_nova_supervised_invocation_guard_session(
+                        session,
+                        reset_id=selected_reset_id,
+                    )
                     route_result["session_directory"] = str(Path(session).resolve())
                 completed_facts = _supervised_pulse_completed_facts_ok(route_result)
                 if status == "completed" and completed_facts:
@@ -5034,6 +5202,7 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                 terminal_status=guard_terminal,
                 result_status=result_status,
                 session_directory=session or None,
+                reset_id=selected_reset_id,
             )
 
     from scripts.navigation_development_boundary import NavigationDevelopmentSession
@@ -5495,6 +5664,11 @@ def parser() -> argparse.ArgumentParser:
     development_run.add_argument("--task-id")
     development_run.add_argument("--scenario")
     development_run.add_argument("--variant")
+    development_run.add_argument("--runtime-scope")
+    development_run.add_argument("--account-id")
+    development_run.add_argument("--server-id")
+    development_run.add_argument("--reset-id")
+    development_run.add_argument("--identity-evidence", type=Path)
     rec = sub.add_parser("reconcile")
     rec.add_argument("--source", type=Path, required=True)
     rec.add_argument("--output", type=Path, required=True)
@@ -5594,6 +5768,7 @@ def parser() -> argparse.ArgumentParser:
     nova_guard_sub = nova_guard.add_subparsers(dest="nova_guard_command", required=True)
     nova_guard_reconcile = nova_guard_sub.add_parser("reconcile-proven-no-effect")
     nova_guard_reconcile.add_argument("--session-directory", type=Path, required=True)
+    nova_guard_reconcile.add_argument("--reset-id", required=True)
     nova_guard_reconcile.add_argument(
         "--legacy-null-session-recovery",
         action="store_true",
@@ -5715,6 +5890,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.nova_guard_command == "reconcile-proven-no-effect":
                 output = reconcile_nova_supervised_invocation_guard_proven_no_effect(
                     args.session_directory,
+                    reset_id=args.reset_id,
                     legacy_null_session_recovery=bool(
                         getattr(args, "legacy_null_session_recovery", False)
                     ),
@@ -5806,6 +5982,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     task_id=args.task_id,
                     scenario=args.scenario,
                     variant=args.variant,
+                    runtime_scope=args.runtime_scope,
+                    account_id=args.account_id,
+                    server_id=args.server_id,
+                    reset_id=args.reset_id,
+                    identity_evidence=args.identity_evidence,
                     command_argv=command_argv,
                 )
             else:

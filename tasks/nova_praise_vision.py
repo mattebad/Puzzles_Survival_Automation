@@ -27,6 +27,7 @@ from .nova_praise import (
 
 PROFILE_SIZE = (800, 1280)
 Box = tuple[int, int, int, int]
+_TEXT_CACHE: dict[tuple[str, int], str] = {}
 _ASSETS_ROOT = Path(__file__).resolve().parent / "assets" / "nova_praise" / "800x1280"
 NOVA_RADIAL_TEMPLATE_PATH = _ASSETS_ROOT / "nova-radial-portrait.png"
 NOVA_RADIAL_TEMPLATE_MANIFEST_PATH = _ASSETS_ROOT / "manifest.json"
@@ -202,9 +203,19 @@ def _crop(frame: np.ndarray, box: Box) -> np.ndarray:
 
 def _text(frame: np.ndarray, box: Box, *, psm: int = 6) -> str:
     crop = cv2.resize(_crop(frame, box), None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    cache_key = (hashlib.sha256(crop.tobytes()).hexdigest(), psm)
+    cached = _TEXT_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     value = pytesseract.image_to_string(crop, config=f"--psm {psm}")
     folded = unicodedata.normalize("NFKD", value.casefold())
-    return " ".join("".join(c for c in folded if not unicodedata.combining(c)).split())
+    normalized = " ".join(
+        "".join(c for c in folded if not unicodedata.combining(c)).split()
+    )
+    if len(_TEXT_CACHE) >= 64:
+        _TEXT_CACHE.pop(next(iter(_TEXT_CACHE)))
+    _TEXT_CACHE[cache_key] = normalized
+    return normalized
 
 
 def _ocr_boxes(frame: np.ndarray) -> list[tuple[str, Box]]:
@@ -651,102 +662,31 @@ def recognize_nova_frame(
     if frame is None or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
         raise ValueError("Nova frame must be a native 800x1280 image")
     digest = hashlib.sha256(frame.tobytes()).hexdigest()
-    header = _text(frame, NOVA_HEADER_ROI, psm=11)
-    menu_text = _text(frame, LAB_MENU_ROI)
-    nova_text = _text(frame, NOVA_BODY_ROI)
-    attempts_text = _text(frame, NOVA_ATTEMPTS_ROI)
-    cooldown_text = _text(frame, NOVA_COOLDOWN_ROI)
     diagnostics: dict[str, object] = {
-        "header_text": header,
-        "menu_text": menu_text,
-        "nova_text": nova_text,
-        "attempts_text": attempts_text,
-        "cooldown_text": cooldown_text,
+        "header_text": "",
+        "menu_text": "",
+        "nova_text": "",
+        "attempts_text": "",
+        "cooldown_text": "",
         "lab_gold_ratio": _gold_ratio(frame, RESEARCH_LAB_ROI),
         "praise_red_ratio": _red_ratio(frame, NOVA_PRAISE_ROI),
     }
-    is_research_lab_upgrade = bool(
-        ("nova" in nova_text or "ova mil" in nova_text)
-        and "mil. pt cost" in nova_text
-        and "ecn. pt cost" in nova_text
-        and "materials required" in nova_text
-        and "upgrade" in attempts_text
-    )
-    diagnostics["research_lab_upgrade_screen"] = is_research_lab_upgrade
-    if is_research_lab_upgrade:
-        return NovaFrameRecognition(
-            NovaPraiseObservation(
-                screen_state=RESEARCH_LAB_UPGRADE_SCREEN,
-                research_lab_identity=True,
-                nova_control_visible=False,
-                selected_nova=False,
-                praise_enabled=False,
-                praise_target_identity="",
-                praise_target_roi=NOVA_PRAISE_ROI,
-                attempts_remaining=None,
-                frame_sha256=digest,
-                captured_monotonic=captured_monotonic,
-                stale=stale,
-                recognized=True,
-            ),
-            digest,
-            (),
-            diagnostics,
-        )
-    is_nova = "nova" in header and ("skill" in nova_text or "praise" in nova_text or "interaction" in attempts_text)
-    if is_nova:
-        remaining = _attempts(attempts_text)
-        cooldown_seconds = parse_cooldown_seconds(cooldown_text)
-        praise_label = "praise" in _text(frame, NOVA_PRAISE_ROI)
-        enabled = praise_label and _red_ratio(frame, NOVA_PRAISE_ROI) >= 0.08 and cooldown_seconds in (None, 0)
-        targets = ((NOVA_PRAISE_TARGET, NOVA_PRAISE_ROI),) if enabled else ()
-        return NovaFrameRecognition(
-            NovaPraiseObservation(
-                screen_state=NOVA_SCREEN,
-                research_lab_identity=True,
-                nova_control_visible=False,
-                selected_nova=True,
-                praise_enabled=enabled,
-                praise_target_identity=NOVA_PRAISE_TARGET if praise_label else "",
-                praise_target_roi=NOVA_PRAISE_ROI,
-                attempts_remaining=remaining,
-                cooldown_text=cooldown_text,
-                cooldown_active=bool(cooldown_seconds and cooldown_seconds > 0),
-                cooldown_seconds=cooldown_seconds,
-                next_eligible_at=(
-                    captured_monotonic + cooldown_seconds
-                    if captured_monotonic is not None and cooldown_seconds and cooldown_seconds > 0
-                    else None
-                ),
-                frame_sha256=digest,
-                captured_monotonic=captured_monotonic,
-                stale=stale,
-                recognized=remaining is not None and praise_label,
-            ),
-            digest,
-            targets,
-            diagnostics,
-        )
     hough_anchors, hough_target, hough_ambiguous, hough_diag = _research_lab_radial_geometry(
         frame,
         research_lab_tap_provenance,
     )
-    # Hough remains diagnostics-only; it never authorizes bind or recognition.
     template_diag = _match_nova_radial_template(frame, research_lab_tap_provenance)
     diagnostics["research_lab_radial_hough"] = hough_diag
     diagnostics["nova_radial_template"] = template_diag
     template_accepted = bool(template_diag.get("accepted"))
     template_roi = template_diag.get("match_roi") if template_accepted else None
-    if (
+    if not (
         isinstance(template_roi, tuple)
         and len(template_roi) == 4
         and all(isinstance(value, int) for value in template_roi)
     ):
-        pass
-    else:
         template_roi = None
     nova_target_roi = None
-    # Template ambiguity may fail-closed as radial-like; Hough ambiguity alone may not.
     ambiguous_geometry = False
     bind_method = "none"
     geometry_anchors: tuple[str, ...] = ()
@@ -795,10 +735,10 @@ def recognize_nova_frame(
         fresh_successor=fresh_successor,
         home_context_visible=home_context_visible,
         geometry_anchors=geometry_anchors,
-        ocr_terms=_radial_ocr_terms(f"{menu_text} {nova_text}"),
+        ocr_terms=(),
         nova_target_roi=nova_target_roi,
         ambiguous_geometry=ambiguous_geometry,
-        incompatible_state=incompatible_state or is_nova,
+        incompatible_state=incompatible_state,
         nova_template_accepted=template_accepted
         and bind_method in _AUTHORIZED_TEMPLATE_BIND_METHODS,
         initial_unprovenanced_composite=initial_unprovenanced_composite,
@@ -839,8 +779,16 @@ def recognize_nova_frame(
             ((NOVA_INTERACTION_TARGET, radial.nova_target_roi),),
             diagnostics,
         )
-    home_text = _text(frame, (0, 0, 800, 1280), psm=11)
-    if "research lab" in home_text:
+    if (
+        home_context_visible
+        and not stale
+        and not incompatible_state
+        and not ambiguous_geometry
+        and not template_accepted
+        and research_lab_tap_provenance is None
+    ):
+        # Home Atlas localization is authoritative. Hough is diagnostics-only,
+        # and a weak template response is not evidence of an open radial.
         return NovaFrameRecognition(
             NovaPraiseObservation(
                 screen_state=NOVA_HOME,
@@ -860,6 +808,117 @@ def recognize_nova_frame(
             (("research-lab-building", RESEARCH_LAB_ROI),),
             diagnostics,
         )
+    if ambiguous_geometry or stale or incompatible_state:
+        return NovaFrameRecognition(
+            NovaPraiseObservation(
+                screen_state="UNKNOWN",
+                research_lab_identity=False,
+                nova_control_visible=False,
+                selected_nova=False,
+                praise_enabled=False,
+                praise_target_identity="",
+                praise_target_roi=NOVA_PRAISE_ROI,
+                attempts_remaining=None,
+                frame_sha256=digest,
+                captured_monotonic=captured_monotonic,
+                stale=stale,
+                recognized=False,
+            ),
+            digest,
+            (),
+            diagnostics,
+        )
+    # One narrow header read gates the remaining semantic OCR.
+    header = _text(frame, NOVA_HEADER_ROI, psm=11)
+    diagnostics["header_text"] = header
+    if "nova" in header:
+        nova_text = _text(frame, NOVA_BODY_ROI)
+        attempts_text = _text(frame, NOVA_ATTEMPTS_ROI)
+        cooldown_text = _text(frame, NOVA_COOLDOWN_ROI)
+        diagnostics.update(
+            {
+                "nova_text": nova_text,
+                "attempts_text": attempts_text,
+                "cooldown_text": cooldown_text,
+            }
+        )
+        is_nova = (
+            "skill" in nova_text
+            or "praise" in nova_text
+            or "interaction" in attempts_text
+        )
+    else:
+        is_nova = False
+    if is_nova:
+        remaining = _attempts(attempts_text)
+        cooldown_seconds = parse_cooldown_seconds(cooldown_text)
+        praise_label = "praise" in _text(frame, NOVA_PRAISE_ROI)
+        enabled = praise_label and _red_ratio(frame, NOVA_PRAISE_ROI) >= 0.08 and cooldown_seconds in (None, 0)
+        targets = ((NOVA_PRAISE_TARGET, NOVA_PRAISE_ROI),) if enabled else ()
+        return NovaFrameRecognition(
+            NovaPraiseObservation(
+                screen_state=NOVA_SCREEN,
+                research_lab_identity=True,
+                nova_control_visible=False,
+                selected_nova=True,
+                praise_enabled=enabled,
+                praise_target_identity=NOVA_PRAISE_TARGET if praise_label else "",
+                praise_target_roi=NOVA_PRAISE_ROI,
+                attempts_remaining=remaining,
+                cooldown_text=cooldown_text,
+                cooldown_active=bool(cooldown_seconds and cooldown_seconds > 0),
+                cooldown_seconds=cooldown_seconds,
+                next_eligible_at=(
+                    captured_monotonic + cooldown_seconds
+                    if captured_monotonic is not None and cooldown_seconds and cooldown_seconds > 0
+                    else None
+                ),
+                frame_sha256=digest,
+                captured_monotonic=captured_monotonic,
+                stale=stale,
+                recognized=remaining is not None and praise_label,
+            ),
+            digest,
+            targets,
+            diagnostics,
+        )
+    if "research" in header:
+        body_text = _text(frame, NOVA_BODY_ROI)
+        action_text = _text(frame, NOVA_ATTEMPTS_ROI)
+        diagnostics.update(
+            {
+                "nova_text": body_text,
+                "attempts_text": action_text,
+            }
+        )
+        is_research_lab_upgrade = bool(
+            ("nova" in body_text or "ova mil" in body_text)
+            and "mil. pt cost" in body_text
+            and "ecn. pt cost" in body_text
+            and "materials required" in body_text
+            and "upgrade" in action_text
+        )
+        diagnostics["research_lab_upgrade_screen"] = is_research_lab_upgrade
+        if is_research_lab_upgrade:
+            return NovaFrameRecognition(
+                NovaPraiseObservation(
+                    screen_state=RESEARCH_LAB_UPGRADE_SCREEN,
+                    research_lab_identity=True,
+                    nova_control_visible=False,
+                    selected_nova=False,
+                    praise_enabled=False,
+                    praise_target_identity="",
+                    praise_target_roi=NOVA_PRAISE_ROI,
+                    attempts_remaining=None,
+                    frame_sha256=digest,
+                    captured_monotonic=captured_monotonic,
+                    stale=stale,
+                    recognized=True,
+                ),
+                digest,
+                (),
+                diagnostics,
+            )
     return NovaFrameRecognition(
         NovaPraiseObservation(
             screen_state="UNKNOWN",
@@ -885,26 +944,18 @@ def revalidate_nova_praise_frame_fast(
     frame: np.ndarray,
     *,
     prior: NovaFrameRecognition,
+    current: NovaFrameRecognition | None = None,
     captured_monotonic: float | None,
     stale: bool = False,
 ) -> NovaFrameRecognition:
-    """Freshness-preserving Praise revalidation that skips OCR.
-
-    Trusts a prior full-OCR proposal recognition for semantic fields (attempts,
-    enabled state, fixed Praise ROI/identity, cooldown) and only cheaply confirms
-    the fixed-ROI Praise control is still present on this fresh frame via red-ratio.
-    OCR is intentionally skipped so consequential dispatch stays inside the
-    freshness window.
-    """
+    """Require independently recognized semantics from the immediate frame."""
 
     if frame is None or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
         raise ValueError("Nova frame must be a native 800x1280 image")
     digest = hashlib.sha256(frame.tobytes()).hexdigest()
     prior_obs = prior.observation
-    red_ratio = _red_ratio(frame, NOVA_PRAISE_ROI)
     diagnostics: dict[str, object] = {
-        "fast_revalidation": True,
-        "praise_red_ratio": red_ratio,
+        "immediate_revalidation": "independent_current_frame_semantics",
     }
     prior_ok = (
         prior_obs.screen_state == NOVA_SCREEN
@@ -916,7 +967,22 @@ def revalidate_nova_praise_frame_fast(
         and not prior_obs.cooldown_active
         and prior_obs.cooldown_seconds in (None, 0)
     )
-    if not prior_ok or red_ratio < 0.08:
+    current_obs = current.observation if current is not None else None
+    if (
+        not prior_ok
+        or stale
+        or current is None
+        or current.frame_sha256 != digest
+        or current_obs is None
+        or not current_obs.recognized
+        or current_obs.screen_state != NOVA_SCREEN
+        or current_obs.attempts_remaining != prior_obs.attempts_remaining
+        or not current_obs.praise_enabled
+        or current_obs.praise_target_identity != NOVA_PRAISE_TARGET
+        or current_obs.praise_target_roi != NOVA_PRAISE_ROI
+        or current_obs.cooldown_active
+        or current_obs.cooldown_seconds not in (None, 0)
+    ):
         return NovaFrameRecognition(
             NovaPraiseObservation(
                 screen_state="UNKNOWN",
@@ -936,27 +1002,11 @@ def revalidate_nova_praise_frame_fast(
             (),
             diagnostics,
         )
+    diagnostics.update(current.diagnostics)
+    diagnostics["immediate_revalidation"] = "independent_current_frame_semantics"
     return NovaFrameRecognition(
-        NovaPraiseObservation(
-            screen_state=prior_obs.screen_state,
-            research_lab_identity=prior_obs.research_lab_identity,
-            nova_control_visible=prior_obs.nova_control_visible,
-            selected_nova=prior_obs.selected_nova,
-            praise_enabled=prior_obs.praise_enabled,
-            praise_target_identity=prior_obs.praise_target_identity,
-            praise_target_roi=prior_obs.praise_target_roi,
-            attempts_remaining=prior_obs.attempts_remaining,
-            cooldown_text=prior_obs.cooldown_text,
-            cooldown_active=prior_obs.cooldown_active,
-            cooldown_seconds=prior_obs.cooldown_seconds,
-            next_eligible_at=prior_obs.next_eligible_at,
-            overlay_state=prior_obs.overlay_state,
-            frame_sha256=digest,
-            captured_monotonic=captured_monotonic,
-            stale=stale,
-            recognized=True,
-        ),
+        current.observation,
         digest,
-        ((NOVA_PRAISE_TARGET, NOVA_PRAISE_ROI),),
+        current.targets,
         diagnostics,
     )

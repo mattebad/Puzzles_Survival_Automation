@@ -15,10 +15,12 @@ import numpy as np
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.home_atlas_bluestacks import HomeDriverDisposition, HomeDriverStep
+from scripts.navigation_development_boundary import NavigationGuardedRuntime
 from scripts.nova_praise_bluestacks import (
     BlueStacksNovaPraiseAdapter,
     NovaAdapterConfig,
     NovaNavigationCanaryRoute,
+    nova_navigation_route_declaration,
 )
 from tasks.gameplay_flow_replay import ReplayNativeRuntime, load_retained_native_frame
 from tasks.home_atlas import (
@@ -121,6 +123,26 @@ def _localization(digest: str) -> LocalizationResult:
         "interior",
         digest,
         "now",
+    )
+
+
+def _quality_zoomed_localization(
+    localization: LocalizationResult,
+    *,
+    zoom_identity: ZoomIdentity = ZoomIdentity.ZOOMED_IN,
+) -> LocalizationResult:
+    return replace(
+        localization,
+        recognized=False,
+        zoom_identity=zoom_identity,
+        screen_to_atlas=None,
+        viewport_polygon=(),
+        confidence=0.9623492629,
+        supporting_landmarks=(),
+        residual_px=0.2418417,
+        ambiguity_state=AmbiguityState.NONE,
+        stale=False,
+        overlay=False,
     )
 
 
@@ -608,6 +630,292 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(result.reason, "initial_radial_home_context_not_established")
         self.assertEqual(runtime.inputs, [])
 
+    def test_home_atlas_context_accepts_localized_canonical_and_quality_zoomed_evidence(
+        self,
+    ) -> None:
+        runtime = FakeRuntime()
+        driver = FakeHomeDriver()
+        canonical = driver.step.localization
+        localized = replace(
+            canonical,
+            screen_to_atlas=((1, 0, 32), (0, 1, 0), (0, 0, 1)),
+        )
+        zoomed = replace(
+            driver.step.localization,
+            recognized=False,
+            zoom_identity=ZoomIdentity.ZOOMED_IN,
+            screen_to_atlas=None,
+            viewport_polygon=(),
+            confidence=0.9623492629,
+            supporting_landmarks=(),
+            residual_px=0.2418417,
+            ambiguity_state=AmbiguityState.NONE,
+            stale=False,
+            overlay=False,
+        )
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=driver,
+            settle_seconds=0,
+        )
+        captured = runtime.capture("zoomed-home")
+        for label, localization in (
+            ("canonical", canonical),
+            ("localized", localized),
+            ("quality_zoomed", zoomed),
+        ):
+            with self.subTest(label=label):
+                driver.localizer = type(
+                    "Localizer",
+                    (),
+                    {"localize": lambda _self, _frame, result=localization: result},
+                )()
+                route._home_localization_cache.clear()
+                self.assertTrue(route._home_context_measured(captured))
+
+    def test_low_quality_noncanonical_home_atlas_context_fails_closed(self) -> None:
+        runtime = FakeRuntime()
+        driver = FakeHomeDriver()
+        quality_zoomed = replace(
+            driver.step.localization,
+            recognized=False,
+            zoom_identity=ZoomIdentity.INTERMEDIATE,
+            screen_to_atlas=None,
+            viewport_polygon=(),
+            confidence=0.9623492629,
+            supporting_landmarks=(),
+            residual_px=0.2418417,
+            ambiguity_state=AmbiguityState.NONE,
+            stale=False,
+            overlay=False,
+        )
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=driver,
+            settle_seconds=0,
+        )
+        captured = runtime.capture("zoomed-home-negative")
+        variants = (
+            ("low_confidence", replace(quality_zoomed, confidence=0.849999)),
+            ("high_residual", replace(quality_zoomed, residual_px=3.000001)),
+            (
+                "ambiguous",
+                replace(
+                    quality_zoomed,
+                    ambiguity_state=AmbiguityState.INSUFFICIENT_LANDMARKS,
+                ),
+            ),
+            ("stale", replace(quality_zoomed, stale=True)),
+            ("overlay", replace(quality_zoomed, overlay=True)),
+        )
+        for label, localization in variants:
+            with self.subTest(label=label):
+                driver.localizer = type(
+                    "Localizer",
+                    (),
+                    {"localize": lambda _self, _frame, result=localization: result},
+                )()
+                route._home_localization_cache.clear()
+                self.assertFalse(route._home_context_measured(captured))
+
+    def test_quality_zoomed_context_cannot_authorize_initial_radial(self) -> None:
+        runtime = FakeRuntime()
+        driver = FakeHomeDriver()
+        quality_zoomed = _quality_zoomed_localization(driver.step.localization)
+        driver.localizer = type(
+            "Localizer",
+            (),
+            {"localize": lambda _self, _frame: quality_zoomed},
+        )()
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=driver,
+            recognizer=RecognitionQueue(_radial_recognition("a" * 64)),
+            settle_seconds=0,
+        )
+        source = runtime.capture("quality-zoomed-radial-source")
+        self.assertTrue(route._home_context_measured(source))
+        _normalized, blocked, bound_radial = route._normalize_known_start_to_home(
+            source
+        )
+        self.assertIsNotNone(blocked)
+        self.assertIsNone(bound_radial)
+        assert blocked is not None
+        self.assertEqual(blocked.reason, "initial_radial_home_context_not_established")
+        self.assertEqual(runtime.inputs, [])
+
+    def test_quality_zoomed_context_cannot_authorize_fresh_nova_dispatch(self) -> None:
+        runtime = FakeRuntime()
+        driver = FakeHomeDriver()
+        quality_zoomed = _quality_zoomed_localization(driver.step.localization)
+        driver.localizer = type(
+            "Localizer",
+            (),
+            {"localize": lambda _self, _frame: quality_zoomed},
+        )()
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=driver,
+            recognizer=RecognitionQueue(_radial_recognition("b" * 64)),
+            settle_seconds=0,
+        )
+        provenance = ResearchLabTapProvenance(
+            "nova-canary:open-research-lab:quality-zoomed",
+            "home.building.research_lab",
+            "c" * 64,
+            (198, 407, 363, 632),
+            10.0,
+        )
+        result = route._tap_bound_nova(provenance=provenance)
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.reason, "fresh_nova_home_context_not_established")
+        self.assertEqual(runtime.inputs, [])
+
+    def test_quality_zoomed_context_cannot_complete_terminal_home(self) -> None:
+        def route_for(runtime, recognizer, driver):
+            return NovaNavigationCanaryRoute(
+                runtime,
+                _identity(),
+                atlas_path=ATLAS_PATH,
+                home_driver=driver,
+                recognizer=recognizer,
+                settle_seconds=0,
+            )
+
+        pre_runtime = FakeRuntime()
+        pre_driver = FakeHomeDriver()
+        pre_quality = _quality_zoomed_localization(pre_driver.step.localization)
+        pre_driver.localizer = type(
+            "Localizer",
+            (),
+            {"localize": lambda _self, _frame: pre_quality},
+        )()
+        pre_route = route_for(pre_runtime, RecognitionQueue(), pre_driver)
+        pre_source = pre_runtime.capture("quality-zoomed-terminal-source")
+        self.assertTrue(pre_route._home_context_measured(pre_source))
+        pre_result = pre_route._return_home(
+            pre_source,
+            _home_recognition("d" * 64),
+        )
+        self.assertEqual(pre_result.status, "blocked")
+        self.assertEqual(pre_result.reason, "return_source_not_recognized")
+        self.assertEqual(pre_runtime.inputs, [])
+
+        settled_runtime = FakeRuntime()
+        settled_driver = FakeHomeDriver()
+        settled_quality = _quality_zoomed_localization(
+            settled_driver.step.localization
+        )
+        settled_driver.localizer = type(
+            "Localizer",
+            (),
+            {"localize": lambda _self, _frame: settled_quality},
+        )()
+        settled_route = route_for(
+            settled_runtime,
+            RecognitionQueue(
+                _nova_recognition("e" * 64),
+                _home_recognition("f" * 64),
+            ),
+            settled_driver,
+        )
+        settled_source = settled_runtime.capture("quality-zoomed-settled-source")
+        self.assertTrue(settled_route._home_context_measured(settled_source))
+        settled_result = settled_route._return_home(
+            settled_source,
+            _nova_recognition("g" * 64),
+        )
+        self.assertEqual(settled_result.status, "blocked")
+        self.assertEqual(settled_result.reason, "maximum_safe_return_inputs")
+        self.assertEqual(
+            sum(kind == "back" for kind, _ in settled_runtime.inputs),
+            1,
+        )
+        self.assertFalse(settled_result.terminal_home_verified)
+
+    def test_return_home_supplies_atlas_context_to_settled_recognition(self) -> None:
+        def contextual_recognizer(frame, *, home_context_visible=False, **_kwargs):
+            digest = frame_digest(frame)
+            if home_context_visible:
+                return _home_recognition(digest)
+            return _nova_recognition(digest)
+
+        runtime = FakeRuntime()
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=FakeHomeDriver(),
+            recognizer=contextual_recognizer,
+            settle_seconds=0,
+        )
+        source = runtime.capture("nova-return-source")
+        result = route._return_home(source, _nova_recognition("a" * 64))
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(result.reason, "verified_safe_return_home")
+        self.assertTrue(result.terminal_home_verified)
+        self.assertEqual(
+            sum(kind == "back" for kind, _ in runtime.inputs),
+            1,
+        )
+
+    def test_quality_zoomed_context_still_allows_bounded_zoom_recovery(self) -> None:
+        class ZoomTransport:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def zoom_out_once(self) -> None:
+                self.calls += 1
+
+        inner = FakeRuntime()
+        guarded = NavigationGuardedRuntime(
+            inner,
+            nova_navigation_route_declaration(),
+        )
+        driver = FakeHomeDriver()
+        quality_zoomed = _quality_zoomed_localization(driver.step.localization)
+        driver.localizer = type(
+            "Localizer",
+            (),
+            {"localize": lambda _self, _frame: quality_zoomed},
+        )()
+        driver.step = HomeDriverStep(
+            HomeDriverDisposition.RECOVER_ZOOM,
+            "quality_zoom_requires_bounded_recovery",
+            "quality-zoom-source",
+            quality_zoomed,
+            recovery_input_ordinal=1,
+        )
+        dispatched_sources: list[str] = []
+        driver.record_zoom_input_dispatched = (  # type: ignore[method-assign]
+            lambda source_sha256: dispatched_sources.append(source_sha256)
+        )
+        zoom_transport = ZoomTransport()
+        route = NovaNavigationCanaryRoute(
+            guarded,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=driver,
+            recognizer=RecognitionQueue(_home_recognition("h" * 64)),
+            zoom_transport=zoom_transport,
+            settle_seconds=0,
+            maximum_steps=1,
+        )
+        result = route.run()
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.reason, "maximum_navigation_steps")
+        self.assertEqual(zoom_transport.calls, 1)
+        self.assertEqual(dispatched_sources, ["quality-zoom-source"])
+        self.assertEqual(inner.inputs, [])
+
     def test_retained_radial_measured_home_context_succeeds(self) -> None:
         fixture = _fixture("blocked-canary-radial-48a116d3")
         path = FIXTURE_ROOT / fixture["path"]
@@ -990,7 +1298,8 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertLessEqual(abs(control_target[0] - old_sector_x), 1)
         self.assertLessEqual(abs(control_target[1] - y), 1)
 
-        self.assertFalse(black.observation.recognized)
+        self.assertTrue(black.observation.recognized)
+        self.assertEqual(black.observation.screen_state, "HOME_BASE")
         self.assertIsNone(black.target(NOVA_INTERACTION_TARGET))
 
         duplicate_template = duplicate.diagnostics["nova_radial_template"]
@@ -1117,12 +1426,17 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         x0 = center_x - width // 2
         y0 = center_y - height // 2
         varied[y0 : y0 + height, x0 : x0 + width] = scaled
-        recognized = recognize_nova_frame(
-            varied,
-            captured_monotonic=11.0,
-            research_lab_tap_provenance=_lab_provenance(fixture),
-            home_context_visible=True,
-        )
+        with patch.object(
+            nova_praise_vision,
+            "_text",
+            side_effect=AssertionError("template-bound radial must not invoke OCR"),
+        ):
+            recognized = recognize_nova_frame(
+                varied,
+                captured_monotonic=11.0,
+                research_lab_tap_provenance=_lab_provenance(fixture),
+                home_context_visible=True,
+            )
         self.assertTrue(recognized.observation.recognized)
         radial = recognized.diagnostics["research_lab_radial"]
         target = recognized.target(NOVA_INTERACTION_TARGET)
@@ -1439,12 +1753,17 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             atlas_path=ATLAS_PATH,
             settle_seconds=0,
         )
-        recognition, measured_home = route._recognize_with_measured_home(captured)
+        with patch.object(
+            nova_praise_vision,
+            "_text",
+            side_effect=AssertionError("measured Home must not invoke OCR"),
+        ):
+            recognition, measured_home = route._recognize_with_measured_home(captured)
         self.assertTrue(measured_home)
         radial = recognition.diagnostics.get("research_lab_radial") or {}
         self.assertFalse(radial.get("recognized"))
         self.assertEqual(radial.get("bind_method"), "none")
-        self.assertEqual(tuple(radial.get("ocr_terms") or ()), ("research",))
+        self.assertEqual(tuple(radial.get("ocr_terms") or ()), ())
         self.assertIsNone(recognition.target(NOVA_INTERACTION_TARGET))
         self.assertFalse(route._research_radial_geometry_present(recognition))
         self.assertNotEqual(route._navigation_surface(recognition), "RESEARCH_LAB_MENU")
@@ -1481,7 +1800,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         radial = recognition.diagnostics.get("research_lab_radial") or {}
         self.assertTrue(radial.get("hough_ambiguous") or radial.get("ambiguous_geometry"))
         self.assertEqual(radial.get("bind_method"), "none")
-        self.assertEqual(tuple(radial.get("ocr_terms") or ()), ("research",))
+        self.assertEqual(tuple(radial.get("ocr_terms") or ()), ())
         self.assertIsNone(recognition.target(NOVA_INTERACTION_TARGET))
         self.assertEqual(route._navigation_surface(recognition), "HOME_BASE")
         self.assertFalse(route._research_radial_geometry_present(recognition))
@@ -1585,6 +1904,30 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(result.reason, "initial_radial_ambiguous")
         self.assertEqual(runtime.inputs, [])
 
+    def test_return_back_stops_after_radial_successor(self) -> None:
+        runtime = FakeRuntime()
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=FakeHomeDriver(),
+            recognizer=RecognitionQueue(
+                _nova_recognition("1" * 64),
+                _radial_recognition("2" * 64),
+            ),
+            settle_seconds=0,
+            maximum_return_inputs=3,
+        )
+        captured = runtime.capture("return-source")
+        with patch.object(route, "_home_context_measured", return_value=False):
+            result = route._return_home(captured, _nova_recognition("0" * 64))
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.reason, "maximum_safe_return_inputs")
+        self.assertEqual(
+            sum(kind == "back" for kind, _ in runtime.inputs),
+            1,
+        )
+
     def test_project_owned_template_manifest_provenance(self) -> None:
         manifest = json.loads(ASSET_MANIFEST.read_text(encoding="utf-8"))
         entry = manifest["templates"][0]
@@ -1634,8 +1977,27 @@ class NovaPraiseFastRevalidationTests(unittest.TestCase):
             frame[y0:y1, x0:x1] = (0, 0, 255)
         return frame
 
+    def _current(
+        self,
+        frame: np.ndarray,
+        prior: NovaFrameRecognition,
+    ) -> NovaFrameRecognition:
+        digest = hashlib.sha256(frame.tobytes()).hexdigest()
+        observation = replace(
+            prior.observation,
+            frame_sha256=digest,
+            captured_monotonic=2.5,
+        )
+        return NovaFrameRecognition(
+            observation,
+            digest,
+            ((NOVA_PRAISE_TARGET, NOVA_PRAISE_ROI),),
+            {"header_text": "nova", "body_text": "praise"},
+        )
+
     def test_fast_revalidation_enables_when_prior_valid_and_red_present(self) -> None:
         prior = self._enabled_prior(attempts=6)
+        proposal_frame = self._frame(praise_red=True)
 
         def boom(*_args, **_kwargs):
             raise AssertionError("fast revalidation must not invoke OCR")
@@ -1646,8 +2008,9 @@ class NovaPraiseFastRevalidationTests(unittest.TestCase):
             nova_praise_vision, "_ocr_boxes", boom
         ):
             result = revalidate_nova_praise_frame_fast(
-                self._frame(praise_red=True),
+                proposal_frame.copy(),
                 prior=prior,
+                current=self._current(proposal_frame, prior),
                 captured_monotonic=2.5,
             )
         self.assertTrue(result.observation.praise_enabled)
@@ -1656,15 +2019,20 @@ class NovaPraiseFastRevalidationTests(unittest.TestCase):
         self.assertEqual(result.observation.praise_target_roi, NOVA_PRAISE_ROI)
         self.assertEqual(result.target(NOVA_PRAISE_TARGET), NOVA_PRAISE_ROI)
         self.assertEqual(result.observation.captured_monotonic, 2.5)
-        self.assertTrue(result.diagnostics.get("fast_revalidation"))
-        self.assertGreaterEqual(float(result.diagnostics["praise_red_ratio"]), 0.08)
-        self.assertFalse(any(key.endswith("_text") for key in result.diagnostics))
+        self.assertEqual(
+            result.diagnostics.get("immediate_revalidation"),
+            "independent_current_frame_semantics",
+        )
+        self.assertEqual(result.diagnostics["body_text"], "praise")
+        self.assertTrue(any(key.endswith("_text") for key in result.diagnostics))
 
     def test_fast_revalidation_fail_closed_without_red_or_invalid_prior(self) -> None:
         prior = self._enabled_prior()
+        proposal_frame = self._frame(praise_red=True)
         missing = revalidate_nova_praise_frame_fast(
             self._frame(praise_red=False),
             prior=prior,
+            current=None,
             captured_monotonic=2.5,
         )
         self.assertFalse(missing.observation.praise_enabled)
@@ -1680,10 +2048,29 @@ class NovaPraiseFastRevalidationTests(unittest.TestCase):
         rejected = revalidate_nova_praise_frame_fast(
             self._frame(praise_red=True),
             prior=disabled_prior,
+            current=self._current(proposal_frame, disabled_prior),
             captured_monotonic=2.5,
         )
         self.assertFalse(rejected.observation.praise_enabled)
         self.assertEqual(rejected.targets, ())
+
+    def test_fast_revalidation_rejects_changed_attempt_semantics(self) -> None:
+        frame = self._frame(praise_red=True)
+        prior = self._enabled_prior(attempts=6)
+        current = self._current(frame, prior)
+        current = NovaFrameRecognition(
+            replace(current.observation, attempts_remaining=5),
+            current.frame_sha256,
+            current.targets,
+            current.diagnostics,
+        )
+        result = revalidate_nova_praise_frame_fast(
+            frame,
+            prior=prior,
+            current=current,
+            captured_monotonic=2.5,
+        )
+        self.assertFalse(result.observation.recognized)
 
 
 if __name__ == "__main__":

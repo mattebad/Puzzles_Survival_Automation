@@ -19,7 +19,8 @@ their hashes, and the session/action key.
 | Ruins Chat/detail/list surfaces | parent/Home | `evidence_required` | Multiple source-gated Back calls exist; retain and classify each exact surface separately. |
 | Commander enhancement terminal | selected Daily | `evidence_required` | Current implementation assumes generic Back; no native before/after proof. |
 | Bioenhancer/radial surfaces | Home | `evidence_required`; generic helper unsafe | Current helper allows two generic Back attempts without exact source binding. Disable or replace before another live run. |
-| Nova/Research Lab surfaces | parent/Home | `evidence_required`; generic helper unsafe | Generic helper allows up to three Back attempts. The radial counterexample prohibits inference across Nova states. |
+| Nova screen (`NOVA_SCREEN`) | canonical Home | `safe` for one exact transition only | Retained native transition `be223f...` → immediate post `2405e1...` → settled Home `abb002...` authorizes at most one revalidated Nova-screen Back. |
+| Research Lab radial menu | Home | `unsafe` | The retained radial counterexample produced the exact exit dialog; never issue Android Back from `RESEARCH_LAB_MENU` or an unknown successor. |
 
 ## Exit-dialog recovery
 

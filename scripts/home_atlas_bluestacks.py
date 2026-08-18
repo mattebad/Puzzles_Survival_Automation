@@ -52,6 +52,7 @@ from tasks.home_atlas_planner import (
     SafeInteractionRegion,
     ViewportPlanningPolicy,
     camera_origin,
+    plan_direct_pan,
 )
 from tasks.home_atlas_vision import (
     BLUESTACKS_INTERACTION_ANCHOR,
@@ -527,6 +528,7 @@ class BlueStacksLocalizeFirstHomeDriver:
         self.localizer = localizer or BlueStacksHomeLocalizer(atlas, atlas_path)
         safe_region, calibration = bluestacks_direct_pan_contract()
         self.safe_region = safe_region
+        self.calibration = calibration
         self.navigator = DirectPanNavigator(
             atlas,
             building_id,
@@ -548,28 +550,18 @@ class BlueStacksLocalizeFirstHomeDriver:
             HomeContextLevel.HOME_CANONICAL,
         }:
             binding = bind_visible_building(frame, localization, self.building)
-            if binding is not None:
-                sx0, sy0, sx1, sy1 = self.safe_region.screen_box
-                bx0, by0, bx1, by1 = binding.target_roi
-                binding_safe = bool(
-                    binding.building_id == self.building.semantic_id
-                    and binding.frame_sha256 == localization.frame_sha256
-                    and binding.confidence >= 0.80
-                    and binding.semantic_evidence
-                    and not binding.overlay_intersects
-                    and not binding.ambiguous_overlap
-                    and sx0 <= bx0 < bx1 <= sx1
-                    and sy0 <= by0 < by1 <= sy1
+            if binding is None:
+                plan = plan_direct_pan(
+                    self.atlas,
+                    localization,
+                    self.building.semantic_id,
+                    self.safe_region,
+                    self.calibration,
                 )
-                if binding_safe:
-                    return HomeDriverStep(
-                        HomeDriverDisposition.COMPLETE,
-                        "current_frame_semantic_building_bound",
-                        digest,
-                        localization,
-                        binding,
-                    )
-            plan = self.navigator.plan(localization, binding)
+                if plan.disposition is PlanDisposition.PAN:
+                    plan = self.navigator.plan(localization, binding)
+            else:
+                plan = self.navigator.plan(localization, binding)
             disposition = {
                 PlanDisposition.COMPLETE: HomeDriverDisposition.COMPLETE,
                 PlanDisposition.BIND: HomeDriverDisposition.BIND,
