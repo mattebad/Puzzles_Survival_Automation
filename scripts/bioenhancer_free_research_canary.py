@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 import argparse
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -96,6 +98,41 @@ def _ocr_tokens(frame_bgr: np.ndarray, roi: tuple[int, int, int, int]) -> list[d
             }
         )
     return tokens
+
+
+_FREE_RESEARCH_COOLDOWN_RE = re.compile(
+    r"\bfree\b\s+in\s+\d{1,2}:\d{2}(?::\d{2})?\b",
+    re.IGNORECASE,
+)
+_FREE_RESEARCH_COUNT_RE = re.compile(r"(?<!\d)\d+\s*/\s*100(?!\d)")
+_FREE_RESEARCH_COUNT_GARBLE_RE = re.compile(r"(?<!\d)\d+\s*/\s*10\s*\)(?!\d)")
+
+
+def _free_research_cooldown_visible(token_text: str) -> bool:
+    """Return whether OCR shows the Free Research cooldown."""
+
+    normalized = " ".join(token_text.casefold().split())
+    return bool(_FREE_RESEARCH_COOLDOWN_RE.search(normalized))
+
+
+def evaluate_free_research_postcondition(token_text: str) -> dict[str, bool]:
+    """Evaluate OCR evidence for a completed free research pulse.
+
+    Weekly research progress (N/100) is diagnostic only, not a postcondition.
+    The Free-in cooldown is the proof that the free research pulse worked.
+    """
+
+    normalized = " ".join(token_text.casefold().split())
+    timer_proven = _free_research_cooldown_visible(normalized)
+    count_observed = bool(
+        _FREE_RESEARCH_COUNT_RE.search(normalized)
+        or _FREE_RESEARCH_COUNT_GARBLE_RE.search(normalized)
+    )
+    return {
+        "count_observed": count_observed,
+        "timer_proven": timer_proven,
+        "proven": timer_proven,
+    }
 
 
 def _union_roi(rois: list[tuple[int, int, int, int]]) -> tuple[int, int, int, int]:
@@ -217,6 +254,8 @@ def bind_free_research(frame_bgr: np.ndarray) -> BoundControl | None:
     tokens = _ocr_tokens(frame_bgr, search)
     texts = [t["text_cf"] for t in tokens]
     blob = " ".join(texts)
+    if _free_research_cooldown_visible(blob):
+        return None
     if "free" not in blob:
         return None
     free_token = next((t for t in tokens if t["text_cf"] == "free"), None)
@@ -370,10 +409,23 @@ def return_to_home_only(*, max_inputs: int = 2, settle_seconds: float = 1.5) -> 
             os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = previous_limit
 
 
-def run(*, max_inputs: int = 10, settle_seconds: float = 1.5) -> dict[str, Any]:
-    session_directory = _session_root()
-    invocation_id = session_directory.name
-    owner = "pnsctl-development-session:bioenhancer-free-research"
+def run(
+    *,
+    max_inputs: int = 10,
+    settle_seconds: float = 1.5,
+    session: DevelopmentSession | None = None,
+    runtime: LocalBlueStacksRuntime | None = None,
+    session_directory: Path | None = None,
+) -> dict[str, Any]:
+    """Run the canary standalone or inside an already-owned DevelopmentSession."""
+
+    if session is None:
+        session_directory = session_directory or _session_root()
+        invocation_id = session_directory.name
+        owner = "pnsctl-development-session:bioenhancer-free-research"
+    else:
+        max_inputs = session.max_inputs
+        session_directory = session_directory or session.session_directory
     result: dict[str, Any] = {
         "status": "evidence_required",
         "session_directory": str(session_directory),
@@ -382,13 +434,19 @@ def run(*, max_inputs: int = 10, settle_seconds: float = 1.5) -> dict[str, Any]:
     previous_limit = os.environ.get("PNS_DEVELOPMENT_MAX_INPUTS")
     os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = str(max_inputs)
     try:
-        with DevelopmentSession(
-            owner=owner,
-            invocation_id=invocation_id,
-            session_directory=session_directory,
-            max_inputs=max_inputs,
-        ) as session:
-            runtime = LocalBlueStacksRuntime.connect(
+        session_context = (
+            DevelopmentSession(
+                owner=owner,
+                invocation_id=invocation_id,
+                session_directory=session_directory,
+                max_inputs=max_inputs,
+            )
+            if session is None
+            else nullcontext(session)
+        )
+        with session_context as active_session:
+            session = active_session
+            runtime = runtime or LocalBlueStacksRuntime.connect(
                 adb=str(BLUESTACKS_ADB),
                 serial=BLUESTACKS_SERIAL,
                 output_directory=session_directory / "runtime",
@@ -663,16 +721,14 @@ def run(*, max_inputs: int = 10, settle_seconds: float = 1.5) -> dict[str, Any]:
                 result["post_sha256"] = settled.sha256
                 tokens = _ocr_tokens(settled.frame, (0, 700, 800, 1280))
                 token_text = " ".join(token["text_cf"] for token in tokens)
-                count_proven = "1/100" in token_text or "1 / 100" in token_text
-                timer_proven = "free" in token_text and "in" in token_text
+                postcondition = evaluate_free_research_postcondition(token_text)
                 result["semantic_postcondition"] = {
-                    "count_proven": count_proven,
-                    "timer_proven": timer_proven,
+                    **postcondition,
                     "ocr_tokens": [token["text"] for token in tokens],
                 }
                 return (
                     "free_research_postcondition"
-                    if count_proven and timer_proven
+                    if postcondition["proven"]
                     else "unknown"
                 )
 

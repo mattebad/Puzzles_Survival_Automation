@@ -750,6 +750,63 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(blocked.reason, "initial_radial_home_context_not_established")
         self.assertEqual(runtime.inputs, [])
 
+    def test_zoomed_base_surface_admits_initial_home_without_atlas(self) -> None:
+        frame = cv2.imread(str(FIXTURE_ROOT / "zoomed-home-a.png"), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+
+        class FixtureRuntime(FakeRuntime):
+            def capture(self, label: str) -> CapturedNativeFrame:
+                self.ordinal += 1
+                self.labels.append(label)
+                payload = cv2.imencode(".png", frame)[1].tobytes()
+                return CapturedNativeFrame(
+                    frame.copy(),
+                    payload,
+                    hashlib.sha256(payload).hexdigest(),
+                    time.monotonic(),
+                    Path(f"{label}.png"),
+                )
+
+        failed_localization = LocalizationResult(
+            False,
+            "BlueStacks 5 / Android",
+            "pns-bluestacks-5-p64-800x1280-v1",
+            ZoomIdentity.ZOOMED_IN,
+            None,
+            (),
+            0.40,
+            (),
+            12.0,
+            AmbiguityState.INSUFFICIENT_LANDMARKS,
+            "interior",
+            "d" * 64,
+            "now",
+            False,
+            False,
+        )
+        runtime = FixtureRuntime()
+        driver = FakeHomeDriver()
+        driver.localizer = type(
+            "Localizer",
+            (),
+            {"localize": lambda _self, _frame: failed_localization},
+        )()
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=driver,
+            settle_seconds=0,
+        )
+        source = runtime.capture("canary-source")
+        self.assertTrue(route._base_surface_recognized(source))
+        self.assertFalse(route._home_context_measured(source))
+        _normalized, blocked, bound_radial = route._normalize_known_start_to_home(source)
+        self.assertIsNone(blocked)
+        self.assertIsNone(bound_radial)
+        self.assertIsNotNone(_normalized)
+        self.assertEqual(runtime.inputs, [])
+
     def test_quality_zoomed_context_cannot_authorize_fresh_nova_dispatch(self) -> None:
         runtime = FakeRuntime()
         driver = FakeHomeDriver()

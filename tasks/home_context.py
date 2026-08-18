@@ -2,6 +2,11 @@
 
 Adapts existing Home Atlas localization/navigation. Does not dispatch ADB input and does
 not replace the verified navigate-building runtime path. Canonical Home is recovery only.
+
+Three facts stay distinct:
+- Base-surface identity (zoom-independent; see ``tasks.home_base_vision``)
+- Atlas localization / camera pose (``is_home_localized`` / ``is_atlas_localized``)
+- Canonical Home (fully zoomed out + near-origin; terminal / recovery only)
 """
 
 from __future__ import annotations
@@ -87,6 +92,8 @@ def ensure_home_ready(observation: HomeReadyObservation) -> HomeContextDecision:
 
 
 def is_home_localized(localization: LocalizationResult, *, confidence_floor: float = LOCALIZATION_CONFIDENCE_FLOOR) -> bool:
+    """Atlas pose is fully zoomed out and positively localized (not Base-surface identity)."""
+
     return bool(
         localization.recognized
         and localization.screen_to_atlas is not None
@@ -98,7 +105,17 @@ def is_home_localized(localization: LocalizationResult, *, confidence_floor: flo
     )
 
 
+def is_atlas_localized(
+    localization: LocalizationResult, *, confidence_floor: float = LOCALIZATION_CONFIDENCE_FLOOR
+) -> bool:
+    """Alias for atlas-localized Home; keep Base-surface recognition separate."""
+
+    return is_home_localized(localization, confidence_floor=confidence_floor)
+
+
 def is_home_canonical(localization: LocalizationResult, *, confidence_floor: float = LOCALIZATION_CONFIDENCE_FLOOR) -> bool:
+    """Terminal/recovery Home: fully zoomed out and near the calibration origin."""
+
     if not is_home_localized(localization, confidence_floor=confidence_floor):
         return False
     if localization.zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT:
@@ -112,6 +129,14 @@ def is_home_canonical(localization: LocalizationResult, *, confidence_floor: flo
     tx = localization.screen_to_atlas[0][2]
     ty = localization.screen_to_atlas[1][2]
     return abs(tx) <= 8.0 and abs(ty) <= 8.0
+
+
+def is_canonical_home(
+    localization: LocalizationResult, *, confidence_floor: float = LOCALIZATION_CONFIDENCE_FLOOR
+) -> bool:
+    """Alias for terminal canonical Home."""
+
+    return is_home_canonical(localization, confidence_floor=confidence_floor)
 
 
 def classify_home_context(

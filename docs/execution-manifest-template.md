@@ -1,9 +1,11 @@
 # Compact execution manifest
 
 Use this frozen manifest only for the STEP_BACK redesign, architecture,
-cross-contract, or safety-boundary case. Routine live flow development uses the
-stateful [`flow-attempt-ledger-template.md`](flow-attempt-ledger-template.md)
-and repairs local defects in-session without freezing a new manifest per defect.
+cross-contract, or safety-boundary case. Routine live flow delivery uses
+`pnsctl conduct <flow_id>` and conductor-owned state under
+`.local-orchestrator/conductor/`; the human-readable framing notes may still
+follow [`flow-attempt-ledger-template.md`](flow-attempt-ledger-template.md).
+Do not freeze a new Sol/Luna/Terra manifest per local defect.
 
 ## Task ID and objective
 - Task ID: `<stable task identifier>`

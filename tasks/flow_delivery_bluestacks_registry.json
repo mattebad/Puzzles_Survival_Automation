@@ -62,6 +62,24 @@
       "evidence_validator": "nova_praise_supervised_one_free_pulse_evidence",
       "recovery_handler": "nova_praise_supervised_one_free_pulse_recovery",
       "consequence_class": "consequential"
+    },
+    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": {
+      "runner": "bioenhancer_free_research_bluestacks_runner",
+      "evidence_validator": "bioenhancer_free_research_bluestacks_evidence",
+      "recovery_handler": "bioenhancer_free_research_bluestacks_recovery",
+      "consequence_class": "consequential"
+    },
+    "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION": {
+      "runner": "daily_row_claim_bluestacks_runner",
+      "evidence_validator": "daily_row_claim_bluestacks_evidence",
+      "recovery_handler": "daily_row_claim_bluestacks_recovery",
+      "consequence_class": "consequential"
+    },
+    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": {
+      "runner": "supply_depot_bluestacks_runner",
+      "evidence_validator": "supply_depot_bluestacks_evidence",
+      "recovery_handler": "supply_depot_bluestacks_recovery",
+      "consequence_class": "consequential"
     }
   }
 }

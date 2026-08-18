@@ -214,14 +214,16 @@ def _ultimate_runtime_context(
 ) -> tuple[Mapping[str, Any] | None, int]:
     """Validate the current session contract before creating or launching a child."""
 
+    development_session = lease.get("development_session")
+    live_development_session = development_session is True or isinstance(
+        getattr(development_session, "session_directory", None), Path
+    )
     marker_present = (
         "development_session" in queue
         or "development_session" in lease
     )
     if marker_present:
-        if queue.get("development_session") is not True or lease.get(
-            "development_session"
-        ) is not True:
+        if queue.get("development_session") is not True or not live_development_session:
             raise _pnsctl().OperatorError(
                 "Ultimate Challenge development-session markers are required"
             )

@@ -18,6 +18,8 @@ from .profile import PROFILE_ID
 BIOENHANCER_SCREEN = "BIOENHANCER"
 BIOENHANCER_FREE_TARGET = "bioenhancer-free-research"
 BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
+BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
+BLUESTACKS_NATIVE_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -61,16 +63,26 @@ def _target_inside_panel(observation: BioenhancerObservation) -> bool:
     return bool(px0 <= tx0 < tx1 <= px1 and py0 <= ty0 < ty1 <= py1)
 
 
-def _has_bliss_native_source(observation: BioenhancerObservation) -> bool:
+def _has_native_source(observation: BioenhancerObservation) -> bool:
     refs = tuple(str(ref) for ref in observation.evidence_refs)
+    provenance_profile_pairs = {
+        (BLISS_NATIVE_TARGET_PROVENANCE, PROFILE_ID),
+        (BLUESTACKS_NATIVE_TARGET_PROVENANCE, BLUESTACKS_NATIVE_PROFILE_ID),
+    }
     return bool(
-        observation.target_provenance == BLISS_NATIVE_TARGET_PROVENANCE
+        (observation.target_provenance, observation.runtime_profile_id)
+        in provenance_profile_pairs
         and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)
         and any(ref.startswith(("evidence/", "synthetic:")) for ref in refs)
-        and observation.runtime_profile_id == PROFILE_ID
     )
+
+
+def _has_bliss_native_source(observation: BioenhancerObservation) -> bool:
+    """Backward-compatible name for the shared native-source guard."""
+
+    return _has_native_source(observation)
 
 
 def bioenhancer_authorizeable(observation: BioenhancerObservation) -> bool:
@@ -93,7 +105,7 @@ def bioenhancer_authorizeable(observation: BioenhancerObservation) -> bool:
         and bool(observation.game_day_id)
         and not observation.reset_guard_active
         and observation.recognized
-        and _has_bliss_native_source(observation)
+        and _has_native_source(observation)
     )
 
 
@@ -114,7 +126,7 @@ def bioenhancer_transaction_spec(observation: BioenhancerObservation) -> ActionT
             "selected_bioenhancer",
             "explicit_free_single_research",
             "free_banner",
-            "bliss_native_target_evidence",
+            "native_target_evidence",
             "explicit_zero_cost",
         ),
         semantic_postconditions=("research_result_or_cooldown_change",),

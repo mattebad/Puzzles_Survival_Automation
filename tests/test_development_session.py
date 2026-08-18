@@ -257,6 +257,63 @@ class DevelopmentSessionTests(unittest.TestCase):
             summary = json.loads((root / "session" / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary["input_count"], 2)
 
+    def test_unknown_successor_uses_zero_input_settled_capture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            before, immediate, settled = (
+                frame("settled-before"),
+                frame("settled-immediate"),
+                frame("settled-successor"),
+            )
+            captures = iter((before, immediate, settled))
+            labels: list[str] = []
+
+            def capture(label: str) -> CapturedNativeFrame:
+                labels.append(label)
+                return next(captures)
+
+            def recognize(source: CapturedNativeFrame) -> str:
+                return "COMMANDER_INFO" if source is settled else "unknown"
+
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with boundary.DevelopmentSession(
+                    owner="test",
+                    invocation_id="settled-1",
+                    session_directory=root / "session",
+                    max_inputs=1,
+                ) as session:
+                    result = session.run_action(
+                        action_class="navigation",
+                        label="delayed-commander-entry",
+                        capture=capture,
+                        dispatch=lambda _source: None,
+                        recognize=recognize,
+                        settled_successor=lambda: session.observe(
+                            capture, label="delayed-commander-entry-settled"
+                        ),
+                    )
+
+            self.assertEqual(result.status, "completed")
+            self.assertEqual(result.state, "COMMANDER_INFO")
+            self.assertEqual(result.after_sha256, settled.sha256)
+            self.assertEqual(session.input_count, 1)
+            self.assertEqual(
+                labels,
+                [
+                    "delayed-commander-entry-immediate-before",
+                    "delayed-commander-entry-immediate-post",
+                    "delayed-commander-entry-settled",
+                ],
+            )
+            action = json.loads(
+                (root / "session" / "actions.jsonl").read_text(encoding="utf-8")
+            )
+            self.assertEqual(action["status"], "completed")
+            self.assertEqual(action["state"], "COMMANDER_INFO")
+            self.assertEqual(action["immediate_post_sha256"], immediate.sha256)
+            self.assertEqual(action["settled_successor_sha256"], settled.sha256)
+            self.assertEqual(action["after_sha256"], settled.sha256)
+
     def test_real_money_cash_mall_confirmation_is_rejected_before_dispatch(self):
         dispatched = []
         with tempfile.TemporaryDirectory() as directory:

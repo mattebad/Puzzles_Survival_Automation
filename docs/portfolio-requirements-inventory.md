@@ -100,8 +100,10 @@ Daily rows. They are design references, not current-runtime authorization.
   Bioenhancer free research, Help Allies, Recruitment, Training, Campaign AP, and Ruins Challenge
   retain their accepted proof layers. Their existing production-registration snapshots are not
   broadened, and scheduler eligibility remains false.
-- Supply Depot canonical route and free-attempt mechanics are reusable, but Daily all-free-attempt
-  completion through `Free` disappearance and independent Daily `5/5` proof remain missing.
+- Supply Depot canonical route and free-attempt mechanics are reusable
+  (`docs/research/home_ui_atlas.md` hold-to-exhaust; `tasks/supply_depot.py`), but current
+  BlueStacks `pnsctl conduct` proof of all-free-attempt completion through `Free`
+  disappearance remains missing.
 
 ### Scoped owner and state decisions
 
@@ -116,8 +118,8 @@ Daily rows. They are design references, not current-runtime authorization.
   `IMPLEMENTATION_AND_EVIDENCE_REQUIRED`.
 - `nanoweapon-daily` owns claim-first 100-part Normal Craft:
   `IMPLEMENTATION_AND_EVIDENCE_REQUIRED`.
-- `hero-upgrade` owns Wally-only three-upgrade/reset behavior:
-  `IMPLEMENTATION_AND_EVIDENCE_REQUIRED`.
+- `hero-upgrade` owns **Wali**-only three-upgrade/reset behavior (one 150-diamond reset
+  when required): `IMPLEMENTATION_AND_EVIDENCE_REQUIRED`.
 - `hero-duel` owns three free launches and immediate exits:
   `IMPLEMENTATION_AND_EVIDENCE_REQUIRED`.
 - `enhancement-gear-native-proof`, `enhancement-chip-native-proof`, and
@@ -129,8 +131,12 @@ Daily rows. They are design references, not current-runtime authorization.
 The portfolio supplies product decisions for every scoped owner above. Old disabled replay
 contracts identify missing implementation, not an unresolved user decision. The Gathering
 product-policy registry and executable queue row now agree on the exact level-5/free-tile/free-slot/
-default-formation policy and remain evidence-gated. Rare Earth Shop still requires the exact
-current item label/cost as evidence; `use_resource_item` still requires catalog admission.
+default-formation policy and remain evidence-gated. Shop identities follow matrix purchase
+variants plus Mystery Shop / Alliance navigation already captured for this portfolio
+(Ruins/Rare Earth static catalogs; Alliance Daily 1★ gear-enhancer via Shop → Other, distinct
+from rotating weekly offers). `use_resource_item` still requires catalog admission.
+Noah's Tavern Daily vs free-attempt maintenance remains as in
+`docs/noahs-tavern-recruit-bluestacks.md` and the two recruitment gameplay contracts.
 
 ### Evidence and dependency order
 
@@ -141,16 +147,17 @@ manifest for the first queue-authorized item.
 2. Daily milestone Claim: separate ready chest and opened-chest or point successor.
 3. Use Resource Item: current catalog admission, then exact `1K Food`, quantity one, inventory/Daily
    successor, and Home.
-4. Supply Depot: all displayed free attempts through `Free` disappearance and Daily `5/5`.
+4. Supply Depot: exhaust observed free attempts per home-atlas / `supply_depot` contract;
+   Daily quest row progress is separate evidence.
 5. Alliance Tech: highlighted tech, yellow-resource control, diamond negative, ten-count/resource
    deltas, and Home.
-6. Alliance Shop, Ruins Shop, Rare Earth Shop: independent item/cost/balance/successor evidence;
-   shared navigation does not merge ownership.
+6. Alliance / Ruins / Rare Earth shops: independent item/cost/balance/successor evidence per
+   matrix variants; shared navigation does not merge ownership.
 7. Nano Material Production: claim/idle/active/start/21600-second timer, due-time restart
    persistence, and Home.
 8. Nanoweapon Daily: only after Nano Material acceptance; completed-claim, Normal Craft, 100 parts,
    43200-second timer, reset idempotency, Daily `0→1`, and Home.
-9. Hero Upgrade, then Hero Duel: Wally/reset/reorder evidence; then free-opponent/popup/exit/loss
+9. Hero Upgrade, then Hero Duel: **Wali**/reset/reorder evidence; then free-opponent/popup/exit/loss
    variants and three combat-dispatch receipts.
 10. Gear, Chip, and Module: separate fresh native semantics and canaries.
 11. Gathering: accepted World boundary → category/level 5 → Gas reveal → free-tile/occupancy

@@ -173,8 +173,15 @@ P&S project workflow constraints:
 | --- | --- | --- |
 | Trivial or leaf | Light direct fast path | No delegation required |
 | Localized/offline, including one-file fixes | Medium; main-agent owned | Promote when a trigger in the Heavy row appears |
-| Substantive live gameplay-flow development | Heavy; Sol control-plane ownership with bounded Luna production ownership | Promote Medium to Heavy for cross-cutting recognizer, navigation, recovery, retry, or ADB behavior, multiple interacting production packages, or a second materially distinct live failure |
-One initial live failure alone does not require promotion or an extra review.
+| Routine live flow delivery / lean reproof of an already-contracted flow | Medium via `pnsctl conduct`; repair-and-continue in-session | Promote to Heavy only for architecture, safety-boundary, cross-contract redesign, or `diminishing_returns` STEP_BACK |
+| New architecture, safety-boundary, or cross-contract redesign | Heavy; Sol control-plane with bounded Luna + Terra | — |
+One initial live failure alone does not require Heavy promotion or an extra review.
+- **Default delivery driver:** `pnsctl conduct <flow_id>` owns the per-flow loop
+  (framing → observe/run-flow → classify `summary.json` → CONTINUE / STEP_BACK /
+  ESCALATE / DONE). Per-flow conductor state lives under
+  `.local-orchestrator/conductor/`. Frozen Sol/Luna/Terra manifests and chat
+  stage/turn budgets are **not** the routine delivery path; they remain historical
+  reference and apply only when the matrix above selects Heavy.
 - The Sol parent owns architecture and one coherent pre-canary integration
   acceptance after the bounded Luna self-check and named Terra package are
   complete. Do not request incremental patch reviews unless a new
@@ -193,9 +200,12 @@ One initial live failure alone does not require promotion or an extra review.
 - Keep solutions proportionate; do not let perfect be the enemy of good.
 
 Convergence-governed autonomous flow delivery (overrides per-defect Heavy ceremony).
-The full rules live in [`docs/flow-attempt-ledger-template.md`](docs/flow-attempt-ledger-template.md);
-keep one stateful ledger per active flow and consult it rather than duplicating
-detail here. The load-bearing invariants:
+Routine live delivery is executed by `pnsctl conduct` and the conductor-owned
+per-flow state under `.local-orchestrator/conductor/` — not by freezing a new
+Sol/Luna/Terra manifest per defect. The design ledger template remains
+[`docs/flow-attempt-ledger-template.md`](docs/flow-attempt-ledger-template.md)
+for human-readable framing notes; the machine-readable conductor state is
+authoritative at runtime. Load-bearing invariants:
 - The unit of work is the *flow*, not the defect. The ledger holds the framing
   gate, furthest-progress ratchet, durable-knowledge-consulted list,
   defect-signature ledger, convergence counters, and the agent-owned decision table.

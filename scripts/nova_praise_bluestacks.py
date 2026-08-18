@@ -49,7 +49,13 @@ from scripts.navigation_development_boundary import (
     require_fixed_orchestrator_path,
 )
 from tasks.home_atlas import AmbiguityState, ZoomIdentity, load_home_atlas
-from tasks.home_context import HomeContextLevel, HomeReadyObservation, localize_home
+from tasks.home_base_vision import recognize_base_surface
+from tasks.home_context import (
+    HomeContextLevel,
+    HomeReadyObservation,
+    is_home_canonical,
+    localize_home,
+)
 from tasks.nova_praise import NOVA_INTERACTION_TARGET
 from tasks.nova_praise_pulse import RESEARCH_LAB_BUILDING_ID
 from tasks.runtime_identity import VerifiedRuntimeIdentity
@@ -338,6 +344,7 @@ class NovaNavigationCanaryRoute:
         self.records: list[dict[str, object]] = []
         self.input_count = 0
         self._home_localization_cache: dict[str, object] = {}
+        self._base_surface_cache: dict[str, object] = {}
 
     def _capture(self, label: str):
         return self.runtime.capture(label)
@@ -487,6 +494,18 @@ class NovaNavigationCanaryRoute:
             self._home_localization_cache[captured.sha256] = localization
         return localization
 
+    def _base_surface_recognition(self, captured):
+        recognition = self._base_surface_cache.get(captured.sha256)
+        if recognition is None:
+            recognition = recognize_base_surface(captured.frame)
+            self._base_surface_cache[captured.sha256] = recognition
+        return recognition
+
+    def _base_surface_recognized(self, captured) -> bool:
+        """Zoom-independent Base/town admission; never consults the bottom nav strip."""
+
+        return bool(self._base_surface_recognition(captured).recognized)
+
     def _home_localized(self, captured) -> bool:
         localization = self._home_localization(captured)
         decision = localize_home(self.home_driver.ready, localization)
@@ -494,6 +513,10 @@ class NovaNavigationCanaryRoute:
             HomeContextLevel.HOME_LOCALIZED,
             HomeContextLevel.HOME_CANONICAL,
         }
+
+    def _home_canonical(self, captured) -> bool:
+        localization = self._home_localization(captured)
+        return is_home_canonical(localization)
 
     def _home_context_measured(self, captured) -> bool:
         localization = self._home_localization(captured)
@@ -517,7 +540,11 @@ class NovaNavigationCanaryRoute:
         )
 
     def _recognize_with_measured_home(self, captured, *, provenance=None):
-        home_visible = self._home_context_measured(captured)
+        # Base-surface OR measured atlas context may establish Home visibility for
+        # recognition. Atlas localization remains required for binding/dispatch.
+        home_visible = self._base_surface_recognized(captured) or self._home_context_measured(
+            captured
+        )
         recognition = self._recognize(
             captured,
             provenance=provenance,
@@ -652,7 +679,10 @@ class NovaNavigationCanaryRoute:
                     tuple(self.records),
                     str(self.runtime.session),
                 ), None
-            if surface != NOVA_SCREEN and self._home_context_measured(current_capture):
+            if surface != NOVA_SCREEN and (
+                self._base_surface_recognized(current_capture)
+                or self._home_context_measured(current_capture)
+            ):
                 return current_capture, None, None
             if surface != NOVA_SCREEN:
                 return None, NovaNavigationCanaryResult(
@@ -806,6 +836,21 @@ class NovaNavigationCanaryRoute:
                     tuple(self.records),
                     str(self.runtime.session),
                 )
+            # Already on Base after a confirmed action: never spend another Back.
+            # Attempt bounded zoom recovery when available, else stop unresolved.
+            if surface == "HOME_BASE" and self._base_surface_recognized(current_capture):
+                recovered = self._recover_canonical_after_return(current_capture, ordinal)
+                if recovered is not None:
+                    return recovered
+                return NovaNavigationCanaryResult(
+                    "blocked",
+                    "return_base_recognized_awaiting_canonical",
+                    self.input_count,
+                    0,
+                    False,
+                    tuple(self.records),
+                    str(self.runtime.session),
+                )
             if surface != NOVA_SCREEN:
                 return NovaNavigationCanaryResult(
                     "blocked",
@@ -844,16 +889,26 @@ class NovaNavigationCanaryRoute:
                 settled
             )
             settled_surface = self._navigation_surface(settled_recognition)
-            if (
-                settled_surface == "HOME_BASE"
-                and self._home_localized(settled)
-            ):
+            if settled_surface == "HOME_BASE" and self._home_localized(settled):
                 return NovaNavigationCanaryResult(
                     "completed",
                     "verified_safe_return_home",
                     self.input_count,
                     0,
                     True,
+                    tuple(self.records),
+                    str(self.runtime.session),
+                )
+            if settled_surface == "HOME_BASE" and self._base_surface_recognized(settled):
+                recovered = self._recover_canonical_after_return(settled, ordinal)
+                if recovered is not None:
+                    return recovered
+                return NovaNavigationCanaryResult(
+                    "blocked",
+                    "return_base_recognized_awaiting_canonical",
+                    self.input_count,
+                    0,
+                    False,
                     tuple(self.records),
                     str(self.runtime.session),
                 )
@@ -868,6 +923,57 @@ class NovaNavigationCanaryRoute:
             tuple(self.records),
             str(self.runtime.session),
         )
+
+    def _recover_canonical_after_return(self, captured, ordinal: int):
+        """After Back lands on Base, recover fully-zoomed-out localization without another Back."""
+
+        if self._home_localized(captured):
+            return NovaNavigationCanaryResult(
+                "completed",
+                "verified_safe_return_home",
+                self.input_count,
+                0,
+                True,
+                tuple(self.records),
+                str(self.runtime.session),
+            )
+        if not isinstance(self.runtime, NavigationGuardedRuntime):
+            return None
+        if self.zoom_transport is None:
+            return None
+        if not (
+            self._home_localized(captured) or self._home_context_measured(captured)
+        ):
+            return None
+        try:
+            self.runtime.dispatch_zoom_out(
+                captured,
+                make_source_safety_facts(
+                    recognized=True,
+                    source_state="HOME_BASE",
+                    frame_sha256=captured.sha256,
+                    captured_monotonic=captured.captured_monotonic,
+                ),
+                transport=self.zoom_transport.zoom_out_once,
+            )
+        except Exception:
+            return None
+        _immediate_post, settled = self._settle(
+            f"canary-return-zoom-{ordinal:02d}-immediate-post",
+            f"canary-return-zoom-{ordinal:02d}-settled",
+        )
+        self._record_input("bounded_zoom_out", captured, settled)
+        if self._home_localized(settled):
+            return NovaNavigationCanaryResult(
+                "completed",
+                "verified_safe_return_home",
+                self.input_count,
+                0,
+                True,
+                tuple(self.records),
+                str(self.runtime.session),
+            )
+        return None
 
     def run(self) -> NovaNavigationCanaryResult:
         source = self._capture("canary-source")

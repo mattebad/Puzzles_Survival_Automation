@@ -71,6 +71,7 @@ FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
 )
 BLUESTACKS_FLOW_IDS = (
     "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
+    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
     "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
     "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
@@ -81,6 +82,7 @@ BLUESTACKS_FLOW_IDS = (
     "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
     "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
     "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
     "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
     "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
     "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
@@ -161,6 +163,30 @@ def _register_checked_in_bluestacks_handlers() -> None:
         from flow_delivery_nova_praise_bluestacks import (
             register as register_nova_praise,
         )
+    try:
+        from scripts.flow_delivery_bioenhancer_bluestacks import (
+            register as register_bioenhancer,
+        )
+    except ImportError:
+        from flow_delivery_bioenhancer_bluestacks import (
+            register as register_bioenhancer,
+        )
+    try:
+        from scripts.flow_delivery_daily_row_claim_bluestacks import (
+            register as register_daily_row_claim,
+        )
+    except ImportError:
+        from flow_delivery_daily_row_claim_bluestacks import (
+            register as register_daily_row_claim,
+        )
+    try:
+        from scripts.flow_delivery_supply_depot_bluestacks import (
+            register as register_supply_depot,
+        )
+    except ImportError:
+        from flow_delivery_supply_depot_bluestacks import (
+            register as register_supply_depot,
+        )
 
     register_campaign(
         _BLUESTACKS_FLOW_RUNNERS,
@@ -198,6 +224,21 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
     register_nova_praise(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+    register_bioenhancer(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+    register_daily_row_claim(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+    register_supply_depot(
         _BLUESTACKS_FLOW_RUNNERS,
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
@@ -5598,6 +5639,168 @@ def automation_service_offline(args: argparse.Namespace) -> int:
     return automation_main(argv)
 
 
+def conduct_flow(
+    flow_id: str,
+    *,
+    live: bool = False,
+    yes: bool = False,
+    max_inputs: int = 8,
+    framing: Mapping[str, bool] | None = None,
+    summary_path: Path | None = None,
+    state_root: Path | None = None,
+    runtime_scope: str | None = None,
+    account_id: str | None = None,
+    server_id: str | None = None,
+    reset_id: str | None = None,
+    identity_evidence: Path | None = None,
+) -> str:
+    """Run one conductor iteration for a registered flow.
+
+    Dry-run by default: validates framing, prints the plan, and writes/updates the
+    conductor-owned per-flow state file. Live execution requires ``--live --yes`` and
+    goes through development-session observe + run-flow (never bypasses pnsctl).
+    """
+
+    from tasks.flow_conductor import (
+        FramingChecklist,
+        apply_framing,
+        framing_plan,
+        load_state,
+        record_iteration,
+        save_state,
+    )
+
+    if flow_id not in BLUESTACKS_FLOW_IDS:
+        raise OperatorError(f"unknown BlueStacks flow id: {flow_id}")
+
+    state = load_state(flow_id, root=state_root)
+    checklist_values = {
+        "intent_match": True,
+        "no_documented_unsafe_input": True,
+        "no_manual_only_precondition": True,
+        "consequential_actions_enumerated": True,
+        "durable_knowledge_consulted": True,
+    }
+    if framing:
+        checklist_values.update({key: bool(value) for key, value in framing.items()})
+    checklist = FramingChecklist(**checklist_values)
+    state = apply_framing(state, checklist)
+    plan = framing_plan(flow_id)
+
+    if not checklist.complete():
+        path = save_state(state, root=state_root)
+        return json.dumps(
+            {
+                "status": "framing_incomplete",
+                "decision": state.last_decision,
+                "flow_id": flow_id,
+                "state_path": str(path),
+                "plan": plan,
+            },
+            sort_keys=True,
+        )
+
+    if summary_path is not None:
+        summary = json.loads(Path(summary_path).read_text(encoding="utf-8"))
+        state = record_iteration(
+            state,
+            summary=summary,
+            milestone=str(summary.get("status") or ""),
+            evidence_ref=str(summary_path),
+        )
+        path = save_state(state, root=state_root)
+        return json.dumps(
+            {
+                "status": state.status,
+                "decision": state.last_decision,
+                "blocker": state.last_blocker,
+                "flow_id": flow_id,
+                "state_path": str(path),
+                "plan": plan,
+            },
+            sort_keys=True,
+        )
+
+    if not live:
+        path = save_state(state, root=state_root)
+        return json.dumps(
+            {
+                "status": "dry_run",
+                "decision": "CONTINUE",
+                "flow_id": flow_id,
+                "state_path": str(path),
+                "plan": plan,
+                "note": "Pass --live --yes to observe then run-flow through pnsctl.",
+            },
+            sort_keys=True,
+        )
+
+    if not yes:
+        raise OperatorError("live conduct requires --yes")
+
+    observe_output = development_session_observe(
+        max_inputs=1,
+        flow_id=flow_id,
+        command_argv=[
+            "development-session",
+            "observe",
+            "--flow-id",
+            flow_id,
+            "--max-inputs",
+            "1",
+        ],
+    )
+    run_output = development_session_run_flow(
+        flow_id,
+        live=True,
+        yes=True,
+        max_inputs=max_inputs,
+        runtime_scope=runtime_scope,
+        account_id=account_id,
+        server_id=server_id,
+        reset_id=reset_id,
+        identity_evidence=identity_evidence,
+        command_argv=[
+            "development-session",
+            "run-flow",
+            flow_id,
+            "--live",
+            "--yes",
+            "--max-inputs",
+            str(max_inputs),
+        ],
+    )
+    run_payload = json.loads(run_output) if run_output.strip().startswith("{") else {
+        "status": "unknown",
+        "raw": run_output,
+    }
+    state = record_iteration(
+        state,
+        summary=run_payload if isinstance(run_payload, dict) else {"status": "unknown"},
+        milestone=str(
+            (run_payload or {}).get("status")
+            if isinstance(run_payload, dict)
+            else "unknown"
+        ),
+    )
+    path = save_state(state, root=state_root)
+    return json.dumps(
+        {
+            "status": state.status,
+            "decision": state.last_decision,
+            "blocker": state.last_blocker,
+            "flow_id": flow_id,
+            "state_path": str(path),
+            "observe": json.loads(observe_output)
+            if observe_output.strip().startswith("{")
+            else observe_output,
+            "run": run_payload,
+            "plan": plan,
+        },
+        sort_keys=True,
+    )
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     root.add_argument("--run-id", default="help-all-20260713")
@@ -5669,6 +5872,33 @@ def parser() -> argparse.ArgumentParser:
     development_run.add_argument("--server-id")
     development_run.add_argument("--reset-id")
     development_run.add_argument("--identity-evidence", type=Path)
+    conduct = sub.add_parser(
+        "conduct",
+        help=(
+            "Autonomous flow-delivery conductor iteration "
+            "(dry-run by default; live requires --live --yes)"
+        ),
+    )
+    conduct.add_argument("flow_id", choices=BLUESTACKS_FLOW_IDS)
+    conduct.add_argument("--live", action="store_true")
+    conduct.add_argument("--yes", action="store_true")
+    conduct.add_argument("--max-inputs", type=int, default=8)
+    conduct.add_argument(
+        "--summary",
+        type=Path,
+        help="Classify an existing summary.json without live input",
+    )
+    conduct.add_argument(
+        "--state-root",
+        type=Path,
+        default=None,
+        help="Override conductor state directory (tests)",
+    )
+    conduct.add_argument("--runtime-scope")
+    conduct.add_argument("--account-id")
+    conduct.add_argument("--server-id")
+    conduct.add_argument("--reset-id")
+    conduct.add_argument("--identity-evidence", type=Path)
     rec = sub.add_parser("reconcile")
     rec.add_argument("--source", type=Path, required=True)
     rec.add_argument("--output", type=Path, required=True)
@@ -6005,6 +6235,42 @@ def main(argv: Sequence[str] | None = None) -> int:
                     {
                         "status": "failed",
                         "command": f"development-session {args.development_command}",
+                        "error": str(exc),
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+    if args.command == "conduct":
+        try:
+            output = conduct_flow(
+                args.flow_id,
+                live=bool(args.live),
+                yes=bool(args.yes),
+                max_inputs=int(args.max_inputs),
+                summary_path=args.summary,
+                state_root=args.state_root,
+                runtime_scope=args.runtime_scope,
+                account_id=args.account_id,
+                server_id=args.server_id,
+                reset_id=args.reset_id,
+                identity_evidence=args.identity_evidence,
+            )
+            print(output)
+            return 0
+        except (
+            OperatorError,
+            OSError,
+            RuntimeError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
+            print(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "command": "conduct",
                         "error": str(exc),
                     },
                     sort_keys=True,
