@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "flow_id": "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+  "product_purpose": "From localized Home, perform exactly one currently available zero-cost Bioenhancer Free Research 1x action, prove its cooldown successor, and return to positively recognized Home.",
+  "trigger_cadence_type": "cooldown_pulse",
+  "reset_scope": "free_research_cooldown",
+  "required_starting_context": [
+    "home_localized"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_localized",
+    "research_lab_bound",
+    "research_lab_radial",
+    "bioenhancer_free_research",
+    "free_research_postcondition",
+    "home_returned",
+    "evidence_required"
+  ],
+  "state_transitions": [
+    {
+      "from": "home_localized",
+      "to": "research_lab_bound",
+      "via": "bounded Home pan and current-frame Research Lab binding",
+      "notes": "At most six measured-progress pans are permitted before the route fails closed."
+    },
+    {
+      "from": "research_lab_bound",
+      "to": "research_lab_radial",
+      "via": "current-frame Research Lab tap",
+      "notes": "The Research radial successor must be positively recognized."
+    },
+    {
+      "from": "research_lab_radial",
+      "to": "bioenhancer_free_research",
+      "via": "current-frame Research radial tap",
+      "notes": "The Free Research 1x control must be freshly bound."
+    },
+    {
+      "from": "bioenhancer_free_research",
+      "to": "free_research_postcondition",
+      "via": "exactly one zero-cost Free Research 1x tap",
+      "notes": "Completion requires a visible Free cooldown timer; count text alone is insufficient."
+    },
+    {
+      "from": "free_research_postcondition",
+      "to": "home_returned",
+      "via": "at most two bounded Android Back actions",
+      "notes": "Completion remains blocked until native Home is positively recognized."
+    }
+  ],
+  "permitted_inputs": [
+    "bounded measured-progress Home pan",
+    "current-frame Research Lab tap",
+    "current-frame Research radial tap",
+    "exactly one zero-cost Free Research 1x tap",
+    "at most two bounded Android Back actions"
+  ],
+  "local_postconditions": [
+    "exactly one free research transport call",
+    "Free cooldown timer positively recognized",
+    "terminal Home positively recognized"
+  ],
+  "consequential_action_class": "zero_cost_consequential_free_research",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 1,
+    "resource_or_currency": null,
+    "notes": "Only the freshly bound Free Research 1x control is permitted."
+  },
+  "completion_identity": "bioenhancer-free-research:one-free-action-home-complete",
+  "terminal_outcomes": [
+    "action_performed",
+    "complete_for_reset",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "A visible cooldown or absent free control permits no research dispatch and remains blocked until a later eligible observation.",
+  "bounded_recovery_behavior": "Unknown results fail closed. Recovery performs no research action; at most two bounded Back actions may be used to prove Home.",
+  "evidence_requirements": [
+    "fresh native 800x1280 source and immediate-before frames",
+    "current-frame Research Lab, radial, and Free Research bindings",
+    "exactly one free-research transport call",
+    "post-dispatch Free cooldown timer proof",
+    "terminal native Home proof"
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "bioenhancer_free_research_contract",
+      "status": "synthetic_policy_ok",
+      "path": "tests/test_flow_delivery_bioenhancer_bluestacks.py",
+      "notes": "Focused tests prove bounds and postcondition policy but do not substitute for retained native evidence."
+    }
+  ],
+  "live_validation_scenarios": [
+    {
+      "id": "one-free-bioenhancer-research",
+      "mode": "consequential_supervised",
+      "notes": "The checked-in pnsctl adapter owns the bounded development session; production registration and scheduling remain disabled."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "paid_or_nonfree_research",
+    "unbound_research_lab",
+    "ambiguous_free_research_control",
+    "unknown_postcondition",
+    "blocking_unknown_modal",
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "production_eligible": false,
+  "registration_state": "disabled"
+}

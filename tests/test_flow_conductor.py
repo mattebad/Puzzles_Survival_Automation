@@ -18,7 +18,7 @@ from tasks.flow_conductor import (
     record_iteration,
     save_state,
 )
-from tasks.gameplay_flow_contracts import FlowContractError
+from tasks.gameplay_flow_contracts import FlowContractError, load_flow_contract
 
 
 class FlowConductorTests(unittest.TestCase):
@@ -282,13 +282,31 @@ class FlowConductorTests(unittest.TestCase):
         self.assertFalse(incomplete["intent_match"])
         self.assertFalse(incomplete["no_documented_unsafe_input"])
 
+    def test_routine_conduct_cohort_has_valid_contracts_and_complete_framing(
+        self,
+    ) -> None:
+        cohort = tuple(pnsctl._CONDUCT_DEFAULT_MAX_INPUTS)
+        registry = pnsctl._load_bluestacks_flow_registry()
+        self.assertEqual(len(cohort), len(set(cohort)))
+        self.assertTrue(set(cohort) <= set(registry))
+        for flow_id in cohort:
+            with self.subTest(flow_id=flow_id):
+                contract = load_flow_contract(flow_id)
+                self.assertEqual(contract["flow_id"], flow_id)
+                framing = pnsctl._derive_conductor_framing(flow_id)
+                self.assertTrue(all(framing.values()), framing)
+
     def test_live_conduct_requires_authoritative_active_flow_contract(self) -> None:
         flow_id = "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
         cases = (
             ("missing", FlowContractError("missing contract"), None),
             ("unreadable", OSError("unreadable contract"), None),
+            ("malformed", FlowContractError("invalid proof_state"), None),
             ("wrong-flow", None, {"flow_id": "OTHER-FLOW"}),
         )
+        asserted_framing = {
+            field: True for field in FramingChecklist.__dataclass_fields__
+        }
         for label, error, contract in cases:
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
                 loader = patch(
@@ -314,6 +332,7 @@ class FlowConductorTests(unittest.TestCase):
                             flow_id,
                             live=True,
                             yes=True,
+                            framing=asserted_framing,
                             state_root=Path(directory),
                         )
                     )

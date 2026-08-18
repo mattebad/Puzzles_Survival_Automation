@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import unittest
 
+from scripts import pnsctl
 from tasks.gameplay_flow_contracts import (
     CONTRACTS_DIR,
     FlowContractError,
@@ -28,10 +29,17 @@ class GameplayFlowContractTests(unittest.TestCase):
         queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
         queue_ids = {item["flow_id"] for item in queue["flows"]}
         contract_ids = set(list_flow_contract_ids())
+        conduct_ids = set(pnsctl._CONDUCT_DEFAULT_MAX_INPUTS)
         self.assertTrue(queue_ids <= contract_ids)
-        self.assertEqual(contract_ids - queue_ids, {"PERSONAL-MIGHT-PRAISE-BLISS-PILOT"})
+        self.assertEqual(
+            contract_ids - queue_ids,
+            {"PERSONAL-MIGHT-PRAISE-BLISS-PILOT"} | (conduct_ids - queue_ids),
+        )
         contracts = load_all_flow_contracts()
-        self.assertEqual(len(contracts), len(queue_ids) + 1)
+        self.assertEqual(
+            len(contracts),
+            len(queue_ids | conduct_ids | {"PERSONAL-MIGHT-PRAISE-BLISS-PILOT"}),
+        )
         for flow_id, contract in contracts.items():
             validate_flow_contract(contract)
             self.assertEqual(contract["flow_id"], flow_id)
