@@ -1166,7 +1166,7 @@
       "title": "Integrate Ultimate Challenge daily task with BlueStacks",
       "kind": "daily_challenge_integration",
       "priority": 15,
-      "status": "blocked",
+      "status": "completed",
       "backlog_task_id": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
       "dependencies": [
         "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
@@ -1373,10 +1373,10 @@
         "safe_popup_input_count",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "Current native Home is at an unsupported zoom. The latest lean canary retained blocked_fail_closed/LOCALIZATION_NOT_RECOGNIZED with input_count=0 and released singleton ownership. Attempt 14's alleged Home frame is Resource Shop and is not valid current authority.",
-      "next_concrete_action": "Manually establish the supported fully-zoomed-out canonical Home surface, then perform a new zero-input observation and refreeze one canary stage; do not repeat from the current frame.",
-      "last_completed_stage": "product_precondition_blocked",
-      "last_commit": "fa2bcdf",
+      "blocked_reason": "",
+      "next_concrete_action": "Ultimate Challenge Daily is complete: the challenge was completed in-game and return-to-Home was proven live via the measured transparent campaign-exit control (ROI ~[690,920,800,1060], 'campaign-exit-base'), persisting complete_for_reset for reset identity game-day-2026-08-17 to .local-captures/ultimate-challenge-daily-reset-window.json. Preserve idempotency and do not repeat the completed Daily action in the same reset window; registration and scheduler eligibility remain disabled.",
+      "last_completed_stage": "completed",
+      "last_commit": "3951c4b",
       "artifact_root": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
       "acceptance_criteria": [
         "separate flow identity from Campaign AP farming",
