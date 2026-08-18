@@ -450,6 +450,54 @@ class ReceiptTests(unittest.TestCase):
                     action_key="r2",
                 )
 
+    def test_enhancement_confirmation_requires_delegated_resource_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            controller = self._controller(Path(directory))
+            receipt = self._issue(
+                controller,
+                identities=["use-one-star-enhancer"],
+                classes=["navigation"],
+                consequence_class="ordinary_development",
+                total=1,
+                resource_budget=0,
+            )
+            self.assertTrue(receipt["action_bindings"][0]["resource_affecting"])
+            consumed = self._consume(controller, receipt)
+            context = control.DelegatedRuntimeContext(
+                controller, consumed, result_identity="result-a"
+            )
+            with self.assertRaisesRegex(control.FlowDeliveryError, "resource-affecting"):
+                context.reserve_input(
+                    action_identity="use-one-star-enhancer",
+                    action_class="navigation",
+                    consequence_class="ordinary_development",
+                    action_key="enhancement-use:test",
+                )
+
+    def test_explicit_enhancement_binding_cannot_hide_resource_effect(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            controller = self._controller(Path(directory))
+            with self.assertRaisesRegex(
+                control.FlowDeliveryError,
+                "cannot weaken classification",
+            ):
+                self._issue(
+                    controller,
+                    identities=["use-one-star-enhancer"],
+                    classes=["navigation"],
+                    consequence_class="ordinary_development",
+                    total=1,
+                    action_bindings=[
+                        {
+                            "action_identity": "use-one-star-enhancer",
+                            "action_class": "navigation",
+                            "consequence_class": "ordinary_development",
+                            "resource_affecting": False,
+                            "combat_confirmation": False,
+                        }
+                    ],
+                )
+
     def test_action_bindings_cannot_cross_pair_identity_and_class(self) -> None:
         bindings = [
             {

@@ -5945,6 +5945,8 @@ def conduct_flow(
         state,
         summary=classification_summary,
         milestone=summary_milestone(classification_summary),
+        evidence_ref=str(run_payload.get("runtime_session_directory") or "").strip()
+        or None,
     )
     path = save_state(state, root=state_root)
     return json.dumps(

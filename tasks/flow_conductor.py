@@ -129,6 +129,7 @@ _EXTERNAL_BLOCKERS = frozenset(
     {
         "manual_only",
         "manual_only_state",
+        "manual_required",
         "captcha",
         "login",
         "account_selection",

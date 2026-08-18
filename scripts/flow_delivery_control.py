@@ -284,7 +284,18 @@ RECONNAISSANCE_FORBIDDEN_MARKERS = frozenset(
     }
 )
 RESOURCE_ACTION_MARKERS = frozenset(
-    {"resource", "item-use", "item_use", "premium", "currency", "claim", "craft", "donation"}
+    {
+        "resource",
+        "item-use",
+        "item_use",
+        "premium",
+        "currency",
+        "claim",
+        "craft",
+        "donation",
+        "enhancer",
+        "enhancement-use",
+    }
 )
 COMBAT_ACTION_MARKERS = frozenset(
     {"combat", "march", "attack", "battle", "dispatch", "confirmation"}
@@ -367,15 +378,16 @@ def _action_bindings(
     consequence_class: str,
     supplied: Sequence[Mapping[str, Any]] | None,
 ) -> list[dict[str, Any]]:
+    def flags(identity: str, action_class: str) -> dict[str, bool]:
+        text = f"{identity} {action_class} {consequence_class}".lower().replace("_", "-")
+        return {
+            "resource_affecting": any(marker in text for marker in RESOURCE_ACTION_MARKERS),
+            "combat_confirmation": any(marker in text for marker in COMBAT_ACTION_MARKERS),
+        }
+
     if supplied is None:
         if len(identities) != len(classes):
             raise _delegated_error("action identities and classes require exact pairings")
-        def flags(identity: str, action_class: str) -> dict[str, bool]:
-            text = f"{identity} {action_class} {consequence_class}".lower().replace("_", "-")
-            return {
-                "resource_affecting": any(marker in text for marker in RESOURCE_ACTION_MARKERS),
-                "combat_confirmation": any(marker in text for marker in COMBAT_ACTION_MARKERS),
-            }
         supplied = [
             {
                 "action_identity": identity,
@@ -397,6 +409,14 @@ def _action_bindings(
             raise _delegated_error("action binding identity or class is empty")
         if any(type(binding[field]) is not bool for field in ("resource_affecting", "combat_confirmation")):
             raise _delegated_error("action binding budget flags must be boolean")
+        binding_text = (
+            f"{binding['action_identity']} {binding['action_class']} "
+            f"{binding['consequence_class']}"
+        ).lower().replace("_", "-")
+        if any(
+            marker in binding_text for marker in ("enhancer", "enhancement-use")
+        ) and not binding["resource_affecting"]:
+            raise _delegated_error("resource-affecting action binding cannot weaken classification")
         result.append(dict(binding))
     if not result or len({item["action_identity"] for item in result}) != len(result):
         raise _delegated_error("action bindings must be unique and non-empty")

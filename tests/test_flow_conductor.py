@@ -48,6 +48,11 @@ class FlowConductorTests(unittest.TestCase):
         )
         self.assertEqual(blocked, ConductorDecision.EXTERNAL_BLOCK)
         self.assertIn("manual", reason)
+        manual_required, _ = classify_summary(
+            {"status": "manual_required"},
+            state=state,
+        )
+        self.assertEqual(manual_required, ConductorDecision.EXTERNAL_BLOCK)
 
     def test_completed_execution_requires_verified_evidence_for_done(self) -> None:
         state = load_state("FLOW-VERIFY")
@@ -249,7 +254,9 @@ class FlowConductorTests(unittest.TestCase):
                     )
                 )
             self.assertEqual(result["decision"], ConductorDecision.DONE.value)
-            self.assertEqual(load_state(flow_id, root=root).status, "done")
+            completed_state = load_state(flow_id, root=root)
+            self.assertEqual(completed_state.status, "done")
+            self.assertEqual(completed_state.evidence_refs, ["retained"])
 
     def test_framing_is_derived_from_bound_handlers_and_policy(self) -> None:
         flow_id = "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
