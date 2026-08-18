@@ -201,6 +201,8 @@ def _write_delivery_result(
             }
         ],
         "frames": frames,
+        "required_artifacts": ["events_path"],
+        "events_path": "events.jsonl",
         "dispatch": bool(result.get("dispatch")),
         "dispatch_count": int(result.get("input_count") or 0),
         "input_count": int(result.get("input_count") or 0),

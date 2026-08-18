@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import json
+import tempfile
 import unittest
 from unittest.mock import patch
 
 from scripts import flow_delivery_supply_depot_bluestacks as delivery
+from scripts import pnsctl
 from scripts import supply_depot_free_canary as canary
 from scripts.supply_depot_free_canary import (
     exhausted_free_state,
@@ -167,6 +170,39 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
         self.assertEqual(verified["status"], "verified")
         self.assertEqual(verified["production_registration"], "NOT_REGISTERED")
         self.assertFalse(verified["scheduler_enabled"])
+
+    def test_completed_artifact_passes_operational_generic_verification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / ".local-captures" / "supply-depot-completed"
+            (session / "frames").mkdir(parents=True)
+            (session / "frames" / "terminal.png").write_bytes(b"native-frame")
+            (session / "events.jsonl").write_text("{}\n", encoding="utf-8")
+            delivery._write_delivery_result(
+                session,
+                {
+                    "status": "completed",
+                    "input_count": 7,
+                    "max_inputs": 10,
+                    "hold_transport_calls": 1,
+                    "free_attempts_after": 0,
+                    "terminal_home_verified": True,
+                    "production_registration": "NOT_REGISTERED",
+                    "scheduler_enabled": False,
+                },
+                lease={"owner": "test-owner"},
+            )
+            with (
+                patch.object(pnsctl, "REPO_ROOT", root),
+                patch.object(
+                    pnsctl,
+                    "_load_flow_delivery_state",
+                    side_effect=pnsctl.OperatorError("no active delivery"),
+                ),
+            ):
+                verdict = json.loads(pnsctl.bluestacks_verify_flow(session))
+            self.assertEqual(verdict["status"], "verified")
+            self.assertEqual(verdict["flow_id"], delivery.FLOW_ID)
 
 
 if __name__ == "__main__":

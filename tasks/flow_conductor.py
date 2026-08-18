@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 
 CONDUCTOR_STATE_ROOT = Path(".local-orchestrator") / "conductor"
@@ -148,24 +148,96 @@ _DONE_STATUSES = frozenset(
 )
 
 
+def _summary_layers(summary: Mapping[str, Any]) -> Iterable[Mapping[str, Any]]:
+    """Yield wrapper and route payloads without inventing another state model."""
+
+    pending: list[Mapping[str, Any]] = [summary]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop(0)
+        identity = id(current)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        yield current
+        for key in (
+            "result",
+            "enhancement_result",
+            "route_result",
+            "canary",
+            "reconnaissance",
+        ):
+            nested = current.get(key)
+            if isinstance(nested, Mapping):
+                pending.append(nested)
+
+
+def _summary_text(summary: Mapping[str, Any], *keys: str) -> str:
+    for layer in _summary_layers(summary):
+        for key in keys:
+            value = layer.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+    return ""
+
+
+def summary_milestone(summary: Mapping[str, Any]) -> str | None:
+    """Return real route progress, never a wrapper's terminal status."""
+
+    explicit = _summary_text(
+        summary,
+        "furthest_milestone",
+        "progress_milestone",
+        "milestone",
+        "terminal_state",
+    )
+    if explicit:
+        return explicit
+    for layer in _summary_layers(summary):
+        transitions = layer.get("state_transition")
+        if isinstance(transitions, list):
+            values = [str(value).strip() for value in transitions if str(value).strip()]
+            if values:
+                return values[-1]
+        stages = layer.get("stages")
+        if isinstance(stages, list):
+            recognized = [
+                str(stage.get("stage") or "").strip()
+                for stage in stages
+                if isinstance(stage, Mapping) and stage.get("recognized") is True
+            ]
+            if recognized:
+                return recognized[-1]
+    return None
+
+
 def classify_summary(
     summary: Mapping[str, Any],
     *,
     state: ConductorState,
+    progress_made: bool = False,
 ) -> tuple[ConductorDecision, str]:
     """Classify a development-session summary into a conductor decision."""
 
-    status = str(summary.get("status") or summary.get("terminal") or "").casefold()
-    blocker = str(
-        summary.get("blocker")
-        or summary.get("reason")
-        or summary.get("next_action")
-        or ""
-    )
+    status = _summary_text(summary, "status", "terminal").casefold()
+    blocker = _summary_text(summary, "blocker", "reason", "next_action")
     blocker_key = blocker.casefold()
+    evidence_verified = any(
+        layer.get("evidence_verified") is True for layer in _summary_layers(summary)
+    )
 
-    if status in _DONE_STATUSES or summary.get("terminal_home_verified") is True:
-        if summary.get("praise_taps") or summary.get("dispatch") or status in _DONE_STATUSES:
+    if evidence_verified and (
+        status in _DONE_STATUSES
+        or any(
+            layer.get("terminal_home_verified") is True
+            for layer in _summary_layers(summary)
+        )
+    ):
+        if (
+            any(layer.get("praise_taps") for layer in _summary_layers(summary))
+            or any(layer.get("dispatch") for layer in _summary_layers(summary))
+            or status in _DONE_STATUSES
+        ):
             return ConductorDecision.DONE, blocker or "terminal_postcondition_proven"
 
     for token in _EXTERNAL_BLOCKERS:
@@ -173,6 +245,8 @@ def classify_summary(
             return ConductorDecision.EXTERNAL_BLOCK, blocker or token
 
     signature = blocker_key.strip() or status or "unknown_blocker"
+    if progress_made:
+        return ConductorDecision.CONTINUE, signature
     repeats = state.defect_signatures.count(signature)
     if repeats >= 1 or state.iterations_since_progress >= 2:
         if state.step_backs_spent >= 1:
@@ -195,7 +269,12 @@ def record_iteration(
     milestone: str | None = None,
     evidence_ref: str | None = None,
 ) -> ConductorState:
-    decision, blocker = classify_summary(summary, state=state)
+    progressed = bool(milestone) and milestone != state.furthest_milestone
+    decision, blocker = classify_summary(
+        summary,
+        state=state,
+        progress_made=progressed,
+    )
     state.last_summary = dict(summary)
     state.last_decision = decision.value
     state.last_blocker = blocker
@@ -214,7 +293,6 @@ def record_iteration(
         return state
 
     signature = blocker
-    progressed = bool(milestone) and milestone != state.furthest_milestone
     if progressed and milestone:
         state.furthest_milestone = milestone
         state.iterations_since_progress = 0

@@ -313,7 +313,17 @@ def _family_verifier_structure(session: Path) -> dict[str, object]:
         "serial": pnsctl.BLUESTACKS_SERIAL,
         "native_width": 800,
         "native_height": 1280,
+        "runtime_owner": "test-owner",
+        "terminal_runtime_state": "recognized_home",
+        "actions": [
+            {
+                "action_class": "ordinary_development_resource_affecting_confirmation",
+                "path": "home_to_ordered_enhancement_family_to_home",
+                "outcome": "completed",
+            }
+        ],
         "frames": frames,
+        "required_artifacts": ["events_path"],
         "events_path": "events.jsonl",
         "dispatch_count": 3,
         "resource_affecting_dispatch_count": 3,
@@ -1042,6 +1052,31 @@ class ContractAndReservationTests(unittest.TestCase):
         self.assertEqual(verified["variant"], "family")
         self.assertEqual(verified["dispatch_count"], 3)
         self.assertTrue(verified["postcondition_verified"])
+
+    def test_completed_family_passes_operational_generic_verification(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            session = root / ".local-captures" / "enhancement-completed"
+            _family_verifier_structure(session)
+            with (
+                patch.object(pnsctl, "REPO_ROOT", root),
+                patch.object(
+                    pnsctl,
+                    "_load_flow_delivery_state",
+                    side_effect=pnsctl.OperatorError("no active delivery"),
+                ),
+                patch(
+                    "scripts.enhancement_bluestacks.recognize_commander_stage",
+                    return_value=SimpleNamespace(recognized=True),
+                ),
+                patch(
+                    "scripts.enhancement_bluestacks.recognize_home_frame",
+                    return_value=SimpleNamespace(recognized=True),
+                ),
+            ):
+                verdict = json.loads(pnsctl.bluestacks_verify_flow(session))
+        self.assertEqual(verdict["status"], "verified")
+        self.assertEqual(verdict["flow_id"], FLOW_ID)
 
     def test_empty_stages_cannot_verify_completed_family(self):
         with tempfile.TemporaryDirectory() as folder:

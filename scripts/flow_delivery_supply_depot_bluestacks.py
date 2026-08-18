@@ -133,7 +133,16 @@ def _write_delivery_result(
             if result.get("terminal_home_verified") is True
             else "safe_blocked_terminal"
         ),
+        "actions": [
+            {
+                "action_class": "ordinary_free_collection",
+                "path": "home_to_supply_depot_free_collection_to_home",
+                "outcome": result.get("status"),
+            }
+        ],
         "frames": frames,
+        "required_artifacts": ["events_path"],
+        "events_path": "events.jsonl",
         **dict(result),
     }
     (session / "flow-delivery-result.json").write_text(

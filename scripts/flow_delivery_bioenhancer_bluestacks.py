@@ -107,11 +107,15 @@ def _write_delivery_result(
             }
         ],
         "frames": frames,
+        "required_artifacts": ["events_path"],
+        "events_path": "events.jsonl",
         "dispatch": free_calls > 0,
         "dispatch_count": input_count,
         "input_count": input_count,
         "max_inputs": maximum,
         "free_research_transport_calls": free_calls,
+        "terminal_home_verified": result.get("terminal_home_verified") is True,
+        "reason": result.get("reason"),
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
     }

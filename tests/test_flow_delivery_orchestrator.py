@@ -244,8 +244,8 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         }
         self.assertIn(counts["active"], (0, 1))
         self.assertEqual(counts["ready"] + counts["active"], 0)
-        self.assertEqual(counts["blocked"], 8)
-        self.assertEqual(counts["completed"], 17)
+        self.assertEqual(counts["blocked"], 7)
+        self.assertEqual(counts["completed"], 18)
         self.assertEqual(counts["needs_product_decision"], 0)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
@@ -525,8 +525,8 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         self.assertNotIn("execution_coordinator", managed)
         self.assertIn("control_plane_owner", project)
         self.assertIn("procedure_coordinator", project)
-        self.assertIn("independent code-and-acceptance reviewer", project)
-        self.assertIn("Exclude\n    cosmetic preferences", project)
+        self.assertIn("read-only, defect-first code-and-acceptance", project)
+        self.assertIn("Exclude (record as a Note at most, never a finding)", project)
         self.assertIn("exact usage-export model slug", project)
         self.assertIn("Do not put receipt chronology", project)
         routing = (
@@ -541,7 +541,8 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
             "high-risk or cross-contract tester: delegated Sol Medium", routing
         )
         self.assertIn("prioritizes concrete defects and acceptance risks", routing)
-        self.assertIn("credential exposure, unsafe command execution", routing)
+        self.assertIn("credential exposure", routing)
+        self.assertIn("unsafe command execution", routing)
         manifest = (ROOT / "docs" / "execution-manifest-template.md").read_text(
             encoding="utf-8"
         )

@@ -4598,13 +4598,71 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     }
 
 
+def _retained_flow_result(
+    session_directory: Path,
+) -> tuple[Path, dict[str, Any]]:
+    session = session_directory.resolve()
+    allowed_root = (REPO_ROOT / ".local-captures").resolve()
+    try:
+        session.relative_to(allowed_root)
+    except ValueError as exc:
+        raise OperatorError(
+            "session directory must remain under .local-captures"
+        ) from exc
+    if not session.is_dir() or session.is_symlink():
+        raise OperatorError("session directory is unavailable or unsafe")
+    result_path = session / "flow-delivery-result.json"
+    legacy_nova = False
+    if not result_path.is_file() and not result_path.is_symlink():
+        legacy_nova_result = session / "result.json"
+        if legacy_nova_result.is_file() and not legacy_nova_result.is_symlink():
+            result_path = legacy_nova_result
+            legacy_nova = True
+    if result_path.is_symlink() or not result_path.is_file():
+        raise OperatorError("flow-delivery-result.json is required")
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("flow-delivery-result.json is required") from exc
+    if (
+        not isinstance(result, dict)
+        or result.get("schema_version") != 1
+        or result.get("flow_id") not in BLUESTACKS_FLOW_IDS
+        or (legacy_nova and result.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID)
+    ):
+        raise OperatorError("unsupported flow-delivery result identity")
+    return session, result
+
+
 def bluestacks_verify_flow(session_directory: Path) -> str:
-    structure: dict[str, Any] | None = None
+    session, retained_result = _retained_flow_result(session_directory)
+    retained_flow_id = str(retained_result["flow_id"])
+    if retained_flow_id == NOVA_SUPERVISED_PULSE_FLOW_ID:
+        structure = _verify_nova_supervised_one_free_pulse_session(session)
+        return json.dumps(
+            {
+                "status": "verified",
+                "flow_id": retained_flow_id,
+                "scenario_id": NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                "session_directory": structure["session_directory"],
+                "navigation_input_count": structure["navigation_input_count"],
+                "praise_transport_calls": structure["praise_transport_calls"],
+                "attempts_before": structure["attempts_before"],
+                "attempts_after": structure["attempts_after"],
+                "cooldown_seconds": structure["cooldown_seconds"],
+                "artifacts": structure["artifacts"],
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+            },
+            sort_keys=True,
+        )
+
+    structure = _verify_flow_structure(session)
     try:
         queue, lease = _load_flow_delivery_state(require_runtime_held=False)
+        if queue.get("active_flow_id") != retained_flow_id:
+            raise OperatorError("active flow does not match retained evidence")
     except OperatorError:
-        structure = _verify_flow_structure(session_directory)
-        retained_flow_id = structure["result"].get("flow_id")
         if retained_flow_id == "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE":
             queue = {"active_flow_id": retained_flow_id}
             lease = {
@@ -4621,40 +4679,28 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
                 "runtime_ownership_state": "released",
                 "unresolved_action_state": "clear",
             }
+        elif retained_flow_id in {
+            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+        }:
+            queue = {"active_flow_id": retained_flow_id}
+            lease = {
+                "active_stage": "evidence_review",
+                "runtime_ownership_state": "released",
+                "unresolved_action_state": "clear",
+            }
         else:
-            queue, lease = _retained_troop_training_state(session_directory)
+            queue, lease = _retained_troop_training_state(session)
     if lease.get("active_stage") != "evidence_review":
         raise OperatorError("verify-flow requires the active evidence_review stage")
     flow_id = queue["active_flow_id"]
-    if flow_id == NOVA_SUPERVISED_PULSE_FLOW_ID:
-        structure = _verify_nova_supervised_one_free_pulse_session(session_directory)
-        if structure["result"].get("flow_id") != flow_id:
-            raise OperatorError("flow evidence belongs to another active flow")
-        return json.dumps(
-            {
-                "status": "verified",
-                "flow_id": flow_id,
-                "scenario_id": NOVA_SUPERVISED_PULSE_SCENARIO_ID,
-                "session_directory": structure["session_directory"],
-                "navigation_input_count": structure["navigation_input_count"],
-                "praise_transport_calls": structure["praise_transport_calls"],
-                "attempts_before": structure["attempts_before"],
-                "attempts_after": structure["attempts_after"],
-                "cooldown_seconds": structure["cooldown_seconds"],
-                "artifacts": structure["artifacts"],
-                "production_registration": "NOT_REGISTERED",
-                "scheduler_enabled": False,
-            },
-            sort_keys=True,
-        )
     contract = _load_bluestacks_flow_registry().get(flow_id)
     if (
         contract is None
         or contract["evidence_validator"] not in _BLUESTACKS_EVIDENCE_VALIDATORS
     ):
         raise OperatorError("FLOW_EVIDENCE_VALIDATOR_UNAVAILABLE")
-    if structure is None:
-        structure = _verify_flow_structure(session_directory)
     if structure["result"].get("flow_id") != flow_id:
         raise OperatorError("flow evidence belongs to another active flow")
     verdict = _BLUESTACKS_EVIDENCE_VALIDATORS[contract["evidence_validator"]](
@@ -5639,12 +5685,126 @@ def automation_service_offline(args: argparse.Namespace) -> int:
     return automation_main(argv)
 
 
+_CONDUCT_DEFAULT_MAX_INPUTS = {
+    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": 16,
+    "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": 8,
+    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": 8,
+    "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION": 4,
+    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": 10,
+    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": 24,
+}
+_CONDUCT_KNOWLEDGE_PATHS = (
+    REPO_ROOT / "AGENTS.md",
+    REPO_ROOT / "docs" / "android-back-state-matrix.md",
+    REPO_ROOT / "docs" / "runtime-input-safety-policy.md",
+)
+
+
+def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
+    maximum = (
+        _CONDUCT_DEFAULT_MAX_INPUTS.get(flow_id, 12)
+        if requested is None
+        else int(requested)
+    )
+    if not 1 <= maximum <= 100:
+        raise OperatorError("conduct max_inputs must be between 1 and 100")
+    return maximum
+
+
+def _derive_conductor_framing(flow_id: str) -> dict[str, bool]:
+    """Derive the routine framing claims from checked-in policy and route bindings."""
+
+    registry = _load_bluestacks_flow_registry()
+    route = registry.get(flow_id)
+    if route is None:
+        return {}
+    try:
+        knowledge = [
+            path.read_text(encoding="utf-8") for path in _CONDUCT_KNOWLEDGE_PATHS
+        ]
+    except (OSError, UnicodeError):
+        knowledge = []
+    handlers_bound = (
+        route["runner"] in _BLUESTACKS_FLOW_RUNNERS
+        and route["evidence_validator"] in _BLUESTACKS_EVIDENCE_VALIDATORS
+        and route["recovery_handler"] in _BLUESTACKS_RECOVERY_HANDLERS
+    )
+    policy_consulted = len(knowledge) == len(_CONDUCT_KNOWLEDGE_PATHS) and all(
+        value.strip() for value in knowledge
+    )
+    return {
+        "intent_match": handlers_bound,
+        "no_documented_unsafe_input": handlers_bound and policy_consulted,
+        # Project policy forbids manual-only states as route preconditions; a
+        # current unexpected manual state remains a fail-closed runner concern.
+        "no_manual_only_precondition": handlers_bound
+        and policy_consulted
+        and "manual-only" in knowledge[0].casefold(),
+        "consequential_actions_enumerated": route["consequence_class"]
+        in {"navigation_only", "consequential"},
+        "durable_knowledge_consulted": policy_consulted,
+    }
+
+
+def _conductor_live_summary(
+    flow_id: str,
+    run_payload: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Load retained route detail and verify completed execution before DONE."""
+
+    summary = dict(run_payload)
+    verification: dict[str, Any] | None = None
+    runtime_session = str(run_payload.get("runtime_session_directory") or "").strip()
+    if runtime_session:
+        try:
+            _session, retained = _retained_flow_result(Path(runtime_session))
+            if retained.get("flow_id") != flow_id:
+                raise OperatorError("retained flow identity does not match conduct flow")
+            summary = {
+                "status": retained.get("status", run_payload.get("status", "unknown")),
+                "result": retained,
+            }
+        except OperatorError as exc:
+            summary = {
+                "status": "evidence_required",
+                "reason": f"retained execution evidence is unavailable: {exc}",
+                "result": dict(run_payload),
+            }
+    if str(summary.get("status") or "").casefold() in {
+        "completed",
+        "complete_for_reset",
+        "success",
+        "done",
+    }:
+        try:
+            verification = json.loads(
+                bluestacks_verify_flow(Path(runtime_session))
+            )
+        except (OperatorError, OSError, ValueError, json.JSONDecodeError) as exc:
+            verification = {
+                "status": "evidence_required",
+                "flow_id": flow_id,
+                "reason": f"{type(exc).__name__}: {exc}",
+            }
+        if verification.get("status") == "verified":
+            summary["evidence_verified"] = True
+            summary["verification"] = verification
+        else:
+            summary["status"] = "evidence_required"
+            summary["reason"] = str(
+                verification.get("reason")
+                or "route-specific evidence verification is required"
+            )
+            summary["verification"] = verification
+    return summary, verification
+
+
 def conduct_flow(
     flow_id: str,
     *,
     live: bool = False,
     yes: bool = False,
-    max_inputs: int = 8,
+    max_inputs: int | None = None,
     framing: Mapping[str, bool] | None = None,
     summary_path: Path | None = None,
     state_root: Path | None = None,
@@ -5668,19 +5828,22 @@ def conduct_flow(
         load_state,
         record_iteration,
         save_state,
+        summary_milestone,
     )
 
     if flow_id not in BLUESTACKS_FLOW_IDS:
         raise OperatorError(f"unknown BlueStacks flow id: {flow_id}")
 
     state = load_state(flow_id, root=state_root)
+    maximum = _conduct_max_inputs(flow_id, max_inputs)
     checklist_values = {
-        "intent_match": True,
-        "no_documented_unsafe_input": True,
-        "no_manual_only_precondition": True,
-        "consequential_actions_enumerated": True,
-        "durable_knowledge_consulted": True,
+        "intent_match": False,
+        "no_documented_unsafe_input": False,
+        "no_manual_only_precondition": False,
+        "consequential_actions_enumerated": False,
+        "durable_knowledge_consulted": False,
     }
+    checklist_values.update(_derive_conductor_framing(flow_id))
     if framing:
         checklist_values.update({key: bool(value) for key, value in framing.items()})
     checklist = FramingChecklist(**checklist_values)
@@ -5754,7 +5917,7 @@ def conduct_flow(
         flow_id,
         live=True,
         yes=True,
-        max_inputs=max_inputs,
+        max_inputs=maximum,
         runtime_scope=runtime_scope,
         account_id=account_id,
         server_id=server_id,
@@ -5767,21 +5930,21 @@ def conduct_flow(
             "--live",
             "--yes",
             "--max-inputs",
-            str(max_inputs),
+            str(maximum),
         ],
     )
     run_payload = json.loads(run_output) if run_output.strip().startswith("{") else {
         "status": "unknown",
         "raw": run_output,
     }
+    classification_summary, verification = _conductor_live_summary(
+        flow_id,
+        run_payload if isinstance(run_payload, dict) else {"status": "unknown"},
+    )
     state = record_iteration(
         state,
-        summary=run_payload if isinstance(run_payload, dict) else {"status": "unknown"},
-        milestone=str(
-            (run_payload or {}).get("status")
-            if isinstance(run_payload, dict)
-            else "unknown"
-        ),
+        summary=classification_summary,
+        milestone=summary_milestone(classification_summary),
     )
     path = save_state(state, root=state_root)
     return json.dumps(
@@ -5795,6 +5958,7 @@ def conduct_flow(
             if observe_output.strip().startswith("{")
             else observe_output,
             "run": run_payload,
+            "verification": verification,
             "plan": plan,
         },
         sort_keys=True,
@@ -5882,7 +6046,12 @@ def parser() -> argparse.ArgumentParser:
     conduct.add_argument("flow_id", choices=BLUESTACKS_FLOW_IDS)
     conduct.add_argument("--live", action="store_true")
     conduct.add_argument("--yes", action="store_true")
-    conduct.add_argument("--max-inputs", type=int, default=8)
+    conduct.add_argument(
+        "--max-inputs",
+        type=int,
+        default=None,
+        help="Override the registered flow's safe conductor input ceiling",
+    )
     conduct.add_argument(
         "--summary",
         type=Path,
@@ -6248,7 +6417,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.flow_id,
                 live=bool(args.live),
                 yes=bool(args.yes),
-                max_inputs=int(args.max_inputs),
+                max_inputs=(
+                    int(args.max_inputs) if args.max_inputs is not None else None
+                ),
                 summary_path=args.summary,
                 state_root=args.state_root,
                 runtime_scope=args.runtime_scope,

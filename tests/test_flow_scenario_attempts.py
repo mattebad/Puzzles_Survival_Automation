@@ -121,10 +121,7 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
         self.assertIn("20260722T020656687010Z", completed["session_directory"])
         self.assertIn("four navigation inputs", completed["diagnosis"])
         self.assertEqual(flow["flow_id"], FLOW_ID)
-        self.assertEqual(
-            queue.get("active_flow_id"),
-            "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
-        )
+        self.assertIsNone(queue.get("active_flow_id"))
 
     def test_replay_and_pre_input_failure_do_not_consume_budget(self) -> None:
         scenario = _scenario()

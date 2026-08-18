@@ -1080,10 +1080,7 @@ class NovaSupervisedVerifyFlowTests(unittest.TestCase):
                 with patch.object(
                     pnsctl,
                     "_load_flow_delivery_state",
-                    return_value=(
-                        {"active_flow_id": pnsctl.NOVA_SUPERVISED_PULSE_FLOW_ID},
-                        {"active_stage": "evidence_review", "workflow": "pns-flow-delivery"},
-                    ),
+                    side_effect=pnsctl.OperatorError("no active delivery"),
                 ):
                     with patch.object(pnsctl, "_verify_flow_structure") as generic:
                         verdict = json.loads(pnsctl.bluestacks_verify_flow(session))

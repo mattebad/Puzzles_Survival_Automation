@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import json
+import tempfile
 import unittest
+from unittest.mock import patch
 
 import scripts.pnsctl as pnsctl
 from scripts.flow_delivery_daily_row_claim_bluestacks import (
     FLOW_ID,
     MAX_INPUTS,
     RUNNER_ID,
+    _write_delivery_result,
     _max_inputs,
     run_daily_row_claim,
 )
@@ -55,6 +59,41 @@ class DailyRowClaimFlowDeliveryTests(unittest.TestCase):
             _max_inputs(self._lease(maximum=MAX_INPUTS + 1))
         with self.assertRaises(pnsctl.OperatorError):
             _max_inputs(self._lease(maximum=0))
+
+    def test_completed_artifact_passes_operational_generic_verification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / ".local-captures" / "daily-row-completed"
+            (session / "frames").mkdir(parents=True)
+            (session / "frames" / "terminal.png").write_bytes(b"native-frame")
+            (session / "events.jsonl").write_text("{}\n", encoding="utf-8")
+            _write_delivery_result(
+                session,
+                {
+                    "status": "completed",
+                    "input_count": 4,
+                    "claim_transport_calls": 1,
+                    "terminal_home_verified": True,
+                    "canary": {
+                        "status": "completed",
+                        "home": {"verified": True},
+                    },
+                    "reason": "daily_claim_postcondition_verified",
+                },
+                lease={"owner": "test-owner"},
+                maximum=4,
+            )
+            with (
+                patch.object(pnsctl, "REPO_ROOT", root),
+                patch.object(
+                    pnsctl,
+                    "_load_flow_delivery_state",
+                    side_effect=pnsctl.OperatorError("no active delivery"),
+                ),
+            ):
+                verdict = json.loads(pnsctl.bluestacks_verify_flow(session))
+            self.assertEqual(verdict["status"], "verified")
+            self.assertEqual(verdict["flow_id"], FLOW_ID)
 
 
 if __name__ == "__main__":
