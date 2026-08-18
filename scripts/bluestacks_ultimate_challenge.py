@@ -93,6 +93,38 @@ _ULTIMATE_HOME_ZOOM_TARGET_IDENTITY = "home-zoom-out"
 _UC_PORTAL_SEARCH_ROI = (400, 700, 700, 970)
 _UC_ENTRY_SEMANTIC_ROI = (400, 850, 700, 1030)
 _UC_TITLE_ROI = (120, 0, 680, 90)
+_HERO_LINEUP_SELECTED_CARD_ROIS = (
+    (29, 621, 168, 808),
+    (180, 620, 323, 810),
+    (332, 620, 475, 810),
+    (485, 620, 628, 810),
+    (639, 621, 778, 808),
+)
+_HERO_LINEUP_CARD_GRID_BOXES = frozenset(
+    {
+        (84, 373, 750, 1050),
+        (84, 373, 729, 1050),
+        (84, 373, 715, 1050),
+        (85, 435, 750, 1050),
+        (101, 435, 750, 1050),
+        (85, 435, 729, 1050),
+        (106, 435, 750, 1050),
+        (85, 435, 715, 1050),
+        (101, 435, 729, 1050),
+        (106, 435, 729, 1050),
+        (101, 435, 715, 1050),
+        (106, 435, 715, 1050),
+        (84, 373, 750, 891),
+        (84, 373, 748, 891),
+        (85, 435, 750, 891),
+        (85, 435, 748, 891),
+        (101, 435, 750, 891),
+        (101, 435, 748, 891),
+        (106, 435, 750, 891),
+        (106, 435, 748, 891),
+    }
+)
+_HERO_LINEUP_SELECTED_COLOR_MINIMUM = 400
 _FLEE_MODAL_ROI = (65, 365, 735, 745)
 _FLEE_MODAL_TEXT_ROI = (120, 450, 680, 590)
 _FLEE_FIGHT_SEARCH_ROI = (80, 590, 390, 740)
@@ -188,6 +220,53 @@ def _ocr_region_hits(
         height = max(1, int(data["height"][index]) // scale)
         hits[text] = (left, top, left + width, top + height)
     return hits
+
+
+def _ocr_ordered_tokens(
+    frame: np.ndarray,
+    region: tuple[int, int, int, int],
+    expected: tuple[str, ...],
+) -> bool:
+    """Require high-confidence OCR tokens in their native reading order."""
+
+    if frame is None or frame.shape[:2] != (1280, 800):
+        return False
+    x0, y0, x1, y1 = region
+    crop = frame[y0:y1, x0:x1]
+    if crop.size == 0:
+        return False
+    enlarged = cv2.resize(
+        crop,
+        None,
+        fx=3,
+        fy=3,
+        interpolation=cv2.INTER_CUBIC,
+    )
+    try:
+        data = pytesseract.image_to_data(
+            enlarged,
+            config="--psm 7",
+            output_type=Output.DICT,
+        )
+        texts = data["text"]
+        confidences = data["conf"]
+        if not expected or len(texts) != len(confidences):
+            return False
+    except Exception:
+        return False
+
+    recognized_tokens: list[str] = []
+    for raw_text, raw_confidence in zip(texts, confidences):
+        token = re.sub(r"[^a-z]", "", str(raw_text).casefold())
+        if not token:
+            continue
+        try:
+            confidence = float(raw_confidence)
+        except (TypeError, ValueError):
+            confidence = -1.0
+        if confidence >= 80.0 and token in expected:
+            recognized_tokens.append(token)
+    return tuple(recognized_tokens) == expected
 
 
 def _visual_popup_candidates(frame: np.ndarray) -> list[tuple[int, int, int, int]]:
@@ -1130,10 +1209,45 @@ def _bind_red_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int] |
     return (320, 1195, 480, 1245)
 
 
+def _lineup_selected_card_color_counts(hsv: np.ndarray) -> tuple[int, ...]:
+    """Count the existing selected-color signature in each fixed card ROI."""
+
+    selected = cv2.inRange(hsv, np.array([15, 120, 140]), np.array([40, 255, 255]))
+    return tuple(
+        int(np.count_nonzero(selected[y0:y1, x0:x1]))
+        for x0, y0, x1, y1 in _HERO_LINEUP_SELECTED_CARD_ROIS
+    )
+
+
+def _lineup_selected_card_union_area() -> int:
+    """Return the area of the independently bound five-card union."""
+
+    return sum(_roi_area(roi) for roi in _HERO_LINEUP_SELECTED_CARD_ROIS)
+
+
+def _lineup_card_grid_candidate_matches(
+    candidate: tuple[int, int, int, int],
+) -> bool:
+    """Recognize only the measured nested card-grid contour artifact."""
+
+    if candidate not in _HERO_LINEUP_CARD_GRID_BOXES:
+        return False
+    selected_union_area = _lineup_selected_card_union_area()
+    if selected_union_area <= 0:
+        return False
+    intersection = sum(
+        _roi_intersection_area(candidate, roi)
+        for roi in _HERO_LINEUP_SELECTED_CARD_ROIS
+    )
+    return intersection / selected_union_area >= 0.78
+
+
 def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bind the gold Hero Lineup Challenge control from current native geometry."""
 
-    if _unexpected_visual_popup(frame):
+    if frame is None or frame.shape[:2] != (1280, 800):
+        return None
+    if not _ocr_ordered_tokens(frame, _UC_TITLE_ROI, ("hero", "lineup")):
         return None
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     gold = cv2.inRange(hsv, np.array([10, 80, 80]), np.array([35, 255, 255]))
@@ -1150,14 +1264,20 @@ def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int
         cx, cy = centroids[index]
         if area >= 18000 and width >= 240 and height >= 70 and 380 <= cx <= 420 and 1180 <= cy <= 1220 and x >= 240 and y >= 1140:
             candidates.append(index)
-    # Require all five selected-card checkmarks.  This is independent of the
-    # stylized title OCR and prevents the incomplete-lineup warning path.
-    selected = cv2.inRange(hsv, np.array([15, 120, 140]), np.array([40, 255, 255]))
-    selected_counts = [
-        int(np.count_nonzero(selected[650:760, x:x + 120]))
-        for x in (20, 180, 340, 500, 660)
-    ]
-    if len(candidates) != 1 or any(count < 400 for count in selected_counts):
+    selected_counts = _lineup_selected_card_color_counts(hsv)
+    if len(candidates) != 1 or any(
+        count < _HERO_LINEUP_SELECTED_COLOR_MINIMUM
+        for count in selected_counts
+    ):
+        return None
+    try:
+        popup_candidates = _central_popup_candidates(frame)
+    except Exception:
+        return None
+    for popup in popup_candidates:
+        if not _lineup_card_grid_candidate_matches(popup):
+            return None
+    if len(selected_counts) != 5:
         return None
     return (300, 1175, 500, 1230)
 
@@ -1351,6 +1471,42 @@ def _capture_until(
         if predicate(latest.frame):
             return latest
     return latest
+
+
+def _capture_lineup_successor_after_challenge(
+    runtime: LocalBlueStacksRuntime,
+    *,
+    label: str,
+    attempts: int = 6,
+    settle_seconds: float = 0.8,
+) -> tuple[
+    CapturedNativeFrame | None,
+    tuple[int, int, int, int] | None,
+    str | None,
+    Exception | None,
+]:
+    """Poll Hero Lineup while retaining the exact latest post capture.
+
+    The returned capture is the frame used by the successful binder result, or
+    the latest retained post frame when polling fails.  A capture or binder
+    exception is returned instead of escaping so the caller can reconcile the
+    Challenge action against truthful evidence.
+    """
+
+    latest: CapturedNativeFrame | None = None
+    for ordinal in range(attempts):
+        time.sleep(settle_seconds)
+        try:
+            latest = runtime.capture(f"{label}-{ordinal + 1:02d}")
+        except Exception as exc:
+            return latest, None, "capture", exc
+        try:
+            lineup_roi = _bind_lineup_challenge_button(latest.frame)
+        except Exception as exc:
+            return latest, None, "predicate", exc
+        if lineup_roi is not None:
+            return latest, lineup_roi, None, None
+    return latest, None, None, None
 
 
 def _write_operator_artifacts(session: Path, terminal: str) -> None:
@@ -1598,20 +1754,58 @@ def _run_daily_route(
             return TERMINAL_BLOCKED, {"reason": "actual red Challenge button not bound on Ultimate Challenge main", "completed_actions": completed_actions}
         challenge_key = f"tap_challenge-1-{utc_stamp()}"
         runtime.tap(before, target_identity="tap_challenge", target_roi=challenge_roi, action_key=challenge_key, consequential=True)
-        lineup = _capture_until(
-            runtime,
-            label="hero-lineup-successor",
-            predicate=lambda frame: _bind_lineup_challenge_button(frame) is not None,
-            attempts=6,
-            settle_seconds=max(0.8, post_input_delay),
+        lineup, lineup_roi, polling_phase, polling_error = (
+            _capture_lineup_successor_after_challenge(
+                runtime,
+                label="hero-lineup-successor",
+                attempts=6,
+                settle_seconds=max(0.8, post_input_delay),
+            )
         )
-        if lineup is None or _bind_lineup_challenge_button(lineup.frame) is None:
-            return TERMINAL_BLOCKED, {"reason": "Hero Lineup successor not positively recognized after Challenge", "completed_actions": completed_actions, "challenge_action_key": challenge_key}
+        if polling_error is not None:
+            evidence = lineup or before
+            if lineup is None:
+                reason = (
+                    "Hero Lineup successor "
+                    f"{polling_phase} failed after Challenge; no post capture was "
+                    "retained, so semantic post evidence is unavailable: "
+                    f"{type(polling_error).__name__}: {polling_error}"
+                )
+            else:
+                reason = (
+                    "Hero Lineup successor "
+                    f"{polling_phase} failed after Challenge; latest retained post "
+                    "capture is unresolved and semantic post evidence is "
+                    f"unavailable: {type(polling_error).__name__}: {polling_error}"
+                )
+            runtime.reconcile(challenge_key, "unresolved", evidence, reason)
+            return TERMINAL_BLOCKED, {
+                "reason": reason,
+                "completed_actions": completed_actions,
+                "challenge_action_key": challenge_key,
+                "latest_capture_sha256": evidence.sha256,
+                "capture_error": f"{type(polling_error).__name__}: {polling_error}",
+            }
+        if lineup is None:
+            reason = "Hero Lineup successor was not captured after Challenge"
+            return TERMINAL_BLOCKED, {
+                "reason": reason,
+                "completed_actions": completed_actions,
+                "challenge_action_key": challenge_key,
+            }
+        if lineup_roi is None:
+            reason = "Hero Lineup successor not positively recognized after Challenge"
+            runtime.reconcile(challenge_key, "unresolved", lineup, reason)
+            return TERMINAL_BLOCKED, {
+                "reason": reason,
+                "completed_actions": completed_actions,
+                "challenge_action_key": challenge_key,
+                "lineup_sha256": lineup.sha256,
+                "latest_capture_sha256": lineup.sha256,
+            }
         runtime.reconcile(challenge_key, "confirmed", lineup, "Hero Lineup recognized after Challenge")
         completed_actions.append({"action": "tap_challenge", "target_text": "red Challenge button", "target_roi": challenge_roi, "before_sha256": before.sha256, "post_sha256": lineup.sha256})
         append_event(events, {"type": "consequential_step", "action": "tap_challenge", "target_text": "red Challenge button", "target_roi": challenge_roi, "before_sha256": before.sha256, "post_sha256": lineup.sha256, "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0}})
-        lineup_roi = _bind_lineup_challenge_button(lineup.frame)
-        assert lineup_roi is not None
     if starting_state not in {"active_battle", "flee_warning"}:
         lineup_key = f"tap_lineup_challenge-2-{utc_stamp()}"
         runtime.tap(lineup, target_identity="tap_lineup_challenge", target_roi=lineup_roi, action_key=lineup_key, consequential=True)

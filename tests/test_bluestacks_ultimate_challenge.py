@@ -282,6 +282,476 @@ class UltimateChallengeVisualTests(unittest.TestCase):
         self.assertIn("--max-total-inputs", source)
 
 
+class UltimateChallengeLineupTests(unittest.TestCase):
+    """Deterministic native Hero Lineup recognition and route regressions."""
+
+    _CARD_ROIS = (
+        (29, 621, 168, 808),
+        (180, 620, 323, 810),
+        (332, 620, 475, 810),
+        (485, 620, 628, 810),
+        (639, 621, 778, 808),
+    )
+    _CARD_GRID_CANDIDATE = (84, 373, 750, 1050)
+    _GOLD = (0, 180, 220)
+    _BACKGROUND = (24, 28, 36)
+
+    @classmethod
+    def _lineup_frame(
+        cls,
+        *,
+        button: bool = True,
+        obscured_card: int | None = None,
+    ) -> np.ndarray:
+        frame = np.full((1280, 800, 3), cls._BACKGROUND, dtype=np.uint8)
+        cv2.putText(
+            frame,
+            "Hero Lineup",
+            (210, 60),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.25,
+            (255, 255, 255),
+            3,
+            cv2.LINE_AA,
+        )
+        for index, (x0, y0, x1, y1) in enumerate(cls._CARD_ROIS):
+            color = cls._BACKGROUND if index == obscured_card else cls._GOLD
+            cv2.rectangle(frame, (x0, y0), (x1 - 1, y1 - 1), color, -1)
+        if button:
+            cv2.rectangle(frame, (280, 1145), (520, 1265), cls._GOLD, -1)
+        return frame
+
+    @staticmethod
+    def _ocr_data(
+        tokens: tuple[str, ...] = ("Hero", "Lineup"),
+        confidences: tuple[str, ...] = ("96", "96"),
+    ) -> dict[str, list[str]]:
+        return {
+            "text": list(tokens),
+            "conf": list(confidences),
+        }
+
+    def _bind(
+        self,
+        frame: np.ndarray,
+        *,
+        ocr_data: dict[str, list[str]] | None = None,
+        popup_candidates: list[tuple[int, int, int, int]] | None = None,
+    ):
+        with patch.object(
+            ultimate.pytesseract,
+            "image_to_data",
+            return_value=ocr_data or self._ocr_data(),
+        ), patch.object(
+            ultimate,
+            "_central_popup_candidates",
+            return_value=(
+                [self._CARD_GRID_CANDIDATE]
+                if popup_candidates is None
+                else popup_candidates
+            ),
+        ):
+            return ultimate._bind_lineup_challenge_button(frame)
+
+    def test_native_positive_lineup_accepts_title_cards_button_and_grid_artifact(self) -> None:
+        frame = self._lineup_frame()
+        self.assertTrue(
+            ultimate._ocr_ordered_tokens(frame, ultimate._UC_TITLE_ROI, ("hero", "lineup"))
+        )
+        self.assertEqual(ultimate._central_popup_candidates(frame), [])
+        with patch.object(
+            ultimate,
+            "_unexpected_visual_popup",
+            side_effect=AssertionError("Hero Lineup must not use generic popup gate"),
+        ):
+            bound = ultimate._bind_lineup_challenge_button(frame)
+
+        self.assertEqual(bound, (300, 1175, 500, 1230))
+
+    def test_lineup_grid_requires_exact_measured_allowlist(self) -> None:
+        expected = {
+            (84, 373, 750, 1050),
+            (84, 373, 729, 1050),
+            (84, 373, 715, 1050),
+            (85, 435, 750, 1050),
+            (101, 435, 750, 1050),
+            (85, 435, 729, 1050),
+            (106, 435, 750, 1050),
+            (85, 435, 715, 1050),
+            (101, 435, 729, 1050),
+            (106, 435, 729, 1050),
+            (101, 435, 715, 1050),
+            (106, 435, 715, 1050),
+            (84, 373, 750, 891),
+            (84, 373, 748, 891),
+            (85, 435, 750, 891),
+            (85, 435, 748, 891),
+            (101, 435, 750, 891),
+            (101, 435, 748, 891),
+            (106, 435, 750, 891),
+            (106, 435, 748, 891),
+        }
+        self.assertEqual(ultimate._HERO_LINEUP_CARD_GRID_BOXES, expected)
+        self.assertTrue(
+            ultimate._lineup_card_grid_candidate_matches(self._CARD_GRID_CANDIDATE)
+        )
+        for candidate in (
+            (80, 370, 750, 1050),
+            (84, 373, 750, 1051),
+        ):
+            with self.subTest(candidate=candidate):
+                self.assertFalse(
+                    ultimate._lineup_card_grid_candidate_matches(candidate)
+                )
+
+    def test_lineup_title_and_visual_requirements_fail_closed(self) -> None:
+        frame = self._lineup_frame()
+        negative_titles = (
+            ("missing", self._ocr_data(("Hero",), ("96",))),
+            ("reversed", self._ocr_data(("Lineup", "Hero"), ("96", "96"))),
+            ("low_confidence", self._ocr_data(("Hero", "Lineup"), ("79", "96"))),
+        )
+        for label, ocr_data in negative_titles:
+            with self.subTest(case=label):
+                self.assertIsNone(self._bind(frame, ocr_data=ocr_data))
+
+        with self.subTest(case="missing_button"):
+            self.assertIsNone(self._bind(self._lineup_frame(button=False)))
+        with self.subTest(case="obscured_card"):
+            self.assertIsNone(self._bind(self._lineup_frame(obscured_card=2)))
+
+    def test_independent_lineup_modal_candidates_are_not_ignored(self) -> None:
+        frame = self._lineup_frame()
+        for candidate in ((170, 420, 630, 860), (60, 330, 760, 1100)):
+            with self.subTest(candidate=candidate):
+                self.assertIsNone(
+                    self._bind(frame, popup_candidates=[candidate])
+                )
+
+    def test_other_states_retain_generic_popup_denial(self) -> None:
+        blank = np.zeros((1280, 800, 3), dtype=np.uint8)
+        with patch.object(
+            ultimate,
+            "_unexpected_visual_popup",
+            return_value=True,
+        ) as popup:
+            self.assertIsNone(ultimate._recognize_ultimate_main(blank))
+            self.assertIsNone(ultimate._recognize_active_battle(blank))
+        self.assertEqual(popup.call_count, 2)
+
+    @staticmethod
+    def _captured(
+        root: Path,
+        frame: np.ndarray,
+        label: str,
+        ordinal: int,
+    ) -> CapturedNativeFrame:
+        encoded_ok, encoded = cv2.imencode(".png", frame)
+        assert encoded_ok
+        payload = encoded.tobytes()
+        path = root / f"{ordinal:04d}-{label}.png"
+        path.write_bytes(payload)
+        return CapturedNativeFrame(
+            frame=frame.copy(),
+            png=payload,
+            sha256=hashlib.sha256(payload).hexdigest(),
+            captured_monotonic=float(ordinal),
+            path=path,
+        )
+
+    class _RouteRuntime:
+        def __init__(self, root: Path, frame: np.ndarray) -> None:
+            self.root = root
+            self.frame = frame
+            self.runner = SimpleNamespace()
+            self.captures: list[CapturedNativeFrame] = []
+            self.taps: list[dict[str, object]] = []
+            self.reconciliations: list[
+                tuple[str, str, CapturedNativeFrame, str]
+            ] = []
+
+        def capture(self, label: str) -> CapturedNativeFrame:
+            captured = UltimateChallengeLineupTests._captured(
+                self.root,
+                self.frame,
+                label,
+                len(self.captures) + 1,
+            )
+            self.captures.append(captured)
+            return captured
+
+        def tap(self, *args, **kwargs) -> None:
+            self.taps.append(kwargs)
+
+        def reconcile(
+            self,
+            action_key: str,
+            status: str,
+            post: CapturedNativeFrame,
+            reason: str,
+        ) -> None:
+            self.reconciliations.append((action_key, status, post, reason))
+
+    def test_route_confirms_exact_challenge_key_against_lineup_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            session.mkdir()
+            frames = session / "frames"
+            frames.mkdir()
+            events = session / "events.jsonl"
+            runtime = self._RouteRuntime(root, self._lineup_frame())
+            active = self._captured(
+                root,
+                np.zeros((1280, 800, 3), dtype=np.uint8),
+                "active",
+                101,
+            )
+            warning = self._captured(
+                root,
+                np.zeros((1280, 800, 3), dtype=np.uint8),
+                "warning",
+                102,
+            )
+            fled = self._captured(
+                root,
+                np.zeros((1280, 800, 3), dtype=np.uint8),
+                "fled",
+                103,
+            )
+            with patch.object(
+                ultimate,
+                "_recognize_ultimate_main",
+                return_value=(320, 1195, 480, 1245),
+            ), patch.object(
+                ultimate,
+                "_recognize_active_battle",
+                return_value=(700, 20, 750, 75),
+            ), patch.object(
+                ultimate,
+                "_bind_flee_warning_button",
+                return_value=(470, 600, 700, 700),
+            ), patch.object(
+                ultimate,
+                "_capture_until",
+                side_effect=[active, warning, fled],
+            ), patch.object(
+                ultimate,
+                "_run_post_flee_home_route",
+                return_value=("complete_for_reset", {"reason": "test terminal"}),
+            ), patch.object(
+                ultimate,
+                "utc_stamp",
+                return_value="r16-test",
+            ):
+                terminal, detail = ultimate._run_daily_route(
+                    runtime=runtime,
+                    session=session,
+                    frames=frames,
+                    events=events,
+                    atlas_path=root / "atlas.json",
+                    reset_identity="game-day-2026-08-17",
+                    maximum_pans=4,
+                    post_input_delay=0,
+                    entry_observation=SimpleNamespace(),
+                    starting_state="ultimate_challenge",
+                )
+
+        self.assertEqual(terminal, "complete_for_reset")
+        self.assertIsNone(detail.get("challenge_action_key"))
+        self.assertGreaterEqual(len(runtime.reconciliations), 1)
+        first_key, first_status, first_post, _reason = runtime.reconciliations[0]
+        self.assertEqual(first_key, "tap_challenge-1-r16-test")
+        self.assertEqual(first_status, "confirmed")
+        np.testing.assert_array_equal(first_post.frame, self._lineup_frame())
+        self.assertEqual(first_post, runtime.captures[2])
+
+    def test_route_reconciles_exact_challenge_key_unresolved_on_six_failed_bindings(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            session.mkdir()
+            frames = session / "frames"
+            frames.mkdir()
+            events = session / "events.jsonl"
+            runtime = self._RouteRuntime(root, np.zeros((1280, 800, 3), dtype=np.uint8))
+            with patch.object(
+                ultimate,
+                "_recognize_ultimate_main",
+                return_value=(320, 1195, 480, 1245),
+            ), patch.object(
+                ultimate,
+                "_bind_lineup_challenge_button",
+                return_value=None,
+            ), patch.object(
+                ultimate.time,
+                "sleep",
+                return_value=None,
+            ), patch.object(
+                ultimate,
+                "utc_stamp",
+                return_value="r16-test",
+            ):
+                terminal, detail = ultimate._run_daily_route(
+                    runtime=runtime,
+                    session=session,
+                    frames=frames,
+                    events=events,
+                    atlas_path=root / "atlas.json",
+                    reset_identity="game-day-2026-08-17",
+                    maximum_pans=4,
+                    post_input_delay=0,
+                    entry_observation=SimpleNamespace(),
+                    starting_state="ultimate_challenge",
+                )
+
+            lineup_captures = runtime.captures[-6:]
+            latest = lineup_captures[-1]
+            self.assertEqual(len(lineup_captures), 6)
+            self.assertEqual(
+                {capture.sha256 for capture in lineup_captures},
+                {latest.sha256},
+            )
+            self.assertEqual(terminal, "blocked_fail_closed")
+            self.assertEqual(
+                detail["challenge_action_key"],
+                "tap_challenge-1-r16-test",
+            )
+            self.assertEqual(detail["lineup_sha256"], latest.sha256)
+            self.assertEqual(detail["latest_capture_sha256"], latest.sha256)
+            self.assertEqual(len(runtime.reconciliations), 1)
+            key, status, post, _reason = runtime.reconciliations[0]
+            self.assertEqual(key, detail["challenge_action_key"])
+            self.assertEqual(status, "unresolved")
+            self.assertIs(post, latest)
+
+    def test_route_reconciles_latest_post_on_lineup_predicate_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            session.mkdir()
+            frames = session / "frames"
+            frames.mkdir()
+            events = session / "events.jsonl"
+            runtime = self._RouteRuntime(
+                root,
+                np.zeros((1280, 800, 3), dtype=np.uint8),
+            )
+            with patch.object(
+                ultimate,
+                "_recognize_ultimate_main",
+                return_value=(320, 1195, 480, 1245),
+            ), patch.object(
+                ultimate,
+                "_bind_lineup_challenge_button",
+                side_effect=RuntimeError("synthetic predicate failure"),
+            ), patch.object(
+                ultimate.time,
+                "sleep",
+                return_value=None,
+            ), patch.object(
+                ultimate,
+                "utc_stamp",
+                return_value="r16-predicate-exception",
+            ):
+                terminal, detail = ultimate._run_daily_route(
+                    runtime=runtime,
+                    session=session,
+                    frames=frames,
+                    events=events,
+                    atlas_path=root / "atlas.json",
+                    reset_identity="game-day-2026-08-17",
+                    maximum_pans=4,
+                    post_input_delay=0,
+                    entry_observation=SimpleNamespace(),
+                    starting_state="ultimate_challenge",
+                )
+
+        self.assertEqual(terminal, "blocked_fail_closed")
+        self.assertEqual(
+            detail["challenge_action_key"],
+            "tap_challenge-1-r16-predicate-exception",
+        )
+        self.assertIn("latest retained post capture", detail["reason"])
+        self.assertIn("semantic post evidence is unavailable", detail["reason"])
+        self.assertEqual(
+            detail["latest_capture_sha256"],
+            runtime.captures[-1].sha256,
+        )
+        self.assertEqual(len(runtime.captures), 3)
+        self.assertEqual(len(runtime.reconciliations), 1)
+        key, status, post, reason = runtime.reconciliations[0]
+        self.assertEqual(key, detail["challenge_action_key"])
+        self.assertEqual(status, "unresolved")
+        self.assertIs(post, runtime.captures[2])
+        self.assertEqual(reason, detail["reason"])
+
+    def test_route_reconciles_immediate_before_when_lineup_capture_raises(self) -> None:
+        class CaptureFailsBeforePost(self._RouteRuntime):
+            def capture(self, label: str) -> CapturedNativeFrame:
+                if label.startswith("hero-lineup-successor"):
+                    raise RuntimeError("synthetic post capture failure")
+                return super().capture(label)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            session.mkdir()
+            frames = session / "frames"
+            frames.mkdir()
+            events = session / "events.jsonl"
+            runtime = CaptureFailsBeforePost(
+                root,
+                np.zeros((1280, 800, 3), dtype=np.uint8),
+            )
+            with patch.object(
+                ultimate,
+                "_recognize_ultimate_main",
+                return_value=(320, 1195, 480, 1245),
+            ), patch.object(
+                ultimate.time,
+                "sleep",
+                return_value=None,
+            ), patch.object(
+                ultimate,
+                "utc_stamp",
+                return_value="r16-capture-exception",
+            ):
+                terminal, detail = ultimate._run_daily_route(
+                    runtime=runtime,
+                    session=session,
+                    frames=frames,
+                    events=events,
+                    atlas_path=root / "atlas.json",
+                    reset_identity="game-day-2026-08-17",
+                    maximum_pans=4,
+                    post_input_delay=0,
+                    entry_observation=SimpleNamespace(),
+                    starting_state="ultimate_challenge",
+                )
+
+        self.assertEqual(terminal, "blocked_fail_closed")
+        self.assertEqual(
+            detail["challenge_action_key"],
+            "tap_challenge-1-r16-capture-exception",
+        )
+        self.assertIn("no post capture was retained", detail["reason"])
+        self.assertIn("semantic post evidence is unavailable", detail["reason"])
+        self.assertEqual(
+            detail["latest_capture_sha256"],
+            runtime.captures[-1].sha256,
+        )
+        self.assertEqual(len(runtime.captures), 2)
+        self.assertEqual(len(runtime.reconciliations), 1)
+        key, status, post, reason = runtime.reconciliations[0]
+        self.assertEqual(key, detail["challenge_action_key"])
+        self.assertEqual(status, "unresolved")
+        self.assertIs(post, runtime.captures[1])
+        self.assertEqual(reason, detail["reason"])
+
+
 class UltimateHomeNormalizationTests(unittest.TestCase):
     @staticmethod
     def _home_frame(*, marker: int = 0) -> np.ndarray:
