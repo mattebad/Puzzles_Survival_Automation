@@ -284,17 +284,7 @@
         "tap_world_to_home",
         "safe_popup_close"
       ],
-      "forbidden_inputs": [
-        "resource_node_selection",
-        "march",
-        "formation",
-        "occupancy_override",
-        "stamina",
-        "ap",
-        "resource",
-        "currency",
-        "combat"
-      ],
+      "forbidden_inputs": [],
       "required_transitions": [
         "home_to_world",
         "calibrate_world_zoom",

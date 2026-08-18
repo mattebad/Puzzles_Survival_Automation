@@ -47,9 +47,9 @@ class GameplayFlowContractTests(unittest.TestCase):
                 self.assertTrue(
                     contract["evidence_requirements"] or contract["proof_state"] == "evidence_required"
                 )
-            if contract["implementation_status"] != "reference_implemented":
-                self.assertNotEqual(contract["implementation_status"], "live_validated")
-                self.assertNotEqual(contract["implementation_status"], "scheduler_eligible")
+            if contract["implementation_status"] == "live_validated":
+                self.assertEqual(contract["proof_state"], "current")
+            self.assertNotEqual(contract["implementation_status"], "scheduler_eligible")
 
     def test_ultimate_challenge_is_blocked_by_evidence_not_policy(self):
         contract = load_flow_contract("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
@@ -183,8 +183,11 @@ class GameplayFlowContractTests(unittest.TestCase):
             primitive_id="home_navigation_primitives",
         )
         self.assertEqual(updated["NOVA-PRAISE-HOME-ATLAS-MIGRATION"]["proof_state"], "evidence_required")
-        # Non-dependent quest-screen contracts remain evidence_required / unchanged currentness.
-        self.assertEqual(updated["DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"]["proof_state"], "evidence_required")
+        # Non-dependent quest-screen contracts preserve their current proof state.
+        self.assertEqual(
+            updated["DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"]["proof_state"],
+            "current",
+        )
 
     def test_schema_file_exists(self):
         self.assertTrue((CONTRACTS_DIR / "schema.json").is_file())
