@@ -39,6 +39,16 @@
         "tests.test_ultimate_challenge_daily"
       ]
     },
+    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": {
+      "focused_tests": [
+        "tests.test_flow_delivery_bioenhancer_bluestacks"
+      ]
+    },
+    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": {
+      "focused_tests": [
+        "tests.test_flow_delivery_supply_depot_bluestacks"
+      ]
+    },
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
       "focused_tests": [
         "tests.test_campaign_auto_battle",

@@ -161,9 +161,11 @@ def run_profile(
         )
 
     queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
-    if not any(item["flow_id"] == flow_id for item in queue["flows"]):
-        raise ValidationRunnerError(f"unknown flow_id: {flow_id}")
     profiles = _load_profiles()
+    queue_known = any(item["flow_id"] == flow_id for item in queue["flows"])
+    profile_known = flow_id in profiles.get("flow_profiles", {})
+    if not queue_known and not profile_known:
+        raise ValidationRunnerError(f"unknown flow_id: {flow_id}")
     targets = _resolve_unittest_targets(profiles, profile=profile, flow_id=flow_id, queue=queue)
     delivery_stage = stage or _stage_for_profile(profile)
     head = _repo_head()

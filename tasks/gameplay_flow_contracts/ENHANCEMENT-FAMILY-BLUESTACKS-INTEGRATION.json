@@ -1,200 +1,332 @@
 {
   "schema_version": 2,
   "flow_id": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
-  "product_purpose": "Supervised development-session native BlueStacks Daily enhancement for Gear, Chip, or Module.",
-  "trigger_cadence_type": "eligibility_pulse",
-  "reset_scope": "daily_reset",
-  "required_starting_context": ["unknown_requires_evidence"],
+  "product_purpose": "Supervised native BlueStacks enhancement of one equipped Gear, Chip, and Module item from Commander Info in one ordered session.",
+  "ordered_categories": ["gear", "chip", "module"],
+  "family_constraints": {
+    "single_development_session": true,
+    "one_use_per_category": true,
+    "maximum_total_uses": 3,
+    "completed_category_skip_requires_retained_dispatch_and_successor": true,
+    "unknown_or_malformed_retained_progress": "fail_closed"
+  },
+  "trigger_cadence_type": "evidence_gated",
+  "reset_scope": "none",
+  "required_starting_context": [
+    "home_canonical",
+    "unknown_requires_evidence"
+  ],
   "shared_primitive_dependencies": [
     {
       "primitive_id": "native_bluestacks_capture_and_session_boundary",
       "version_digest_field": "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
       "required": true
+    },
+    {
+      "primitive_id": "shared_home_navigation_recognition",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
     }
   ],
   "recognized_states": [
     "unknown_requires_evidence",
-    "DAILY_ROW_SELECTED",
+    "HOME_CANONICAL",
     "COMMANDER_INFO_RECOGNIZED",
     "CATEGORY_SELECTED",
+    "EQUIPPED_ITEM_SELECTED",
     "ENHANCE_PANEL_OPENED",
-    "MATERIAL_SELECTED",
+    "EXACT_ONE_STAR_MATERIAL_SELECTED",
     "QUANTITY_ONE_RECOGNIZED",
-    "FINAL_CONFIRM_DISPATCHED",
+    "ENHANCEMENT_USE_DISPATCHED",
     "SETTLED_SUCCESSOR_RECONCILED",
-    "DAILY_ZERO_TO_ONE_RECONCILED",
+    "GEAR_SUCCESSOR_RECONCILED",
+    "CHIP_SUCCESSOR_RECONCILED",
+    "MODULE_SUCCESSOR_RECONCILED",
     "SAFE_TERMINAL_RECOGNIZED",
     "blocked",
     "evidence_required"
   ],
   "transition_contracts": [
     {
-      "transition_id": "recognize-daily-row",
+      "transition_id": "recognize-canonical-home-profile",
       "from": "unknown_requires_evidence",
-      "to": "DAILY_ROW_SELECTED",
+      "to": "HOME_CANONICAL",
       "planner": "scripts/enhancement_bluestacks.py",
       "permitted_input": null,
-      "postconditions": ["native_800x1280_frame", "selected_row_local_objective", "objective_progress_0_of_1", "row_local_go_target"],
+      "postconditions": [
+        "native_800x1280_frame",
+        "shared_canonical_home_recognition",
+        "unique_current_frame_top_left_profile_portrait"
+      ],
       "terminal_outcomes": ["blocked", "manual_required"],
       "evidence_gate_id": "native-enhancement-semantics"
     },
     {
-      "transition_id": "enter-commander-info",
-      "from": "DAILY_ROW_SELECTED",
+      "transition_id": "open-commander-info",
+      "from": "HOME_CANONICAL",
       "to": "COMMANDER_INFO_RECOGNIZED",
       "planner": "scripts/enhancement_bluestacks.py",
-      "permitted_input": "fresh_daily_row_go",
-      "postconditions": ["positive_commander_info_recognition", "no_manual_prepositioned_start"],
+      "permitted_input": "fresh_profile_portrait",
+      "postconditions": [
+        "fresh_immediate_before_home_recognition",
+        "positive_commander_info_header",
+        "requested_category_label"
+      ],
       "terminal_outcomes": ["blocked", "manual_required"],
       "evidence_gate_id": "native-enhancement-semantics"
     },
     {
       "transition_id": "select-category-and-item",
       "from": "COMMANDER_INFO_RECOGNIZED",
-      "to": "CATEGORY_SELECTED",
+      "to": "EQUIPPED_ITEM_SELECTED",
       "planner": "scripts/enhancement_bluestacks.py",
-      "permitted_input": "fresh_category_or_item_setup",
-      "postconditions": ["selected_category_marker_is_spatially_associated", "equipped_item_identity_is_unique"],
+      "permitted_input": "fresh_category_and_equipped_item_targets",
+      "postconditions": [
+        "requested_tab_current_frame_binding",
+        "stable_variant_item_identity",
+        "unique_equipped_item_geometry"
+      ],
       "terminal_outcomes": ["blocked", "manual_required"],
       "evidence_gate_id": "native-enhancement-semantics"
     },
     {
       "transition_id": "open-enhance-panel",
-      "from": "CATEGORY_SELECTED",
+      "from": "EQUIPPED_ITEM_SELECTED",
       "to": "ENHANCE_PANEL_OPENED",
       "planner": "scripts/enhancement_bluestacks.py",
-      "permitted_input": "fresh_open_enhance_setup",
-      "postconditions": ["local_open_enhance_target"],
-      "terminal_outcomes": ["blocked", "manual_required"],
-      "evidence_gate_id": "native-enhancement-semantics"
+      "permitted_input": "fresh_open_enhance_target",
+      "postconditions": ["fresh_immediate_before_item_binding", "enhance_control"],
+      "terminal_outcomes": ["blocked", "manual_required"]
     },
     {
-      "transition_id": "select-material",
+      "transition_id": "select-exact-material",
       "from": "ENHANCE_PANEL_OPENED",
-      "to": "MATERIAL_SELECTED",
+      "to": "EXACT_ONE_STAR_MATERIAL_SELECTED",
       "planner": "scripts/enhancement_bluestacks.py",
-      "permitted_input": "fresh_category_material_setup",
-      "postconditions": ["category_material_spatial_association", "exact_one_star", "inventory_available"],
+      "permitted_input": "fresh_exact_matching_one_star_material",
+      "postconditions": [
+        "requested_category_material",
+        "exactly_one_star",
+        "inventory_available",
+        "no_auto_select",
+        "no_premium_currency"
+      ],
       "terminal_outcomes": ["blocked", "manual_required"],
       "evidence_gate_id": "native-enhancement-semantics"
     },
     {
       "transition_id": "recognize-quantity-one",
-      "from": "MATERIAL_SELECTED",
+      "from": "EXACT_ONE_STAR_MATERIAL_SELECTED",
       "to": "QUANTITY_ONE_RECOGNIZED",
       "planner": "scripts/enhancement_bluestacks.py",
       "permitted_input": null,
-      "postconditions": ["fresh_local_quantity_control", "quantity_exactly_one"],
-      "terminal_outcomes": ["blocked", "manual_required"],
-      "evidence_gate_id": "native-enhancement-semantics"
+      "postconditions": ["fresh_quantity_control", "quantity_exactly_one"],
+      "terminal_outcomes": ["blocked", "manual_required"]
     },
     {
-      "transition_id": "resource-affecting-confirm",
+      "transition_id": "use-one-enhancer",
       "from": "QUANTITY_ONE_RECOGNIZED",
-      "to": "FINAL_CONFIRM_DISPATCHED",
+      "to": "ENHANCEMENT_USE_DISPATCHED",
       "planner": "scripts/enhancement_bluestacks.py",
-      "permitted_input": "one_resource_affecting_confirmation",
-      "postconditions": ["fresh_immediate_before", "same_item_category_and_provenance", "one_final_confirmation_only"],
+      "permitted_input": "one_resource_affecting_use",
+      "postconditions": [
+        "fresh_immediate_before",
+        "same_item_variant_and_provenance",
+        "exact_one_star_quantity_one",
+        "use_control",
+        "one_resource_affecting_use_only"
+      ],
       "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
       "evidence_gate_id": "native-enhancement-semantics"
     },
     {
-      "transition_id": "settle-successor",
-      "from": "FINAL_CONFIRM_DISPATCHED",
+      "transition_id": "settle-same-item-successor",
+      "from": "ENHANCEMENT_USE_DISPATCHED",
       "to": "SETTLED_SUCCESSOR_RECONCILED",
       "planner": "scripts/enhancement_bluestacks.py",
       "permitted_input": null,
-      "postconditions": ["immediate_post_retained", "bounded_non_input_polling", "same_item_result_or_delta"],
-      "terminal_outcomes": ["complete_for_reset", "blocked", "manual_required"],
+      "postconditions": [
+        "fresh_immediate_post",
+        "bounded_non_input_polling",
+        "same_item_and_category",
+        "level_or_material_delta_or_associated_result"
+      ],
+      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
       "evidence_gate_id": "native-enhancement-successor"
     },
     {
-      "transition_id": "prove-daily-completion",
+      "transition_id": "return-canonical-home",
       "from": "SETTLED_SUCCESSOR_RECONCILED",
-      "to": "DAILY_ZERO_TO_ONE_RECONCILED",
-      "planner": "scripts/enhancement_bluestacks.py",
-      "permitted_input": null,
-      "postconditions": ["same_daily_objective", "daily_progress_0_to_1", "same_game_day"],
-      "terminal_outcomes": ["complete_for_reset", "blocked", "manual_required"],
-      "evidence_gate_id": "native-enhancement-successor"
-    },
-    {
-      "transition_id": "recognize-safe-terminal",
-      "from": "DAILY_ZERO_TO_ONE_RECONCILED",
       "to": "SAFE_TERMINAL_RECOGNIZED",
       "planner": "scripts/enhancement_bluestacks.py",
-      "permitted_input": null,
-      "postconditions": ["fresh_native_terminal", "source_frame_not_terminal", "no_unknown_overlay"],
-      "terminal_outcomes": ["complete_for_reset", "blocked", "manual_required"],
+      "permitted_input": "fresh_android_back",
+      "postconditions": [
+        "fresh_commander_immediate_before",
+        "canonical_home_successor",
+        "unique_profile_portrait",
+        "no_unknown_overlay"
+      ],
+      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
       "evidence_gate_id": "native-enhancement-successor"
     }
   ],
   "permitted_inputs": [
-    "fresh_daily_row_go",
-    "fresh_category_or_item_setup",
-    "fresh_open_enhance_setup",
-    "fresh_category_material_setup",
-    "one_resource_affecting_confirmation",
+    "fresh_profile_portrait",
+    "fresh_category_and_equipped_item_targets",
+    "fresh_open_enhance_target",
+    "fresh_exact_matching_one_star_material",
+    "one_resource_affecting_use",
+    "fresh_android_back",
     "observe_only_safe_recovery"
   ],
-  "consequential_action_class": "ordinary_development_resource_affecting_confirmation",
+  "consequential_action_class": "ordinary_development_resource_affecting_use",
   "cost_quantity_requirements": {
     "free_only": false,
     "maximum_cost": 0,
     "quantity": 1,
     "resource_or_currency": "category-specific one-star material",
-    "notes": "Enhancement is an ordinary supervised development interaction; only its final confirmation affects material resources."
+    "notes": "Only the final Use consumes one in-game material; real-money confirmation is unsupported."
   },
-  "completion_identity": "enhancement-family-bluestacks-integration:complete",
-  "terminal_outcomes": ["action_performed", "complete_for_reset", "blocked", "manual_required"],
+  "completion_identity": "enhancement-family-bluestacks-integration:gear-chip-module-home-complete",
+  "terminal_outcomes": [
+    "action_performed",
+    "action_performed",
+    "blocked",
+    "manual_required"
+  ],
   "cooldown_deferred_behavior": "No retry; retain evidence_required until materially changed native evidence is available.",
-  "bounded_recovery_behavior": "Capture and classify native state; perform only freshly recognized safe recovery or return evidence_required.",
+  "bounded_recovery_behavior": "Capture and classify native state; perform no resource action and return evidence_required unless a safe terminal is positively recognized.",
   "evidence_requirements": [
-    "fresh native 800x1280 PNG source and every stage frame",
-    "selected Daily row with exact objective 0/1 and row-local Go",
-    "local category, item, material, quantity-one, and final-confirm geometry",
-    "one final resource-affecting dispatch with ordinary-development event classification",
-    "immediate-post, bounded settled polling, same-item successor, and Daily 0-to-1 proof",
+    "fresh native 800x1280 Home source and every stage frame",
+    "shared canonical Home recognition and unique current-frame profile portrait binding",
+    "Commander Info header, requested category, stable equipped item identity, and local geometry",
+    "exact matching one-star material, inventory availability, quantity one, and Use control",
+    "one parent-session-accounted resource-affecting Use per category, exactly three total on a fresh family run",
+    "durable per-category reservation/progress with strict retained native evidence validation",
+    "immediate-post, bounded settled polling, same-item successor, and canonical Home terminal",
     "real PNG decoding, recomputed hashes, ordered events, and independent semantic rerecognition"
   ],
   "evidence_gates": [
     {
       "gate_id": "native-enhancement-semantics",
       "status": "evidence_required",
-      "blocks": ["recognize-daily-row", "enter-commander-info", "select-category-and-item", "open-enhance-panel", "select-material", "recognize-quantity-one", "resource-affecting-confirm"],
-      "required_evidence": ["current native Daily and Commander Info semantics", "fresh local target geometry", "BlueStacks provenance"],
+      "blocks": [
+        "recognize-canonical-home-profile",
+        "open-commander-info",
+        "select-category-and-item",
+        "open-enhance-panel",
+        "select-exact-material",
+        "recognize-quantity-one",
+        "use-one-enhancer"
+      ],
+      "required_evidence": [
+        "current native canonical Home and Commander Info semantics",
+        "fresh local target geometry",
+        "BlueStacks provenance"
+      ],
       "permitted_inputs": []
     },
     {
       "gate_id": "native-enhancement-successor",
       "status": "evidence_required",
-      "blocks": ["settle-successor", "prove-daily-completion", "recognize-safe-terminal"],
-      "required_evidence": ["same-item settled successor", "Daily objective 0-to-1", "fresh terminal frame"],
+      "blocks": [
+        "settle-same-item-successor",
+        "return-canonical-home"
+      ],
+      "required_evidence": [
+        "same-item settled successor for each ordered category",
+        "fresh canonical Home terminal"
+      ],
       "permitted_inputs": []
     }
   ],
   "product_policy_refs": [
-    {"policy_id": "development-session-only", "source": "pnsctl development-session run-flow"},
-    {"policy_id": "ordinary-enhancement-resource-boundary", "source": "AGENTS.md live target and action safety"},
-    {"policy_id": "forbidden-enhancement-actions", "source": "native recognizer rejects Auto Select, higher-star, unknown, premium, Promote, Modify, Replace, Unequip, and identical retry"}
+    {
+      "policy_id": "development-session-only",
+      "source": "pnsctl development-session run-flow"
+    },
+    {
+      "policy_id": "ordinary-enhancement-resource-boundary",
+      "source": "AGENTS.md live target and action safety"
+    },
+    {
+      "policy_id": "forbidden-enhancement-actions",
+      "source": "native recognizer rejects Auto Select, higher-star, unknown, premium, Promote, Modify, Replace, Unequip, and identical retry"
+    }
   ],
   "replay_fixture_requirements": [
-    {"fixture_id": "bliss_enhancement_family", "status": "synthetic_policy_ok", "path": "tests/fixtures/phase_e_enhancement_observations.json", "notes": "Synthetic fixtures cannot authorize BlueStacks."},
-    {"fixture_id": "bluestacks_native_enhancement", "status": "required_evidence", "path": null, "notes": "No native evidence is fabricated."}
+    {
+      "fixture_id": "bliss_enhancement_family",
+      "status": "synthetic_policy_ok",
+      "path": "tests/fixtures/phase_e_enhancement_observations.json",
+      "notes": "Synthetic fixtures cannot authorize BlueStacks."
+    },
+    {
+      "fixture_id": "bluestacks_native_enhancement",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "No native evidence is fabricated."
+    }
   ],
   "scenarios": [
     {
       "scenario_id": "enhancement-family-development-session",
       "mode": "consequential_supervised",
-      "start_state": "unknown_requires_evidence",
+      "start_state": "HOME_CANONICAL",
       "terminal_state": "SAFE_TERMINAL_RECOGNIZED",
-      "permitted_inputs": ["fresh_daily_row_go", "fresh_category_or_item_setup", "fresh_open_enhance_setup", "fresh_category_material_setup", "one_resource_affecting_confirmation"],
+      "permitted_inputs": [
+        "fresh_profile_portrait",
+        "fresh_category_and_equipped_item_targets",
+        "fresh_open_enhance_target",
+        "fresh_exact_matching_one_star_material",
+        "one_resource_affecting_use",
+        "fresh_android_back"
+      ],
       "forbidden_inputs": [],
-      "required_transitions": ["recognize-daily-row", "enter-commander-info", "select-category-and-item", "open-enhance-panel", "select-material", "recognize-quantity-one", "resource-affecting-confirm", "settle-successor", "prove-daily-completion", "recognize-safe-terminal"],
-      "evidence_gate_ids": ["native-enhancement-semantics", "native-enhancement-successor"]
+      "required_transitions": [
+        "recognize-canonical-home-profile",
+        "open-commander-info",
+        "select-category-and-item",
+        "open-enhance-panel",
+        "select-exact-material",
+        "recognize-quantity-one",
+        "use-one-enhancer",
+        "settle-same-item-successor",
+        "select-category-and-item",
+        "open-enhance-panel",
+        "select-exact-material",
+        "recognize-quantity-one",
+        "use-one-enhancer",
+        "settle-same-item-successor",
+        "select-category-and-item",
+        "open-enhance-panel",
+        "select-exact-material",
+        "recognize-quantity-one",
+        "use-one-enhancer",
+        "settle-same-item-successor",
+        "return-canonical-home"
+      ],
+      "evidence_gate_ids": [
+        "native-enhancement-semantics",
+        "native-enhancement-successor"
+      ]
     }
   ],
-  "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "blocking_unknown_modal", "cash_mall_real_money_confirmation", "auto_select", "higher_star_material", "unknown_material", "premium_currency", "promote_modify_replace_unequip", "identical_retry"],
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "blocking_unknown_modal",
+    "cash_mall_real_money_confirmation",
+    "auto_select",
+    "higher_star_material",
+    "unknown_material",
+    "premium_currency",
+    "promote_modify_replace_unequip",
+    "identical_retry"
+  ],
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
   "offline_proof_state": "current",

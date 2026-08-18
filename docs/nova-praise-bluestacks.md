@@ -6,9 +6,12 @@ free Bioenhancer contract.
 
 ## Route and safety boundary
 
-1. Recognize Home/Base and zoom the map out with the fixed headless scrcpy two-pointer pinch.
-2. Bind the Research Lab building from the current native 800×1280 frame.
-3. Open the building menu; if clipped, drag the map until the complete menu is visible.
+1. Recognize Home/Base with Home Atlas and, when measured noncanonical Atlas
+   evidence proves a supported zoom state, recover to the canonical zoom.
+2. Project and semantically bind Research Lab from the current native 800×1280
+   frame, then require the recovery-aware viewport planner to approve radial and
+   HUD clearance; pan and rebind when required.
+3. Open the planner-approved building menu.
 4. Bind the menu's distinct Nova control and recognize the Nova screen.
 5. Bind one enabled Praise control and read the remaining Interaction attempts count.
 6. Dispatch one zero-cost Praise at most once, then require a fresh frame.
@@ -19,6 +22,17 @@ free Bioenhancer contract.
 Unknown screen, missing or disabled Praise, stale frame, overlay, cooldown mismatch, duplicate
 frame, or ambiguous postcondition is fail-closed. Production registration and scheduler eligibility
 remain disabled.
+
+The fixed bottom navigation bar is global and is not Home identity authority.
+High-quality `ZOOMED_IN`/`INTERMEDIATE` Home Atlas registration may authorize
+only bounded zoom recovery. Localized/canonical Atlas authority is required
+before pan, Research Lab or Nova dispatch, radial continuation, or terminal
+Home acceptance.
+
+The supervised development-session runner requires verified runtime scope, account, server, reset,
+and identity evidence. Its invocation guard is derived from the validated reset ID, so a new reset
+gets a new guard path and prior reset guards/evidence remain immutable. One invocation is bounded by
+the caller's total `max_inputs` (the frozen canary uses 8) and exactly one Praise.
 
 ## Local BlueStacks inspection
 
@@ -52,6 +66,10 @@ The 2026-07-16 integrated execution proved Home → Research Lab radial menu →
 The exact successor was `Interaction attempts left: 6` to `5` with `CD: 00:04:38`. The retained
 reconciliation command can complete only that original unresolved action key from its source and
 current cooldown evidence; it cannot dispatch another Praise.
+
+Return uses only the retained exact Nova transition: source `be223f...`, immediate post `2405e1...`,
+settled canonical Home `abb002...`. Android Back is dispatched at most once, only after fresh
+positive `NOVA_SCREEN` recognition; radial or unknown successors fail closed without another Back.
 
 ## Retained proof and replay coverage
 

@@ -1,0 +1,146 @@
+{
+  "schema_version": 2,
+  "flow_id": "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+  "product_purpose": "From canonical Home, enter Supply Depot, exhaust every currently displayed zero-cost attempt with one bounded Food hold, prove Free disappeared at zero attempts, and return Home.",
+  "trigger_cadence_type": "daily_once",
+  "reset_scope": "current_observed_attempt_inventory",
+  "required_starting_context": ["home_localized"],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_localized",
+    "supply_depot_radial",
+    "supply_depot",
+    "free_attempts_available",
+    "free_attempts_exhausted",
+    "home_returned",
+    "blocked",
+    "manual_required",
+    "unknown_fail_closed"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "enter_supply_depot",
+      "from": "home_localized",
+      "to": "supply_depot",
+      "planner": "Home Atlas plus current-frame Supply Depot binders",
+      "permitted_input": "bounded pan, building tap, Claim Supply radial tap",
+      "postconditions": ["exact Supply Depot screen recognized"],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "exhaust_free_attempts",
+      "from": "free_attempts_available",
+      "to": "free_attempts_exhausted",
+      "planner": "SupplyDepotHoldConfig",
+      "permitted_input": "one zero-distance long press on exact free Food control",
+      "postconditions": [
+        "observed Daily free attempts become zero",
+        "all four Free controls disappear",
+        "no diamond-cost control is dispatched"
+      ],
+      "terminal_outcomes": ["blocked"]
+    },
+    {
+      "transition_id": "return_home",
+      "from": "supply_depot",
+      "to": "home_returned",
+      "planner": "current-frame facility Back-arrow binder",
+      "permitted_input": "visible facility Back arrow",
+      "postconditions": ["Home positively recognized"],
+      "terminal_outcomes": ["blocked"]
+    }
+  ],
+  "permitted_inputs": [
+    "bounded pan, building tap, Claim Supply radial tap",
+    "bounded Home pan",
+    "Supply Depot building tap",
+    "Claim Supply radial tap",
+    "one zero-distance long press on exact free Food control",
+    "one bounded free Food hold",
+    "visible facility Back arrow",
+    "visible Supply Depot Back arrow"
+  ],
+  "local_postconditions": [
+    "free attempt count is zero",
+    "Free controls are absent",
+    "terminal Home is verified"
+  ],
+  "consequential_action_class": "ordinary_development",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": "all currently observed free attempts",
+    "resource_or_currency": null,
+    "notes": "Attempt count is building-dependent; never hard-code Daily 5/5 as the collection count."
+  },
+  "completion_identity": "supply-depot:all-observed-free-attempts-exhausted",
+  "terminal_outcomes": ["complete_for_reset", "blocked", "manual_required"],
+  "cooldown_deferred_behavior": "An already exhausted current reset is idempotent and still requires Home return.",
+  "bounded_recovery_behavior": "Unknown results fail closed. Use only the current-frame facility Back arrow; Android Back and paid controls are prohibited.",
+  "evidence_requirements": [
+    "fresh native 800x1280 source and immediate-before frames",
+    "observed attempts before and exact zero after",
+    "all Free controls absent after the hold",
+    "terminal Home proof"
+  ],
+  "evidence_gates": [],
+  "product_policy_refs": [
+    {
+      "policy_id": "supply-depot-zero-cost-only",
+      "source": "scripts/supply_depot_free_canary.py"
+    },
+    {
+      "policy_id": "runtime-input-safety",
+      "source": "docs/runtime-input-safety-policy.md"
+    }
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "supply_depot_contract_and_vision",
+      "status": "synthetic_policy_ok",
+      "path": "tests/test_supply_depot.py",
+      "notes": "Bounded hold and exact exhaustion semantics."
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "all-current-free-attempts",
+      "mode": "consequential_supervised",
+      "start_state": "home_localized",
+      "terminal_state": "home_returned",
+      "permitted_inputs": [
+        "bounded pan, building tap, Claim Supply radial tap",
+        "one zero-distance long press on exact free Food control",
+        "visible Supply Depot Back arrow"
+      ],
+      "forbidden_inputs": [],
+      "required_transitions": [
+        "enter_supply_depot",
+        "exhaust_free_attempts",
+        "return_home"
+      ],
+      "evidence_gate_ids": [],
+      "notes": "One bounded hold maximum; no paid control."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "paid_or_diamond_control",
+    "unknown_attempt_count",
+    "blocking_unknown_modal",
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "production_eligible": false,
+  "registration_state": "disabled"
+}

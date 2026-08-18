@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -225,8 +226,17 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         *,
         attempts_before: int = 6,
     ) -> tuple[NovaFrameRecognition, ...]:
-        # Post frame only. Immediate-before uses fast revalidation against the proposal.
+        immediate_digest = hashlib.sha256(
+            self.runtime.frames[self.runtime.index].frame.tobytes()
+        ).hexdigest()
         return (
+            recognition(
+                praise_observation(
+                    attempts_before,
+                    2.0,
+                    digest=immediate_digest,
+                )
+            ),
             recognition(
                 praise_observation(
                     attempts_before - 1,
@@ -389,7 +399,8 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
     def test_package_mismatch_blocks_with_zero_transport(self) -> None:
         self.runtime = FakeRuntime(foreground_package="com.other.package")
         proposal_capture, proposal = self.armed_proposal()
-        result = self.boundary().execute_praise(proposal_capture, proposal)
+        current = self._success_recognitions()[0]
+        result = self.boundary(current).execute_praise(proposal_capture, proposal)
         self.assertEqual(result.status, "blocked")
         self.assertEqual(result.reason, "PACKAGE_FOREGROUND_MISMATCH")
         self.assertEqual(result.transport_calls, 0)
@@ -429,7 +440,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         self.assertEqual(self.runtime.taps, [])
         self.assertEqual(self.store.list_actions_for_task(NOVA_TASK_ID), [])
 
-    def test_immediate_before_uses_fast_revalidation_not_full_ocr(self) -> None:
+    def test_immediate_before_uses_independent_current_semantics(self) -> None:
         proposal_capture, proposal = self.armed_proposal()
         calls = {"recognize": 0}
         boundary = NovaPraiseActionBoundary(
@@ -455,7 +466,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         from unittest.mock import patch
 
         def boom(*_args, **_kwargs):
-            raise AssertionError("OCR must not run on immediate-before fast path")
+            raise AssertionError("injected current semantics must not invoke OCR")
 
         with patch("tasks.nova_praise_vision.pytesseract.image_to_string", boom), patch(
             "tasks.nova_praise_vision.pytesseract.image_to_data", boom
@@ -463,8 +474,8 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
             result = boundary.execute_praise(proposal_capture, proposal)
         self.assertEqual(result.status, "confirmed")
         self.assertEqual(result.transport_calls, 1)
-        # Full recognizer runs only for post-observe, never for immediate-before.
-        self.assertEqual(calls["recognize"], 1)
+        # The injected recognizer is consulted independently for immediate and post.
+        self.assertEqual(calls["recognize"], 2)
         self.assertEqual((result.attempts_before, result.attempts_after), (6, 5))
 
     def test_immediate_profile_change_blocks_with_zero_transport(self) -> None:
@@ -505,6 +516,25 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         self.assertEqual(self.runtime.taps, [])
         self.assertEqual(self.store.list_actions_for_task(NOVA_TASK_ID), [])
 
+    def test_new_paid_surface_on_immediate_frame_blocks_transport(self) -> None:
+        proposal_capture, proposal = self.armed_proposal()
+        current, post = self._success_recognitions()
+        paid_current = NovaFrameRecognition(
+            current.observation,
+            current.frame_sha256,
+            current.targets,
+            {"body_text": "confirm premium cost"},
+        )
+        result = self.boundary(paid_current, post).execute_praise(
+            proposal_capture,
+            proposal,
+        )
+        self.assertEqual(result.status, "blocked")
+        self.assertIn("paid or confirmation surface", result.reason)
+        self.assertEqual(result.transport_calls, 0)
+        self.assertEqual(self.runtime.taps, [])
+        self.assertEqual(self.store.list_actions_for_task(NOVA_TASK_ID), [])
+
     def test_capability_denial_before_prepare_returns_blocked_without_store_error(self) -> None:
         proposal_capture, proposal = self.armed_proposal()
         # Immediate frame mono ~2.0; clock far ahead forces STALE_FRAME at issue time.
@@ -516,7 +546,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
             owner_id="owner",
             invocation_id="invocation-1",
             execute=True,
-            recognizer=RecognitionQueue(),
+            recognizer=RecognitionQueue(self._success_recognitions()[0]),
             monotonic_clock=lambda: 20.0,
             wall_clock=lambda: 100.5,
             post_delays=(0.0,),
@@ -558,7 +588,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
                     owner_id="owner",
                     invocation_id="other",
                     execute=True,
-                    recognizer=RecognitionQueue(),
+                    recognizer=recognize_nova_frame,
                     monotonic_clock=lambda: 3.25,
                     wall_clock=lambda: 100.5,
                     post_delays=(0.0,),
@@ -632,6 +662,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
     def test_ambiguous_postcondition_is_unresolved_without_scheduler_update(self) -> None:
         proposal_capture, proposal = self.armed_proposal()
         result = self.boundary(
+            self._success_recognitions()[0],
             recognition(praise_observation(6, 4.0, digest="d" * 64)),
         ).execute_praise(proposal_capture, proposal)
         self.assertEqual(result.status, "unresolved")
@@ -647,7 +678,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
 
     def test_crash_after_transport_blocks_restart_redispatch(self) -> None:
         proposal_capture, proposal = self.armed_proposal()
-        boundary = self.boundary()
+        boundary = self.boundary(*self._success_recognitions())
         original_mark_input_sent = self.store.mark_input_sent
         original_mark_unresolved = self.store.mark_unresolved
 

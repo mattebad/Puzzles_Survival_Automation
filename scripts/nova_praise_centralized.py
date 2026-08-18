@@ -632,12 +632,12 @@ class NovaPraiseActionBoundary:
 
         # One late immediate-before capture is the sole authorizing current-frame binding.
         # No second live capture may occur between issuance and the single Praise transport.
-        # Fast revalidation trusts the full-OCR proposal for semantics and only cheaply
-        # corroborates the fixed Praise ROI on this fresh frame (no OCR / freshness burn).
         immediate_capture = self.runtime.capture("praise-central-immediate-before")
+        current_semantics = self._recognize(immediate_capture)
         immediate_recognition = revalidate_nova_praise_frame_fast(
             immediate_capture.frame,
             prior=proposal_recognition,
+            current=current_semantics,
             captured_monotonic=immediate_capture.captured_monotonic,
         )
         try:

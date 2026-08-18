@@ -14,6 +14,13 @@ from scripts import navigation_development_boundary as nav_boundary
 from tasks.nova_praise_pulse import NOVA_TASK_ID
 
 
+HISTORICAL_RESET_ID = "game-day-2026-07-22"
+
+
+def _historical_guard() -> Path:
+    return pnsctl._nova_supervised_guard_path(HISTORICAL_RESET_ID)
+
+
 def _valid_supervised_result(**overrides) -> dict:
     payload = {
         "schema_version": 1,
@@ -90,11 +97,11 @@ def _seed_action_database(path: Path, *, action_id: str, action_key: str) -> Non
                 final_reason, updated_at
             ) VALUES (
                 ?, ?, ?, 'praise', 'nova_lab', 'nova', '[]', 'abc', 1.0, 'profile',
-                'game-day-2026-07-22', 'decrement', 'praise', 'none', 0, 1, 1, '{}',
+                ?, 'decrement', 'praise', 'none', 0, 1, 1, '{}',
                 'allow', 'ok', 1.0, 2.0, '{}', '{}', '[]', 'confirmed', 'ok', 3.0
             )
             """,
-            (action_id, action_key, NOVA_TASK_ID),
+            (action_id, action_key, NOVA_TASK_ID, HISTORICAL_RESET_ID),
         )
         store.connection.commit()
     finally:
@@ -133,7 +140,7 @@ def _seed_cancelled_praise_action(
                 final_reason, updated_at
             ) VALUES (
                 ?, ?, ?, 'PRAISE_NOVA', 'NOVA_PRAISE_ATTEMPTS_7', 'nova-praise', '[]',
-                'abc', 1.0, 'profile', 'game-day-2026-07-22', 'decrement',
+                'abc', 1.0, 'profile', ?, 'decrement',
                 'praise_zero_cost', 'none', 0, 1, 1, '{}', 'authorize', 'ok', 1.0,
                 ?, ?, NULL, '[]', ?, ?, 3.0
             )
@@ -142,6 +149,7 @@ def _seed_cancelled_praise_action(
                 action_id,
                 action_key,
                 NOVA_TASK_ID,
+                HISTORICAL_RESET_ID,
                 input_attempt_at,
                 transport_result_json,
                 final_status,
@@ -305,7 +313,7 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
             "--server-id",
             "server-1",
             "--reset-id",
-            "game-day-2026-07-22",
+            HISTORICAL_RESET_ID,
             "--identity-evidence",
             str(evidence),
         ]
@@ -313,7 +321,7 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
             args.extend(extra)
         return args
 
-    def _write_identity(self, directory: Path, *, reset_id: str = "game-day-2026-07-22") -> Path:
+    def _write_identity(self, directory: Path, *, reset_id: str = HISTORICAL_RESET_ID) -> Path:
         evidence = directory / "identity.json"
         evidence.write_text(
             json.dumps(
@@ -335,7 +343,7 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
         action_db = orchestrator / "bluestacks-actions.sqlite3"
         lock_path = orchestrator / "bluestacks-runtime-input-lock.sqlite3"
         guard = (
-            orchestrator / "nova-praise-one-free-pulse-game-day-2026-07-22.guard.json"
+            orchestrator / f"nova-praise-one-free-pulse-{HISTORICAL_RESET_ID}.guard.json"
         )
         output = (
             root / ".local-captures" / "flow-delivery" / pnsctl.NOVA_SUPERVISED_PULSE_FLOW_ID
@@ -343,7 +351,7 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
         return (
             patch.object(pnsctl, "REPO_ROOT", root),
             patch.object(pnsctl, "NOVA_SUPERVISED_ACTION_DATABASE", action_db),
-            patch.object(pnsctl, "NOVA_SUPERVISED_INVOCATION_GUARD", guard),
+            patch.object(pnsctl, "NOVA_SUPERVISED_GUARD_ARCHIVE_DIR", orchestrator / "nova-supervised-guard-archive"),
             patch.object(pnsctl, "NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT", output),
             patch.object(
                 pnsctl,
@@ -421,7 +429,7 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
             patches = self._patch_repo_paths(root)
             with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9]:
                 git = self._bind_supervised_args(args, root)
-                guard_path = pnsctl.NOVA_SUPERVISED_INVOCATION_GUARD
+                guard_path = _historical_guard()
                 with git:
                     with patch(
                         "scripts.nova_praise_bluestacks.run_nova_praise_one_free_pulse"
@@ -490,7 +498,7 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
             args = pnsctl.parser().parse_args(
                 self._identity_args(evidence, scenario="nova_praise_one_free_pulse")
             )
-            args.reset_id = "game-day-other"
+            args.reset_id = HISTORICAL_RESET_ID
             patches = self._patch_repo_paths(root)
             with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9]:
                 git = self._bind_supervised_args(args, root)
@@ -591,7 +599,7 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
                 self.assertEqual(persisted["candidate_commit"], head)
                 self.assertEqual(persisted["scenario_record"], result["scenario_record"])
                 guard = json.loads(
-                    pnsctl.NOVA_SUPERVISED_INVOCATION_GUARD.read_text(encoding="utf-8")
+                    _historical_guard().read_text(encoding="utf-8")
                 )
                 self.assertEqual(guard["terminal_status"], "completed")
                 self.assertEqual(guard["status"], "completed")
@@ -664,11 +672,11 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
                 self.assertEqual(finalized[0]["result_status"], "completed")
                 self.assertEqual(finalized[0]["session_directory"], str(session))
                 guard = json.loads(
-                    pnsctl.NOVA_SUPERVISED_INVOCATION_GUARD.read_text(encoding="utf-8")
+                    _historical_guard().read_text(encoding="utf-8")
                 )
                 self.assertEqual(guard["terminal_status"], "unresolved")
                 self.assertEqual(guard["result_status"], "completed")
-                self.assertTrue(pnsctl.NOVA_SUPERVISED_INVOCATION_GUARD.is_file())
+                self.assertTrue(_historical_guard().is_file())
 
     def test_successful_completed_path_finalizes_completed_guard(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -738,8 +746,8 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
             patches = self._patch_repo_paths(root)
             with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9]:
                 head = "d" * 40
-                pnsctl.NOVA_SUPERVISED_INVOCATION_GUARD.parent.mkdir(parents=True, exist_ok=True)
-                pnsctl.NOVA_SUPERVISED_INVOCATION_GUARD.write_text(
+                _historical_guard().parent.mkdir(parents=True, exist_ok=True)
+                _historical_guard().write_text(
                     json.dumps({"status": "started"}),
                     encoding="utf-8",
                 )
@@ -793,7 +801,7 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
                 self.assertEqual(result["scenario_record"]["outcome"], "unresolved")
                 self.assertTrue(result["scenario_record"]["unresolved_action"])
                 guard = json.loads(
-                    pnsctl.NOVA_SUPERVISED_INVOCATION_GUARD.read_text(encoding="utf-8")
+                    _historical_guard().read_text(encoding="utf-8")
                 )
                 self.assertEqual(guard["terminal_status"], "unresolved")
 
@@ -845,11 +853,11 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
                 self.assertEqual(persisted["status"], "unresolved")
                 self.assertEqual(persisted["scenario_record"]["outcome"], "unresolved")
                 guard = json.loads(
-                    pnsctl.NOVA_SUPERVISED_INVOCATION_GUARD.read_text(encoding="utf-8")
+                    _historical_guard().read_text(encoding="utf-8")
                 )
                 self.assertEqual(guard["terminal_status"], "unresolved")
                 self.assertEqual(guard["status"], "unresolved")
-                self.assertTrue(pnsctl.NOVA_SUPERVISED_INVOCATION_GUARD.is_file())
+                self.assertTrue(_historical_guard().is_file())
 
     def test_missing_session_directory_never_finalizes_completed_guard(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -910,7 +918,7 @@ class PnsctlNovaPraiseAdmissionTests(unittest.TestCase):
                 self.assertNotEqual(finalized[0]["terminal_status"], "completed")
                 self.assertEqual(finalized[0]["terminal_status"], "unresolved")
                 guard = json.loads(
-                    pnsctl.NOVA_SUPERVISED_INVOCATION_GUARD.read_text(encoding="utf-8")
+                    _historical_guard().read_text(encoding="utf-8")
                 )
                 self.assertEqual(guard["terminal_status"], "unresolved")
                 self.assertEqual(guard["status"], "unresolved")
@@ -1072,10 +1080,7 @@ class NovaSupervisedVerifyFlowTests(unittest.TestCase):
                 with patch.object(
                     pnsctl,
                     "_load_flow_delivery_state",
-                    return_value=(
-                        {"active_flow_id": pnsctl.NOVA_SUPERVISED_PULSE_FLOW_ID},
-                        {"active_stage": "evidence_review", "workflow": "pns-flow-delivery"},
-                    ),
+                    side_effect=pnsctl.OperatorError("no active delivery"),
                 ):
                     with patch.object(pnsctl, "_verify_flow_structure") as generic:
                         verdict = json.loads(pnsctl.bluestacks_verify_flow(session))
@@ -1172,7 +1177,7 @@ class NovaSupervisedVerifyFlowTests(unittest.TestCase):
             "schema_version": 1,
             "flow_id": pnsctl.NOVA_SUPERVISED_PULSE_FLOW_ID,
             "scenario_id": pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
-            "reset_id": pnsctl.NOVA_SUPERVISED_PULSE_RESET_ID,
+            "reset_id": HISTORICAL_RESET_ID,
             "candidate_commit": "a" * 40,
             "status": "unresolved",
             "terminal_status": "unresolved",
@@ -1187,13 +1192,17 @@ class NovaSupervisedVerifyFlowTests(unittest.TestCase):
     def _patch_guard_roots(self, root: Path):
         orchestrator = root / ".local-orchestrator"
         orchestrator.mkdir(parents=True, exist_ok=True)
-        guard = orchestrator / "nova-praise-one-free-pulse-game-day-2026-07-22.guard.json"
+        guard = orchestrator / f"nova-praise-one-free-pulse-{HISTORICAL_RESET_ID}.guard.json"
         action_db = orchestrator / "bluestacks-actions.sqlite3"
         output = root / ".local-captures" / "flow-delivery" / pnsctl.NOVA_SUPERVISED_PULSE_FLOW_ID
         return (
             patch.object(pnsctl, "REPO_ROOT", root),
             patch.object(pnsctl, "NOVA_SUPERVISED_ACTION_DATABASE", action_db),
-            patch.object(pnsctl, "NOVA_SUPERVISED_INVOCATION_GUARD", guard),
+            patch.object(
+                pnsctl,
+                "NOVA_SUPERVISED_GUARD_ARCHIVE_DIR",
+                orchestrator / "nova-supervised-guard-archive",
+            ),
             patch.object(
                 pnsctl,
                 "NOVA_SUPERVISED_GUARD_ARCHIVE_DIR",
@@ -1405,7 +1414,7 @@ class NovaSupervisedVerifyFlowTests(unittest.TestCase):
                         "schema_version": 1,
                         "flow_id": pnsctl.NOVA_SUPERVISED_PULSE_FLOW_ID,
                         "scenario_id": pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
-                        "reset_id": pnsctl.NOVA_SUPERVISED_PULSE_RESET_ID,
+                        "reset_id": HISTORICAL_RESET_ID,
                         "candidate_commit": "a" * 40,
                         "status": "started",
                         "terminal_status": None,
@@ -1702,6 +1711,86 @@ class NovaSupervisedVerifyFlowTests(unittest.TestCase):
             self.assertTrue(receipt["blocked_guard_reconcile"])
             self.assertEqual(receipt["proof"]["result_status"], "blocked")
             self.assertEqual(receipt["proof"]["result_reason"], reason)
+
+    def test_reconcile_zero_input_block_allows_empty_capability_audit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            patches = self._patch_guard_roots(root)
+            current_reset = "game-day-2026-08-18"
+            guard_path = patches[6].with_name(
+                f"nova-praise-one-free-pulse-{current_reset}.guard.json"
+            )
+            action_db = patches[7]
+            reason = "initial_surface_not_home_or_known_nova_context"
+            session = self._write_proven_no_effect_session(
+                root,
+                candidate_commit="a" * 40,
+                status="blocked",
+                reason=reason,
+                praise_transport_calls=0,
+                navigation_input_count=0,
+                scenario_record={
+                    "scenario_id": pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                    "outcome": "blocked",
+                    "reason": reason,
+                    "unresolved_action": False,
+                    "praise_transport_calls": 0,
+                    "navigation_input_count": 0,
+                    "input_class": "none",
+                },
+            )
+            _write_jsonl(
+                session / "events.jsonl",
+                [{"type": "capture", "label": "canary-source"}],
+            )
+            (session / "capability-audit.jsonl").write_text("", encoding="utf-8")
+            _write_jsonl(
+                session / "journal.jsonl",
+                [
+                    {
+                        "scenario_id": pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                        "status": "blocked",
+                        "reason": reason,
+                        "navigation_input_count": 0,
+                        "praise_transport_calls": 0,
+                        "action_id": None,
+                        "action_key": None,
+                    }
+                ],
+            )
+            _seed_action_database(
+                action_db,
+                action_id="historical-confirmed-praise",
+                action_key="nova-praise:historical-confirmed",
+            )
+            guard_path.write_text(
+                json.dumps(
+                    self._unresolved_guard_payload(
+                        status="blocked",
+                        terminal_status="blocked",
+                        result_status="blocked",
+                        reset_id=current_reset,
+                        session_directory=str(session),
+                    ),
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+                payload = json.loads(
+                    pnsctl.reconcile_nova_supervised_invocation_guard_proven_no_effect(
+                        session,
+                        reset_id=current_reset,
+                    )
+                )
+            self.assertEqual(payload["status"], "reconciled")
+            receipt = json.loads(
+                Path(payload["receipt_path"]).read_text(encoding="utf-8")
+            )
+            self.assertEqual(receipt["proof"]["capability_audit_count"], 0)
+            self.assertFalse(guard_path.exists())
 
     def test_reconcile_blocked_guard_status_mismatch_rejects(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

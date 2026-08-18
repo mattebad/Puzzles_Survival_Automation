@@ -1458,7 +1458,7 @@
       "consequence_policy": "Existing zero-cost cooldown-bound Praise behavior is preserved; migration validation performs navigation only.",
       "product_policy_status": "navigation_only_validation",
       "maximum_live_attempts": 2,
-      "live_attempt_count": 4,
+      "live_attempt_count": 2,
       "live_attempts": [
         {
           "ordinal": 1,

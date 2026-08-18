@@ -40,6 +40,29 @@ class BioenhancerContractTests(unittest.TestCase):
         self.assertFalse(bioenhancer_authorizeable(load_fixture("paid_negative")))
         self.assertFalse(bioenhancer_authorizeable(load_fixture("static_reference_negative")))
 
+    def test_bluestacks_native_free_research_is_authorized(self):
+        observation = load_fixture("free_synthetic")
+        bluestacks = replace(
+            observation,
+            target_provenance="bluestacks-native",
+            runtime_profile_id="pns-bluestacks-5-p64-800x1280-v1",
+        )
+        self.assertTrue(bioenhancer_authorizeable(bluestacks))
+        self.assertFalse(
+            bioenhancer_authorizeable(
+                replace(
+                    bluestacks,
+                    research_mode="PAID",
+                    free_available=False,
+                    free_banner_visible=False,
+                    target_identity="bioenhancer-paid-research",
+                    control_class="RESEARCH",
+                    cost_type="materials",
+                    cost_amount=1,
+                )
+            )
+        )
+
     def test_exact_free_target_and_safety_guards_are_required(self):
         observation = load_fixture("free_synthetic")
         for changes in (

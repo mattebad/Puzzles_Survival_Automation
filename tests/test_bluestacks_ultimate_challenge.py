@@ -3608,7 +3608,10 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             "owner": "test-owner",
             "runtime_ownership_state": "held",
             "max_inputs": 16,
-            "development_session": True,
+            "development_session": SimpleNamespace(
+                session_directory=Path("outer-development-session"),
+                run_action=lambda **_kwargs: None,
+            ),
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -3674,6 +3677,11 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 "lease marker false",
                 valid_queue,
                 {**valid_lease, "development_session": False},
+            ),
+            (
+                "lease marker wrong type",
+                valid_queue,
+                {**valid_lease, "development_session": SimpleNamespace()},
             ),
             (
                 "missing owner",
@@ -3884,7 +3892,10 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             "owner": "test-owner",
             "runtime_ownership_state": "held",
             "max_inputs": 16,
-            "development_session": True,
+            "development_session": SimpleNamespace(
+                session_directory=Path("outer-development-session"),
+                run_action=lambda **_kwargs: None,
+            ),
         }
         with tempfile.TemporaryDirectory() as directory:
             command = self._run_navigation_wrapper(
@@ -3940,6 +3951,11 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 "lease marker false",
                 valid_queue,
                 {**valid_lease, "development_session": False},
+            ),
+            (
+                "lease marker wrong type",
+                valid_queue,
+                {**valid_lease, "development_session": SimpleNamespace()},
             ),
             (
                 "missing owner",
