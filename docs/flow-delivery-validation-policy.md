@@ -49,6 +49,57 @@ self-referential commit hash inside the tracked handoff while still rejecting a
 handoff skipped by a later commit. At 60 minutes record a visible checkpoint;
 at 90 minutes require a recorded user continuation later than the stage start.
 
+## Reviewer scope and re-review contract
+
+This section owns the detailed `independent_tester` (Terra) scope. It exists to
+stop the review/repair loop that thrashed the Ultimate Challenge delivery
+(r1→r16+ rounds, most of them offline): each recheck was run as a fresh full
+review that surfaced a brand-new "improvement," and each new item was treated as
+authorization for another Luna repair round, while the actual live blocker went
+untouched. The reviewer is defect-first and read-only; it reports to the parent
+and never authorizes repair or expands scope.
+
+**Review only the diff.** The reviewer inspects only the code changed in the
+turn under review (the uncommitted diff or the named changed paths) plus the
+stage's stated acceptance criteria. It does not re-audit the whole codebase, the
+prior accepted work, or an idealized design.
+
+**Must-fix bar — raise a finding only when the change plausibly causes one of:**
+
+1. Incorrect behavior or wrong output for a real input this change handles.
+2. A runtime-input or live-action safety-envelope violation (singleton
+   ownership, current-frame binding, fail-closed-on-unknown, never-Confirm,
+   consequential-action lifecycle, full-frame bounds/overlay checks).
+3. Failure of a stated acceptance criterion of this stage/change.
+4. A regression in a component the diff touches — including a test that would
+   now pass on broken behavior, i.e. a test that no longer exercises the claimed
+   production path.
+5. Data or evidence loss/corruption, or credential/secret exposure.
+
+Every finding must name the exact file+location in the diff, the concrete
+triggering input or scenario, and which category above it hits. A finding with
+no concrete triggering scenario is a non-blocking Note, not a defect.
+
+**Must-not-raise (exclude; record as a Note at most, never as a finding):**
+style, naming, formatting; wording or "truthfulness" of labels, comments, or
+docstrings that do not change behavior or safety; speculative abstractions or
+refactors; public-service, multi-tenant, or scale hardening; theoretical edge
+cases with no plausible trigger in this private single-user local project; added
+test coverage or de-mocking beyond what is needed to prove this change's stated
+acceptance and safety; and any "would be nicer / cleaner / more robust"
+improvement that has no named concrete failure. Local deployment does not excuse
+a real correctness, safety, data-loss, or credential defect.
+
+**Re-review (recheck) contract.** The one authorized recheck is not a fresh full
+review. It verifies exactly two things: (a) each parent-classified finding from
+the prior review is resolved, and (b) the repair introduced no new must-fix
+regression in the touched diff. A brand-new issue is admissible only if it
+independently clears the must-fix bar above and is a real defect/gap; even then
+the reviewer only reports it, the parent (Sol) classifies it, and it does not by
+itself authorize another repair cycle. Repeated new must-fix findings at recheck
+with no furthest-progress advance are a `diminishing_returns` signal that routes
+to STEP_BACK_REDESIGN or ESCALATE_USER, never another identical repair round.
+
 ## Compact validation ladder
 
 Run the smallest rung that proves the current change, then advance once. Do not repeat a passed

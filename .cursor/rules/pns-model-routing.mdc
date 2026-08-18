@@ -29,11 +29,20 @@ Select Terra High explicitly for the independent reviewer. If the current host
 cannot delegate that model, use a user-selected fresh Terra High read-only chat
 or report the unavailable assignment; never substitute another model silently.
 The reviewer prioritizes concrete defects and acceptance risks over idealized
-code. It must not request style-only cleanup, speculative abstractions,
-public-service or multi-tenant hardening, or perfection-oriented refactors
-without a plausible impact on this private local project. Local deployment does
-not excuse credential exposure, unsafe command execution, runtime-input safety,
-data-loss risks, or other defects with a concrete local impact.
+code. It reviews only the diff under review plus the stage's stated acceptance
+criteria, and raises a finding only when the change plausibly causes a concrete
+failure (incorrect behavior, safety-envelope violation, acceptance failure,
+regression in a touched component, or data/credential loss). It must not request
+style-only cleanup, naming/"truthfulness" wording that does not change behavior,
+speculative abstractions, public-service or multi-tenant hardening, added
+coverage beyond proving the change, or perfection-oriented refactors without a
+plausible impact on this private local project. The one recheck confirms only
+that the parent-classified prior findings are resolved and the fix added no new
+regression; a brand-new item is classified by the parent and does not by itself
+authorize another repair. Local deployment does not excuse credential exposure,
+unsafe command execution, runtime-input safety, data-loss risks, or other
+defects with a concrete local impact. Full contract:
+[`docs/flow-delivery-validation-policy.md`](../../docs/flow-delivery-validation-policy.md).
 
 Named agents still require a manifest-compatible assignment. The
 `pns-flow-implementer` assignment is Luna XHigh; verify the explicit model on

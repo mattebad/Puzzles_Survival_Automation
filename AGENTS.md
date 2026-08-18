@@ -114,13 +114,26 @@ P&S project workflow constraints:
     integration acceptance, or live admission.
   - `bounded_implementer`: mutates only assigned files and self-checks against
     manifest acceptance criteria.
-  - `independent_tester`: serves as the independent code-and-acceptance reviewer,
-    remains read-only and defect-first, verifies the actual diff and required
-    checks, and cannot authorize repair or expand scope. Report only material,
-    actionable defects affecting correctness, runtime safety, acceptance,
-    regressions, or maintainability in this private local project. Exclude
-    cosmetic preferences, speculative hardening, theoretical edge cases without
-    a plausible local path, and perfection-oriented refactors.
+  - `independent_tester`: the read-only, defect-first code-and-acceptance
+    reviewer; it reports to the parent and cannot authorize repair or expand
+    scope. It reviews only the diff under review plus the stage's stated
+    acceptance criteria — not the whole codebase or an idealized design. Raise a
+    finding only when the change plausibly causes a concrete failure: incorrect
+    behavior on a real input, a runtime-input/live-action safety-envelope
+    violation, failure of a stated acceptance criterion, a regression in a
+    touched component (including a test that no longer exercises the claimed
+    production path), or data/evidence loss or credential exposure. Every finding
+    names the exact diff location, the triggering scenario, and its category.
+    Exclude (record as a Note at most, never a finding): style/naming, wording or
+    "truthfulness" of labels/comments that do not change behavior or safety,
+    speculative abstractions, public-service/multi-tenant/scale hardening,
+    theoretical edge cases with no plausible local trigger, added
+    coverage/de-mocking beyond proving this change, and any "would be nicer"
+    improvement with no named failure. The one recheck verifies only that the
+    parent-classified prior findings are resolved and the fix added no new
+    regression; a brand-new item must independently clear the must-fix bar, is
+    classified by the parent, and does not by itself authorize another repair.
+    Full scope and re-review contract: [`docs/flow-delivery-validation-policy.md`](docs/flow-delivery-validation-policy.md).
   - `escalation_architect`: resolves new architecture, safety, or evidence
     conflicts from a compact packet rather than the full transcript.
 - The procedure coordinator may only perform checklist work explicitly
@@ -170,8 +183,11 @@ One initial live failure alone does not require promotion or an extra review.
 - Do not impose file-count or LOC budgets unless the user explicitly requests them.
 - Permit at most one consolidated Luna repair and one Terra recheck per frozen
   stage. Keep repairs serial and limit each to parent-classified findings.
-  A second repair requires explicit user continuation, a refrozen manifest, and
-  a compact handoff. It may continue in the same chat while the
+  A brand-new item raised at recheck does not by itself authorize another repair:
+  the parent classifies it, and repeated new findings without a furthest-progress
+  advance are `diminishing_returns` (STEP_BACK_REDESIGN or ESCALATE_USER, not
+  another round). A second repair requires explicit user continuation, a refrozen
+  manifest, and a compact handoff. It may continue in the same chat while the
   conversation-level stage and turn budgets remain available.
 - Every mutable Luna implementation or repair turn must explicitly select GPT-5.6 Luna XHigh. If a resume cannot preserve that selection, launch a fresh bounded XHigh turn instead.
 - Keep solutions proportionate; do not let perfect be the enemy of good.

@@ -104,6 +104,14 @@ a process failure, not a discovery.
 | EXTERNAL_BLOCK, or STEP_BACK already spent once this task with no subsequent advance, or continuing would require weakening the safety envelope | **ESCALATE_USER** — surface exact blocker plus evidence, then stop |
 | Product goal's terminal postcondition proven | **STOP_DONE** |
 
+Offline review/repair rounds are subject to the same brake. When a recheck keeps
+raising brand-new findings while no furthest-progress milestone advances, that is
+`diminishing_returns`: STEP_BACK_REDESIGN or ESCALATE_USER, never another
+identical repair round. A brand-new recheck finding is admissible only if the
+parent classifies it as clearing the must-fix bar in
+[`flow-delivery-validation-policy.md`](flow-delivery-validation-policy.md); a
+nice-to-have is recorded as a Note and does not authorize a repair.
+
 ## Fail-closed teardown checklist
 
 On any block, before releasing the session:
