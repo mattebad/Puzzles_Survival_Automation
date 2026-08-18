@@ -5714,10 +5714,20 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
 def _derive_conductor_framing(flow_id: str) -> dict[str, bool]:
     """Derive the routine framing claims from checked-in policy and route bindings."""
 
+    from tasks.gameplay_flow_contracts import load_flow_contract
+
     registry = _load_bluestacks_flow_registry()
     route = registry.get(flow_id)
     if route is None:
         return {}
+    try:
+        active_contract = load_flow_contract(flow_id)
+    except (OSError, UnicodeError, ValueError):
+        active_contract = {}
+    contract_consulted = (
+        isinstance(active_contract, Mapping)
+        and active_contract.get("flow_id") == flow_id
+    )
     try:
         knowledge = [
             path.read_text(encoding="utf-8") for path in _CONDUCT_KNOWLEDGE_PATHS
@@ -5733,16 +5743,21 @@ def _derive_conductor_framing(flow_id: str) -> dict[str, bool]:
         value.strip() for value in knowledge
     )
     return {
-        "intent_match": handlers_bound,
-        "no_documented_unsafe_input": handlers_bound and policy_consulted,
+        "intent_match": handlers_bound and contract_consulted,
+        "no_documented_unsafe_input": (
+            handlers_bound and policy_consulted and contract_consulted
+        ),
         # Project policy forbids manual-only states as route preconditions; a
         # current unexpected manual state remains a fail-closed runner concern.
         "no_manual_only_precondition": handlers_bound
         and policy_consulted
+        and contract_consulted
         and "manual-only" in knowledge[0].casefold(),
         "consequential_actions_enumerated": route["consequence_class"]
-        in {"navigation_only", "consequential"},
-        "durable_knowledge_consulted": policy_consulted,
+        in {"navigation_only", "consequential"}
+        and contract_consulted
+        and bool(active_contract.get("consequential_action_class")),
+        "durable_knowledge_consulted": policy_consulted and contract_consulted,
     }
 
 
@@ -5845,7 +5860,12 @@ def conduct_flow(
     }
     checklist_values.update(_derive_conductor_framing(flow_id))
     if framing:
-        checklist_values.update({key: bool(value) for key, value in framing.items()})
+        checklist_values.update(
+            {
+                key: checklist_values[key] and bool(value)
+                for key, value in framing.items()
+            }
+        )
     checklist = FramingChecklist(**checklist_values)
     state = apply_framing(state, checklist)
     plan = framing_plan(flow_id)
@@ -5868,7 +5888,7 @@ def conduct_flow(
         state = record_iteration(
             state,
             summary=summary,
-            milestone=str(summary.get("status") or ""),
+            milestone=summary_milestone(summary),
             evidence_ref=str(summary_path),
         )
         path = save_state(state, root=state_root)

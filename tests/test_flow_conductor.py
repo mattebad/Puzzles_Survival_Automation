@@ -18,6 +18,7 @@ from tasks.flow_conductor import (
     record_iteration,
     save_state,
 )
+from tasks.gameplay_flow_contracts import FlowContractError
 
 
 class FlowConductorTests(unittest.TestCase):
@@ -161,6 +162,13 @@ class FlowConductorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with (
+                patch(
+                    "tasks.gameplay_flow_contracts.load_flow_contract",
+                    return_value={
+                        "flow_id": flow_id,
+                        "consequential_action_class": "ordinary_resource_use",
+                    },
+                ),
                 patch.object(
                     pnsctl,
                     "development_session_observe",
@@ -217,6 +225,13 @@ class FlowConductorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with (
+                patch(
+                    "tasks.gameplay_flow_contracts.load_flow_contract",
+                    return_value={
+                        "flow_id": flow_id,
+                        "consequential_action_class": "ordinary_resource_use",
+                    },
+                ),
                 patch.object(
                     pnsctl,
                     "development_session_observe",
@@ -259,13 +274,52 @@ class FlowConductorTests(unittest.TestCase):
             self.assertEqual(completed_state.evidence_refs, ["retained"])
 
     def test_framing_is_derived_from_bound_handlers_and_policy(self) -> None:
-        flow_id = "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
+        flow_id = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
         complete = pnsctl._derive_conductor_framing(flow_id)
         self.assertTrue(all(complete.values()))
         with patch.dict(pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS, {}, clear=True):
             incomplete = pnsctl._derive_conductor_framing(flow_id)
         self.assertFalse(incomplete["intent_match"])
         self.assertFalse(incomplete["no_documented_unsafe_input"])
+
+    def test_live_conduct_requires_authoritative_active_flow_contract(self) -> None:
+        flow_id = "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
+        cases = (
+            ("missing", FlowContractError("missing contract"), None),
+            ("unreadable", OSError("unreadable contract"), None),
+            ("wrong-flow", None, {"flow_id": "OTHER-FLOW"}),
+        )
+        for label, error, contract in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                loader = patch(
+                    "tasks.gameplay_flow_contracts.load_flow_contract",
+                    side_effect=error,
+                    return_value=contract,
+                )
+                with (
+                    loader,
+                    patch.object(
+                        pnsctl,
+                        "development_session_observe",
+                        return_value=json.dumps({"status": "observed"}),
+                    ) as observe,
+                    patch.object(
+                        pnsctl,
+                        "development_session_run_flow",
+                        return_value=json.dumps({"status": "blocked"}),
+                    ) as run_flow,
+                ):
+                    result = json.loads(
+                        pnsctl.conduct_flow(
+                            flow_id,
+                            live=True,
+                            yes=True,
+                            state_root=Path(directory),
+                        )
+                    )
+                self.assertEqual(result["status"], "framing_incomplete")
+                observe.assert_not_called()
+                run_flow.assert_not_called()
 
     def test_conductor_uses_flow_specific_default_input_ceiling(self) -> None:
         self.assertEqual(
@@ -326,6 +380,63 @@ class FlowConductorTests(unittest.TestCase):
             state = load_state("NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE", root=root)
             self.assertEqual(state.last_decision, ConductorDecision.CONTINUE.value)
             self.assertEqual(state.status, "local_defect")
+
+    def test_summary_path_recognizes_real_nested_milestone_progress(self) -> None:
+        flow_id = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for ordinal, milestone in enumerate(
+                ("HOME_SEARCH", "COMMANDER_RECOGNIZED"),
+                start=1,
+            ):
+                summary = root / f"summary-{ordinal}.json"
+                summary.write_text(
+                    json.dumps(
+                        {
+                            "status": "blocked",
+                            "result": {
+                                "reason": f"failure-{ordinal}",
+                                "milestone": milestone,
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                pnsctl.conduct_flow(
+                    flow_id,
+                    summary_path=summary,
+                    state_root=root,
+                )
+            state = load_state(flow_id, root=root)
+            self.assertEqual(state.furthest_milestone, "COMMANDER_RECOGNIZED")
+            self.assertEqual(state.iterations_since_progress, 0)
+
+    def test_summary_path_status_change_is_not_fake_progress(self) -> None:
+        flow_id = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for ordinal, status in enumerate(("blocked", "failed"), start=1):
+                summary = root / f"summary-{ordinal}.json"
+                summary.write_text(
+                    json.dumps(
+                        {
+                            "status": status,
+                            "result": {
+                                "reason": f"failure-{ordinal}",
+                                "milestone": "COMMANDER_RECOGNIZED",
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                pnsctl.conduct_flow(
+                    flow_id,
+                    summary_path=summary,
+                    state_root=root,
+                )
+            state = load_state(flow_id, root=root)
+            self.assertEqual(state.furthest_milestone, "COMMANDER_RECOGNIZED")
+            self.assertEqual(state.iterations_since_progress, 1)
 
 
 if __name__ == "__main__":
