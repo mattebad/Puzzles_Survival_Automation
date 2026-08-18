@@ -2,26 +2,6 @@
 **/*conversation-transcript*.md
 **/*agent-transcript*.md
 
-# Keep lightweight authoritative artifacts indexable:
-# evidence/current-evidence-manifest.json, evidence summaries, result JSON,
-# reconciliation reports, hash manifests, and canonical status Markdown.
-.local-captures/**
-.local-reference/**
-evidence/**/*.db
-evidence/**/*.jpeg
-evidence/**/*.jpg
-evidence/**/*.png
-evidence/**/*.sqlite
-evidence/**/*.sqlite3
-evidence/**/*.webp
-evidence/**/*.zip
-evidence/**/*.zip.*
-evidence/**/*transcript*.md
-evidence/**/duplicate-frame*/
-evidence/**/duplicates/**
-evidence/**/raw/**
-evidence/**/remote-cache/**
-evidence/**/transfer/**
 # Don't index SpecStory auto-save files, but allow explicit context inclusion via @ references
 .specstory/**
 # Local orchestration, caches, archives, and IDE/local noise for broad indexing.

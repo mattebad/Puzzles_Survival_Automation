@@ -19,4 +19,4 @@
 # Broad evidence exclusion for ordinary Agent context.
 # Exact allowlisted manifests/summaries are read by scripts/flow_delivery_context.py
 # through ordinary filesystem APIs, not through broad Agent indexing.
-evidence/**
+#evidence/**
