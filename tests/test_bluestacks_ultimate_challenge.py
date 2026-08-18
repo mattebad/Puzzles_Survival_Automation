@@ -564,6 +564,63 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         def record_zoom_input_dispatched(self, _source_frame_sha256: str) -> None:
             raise AssertionError("refreshed non-recovery step must not dispatch")
 
+    class _SettledDispositionDriver:
+        def __init__(
+            self,
+            disposition: ultimate.HomeDriverDisposition,
+            *,
+            safe_terminal: bool = True,
+        ):
+            self.disposition = disposition
+            self.safe_terminal = safe_terminal
+            self.observed_digests: list[str] = []
+            self.zoom_inputs = 0
+            self.pan_dispatches: list[object] = []
+
+        def observe(self, frame: np.ndarray):
+            digest = ultimate.frame_sha256(frame)
+            self.observed_digests.append(digest)
+            terminal = len(self.observed_digests) >= 3
+            localization = SimpleNamespace(
+                zoom_identity=(
+                    ZoomIdentity.FULLY_ZOOMED_OUT
+                    if terminal and self.safe_terminal
+                    else ZoomIdentity.ZOOMED_IN
+                ),
+                recognized=terminal and self.safe_terminal,
+                confidence=0.987377 if terminal and self.safe_terminal else 0.92,
+                residual_px=0.1,
+                overlay=not self.safe_terminal and terminal,
+                stale=False,
+                ambiguity_state=(
+                    AmbiguityState.NONE
+                    if terminal and self.safe_terminal
+                    else AmbiguityState.INSUFFICIENT_LANDMARKS
+                ),
+                screen_to_atlas=(
+                    ((1, 0, 0), (0, 1, 0), (0, 0, 1))
+                    if terminal and self.safe_terminal
+                    else None
+                ),
+            )
+            return SimpleNamespace(
+                disposition=(
+                    self.disposition
+                    if terminal
+                    else ultimate.HomeDriverDisposition.RECOVER_ZOOM
+                ),
+                reason=(
+                    "synthetic settled terminal"
+                    if terminal
+                    else "synthetic zoom recovery"
+                ),
+                source_frame_sha256=digest,
+                localization=localization,
+            )
+
+        def record_zoom_input_dispatched(self, _source_frame_sha256: str) -> None:
+            self.zoom_inputs += 1
+
     def _run_normalizer(
         self,
         *,
@@ -645,9 +702,9 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
                     ok, detail = run_normalizer()
         return root, runtime, ok, detail
 
-    def test_already_canonical_home_uses_zero_zoom_and_campaign_continues(self) -> None:
+    def test_already_canonical_home_uses_zero_zoom(self) -> None:
         canonical = self._home_frame()
-        root, runtime, ok, detail = self._run_normalizer(
+        _root, runtime, ok, detail = self._run_normalizer(
             factory=lambda _count: canonical,
             initial_canonical=True,
         )
@@ -655,13 +712,154 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(detail["zoom_input_count"], 0)
         self.assertEqual(runtime.input_count, 0)
         self.assertEqual(runtime.zoom_dispatches, [])
-        with patch.object(
-            ultimate,
-            "run_verified_ultimate_challenge_campaign_door",
-            return_value={"status": "opened", "records": []},
-        ) as campaign:
-            campaign(runtime, atlas_path=root / "atlas.json", execute=True)
+
+    def test_main_hands_off_after_settled_pan_normalization(self) -> None:
+        initial = self._home_frame(marker=1)
+        canonical = self._home_frame()
+        runtime_instances: list[UltimateHomeNormalizationTests._Runtime] = []
+        driver = self._SettledDispositionDriver(
+            ultimate.HomeDriverDisposition.PAN,
+        )
+        safe_downstream = UltimateChallengeEntryObservation(
+            campaign_screen_recognized=False,
+            entry_control_visible=False,
+            entry_control_identity="",
+            entry_roi=None,
+            already_completed_marker=False,
+            reset_identity="game-day-2026-08-17",
+            source_frame_sha256=ultimate.frame_sha256(initial),
+        )
+
+        class FakeRunner:
+            def __init__(self, *_args) -> None:
+                pass
+
+            def list_devices(self):
+                return [
+                    type(
+                        "Device",
+                        (),
+                        {"serial": "emulator-5554", "state": "device"},
+                    )()
+                ]
+
+            def get_state(self) -> str:
+                return "device"
+
+        def fake_runtime(_runner, session: Path, *, execute: bool):
+            runtime = self._Runtime(
+                session.parent,
+                initial,
+                lambda _count: canonical,
+            )
+            self.assertTrue(execute)
+            runtime_instances.append(runtime)
+            return runtime
+
+        def fake_zoom_classification(frame, _canonical_reference):
+            marker = int(frame[300, 300, 0])
+            return SimpleNamespace(
+                scale=0.70 + min(marker, ultimate.MAX_HOME_ZOOM_INPUTS) * 0.02,
+                identity=ZoomIdentity.ZOOMED_IN,
+            )
+
+        def fake_campaign(runtime, **kwargs):
+            self.assertEqual(len(runtime.zoom_dispatches), 1)
+            self.assertEqual(
+                runtime.reconciliations,
+                [(runtime.dispatched_external_zoom_key, "confirmed")],
+            )
+            self.assertIs(
+                runtime.reconciliation_posts[0],
+                runtime.captures_by_label["ultimate-home-zoom-01-settled"],
+            )
+            self.assertEqual(driver.pan_dispatches, [])
+            self.assertEqual(kwargs["maximum_pans"], 4)
+            self.assertTrue(kwargs["execute"])
+            return {"status": "opened", "records": []}
+
+        self._Transport.instances = []
+        self._Transport.fail = False
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            with patch.object(ultimate, "ADBRunner", FakeRunner), patch.object(
+                ultimate, "LocalBlueStacksRuntime", side_effect=fake_runtime
+            ), patch.object(
+                ultimate, "is_permitted_local_bluestacks_serial", return_value=True
+            ), patch.object(
+                ultimate, "require_campaign_home_atlas_building"
+            ), patch.object(
+                ultimate, "load_home_atlas", return_value=self._atlas()
+            ), patch.object(
+                ultimate,
+                "BlueStacksHomeLocalizer",
+                return_value=self._Localizer(initial, canonical),
+            ), patch.object(
+                ultimate, "ScrcpyMotionEventZoomTransport", self._Transport
+            ), patch.object(
+                ultimate, "classify_zoom", side_effect=fake_zoom_classification
+            ), patch.object(
+                ultimate,
+                "BlueStacksLocalizeFirstHomeDriver",
+                return_value=driver,
+            ), patch.object(
+                ultimate,
+                "_bind_ultimate_challenge_entry",
+                return_value=safe_downstream,
+            ), patch.object(
+                ultimate,
+                "run_verified_ultimate_challenge_campaign_door",
+                side_effect=fake_campaign,
+            ) as campaign:
+                code = ultimate.main(
+                    [
+                        "--adb",
+                        "unused-adb",
+                        "--serial",
+                        "emulator-5554",
+                        "--navigation-only",
+                        "--execute",
+                        "--yes",
+                        "--atlas",
+                        str(output / "atlas.json"),
+                        "--maximum-pans",
+                        "4",
+                        "--post-input-delay",
+                        "0",
+                        "--output-directory",
+                        str(output),
+                        "--reset-identity",
+                        "game-day-2026-08-17",
+                    ]
+                )
+
+            sessions = list(output.glob("nav-*"))
+            self.assertEqual(code, 3)
+            self.assertEqual(len(sessions), 1)
+            result = json.loads((sessions[0] / "result.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(campaign.call_count, 1)
+        self.assertEqual(len(runtime_instances), 1)
+        runtime = runtime_instances[0]
         self.assertIs(campaign.call_args.args[0], runtime)
+        self.assertEqual(campaign.call_args.kwargs["maximum_pans"], 4)
+        self.assertTrue(campaign.call_args.kwargs["execute"])
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(len(runtime.zoom_dispatches), 1)
+        action_key = runtime.zoom_dispatches[0]
+        self.assertEqual(
+            runtime.reconciliations,
+            [(action_key, "confirmed")],
+        )
+        self.assertEqual(action_key, runtime.dispatched_external_zoom_key)
+        self.assertIs(
+            runtime.reconciliation_posts[0],
+            runtime.captures_by_label["ultimate-home-zoom-01-settled"],
+        )
+        self.assertEqual(driver.pan_dispatches, [])
+        self.assertEqual(result["home_normalization"]["status"], "completed")
+        self.assertEqual(result["home_normalization"]["zoom_input_count"], 1)
+        self.assertEqual(result["home_normalization"]["terminal_zoom_identity"], "fully_zoomed_out")
 
     def test_edge_spanning_scenery_does_not_block_synthetic_home_normalization(self) -> None:
         canonical = self._home_frame()
@@ -740,6 +938,66 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(plan["runtime_source_sha256"], immediate_before.sha256)
         self.assertEqual(plan["refreshed_source_frame_sha256"], immediate_semantic)
         self.assertNotEqual(plan["planned_source_frame_sha256"], immediate_semantic)
+
+    def test_settled_fully_out_pan_ignores_transient_immediate_popup(self) -> None:
+        driver = self._SettledDispositionDriver(
+            ultimate.HomeDriverDisposition.PAN,
+        )
+        popup_calls: list[int] = []
+
+        def transient_popup(_frame: np.ndarray) -> bool:
+            popup_calls.append(len(popup_calls) + 1)
+            return len(popup_calls) == 3
+
+        with patch.object(
+            ultimate,
+            "_unexpected_visual_popup",
+            side_effect=transient_popup,
+        ):
+            _root, runtime, ok, detail = self._run_normalizer(
+                factory=lambda _count: self._home_frame(),
+                driver=driver,
+            )
+
+        self.assertTrue(ok)
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(len(runtime.zoom_dispatches), 1)
+        action_key = runtime.dispatched_external_zoom_key
+        self.assertIsNotNone(action_key)
+        self.assertEqual(runtime.reconciliations, [(action_key, "confirmed")])
+        self.assertEqual(runtime.reconciliation_attempts, [(action_key, "confirmed")])
+        self.assertEqual(len(runtime.reconciliation_posts), 1)
+        self.assertIs(
+            runtime.reconciliation_posts[0],
+            runtime.captures_by_label["ultimate-home-zoom-01-settled"],
+        )
+        self.assertEqual(driver.pan_dispatches, [])
+        plan = next(record for record in detail["records"] if "action_key" in record)
+        self.assertFalse(plan["immediate_post_home_recognized"])
+        self.assertTrue(plan["settled_home_recognized"])
+        self.assertEqual(plan["status"], "confirmed")
+        self.assertNotIn("unresolved", {status for _, status in runtime.reconciliations})
+
+    def test_settled_unsafe_terminal_does_not_confirm_or_recover_again(self) -> None:
+        driver = self._SettledDispositionDriver(
+            ultimate.HomeDriverDisposition.PAN,
+            safe_terminal=False,
+        )
+        _root, runtime, ok, detail = self._run_normalizer(
+            factory=lambda _count: self._home_frame(),
+            driver=driver,
+        )
+
+        self.assertFalse(ok)
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(len(runtime.zoom_dispatches), 1)
+        self.assertEqual(
+            runtime.reconciliations,
+            [(runtime.dispatched_external_zoom_key, "unresolved")],
+        )
+        self.assertEqual(runtime.reconciliation_attempts, runtime.reconciliations)
+        self.assertEqual(detail["zoom_input_count"], 1)
+        self.assertNotIn("confirmed", {status for _, status in runtime.reconciliations})
 
     def test_popup_or_non_home_immediate_before_blocks_without_input(self) -> None:
         popup_frame = self._home_frame(marker=2)

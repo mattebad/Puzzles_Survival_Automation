@@ -795,10 +795,13 @@ def _normalize_ultimate_home_before_campaign(
             detail["zoom_input_count"] = _runtime_input_count(runtime) or 0
             return False, detail
 
+        immediate_post_home_recognized = _home_nav_terminal(immediate_post.frame)
+        settled_home_recognized = _home_nav_terminal(settled.frame)
         home_successor_recognized = bool(
-            _home_nav_terminal(immediate_post.frame)
-            and _home_nav_terminal(settled.frame)
+            immediate_post_home_recognized and settled_home_recognized
         )
+        plan_detail["immediate_post_home_recognized"] = immediate_post_home_recognized
+        plan_detail["settled_home_recognized"] = settled_home_recognized
         plan_detail["home_successor_recognized"] = home_successor_recognized
         try:
             step = driver.observe(settled.frame)
@@ -832,10 +835,15 @@ def _normalize_ultimate_home_before_campaign(
             records.extend((plan_detail, reobserved))
             return True
 
+        settled_terminal_dispositions = {
+            HomeDriverDisposition.PAN,
+            HomeDriverDisposition.BIND,
+            HomeDriverDisposition.COMPLETE,
+        }
         if (
-            home_successor_recognized
+            settled_home_recognized
             and _ultimate_home_zoom_is_fully_out(step)
-            and getattr(step, "disposition", None) is not HomeDriverDisposition.BLOCKED
+            and getattr(step, "disposition", None) in settled_terminal_dispositions
         ):
             if not finalize_reconciliation(
                 "confirmed",

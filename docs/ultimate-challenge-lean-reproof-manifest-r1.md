@@ -285,3 +285,21 @@ All other paths are read-only during implementation.
 - Any popup, non-Home frame, unknown/unsupported zoom, stale/overlay localization, changed disposition, or exhausted budget blocks before input.
 - Add deterministic animation-drift coverage proving harmless dynamic pixels cause one refreshed dispatch, plus zero-input negatives for semantic state/zoom/disposition changes. Replay both retained r13 frames offline as supplementary evidence.
 - One Luna implementation and one Terra review are authorized. A clean candidate commit and one materially changed live canary may follow parent integration acceptance.
+
+## Refrozen stage r15 — hand fully-out PAN to Campaign navigation
+- User authorization: autonomous redesign around non-absolute blockers remains active. The r14 canary safely dispatched one zoom and exposed a distinct local terminal-classification defect.
+- Revision ID: `ultimate-challenge-lean-reproof-r15`.
+- Failure class: `local_defect`.
+- Evidence:
+  - one exact zoom key was runtime-accounted (`0 → 1`) against the immediate-before capture;
+  - transient immediate-post retained Home but tripped popup geometry while settling;
+  - settled evidence is popup-free Home, geometrically fully zoomed out (`scale=1.0`, confidence `0.987377`), localized without overlay/staleness/ambiguity, and yields `PAN/calculated_direct_pan`;
+  - `PAN` means the Campaign target is offscreen in a safely localized fully-out viewport. The existing Campaign-door driver owns bounded pan; the zoom normalizer must not pan.
+- Writable paths:
+  - `scripts/bluestacks_ultimate_challenge.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- After a zoom, a settled frame alone may prove the semantic successor when it is positive popup-free Home and its driver step is non-blocked, fully-out localized with disposition `PAN`, `BIND`, or `COMPLETE`.
+- Reconcile the exact zoom key `confirmed` against settled evidence, complete normalization, and pass the unchanged runtime to `run_verified_ultimate_challenge_campaign_door`. Immediate-post remains retained transport evidence but is not required to be the terminal semantic state.
+- Continue rejecting settled popup/non-Home, blocked, ambiguous, stale, overlay, unknown/non-fully-out, or unsupported dispositions. The normalizer must dispatch zero pans.
+- Add an exact deterministic regression for transient immediate-post popup followed by settled fully-out `PAN`; assert one unique zoom, exact-key confirmed reconciliation on settled, zero normalizer pans, and Campaign-driver handoff with its pan budget intact.
+- One Luna implementation and one Terra review are authorized. A clean candidate commit and one materially changed live canary may follow parent integration acceptance.
