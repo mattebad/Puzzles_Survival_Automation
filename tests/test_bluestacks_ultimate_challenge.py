@@ -752,6 +752,516 @@ class UltimateChallengeLineupTests(unittest.TestCase):
         self.assertEqual(reason, detail["reason"])
 
 
+class UltimateVipResetContinuationTests(unittest.TestCase):
+    POPUP_FRAME = ROOT / "tasks/assets/navigation/800x1280/reset_popup_source.png"
+    LINEUP_ROI = (300, 1175, 500, 1230)
+
+    class _Runtime:
+        def __init__(
+            self,
+            root: Path,
+            captures: list[CapturedNativeFrame],
+            *,
+            tap_error: BaseException | None = None,
+            capture_error: BaseException | None = None,
+            capture_error_after: int = 0,
+        ) -> None:
+            self.root = root
+            self._captures = list(captures)
+            self.tap_error = tap_error
+            self.capture_error = capture_error
+            self.capture_error_after = capture_error_after
+            self.input_count = 0
+            self.action_keys: set[str] = set()
+            self.captures: list[CapturedNativeFrame] = []
+            self.capture_labels: list[str] = []
+            self.taps: list[dict[str, object]] = []
+            self.reconciliations: list[
+                tuple[str, str, CapturedNativeFrame, str]
+            ] = []
+            self.runner = SimpleNamespace()
+
+        def capture(self, label: str) -> CapturedNativeFrame:
+            self.capture_labels.append(label)
+            if (
+                self.capture_error is not None
+                and len(self.captures) >= self.capture_error_after
+            ):
+                error = self.capture_error
+                self.capture_error = None
+                raise error
+            captured = self._captures.pop(0)
+            self.captures.append(captured)
+            return captured
+
+        def tap(self, source, **kwargs) -> None:
+            self.taps.append({"source": source, **kwargs})
+            if self.tap_error is not None:
+                self.input_count += 1
+                self.action_keys.add(str(kwargs["action_key"]))
+                raise self.tap_error
+            self.input_count += 1
+            self.action_keys.add(str(kwargs["action_key"]))
+
+        def reconcile(
+            self,
+            action_key: str,
+            status: str,
+            post: CapturedNativeFrame,
+            reason: str,
+        ) -> None:
+            self.reconciliations.append((action_key, status, post, reason))
+
+    @staticmethod
+    def _lineup_frame() -> np.ndarray:
+        return UltimateChallengeLineupTests._lineup_frame()
+
+    @staticmethod
+    def _captured(
+        root: Path,
+        frame: np.ndarray,
+        label: str,
+        ordinal: int,
+    ) -> CapturedNativeFrame:
+        return UltimateChallengeLineupTests._captured(root, frame, label, ordinal)
+
+    @staticmethod
+    def _lineup_ocr() -> dict[str, list[str]]:
+        return {
+            "text": ["Hero", "Lineup"],
+            "conf": ["96", "96"],
+        }
+
+    def _initial_popup(self, root: Path) -> CapturedNativeFrame:
+        frame = cv2.imread(str(self.POPUP_FRAME), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        return self._captured(root, frame, "campaign-resume-source", 1)
+
+    def _run_continuation(
+        self,
+        root: Path,
+        runtime: _Runtime,
+        initial: CapturedNativeFrame,
+        initial_observation: dict[str, object],
+    ):
+        with patch.object(
+            ultimate.pytesseract,
+            "image_to_data",
+            return_value=self._lineup_ocr(),
+        ), patch.object(ultimate.time, "sleep", return_value=None):
+            return ultimate._continue_from_vip_reset_popup(
+                runtime=runtime,
+                initial=initial,
+                initial_observation=initial_observation,
+                session=root / "session",
+                events=root / "session" / "events.jsonl",
+                post_input_delay=0,
+            )
+
+    def test_real_shared_popup_and_lineup_success_use_one_exact_tap(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            (session / "frames").mkdir(parents=True)
+            (session / "events.jsonl").touch()
+            initial = self._initial_popup(root)
+            immediate = self._captured(
+                root,
+                initial.frame,
+                "vip-reset-close-immediate-before",
+                2,
+            )
+            settled = self._captured(
+                root,
+                self._lineup_frame(),
+                "vip-reset-close-settled",
+                3,
+            )
+            initial_observation = ultimate.recognize_reset_popup(initial.frame)
+            self.assertTrue(initial_observation["recognized"])
+            runtime = self._Runtime(root, [immediate, settled])
+            resumed, settled_path, detail = self._run_continuation(
+                root,
+                runtime,
+                initial,
+                initial_observation,
+            )
+
+        self.assertIs(resumed, settled)
+        self.assertEqual(settled_path, "frames/campaign-resume-source.png")
+        self.assertEqual(detail["status"], "confirmed")
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(len(runtime.taps), 1)
+        tap = runtime.taps[0]
+        self.assertEqual(tap["target_identity"], "reset-popup-close")
+        self.assertEqual(tap["target_roi"], tuple(initial_observation["target"]))
+        self.assertEqual(
+            tap["action_key"],
+            f"reset-popup-close:{immediate.sha256}",
+        )
+        self.assertFalse(tap["consequential"])
+        self.assertEqual(runtime.capture_labels, [
+            "vip-reset-close-immediate-before",
+            "vip-reset-close-settled",
+        ])
+        self.assertEqual(len(runtime.reconciliations), 1)
+        key, status, post, _reason = runtime.reconciliations[0]
+        self.assertEqual(key, tap["action_key"])
+        self.assertEqual(status, "confirmed")
+        self.assertIs(post, settled)
+        self.assertEqual(detail["lineup_roi"], self.LINEUP_ROI)
+
+    def test_wrong_popup_text_and_close_identity_are_rejected_by_shared_recognizer(self) -> None:
+        frame = cv2.imread(str(self.POPUP_FRAME), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        variants = {
+            "wrong_title": (260, 390, 540, 440),
+            "wrong_body": (120, 480, 680, 720),
+            "wrong_close": (260, 790, 540, 825),
+        }
+        for label, (x0, y0, x1, y1) in variants.items():
+            with self.subTest(case=label):
+                changed = frame.copy()
+                changed[y0:y1, x0:x1] = 0
+                observation = ultimate.recognize_reset_popup(changed)
+                self.assertFalse(observation["recognized"])
+                self.assertFalse(ultimate._exact_vip_reset_popup(observation))
+
+    def test_moved_or_ambiguous_fresh_target_fails_before_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            (session / "frames").mkdir(parents=True)
+            (session / "events.jsonl").touch()
+            initial = self._initial_popup(root)
+            initial_observation = ultimate.recognize_reset_popup(initial.frame)
+            moved = initial.frame.copy()
+            moved[781:869, 263:537] = 0
+            moved[781:869, 270:540] = initial.frame[781:869, 263:533]
+            immediate = self._captured(
+                root,
+                moved,
+                "vip-reset-close-immediate-before",
+                2,
+            )
+            runtime = self._Runtime(root, [immediate])
+            _resumed, _path, detail = self._run_continuation(
+                root,
+                runtime,
+                initial,
+                initial_observation,
+            )
+            self.assertEqual(runtime.input_count, 0)
+            self.assertEqual(runtime.taps, [])
+            self.assertIn("drifted", detail["reason"])
+
+            ambiguous_runtime = self._Runtime(
+                root,
+                [self._captured(root, initial.frame, "vip-reset-close-immediate-before", 3)],
+            )
+            with patch.object(
+                ultimate,
+                "recognize_reset_popup",
+                return_value={
+                    **initial_observation,
+                    "target": None,
+                    "recognized": False,
+                },
+            ):
+                _resumed, _path, ambiguous_detail = self._run_continuation(
+                    root,
+                    ambiguous_runtime,
+                    initial,
+                    initial_observation,
+                )
+            self.assertEqual(ambiguous_runtime.input_count, 0)
+            self.assertEqual(ambiguous_runtime.taps, [])
+            self.assertIn("drifted", ambiguous_detail["reason"])
+
+    def test_persistent_or_unknown_successor_reconciles_settled_unresolved_once(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            (session / "frames").mkdir(parents=True)
+            (session / "events.jsonl").touch()
+            initial = self._initial_popup(root)
+            initial_observation = ultimate.recognize_reset_popup(initial.frame)
+            immediate = self._captured(root, initial.frame, "immediate", 2)
+            settled = self._captured(root, self._lineup_frame(), "settled", 3)
+            for case, settled_popup, lineup_roi in (
+                ("persistent", {"recognized": True}, self.LINEUP_ROI),
+                ("unknown", {"recognized": False}, None),
+            ):
+                with self.subTest(case=case):
+                    runtime = self._Runtime(root, [immediate, settled])
+                    with patch.object(
+                        ultimate,
+                        "recognize_reset_popup",
+                        side_effect=[initial_observation, settled_popup],
+                    ), patch.object(
+                        ultimate,
+                        "_bind_lineup_challenge_button",
+                        return_value=lineup_roi,
+                    ), patch.object(
+                        ultimate,
+                        "_recognize_ultimate_main",
+                        return_value=None,
+                    ), patch.object(
+                        ultimate,
+                        "_recognize_active_battle",
+                        return_value=None,
+                    ), patch.object(
+                        ultimate,
+                        "_bind_flee_warning_button",
+                        return_value=None,
+                    ), patch.object(ultimate.time, "sleep", return_value=None):
+                        _resumed, _path, detail = ultimate._continue_from_vip_reset_popup(
+                            runtime=runtime,
+                            initial=initial,
+                            initial_observation=initial_observation,
+                            session=session,
+                            events=session / "events.jsonl",
+                            post_input_delay=0,
+                        )
+                    self.assertEqual(runtime.input_count, 1)
+                    self.assertEqual(len(runtime.taps), 1)
+                    self.assertEqual(len(runtime.reconciliations), 1)
+                    key, status, post, _reason = runtime.reconciliations[0]
+                    self.assertEqual(status, "unresolved")
+                    self.assertIs(post, settled)
+                    self.assertEqual(key, runtime.taps[0]["action_key"])
+                    self.assertIn("Hero Lineup", detail["reason"])
+                    immediate = self._captured(root, initial.frame, "immediate", 4)
+                    settled = self._captured(root, self._lineup_frame(), "settled", 5)
+
+    def test_transport_and_capture_failures_reconcile_only_accounted_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            (session / "frames").mkdir(parents=True)
+            (session / "events.jsonl").touch()
+            initial = self._initial_popup(root)
+            initial_observation = ultimate.recognize_reset_popup(initial.frame)
+
+            accounted = self._Runtime(
+                root,
+                [self._captured(root, initial.frame, "immediate", 2)],
+                tap_error=RuntimeError("transport"),
+            )
+            _resumed, _path, _detail = self._run_continuation(
+                root,
+                accounted,
+                initial,
+                initial_observation,
+            )
+            self.assertEqual(accounted.input_count, 1)
+            self.assertEqual(len(accounted.reconciliations), 1)
+            self.assertIs(accounted.reconciliations[0][2], accounted.captures[0])
+
+            pre_dispatch = self._Runtime(
+                root,
+                [self._captured(root, initial.frame, "immediate", 3)],
+                tap_error=RuntimeError("guard"),
+            )
+            pre_dispatch.tap = lambda _source, **_kwargs: (_ for _ in ()).throw(
+                RuntimeError("guard")
+            )
+            _resumed, _path, _detail = self._run_continuation(
+                root,
+                pre_dispatch,
+                initial,
+                initial_observation,
+            )
+            self.assertEqual(pre_dispatch.input_count, 0)
+            self.assertEqual(pre_dispatch.reconciliations, [])
+
+            capture_failure = self._Runtime(
+                root,
+                [self._captured(root, initial.frame, "immediate", 4)],
+                capture_error=RuntimeError("capture"),
+                capture_error_after=1,
+            )
+            _resumed, _path, _detail = self._run_continuation(
+                root,
+                capture_failure,
+                initial,
+                initial_observation,
+            )
+            self.assertEqual(capture_failure.input_count, 1)
+            self.assertEqual(len(capture_failure.reconciliations), 1)
+            self.assertIs(
+                capture_failure.reconciliations[0][2],
+                capture_failure.captures[0],
+            )
+            self.assertEqual(len(capture_failure.taps), 1)
+
+    def test_daily_route_uses_settled_lineup_without_recapture(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            session.mkdir()
+            frames = session / "frames"
+            frames.mkdir()
+            events = session / "events.jsonl"
+            lineup = self._captured(root, self._lineup_frame(), "settled", 1)
+            runtime = self._Runtime(root, [])
+            active = self._captured(root, np.zeros((1280, 800, 3), dtype=np.uint8), "active", 2)
+            warning = self._captured(root, np.zeros((1280, 800, 3), dtype=np.uint8), "warning", 3)
+            fled = self._captured(root, np.zeros((1280, 800, 3), dtype=np.uint8), "fled", 4)
+            with patch.object(
+                ultimate,
+                "_capture_until",
+                side_effect=[active, warning, fled],
+            ), patch.object(
+                ultimate,
+                "_recognize_active_battle",
+                return_value=(700, 20, 750, 75),
+            ), patch.object(
+                ultimate,
+                "_bind_flee_warning_button",
+                return_value=(470, 600, 700, 700),
+            ), patch.object(
+                ultimate,
+                "_recognize_ultimate_main",
+                return_value=(320, 1195, 480, 1245),
+            ), patch.object(
+                ultimate,
+                "_run_post_flee_home_route",
+                return_value=("complete_for_reset", {"reason": "test"}),
+            ), patch.object(ultimate, "utc_stamp", return_value="r17-test"):
+                terminal, _detail = ultimate._run_daily_route(
+                    runtime=runtime,
+                    session=session,
+                    frames=frames,
+                    events=events,
+                    atlas_path=root / "atlas.json",
+                    reset_identity="game-day-2026-08-17",
+                    maximum_pans=4,
+                    post_input_delay=0,
+                    entry_observation=SimpleNamespace(),
+                    starting_state="hero_lineup",
+                    resume_capture=lineup,
+                    resume_lineup_roi=self.LINEUP_ROI,
+                )
+        self.assertEqual(terminal, "complete_for_reset")
+        self.assertEqual(runtime.capture_labels, [])
+        self.assertIs(runtime.taps[0]["source"], lineup)
+
+    def test_main_passes_settled_vip_successor_to_daily_route(self) -> None:
+        class FakeRunner:
+            def __init__(self, *_args) -> None:
+                pass
+
+            def list_devices(self):
+                return [
+                    type(
+                        "Device",
+                        (),
+                        {"serial": "emulator-5554", "state": "device"},
+                    )()
+                ]
+
+            def get_state(self) -> str:
+                return "device"
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            popup = cv2.imread(str(self.POPUP_FRAME), cv2.IMREAD_COLOR)
+            self.assertIsNotNone(popup)
+            initial = self._captured(root, popup, "initial", 1)
+            immediate = self._captured(root, popup, "immediate", 2)
+            settled = self._captured(
+                root,
+                self._lineup_frame(),
+                "settled",
+                3,
+            )
+            runtime_instances: list[UltimateVipResetContinuationTests._Runtime] = []
+
+            def fake_runtime(_runner, runtime_session: Path, *, execute: bool):
+                runtime = self._Runtime(root, [initial, immediate, settled])
+                runtime.session = runtime_session
+                runtime_instances.append(runtime)
+                self.assertTrue(execute)
+                return runtime
+
+            daily_calls: list[dict[str, object]] = []
+
+            def fake_daily(**kwargs):
+                daily_calls.append(kwargs)
+                return "blocked_fail_closed", {
+                    "reason": "test route stop",
+                    "completed_actions": [],
+                }
+
+            def fake_entry(frame, *, reset_identity):
+                return SimpleNamespace(
+                    campaign_screen_recognized=False,
+                    entry_control_visible=False,
+                    entry_control_identity="",
+                    entry_roi=None,
+                    already_completed_marker=False,
+                    reset_identity=reset_identity,
+                    source_frame_sha256=ultimate.frame_sha256(frame),
+                )
+
+            output = root / "output"
+            with patch.object(ultimate, "ADBRunner", FakeRunner), patch.object(
+                ultimate,
+                "LocalBlueStacksRuntime",
+                side_effect=fake_runtime,
+            ), patch.object(
+                ultimate,
+                "is_permitted_local_bluestacks_serial",
+                return_value=True,
+            ), patch.object(
+                ultimate,
+                "require_campaign_home_atlas_building",
+            ), patch.object(
+                ultimate,
+                "_bind_ultimate_challenge_entry",
+                side_effect=fake_entry,
+            ), patch.object(
+                ultimate,
+                "_run_daily_route",
+                side_effect=fake_daily,
+            ), patch.object(
+                ultimate.pytesseract,
+                "image_to_data",
+                return_value=self._lineup_ocr(),
+            ), patch.object(
+                ultimate.time,
+                "sleep",
+                return_value=None,
+            ):
+                code = ultimate.main(
+                    [
+                        "--adb",
+                        "unused-adb",
+                        "--serial",
+                        "emulator-5554",
+                        "--daily",
+                        "--execute",
+                        "--yes",
+                        "--output-directory",
+                        str(output),
+                        "--reset-identity",
+                        "game-day-2026-08-17",
+                    ]
+                )
+
+        self.assertEqual(code, 3)
+        self.assertEqual(len(runtime_instances), 1)
+        self.assertEqual(len(daily_calls), 1)
+        runtime = runtime_instances[0]
+        self.assertIs(daily_calls[0]["runtime"], runtime)
+        self.assertEqual(daily_calls[0]["starting_state"], "hero_lineup")
+        self.assertIs(daily_calls[0]["resume_capture"], settled)
+        self.assertEqual(daily_calls[0]["resume_lineup_roi"], self.LINEUP_ROI)
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(len(runtime.taps), 1)
+
+
 class UltimateHomeNormalizationTests(unittest.TestCase):
     @staticmethod
     def _home_frame(*, marker: int = 0) -> np.ndarray:

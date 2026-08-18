@@ -61,6 +61,7 @@ from navigation_development_boundary import (
     NavigationRouteDeclaration,
     make_source_safety_facts,
 )
+from scripts.bluestacks_popup_recognition import recognize_reset_popup
 from scripts.flow_delivery_evidence import require_operator_evidence
 from world_map_navigation_bluestacks import _visual_popup_panel_candidates
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
@@ -532,6 +533,50 @@ def _runtime_action_keys(runtime: object) -> frozenset[str] | None:
         return frozenset(str(key) for key in value)
     except TypeError:
         return None
+
+
+def _valid_native_roi(value: object) -> bool:
+    if not isinstance(value, tuple) or len(value) != 4:
+        return False
+    if not all(isinstance(coordinate, int) for coordinate in value):
+        return False
+    x0, y0, x1, y1 = value
+    return 0 <= x0 < x1 <= NATIVE_WIDTH and 0 <= y0 < y1 <= 1280
+
+
+def _exact_vip_reset_popup(observation: object) -> bool:
+    return bool(
+        isinstance(observation, dict)
+        and observation.get("recognized") is True
+        and observation.get("popup_identity") == "VIP_POINTS_GET_PTS"
+        and observation.get("target_identity") == "reset-popup-close"
+        and _valid_native_roi(observation.get("target"))
+    )
+
+
+def _runtime_tap_dispatch_was_accounted(
+    runtime: object,
+    *,
+    action_key: str,
+    input_count_before: int | None,
+    action_keys_before: frozenset[str] | None,
+) -> bool:
+    """Prove that the exact popup-close tap occupied one runtime slot."""
+
+    input_count_after = _runtime_input_count(runtime)
+    if (
+        input_count_before is None
+        or input_count_after is None
+        or input_count_after - input_count_before != 1
+    ):
+        return False
+    action_keys_after = _runtime_action_keys(runtime)
+    if action_keys_after is not None:
+        return (
+            action_key in action_keys_after
+            and action_key not in (action_keys_before or frozenset())
+        )
+    return True
 
 
 def _zoom_runtime_dispatch_was_accounted(
@@ -1282,6 +1327,221 @@ def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int
     return (300, 1175, 500, 1230)
 
 
+def _continue_from_vip_reset_popup(
+    *,
+    runtime: LocalBlueStacksRuntime,
+    initial: CapturedNativeFrame,
+    initial_observation: dict[str, object],
+    session: Path,
+    events: Path,
+    post_input_delay: float,
+) -> tuple[CapturedNativeFrame | None, str | None, dict[str, object]]:
+    """Close one exact VIP reset popup and admit only Hero Lineup."""
+
+    detail: dict[str, object] = {
+        "initial_source_sha256": initial.sha256,
+        "initial_source": str(initial.path),
+        "status": "blocked_fail_closed",
+    }
+    try:
+        immediate_before = runtime.capture("vip-reset-close-immediate-before")
+        immediate_path, _immediate_hash = _retain_top_level_frame(
+            session,
+            immediate_before,
+            "vip-reset-close-immediate-before.png",
+        )
+        detail.update(
+            {
+                "immediate_before": immediate_path,
+                "immediate_before_sha256": immediate_before.sha256,
+            }
+        )
+        fresh = recognize_reset_popup(immediate_before.frame)
+        detail["fresh_observation"] = fresh
+        if not _exact_vip_reset_popup(initial_observation):
+            detail["reason"] = "initial VIP reset popup recognition was not exact"
+            return None, None, detail
+        initial_target = initial_observation["target"]
+        if (
+            not _exact_vip_reset_popup(fresh)
+            or fresh.get("target") != initial_target
+            or fresh.get("target_center") != initial_observation.get("target_center")
+        ):
+            detail["reason"] = "VIP reset popup or Close target drifted before dispatch"
+            detail["initial_target_roi"] = initial_target
+            detail["fresh_target_roi"] = (
+                fresh.get("target") if isinstance(fresh, dict) else None
+            )
+            return None, None, detail
+
+        action_key = f"reset-popup-close:{immediate_before.sha256}"
+        detail["action_key"] = action_key
+        input_count_before = _runtime_input_count(runtime)
+        action_keys_before = _runtime_action_keys(runtime)
+        try:
+            runtime.tap(
+                immediate_before,
+                target_identity="reset-popup-close",
+                target_roi=fresh["target"],
+                action_key=action_key,
+                consequential=False,
+            )
+        except BaseException as exc:
+            runtime_accounted = _runtime_tap_dispatch_was_accounted(
+                runtime,
+                action_key=action_key,
+                input_count_before=input_count_before,
+                action_keys_before=action_keys_before,
+            )
+            detail.update(
+                {
+                    "runtime_accounted": runtime_accounted,
+                    "tap_error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            if runtime_accounted:
+                runtime.reconcile(
+                    action_key,
+                    "unresolved",
+                    immediate_before,
+                    "VIP reset-popup Close transport failed after runtime accounting",
+                )
+            detail["reason"] = "VIP reset-popup Close transport failed"
+            return None, None, detail
+
+        runtime_accounted = _runtime_tap_dispatch_was_accounted(
+            runtime,
+            action_key=action_key,
+            input_count_before=input_count_before,
+            action_keys_before=action_keys_before,
+        )
+        detail["runtime_accounted"] = runtime_accounted
+        if not runtime_accounted:
+            detail["reason"] = "VIP reset-popup Close was not runtime-accounted"
+            return None, None, detail
+
+        try:
+            time.sleep(post_input_delay)
+        except BaseException as exc:
+            runtime.reconcile(
+                action_key,
+                "unresolved",
+                immediate_before,
+                "VIP reset-popup Close post delay failed after runtime accounting",
+            )
+            detail.update(
+                {
+                    "reason": "VIP reset-popup Close post delay failed",
+                    "delay_error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            return None, None, detail
+        try:
+            settled = runtime.capture("vip-reset-close-settled")
+        except BaseException as exc:
+            runtime.reconcile(
+                action_key,
+                "unresolved",
+                immediate_before,
+                "VIP reset-popup Close settled capture failed after runtime accounting",
+            )
+            detail.update(
+                {
+                    "reason": "VIP reset-popup Close settled capture failed",
+                    "capture_error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            return None, None, detail
+
+        try:
+            settled_path, _settled_hash = _retain_top_level_frame(
+                session,
+                settled,
+                "campaign-resume-source.png",
+            )
+        except BaseException as exc:
+            runtime.reconcile(
+                action_key,
+                "unresolved",
+                settled,
+                "VIP reset-popup Close settled evidence retention failed after runtime accounting",
+            )
+            detail.update(
+                {
+                    "reason": "VIP reset-popup Close settled evidence retention failed",
+                    "retention_error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            return None, None, detail
+        detail.update(
+            {
+                "settled": settled_path,
+                "settled_sha256": settled.sha256,
+            }
+        )
+        try:
+            settled_popup = recognize_reset_popup(settled.frame)
+            lineup_roi = _bind_lineup_challenge_button(settled.frame)
+            other_resume_states = {
+                "ultimate_challenge": _recognize_ultimate_main(settled.frame),
+                "active_battle": _recognize_active_battle(settled.frame),
+                "flee_warning": _bind_flee_warning_button(settled.frame),
+            }
+        except BaseException as exc:
+            runtime.reconcile(
+                action_key,
+                "unresolved",
+                settled,
+                "VIP reset-popup Close successor recognition failed after runtime accounting",
+            )
+            detail.update(
+                {
+                    "reason": "VIP reset-popup Close successor recognition failed",
+                    "recognizer_error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            return None, None, detail
+
+        detail.update(
+            {
+                "settled_popup": settled_popup,
+                "lineup_roi": lineup_roi,
+                "other_resume_states": other_resume_states,
+            }
+        )
+        if (
+            not isinstance(settled_popup, dict)
+            or settled_popup.get("recognized") is not False
+            or not _valid_native_roi(lineup_roi)
+            or any(value is not None for value in other_resume_states.values())
+        ):
+            runtime.reconcile(
+                action_key,
+                "unresolved",
+                settled,
+                "VIP reset-popup Close successor was not uniquely Hero Lineup",
+            )
+            detail["reason"] = "VIP reset-popup Close successor was not uniquely Hero Lineup"
+            return None, None, detail
+
+        runtime.reconcile(
+            action_key,
+            "confirmed",
+            settled,
+            "VIP reset-popup Close produced a unique Hero Lineup successor",
+        )
+        detail["status"] = "confirmed"
+        return settled, settled_path, detail
+    except BaseException as exc:
+        detail.update(
+            {
+                "reason": "VIP reset-popup continuation failed before dispatch",
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+        )
+        return None, None, detail
+
+
 def _bind_active_battle_exit(frame: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bind the icon-only upper-right Exit after proving the native puzzle board."""
 
@@ -1695,6 +1955,8 @@ def _run_daily_route(
     post_input_delay: float,
     entry_observation,
     starting_state: str = "campaign_entry",
+    resume_capture: CapturedNativeFrame | None = None,
+    resume_lineup_roi: tuple[int, int, int, int] | None = None,
 ) -> tuple[str, dict[str, object]]:
     """Execute the exact bounded Challenge → Exit → Flee → Home route."""
 
@@ -1714,8 +1976,8 @@ def _run_daily_route(
         exit_bound = ("icon-only Exit", exit_roi)
         append_event(events, {"type": "active_battle_resume_accepted", "source_sha256": active.sha256, "target_roi": exit_roi})
     elif starting_state == "hero_lineup":
-        lineup = runtime.capture("hero-lineup-resume-source")
-        lineup_roi = _bind_lineup_challenge_button(lineup.frame)
+        lineup = resume_capture or runtime.capture("hero-lineup-resume-source")
+        lineup_roi = resume_lineup_roi or _bind_lineup_challenge_button(lineup.frame)
         if lineup_roi is None:
             return TERMINAL_BLOCKED, {"reason": "fresh Hero Lineup resume source or gold Challenge button not positively bound", "completed_actions": completed_actions}
         append_event(events, {"type": "hero_lineup_resume_accepted", "source_sha256": lineup.sha256, "target_roi": lineup_roi})
@@ -2092,8 +2354,99 @@ def main(argv: list[str] | None = None) -> int:
     resume_path, _resume_hash = _retain_top_level_frame(
         session, resume_capture, "campaign-resume-source.png"
     )
+    vip_resume_capture: CapturedNativeFrame | None = None
+    vip_resume_lineup_roi: tuple[int, int, int, int] | None = None
+    try:
+        vip_initial_observation = recognize_reset_popup(resume_frame)
+    except BaseException as exc:
+        result = {
+            "status": TERMINAL_BLOCKED,
+            "terminal": TERMINAL_BLOCKED,
+            "reason": "initial VIP reset-popup recognition failed",
+            "session": str(session),
+            "flow_id": FLOW_ID,
+            "navigation_only": False,
+            "dispatch": False,
+            "recognizer_error": f"{type(exc).__name__}: {exc}",
+            "resume_source": str(resume_path),
+            "resume_source_sha256": resume_capture.sha256,
+            "input_count": runtime.input_count,
+            "navigation_input_count": runtime.input_count,
+            "home_recovery_latency_seconds": time.monotonic() - started,
+        }
+        _write_result(session, result)
+        return 3
+    if isinstance(vip_initial_observation, dict) and vip_initial_observation.get(
+        "recognized"
+    ):
+        (
+            vip_resume_capture,
+            vip_resume_path,
+            vip_detail,
+        ) = _continue_from_vip_reset_popup(
+            runtime=runtime,
+            initial=resume_capture,
+            initial_observation=vip_initial_observation,
+            session=session,
+            events=events,
+            post_input_delay=args.post_input_delay,
+        )
+        if vip_resume_capture is None or vip_resume_path is None:
+            result = {
+                "status": TERMINAL_BLOCKED,
+                "terminal": TERMINAL_BLOCKED,
+                "reason": vip_detail.get(
+                    "reason",
+                    "VIP reset-popup continuation failed closed",
+                ),
+                "session": str(session),
+                "flow_id": FLOW_ID,
+                "navigation_only": False,
+                "dispatch": False,
+                "vip_reset_popup": vip_detail,
+                "input_count": runtime.input_count,
+                "navigation_input_count": runtime.input_count,
+                "home_recovery_latency_seconds": time.monotonic() - started,
+            }
+            _write_result(session, result)
+            return 3
+        resume_capture = vip_resume_capture
+        resume_frame = resume_capture.frame
+        resume_path = vip_resume_path
+        vip_resume_lineup_roi = vip_detail.get("lineup_roi")
+        if not _valid_native_roi(vip_resume_lineup_roi):
+            result = {
+                "status": TERMINAL_BLOCKED,
+                "terminal": TERMINAL_BLOCKED,
+                "reason": "VIP reset-popup continuation did not retain a valid Hero Lineup target",
+                "session": str(session),
+                "flow_id": FLOW_ID,
+                "navigation_only": False,
+                "dispatch": False,
+                "vip_reset_popup": vip_detail,
+                "input_count": runtime.input_count,
+                "navigation_input_count": runtime.input_count,
+                "home_recovery_latency_seconds": time.monotonic() - started,
+            }
+            _write_result(session, result)
+            return 3
+        append_event(
+            events,
+            {
+                "type": "vip_reset_popup_resume_accepted",
+                "flow_id": FLOW_ID,
+                "source_frame_sha256": resume_capture.sha256,
+                "frame": str(resume_path),
+                "target_roi": vip_resume_lineup_roi,
+                "popup_close_action_key": vip_detail.get("action_key"),
+            },
+        )
     ultimate_already_open = _recognize_ultimate_main(resume_frame) is not None
-    hero_lineup_already_open = _bind_lineup_challenge_button(resume_frame) is not None
+    hero_lineup_already_open = (
+        _valid_native_roi(vip_resume_lineup_roi)
+        if vip_resume_capture is not None
+        else _bind_lineup_challenge_button(resume_frame) is not None
+    )
     active_battle_already_open = _recognize_active_battle(resume_frame) is not None
     flee_warning_already_open = _bind_flee_warning_button(resume_frame) is not None
     resume_observation = _bind_ultimate_challenge_entry(
@@ -2250,6 +2603,12 @@ def main(argv: list[str] | None = None) -> int:
             post_input_delay=args.post_input_delay,
             entry_observation=resume_observation,
             starting_state="flee_warning" if flee_warning_already_open else ("active_battle" if active_battle_already_open else ("hero_lineup" if hero_lineup_already_open else "ultimate_challenge")),
+            resume_capture=vip_resume_capture,
+            resume_lineup_roi=(
+                vip_resume_lineup_roi
+                if _valid_native_roi(vip_resume_lineup_roi)
+                else None
+            ),
         )
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED

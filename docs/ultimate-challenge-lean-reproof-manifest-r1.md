@@ -322,3 +322,22 @@ All other paths are read-only during implementation.
 - After the red Challenge dispatch, reconcile the exact key `confirmed` against the stable bound Hero Lineup capture. If six captures do not bind, reconcile that dispatched key `unresolved` against the latest retained capture before returning blocked.
 - Add deterministic native positive and negative tests for title/button/five-card requirements, card-grid contour exclusion, independent modal denial, and confirmed/unresolved exact-key reconciliation. Retained live evidence is supplementary only.
 - One Luna implementation and one Terra review are authorized. A clean candidate commit and one fresh Hero Lineup resume canary may follow parent integration acceptance.
+
+## Refrozen stage r17 — one-shot VIP reset-popup continuation
+- User authorization: autonomous redesign around non-absolute blockers remains active. The r16 resume canary failed closed with zero inputs on a known benign popup.
+- Revision ID: `ultimate-challenge-lean-reproof-r17`.
+- Failure class: `local_defect`.
+- Evidence:
+  - fresh native source is positively recognized by the retained shared VIP `Get Pts` reset-popup contract with exact title/body/literal Close semantics;
+  - current Close ROI is `(263,781,537,869)`, center `(400,825)`;
+  - the blurred background cannot authorize Hero Lineup or any other route state;
+  - authoritative child input count is zero and ownership released.
+- Writable paths:
+  - `scripts/bluestacks_ultimate_challenge.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- Before normal start-state classification only, recognize the shared exact VIP popup. If absent, existing behavior is unchanged.
+- If present, capture and revalidate one immediate-before frame, exact popup identity and current Close ROI, then dispatch exactly one non-consequential navigation tap through the existing Ultimate runtime with an immediate-before-bound unique key. No identical retry or second popup input is allowed.
+- Capture one settled successor. Confirm the exact close key only when the popup is absent and the settled frame independently binds exactly Hero Lineup through the r16 title/card/button/modal contract. Continue from that settled capture as `hero_lineup`.
+- Any recognition drift, moved/ambiguous Close, transport/capture error, persistent popup, unknown successor, or non-Hero-Lineup successor reconciles unresolved when runtime accounting occurred and terminates fail-closed. Never infer state from the blurred popup background.
+- Add deterministic shared-recognizer positive replay, wrong-text/moved-button zero-input denials, exact one-input ceiling, confirmed Hero Lineup successor, and unresolved unknown/persistent successor tests. Retained live evidence remains supplementary only.
+- One Luna implementation and one Terra review are authorized. A clean candidate commit and one materially changed one-input resume canary may follow parent integration acceptance.
