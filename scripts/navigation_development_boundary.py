@@ -779,18 +779,22 @@ class DevelopmentSession:
         capture: Callable[[str], CapturedNativeFrame],
         dispatch: Callable[[CapturedNativeFrame], None],
         recognize: Callable[[CapturedNativeFrame], str],
+        authorize: Callable[[CapturedNativeFrame], None] | None = None,
         target_roi: NativeBox | None = None,
         recover: Callable[[CapturedNativeFrame], bool | int] | None = None,
         recovery_action_identity: str | None = None,
         recovery_action_class: str | None = None,
         recovery_consequence_class: str | None = None,
         consequence_class: str | None = None,
+        settled_successor: Callable[[], CapturedNativeFrame] | None = None,
     ) -> DevelopmentActionResult:
         normalized = validate_development_action(action_class)
         if self.input_count >= self.max_inputs:
             raise DevelopmentSessionError("development session input limit reached")
         _validate_development_roi(target_roi)
         before = self.observe(capture, label=f"{label}-immediate-before")
+        if authorize is not None:
+            authorize(before)
         delegated = current_delegated_runtime_context()
         dispatch_owner = getattr(dispatch, "__self__", None)
         native_guarded = dispatch_owner is not None and hasattr(
@@ -817,8 +821,20 @@ class DevelopmentSession:
             raise
         if delegated is not None:
             delegated.mark_transported(label)
-        after = self.observe(capture, label=f"{label}-immediate-post")
+        immediate_post = self.observe(capture, label=f"{label}-immediate-post")
+        after = immediate_post
         state = str(recognize(after) or "unknown")
+        settled: CapturedNativeFrame | None = None
+        if state.lower() == "unknown" and settled_successor is not None:
+            candidate = settled_successor()
+            if not isinstance(candidate, CapturedNativeFrame):
+                raise DevelopmentSessionError(
+                    "settled successor must return a CapturedNativeFrame"
+                )
+            _validate_development_native_frame(candidate)
+            settled = candidate
+            after = settled
+            state = str(recognize(after) or "unknown")
         recovery_used = False
         recovery_key = recovery_action_identity
         if state.lower() == "unknown" and recover is not None:
@@ -878,6 +894,8 @@ class DevelopmentSession:
             "reason": reason,
             "state": state,
             "before_sha256": before.sha256,
+            "immediate_post_sha256": immediate_post.sha256,
+            "settled_successor_sha256": settled.sha256 if settled is not None else "",
             "after_sha256": after.sha256,
             "recovery_used": recovery_used,
         }
