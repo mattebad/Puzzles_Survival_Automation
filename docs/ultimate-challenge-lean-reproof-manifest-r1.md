@@ -341,3 +341,31 @@ All other paths are read-only during implementation.
 - Any recognition drift, moved/ambiguous Close, transport/capture error, persistent popup, unknown successor, or non-Hero-Lineup successor reconciles unresolved when runtime accounting occurred and terminates fail-closed. Never infer state from the blurred popup background.
 - Add deterministic shared-recognizer positive replay, wrong-text/moved-button zero-input denials, exact one-input ceiling, confirmed Hero Lineup successor, and unresolved unknown/persistent successor tests. Retained live evidence remains supplementary only.
 - One Luna implementation and one Terra review are authorized. A clean candidate commit and one materially changed one-input resume canary may follow parent integration acceptance.
+
+## Refrozen stage r18 — measured Campaign exit and modal recovery
+- User authorization: autonomous redesign around non-absolute blockers remains active. The r17 canary completed Challenge and Flee, then exposed the wrong final Campaign-exit operation.
+- Revision ID: `ultimate-challenge-lean-reproof-r18`.
+- Failure class: `local_defect`.
+- Evidence:
+  - authoritative child count is `6/16`, all resource deltas are zero, and Challenge/Flee/Ultimate-to-Campaign successors are positively recognized;
+  - in child session `daily-20260818T003817175329Z/nav-20260818T003817641599Z`, the first Back (`uc-back-20260818T003838805341Z`) correctly returned Ultimate Challenge to Campaign, but the second Back (`campaign-back-20260818T003851589541Z`, target identity `campaign-back-to-home`) dispatched Android Back from the recognized Campaign tier map;
+  - that second Back transformed source frame `0013-campaign-tier-map-successor-01.png` (`376980f53ded2a493b1f6c5caa9daac0184d74258ce8aea2c3b0b2a4a5ae6833`) into the in-game `Exit the game?` confirmation (`c8f001e235eeb7964a51af285e8cae12614dfe9dcc1675e735d18b84c99dc295`);
+  - successor frames `0014` through `0021` are byte-identical popup captures with no later retained dismissal action; their `canonical-home-successor` filenames are incorrect labels and do not constitute Home evidence;
+  - exact exit-dialog recognition binds only Cancel `(60,650,380,780)`;
+  - the pre-Back Campaign frame freshly measures `campaign-exit-base` at `(690,920,800,1060)`, score `0.9999316`;
+  - no combat remains active, singleton ownership released, and the prior session-local final Back dispatch is not a global gate.
+- Writable paths:
+  - `scripts/bluestacks_ultimate_challenge.py`
+  - `tests/test_bluestacks_ultimate_challenge.py`
+- Replace the post-Flee Campaign Android Back with a fresh current-frame `campaign-exit-base` measurement. Rebind on an exact immediate-before Campaign frame, dispatch one non-consequential tap, and confirm only positive template Home.
+- Before normal start-state classification, support one exact exit-dialog recovery: freshly recognize and tap only Cancel once; require recognized Campaign restoration; then run the same measured Campaign-exit operation once and require Home. Confirm both exact keys against their proven successors.
+- No Confirm input, Android Back retry, static ROI fallback, Challenge replay, or more than two recovery inputs is allowed.
+- Any dialog drift, Cancel ambiguity, Campaign mismatch, measured-exit failure/drift, transport/capture error, or non-Home successor reconciles unresolved after accounting and terminates fail-closed.
+- Add deterministic exact-dialog Cancel/Confirm-separation tests, real measured Campaign-exit binding, normal post-Flee measured-exit route, two-input recovery accounting, and unknown/static/Back-retry negatives. Retained live evidence remains supplementary only.
+- One Luna implementation and one Terra review are authorized. A clean candidate commit and one bounded two-input completion canary may follow parent integration acceptance.
+
+### r18 consolidated review repair
+- Independent review identified three pre-canary defects: UC-to-Campaign Back lacked exact-key reconciliation on post-accounting failures, exit-dialog recovery was reachable in navigation-only mode, and the shared dialog recognizer accepted confusable `exit`/`game` text.
+- The consolidated repair now reconciles the exact accounted UC Back key on success and every terminal post-accounting failure, gates exit-dialog recovery to Daily execution so navigation-only remains zero-input, and requires the exact `Exit the game?` title/question relationship plus bounded Cancel/Confirm geometry.
+- Deterministic regressions cover accounted transport failure, missing/wrong Campaign successors, confirmed success, navigation-only dialog denial, and confusable dialog text.
+- Parent verification: 165 affected tests passed with 1 skipped; modified Python compiled; `git diff --check` passed. Independent Terra recheck reported no material findings. No live input or commit was performed.

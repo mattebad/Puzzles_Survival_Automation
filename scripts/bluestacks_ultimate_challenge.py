@@ -64,6 +64,7 @@ from navigation_development_boundary import (
 from scripts.bluestacks_popup_recognition import recognize_reset_popup
 from scripts.flow_delivery_evidence import require_operator_evidence
 from world_map_navigation_bluestacks import _visual_popup_panel_candidates
+from tasks import campaign_atlas_vision, troop_training_vision
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from tasks.home_atlas import ZoomIdentity
@@ -554,14 +555,14 @@ def _exact_vip_reset_popup(observation: object) -> bool:
     )
 
 
-def _runtime_tap_dispatch_was_accounted(
+def _runtime_dispatch_was_accounted(
     runtime: object,
     *,
     action_key: str,
     input_count_before: int | None,
     action_keys_before: frozenset[str] | None,
 ) -> bool:
-    """Prove that the exact popup-close tap occupied one runtime slot."""
+    """Prove that one exact dispatch occupied one runtime slot."""
 
     input_count_after = _runtime_input_count(runtime)
     if (
@@ -577,6 +578,36 @@ def _runtime_tap_dispatch_was_accounted(
             and action_key not in (action_keys_before or frozenset())
         )
     return True
+
+
+def _runtime_tap_dispatch_was_accounted(
+    runtime: object,
+    *,
+    action_key: str,
+    input_count_before: int | None,
+    action_keys_before: frozenset[str] | None,
+) -> bool:
+    return _runtime_dispatch_was_accounted(
+        runtime,
+        action_key=action_key,
+        input_count_before=input_count_before,
+        action_keys_before=action_keys_before,
+    )
+
+
+def _runtime_back_dispatch_was_accounted(
+    runtime: object,
+    *,
+    action_key: str,
+    input_count_before: int | None,
+    action_keys_before: frozenset[str] | None,
+) -> bool:
+    return _runtime_dispatch_was_accounted(
+        runtime,
+        action_key=action_key,
+        input_count_before=input_count_before,
+        action_keys_before=action_keys_before,
+    )
 
 
 def _zoom_runtime_dispatch_was_accounted(
@@ -1725,9 +1756,17 @@ def _capture_until(
     settle_seconds: float = 0.8,
 ):
     latest = None
+    try:
+        setattr(runtime, "_latest_capture_until", None)
+    except Exception:
+        pass
     for ordinal in range(attempts):
         time.sleep(settle_seconds)
         latest = runtime.capture(f"{label}-{ordinal + 1:02d}")
+        try:
+            setattr(runtime, "_latest_capture_until", latest)
+        except Exception:
+            pass
         if predicate(latest.frame):
             return latest
     return latest
@@ -1817,6 +1856,481 @@ def _write_operator_artifacts(session: Path, terminal: str) -> None:
             append_event(path, payload)
 
 
+def _poll_zero_input_until(
+    runtime: LocalBlueStacksRuntime,
+    *,
+    label: str,
+    predicate,
+    attempts: int,
+    settle_seconds: float,
+) -> tuple[CapturedNativeFrame | None, bool, BaseException | None]:
+    """Poll a successor without issuing any additional runtime input."""
+
+    latest: CapturedNativeFrame | None = None
+    for ordinal in range(attempts):
+        try:
+            time.sleep(settle_seconds)
+            latest = runtime.capture(f"{label}-{ordinal + 1:02d}")
+            if predicate(latest.frame):
+                return latest, True, None
+        except BaseException as exc:
+            return latest, False, exc
+    return latest, False, None
+
+
+def _run_measured_campaign_exit_home_route(
+    *,
+    runtime: LocalBlueStacksRuntime,
+    session: Path,
+    events: Path,
+    reset_identity: str,
+    post_input_delay: float,
+    completed_actions: list[dict[str, object]] | None = None,
+    campaign_source: CapturedNativeFrame | None = None,
+    event_type: str = "campaign_exit_home_route",
+    event_payload: dict[str, object] | None = None,
+) -> tuple[str, dict[str, object]]:
+    """Exit a recognized Campaign frame through a measured current-frame target."""
+
+    completed_actions = list(completed_actions or [])
+    detail: dict[str, object] = {
+        "completed_actions": completed_actions,
+        "status": TERMINAL_BLOCKED,
+        "resource_delta": {
+            "ap": 0,
+            "stamina": 0,
+            "currency": 0,
+            "items": 0,
+        },
+    }
+    if campaign_source is not None:
+        detail["campaign_source_sha256"] = campaign_source.sha256
+
+    try:
+        immediate_before = runtime.capture("campaign-exit-immediate-before")
+        immediate_path, _immediate_hash = _retain_top_level_frame(
+            session,
+            immediate_before,
+            "campaign-exit-immediate-before.png",
+        )
+    except BaseException as exc:
+        detail.update(
+            {
+                "reason": "Campaign exit immediate-before capture or retention failed",
+                "capture_error": f"{type(exc).__name__}: {exc}",
+            }
+        )
+        return TERMINAL_BLOCKED, detail
+
+    detail.update(
+        {
+            "campaign_exit_immediate_before": immediate_path,
+            "campaign_exit_immediate_before_sha256": immediate_before.sha256,
+        }
+    )
+    try:
+        campaign_recognized = _campaign_context_recognized(immediate_before.frame)
+    except BaseException as exc:
+        detail.update(
+            {
+                "reason": "Campaign exit immediate-before recognition failed",
+                "recognizer_error": f"{type(exc).__name__}: {exc}",
+            }
+        )
+        return TERMINAL_BLOCKED, detail
+    if not campaign_recognized:
+        detail["reason"] = "Campaign exit immediate-before was not positively recognized"
+        return TERMINAL_BLOCKED, detail
+
+    try:
+        exit_roi, exit_score = campaign_atlas_vision.measured_survey_target(
+            immediate_before.frame,
+            "campaign-exit-base",
+        )
+        exit_score = float(exit_score)
+    except BaseException as exc:
+        detail.update(
+            {
+                "reason": "Campaign exit target was not measured on the current frame",
+                "measurement_error": f"{type(exc).__name__}: {exc}",
+            }
+        )
+        return TERMINAL_BLOCKED, detail
+    if not _valid_native_roi(exit_roi):
+        detail.update(
+            {
+                "reason": "Campaign exit measurement returned an invalid native ROI",
+                "measured_roi": exit_roi,
+            }
+        )
+        return TERMINAL_BLOCKED, detail
+
+    action_key = f"campaign-exit-base:{immediate_before.sha256}"
+    detail.update(
+        {
+            "campaign_exit_action_key": action_key,
+            "campaign_exit_roi": exit_roi,
+            "campaign_exit_score": exit_score,
+        }
+    )
+    input_count_before = _runtime_input_count(runtime)
+    action_keys_before = _runtime_action_keys(runtime)
+    try:
+        runtime.tap(
+            immediate_before,
+            target_identity="campaign-exit-base",
+            target_roi=exit_roi,
+            action_key=action_key,
+            consequential=False,
+        )
+    except BaseException as exc:
+        runtime_accounted = _runtime_tap_dispatch_was_accounted(
+            runtime,
+            action_key=action_key,
+            input_count_before=input_count_before,
+            action_keys_before=action_keys_before,
+        )
+        detail.update(
+            {
+                "reason": "Campaign exit transport failed",
+                "tap_error": f"{type(exc).__name__}: {exc}",
+                "runtime_accounted": runtime_accounted,
+            }
+        )
+        if runtime_accounted:
+            runtime.reconcile(
+                action_key,
+                "unresolved",
+                immediate_before,
+                "Campaign exit transport failed after runtime accounting",
+            )
+        return TERMINAL_BLOCKED, detail
+
+    runtime_accounted = _runtime_tap_dispatch_was_accounted(
+        runtime,
+        action_key=action_key,
+        input_count_before=input_count_before,
+        action_keys_before=action_keys_before,
+    )
+    detail["runtime_accounted"] = runtime_accounted
+    if not runtime_accounted:
+        detail["reason"] = "Campaign exit tap was not runtime-accounted"
+        return TERMINAL_BLOCKED, detail
+
+    home, home_recognized, poll_error = _poll_zero_input_until(
+        runtime,
+        label="canonical-home-successor",
+        predicate=_home_nav_terminal,
+        attempts=8,
+        settle_seconds=max(0.8, post_input_delay),
+    )
+    evidence = home or immediate_before
+    if poll_error is not None:
+        runtime.reconcile(
+            action_key,
+            "unresolved",
+            evidence,
+            "Campaign exit Home successor polling failed after runtime accounting",
+        )
+        detail.update(
+            {
+                "reason": "Campaign exit Home successor polling failed",
+                "successor_error": f"{type(poll_error).__name__}: {poll_error}",
+                "latest_capture_sha256": evidence.sha256,
+            }
+        )
+        return TERMINAL_BLOCKED, detail
+    if home is None or not home_recognized:
+        runtime.reconcile(
+            action_key,
+            "unresolved",
+            evidence,
+            "Campaign exit Home successor was not positively recognized after runtime accounting",
+        )
+        detail.update(
+            {
+                "reason": "Campaign exit Home successor was not positively recognized",
+                "latest_capture_sha256": evidence.sha256,
+            }
+        )
+        return TERMINAL_BLOCKED, detail
+
+    try:
+        home_frame, home_frame_sha256 = _retain_top_level_frame(
+            session,
+            home,
+            "canonical-home-terminal.png",
+        )
+    except BaseException as exc:
+        runtime.reconcile(
+            action_key,
+            "unresolved",
+            home,
+            "Campaign exit Home evidence retention failed after runtime accounting",
+        )
+        detail.update(
+            {
+                "reason": "Campaign exit Home evidence retention failed",
+                "retention_error": f"{type(exc).__name__}: {exc}",
+                "latest_capture_sha256": home.sha256,
+            }
+        )
+        return TERMINAL_BLOCKED, detail
+
+    runtime.reconcile(
+        action_key,
+        "confirmed",
+        home,
+        "template Home recognized after measured Campaign exit",
+    )
+    completed_actions.append(
+        {
+            "action": "tap_campaign_exit_base",
+            "target_text": "Campaign exit base",
+            "target_roi": exit_roi,
+            "score": exit_score,
+            "before_sha256": immediate_before.sha256,
+            "post_sha256": home.sha256,
+        }
+    )
+    append_event(
+        events,
+        {
+            "type": event_type,
+            **(event_payload or {}),
+            "campaign_source_sha256": (
+                campaign_source.sha256 if campaign_source is not None else None
+            ),
+            "campaign_exit_immediate_before_sha256": immediate_before.sha256,
+            "campaign_exit_roi": exit_roi,
+            "campaign_exit_score": exit_score,
+            "home_sha256": home.sha256,
+            "home_nav_recognized": True,
+        },
+    )
+    detail.update(
+        {
+            "status": TERMINAL_COMPLETE_FOR_RESET,
+            "reason": "Campaign exit measured on the current frame and canonical Home recognized",
+            "completed_actions": completed_actions,
+            "home_sha256": home.sha256,
+            "home_frame": home_frame,
+            "home_frame_sha256": home_frame_sha256,
+            "home_nav_recognized": True,
+            "reset_identity": reset_identity,
+            "input_count": _runtime_input_count(runtime),
+            "navigation_input_count": _runtime_input_count(runtime),
+        }
+    )
+    return TERMINAL_COMPLETE_FOR_RESET, detail
+
+
+def _continue_from_exit_dialog(
+    *,
+    runtime: LocalBlueStacksRuntime,
+    initial: CapturedNativeFrame,
+    initial_observation: tuple[bool, tuple[int, int, int, int] | None],
+    session: Path,
+    events: Path,
+    reset_identity: str,
+    post_input_delay: float,
+) -> tuple[str, dict[str, object]]:
+    """Cancel one exact exit dialog, then measure Campaign exit exactly once."""
+
+    initial_recognized, initial_cancel_roi = initial_observation
+    detail: dict[str, object] = {
+        "status": TERMINAL_BLOCKED,
+        "initial_source_sha256": initial.sha256,
+        "initial_source": str(initial.path),
+        "resource_delta": {
+            "ap": 0,
+            "stamina": 0,
+            "currency": 0,
+            "items": 0,
+        },
+    }
+    if initial_recognized is not True or not _valid_native_roi(initial_cancel_roi):
+        detail["reason"] = "initial exit dialog or Cancel target was not exact"
+        return TERMINAL_BLOCKED, detail
+
+    try:
+        immediate_before = runtime.capture("exit-dialog-cancel-immediate-before")
+        immediate_path, _immediate_hash = _retain_top_level_frame(
+            session,
+            immediate_before,
+            "exit-dialog-cancel-immediate-before.png",
+        )
+        fresh_recognized, fresh_cancel_roi = (
+            troop_training_vision.recognize_exit_dialog(immediate_before.frame)
+        )
+    except BaseException as exc:
+        detail.update(
+            {
+                "reason": "exit-dialog Cancel immediate-before recognition failed",
+                "capture_error": f"{type(exc).__name__}: {exc}",
+            }
+        )
+        return TERMINAL_BLOCKED, detail
+    detail.update(
+        {
+            "immediate_before": immediate_path,
+            "immediate_before_sha256": immediate_before.sha256,
+            "fresh_recognized": fresh_recognized,
+            "fresh_cancel_roi": fresh_cancel_roi,
+        }
+    )
+    if (
+        fresh_recognized is not True
+        or fresh_cancel_roi != initial_cancel_roi
+        or not _valid_native_roi(fresh_cancel_roi)
+    ):
+        detail["reason"] = "exit-dialog Cancel target drifted before dispatch"
+        return TERMINAL_BLOCKED, detail
+
+    action_key = f"exit-dialog-cancel:{immediate_before.sha256}"
+    detail["action_key"] = action_key
+    input_count_before = _runtime_input_count(runtime)
+    action_keys_before = _runtime_action_keys(runtime)
+    try:
+        runtime.tap(
+            immediate_before,
+            target_identity="exit-dialog-cancel",
+            target_roi=fresh_cancel_roi,
+            action_key=action_key,
+            consequential=False,
+        )
+    except BaseException as exc:
+        runtime_accounted = _runtime_tap_dispatch_was_accounted(
+            runtime,
+            action_key=action_key,
+            input_count_before=input_count_before,
+            action_keys_before=action_keys_before,
+        )
+        detail.update(
+            {
+                "reason": "exit-dialog Cancel transport failed",
+                "tap_error": f"{type(exc).__name__}: {exc}",
+                "runtime_accounted": runtime_accounted,
+            }
+        )
+        if runtime_accounted:
+            runtime.reconcile(
+                action_key,
+                "unresolved",
+                immediate_before,
+                "exit-dialog Cancel transport failed after runtime accounting",
+            )
+        return TERMINAL_BLOCKED, detail
+
+    runtime_accounted = _runtime_tap_dispatch_was_accounted(
+        runtime,
+        action_key=action_key,
+        input_count_before=input_count_before,
+        action_keys_before=action_keys_before,
+    )
+    detail["runtime_accounted"] = runtime_accounted
+    if not runtime_accounted:
+        detail["reason"] = "exit-dialog Cancel tap was not runtime-accounted"
+        return TERMINAL_BLOCKED, detail
+
+    campaign, campaign_recognized, poll_error = _poll_zero_input_until(
+        runtime,
+        label="exit-dialog-cancel-campaign-successor",
+        predicate=_campaign_context_recognized,
+        attempts=8,
+        settle_seconds=max(0.8, post_input_delay),
+    )
+    evidence = campaign or immediate_before
+    if poll_error is not None:
+        runtime.reconcile(
+            action_key,
+            "unresolved",
+            evidence,
+            "exit-dialog Cancel Campaign successor polling failed after accounting",
+        )
+        detail.update(
+            {
+                "reason": "exit-dialog Cancel Campaign successor polling failed",
+                "successor_error": f"{type(poll_error).__name__}: {poll_error}",
+                "latest_capture_sha256": evidence.sha256,
+            }
+        )
+        return TERMINAL_BLOCKED, detail
+    if campaign is None or not campaign_recognized:
+        runtime.reconcile(
+            action_key,
+            "unresolved",
+            evidence,
+            "exit-dialog Cancel Campaign successor was not positively recognized after accounting",
+        )
+        detail.update(
+            {
+                "reason": "exit-dialog Cancel Campaign successor was not positively recognized",
+                "latest_capture_sha256": evidence.sha256,
+            }
+        )
+        return TERMINAL_BLOCKED, detail
+
+    runtime.reconcile(
+        action_key,
+        "confirmed",
+        campaign,
+        "Campaign context recognized after exit-dialog Cancel",
+    )
+    completed_actions = [
+        {
+            "action": "cancel_exit_dialog",
+            "target_text": "Cancel",
+            "target_roi": fresh_cancel_roi,
+            "before_sha256": immediate_before.sha256,
+            "post_sha256": campaign.sha256,
+        }
+    ]
+    append_event(
+        events,
+        {
+            "type": "exit_dialog_cancel_recovery",
+            "action_key": action_key,
+            "target_identity": "exit-dialog-cancel",
+            "target_roi": fresh_cancel_roi,
+            "before_sha256": immediate_before.sha256,
+            "campaign_sha256": campaign.sha256,
+        },
+    )
+    terminal, exit_detail = _run_measured_campaign_exit_home_route(
+        runtime=runtime,
+        session=session,
+        events=events,
+        reset_identity=reset_identity,
+        post_input_delay=post_input_delay,
+        completed_actions=completed_actions,
+        campaign_source=campaign,
+        event_type="exit_dialog_campaign_exit_recovery",
+        event_payload={"exit_dialog_cancel_action_key": action_key},
+    )
+    recovery_input_count_before = input_count_before
+    recovery_input_count_after = _runtime_input_count(runtime)
+    recovery_input_count = (
+        recovery_input_count_after - recovery_input_count_before
+        if recovery_input_count_before is not None
+        and recovery_input_count_after is not None
+        else None
+    )
+    exit_detail.update(
+        {
+            "exit_dialog_action_key": action_key,
+            "exit_dialog_cancel_roi": fresh_cancel_roi,
+            "exit_dialog_immediate_before_sha256": immediate_before.sha256,
+            "exit_dialog_campaign_sha256": campaign.sha256,
+            "recovery_input_count": recovery_input_count,
+        }
+    )
+    if terminal == TERMINAL_COMPLETE_FOR_RESET and recovery_input_count != 2:
+        exit_detail["reason"] = "exit-dialog recovery did not account exactly two inputs"
+        return TERMINAL_BLOCKED, exit_detail
+    return terminal, exit_detail
+
+
 def _run_post_flee_home_route(
     *,
     runner: ADBRunner,
@@ -1827,7 +2341,7 @@ def _run_post_flee_home_route(
     runtime: LocalBlueStacksRuntime | None = None,
     completed_actions: list[dict[str, object]] | None = None,
 ) -> tuple[str, dict[str, object]]:
-    """Return UC main → Campaign tier map → canonical Home with verified transitions."""
+    """Return UC main → Campaign tier map → measured exit → canonical Home."""
 
     runtime = runtime or LocalBlueStacksRuntime(runner, session / "runtime", execute=True)
     completed_actions = list(completed_actions or [])
@@ -1848,28 +2362,122 @@ def _run_post_flee_home_route(
             "source_frame_sha256": uc_frame_sha256,
         }
     uc_back_key = f"uc-back-{utc_stamp()}"
-    runtime.back(
-        uc,
-        target_identity="ultimate-challenge-back",
-        action_key=uc_back_key,
-    )
-    campaign = _capture_until(
+    input_count_before = _runtime_input_count(runtime)
+    action_keys_before = _runtime_action_keys(runtime)
+    try:
+        runtime.back(
+            uc,
+            target_identity="ultimate-challenge-back",
+            action_key=uc_back_key,
+        )
+    except BaseException as exc:
+        runtime_accounted = _runtime_back_dispatch_was_accounted(
+            runtime,
+            action_key=uc_back_key,
+            input_count_before=input_count_before,
+            action_keys_before=action_keys_before,
+        )
+        detail = {
+            "reason": "Ultimate Challenge back transport failed",
+            "completed_actions": completed_actions,
+            "uc_back_action_key": uc_back_key,
+            "runtime_accounted": runtime_accounted,
+            "transport_error": f"{type(exc).__name__}: {exc}",
+        }
+        if runtime_accounted:
+            runtime.reconcile(
+                uc_back_key,
+                "unresolved",
+                uc,
+                "Ultimate Challenge back transport failed after runtime accounting",
+            )
+        return TERMINAL_BLOCKED, detail
+
+    runtime_accounted = _runtime_back_dispatch_was_accounted(
         runtime,
-        label="campaign-tier-map-successor",
-        predicate=_campaign_context_recognized,
-        attempts=6,
-        settle_seconds=max(0.8, post_input_delay),
+        action_key=uc_back_key,
+        input_count_before=input_count_before,
+        action_keys_before=action_keys_before,
     )
+    if not runtime_accounted:
+        return TERMINAL_BLOCKED, {
+            "reason": "Ultimate Challenge back was not runtime-accounted",
+            "completed_actions": completed_actions,
+            "uc_back_action_key": uc_back_key,
+            "runtime_accounted": False,
+        }
+
+    try:
+        campaign = _capture_until(
+            runtime,
+            label="campaign-tier-map-successor",
+            predicate=_campaign_context_recognized,
+            attempts=6,
+            settle_seconds=max(0.8, post_input_delay),
+        )
+    except BaseException as exc:
+        evidence = getattr(runtime, "_latest_capture_until", None) or uc
+        runtime.reconcile(
+            uc_back_key,
+            "unresolved",
+            evidence,
+            "Campaign successor capture or polling failed after Ultimate Challenge back accounting",
+        )
+        return TERMINAL_BLOCKED, {
+            "reason": "Campaign successor capture or polling failed after Ultimate Challenge back",
+            "completed_actions": completed_actions,
+            "uc_back_action_key": uc_back_key,
+            "latest_capture_sha256": evidence.sha256,
+            "successor_error": f"{type(exc).__name__}: {exc}",
+            "runtime_accounted": True,
+        }
     if campaign is None:
+        evidence = getattr(runtime, "_latest_capture_until", None) or uc
+        runtime.reconcile(
+            uc_back_key,
+            "unresolved",
+            evidence,
+            "Campaign successor was not captured after Ultimate Challenge back accounting",
+        )
         return TERMINAL_BLOCKED, {
             "reason": "Campaign successor not captured after Ultimate Challenge back",
             "completed_actions": completed_actions,
+            "uc_back_action_key": uc_back_key,
+            "latest_capture_sha256": evidence.sha256,
+            "runtime_accounted": True,
         }
-    if not _campaign_context_recognized(campaign.frame):
+    try:
+        campaign_recognized = _campaign_context_recognized(campaign.frame)
+    except BaseException as exc:
+        runtime.reconcile(
+            uc_back_key,
+            "unresolved",
+            campaign,
+            "Campaign successor recognition failed after Ultimate Challenge back accounting",
+        )
+        return TERMINAL_BLOCKED, {
+            "reason": "Campaign successor recognition failed after Ultimate Challenge back",
+            "campaign_sha256": campaign.sha256,
+            "completed_actions": completed_actions,
+            "uc_back_action_key": uc_back_key,
+            "latest_capture_sha256": campaign.sha256,
+            "recognizer_error": f"{type(exc).__name__}: {exc}",
+            "runtime_accounted": True,
+        }
+    if not campaign_recognized:
+        runtime.reconcile(
+            uc_back_key,
+            "unresolved",
+            campaign,
+            "Campaign successor was not positively recognized after Ultimate Challenge back accounting",
+        )
         return TERMINAL_BLOCKED, {
             "reason": "Campaign successor not positively recognized after Ultimate Challenge back",
             "campaign_sha256": campaign.sha256,
             "completed_actions": completed_actions,
+            "uc_back_action_key": uc_back_key,
+            "latest_capture_sha256": campaign.sha256,
+            "runtime_accounted": True,
         }
     runtime.reconcile(
         uc_back_key,
@@ -1882,65 +2490,23 @@ def _run_post_flee_home_route(
             "action": "back_uc_to_campaign",
             "before_sha256": uc.sha256,
             "post_sha256": campaign.sha256,
+            "action_key": uc_back_key,
         }
     )
-    campaign_back_key = f"campaign-back-{utc_stamp()}"
-    runtime.back(
-        campaign,
-        target_identity="campaign-back-to-home",
-        action_key=campaign_back_key,
-    )
-    home = _capture_until(
-        runtime,
-        label="canonical-home-successor",
-        predicate=_home_nav_terminal,
-        attempts=8,
-        settle_seconds=max(0.8, post_input_delay),
-    )
-    if home is None or not _home_nav_terminal(home.frame):
-        return TERMINAL_BLOCKED, {
-            "reason": "canonical Home terminal not positively recognized after Campaign back",
-            "campaign_sha256": campaign.sha256,
-            "completed_actions": completed_actions,
-        }
-    runtime.reconcile(
-        campaign_back_key,
-        "confirmed",
-        home,
-        "template Home recognized after Campaign back",
-    )
-    completed_actions.append(
-        {
-            "action": "back_campaign_to_home",
-            "before_sha256": campaign.sha256,
-            "post_sha256": home.sha256,
-        }
-    )
-    append_event(
-        events,
-        {
-            "type": "post_flee_home_route",
+    return _run_measured_campaign_exit_home_route(
+        runtime=runtime,
+        session=session,
+        events=events,
+        reset_identity=reset_identity,
+        post_input_delay=post_input_delay,
+        completed_actions=completed_actions,
+        campaign_source=campaign,
+        event_type="post_flee_home_route",
+        event_payload={
             "ultimate_sha256": uc.sha256,
             "campaign_sha256": campaign.sha256,
-            "home_sha256": home.sha256,
-            "home_nav_recognized": True,
         },
     )
-    home_frame, home_frame_sha256 = _retain_top_level_frame(
-        session, home, "canonical-home-terminal.png"
-    )
-    return TERMINAL_COMPLETE_FOR_RESET, {
-        "reason": "Flee completion retained and canonical Home recognized through verified back transitions",
-        "completed_actions": completed_actions,
-        "home_sha256": home.sha256,
-        "home_frame": home_frame,
-        "home_frame_sha256": home_frame_sha256,
-        "home_nav_recognized": True,
-        "reset_identity": reset_identity,
-        "input_count": runtime.input_count,
-        "navigation_input_count": runtime.input_count,
-        "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0},
-    }
 
 
 def _run_daily_route(
@@ -2151,6 +2717,11 @@ def main(argv: list[str] | None = None) -> int:
         help="execute the approved zero-resource Challenge → Exit → Flee Daily route",
     )
     parser.add_argument("--post-flee-home-only", action="store_true", help="resume only the verified UC-main → Campaign → Home terminal route")
+    parser.add_argument(
+        "--campaign-exit-home-only",
+        action="store_true",
+        help="resume from a recognized Campaign tier map: measured transparent-icon exit → canonical Home only",
+    )
     parser.add_argument("--atlas", type=Path, default=DEFAULT_HOME_ATLAS)
     parser.add_argument("--execute", action="store_true", help="allow bounded tap/swipe dispatch")
     parser.add_argument(
@@ -2179,8 +2750,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-total-inputs", type=int, default=MAX_TOTAL_INPUTS)
     args = parser.parse_args(argv)
 
-    if sum(bool(value) for value in (args.navigation_only, args.daily, args.post_flee_home_only)) != 1:
-        parser.error("select exactly one of --navigation-only, --daily, or --post-flee-home-only")
+    if sum(
+        bool(value)
+        for value in (
+            args.navigation_only,
+            args.daily,
+            args.post_flee_home_only,
+            args.campaign_exit_home_only,
+        )
+    ) != 1:
+        parser.error(
+            "select exactly one of --navigation-only, --daily, --post-flee-home-only, "
+            "or --campaign-exit-home-only"
+        )
     if args.max_total_inputs != MAX_TOTAL_INPUTS:
         parser.error("Ultimate Challenge aggregate input ceiling is exactly 16")
     if not is_permitted_local_bluestacks_serial(args.serial):
@@ -2349,6 +2931,39 @@ def main(argv: list[str] | None = None) -> int:
         _write_result(session, result)
         return 0 if terminal == TERMINAL_COMPLETE_FOR_RESET else 3
 
+    if args.campaign_exit_home_only:
+        append_event(
+            events,
+            {
+                "type": "campaign_exit_home_only_start",
+                "reset_identity": args.reset_identity or "",
+            },
+        )
+        terminal, detail = _run_measured_campaign_exit_home_route(
+            runtime=runtime,
+            session=session,
+            events=events,
+            reset_identity=args.reset_identity or "",
+            post_input_delay=args.post_input_delay,
+            event_type="campaign_exit_home_only",
+        )
+        if runtime.input_count > args.max_total_inputs:
+            terminal = TERMINAL_BLOCKED
+            detail["reason"] = "aggregate runtime input count exceeded 16"
+        result = {
+            "status": terminal,
+            "terminal": terminal,
+            "flow_id": FLOW_ID,
+            "session": str(session),
+            "navigation_only": False,
+            "dispatch": terminal == TERMINAL_COMPLETE_FOR_RESET,
+            **detail,
+            "input_count": runtime.input_count,
+            "navigation_input_count": runtime.input_count,
+        }
+        _write_result(session, result)
+        return 0 if terminal == TERMINAL_COMPLETE_FOR_RESET else 3
+
     resume_capture = runtime.capture("campaign-resume-source")
     resume_frame = resume_capture.frame
     resume_path, _resume_hash = _retain_top_level_frame(
@@ -2356,6 +2971,65 @@ def main(argv: list[str] | None = None) -> int:
     )
     vip_resume_capture: CapturedNativeFrame | None = None
     vip_resume_lineup_roi: tuple[int, int, int, int] | None = None
+    if args.daily:
+        try:
+            exit_dialog_initial_observation = troop_training_vision.recognize_exit_dialog(
+                resume_frame
+            )
+        except BaseException as exc:
+            result = {
+                "status": TERMINAL_BLOCKED,
+                "terminal": TERMINAL_BLOCKED,
+                "reason": "initial exit-dialog recognition failed",
+                "session": str(session),
+                "flow_id": FLOW_ID,
+                "navigation_only": False,
+                "dispatch": False,
+                "recognizer_error": f"{type(exc).__name__}: {exc}",
+                "resume_source": str(resume_path),
+                "resume_source_sha256": resume_capture.sha256,
+                "input_count": runtime.input_count,
+                "navigation_input_count": runtime.input_count,
+                "home_recovery_latency_seconds": time.monotonic() - started,
+            }
+            _write_result(session, result)
+            return 3
+        if (
+            isinstance(exit_dialog_initial_observation, tuple)
+            and len(exit_dialog_initial_observation) == 2
+            and exit_dialog_initial_observation[0] is True
+            and _valid_native_roi(exit_dialog_initial_observation[1])
+        ):
+            terminal, detail = _continue_from_exit_dialog(
+                runtime=runtime,
+                initial=resume_capture,
+                initial_observation=exit_dialog_initial_observation,
+                session=session,
+                events=events,
+                reset_identity=args.reset_identity or "",
+                post_input_delay=args.post_input_delay,
+            )
+            recovery_input_count = detail.get("recovery_input_count")
+            if terminal == TERMINAL_COMPLETE_FOR_RESET and recovery_input_count != 2:
+                terminal = TERMINAL_BLOCKED
+                detail["reason"] = "exit-dialog recovery did not account exactly two inputs"
+            result = {
+                "session": str(session),
+                "flow_id": FLOW_ID,
+                "navigation_only": False,
+                "reset_identity": args.reset_identity,
+                "exit_dialog_recovery": True,
+                **detail,
+                "status": terminal,
+                "terminal": terminal,
+                "reason": detail.get("reason", ""),
+                "dispatch": terminal == TERMINAL_COMPLETE_FOR_RESET,
+                "input_count": runtime.input_count,
+                "navigation_input_count": runtime.input_count,
+                "home_recovery_latency_seconds": time.monotonic() - started,
+            }
+            _write_result(session, result)
+            return 0 if terminal == TERMINAL_COMPLETE_FOR_RESET else 3
     try:
         vip_initial_observation = recognize_reset_popup(resume_frame)
     except BaseException as exc:
@@ -2582,6 +3256,8 @@ def main(argv: list[str] | None = None) -> int:
             "reason": entry.get("reason", "Home Atlas Campaign door failed for Ultimate Challenge"),
             "session": str(session),
             "flow_id": FLOW_ID,
+            "navigation_only": not args.daily,
+            "dispatch": False,
             "home_atlas_entry": entry,
             "home_normalization": home_normalization_detail,
             "input_count": runtime.input_count,

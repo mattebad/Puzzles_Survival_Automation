@@ -2193,6 +2193,808 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(ultimate.MAX_TOTAL_INPUTS, 16)
 
 
+class UltimateCampaignExitRecoveryTests(unittest.TestCase):
+    CANCEL_ROI = (60, 650, 380, 780)
+    EXIT_ROI = (690, 920, 800, 1060)
+
+    @staticmethod
+    def _captured(
+        root: Path,
+        frame: np.ndarray,
+        label: str,
+        ordinal: int,
+    ) -> CapturedNativeFrame:
+        encoded_ok, encoded = cv2.imencode(".png", frame)
+        assert encoded_ok
+        payload = encoded.tobytes()
+        path = root / f"{ordinal:04d}-{label}.png"
+        path.write_bytes(payload)
+        return CapturedNativeFrame(
+            frame=frame.copy(),
+            png=payload,
+            sha256=hashlib.sha256(payload).hexdigest(),
+            captured_monotonic=float(ordinal),
+            path=path,
+        )
+
+    @staticmethod
+    def _exit_dialog_frame(
+        *,
+        modal_text: str = "Exit the game?",
+        cancel_text: str = "Cancel",
+        confirm_text: str = "Confirm",
+        cancel_x: int = 100,
+    ) -> np.ndarray:
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        cv2.putText(
+            frame,
+            modal_text,
+            (180, 520),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.5,
+            (255, 255, 255),
+            4,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            frame,
+            cancel_text,
+            (cancel_x, 725),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.3,
+            (255, 255, 255),
+            4,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            frame,
+            confirm_text,
+            (450, 725),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.3,
+            (255, 255, 255),
+            4,
+            cv2.LINE_AA,
+        )
+        return frame
+
+    class _Runtime:
+        def __init__(
+            self,
+            root: Path,
+            frames: list[np.ndarray],
+        ) -> None:
+            self.root = root
+            self.root.mkdir(parents=True, exist_ok=True)
+            self.frames = list(frames)
+            self.captures: list[CapturedNativeFrame] = []
+            self.taps: list[dict[str, object]] = []
+            self.backs: list[dict[str, object]] = []
+            self.reconciliations: list[
+                tuple[str, str, CapturedNativeFrame, str]
+            ] = []
+            self.action_keys: set[str] = set()
+            self.input_count = 0
+            self.runner = SimpleNamespace()
+
+        def capture(self, label: str) -> CapturedNativeFrame:
+            frame = self.frames.pop(0) if self.frames else self.captures[-1].frame
+            captured = UltimateCampaignExitRecoveryTests._captured(
+                self.root,
+                frame,
+                label,
+                len(self.captures) + 1,
+            )
+            self.captures.append(captured)
+            return captured
+
+        def tap(self, source: CapturedNativeFrame, **kwargs) -> None:
+            self.taps.append({"source": source, **kwargs})
+            self.action_keys.add(str(kwargs["action_key"]))
+            self.input_count += 1
+
+        def back(self, source: CapturedNativeFrame, **kwargs) -> None:
+            self.backs.append({"source": source, **kwargs})
+            self.action_keys.add(str(kwargs["action_key"]))
+            self.input_count += 1
+
+        def reconcile(
+            self,
+            action_key: str,
+            status: str,
+            post: CapturedNativeFrame,
+            reason: str,
+        ) -> None:
+            self.reconciliations.append((action_key, status, post, reason))
+
+    def test_real_exit_dialog_binds_only_cancel_and_rejects_negatives(self) -> None:
+        recognized, cancel_roi = ultimate.troop_training_vision.recognize_exit_dialog(
+            self._exit_dialog_frame()
+        )
+        self.assertTrue(recognized)
+        self.assertEqual(cancel_roi, self.CANCEL_ROI)
+        self.assertNotEqual(cancel_roi, (400, 650, 740, 780))
+
+        self.assertEqual(
+            ultimate.troop_training_vision.recognize_exit_dialog(
+                self._exit_dialog_frame(modal_text="Stay in the game?")
+            ),
+            (False, None),
+        )
+        for confusable in (
+            "Exit settings. Game over?",
+            "Exit the game. Please stay?",
+        ):
+            with self.subTest(modal_text=confusable):
+                self.assertEqual(
+                    ultimate.troop_training_vision.recognize_exit_dialog(
+                        self._exit_dialog_frame(modal_text=confusable)
+                    ),
+                    (False, None),
+                )
+        self.assertEqual(
+            ultimate.troop_training_vision.recognize_exit_dialog(
+                self._exit_dialog_frame(cancel_x=410)
+            ),
+            (False, None),
+        )
+
+    def test_real_current_frame_campaign_exit_measurement_fixture(self) -> None:
+        fixture = cv2.imread(
+            str(
+                ROOT
+                / "tasks/assets/campaign_auto_battle/800x1280/ground-truth/"
+                "campaign-exit-unhighlighted/"
+                "annotated-exit-unhighlighted-from-0006-campaign-exit-home-immediate-before.png"
+            ),
+            cv2.IMREAD_COLOR,
+        )
+        self.assertIsNotNone(fixture)
+        measured_roi, score = ultimate.campaign_atlas_vision.measured_survey_target(
+            fixture,
+            "campaign-exit-base",
+        )
+        self.assertEqual(measured_roi, self.EXIT_ROI)
+        self.assertGreater(score, 0.55)
+
+    def test_normal_post_flee_route_uses_measured_exit_not_campaign_back(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            (session / "frames").mkdir(parents=True)
+            events = session / "events.jsonl"
+            campaign_frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+            runtime = self._Runtime(
+                root,
+                [
+                    np.zeros((1280, 800, 3), dtype=np.uint8),
+                    np.zeros((1280, 800, 3), dtype=np.uint8),
+                ],
+            )
+            campaign = self._captured(root, campaign_frame, "campaign", 90)
+            with patch.object(
+                ultimate,
+                "_recognize_ultimate_main",
+                return_value=(300, 1170, 500, 1260),
+            ), patch.object(
+                ultimate,
+                "_capture_until",
+                return_value=campaign,
+            ), patch.object(
+                ultimate,
+                "_campaign_context_recognized",
+                return_value=True,
+            ), patch.object(
+                ultimate,
+                "_home_nav_terminal",
+                return_value=True,
+            ), patch.object(
+                ultimate.campaign_atlas_vision,
+                "measured_survey_target",
+                return_value=(self.EXIT_ROI, 0.9999316),
+            ), patch.object(ultimate.time, "sleep", return_value=None):
+                terminal, detail = ultimate._run_post_flee_home_route(
+                    runner=runtime.runner,
+                    session=session,
+                    events=events,
+                    reset_identity="game-day-2026-08-17",
+                    post_input_delay=0,
+                    runtime=runtime,
+                )
+
+        self.assertEqual(terminal, "complete_for_reset")
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(runtime.taps[0]["target_identity"], "campaign-exit-base")
+        self.assertEqual(runtime.taps[0]["target_roi"], self.EXIT_ROI)
+        self.assertFalse(runtime.taps[0]["consequential"])
+        self.assertEqual(
+            runtime.taps[0]["source"],
+            runtime.captures[1],
+        )
+        self.assertIn(runtime.taps[0]["source"].sha256, runtime.taps[0]["action_key"])
+        self.assertFalse(
+            any(
+                back.get("target_identity") == "campaign-back-to-home"
+                for back in runtime.backs
+            )
+        )
+        key, status, post, _reason = runtime.reconciliations[-1]
+        self.assertEqual(key, runtime.taps[0]["action_key"])
+        self.assertEqual(status, "confirmed")
+        self.assertIs(post, runtime.captures[-1])
+        self.assertEqual(detail["home_nav_recognized"], True)
+        self.assertEqual(detail["resource_delta"], {"ap": 0, "stamina": 0, "currency": 0, "items": 0})
+
+    def test_post_flee_uc_back_transport_failure_reconciles_only_accounted_key(self) -> None:
+        class BackFailsAfterAccounting(self._Runtime):
+            def back(self, source, **kwargs) -> None:
+                super().back(source, **kwargs)
+                raise RuntimeError("synthetic UC back transport failure")
+
+        class BackFailsBeforeAccounting(self._Runtime):
+            def back(self, _source, **_kwargs) -> None:
+                raise RuntimeError("synthetic pre-accounting failure")
+
+        for runtime_type, expected_count, expected_reconciliations in (
+            (BackFailsAfterAccounting, 1, 1),
+            (BackFailsBeforeAccounting, 0, 0),
+        ):
+            with self.subTest(runtime=runtime_type.__name__), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                session = root / "session"
+                (session / "frames").mkdir(parents=True)
+                events = session / "events.jsonl"
+                runtime = runtime_type(
+                    root,
+                    [np.zeros((1280, 800, 3), dtype=np.uint8)],
+                )
+                with patch.object(
+                    ultimate,
+                    "_recognize_ultimate_main",
+                    return_value=(300, 1170, 500, 1260),
+                ), patch.object(
+                    ultimate,
+                    "utc_stamp",
+                    return_value="r18-transport",
+                ):
+                    terminal, detail = ultimate._run_post_flee_home_route(
+                        runner=runtime.runner,
+                        session=session,
+                        events=events,
+                        reset_identity="game-day-2026-08-17",
+                        post_input_delay=0,
+                        runtime=runtime,
+                    )
+
+            self.assertEqual(terminal, "blocked_fail_closed")
+            self.assertEqual(runtime.input_count, expected_count)
+            self.assertEqual(len(runtime.reconciliations), expected_reconciliations)
+            self.assertEqual(detail["uc_back_action_key"], "uc-back-r18-transport")
+            self.assertEqual(detail["runtime_accounted"], expected_count == 1)
+            if expected_reconciliations:
+                key, status, post, _reason = runtime.reconciliations[0]
+                self.assertEqual(key, "uc-back-r18-transport")
+                self.assertEqual(status, "unresolved")
+                self.assertIs(post, runtime.captures[0])
+
+    def test_post_flee_uc_back_missing_or_wrong_successor_reconciles_latest_evidence(self) -> None:
+        cases = (
+            ("missing", None, None),
+            ("wrong", "wrong", False),
+        )
+        for label, successor_kind, recognized in cases:
+            with self.subTest(case=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                session = root / "session"
+                (session / "frames").mkdir(parents=True)
+                events = session / "events.jsonl"
+                runtime = self._Runtime(
+                    root,
+                    [np.zeros((1280, 800, 3), dtype=np.uint8)],
+                )
+                successor = (
+                    self._captured(
+                        root,
+                        np.full((1280, 800, 3), 7, dtype=np.uint8),
+                        "wrong-successor",
+                        2,
+                    )
+                    if successor_kind == "wrong"
+                    else None
+                )
+                with patch.object(
+                    ultimate,
+                    "_recognize_ultimate_main",
+                    return_value=(300, 1170, 500, 1260),
+                ), patch.object(
+                    ultimate,
+                    "_capture_until",
+                    return_value=successor,
+                ), patch.object(
+                    ultimate,
+                    "_campaign_context_recognized",
+                    return_value=bool(recognized),
+                ), patch.object(
+                    ultimate,
+                    "utc_stamp",
+                    return_value=f"r18-{label}",
+                ):
+                    terminal, detail = ultimate._run_post_flee_home_route(
+                        runner=runtime.runner,
+                        session=session,
+                        events=events,
+                        reset_identity="game-day-2026-08-17",
+                        post_input_delay=0,
+                        runtime=runtime,
+                    )
+
+            self.assertEqual(terminal, "blocked_fail_closed")
+            self.assertEqual(detail["uc_back_action_key"], f"uc-back-r18-{label}")
+            self.assertEqual(len(runtime.reconciliations), 1)
+            key, status, post, _reason = runtime.reconciliations[0]
+            self.assertEqual(key, detail["uc_back_action_key"])
+            self.assertEqual(status, "unresolved")
+            self.assertIs(post, successor or runtime.captures[0])
+
+    def test_post_flee_uc_back_success_reconciles_exact_key_before_campaign_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / "session"
+            (session / "frames").mkdir(parents=True)
+            events = session / "events.jsonl"
+            runtime = self._Runtime(
+                root,
+                [np.zeros((1280, 800, 3), dtype=np.uint8)],
+            )
+            campaign = self._captured(
+                root,
+                np.full((1280, 800, 3), 9, dtype=np.uint8),
+                "campaign-successor",
+                2,
+            )
+            with patch.object(
+                ultimate,
+                "_recognize_ultimate_main",
+                return_value=(300, 1170, 500, 1260),
+            ), patch.object(
+                ultimate,
+                "_capture_until",
+                return_value=campaign,
+            ), patch.object(
+                ultimate,
+                "_campaign_context_recognized",
+                return_value=True,
+            ), patch.object(
+                ultimate,
+                "_run_measured_campaign_exit_home_route",
+                return_value=("blocked_fail_closed", {"reason": "stop after UC back"}),
+            ), patch.object(
+                ultimate,
+                "utc_stamp",
+                return_value="r18-success",
+            ):
+                terminal, _detail = ultimate._run_post_flee_home_route(
+                    runner=runtime.runner,
+                    session=session,
+                    events=events,
+                    reset_identity="game-day-2026-08-17",
+                    post_input_delay=0,
+                    runtime=runtime,
+                )
+
+        self.assertEqual(terminal, "blocked_fail_closed")
+        self.assertEqual(len(runtime.reconciliations), 1)
+        key, status, post, _reason = runtime.reconciliations[0]
+        self.assertEqual(key, "uc-back-r18-success")
+        self.assertEqual(status, "confirmed")
+        self.assertIs(post, campaign)
+
+    def test_campaign_exit_failures_reconcile_only_after_accounting(self) -> None:
+        cases = (
+            ("campaign_mismatch", False, True),
+            ("measurement_failure", True, False),
+            ("non_home_successor", True, True),
+        )
+        for case, campaign_ok, measured_ok in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                session = root / "session"
+                (session / "frames").mkdir(parents=True)
+                events = session / "events.jsonl"
+                runtime = self._Runtime(
+                    root,
+                    [np.zeros((1280, 800, 3), dtype=np.uint8)] * 10,
+                )
+                measurement = (
+                    (self.EXIT_ROI, 0.99)
+                    if measured_ok
+                    else RuntimeError("synthetic measured bind failure")
+                )
+                with patch.object(
+                    ultimate,
+                    "_campaign_context_recognized",
+                    return_value=campaign_ok,
+                ), patch.object(
+                    ultimate.campaign_atlas_vision,
+                    "measured_survey_target",
+                    side_effect=(
+                        None
+                        if isinstance(measurement, tuple)
+                        else measurement
+                    )
+                    if not isinstance(measurement, tuple)
+                    else None,
+                ) as measured:
+                    if isinstance(measurement, tuple):
+                        measured.return_value = measurement
+                    with patch.object(
+                        ultimate,
+                        "_home_nav_terminal",
+                        return_value=False,
+                    ):
+                        terminal, _detail = ultimate._run_measured_campaign_exit_home_route(
+                            runtime=runtime,
+                            session=session,
+                            events=events,
+                            reset_identity="game-day-2026-08-17",
+                            post_input_delay=0,
+                        )
+
+                self.assertEqual(terminal, "blocked_fail_closed")
+                if case in {"campaign_mismatch", "measurement_failure"}:
+                    self.assertEqual(runtime.taps, [])
+                    self.assertEqual(runtime.reconciliations, [])
+                else:
+                    self.assertEqual(len(runtime.taps), 1)
+                    self.assertEqual(runtime.reconciliations[-1][1], "unresolved")
+
+    def test_main_current_exit_dialog_recovers_with_two_confirmed_inputs(self) -> None:
+        dialog = self._exit_dialog_frame()
+        campaign_frame = cv2.imread(
+            str(
+                ROOT
+                / "tasks/assets/campaign_auto_battle/800x1280/ground-truth/"
+                "campaign-exit-unhighlighted/"
+                "annotated-exit-unhighlighted-from-0006-campaign-exit-home-immediate-before.png"
+            ),
+            cv2.IMREAD_COLOR,
+        )
+        runtime_holder: list[UltimateCampaignExitRecoveryTests._Runtime] = []
+        frames = [dialog, dialog, campaign_frame, campaign_frame, np.zeros((1280, 800, 3), dtype=np.uint8)]
+
+        class FakeRunner:
+            def __init__(self, *_args) -> None:
+                pass
+
+            def list_devices(self):
+                return [SimpleNamespace(serial="emulator-5554", state="device")]
+
+            def get_state(self) -> str:
+                return "device"
+
+        class FakeRuntime(self._Runtime):
+            def __init__(self, runner, session: Path, *, execute: bool) -> None:
+                super().__init__(session / "frames", frames)
+                self.runner = runner
+                self.execute = execute
+                runtime_holder.append(self)
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            with patch.object(ultimate, "ADBRunner", FakeRunner), patch.object(
+                ultimate, "LocalBlueStacksRuntime", FakeRuntime
+            ), patch.object(
+                ultimate, "is_permitted_local_bluestacks_serial", return_value=True
+            ), patch.object(
+                ultimate, "require_campaign_home_atlas_building"
+            ), patch.object(
+                ultimate,
+                "evaluate_already_completed",
+                return_value=SimpleNamespace(
+                    terminal="blocked_fail_closed",
+                    reason="not already_completed",
+                ),
+            ), patch.object(
+                ultimate,
+                "_campaign_context_recognized",
+                return_value=True,
+            ), patch.object(
+                ultimate,
+                "_home_nav_terminal",
+                return_value=True,
+            ), patch.object(
+                ultimate.campaign_atlas_vision,
+                "measured_survey_target",
+                return_value=(self.EXIT_ROI, 0.9999316),
+            ), patch.object(
+                ultimate,
+                "_run_daily_route",
+                side_effect=AssertionError("Challenge route must not run"),
+            ), patch.object(
+                ultimate,
+                "recognize_reset_popup",
+                side_effect=AssertionError("VIP route must not run"),
+            ), patch.object(ultimate.time, "sleep", return_value=None):
+                code = ultimate.main(
+                    [
+                        "--adb",
+                        "unused-adb",
+                        "--serial",
+                        "emulator-5554",
+                        "--daily",
+                        "--execute",
+                        "--yes",
+                        "--output-directory",
+                        str(output),
+                        "--reset-identity",
+                        "game-day-2026-08-17",
+                    ]
+                )
+
+            sessions = list(output.glob("nav-*"))
+            self.assertEqual(code, 0)
+            self.assertEqual(len(sessions), 1)
+            result = json.loads((sessions[0] / "result.json").read_text(encoding="utf-8"))
+
+        runtime = runtime_holder[0]
+        self.assertEqual(result["terminal"], "complete_for_reset")
+        self.assertTrue(result["exit_dialog_recovery"])
+        self.assertEqual(result["input_count"], 2)
+        self.assertEqual(result["recovery_input_count"], 2)
+        self.assertEqual(len(runtime.taps), 2)
+        self.assertEqual(
+            [tap["target_identity"] for tap in runtime.taps],
+            ["exit-dialog-cancel", "campaign-exit-base"],
+        )
+        self.assertTrue(all(tap["consequential"] is False for tap in runtime.taps))
+        self.assertTrue(all("confirm" not in str(tap["target_identity"]).casefold() for tap in runtime.taps))
+        self.assertEqual(
+            [status for _key, status, _post, _reason in runtime.reconciliations],
+            ["confirmed", "confirmed"],
+        )
+        self.assertIs(runtime.reconciliations[0][2], runtime.captures[2])
+        self.assertIs(runtime.reconciliations[1][2], runtime.captures[4])
+        self.assertEqual(result["resource_delta"], {"ap": 0, "stamina": 0, "currency": 0, "items": 0})
+
+    def test_main_campaign_exit_home_only_returns_home_with_single_measured_tap(
+        self,
+    ) -> None:
+        class FakeRunner:
+            def __init__(self, *_args) -> None:
+                pass
+
+            def list_devices(self):
+                return [SimpleNamespace(serial="emulator-5554", state="device")]
+
+            def get_state(self) -> str:
+                return "device"
+
+        class FakeRuntime(self._Runtime):
+            def __init__(self, runner, session: Path, *, execute: bool) -> None:
+                super().__init__(
+                    session / "frames", [np.zeros((1280, 800, 3), dtype=np.uint8)]
+                )
+                self.runner = runner
+                self.execute = execute
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            with patch.object(ultimate, "ADBRunner", FakeRunner), patch.object(
+                ultimate, "LocalBlueStacksRuntime", FakeRuntime
+            ), patch.object(
+                ultimate, "is_permitted_local_bluestacks_serial", return_value=True
+            ), patch.object(
+                ultimate, "require_campaign_home_atlas_building"
+            ), patch.object(
+                ultimate, "_campaign_context_recognized", return_value=True
+            ), patch.object(
+                ultimate, "_home_nav_terminal", return_value=True
+            ), patch.object(
+                ultimate.campaign_atlas_vision,
+                "measured_survey_target",
+                return_value=(self.EXIT_ROI, 0.9999316),
+            ), patch.object(ultimate.time, "sleep", return_value=None):
+                code = ultimate.main(
+                    [
+                        "--adb",
+                        "unused-adb",
+                        "--serial",
+                        "emulator-5554",
+                        "--campaign-exit-home-only",
+                        "--execute",
+                        "--yes",
+                        "--output-directory",
+                        str(output),
+                        "--reset-identity",
+                        "game-day-2026-08-17",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            sessions = list(output.glob("nav-*"))
+            self.assertEqual(len(sessions), 1)
+            session = sessions[0]
+            retained, frame_paths = require_operator_evidence(session)
+            self.assertEqual(retained["terminal"], "complete_for_reset")
+            self.assertTrue(retained["dispatch"])
+            self.assertEqual(retained["input_count"], 1)
+            self.assertIn("frames/campaign-exit-immediate-before.png", frame_paths)
+            self.assertIn("frames/canonical-home-terminal.png", frame_paths)
+            events = [
+                json.loads(line)
+                for line in (session / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            self.assertTrue(
+                any(event["type"] == "campaign_exit_home_only" for event in events)
+            )
+
+    def test_main_campaign_exit_home_only_fails_closed_off_campaign(self) -> None:
+        class FakeRunner:
+            def __init__(self, *_args) -> None:
+                pass
+
+            def list_devices(self):
+                return [SimpleNamespace(serial="emulator-5554", state="device")]
+
+            def get_state(self) -> str:
+                return "device"
+
+        class FakeRuntime(self._Runtime):
+            def __init__(self, runner, session: Path, *, execute: bool) -> None:
+                super().__init__(
+                    session / "frames", [np.zeros((1280, 800, 3), dtype=np.uint8)]
+                )
+                self.runner = runner
+                self.execute = execute
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            with patch.object(ultimate, "ADBRunner", FakeRunner), patch.object(
+                ultimate, "LocalBlueStacksRuntime", FakeRuntime
+            ), patch.object(
+                ultimate, "is_permitted_local_bluestacks_serial", return_value=True
+            ), patch.object(
+                ultimate, "require_campaign_home_atlas_building"
+            ), patch.object(
+                ultimate, "_campaign_context_recognized", return_value=False
+            ), patch.object(ultimate.time, "sleep", return_value=None):
+                code = ultimate.main(
+                    [
+                        "--adb",
+                        "unused-adb",
+                        "--serial",
+                        "emulator-5554",
+                        "--campaign-exit-home-only",
+                        "--execute",
+                        "--yes",
+                        "--output-directory",
+                        str(output),
+                        "--reset-identity",
+                        "game-day-2026-08-17",
+                    ]
+                )
+
+            self.assertEqual(code, 3)
+            session = next(iter(output.glob("nav-*")))
+            retained, _frame_paths = require_operator_evidence(session)
+            self.assertEqual(retained["terminal"], ultimate.TERMINAL_BLOCKED)
+            self.assertEqual(retained["input_count"], 0)
+            self.assertEqual(
+                retained["reason"],
+                "Campaign exit immediate-before was not positively recognized",
+            )
+
+    def test_navigation_only_exit_dialog_is_zero_input_fail_closed(self) -> None:
+        dialog = self._exit_dialog_frame()
+
+        class FakeRunner:
+            def __init__(self, *_args) -> None:
+                pass
+
+            def list_devices(self):
+                return [SimpleNamespace(serial="emulator-5554", state="device")]
+
+            def get_state(self) -> str:
+                return "device"
+
+        runtime_holder: list[object] = []
+
+        class FakeRuntime:
+            def __init__(self, runner, runtime_session: Path, *, execute: bool) -> None:
+                runtime_session.mkdir(parents=True, exist_ok=True)
+                self.runner = runner
+                self.session = runtime_session
+                self.execute = execute
+                self.input_count = 0
+                self._captured = UltimateCampaignExitRecoveryTests._captured(
+                    runtime_session,
+                    dialog,
+                    "campaign-resume-source",
+                    1,
+                )
+                runtime_holder.append(self)
+
+            def capture(self, _label: str) -> CapturedNativeFrame:
+                return self._captured
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            with patch.object(ultimate, "ADBRunner", FakeRunner), patch.object(
+                ultimate, "LocalBlueStacksRuntime", FakeRuntime
+            ), patch.object(
+                ultimate, "is_permitted_local_bluestacks_serial", return_value=True
+            ), patch.object(
+                ultimate, "require_campaign_home_atlas_building"
+            ), patch.object(
+                ultimate,
+                "troop_training_vision",
+            ) as vision:
+                vision.recognize_exit_dialog.side_effect = AssertionError(
+                    "navigation-only must not run exit-dialog recovery"
+                )
+                with patch.object(
+                    ultimate,
+                    "recognize_reset_popup",
+                    return_value={"recognized": False},
+                ), patch.object(
+                    ultimate,
+                    "_recognize_ultimate_main",
+                    return_value=None,
+                ), patch.object(
+                    ultimate,
+                    "_bind_lineup_challenge_button",
+                    return_value=None,
+                ), patch.object(
+                    ultimate,
+                    "_recognize_active_battle",
+                    return_value=None,
+                ), patch.object(
+                    ultimate,
+                    "_bind_flee_warning_button",
+                    return_value=None,
+                ), patch.object(
+                    ultimate,
+                    "_bind_ultimate_challenge_entry",
+                    return_value=SimpleNamespace(
+                        campaign_screen_recognized=False,
+                        entry_control_visible=False,
+                        entry_roi=None,
+                        source_frame_sha256="dialog",
+                    ),
+                ), patch.object(
+                    ultimate,
+                    "_home_nav_terminal",
+                    return_value=False,
+                ):
+                    code = ultimate.main(
+                        [
+                            "--adb",
+                            "unused-adb",
+                            "--serial",
+                            "emulator-5554",
+                            "--navigation-only",
+                            "--execute",
+                            "--yes",
+                            "--output-directory",
+                            str(output),
+                            "--reset-identity",
+                            "game-day-2026-08-17",
+                        ]
+                    )
+            sessions = list(output.glob("nav-*"))
+            self.assertEqual(len(sessions), 1)
+            result = json.loads((sessions[0] / "result.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(code, 3)
+        self.assertEqual(runtime_holder[0].input_count, 0)
+        self.assertNotEqual(result["terminal"], "complete_for_reset")
+        self.assertTrue(result["navigation_only"])
+        self.assertFalse(result["dispatch"])
+
+
 class UltimateChallengeOperatorTests(unittest.TestCase):
     class FakePnsctl:
         BLUESTACKS_ADB = Path("fake-adb")

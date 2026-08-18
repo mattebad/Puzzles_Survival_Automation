@@ -589,15 +589,57 @@ def forbidden_atlas_entry_surface(frame: np.ndarray) -> str | None:
 
 
 def recognize_exit_dialog(frame: np.ndarray) -> tuple[bool, Box | None]:
-    """Recognize the in-game exit modal and bind only its Cancel control."""
+    """Recognize exactly ``Exit the game?`` and bind only its Cancel control."""
 
     if frame is None or frame.shape[:2] != (PROFILE_SIZE[1], PROFILE_SIZE[0]):
         raise ValueError("exit-dialog frame must be a native 800x1280 image")
-    modal_text = _ocr(frame, (40, 380, 760, 800), psm=6)
-    cancel_text = _ocr(frame, (60, 650, 380, 780), psm=7)
-    confirm_text = _ocr(frame, (400, 650, 740, 780), psm=7)
-    recognized = "exit" in modal_text and "game" in modal_text and "cancel" in cancel_text and "confirm" in confirm_text
-    return recognized, (60, 650, 380, 780) if recognized else None
+    title_roi: Box = (100, 430, 700, 590)
+    cancel_roi: Box = (60, 650, 380, 780)
+    confirm_roi: Box = (400, 650, 740, 780)
+
+    def canonical(text: str) -> str:
+        return re.sub(r"\s+\?", "?", _normalized(text)).strip()
+
+    title_text = canonical(_ocr(frame, title_roi, psm=6))
+    try:
+        title_boxes = _ocr_boxes(frame, title_roi)
+        cancel_boxes = _ocr_boxes(frame, cancel_roi)
+        confirm_boxes = _ocr_boxes(frame, confirm_roi)
+    except Exception:
+        # Missing OCR geometry is not authorization evidence.  Treat it as a
+        # negative so unrelated OCR consumers cannot turn a malformed result
+        # into an exit-dialog Cancel target.
+        return False, None
+    title_tokens: list[str] = []
+    title_question = False
+    for raw_text, _box in title_boxes:
+        token = _normalized(raw_text).strip()
+        if token == "?":
+            title_question = True
+            continue
+        if token.endswith("?"):
+            title_question = True
+            token = token[:-1].strip()
+        if token:
+            title_tokens.append(token)
+    title_box_text = canonical(" ".join(title_tokens) + ("?" if title_question else ""))
+    title_geometry = bool(
+        title_tokens == ["exit", "the", "game"]
+        and title_question
+        and title_boxes
+        and max(box[3] for _text, box in title_boxes) - min(box[1] for _text, box in title_boxes) <= 90
+    )
+    title_semantic = title_text == "exit the game?" and title_box_text == "exit the game?"
+
+    cancel_semantic = any(_normalized(text).strip() == "cancel" for text, _box in cancel_boxes)
+    confirm_semantic = any(_normalized(text).strip() == "confirm" for text, _box in confirm_boxes)
+    recognized = bool(
+        title_semantic
+        and title_geometry
+        and cancel_semantic
+        and confirm_semantic
+    )
+    return recognized, cancel_roi if recognized else None
 
 
 def recognize_training_speedup(frame: np.ndarray) -> bool:
