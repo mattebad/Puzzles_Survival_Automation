@@ -21,10 +21,24 @@ stage type, failure class, budgets, and product precondition. Diagnostic probes
 may begin at `evidence_required`; implementation and review require `proven` or
 `not_applicable`. A failed product precondition terminates the stage without
 Luna/Terra iteration. Any live failure is classified as `product_state`,
-`core_contract`, `local_defect`, or `process_state` before continuation is
-considered.
+`core_contract`, `local_defect`, `process_state`, or `diminishing_returns`
+before continuation is considered.
 
-Each stage permits one implementation, one initial review, at most one
+Routine live flow development is convergence-governed (see the primary rule in
+[`../AGENTS.md`](../AGENTS.md) and the stateful
+[`flow-attempt-ledger-template.md`](flow-attempt-ledger-template.md)): the unit
+of work is the flow, local defects are repaired and continued in-session under
+the unchanged safety envelope, and the operator owns the CONTINUE /
+STEP_BACK_REDESIGN / ESCALATE_USER / STOP decision. A frozen manifest and
+independent review are required only for the STEP_BACK redesign, architecture,
+cross-contract, or safety-boundary case. `diminishing_returns` — a repeat or
+documented-hazard defect signature, ≥3 defects clustered in one subsystem, or
+two iterations without a furthest-progress advance — mandates STEP_BACK or
+escalation and never authorizes another identical local patch. Convergence, not
+stage/turn counts, is the primary brake; the safety envelope is never relaxed by
+autonomy.
+
+Each frozen stage permits one implementation, one initial review, at most one
 consolidated repair and one recheck, and one live attempt. A parent conversation
 permits at most three stage revisions and eight managed turns. The frozen
 manifest is immutable between revision IDs and contains architecture and

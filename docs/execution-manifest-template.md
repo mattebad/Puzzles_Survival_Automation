@@ -1,5 +1,10 @@
 # Compact execution manifest
 
+Use this frozen manifest only for the STEP_BACK redesign, architecture,
+cross-contract, or safety-boundary case. Routine live flow development uses the
+stateful [`flow-attempt-ledger-template.md`](flow-attempt-ledger-template.md)
+and repairs local defects in-session without freezing a new manifest per defect.
+
 ## Task ID and objective
 - Task ID: `<stable task identifier>`
 - Objective: `<one-sentence objective>`
@@ -11,7 +16,7 @@
 - Revision ID: `<immutable revision identifier>`
 - Stage type: `<implementation | repair | live | ...>`
 - Product precondition: `<proven | not_applicable | evidence_required | failed>`
-- Failure class: `<product_state | core_contract | local_defect | process_state | none>`
+- Failure class: `<product_state | core_contract | local_defect | process_state | diminishing_returns | none>`
 - Stage start UTC: `<RFC 3339 UTC milliseconds or not recorded>`
 - Continuation checkpoint UTC: `<RFC 3339 UTC milliseconds or not recorded>`
 - Model values must be exact usage-export slugs including reasoning level, for
@@ -69,4 +74,8 @@
 - Tester and implementation evidence conflict.
 - Two materially different repair hypotheses fail.
 - Live evidence disproves the accepted design.
+- Convergence stalled (`diminishing_returns`): a repeat/known-hazard defect
+  signature, ≥3 defects clustered in one subsystem, or two iterations without a
+  furthest-progress advance. This mandates STEP_BACK redesign or, if a redesign
+  was already spent, user escalation — never another identical local patch.
 - Ordinary test failures, syntax errors, and known repairs do not escalate.

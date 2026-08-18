@@ -31,6 +31,21 @@ Real-money Cash Mall confirmation is unsupported.
 - Do not repeat an identical ineffective input. Continue only after a concrete diagnosis and a
   materially changed implementation or condition.
 
+## Android Back
+
+- Android Back is not a generic return-Home operation. On top-level Base/Home, World, and Campaign
+  surfaces it is prohibited unless a future state-specific experiment proves otherwise; current
+  Base/Home-radial and Campaign evidence shows that it can open `Exit the game?`.
+- A Back dispatch from a nested menu or overlay is authorized only when the exact source state has
+  retained native immediate-before and successor frames proving that transition. Similar-looking
+  screens, semantic fixtures, synthetic tests, and successor-only Home recognition are not proof.
+- Unproven Back transitions are `evidence_required` and dispatch zero input. Prefer a freshly bound
+  visible in-game back or exit control.
+- If `Exit the game?` appears, Confirm is forbidden. Only an exact current-frame Cancel binding may
+  recover, followed by fresh state recognition.
+- Track state-specific evidence and active call-site status in
+  [`android-back-state-matrix.md`](android-back-state-matrix.md).
+
 ## Cash Mall stop
 
 If a path reaches a real-money Cash Mall payment surface, it may observe or safely leave the surface

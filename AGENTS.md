@@ -175,6 +175,50 @@ One initial live failure alone does not require promotion or an extra review.
   conversation-level stage and turn budgets remain available.
 - Every mutable Luna implementation or repair turn must explicitly select GPT-5.6 Luna XHigh. If a resume cannot preserve that selection, launch a fresh bounded XHigh turn instead.
 - Keep solutions proportionate; do not let perfect be the enemy of good.
+
+Convergence-governed autonomous flow delivery (overrides per-defect Heavy ceremony).
+The full rules live in [`docs/flow-attempt-ledger-template.md`](docs/flow-attempt-ledger-template.md);
+keep one stateful ledger per active flow and consult it rather than duplicating
+detail here. The load-bearing invariants:
+- The unit of work is the *flow*, not the defect. The ledger holds the framing
+  gate, furthest-progress ratchet, durable-knowledge-consulted list,
+  defect-signature ledger, convergence counters, and the agent-owned decision table.
+- Framing gate before the first live input, scaled to uncertainty: an existing
+  contracted flow that only needs live proof just records goal, ceiling, and
+  consulted durable knowledge; a new or ambiguous flow derives its route once
+  first. Either way pass the ledger's falsifiable intent/hazard checklist (intent
+  match, no documented-unsafe input, no manual-only precondition, consequential
+  actions enumerated, decisions with no dominant safe option escalated) before
+  spending an input. It is a self-answered checklist, not a prose self-review;
+  reserve an independent plan review for the architecture/cross-contract/safety case.
+- Durable knowledge must be consulted before any navigation input (at minimum the
+  Android Back state matrix, runtime input-safety policy, and active flow
+  contract). Dispatching an already-documented hazard is a `process_state`
+  failure, never a discovery.
+- Local defects are repaired and continued in-session under the unchanged
+  runtime-safety envelope — no new frozen manifest, independent-review gate, or
+  clean-commit gate per micro-fix. A frozen manifest plus independent Terra review
+  are required only for the STEP_BACK redesign, architecture, cross-contract, or
+  safety-boundary case.
+- The live-failure taxonomy has a fifth class `diminishing_returns`
+  (`product_state | core_contract | local_defect | process_state |
+  diminishing_returns`): progress has stalled or defects repeat; it mandates
+  STEP_BACK_REDESIGN or ESCALATE_USER and never authorizes another identical
+  patch. Classify each iteration and own CONTINUE / STEP_BACK_REDESIGN /
+  ESCALATE_USER / STOP_DONE per the ledger decision table without user involvement
+  for ordinary cases; at most one STEP_BACK per task before escalation.
+- Convergence is the primary brake; stage/turn counts are a secondary cap. The
+  runtime-safety envelope (singleton ownership, current-frame binding, input
+  ceilings, fail-closed-on-unknown, no identical retry, never-Confirm,
+  consequential-action lifecycle, manual-only-state stops) is never relaxed by
+  autonomy and is a hard precondition for CONTINUE. On any fail-closed block,
+  attempt bounded safe teardown for known-benign dialogs only (exit dialog: Cancel
+  only, never Confirm) and never silently leave a modal on screen.
+- The user is an absolute blocker only for: a manual-only account state, an
+  unsupported `product_state` precondition, a required consequential action or any
+  real-money confirmation, a required safety-envelope weakening, an architecture
+  decision with no dominant safe option, or a second distinct failed redesign. All
+  other ordinary development decisions are agent-owned.
 <!-- codex-workflow-project-personalization-end -->
 
 <!-- codex-workflow-project-local-instructions-start -->
@@ -215,11 +259,10 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 - Use `scripts/pnsctl.py` as the sole supported operational interface when a command exists. Do not
   bypass policy with ad hoc ADB, plink, Docker, remote shell, or temporary runtime scripts.
 - ADB must remain private and non-public.
-- This project is in active development. `pnsctl development-session` automatically acquires and
-  releases singleton runtime ownership and writes one compact terminal record. Delegated runtime
-  work uses controller-owned single-use receipts only. Receipt digests detect accidental alteration
-  but are not authentication secrets; receipt consumption is durable and occurs before singleton
-  acquisition.
+- `pnsctl development-session` automatically acquires and releases singleton ownership and writes one
+  compact record; delegated work uses controller-owned single-use receipts consumed before singleton
+  acquisition. Detail: [`docs/runtime-input-safety-policy.md`](docs/runtime-input-safety-policy.md)
+  and [`docs/chat-execution-ownership-policy.md`](docs/chat-execution-ownership-policy.md).
 
 ## Runtime phases and manual-only states
 
@@ -243,35 +286,25 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 
 ## Live target and action safety
 
-- Positively recognize the source, bind the exact local target from a current raw frame, capture and
-  revalidate immediately before dispatch, and require full-frame bounds/overlay checks.
-- Rebind a moved target only through a narrow evidence-supported policy; generic rebinding is
-  forbidden. Transport success never proves semantic success.
-- Actual combat dispatch and real-money Cash Mall purchase confirmation are the only consequential
-  action classes. Navigation, entering Zombie Lairs, targeting zombies, challenge setup, claims,
-  rewards, recruitment, maintenance, and in-game-currency spending are ordinary development
-  interactions and do not use a per-action consequential lifecycle. Cash Mall confirmation remains
-  unsupported.
-- Do not issue identical retries. Continue diagnosis only with a concrete new hypothesis, corrected
-  logic, or materially different conditions. An unknown result is session-local diagnostic state:
-  capture it, recognize or recover, repair, and continue when materially changed.
-- Real-money Cash Mall confirmation is unsupported and must be rejected. Navigating to or closing a
-  payment surface must never confirm payment.
-- See [`docs/runtime-input-safety-policy.md`](docs/runtime-input-safety-policy.md) for the complete
-  procedure.
+- Positively recognize the source, bind the exact target from a current raw 800×1280 frame,
+  revalidate immediately before dispatch, and enforce full-frame bounds/overlay checks; generic
+  rebinding is forbidden and transport success never proves semantic success.
+- The only consequential action classes are real combat dispatch and real-money Cash Mall
+  confirmation; Cash Mall confirmation is unsupported and must be rejected (navigating to or closing
+  a payment surface must never confirm). Navigation, Zombie Lairs, zombie targeting, challenge setup,
+  claims, rewards, recruitment, maintenance, and in-game-currency spending are ordinary interactions.
+- Never issue an identical retry; continue only with a concrete new hypothesis or materially changed
+  conditions, treating an unknown result as session-local diagnostic state.
+- Full procedure: [`docs/runtime-input-safety-policy.md`](docs/runtime-input-safety-policy.md).
 
 ## Development sessions and game-day binding
 
-- Ordinary development interactions do not acquire per-action leases, create
-  `prepared/input_sent/reconciled` rows, or consult a global unresolved-action gate.
-- One development session owns singleton runtime access, applies bounded per-command and per-session
-  input limits, retains useful before/after evidence, appends compact action results, writes one
-  terminal summary, and releases ownership automatically.
-- Legacy journals remain immutable historical evidence. They do not gate an ordinary development
-  session and must not be rewritten to represent new actions.
-- Establish the game-day/reset identity automatically once per development session and reuse it for
-  that session. Do not re-gate every action on repeated identity checks. An initially unknown or
-  stale cycle blocks only reset-bound Daily work until the session identity is established.
+- Ordinary interactions use one session-level ownership boundary — not per-action leases,
+  `prepared/input_sent/reconciled` rows, or a global unresolved-action gate. The session retains
+  bounded before/after evidence and one terminal summary and releases ownership automatically.
+- Legacy journals are immutable historical evidence; they never gate a session and are not rewritten.
+- Establish the game-day/reset identity once per session and reuse it; an unknown/stale cycle blocks
+  only reset-bound Daily work until established.
 - See [`docs/journal-lease-policy.md`](docs/journal-lease-policy.md).
 
 ## Registration and scheduler promotion
@@ -297,10 +330,10 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 - Full repository unittest discovery is manual opt-in only during active development. It is not a
   gate for implementation, live preflight, live execution, evidence review, commit, or handoff;
   validate touched components and safety boundaries instead.
-- Preserve useful native evidence: source or immediate-before, transport result, immediate-post,
-  and semantic result. One compact session record replaces per-action journal ceremony.
-- Do not delete or compact evidence during ordinary work. Evidence hygiene requires dry-run
-  classification, archive-before-removal, and verification through its dedicated workflow. See
+- Preserve useful native evidence (source/immediate-before, transport result, immediate-post,
+  semantic result); one compact session record replaces per-action journal ceremony. Do not delete
+  or compact evidence during ordinary work — hygiene requires dry-run classification,
+  archive-before-removal, and verification via its dedicated workflow. See
   [`docs/evidence-retention-policy.md`](docs/evidence-retention-policy.md).
 
 ## Planning, artifacts, and validation discipline
@@ -333,29 +366,13 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 
 ## Visual ground truth and live-validation discipline
 
-- Never trust a visual asset's filename, label, metadata, or passing tests as proof of identity.
-  Visually inspect every new or changed template before it can authorize live input.
-- Retain independent target ground truth: native source frame, source hash, crop coordinates,
-  template hash, runtime profile, and an annotated source showing the selected ROI and nearby
-  semantic label.
-- Tests must not derive expected identity, ROI, geometry, or provenance from the same constants,
-  metadata, or asset used by production recognition. Circular agreement is not validation.
-- OCR validates a target only when the text is spatially associated with that target. Text elsewhere
-  in the frame is context, not proof that the matched control has that identity.
-- Before the first live dispatch for a changed visual selector, inspect the fresh immediate-before
-  native frame with the bound ROI overlaid and positively confirm the intended control.
-- Bind from the current native frame. Retained coordinates describe retained evidence, not a live
-  target; use bounded visual matching plus independently measured current-frame geometry.
-- Keep Home semantics distinct. `HOME_READY`, positive Home registration, safe atlas localization,
-  and `HOME_CANONICAL` are different claims. A strong wrong-zoom registration may prove Home context
-  but must not authorize atlas coordinates, panning, or building binding until the supported zoom
-  and localization requirements are met.
-- After any dispatched input, assume runtime state changed. Recovery requires exact successor
-  recognition and immediate-before revalidation; never reuse the prior state's authority.
-- Prove supported intermediate-state continuation and the canonical end-to-end route. Success from
-  an already-open radial does not prove Home-to-target navigation.
-- Contradictory visual evidence invalidates passing tests. Surface any asset, label, ROI, geometry,
-  or semantic mismatch immediately and prohibit live input until corrected.
+- A visual asset earns live-input authority only through independent ground truth: never trust a
+  filename, label, metadata, or passing test; visually inspect every new/changed template; bind from
+  the current native frame with the ROI overlaid and confirmed before dispatch; and keep Home
+  semantics (`HOME_READY` / registration / atlas / `HOME_CANONICAL`) distinct. Contradictory visual
+  evidence invalidates passing tests and prohibits live input until corrected.
+- Full procedure (provenance, circular-validation ban, OCR association, post-dispatch recovery,
+  canonical end-to-end proof): [`docs/visual-ground-truth-policy.md`](docs/visual-ground-truth-policy.md).
 
 ## Development evidence and iteration integrity
 

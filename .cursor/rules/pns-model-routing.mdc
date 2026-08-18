@@ -44,3 +44,12 @@ compact diff summary, test receipts, tester findings, and unresolved decisions.
 Do not forward the full orchestration transcript. Codex remains portable by
 mapping these roles to its available GPT models without requiring Cursor-only
 model names or capabilities.
+
+Routine live flow development is convergence-governed by `AGENTS.md` and the
+flow-attempt ledger. The Sol control-plane owner owns the CONTINUE /
+STEP_BACK_REDESIGN / ESCALATE_USER / STOP decision and repairs local defects
+in-session without delegating a fresh Luna implementation or Terra review per
+micro-fix. Delegate a bounded Luna XHigh implementer and a Terra High reviewer
+only for the STEP_BACK redesign, architecture, cross-contract, or
+safety-boundary case, or when `diminishing_returns` mandates a batched
+re-derivation. Do not spin up per-defect delegated turns.
