@@ -25,7 +25,7 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
             pnsctl._CONDUCT_DEFAULT_MAX_INPUTS[delivery.FLOW_ID],
             delivery.MAX_INPUTS,
         )
-        self.assertEqual(delivery.MAX_INPUTS, 9)
+        self.assertEqual(delivery.MAX_INPUTS, 10)
         self.assertEqual(delivery.MAX_RESOURCE_LIST_SWIPES, 6)
 
     def test_registration_is_fixed_and_scheduler_stays_disabled(self):
@@ -64,14 +64,14 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
         payload = json.loads(
             delivery.run_daily_resource_item(
                 {},
-                {"max_inputs": 9},
+                {"max_inputs": 10},
                 live=False,
             )
         )
         self.assertEqual(payload["status"], "dry_run")
         self.assertFalse(payload["dispatch"])
         self.assertEqual(payload["input_count"], 0)
-        self.assertEqual(payload["max_inputs"], 9)
+        self.assertEqual(payload["max_inputs"], 10)
         self.assertEqual(payload["max_resource_list_swipes"], 6)
         self.assertEqual(payload["item_use_transport_calls"], 0)
         self.assertFalse(payload["scheduler_enabled"])

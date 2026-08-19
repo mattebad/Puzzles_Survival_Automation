@@ -59,8 +59,8 @@
       "consequential": [
         "tests.test_flow_delivery_daily_resource_item_bluestacks"
       ],
-      "maximum_inputs": 11,
-      "maximum_resource_list_swipes": 8
+      "maximum_inputs": 10,
+      "maximum_resource_list_swipes": 6
     },
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
       "focused_tests": [

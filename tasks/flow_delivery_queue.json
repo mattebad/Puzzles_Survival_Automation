@@ -4119,12 +4119,12 @@
       ],
       "navigation_model": "home_to_bag_selected_resource_observed_list_exact_1k_food_to_home",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "One supervised direct 1K Food use from verified Home after the settled selected Resource & Speedup successor, at most six progressing measured short list swipes, exact measured-card item/quantity binding, positive resource successor, and verified Home; hard ceiling 9 total inputs with exactly one Use.",
+      "live_validation_scope": "One supervised direct 1K Food use from verified Home after the settled selected Resource & Speedup successor (optional category tab tap when another Bag tab is current), at most six progressing measured short list swipes, exact measured-card item/quantity binding, positive resource successor, and verified Home; hard ceiling 10 total inputs with exactly one Use.",
       "consequence_policy": "Use exactly one owned 1K Food at quantity one from verified Home; never In bulk, AP/Stamina recovery, premium substitution, unidentified items, ordinary Claim, milestone Claim, or Android Back.",
       "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 1,
-      "maximum_inputs": 9,
-      "maximum_live_inputs": 9,
+      "maximum_inputs": 10,
+      "maximum_live_inputs": 10,
       "maximum_resource_list_swipes": 6,
       "live_attempt_count": 1,
       "live_attempts": [
@@ -4157,7 +4157,7 @@
         "verified Home is required before Bag navigation",
         "exact current-frame measured Resources card containing the 1K Food anchor, owned quantity at least one, quantity exactly one, and one Use dispatch are enforced",
         "positive inventory or Food-resource delta is required before verified Home",
-        "the direct route reaches final verified Home within 9 total inputs with at most six progressing short list swipes",
+        "the direct route reaches final verified Home within 10 total inputs with at most six progressing short list swipes",
         "dry-run and registration remain scheduler-disabled and no Android Back or Claim path is used"
       ],
       "scope_prohibitions": [

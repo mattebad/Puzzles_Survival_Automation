@@ -202,10 +202,10 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["implementation_status"], "reference_implemented")
         self.assertEqual(contract["proof_state"], "evidence_required")
         self.assertEqual(contract["required_starting_context"], ["home_ready"])
-        self.assertEqual(contract["navigation_input_authorization"]["maximum_inputs"], 11)
+        self.assertEqual(contract["navigation_input_authorization"]["maximum_inputs"], 10)
         self.assertEqual(
             contract["navigation_input_authorization"]["maximum_resource_list_swipes"],
-            8,
+            6,
         )
         self.assertEqual(
             contract["navigation_input_authorization"]["maximum_item_use_dispatches"],
@@ -241,8 +241,8 @@ class GameplayFlowContractTests(unittest.TestCase):
         )
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
-        self.assertNotIn(
-            "current-frame-bound Resources tab navigation",
+        self.assertIn(
+            "optional current-frame-bound Resource & Speedup category tab when another Bag tab is selected",
             contract["permitted_inputs"],
         )
 
@@ -257,8 +257,8 @@ class GameplayFlowContractTests(unittest.TestCase):
         )
         self.assertEqual(queue_record["dependencies"], [])
         self.assertEqual(queue_record["direct_dependencies"], [])
-        self.assertEqual(queue_record["maximum_inputs"], 11)
-        self.assertEqual(queue_record["maximum_resource_list_swipes"], 8)
+        self.assertEqual(queue_record["maximum_inputs"], 10)
+        self.assertEqual(queue_record["maximum_resource_list_swipes"], 6)
         self.assertEqual(queue_record["production_registration"], "NOT_REGISTERED")
         self.assertFalse(queue_record["scheduler_enabled"])
         matrix_task = next(
@@ -280,10 +280,10 @@ class GameplayFlowContractTests(unittest.TestCase):
             "current_selected_daily_catalog_admission",
             json.dumps((queue_record, matrix_task, identity, catalog_identity)),
         )
-        self.assertEqual(matrix_task["maximum_inputs"], 11)
-        self.assertEqual(matrix_task["maximum_resource_list_swipes"], 8)
-        self.assertEqual(catalog_identity["maximum_inputs"], 11)
-        self.assertEqual(catalog_identity["maximum_resource_list_swipes"], 8)
+        self.assertEqual(matrix_task["maximum_inputs"], 10)
+        self.assertEqual(matrix_task["maximum_resource_list_swipes"], 6)
+        self.assertEqual(catalog_identity["maximum_inputs"], 10)
+        self.assertEqual(catalog_identity["maximum_resource_list_swipes"], 6)
 
 
 if __name__ == "__main__":

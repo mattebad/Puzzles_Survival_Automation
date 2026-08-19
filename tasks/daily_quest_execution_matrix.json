@@ -70,8 +70,8 @@
         "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED",
         "scheduler_eligibility": false,
         "registration_state": "NOT_REGISTERED",
-        "maximum_inputs": 11,
-        "maximum_resource_list_swipes": 8
+        "maximum_inputs": 10,
+        "maximum_resource_list_swipes": 6
       },
       {"identity": "nano_material_production", "owner_task_id": "nano-material-maintenance", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
       {"identity": "gathering_search_level5", "owner_task_id": "gathering-search-level5", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
@@ -95,11 +95,11 @@
         "task_id": "use-resource-item",
         "depends_on": [],
         "execution_flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
-        "evidence_gap": "verified Home first; then Bag with settled selected Resource & Speedup, exact 1K Food inspection before and after at most eight progressing list swipes, quantity-one control, positive item/resource delta, and verified Home",
+        "evidence_gap": "verified Home first; then Bag with settled selected Resource & Speedup (optional category tab), exact 1K Food inspection before and after at most six progressing list swipes, quantity-one control, positive item/resource delta, and verified Home",
         "scheduler_eligibility": false,
         "registration_state": "NOT_REGISTERED",
-        "maximum_inputs": 11,
-        "maximum_resource_list_swipes": 8
+        "maximum_inputs": 10,
+        "maximum_resource_list_swipes": 6
       },
       {
         "task_id": "supply-depot",

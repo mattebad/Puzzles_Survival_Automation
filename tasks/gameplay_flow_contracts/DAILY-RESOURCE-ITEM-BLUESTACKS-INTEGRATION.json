@@ -28,13 +28,13 @@
     {
       "from": "bag",
       "to": "resources",
-      "via": "settled current Resource & Speedup successor already selected on Bag entry",
-      "notes": "No redundant Resources-tab tap is permitted; Android Back is not used."
+      "via": "settled selected Resource & Speedup successor, with one optional current-frame-bound category tab tap when another Bag tab is current",
+      "notes": "Skip the tab tap when Resource & Speedup is already visually selected; Android Back is not used."
     },
     {
       "from": "resources",
       "to": "resource_list_progress",
-      "via": "zero to eight current-frame-bound upward swipes in a central list-content lane",
+      "via": "zero to six current-frame-bound upward swipes in a central list-content lane",
       "notes": "Each swipe must change the stable list/OCR signature; stall, repeat, or unknown stops before another swipe."
     },
     {
@@ -64,21 +64,22 @@
   ],
   "permitted_inputs": [
     "current-frame-bound visible Bag navigation",
-    "settled current Resource & Speedup Bag successor (no tab tap)",
-    "current-frame-bound upward Resource list scrolling, at most eight progressing swipes",
+    "optional current-frame-bound Resource & Speedup category tab when another Bag tab is selected",
+    "settled current Resource & Speedup Bag successor",
+    "current-frame-bound upward Resource list scrolling, at most six progressing swipes",
     "one current-frame-bound 1K Food Use at quantity one",
     "current-frame-bound visible Home return"
   ],
   "navigation_input_authorization": {
-    "maximum_inputs": 9,
-    "maximum_resource_list_swipes": 8,
+    "maximum_inputs": 10,
+    "maximum_resource_list_swipes": 6,
     "maximum_item_use_dispatches": 1,
-    "notes": "The direct route is Bag, zero to eight progressing list swipes, one Use, and visible Home return."
+    "notes": "The direct route is Bag, optional Resources-tab select, zero to six progressing list swipes, one Use, and visible Home return."
   },
   "local_postconditions": [
     "verified Home is the source state",
     "Bag successor is positively recognized",
-    "settled Resource & Speedup successor is positively recognized without a tab tap",
+    "settled Resource & Speedup successor is positively recognized after zero or one category tab tap",
     "each dispatched list swipe is bound to the current overlay-free central lane and materially changes its stable signature",
     "owned 1K Food quantity is at least one",
     "exact quantity one is bound",
@@ -122,9 +123,9 @@
     {
       "id": "daily-resource-item-use-1k-food",
       "mode": "consequential_supervised",
-      "maximum_inputs": 9,
-      "maximum_resource_list_swipes": 8,
-      "notes": "At most eight progressing list swipes and one supervised item-consumption event; scheduler eligibility remains disabled."
+      "maximum_inputs": 10,
+      "maximum_resource_list_swipes": 6,
+      "notes": "Optional Resources-tab select, at most six progressing list swipes, and one supervised item-consumption event; scheduler eligibility remains disabled."
     }
   ],
   "unsupported_or_manual_only_states": [

@@ -65,8 +65,8 @@ class ProportionateProfileTests(unittest.TestCase):
     def test_daily_resource_item_profile_is_focused_and_consequential(self) -> None:
         profiles = runner._load_profiles()
         profile = profiles["flow_profiles"]["DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"]
-        self.assertEqual(profile["maximum_inputs"], 11)
-        self.assertEqual(profile["maximum_resource_list_swipes"], 8)
+        self.assertEqual(profile["maximum_inputs"], 10)
+        self.assertEqual(profile["maximum_resource_list_swipes"], 6)
         self.assertEqual(
             runner._resolve_unittest_targets(
                 profiles,

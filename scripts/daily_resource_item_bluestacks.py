@@ -1,10 +1,10 @@
 """Fail-closed BlueStacks route for one direct 1K Food resource-item use.
 
-The route starts at a verified canonical Home, binds Bag and Resources from
-fresh frames, binds the exact measured 1K Food card and quantity-one Use
-control, proves a positive item/resource delta, and returns Home through a
-recognized visible control.  It never visits Quest or Daily and never uses
-Android Back.
+The route starts at a verified canonical Home, opens Bag, selects the
+Resource & Speedup category when another Bag tab is current, binds the exact
+measured 1K Food card and quantity-one Use control, proves a positive
+item/resource delta, and returns Home through a recognized visible control.
+It never visits Quest or Daily and never uses Android Back.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ FLOW_ID = "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
 EXPECTED_PACKAGE = "com.global.ztmslg"
 RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 MAX_RESOURCE_LIST_SWIPES = 6
-MAX_ROUTE_INPUTS = 9
+MAX_ROUTE_INPUTS = 10
 RESOURCE_LIST_SCROLL_PX = 180
 RESOURCE_LIST_LOWER_MARKERS = frozenset(
     {
@@ -65,6 +65,16 @@ HOME_SUCCESSOR_STATE = "HOME_VERIFIED"
 RESOURCE_LIST_LANE_WIDTH = 72
 RESOURCE_LIST_TOP_MARGIN = 12
 RESOURCE_LIST_BOTTOM_MARGIN = 80
+BAG_CATEGORY_TAB_BAND = (170, 240)
+BAG_CATEGORY_CONTEXT_LABELS = frozenset({"military", "gadget", "other", "recent"})
+BAG_CATEGORY_TAB_MIN_RED_DOMINANCE = 12.0
+BAG_CATEGORY_TAB_WINNER_MARGIN = 8.0
+BAG_CATEGORY_TAB_PAD_LEFT = 6
+BAG_CATEGORY_TAB_PAD_TOP = 45
+BAG_CATEGORY_TAB_PAD_RIGHT = 6
+BAG_CATEGORY_TAB_PAD_BOTTOM = 8
+BAG_CATEGORY_TAB_VISUAL_Y0 = 90
+BAG_CATEGORY_TAB_VISUAL_Y1 = 250
 
 # Measured from the checked-in native Home navigation strip: the Bag icon
 # occupies this half-open ROI, while the OCR label-only area extends below it.
@@ -417,11 +427,13 @@ def _union_roi(rois: Sequence[NativeBox]) -> NativeBox | None:
 
 
 def _selected_resource_tab(tokens: Sequence[OCRToken]) -> NativeBox | None:
+    """Locate the Resource & Speedup category label ROI (selected or not)."""
+
     matches: list[NativeBox] = []
     for line in _line_tokens(
         token
         for token in tokens
-        if 100 <= _token_center(token)[1] <= 240
+        if BAG_CATEGORY_TAB_BAND[0] <= _token_center(token)[1] <= BAG_CATEGORY_TAB_BAND[1]
     ):
         words = _line_words(line)
         if _selected_resource_words(words):
@@ -454,6 +466,103 @@ def _selected_resource_tab(tokens: Sequence[OCRToken]) -> NativeBox | None:
             if union is not None:
                 matches.append(union)
     return matches[0] if len(matches) == 1 else None
+
+
+def _bag_category_tab_rois(tokens: Sequence[OCRToken]) -> dict[str, NativeBox]:
+    """Bind every visible Bag category label from the current tab strip."""
+
+    rois: dict[str, NativeBox] = {}
+    resource = _selected_resource_tab(tokens)
+    if resource is not None:
+        rois["resource_speedup"] = resource
+    band_tokens = tuple(
+        token
+        for token in tokens
+        if BAG_CATEGORY_TAB_BAND[0] <= _token_center(token)[1] <= BAG_CATEGORY_TAB_BAND[1]
+    )
+    for label in sorted(BAG_CATEGORY_CONTEXT_LABELS):
+        matches = [token for token in band_tokens if token.text == label]
+        if len(matches) == 1 and _valid_roi(matches[0].roi):
+            rois[label] = matches[0].roi
+    return rois
+
+
+def _expand_tab_visual_roi(label_roi: NativeBox) -> NativeBox | None:
+    if not _valid_roi(label_roi):
+        return None
+    x0, y0, x1, y1 = label_roi
+    return (
+        max(0, x0 - BAG_CATEGORY_TAB_PAD_LEFT),
+        max(BAG_CATEGORY_TAB_VISUAL_Y0, y0 - BAG_CATEGORY_TAB_PAD_TOP),
+        min(NATIVE_WIDTH, x1 + BAG_CATEGORY_TAB_PAD_RIGHT),
+        min(BAG_CATEGORY_TAB_VISUAL_Y1, y1 + BAG_CATEGORY_TAB_PAD_BOTTOM),
+    )
+
+
+def _red_dominance(frame: np.ndarray, bounds: NativeBox) -> float | None:
+    if not isinstance(frame, np.ndarray) or frame.ndim != 3 or frame.shape[2] < 3:
+        return None
+    if not _valid_roi(bounds):
+        return None
+    x0, y0, x1, y1 = bounds
+    crop = frame[y0:y1, x0:x1]
+    if crop.size == 0:
+        return None
+    red = crop[:, :, 2].astype(np.float32)
+    green = crop[:, :, 1].astype(np.float32)
+    return float(np.mean(red - green))
+
+
+def classify_selected_bag_category(
+    frame: np.ndarray,
+    *,
+    ocr: Callable[[np.ndarray], Mapping[str, Sequence[object]]] | None = None,
+    tokens: Sequence[OCRToken] | None = None,
+) -> str | None:
+    """Return the visually selected Bag category id, or None when ambiguous."""
+
+    resolved = tuple(tokens) if tokens is not None else _ocr_tokens(frame, ocr or _default_ocr)
+    rois = _bag_category_tab_rois(resolved)
+    if "resource_speedup" not in rois:
+        return None
+    if len(BAG_CATEGORY_CONTEXT_LABELS & set(rois)) < 3:
+        return None
+    scores: dict[str, float] = {}
+    for name, label_roi in rois.items():
+        visual = _expand_tab_visual_roi(label_roi)
+        if visual is None:
+            return None
+        score = _red_dominance(frame, visual)
+        if score is None:
+            return None
+        scores[name] = score
+    ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    winner, winner_score = ordered[0]
+    runner_score = ordered[1][1] if len(ordered) > 1 else 0.0
+    if (
+        winner_score < BAG_CATEGORY_TAB_MIN_RED_DOMINANCE
+        or winner_score - runner_score < BAG_CATEGORY_TAB_WINNER_MARGIN
+    ):
+        return None
+    return winner
+
+
+def bind_resources_category_tab(
+    frame: np.ndarray,
+    *,
+    ocr: Callable[[np.ndarray], Mapping[str, Sequence[object]]] | None = None,
+) -> NativeBox | None:
+    """Bind Resource & Speedup for one tap when another Bag category is selected."""
+
+    tokens = _ocr_tokens(frame, ocr or _default_ocr)
+    rois = _bag_category_tab_rois(tokens)
+    label = rois.get("resource_speedup")
+    if label is None:
+        return None
+    selected = classify_selected_bag_category(frame, tokens=tokens)
+    if selected is None or selected == "resource_speedup":
+        return None
+    return label
 
 
 def _control_line_rois(
@@ -723,13 +832,14 @@ def recognize_resources_screen(
     *,
     ocr: Callable[[np.ndarray], Mapping[str, Sequence[object]]] | None = None,
 ) -> ResourceItemRecognition:
-    """Bind the selected ``Resource & Speedup`` context from one fresh frame."""
+    """Bind the visually selected ``Resource & Speedup`` context from one fresh frame."""
 
     tokens = _ocr_tokens(frame, ocr or _default_ocr)
     overlay_markers = _ocr_overlay_markers(tokens)
     overlay = bool(overlay_markers)
     overlay_free, modal_evidence = _overlay_free_current_frame(frame)
     selected = _selected_resource_tab(tokens)
+    selected_category = classify_selected_bag_category(frame, tokens=tokens)
     content = _resource_content_roi(selected) if selected is not None else None
     visual_controls = (
         _visual_action_control_rois(frame, content)
@@ -740,6 +850,7 @@ def recognize_resources_screen(
     panel_candidates = modal_evidence.get("panel_candidates", ())
     stacked_list_surface = bool(
         selected is not None
+        and selected_category == "resource_speedup"
         and {"diamond", "shop"} <= words
         and len({"military", "gadget", "other", "recent"} & words) >= 3
         and len(visual_controls) >= 3
@@ -747,7 +858,12 @@ def recognize_resources_screen(
         and len(panel_candidates) >= 6
     )
     overlay_free = overlay_free or stacked_list_surface
-    if selected is None or overlay or not overlay_free:
+    if (
+        selected is None
+        or selected_category != "resource_speedup"
+        or overlay
+        or not overlay_free
+    ):
         return ResourceItemRecognition(
             "UNKNOWN",
             False,
@@ -755,6 +871,7 @@ def recognize_resources_screen(
             visual_evidence={
                 "tokens": tuple(token.text for token in tokens),
                 "selected_resource_tab": selected,
+                "selected_bag_category": selected_category,
                 "overlay": overlay,
                 "overlay_markers": overlay_markers,
                 "generic_modal_overlay": dict(modal_evidence),
@@ -771,6 +888,7 @@ def recognize_resources_screen(
         visual_evidence={
             "resources_tab": selected,
             "selected_category": "Resource & Speedup",
+            "selected_bag_category": selected_category,
             "overlay": overlay,
             "overlay_markers": overlay_markers,
             "generic_modal_overlay": dict(modal_evidence),
@@ -1370,17 +1488,10 @@ def _home_bag_target(
     return HOME_BAG_ICON_ROI
 
 
-def _return_home_target(
-    frame: np.ndarray,
-    *,
-    ocr: Callable[[np.ndarray], Mapping[str, Sequence[object]]] | None = None,
-) -> NativeBox | None:
-    """Bind the visible top-left Bag back arrow on a current Resources frame."""
+def _bag_back_arrow_visual(frame: np.ndarray) -> NativeBox | None:
+    """Bind the top-left Bag back arrow from current-frame pixels only."""
 
     if not isinstance(frame, np.ndarray) or frame.shape[:2] != (NATIVE_HEIGHT, NATIVE_WIDTH):
-        return None
-    resources = recognize_resources_screen(frame, ocr=ocr)
-    if not resources.recognized:
         return None
 
     # Native evidence shows one bright neutral arrow component inside the
@@ -1408,6 +1519,19 @@ def _return_home_target(
             if target is not None:
                 candidates.append(target)
     return candidates[0] if len(candidates) == 1 else None
+
+
+def _return_home_target(
+    frame: np.ndarray,
+    *,
+    ocr: Callable[[np.ndarray], Mapping[str, Sequence[object]]] | None = None,
+) -> NativeBox | None:
+    """Bind the Bag back arrow only after Resource & Speedup is selected."""
+
+    resources = recognize_resources_screen(frame, ocr=ocr)
+    if not resources.recognized:
+        return None
+    return _bag_back_arrow_visual(frame)
 
 
 def _visible_label_target(
@@ -1462,38 +1586,51 @@ def _recognize_bag(
     *,
     ocr: Callable[[np.ndarray], Mapping[str, Sequence[object]]] | None = None,
 ) -> dict[str, Any]:
-    resources = recognize_resources_screen(frame, ocr=ocr)
     tokens = _ocr_tokens(frame, ocr or _default_ocr)
+    resources = recognize_resources_screen(frame, ocr=ocr)
     overlay = any(marker in {token.text for token in tokens} for marker in _OVERLAY_MARKERS)
     header_tokens = tuple(
         token
         for token in tokens
         if token.text == "bag" and _token_center(token)[1] < 80
     )
-    back_arrow = _return_home_target(frame, ocr=ocr)
-    recognized = (
-        resources.recognized
-        and back_arrow is not None
+    back_arrow = _bag_back_arrow_visual(frame)
+    category_rois = _bag_category_tab_rois(tokens)
+    selected_category = classify_selected_bag_category(frame, tokens=tokens)
+    words = {token.text for token in tokens}
+    bag_surface = (
+        back_arrow is not None
         and not overlay
+        and "resource_speedup" in category_rois
+        and len(BAG_CATEGORY_CONTEXT_LABELS & set(category_rois)) >= 3
+        and (
+            bool(header_tokens)
+            or {"diamond", "shop"} <= words
+        )
     )
+    recognized = bag_surface
     return {
         "state": "BAG" if recognized else "UNKNOWN",
         "recognized": recognized,
         "target_identity": BAG_TARGET_IDENTITY if recognized else None,
-        "target_roi": resources.target_roi if recognized else None,
+        "target_roi": category_rois.get("resource_speedup") if recognized else None,
         "visual_evidence": {
             "bag_header": header_tokens[0].roi if header_tokens else None,
             "back_arrow": back_arrow,
-            "resources_tab": resources.target_roi if resources.recognized else None,
+            "resources_tab": category_rois.get("resource_speedup"),
+            "selected_bag_category": selected_category,
             "selected_category": "Resource & Speedup"
-            if resources.recognized
+            if selected_category == "resource_speedup"
             else None,
             "direct_selected_successor": resources.recognized,
+            "category_tabs": {
+                name: list(roi) for name, roi in category_rois.items()
+            },
             "overlay": overlay,
         },
         "reason": None
         if recognized
-        else "bag-successor-or-selected-resource-context-not-proven",
+        else "bag-surface-or-category-strip-not-proven",
     }
 
 
@@ -1812,6 +1949,37 @@ def _run_route(
             recognize=lambda frame: recognize_resources_screen(frame, ocr=ocr),
         )
         if not resources_successor.recognized:
+            if bind_resources_category_tab(resources_frame.frame, ocr=ocr) is None:
+                return _result(
+                    session,
+                    status="evidence_required",
+                    reason=(
+                        "Bag opened without a selected Resource & Speedup "
+                        "context and the category tab was not bindable"
+                    ),
+                    frames={**frames, "resources-settled": resources_frame},
+                    recognitions={**recognitions, "resources": resources_successor},
+                )
+            _, tab_before, tab_post, resources_successor = _tap_action(
+                runtime,
+                session,
+                label="daily-resource-item-select-resources",
+                target_identity=RESOURCES_TARGET_IDENTITY,
+                action_key="daily-resource-item:select-resources-tab",
+                bind=lambda frame: bind_resources_category_tab(frame, ocr=ocr),
+                recognize=lambda frame: recognize_resources_screen(frame, ocr=ocr),
+                settled_successor=lambda: (
+                    time.sleep(1.0)
+                    or runtime.capture("daily-resource-item-select-resources-settled")
+                ),
+            )
+            if tab_before is not None:
+                frames["select-resources-immediate-before"] = tab_before
+            if tab_post is not None:
+                frames["select-resources-immediate-post"] = tab_post
+                resources_frame = tab_post
+            recognitions["select-resources"] = resources_successor
+        if not _record(resources_successor).get("recognized"):
             return _result(
                 session,
                 status="evidence_required",

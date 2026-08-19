@@ -34,8 +34,8 @@
       "owner_task_id": "use-resource-item",
       "implementation_state": "OFFLINE_ROUTE_IMPLEMENTED",
       "scheduler_eligibility": false,
-      "maximum_inputs": 11,
-      "maximum_resource_list_swipes": 8,
+      "maximum_inputs": 10,
+      "maximum_resource_list_swipes": 6,
       "notes": "The direct Home-to-Bag selected-resource observed-list route owns exact 1K Food use proof; catalog identity remains separate and does not authorize registration or scheduling."
     }
   },

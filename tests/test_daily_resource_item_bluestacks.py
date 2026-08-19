@@ -48,18 +48,54 @@ def _item_rows(item_line: str = "1K Food x 1 Use", owned: int = 2):
     return tuple(rows)
 
 
+def _bag_category_rows():
+    return (
+        ("Diamond", 497, 120, 100, 28),
+        ("Shop", 636, 120, 70, 28),
+        ("Bag", 300, 20, 50, 28),
+        ("Resource", 8, 190, 70, 28),
+        ("&", 82, 190, 18, 28),
+        ("Speedup", 104, 190, 85, 28),
+        ("Military", 200, 190, 90, 28),
+        ("Gadget", 360, 190, 80, 28),
+        ("Other", 530, 190, 70, 28),
+        ("Recent", 680, 190, 80, 28),
+    )
+
+
 def _resource_list_rows(*, item: str = "10% Build Speedup", use_x: int = 462):
     return (
-        ("Bag", 300, 20, 50, 28),
-        ("Resource", 8, 160, 70, 28),
-        ("&", 82, 160, 18, 28),
-        ("Speedup", 104, 160, 85, 28),
+        *_bag_category_rows(),
         *tuple(
             (word, 140 + index * 34, 320, max(24, len(word) * 10), 28)
             for index, word in enumerate(item.split())
         ),
         ("Use", use_x, 320, 55, 28),
     )
+
+
+def _paint_selected_bag_category(
+    frame: np.ndarray, category: str = "resource_speedup"
+) -> np.ndarray:
+    rois = {
+        "resource_speedup": (1, 160, 159, 228),
+        "military": (183, 154, 298, 235),
+        "gadget": (344, 154, 458, 235),
+        "other": (516, 154, 605, 229),
+        "recent": (668, 156, 774, 229),
+    }
+    x0, y0, x1, y1 = rois[category]
+    # BGR with elevated red channel for selected-tab dominance.
+    frame[y0:y1, x0:x1] = (40, 40, 140)
+    return frame
+
+
+def _resources_selected_frame() -> np.ndarray:
+    return _paint_selected_bag_category(_blank_frame(), "resource_speedup")
+
+
+def _military_selected_bag_frame() -> np.ndarray:
+    return _paint_selected_bag_category(_blank_frame(), "military")
 
 
 class DailyResourceItemRecognitionTests(unittest.TestCase):
@@ -151,7 +187,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
 
     def test_resource_list_lane_is_current_and_disjoint_from_controls(self):
         binding = route.bind_resource_list_swipe(
-            _blank_frame(),
+            _resources_selected_frame(),
             ocr=_ocr(*_resource_list_rows()),
         )
         self.assertIsNotNone(binding)
@@ -167,22 +203,22 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertEqual(binding.source, "current-frame-resources-content")
 
         blocked = route.bind_resource_list_swipe(
-            _blank_frame(),
+            _resources_selected_frame(),
             ocr=_ocr(*_resource_list_rows(use_x=250)),
         )
         self.assertIsNone(blocked)
 
     def test_progress_signature_rejects_stall_and_accepts_material_change(self):
         before = route.resource_list_content_signature(
-            _blank_frame(),
+            _resources_selected_frame(),
             ocr=_ocr(*_resource_list_rows(item="10% Build Speedup")),
         )
         same = route.resource_list_content_signature(
-            _blank_frame(),
+            _resources_selected_frame(),
             ocr=_ocr(*_resource_list_rows(item="10% Build Speedup")),
         )
         changed = route.resource_list_content_signature(
-            _blank_frame(),
+            _resources_selected_frame(),
             ocr=_ocr(*_resource_list_rows(item="1K Food")),
         )
         self.assertIsNotNone(before)
@@ -193,7 +229,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
     def test_resources_surface_requires_clear_modal_detector_and_ocr(self):
         rows = _resource_list_rows()
         recognized = route.recognize_resources_screen(
-            _blank_frame(),
+            _resources_selected_frame(),
             ocr=_ocr(*rows),
         )
         self.assertTrue(recognized.recognized)
@@ -208,16 +244,36 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             },
         ):
             unknown_detector = route.recognize_resources_screen(
-                _blank_frame(),
+                _resources_selected_frame(),
                 ocr=_ocr(*rows),
             )
         self.assertFalse(unknown_detector.recognized)
 
         with_marker = route.recognize_resources_screen(
-            _blank_frame(),
+            _resources_selected_frame(),
             ocr=_ocr(*rows, ("Cancel", 600, 600, 70, 28)),
         )
         self.assertFalse(with_marker.recognized)
+
+    def test_wrong_bag_category_binds_resources_tab_and_rejects_resources_state(self):
+        rows = _resource_list_rows()
+        military = _military_selected_bag_frame()
+        self.assertEqual(
+            route.classify_selected_bag_category(military, ocr=_ocr(*rows)),
+            "military",
+        )
+        self.assertFalse(
+            route.recognize_resources_screen(military, ocr=_ocr(*rows)).recognized
+        )
+        self.assertEqual(
+            route.bind_resources_category_tab(military, ocr=_ocr(*rows)),
+            (8, 190, 189, 218),
+        )
+        self.assertIsNone(
+            route.bind_resources_category_tab(
+                _resources_selected_frame(), ocr=_ocr(*rows)
+            )
+        )
 
     def test_measured_card_and_pixels_are_required(self):
         rows = _item_rows()
@@ -465,7 +521,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
                 route._return_home_target(normal, ocr=resources_ocr)
             )
 
-    def test_direct_route_uses_only_eleven_inputs_and_no_redundant_tab_tap(self):
+    def test_direct_route_skips_redundant_tab_tap_when_resources_already_selected(self):
         frame = CapturedNativeFrame(
             frame=_frame(),
             png=b"",
@@ -605,7 +661,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "completed")
         self.assertEqual(session.input_count, 3)
-        self.assertEqual(result["max_inputs"], 9)
+        self.assertEqual(result["max_inputs"], 10)
         self.assertEqual(result["item_use_transport_calls"], 1)
         self.assertTrue(result["resource_delta_verified"])
         self.assertTrue(result["terminal_home_verified"])
@@ -628,7 +684,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         joined_actions = " ".join(action_keys).casefold()
         self.assertNotIn("quest", joined_actions)
         self.assertNotIn("open-daily", joined_actions)
-        self.assertNotIn("open-resources", joined_actions)
+        self.assertNotIn("select-resources-tab", joined_actions)
 
     def test_observed_list_loop_caps_at_bounded_progressing_swipes(self):
         home = {
@@ -744,7 +800,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertEqual(runtime.swipes, route.MAX_RESOURCE_LIST_SWIPES)
         self.assertEqual(runtime.swipes, 6)
         self.assertEqual(session.input_count, 1 + 6)
-        self.assertEqual(result["max_inputs"], 9)
+        self.assertEqual(result["max_inputs"], 10)
         self.assertEqual(result["item_use_transport_calls"], 0)
         self.assertEqual(
             [row["action_key"] for row in session.actions],
@@ -754,6 +810,172 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
                     f"daily-resource-item:scroll:{index}:{index:064x}"
                     for index in range(1, 7)
                 ],
+            ],
+        )
+
+    def test_route_selects_resources_tab_when_bag_opens_on_other_category(self):
+        frame = CapturedNativeFrame(
+            frame=_frame(),
+            png=b"",
+            sha256="a" * 64,
+            captured_monotonic=time.monotonic(),
+            path=Path.cwd() / "daily-resource-item-tab-select-frame.png",
+        )
+        item_before = route.ResourceItemRecognition(
+            route.RESOURCE_ITEM_STATE,
+            True,
+            target_identity=route.ITEM_TARGET_IDENTITY,
+            target_roi=(70, 440, 730, 620),
+            item_name="1K Food",
+            owned_quantity=2,
+            quantity=1,
+            use_roi=(430, 500, 485, 528),
+            inventory_quantity=2,
+            food_resource=100,
+            visual_evidence={
+                "item_card": {
+                    "proven": True,
+                    "source": "visual-horizontal-separators",
+                    "bounds": (70, 440, 730, 620),
+                },
+                "card_ownership_proven": True,
+                "use_count": 1,
+                "quantity_source": "explicit",
+            },
+            quantity_source="explicit",
+            single_use_semantics_proven=True,
+        )
+        item_after = route.ResourceItemRecognition(
+            route.RESOURCE_SUCCESSOR_STATE,
+            False,
+            item_name="1K Food",
+            owned_quantity=1,
+            quantity=1,
+            inventory_quantity=1,
+            food_resource=100,
+        )
+        home = {
+            "state": "HOME",
+            "recognized": True,
+            "home_verified": True,
+            "target_identity": route.HOME_TARGET_IDENTITY,
+            "target_roi": (0, 1213, 800, 1280),
+        }
+        bag = {
+            "state": "BAG",
+            "recognized": True,
+            "target_identity": route.BAG_TARGET_IDENTITY,
+            "target_roi": (8, 190, 189, 218),
+        }
+        resources_ready = route.ResourceItemRecognition(
+            "RESOURCES",
+            True,
+            target_identity=route.RESOURCES_TARGET_IDENTITY,
+            target_roi=(8, 190, 189, 218),
+        )
+        resources_missing = route.ResourceItemRecognition(
+            "UNKNOWN",
+            False,
+            reason="resources-tab-is-missing-or-ambiguous",
+        )
+
+        class Runtime:
+            execute = True
+            frame_max_age_seconds = 30
+
+            def __init__(self, session):
+                self.session = session
+                self.input_count = 0
+                self.capture_count = 0
+
+            def capture(self, _label):
+                self.capture_count += 1
+                return CapturedNativeFrame(
+                    frame=frame.frame,
+                    png=b"",
+                    sha256=f"{self.capture_count:064x}",
+                    captured_monotonic=time.monotonic(),
+                    path=Path.cwd()
+                    / f"daily-resource-item-tab-select-{self.capture_count}.png",
+                )
+
+            def tap(self, _source, **kwargs):
+                self.input_count += 1
+                self.session.input_count = self.input_count
+                self.session.actions.append(
+                    {
+                        "label": kwargs["action_key"],
+                        "action_key": kwargs["action_key"],
+                    }
+                )
+
+        class Session:
+            input_count = 0
+            actions = []
+            session_directory = Path.cwd()
+            terminal_status = None
+            blocker = None
+            next_action = None
+
+            def observe(self, capture, *, label):
+                return capture(label)
+
+            def run_action(self, **kwargs):
+                before = kwargs["capture"]("before")
+                kwargs["dispatch"](before)
+                after = kwargs["capture"]("after")
+                return {"state": kwargs["recognize"](after)}
+
+        session = Session()
+        runtime = Runtime(session)
+        resources_calls = {"n": 0}
+
+        def resources_side_effect(frame, *, ocr=None):
+            del frame, ocr
+            resources_calls["n"] += 1
+            # Settled observe before the optional tab tap sees another category.
+            if resources_calls["n"] == 1:
+                return resources_missing
+            return resources_ready
+
+        def food_side_effect(frame, *, ocr=None):
+            del frame, ocr
+            if any(
+                row.get("action_key") == route.ITEM_USE_ACTION_KEY
+                for row in session.actions
+            ):
+                return item_after
+            return item_before
+
+        with patch.object(route, "_recognize_home", return_value=home), patch.object(
+            route, "_recognize_bag", return_value=bag
+        ), patch.object(
+            route, "recognize_resources_screen", side_effect=resources_side_effect
+        ), patch.object(
+            route,
+            "bind_resources_category_tab",
+            return_value=(8, 190, 189, 218),
+        ), patch.object(
+            route, "_home_bag_target", return_value=(100, 100, 140, 140)
+        ), patch.object(
+            route, "_return_home_target", return_value=(700, 1200, 760, 1260)
+        ), patch.object(
+            route,
+            "recognize_food_item_in_resources",
+            side_effect=food_side_effect,
+        ), patch.object(route.time, "sleep"):
+            result = route.run_daily_resource_item(runtime, session)
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(session.input_count, 4)
+        action_keys = [row["action_key"] for row in session.actions]
+        self.assertEqual(
+            action_keys,
+            [
+                "daily-resource-item:open-bag",
+                "daily-resource-item:select-resources-tab",
+                route.ITEM_USE_ACTION_KEY,
+                "daily-resource-item:return-home",
             ],
         )
 
