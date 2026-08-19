@@ -8,14 +8,19 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from scripts.daily_resource_item_bluestacks import (
+    MAX_RESOURCE_LIST_SWIPES as ROUTE_MAX_RESOURCE_LIST_SWIPES,
+    MAX_ROUTE_INPUTS as ROUTE_MAX_ROUTE_INPUTS,
+    _resource_delta_verified,
+)
 
 
 FLOW_ID = "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
 RUNNER_ID = "daily_resource_item_bluestacks_runner"
 VALIDATOR_ID = "daily_resource_item_bluestacks_evidence"
 RECOVERY_ID = "daily_resource_item_bluestacks_recovery"
-MAX_INPUTS = 10
-MAX_RESOURCE_LIST_SWIPES = 6
+MAX_INPUTS = ROUTE_MAX_ROUTE_INPUTS
+MAX_RESOURCE_LIST_SWIPES = ROUTE_MAX_RESOURCE_LIST_SWIPES
 ITEM_USE_ACTION_KEY = "daily-resource-item:use-1k-food"
 MAX_ITEM_USE_TRANSPORT_CALLS = 1
 
@@ -72,6 +77,61 @@ def _item_use_calls(session: Path) -> int:
     return calls
 
 
+def _as_int(value: object) -> int | None:
+    return value if type(value) is int else None
+
+
+def _semantic_from_result(result: Mapping[str, Any]) -> dict[str, Any]:
+    semantic = result.get("semantic_evidence")
+    if isinstance(semantic, Mapping) and semantic:
+        return dict(semantic)
+    recognitions = result.get("recognitions")
+    if not isinstance(recognitions, Mapping):
+        recognitions = {}
+    before = recognitions.get("item-before") or recognitions.get("item-ready") or {}
+    after = recognitions.get("item-after") or {}
+    if not isinstance(before, Mapping):
+        before = {}
+    if not isinstance(after, Mapping):
+        after = {}
+    frames = result.get("frames")
+    frame_map = frames if isinstance(frames, Mapping) else {}
+    return {
+        "before_owned_quantity": _as_int(
+            before.get("inventory_quantity", before.get("owned_quantity"))
+        ),
+        "after_owned_quantity": _as_int(
+            after.get("inventory_quantity", after.get("owned_quantity"))
+        ),
+        "before_food_resource": _as_int(before.get("food_resource")),
+        "after_food_resource": _as_int(after.get("food_resource")),
+        "resource_delta_verified": result.get("resource_delta_verified") is True,
+        "terminal_home_verified": result.get("terminal_home_verified") is True,
+        "home_verified": result.get("terminal_home_verified") is True,
+        "item_before_frame": frame_map.get("item-before"),
+        "item_after_frame": frame_map.get("item-after"),
+        "terminal_home_frame": frame_map.get("home")
+        or frame_map.get("return-home-immediate-post"),
+    }
+
+
+def _frame_exists(session: Path, frame_ref: object) -> bool:
+    if not isinstance(frame_ref, Mapping):
+        return False
+    path_value = frame_ref.get("path")
+    sha = frame_ref.get("sha256")
+    if not isinstance(path_value, str) or not isinstance(sha, str) or len(sha) != 64:
+        return False
+    path = Path(path_value)
+    candidates = [path]
+    if not path.is_absolute():
+        candidates.extend((session / path, session / "frames" / Path(path_value).name))
+    for candidate in candidates:
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            return True
+    return False
+
+
 def _result_payload(
     result: Mapping[str, Any],
     *,
@@ -101,6 +161,7 @@ def _result_payload(
             "max_resource_list_swipes": MAX_RESOURCE_LIST_SWIPES,
             "item_use_transport_calls": item_use_calls,
             "dispatch": item_use_calls > 0,
+            "semantic_evidence": _semantic_from_result(result),
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
         }
@@ -158,6 +219,7 @@ def _write_delivery_result(
         ),
         "resource_delta_verified": result.get("resource_delta_verified") is True,
         "terminal_home_verified": result.get("terminal_home_verified") is True,
+        "semantic_evidence": _semantic_from_result(result),
         "reason": result.get("reason"),
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
@@ -263,16 +325,50 @@ def verify_daily_resource_item(
         raise _pnsctl().OperatorError(
             "Daily Resource Item delivery result is missing"
         )
+    session = Path(str(structure.get("session_directory") or ""))
+    events_rel = result.get("events_path") or "events.jsonl"
+    events_file = session / str(events_rel)
+    item_use_calls = _item_use_calls(
+        events_file.parent if events_file.is_file() else session
+    )
+
+    semantic = result.get("semantic_evidence")
+    if not isinstance(semantic, Mapping):
+        semantic = {}
+    recomputed_delta = _resource_delta_verified(
+        {
+            "inventory_quantity": semantic.get("before_owned_quantity"),
+            "food_resource": semantic.get("before_food_resource"),
+        },
+        {
+            "inventory_quantity": semantic.get("after_owned_quantity"),
+            "food_resource": semantic.get("after_food_resource"),
+        },
+    )
+    home_ok = bool(
+        result.get("terminal_home_verified") is True
+        and result.get("terminal_runtime_state") == "recognized_home"
+        and _frame_exists(session, semantic.get("terminal_home_frame"))
+    )
+    frames_ok = _frame_exists(
+        session, semantic.get("item_before_frame")
+    ) and _frame_exists(session, semantic.get("item_after_frame"))
     verified = bool(
         result.get("status") == "completed"
-        and result.get("item_use_transport_calls") == 1
+        and item_use_calls == MAX_ITEM_USE_TRANSPORT_CALLS
+        and recomputed_delta
         and result.get("resource_delta_verified") is True
-        and result.get("terminal_home_verified") is True
+        and home_ok
+        and frames_ok
+        and result.get("production_registration") == "NOT_REGISTERED"
+        and result.get("scheduler_enabled") is False
     )
     return {
         "status": "verified" if verified else "evidence_required",
         "flow_id": FLOW_ID,
         "session_directory": structure.get("session_directory"),
+        "item_use_transport_calls": item_use_calls,
+        "resource_delta_recomputed": recomputed_delta,
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
     }

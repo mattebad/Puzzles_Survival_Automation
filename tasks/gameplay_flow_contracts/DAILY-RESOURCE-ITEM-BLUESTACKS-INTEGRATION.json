@@ -34,8 +34,8 @@
     {
       "from": "resources",
       "to": "resource_list_progress",
-      "via": "zero to six current-frame-bound upward swipes in a central list-content lane",
-      "notes": "Each swipe must change the stable list/OCR signature; stall, repeat, or unknown stops before another swipe."
+      "via": "zero to six current-frame-bound content-aware forward or reverse swipes in a central list-content lane",
+      "notes": "Forward reveals lower rows; reverse reveals upper rows when lower-resource or larger Food markers are visible. Each swipe must change the stable list/OCR signature; stall, repeat, or unknown stops before another swipe."
     },
     {
       "from": "resource_list_progress",
@@ -66,7 +66,7 @@
     "current-frame-bound visible Bag navigation",
     "optional current-frame-bound Resource & Speedup category tab when another Bag tab is selected",
     "settled current Resource & Speedup Bag successor",
-    "current-frame-bound upward Resource list scrolling, at most six progressing swipes",
+    "current-frame-bound content-aware forward/reverse Resource list scrolling, at most six progressing swipes",
     "one current-frame-bound 1K Food Use at quantity one",
     "current-frame-bound visible Home return"
   ],
@@ -74,7 +74,7 @@
     "maximum_inputs": 10,
     "maximum_resource_list_swipes": 6,
     "maximum_item_use_dispatches": 1,
-    "notes": "The direct route is Bag, optional Resources-tab select, zero to six progressing list swipes, one Use, and visible Home return."
+    "notes": "The direct route is Bag, optional Resources-tab select, zero to six progressing content-aware list swipes, one Use, and visible Home return."
   },
   "local_postconditions": [
     "verified Home is the source state",
@@ -85,7 +85,7 @@
     "exact quantity one is bound",
     "the 1K Food anchor, owned count, quantity-one evidence, and exactly one Use ROI are fully inside one measured current-frame Resources card",
     "exactly one daily-resource-item:use-1k-food event is dispatched",
-    "inventory count decreases or Food resource increases",
+    "owned 1K Food count decreases by exactly one",
     "verified Home is the terminal state"
   ],
   "consequential_action_class": "daily_resource_item_use",

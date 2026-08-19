@@ -1,5 +1,11 @@
 # Daily Resource Item observed-list redesign r6
 
+> Historical stage freeze only. Superseded for active budgets and Bag-tab
+> recovery by the live-accepted route constants (`MAX_ROUTE_INPUTS = 10`,
+> `MAX_RESOURCE_LIST_SWIPES = 6`, optional Resource & Speedup tab select, and
+> content-aware forward/reverse list scrolling). Do not treat the 11/8 figures
+> below as current authority.
+
 ## Task and authority
 - Task ID: `daily-resource-item`
 - Flow ID: `DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION`

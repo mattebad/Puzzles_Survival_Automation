@@ -200,7 +200,7 @@ class ResourceItemRecognition:
 
 @dataclass(frozen=True)
 class ResourceListSwipeBinding:
-    """One upward swipe measured from one current Resources frame."""
+    """One content-aware list swipe measured from one current Resources frame."""
 
     lane: NativeBox
     start: tuple[int, int]
@@ -209,6 +209,7 @@ class ResourceListSwipeBinding:
     use_rois: tuple[NativeBox, ...]
     bulk_rois: tuple[NativeBox, ...]
     signature: tuple[tuple[object, ...], ...]
+    direction: str = "forward"
     source: str = "current-frame-resources-content"
 
     def as_dict(self) -> dict[str, Any]:
@@ -1061,6 +1062,7 @@ def bind_resource_list_swipe(
         use_rois=use_rois,
         bulk_rois=bulk_rois,
         signature=signature,
+        direction=direction,
     )
 
 
@@ -1380,28 +1382,46 @@ def _number(value: object) -> int | None:
     return value if type(value) is int else None
 
 
+def _owned_count(record: Mapping[str, Any]) -> int | None:
+    for key in ("inventory_quantity", "owned_quantity"):
+        value = _number(record.get(key))
+        if value is not None:
+            return value
+    return None
+
+
 def _resource_delta_verified(
     before: ResourceItemRecognition | Mapping[str, Any],
     after: ResourceItemRecognition | Mapping[str, Any],
 ) -> bool:
+    """Prove exactly one owned 1K Food consumption from retained successors.
+
+    Live BlueStacks evidence established an exact owned decrement of one
+    (``129680 → 129679``). Food-resource totals were not reliably recognized,
+    so an arbitrary Food increase is not accepted as proof.
+    """
+
     left = _record(before)
     right = _record(after)
-    return bool(
-        _number(left.get("inventory_quantity")) is not None
-        and _number(right.get("inventory_quantity")) is not None
-        and right["inventory_quantity"] < left["inventory_quantity"]
-    ) or bool(
-        _number(left.get("food_resource")) is not None
-        and _number(right.get("food_resource")) is not None
-        and right["food_resource"] > left["food_resource"]
-    )
+    owned_before = _owned_count(left)
+    owned_after = _owned_count(right)
+    food_before = _number(left.get("food_resource"))
+    food_after = _number(right.get("food_resource"))
+
+    if owned_before is None or owned_after is None:
+        return False
+    if owned_after != owned_before - 1:
+        return False
+    if food_before is not None and food_after is not None and food_after < food_before:
+        return False
+    return True
 
 
 def resource_item_postcondition_verified(
     before: Mapping[str, Any] | ResourceItemRecognition,
     after: Mapping[str, Any] | ResourceItemRecognition,
 ) -> bool:
-    """Require a positive item/resource delta and verified Home."""
+    """Require an exact one-item owned delta and verified Home."""
 
     right = _record(after)
     home = right.get("home_verified") is True or right.get("terminal_home_verified") is True
@@ -1634,6 +1654,40 @@ def _recognize_bag(
     }
 
 
+def _semantic_evidence(
+    frames: Mapping[str, CapturedNativeFrame],
+    recognitions: Mapping[str, Any],
+    *,
+    session_directory: Any,
+    resource_delta_verified: bool,
+    terminal_home_verified: bool,
+) -> dict[str, Any]:
+    before = _record(recognitions.get("item-before") or recognitions.get("item-ready") or {})
+    after = _record(recognitions.get("item-after") or {})
+    home = _record(recognitions.get("home") or {})
+    before_frame = frames.get("item-before")
+    after_frame = frames.get("item-after")
+    home_frame = frames.get("home") or frames.get("return-home-immediate-post")
+    return {
+        "before_owned_quantity": _owned_count(before),
+        "after_owned_quantity": _owned_count(after),
+        "before_food_resource": _number(before.get("food_resource")),
+        "after_food_resource": _number(after.get("food_resource")),
+        "resource_delta_verified": resource_delta_verified,
+        "terminal_home_verified": terminal_home_verified,
+        "home_verified": home.get("home_verified") is True,
+        "item_before_frame": (
+            _frame_ref(before_frame, session_directory) if before_frame is not None else None
+        ),
+        "item_after_frame": (
+            _frame_ref(after_frame, session_directory) if after_frame is not None else None
+        ),
+        "terminal_home_frame": (
+            _frame_ref(home_frame, session_directory) if home_frame is not None else None
+        ),
+    }
+
+
 def _result(
     session: SessionLike,
     *,
@@ -1660,6 +1714,13 @@ def _result(
         "dispatch": item_use_calls > 0,
         "resource_delta_verified": resource_delta_verified,
         "terminal_home_verified": terminal_home_verified,
+        "semantic_evidence": _semantic_evidence(
+            frames,
+            recognitions,
+            session_directory=session.session_directory,
+            resource_delta_verified=resource_delta_verified,
+            terminal_home_verified=terminal_home_verified,
+        ),
         "frames": {
             name: _frame_ref(frame, session.session_directory)
             for name, frame in frames.items()
@@ -2166,7 +2227,7 @@ def _run_route(
         return _result(
             session,
             status="unresolved" if item_use_calls else "evidence_required",
-            reason="1K Food Use did not prove a positive inventory or Food-resource delta",
+            reason="1K Food Use did not prove an exact owned decrement of one",
             frames=frames,
             recognitions={
                 **recognitions,
@@ -2176,6 +2237,7 @@ def _run_route(
             item_use_calls=item_use_calls,
             resource_delta_verified=resource_delta,
         )
+    recognitions["item-before"] = item_before
     recognitions["item-after"] = use_successor
 
     _, home_before, home_post, home_successor = _tap_action(

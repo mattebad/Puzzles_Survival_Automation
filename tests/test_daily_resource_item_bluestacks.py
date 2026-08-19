@@ -194,6 +194,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         assert binding is not None
         self.assertEqual(binding.start[0], binding.end[0])
         self.assertLess(binding.end[1], binding.start[1])
+        self.assertEqual(binding.direction, "forward")
         self.assertTrue(
             all(
                 not route._boxes_overlap(binding.lane, roi)
@@ -201,6 +202,23 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             )
         )
         self.assertEqual(binding.source, "current-frame-resources-content")
+
+        reverse = route.bind_resource_list_swipe(
+            _resources_selected_frame(),
+            ocr=_ocr(
+                *_resource_list_rows(item="Gas Canister"),
+            ),
+        )
+        self.assertIsNotNone(reverse)
+        assert reverse is not None
+        self.assertEqual(reverse.direction, "reverse")
+        self.assertGreater(reverse.end[1], reverse.start[1])
+        self.assertTrue(
+            all(
+                not route._boxes_overlap(reverse.lane, roi)
+                for roi in (*reverse.use_rois, *reverse.bulk_rois)
+            )
+        )
 
         blocked = route.bind_resource_list_swipe(
             _resources_selected_frame(),
@@ -332,7 +350,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertFalse(forbidden.recognized)
         self.assertFalse(overlay.recognized)
 
-    def test_postcondition_requires_delta_and_home(self):
+    def test_postcondition_requires_exact_owned_decrement_and_home(self):
         before = {"inventory_quantity": 2, "food_resource": 100}
         after = {
             "inventory_quantity": 1,
@@ -349,7 +367,31 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertFalse(
             route.resource_item_postcondition_verified(
                 before,
+                {"inventory_quantity": 0, "food_resource": 100, "home_verified": True},
+            )
+        )
+        self.assertFalse(
+            route.resource_item_postcondition_verified(
+                before,
                 {"inventory_quantity": 1, "food_resource": 100},
+            )
+        )
+        self.assertFalse(
+            route._resource_delta_verified(
+                {"inventory_quantity": 10, "food_resource": 100},
+                {"inventory_quantity": 9, "food_resource": 50},
+            )
+        )
+        self.assertFalse(
+            route._resource_delta_verified(
+                {"food_resource": 100},
+                {"food_resource": 1100},
+            )
+        )
+        self.assertTrue(
+            route._resource_delta_verified(
+                {"inventory_quantity": 129680},
+                {"inventory_quantity": 129679},
             )
         )
 
