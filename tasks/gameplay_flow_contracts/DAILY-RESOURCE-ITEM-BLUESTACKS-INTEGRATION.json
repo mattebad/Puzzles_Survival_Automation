@@ -52,8 +52,8 @@
     {
       "from": "1k_food_used",
       "to": "resource_delta_verified",
-      "via": "positive owned-count decrease and/or Food-resource increase",
-      "notes": "Transport success alone is not completion."
+      "via": "exact owned-count decrement of one for the measured 1K Food item",
+      "notes": "Transport success alone is not completion; Food-resource increase is not accepted as substitute proof."
     },
     {
       "from": "resource_delta_verified",
@@ -108,7 +108,7 @@
   "evidence_requirements": [
     "fresh native verified Home source",
     "current-frame measured Resources card fully containing the exact 1K Food anchor, owned count, quantity-one evidence, and exactly one Use ROI",
-    "immediate-post owned-count or Food-resource delta",
+    "immediate-post exact owned-count decrement of one",
     "verified Home terminal evidence"
   ],
   "replay_fixture_requirements": [

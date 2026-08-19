@@ -4156,7 +4156,7 @@
       "acceptance_criteria": [
         "verified Home is required before Bag navigation",
         "exact current-frame measured Resources card containing the 1K Food anchor, owned quantity at least one, quantity exactly one, and one Use dispatch are enforced",
-        "positive inventory or Food-resource delta is required before verified Home",
+        "exact owned-count decrement of one for the measured 1K Food item is required before verified Home",
         "the direct route reaches final verified Home within 10 total inputs with at most six progressing short list swipes",
         "dry-run and registration remain scheduler-disabled and no Android Back or Claim path is used"
       ],
