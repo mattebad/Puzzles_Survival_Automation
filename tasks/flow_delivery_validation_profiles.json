@@ -49,6 +49,19 @@
         "tests.test_flow_delivery_supply_depot_bluestacks"
       ]
     },
+    "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": {
+      "focused_tests": [
+        "tests.test_daily_resource_item_bluestacks",
+        "tests.test_flow_delivery_daily_resource_item_bluestacks",
+        "tests.test_gameplay_flow_contracts",
+        "tests.test_flow_delivery_validation_profiles"
+      ],
+      "consequential": [
+        "tests.test_flow_delivery_daily_resource_item_bluestacks"
+      ],
+      "maximum_inputs": 11,
+      "maximum_resource_list_swipes": 8
+    },
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
       "focused_tests": [
         "tests.test_campaign_auto_battle",

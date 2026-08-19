@@ -77,9 +77,9 @@ Authority is singular by concern:
 The four historical portrait iOS screenshots `IMG_5076.PNG` through `IMG_5079.PNG` contain 32 visible
 Daily rows. They are design references, not current-runtime authorization.
 
-- `use_resource_item` is visible historically but remains `ADMISSION_EVIDENCE_REQUIRED`; no catalog
-  or execution-matrix objective may be created until a current selected-Daily native frame proves
-  the exact row.
+- `use_resource_item` is visible historically, but selected-Daily evidence is not an admission or
+  completion dependency. The active `daily-resource-item` flow proves the objective directly from
+  the exact gameplay transaction: one `1K Food` decrement and/or positive Food-resource delta.
 - `gather_food` is visible historically but remains excluded from Daily catalog ownership because
   the current audit has only synthetic evidence. Food may later serve as the separately bounded
   gathering proving slice without implying a Daily objective.
@@ -109,7 +109,8 @@ Daily rows. They are design references, not current-runtime authorization.
 
 - `daily-row-claim` owns generalized ordinary row Claim: `EVIDENCE_REQUIRED`.
 - `daily-milestone-claim` owns milestone chest Claim: `EVIDENCE_REQUIRED`.
-- `use-resource-item` owns the historical candidate: `ADMISSION_EVIDENCE_REQUIRED`.
+- `daily-resource-item` owns the direct gameplay transaction:
+  `IMPLEMENTATION_AND_EVIDENCE_REQUIRED`.
 - `supply-depot` owns Daily all-free collection: `EVIDENCE_REQUIRED`.
 - `alliance-tech-donation` owns ten yellow-resource donations: `IMPLEMENTATION_AND_EVIDENCE_REQUIRED`.
 - `alliance-shop-purchase`, `ruins-shop-purchase`, and `rare-earth-shop-purchase` independently own
@@ -134,7 +135,8 @@ product-policy registry and executable queue row now agree on the exact level-5/
 default-formation policy and remain evidence-gated. Shop identities follow matrix purchase
 variants plus Mystery Shop / Alliance navigation already captured for this portfolio
 (Ruins/Rare Earth static catalogs; Alliance Daily 1★ gear-enhancer via Shop → Other, distinct
-from rotating weekly offers). `use_resource_item` still requires catalog admission.
+from rotating weekly offers). `use_resource_item` requires no selected-Daily catalog admission;
+its exact item/resource transaction is the authority.
 Noah's Tavern Daily vs free-attempt maintenance remains as in
 `docs/noahs-tavern-recruit-bluestacks.md` and the two recruitment gameplay contracts.
 
@@ -145,8 +147,8 @@ manifest for the first queue-authorized item.
 
 1. Daily row Claim: current ready row-local Claim and row disappearance or point delta.
 2. Daily milestone Claim: separate ready chest and opened-chest or point successor.
-3. Use Resource Item: current catalog admission, then exact `1K Food`, quantity one, inventory/Daily
-   successor, and Home.
+3. Use Resource Item: verified Home, direct Bag `Resource & Speedup`, exact `1K Food`, quantity one,
+   exactly one `Use`, positive inventory and/or Food-resource successor, and verified Home.
 4. Supply Depot: exhaust observed free attempts per home-atlas / `supply_depot` contract;
    Daily quest row progress is separate evidence.
 5. Alliance Tech: highlighted tech, yellow-resource control, diamond negative, ten-count/resource

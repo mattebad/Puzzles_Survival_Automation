@@ -62,6 +62,35 @@ class ProportionateProfileTests(unittest.TestCase):
                     [target],
                 )
 
+    def test_daily_resource_item_profile_is_focused_and_consequential(self) -> None:
+        profiles = runner._load_profiles()
+        profile = profiles["flow_profiles"]["DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"]
+        self.assertEqual(profile["maximum_inputs"], 11)
+        self.assertEqual(profile["maximum_resource_list_swipes"], 8)
+        self.assertEqual(
+            runner._resolve_unittest_targets(
+                profiles,
+                profile="focused_tests",
+                flow_id="DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+                queue={"flows": []},
+            ),
+            [
+                "tests.test_daily_resource_item_bluestacks",
+                "tests.test_flow_delivery_daily_resource_item_bluestacks",
+                "tests.test_gameplay_flow_contracts",
+                "tests.test_flow_delivery_validation_profiles",
+            ],
+        )
+        self.assertEqual(
+            runner._resolve_unittest_targets(
+                profiles,
+                profile="consequential",
+                flow_id="DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+                queue={"flows": []},
+            ),
+            ["tests.test_flow_delivery_daily_resource_item_bluestacks"],
+        )
+
     def test_promotion_bundles_architecture_and_governance(self) -> None:
         targets = _resolve("promotion")
         self.assertIn("tests.test_governance_validation", targets)

@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+  "product_purpose": "Consume exactly one owned 1K Food item from canonical Home.",
+  "trigger_cadence_type": "evidence_gated",
+  "reset_scope": "not_required",
+  "required_starting_context": [
+    "home_ready"
+  ],
+  "shared_primitive_dependencies": [],
+  "recognized_states": [
+    "home_ready",
+    "bag",
+    "resources",
+    "1k_food_ready",
+    "1k_food_used",
+    "resource_delta_verified",
+    "home_verified",
+    "evidence_required"
+  ],
+  "state_transitions": [
+    {
+      "from": "home_ready",
+      "to": "bag",
+      "via": "one current-frame-bound visible Bag control",
+      "notes": "The source is a fresh native verified Home frame."
+    },
+    {
+      "from": "bag",
+      "to": "resources",
+      "via": "settled current Resource & Speedup successor already selected on Bag entry",
+      "notes": "No redundant Resources-tab tap is permitted; Android Back is not used."
+    },
+    {
+      "from": "resources",
+      "to": "resource_list_progress",
+      "via": "zero to eight current-frame-bound upward swipes in a central list-content lane",
+      "notes": "Each swipe must change the stable list/OCR signature; stall, repeat, or unknown stops before another swipe."
+    },
+    {
+      "from": "resource_list_progress",
+      "to": "1k_food_ready",
+      "via": "fresh exact 1K Food row and measured-card ownership recognition after each scroll",
+      "notes": "AP, Stamina, premium, bulk selection, and unidentified targets are rejected."
+    },
+    {
+      "from": "1k_food_ready",
+      "to": "1k_food_used",
+      "via": "one current-frame-bound Use control at quantity one",
+      "notes": "A second Use, confirmation, or quantity action fails closed."
+    },
+    {
+      "from": "1k_food_used",
+      "to": "resource_delta_verified",
+      "via": "positive owned-count decrease and/or Food-resource increase",
+      "notes": "Transport success alone is not completion."
+    },
+    {
+      "from": "resource_delta_verified",
+      "to": "home_verified",
+      "via": "one current-frame-bound visible Home control",
+      "notes": "Unknown return controls fail closed."
+    }
+  ],
+  "permitted_inputs": [
+    "current-frame-bound visible Bag navigation",
+    "settled current Resource & Speedup Bag successor (no tab tap)",
+    "current-frame-bound upward Resource list scrolling, at most eight progressing swipes",
+    "one current-frame-bound 1K Food Use at quantity one",
+    "current-frame-bound visible Home return"
+  ],
+  "navigation_input_authorization": {
+    "maximum_inputs": 9,
+    "maximum_resource_list_swipes": 8,
+    "maximum_item_use_dispatches": 1,
+    "notes": "The direct route is Bag, zero to eight progressing list swipes, one Use, and visible Home return."
+  },
+  "local_postconditions": [
+    "verified Home is the source state",
+    "Bag successor is positively recognized",
+    "settled Resource & Speedup successor is positively recognized without a tab tap",
+    "each dispatched list swipe is bound to the current overlay-free central lane and materially changes its stable signature",
+    "owned 1K Food quantity is at least one",
+    "exact quantity one is bound",
+    "the 1K Food anchor, owned count, quantity-one evidence, and exactly one Use ROI are fully inside one measured current-frame Resources card",
+    "exactly one daily-resource-item:use-1k-food event is dispatched",
+    "inventory count decreases or Food resource increases",
+    "verified Home is the terminal state"
+  ],
+  "consequential_action_class": "daily_resource_item_use",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 1,
+    "resource_or_currency": "1K Food",
+    "notes": "One owned 1K Food item only; no premium substitution, recovery item, bulk action, or second confirmation."
+  },
+  "completion_identity": "daily-resource-item:use-1k-food:home-complete",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "If the exact item, quantity, successor, or Home state is ambiguous, dispatch zero input and report evidence_required.",
+  "bounded_recovery_behavior": "Fail closed on unknown Home, Bag, Resources, item, quantity, successor, overlay, or return control. Android Back is prohibited.",
+  "evidence_requirements": [
+    "fresh native verified Home source",
+    "current-frame measured Resources card fully containing the exact 1K Food anchor, owned count, quantity-one evidence, and exactly one Use ROI",
+    "immediate-post owned-count or Food-resource delta",
+    "verified Home terminal evidence"
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "daily_resource_item_use_sequence",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Native consequential evidence is not fabricated by offline tests."
+    }
+  ],
+  "live_validation_scenarios": [
+    {
+      "id": "daily-resource-item-use-1k-food",
+      "mode": "consequential_supervised",
+      "maximum_inputs": 9,
+      "maximum_resource_list_swipes": 8,
+      "notes": "At most eight progressing list swipes and one supervised item-consumption event; scheduler eligibility remains disabled."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "ambiguous_account_or_server_identity",
+    "blocking_unknown_modal",
+    "In bulk",
+    "AP recovery item",
+    "Stamina recovery item",
+    "premium substitution",
+    "unidentified item",
+    "ordinary Claim",
+    "milestone Claim",
+    "second Use",
+    "second confirmation",
+    "quantity chooser",
+    "Android Back"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "production_eligible": false,
+  "registration_state": "disabled"
+}

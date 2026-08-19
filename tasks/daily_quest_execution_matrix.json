@@ -63,7 +63,16 @@
       {"identity": "world_map_hud_navigation", "owner_task_id": "world-map-foundation", "state": "ACCEPTED_EXISTING"},
       {"identity": "aggregate_daily_claim", "owner_task_id": "daily-row-claim", "state": "EVIDENCE_REQUIRED"},
       {"identity": "daily_milestone_claim", "owner_task_id": "daily-milestone-claim", "state": "EVIDENCE_REQUIRED"},
-      {"identity": "use_resource_item", "owner_task_id": "use-resource-item", "state": "ADMISSION_EVIDENCE_REQUIRED"},
+      {
+        "identity": "use_resource_item",
+        "owner_task_id": "use-resource-item",
+        "execution_flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+        "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED",
+        "scheduler_eligibility": false,
+        "registration_state": "NOT_REGISTERED",
+        "maximum_inputs": 11,
+        "maximum_resource_list_swipes": 8
+      },
       {"identity": "nano_material_production", "owner_task_id": "nano-material-maintenance", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
       {"identity": "gathering_search_level5", "owner_task_id": "gathering-search-level5", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
       {"identity": "gathering_gas_reveal", "owner_task_id": "gathering-gas-reveal", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
@@ -84,8 +93,13 @@
       },
       {
         "task_id": "use-resource-item",
-        "depends_on": ["current_selected_daily_catalog_admission"],
-        "evidence_gap": "current selected-Daily native identity first; then Resources tab, exact 1K Food item, quantity-one control, inventory delta, Daily 0-to-1, and Home"
+        "depends_on": [],
+        "execution_flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+        "evidence_gap": "verified Home first; then Bag with settled selected Resource & Speedup, exact 1K Food inspection before and after at most eight progressing list swipes, quantity-one control, positive item/resource delta, and verified Home",
+        "scheduler_eligibility": false,
+        "registration_state": "NOT_REGISTERED",
+        "maximum_inputs": 11,
+        "maximum_resource_list_swipes": 8
       },
       {
         "task_id": "supply-depot",
