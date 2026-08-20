@@ -1,7 +1,7 @@
 # Runtime Reliability Convergence Status
 
 This is a durable status map, not a mutable execution manifest. The Stage 2
-closure is the commit containing this file on branch
+closure is commit `dde9b1c` on branch
 `feature/runtime-reliability-convergence`; its parent is
 `8c73b932dc09ca4569f6e1082b3680ead876c18c`.
 
@@ -12,7 +12,7 @@ closure is the commit containing this file on branch
 | 0 — authority freeze | Complete | Recorded by the retained `CURRENT_HANDOFF.md` and the checked-in runtime/product-policy artifacts. This chronology is inferred from the handoff because no separate Stage 0 commit is present. |
 | 1 — typed product authority and contracts | Complete in branch candidate | `tasks/product_authority.py`, `tasks/flow_delivery_product_policy.json`, and the three bound BlueStacks contracts now carry the exact static-UTC policy and revision/digest binding. Offline authority tests are the verification evidence. |
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
-| 3 — control primitives | Not started | No Stage 3 implementation, live admission, registration, or scheduler promotion is authorized by this candidate. |
+| 3 — control primitives | Not started | This execution-stage label maps to “Shared control primitives through offline replay” in the umbrella program (currently numbered Stage 5 there). No implementation, live admission, registration, or scheduler promotion is authorized by this candidate. |
 
 ## Frozen product rule
 
@@ -54,20 +54,15 @@ The direct authority/identity/Resource suites passed 65 tests, and the adjacent
 catalog/Nova suites passed 46 tests. Independent review and recheck reported no
 remaining must-fix finding.
 
-The architecture profile ran 92 tests and remains red with 21 errors and 4
-failures. An isolated run at the unchanged parent commit produced the same
-result, so these are recorded baseline failures rather than regressions from
-this closure:
+The architecture baseline was repaired offline after Stage 2. The canonical
+Resource queue record now uses a contiguous archived-attempt ordinal,
+path-form focused tests, and the terminal `completed` stage. Architecture tests
+now recognize the Resource flow and current handoff schema, keep the checked-in
+managed-agent hook, construct their own ready-flow fixture when the production
+queue has no ready flow, and test missing-verifier behavior with valid retained
+evidence instead of an invalid path.
 
-- 20 errors: the archived Resource live-attempt ordinals in the retained queue
-  are not contiguous (`process_state`; owner: flow-delivery queue hygiene).
-- 1 error: the legacy handoff-render test expects `first_ready_flow`
-  (`test_contract`; owner: flow-delivery workflow tests).
-- 4 failures: stale expected queue membership/order, local `.cursor/hooks.json`
-  presence, queue-validation error precedence, and missing-verifier error
-  precedence (`test_contract` or local process state; owner: flow-delivery
-  workflow tests).
-
-No new failure in a Stage 2 touched behavior was observed. The architecture
-profile is not reported as passing and should be repaired by its owning
-workflow task rather than by broadening this Resource closure.
+The architecture profile now passes all 92 tests with receipt digest
+`102bac590580861dba3fe972e1217fec7c6e3e0692f46f836ac91f1d996ffe1e`.
+The repair used no runtime input and did not change Resource product behavior,
+registration, or scheduling.

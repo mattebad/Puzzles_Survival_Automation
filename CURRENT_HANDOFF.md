@@ -2,30 +2,30 @@
 {
   "schema_version": 3,
   "branch": "feature/runtime-reliability-convergence",
-  "head_binding": "resource-authority-closure-r12-commit-containing-this-handoff",
+  "head_binding": "architecture-baseline-repair-r13-commit-containing-this-handoff",
   "last_product_candidate_head": "compute_from_git",
   "ahead_behind": {"source": "compute_from_git"},
   "attributable_dirty_paths": [],
   "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "resource-authority-closure-r12",
+  "current_task_id": "architecture-baseline-repair-r13",
   "current_task_state": "completed",
   "next_task_id": "runtime-reliability-stage-3-control-primitives",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "resource_authority_closure_done",
+  "active_delivery_stage": "architecture_baseline_repaired",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
   "latest_focused_validation_result": "65 focused Resource profile tests passed (a77ba8c3a0365bab64e3eceb35f5f6fa843afed8ab2e6a9bca2ae4ad70ebcc6d); 65 direct authority/Resource and 46 catalog/Nova tests passed.",
-  "latest_architecture_validation_result": "92 tests ran with 21 errors and 4 failures, identical at parent HEAD 8c73b93; classified as pre-existing queue/workflow-test baseline failures.",
+  "latest_architecture_validation_result": "92 architecture tests passed (102bac590580861dba3fe972e1217fec7c6e3e0692f46f836ac91f1d996ffe1e) after offline queue/workflow-test baseline repair.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
   "current_live_attempt_state": "accepted retained canary: settled Resource list → exact 1K Food Use → owned 129679→129678 → HOME_CANONICAL in 3 inputs; no input used for the static-UTC correction",
   "current_evidence_or_session_reference": ".local-captures/development-sessions/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260820T212159603189Z",
-  "last_safe_completed_step": "Offline candidate closes Resource claims with terminal reconciliation and binds production identity to validated static UTC product authority; no live input was used.",
-  "exact_next_permitted_action": "Stop. Do not run another Resource canary or start Stage 3 without explicit selection.",
+  "last_safe_completed_step": "Repaired the flow-delivery architecture baseline and passed all 92 architecture tests without runtime input.",
+  "exact_next_permitted_action": "Stop. Stage 3 control-primitives work requires explicit activation as a new task; do not run another Resource canary.",
   "current_blocker": null,
   "prohibited_repeated_action": "Do not use another 1K Food in the retained reset, enable registration/scheduling, or push unless the user asks.",
   "control_owner": "sol_parent",
@@ -44,7 +44,7 @@
 # Current handoff
 
 Runtime Reliability Stage 2, Resource Effect Authority Integration, is complete
-in the `resource-authority-closure-r12` branch candidate. The production path
+in commit `dde9b1c`. The production path
 now loads the checked-in typed product authority and derives Resource identity
 from the fixed BlueStacks slot plus the exact `00:00 UTC` / `86400`-second
 product rule. It has no Quest navigation, Daily timer OCR, or prior
@@ -75,11 +75,14 @@ historical claim row's literal durable state column remains `ACTIVE`; its
 non-authorizing. It was not rewritten by this candidate. No extra live canary
 was run.
 Registration remains `NOT_REGISTERED`, scheduler eligibility remains disabled,
-and Stage 3 is not started. The Stage 2 closure is the commit containing this
-handoff on branch `feature/runtime-reliability-convergence`; its parent is
+and Stage 3 is not started. The Stage 2 closure is commit `dde9b1c` on branch
+`feature/runtime-reliability-convergence`; its parent is
 `8c73b932dc09ca4569f6e1082b3680ead876c18c`.
 
-Final focused validation passed 65 tests. The architecture profile still has
-the same 21 errors and 4 failures reproduced at the unchanged parent commit;
-they are recorded as pre-existing queue/workflow-test baseline failures in
-`docs/runtime-reliability-convergence-status.md`, not as a passing gate.
+Final focused Resource validation passed 65 tests. The offline baseline repair
+normalized the Resource queue record and current workflow assertions; the
+architecture profile now passes all 92 tests with receipt digest
+`102bac590580861dba3fe972e1217fec7c6e3e0692f46f836ac91f1d996ffe1e`.
+The next execution-stage task is Stage 3 control primitives, corresponding to
+“Shared control primitives through offline replay” (Stage 5 in the expanded
+umbrella plan). It remains awaiting explicit selection.

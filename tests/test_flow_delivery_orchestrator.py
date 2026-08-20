@@ -236,6 +236,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "GATHERING-BLUESTACKS-INTEGRATION",
             "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
             "ZOMBIE-LAIR-HOME-MAINTENANCE",
+            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
         ]
         self.assertEqual([item["flow_id"] for item in self.queue["flows"]], expected)
         counts = {
@@ -245,7 +246,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         self.assertIn(counts["active"], (0, 1))
         self.assertEqual(counts["ready"] + counts["active"], 0)
         self.assertEqual(counts["blocked"], 7)
-        self.assertEqual(counts["completed"], 18)
+        self.assertEqual(counts["completed"], 19)
         self.assertEqual(counts["needs_product_decision"], 0)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
@@ -602,7 +603,9 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
             .strip()
         )
         self.assertIn(state["current_task_id"], handoff)
-        self.assertIn(state["first_ready_flow"], handoff)
+        self.assertIn(state["next_task_id"], handoff)
+        self.assertEqual(state["next_task_activation_status"], "awaiting_explicit_selection")
+        self.assertEqual(state["active_task_or_flow"], "none")
         self.assertNotIn("actions_already_performed", handoff)
         # Historical Ruins/troop handoff ledgers live in Git history, not the compact volatile handoff.
 

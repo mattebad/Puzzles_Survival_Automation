@@ -4129,6 +4129,7 @@
       "live_attempt_count": 1,
       "live_attempts": [
         {
+          "ordinal": 1,
           "session_directory": ".local-captures/development-sessions/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z",
           "status": "completed",
           "input_count": 3,
@@ -4138,10 +4139,10 @@
         }
       ],
       "focused_tests": [
-        "tests.test_daily_resource_item_bluestacks",
-        "tests.test_flow_delivery_daily_resource_item_bluestacks",
-        "tests.test_gameplay_flow_contracts",
-        "tests.test_flow_delivery_validation_profiles"
+        "tests/test_daily_resource_item_bluestacks.py",
+        "tests/test_flow_delivery_daily_resource_item_bluestacks.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_flow_delivery_validation_profiles.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -4150,7 +4151,7 @@
       ],
       "blocked_reason": "",
       "next_concrete_action": "Do not start daily-milestone-claim until explicitly selected. daily-resource-item live acceptance is complete; registration remains NOT_REGISTERED.",
-      "last_completed_stage": "live_accepted_home_bag_use_home",
+      "last_completed_stage": "completed",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
       "acceptance_criteria": [
