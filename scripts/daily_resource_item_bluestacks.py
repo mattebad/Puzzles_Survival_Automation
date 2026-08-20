@@ -1932,6 +1932,7 @@ def _swipe_list_action(
                 "resource-list swipe source is not current-frame bound"
             )
         holder["before_signature"] = binding.signature
+        holder["swipe_dispatched"] = True
         _fresh(before, runtime)
         runtime.swipe(
             before,
@@ -1943,13 +1944,23 @@ def _swipe_list_action(
 
     def recognize(after: CapturedNativeFrame) -> str:
         nonlocal after_frame, after_recognition
-        after_frame = after
         if holder.get("already_ready") is True:
+            after_frame = after
             after_recognition = holder.get("item")
             return "RESOURCES_LIST_PROGRESS"
         resources = recognize_resources_screen(after.frame, ocr=ocr)
         signature = resource_list_content_signature(after.frame, ocr=ocr)
         item = recognize_food_item_in_resources(after.frame, ocr=ocr)
+        if holder.get("swipe_dispatched") is True and holder.get("immediate_post_seen") is not True:
+            # A swipe's immediate post-frame can be mid-animation or elastic
+            # overscroll. Retain it as diagnostic evidence, but force
+            # DevelopmentSession to capture and judge the settled successor.
+            holder["immediate_post_seen"] = True
+            holder["immediate_post_frame"] = after
+            holder["immediate_post_signature"] = signature
+            holder["immediate_post_item"] = item
+            return "UNKNOWN"
+        after_frame = after
         holder.update(
             {
                 "resources": resources,
@@ -2169,8 +2180,11 @@ def _run_route(
             )
             if before is not None:
                 frames[f"scroll-{ordinal:02d}-immediate-before"] = before
+            immediate_post = holder.get("immediate_post_frame")
+            if isinstance(immediate_post, CapturedNativeFrame):
+                frames[f"scroll-{ordinal:02d}-immediate-post"] = immediate_post
             if after is not None:
-                frames[f"scroll-{ordinal:02d}-immediate-post"] = after
+                frames[f"scroll-{ordinal:02d}-settled"] = after
             after_signature = holder.get("signature")
             effective_before_signature = holder.get("before_signature")
             recognitions[f"scroll-{ordinal:02d}"] = {
@@ -2185,6 +2199,8 @@ def _run_route(
                 "use_rois": binding.use_rois,
                 "bulk_rois": binding.bulk_rois,
                 "item": _record(item_after),
+                "immediate_post_item": _record(holder.get("immediate_post_item")),
+                "immediate_post_signature": holder.get("immediate_post_signature"),
                 "already_ready": holder.get("already_ready") is True,
             }
             if holder.get("already_ready") is True:

@@ -3668,6 +3668,17 @@ class ResourceEffectAuthority:
                        WHERE reservation_id=?""",
                     (reservation_id,),
                 )
+                if existing is None:
+                    raise ResourceIntegrityError(
+                        "terminal Resource reservation has no immutable live effect"
+                    )
+                self._terminalize_linked_action(
+                    db,
+                    reservation=current,
+                    effect_state=str(existing["effect_state"]),
+                    evidence=evidence,
+                    now=now,
+                )
                 return existing or current
             revision = int(current["state_revision"])
             if prior != "RECONCILING":
@@ -3720,6 +3731,13 @@ class ResourceEffectAuthority:
                     state_revision=revision + 1,
                     recorded_at=now,
                     payload={"observe_only": True, "unknown": True},
+                )
+                self._terminalize_linked_action(
+                    db,
+                    reservation=current,
+                    effect_state="UNRESOLVED",
+                    evidence=evidence,
+                    now=now,
                 )
                 return _row(
                     db,
@@ -3788,11 +3806,91 @@ class ResourceEffectAuthority:
                 now=now,
                 reason="observe_only_effect_reconciled",
             )
+            self._terminalize_linked_action(
+                db,
+                reservation=current,
+                effect_state=state,
+                evidence=evidence,
+                now=now,
+            )
             return _row(
                 db,
                 "SELECT * FROM resource_reservations WHERE reservation_id=?",
                 (reservation_id,),
             ) or {}
+
+    def _terminalize_linked_action(
+        self,
+        db: sqlite3.Connection,
+        *,
+        reservation: Mapping[str, Any],
+        effect_state: str,
+        evidence: Mapping[str, Any],
+        now: float,
+    ) -> None:
+        """Close the generic action in the same transaction as Resource reconciliation."""
+
+        normalized = str(effect_state).upper()
+        target = {
+            "CONFIRMED": ("confirmed", "positive_postcondition"),
+            "NO_EFFECT": ("cancelled", "proven_no_effect_resource_reconciliation"),
+            "UNRESOLVED": ("unresolved", "ambiguous_resource_effect"),
+        }.get(normalized)
+        if target is None:
+            raise ResourceIntegrityError("linked action effect state is invalid")
+        target_status, reason = target
+        action = _row(
+            db,
+            "SELECT * FROM actions WHERE action_id=?",
+            (reservation["action_id"],),
+        )
+        if action is None:
+            raise ResourceIntegrityError("Resource reservation has no linked action")
+        prior = str(action["final_status"])
+        if prior == target_status:
+            return
+        permitted_prior = {
+            "confirmed": {"input_sent", "unresolved"},
+            "cancelled": {"input_sent", "unresolved"},
+            "unresolved": {"input_sent"},
+        }[target_status]
+        if prior not in permitted_prior:
+            raise ResourceIntegrityError(
+                "linked Resource action terminal state conflicts with effect reconciliation"
+            )
+        reconciliation = {
+            "confirmed": normalized == "CONFIRMED",
+            "effect_state": normalized,
+            "reservation_id": reservation["reservation_id"],
+            "occurrence_id": reservation["occurrence_id"],
+            "evidence_refs": tuple(evidence.get("evidence_refs", ())),
+        }
+        if normalized == "NO_EFFECT":
+            reconciliation["proven_no_effect"] = True
+        if db.execute(
+            """UPDATE actions
+               SET final_status=?,final_reason=?,reconciliation_result_json=?,updated_at=?
+               WHERE action_id=? AND final_status=?""",
+            (
+                target_status,
+                reason,
+                _json(reconciliation),
+                now,
+                reservation["action_id"],
+                prior,
+            ),
+        ).rowcount != 1:
+            raise ResourceFenceError("linked Resource action compare-and-swap failed")
+        self.store._insert_audit(
+            db,
+            action["task_id"],
+            "action_transition",
+            now,
+            {"reason": reason, "fields": reconciliation},
+            reservation["action_id"],
+            prior,
+            target_status,
+        )
 
     def terminal_observation(
         self,

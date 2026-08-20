@@ -562,6 +562,35 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                         (bundle.prepared.reservation_id,),
                     ).fetchone()[0]
                     self.assertEqual(reservation_state, "TRANSPORT_UNKNOWN")
+                    effect_evidence = {
+                        "effect_state": "EFFECT_CONFIRMED",
+                        "before_owned_quantity": 10,
+                        "after_owned_quantity": 9,
+                        "evidence_refs": ("test:confirmed-resource-effect",),
+                    }
+                    components["authority"].reconcile_resource_effect_observe_only(
+                        bundle.prepared.reservation_id,
+                        effect_evidence,
+                        now=time.monotonic(),
+                    )
+                    self.assertEqual(
+                        components["store"].get_action(bundle.prepared.action_id)[
+                            "final_status"
+                        ],
+                        "confirmed",
+                    )
+                    self.assertFalse(components["store"].has_action_block())
+                    components["authority"].reconcile_resource_effect_observe_only(
+                        bundle.prepared.reservation_id,
+                        effect_evidence,
+                        now=time.monotonic(),
+                    )
+                    self.assertEqual(
+                        components["store"].get_action(bundle.prepared.action_id)[
+                            "final_status"
+                        ],
+                        "confirmed",
+                    )
                     self.assertIsNotNone(
                         components["store"].connection.execute(
                             "SELECT 1 FROM resource_occurrences"
