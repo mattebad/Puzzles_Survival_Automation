@@ -1,9 +1,9 @@
 """Pure runtime identity assurance and preflight policy.
 
-Configuration names the expected scope; it never proves the observed account, server, or reset.
-Supervised navigation binding, production-observed identity, and the Resource-specific fixed
-runtime binding plus observed reset are distinct fail-closed assurances.  This module performs no
-capture, transport, persistence, or account-screen automation.
+Configuration names the expected scope; it never proves an observed account, server, or reset.
+Resource identity is derived from the fixed local runtime binding and the product's static UTC
+midnight reset rule.  This module performs no capture, transport, persistence, or account-screen
+automation.
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ EXPECTED_NATIVE_SIZE = (800, 1280)
 FIXED_RUNTIME_SCOPE = "local-bluestacks-primary-login-slot-v1"
 FIXED_RUNTIME_BINDING_VERSION = "v1"
 FIXED_RUNTIME_BINDING_KIND = "fixed_runtime_slot_binding"
-FIXED_RUNTIME_IDENTITY_SEMANTICS = "fixed_runtime_binding_plus_observed_daily_reset"
-RESOURCE_IDENTITY_MIN_RESET_REMAINING_SECONDS = 1.0
+FIXED_RUNTIME_IDENTITY_SEMANTICS = "fixed_runtime_binding_plus_static_utc_reset"
+RESOURCE_IDENTITY_AUTHORIZATION_FRESHNESS_SECONDS = 600.0
 
 
 class RuntimeIdentityAssurance(str, Enum):
@@ -30,6 +30,7 @@ class RuntimeIdentityAssurance(str, Enum):
     SUPERVISED_NAVIGATION_BINDING = "supervised_navigation_binding"
     PRODUCTION_OBSERVED = "production_observed"
     FIXED_RUNTIME_BINDING_RESET_OBSERVED = "fixed_runtime_binding_reset_observed"
+    FIXED_RUNTIME_BINDING_STATIC_UTC_RESET = "fixed_runtime_binding_static_utc_reset"
 
 
 @dataclass(frozen=True)
@@ -188,6 +189,8 @@ class VerifiedRuntimeIdentity:
     observed_utc: Optional[str] = None
     expires_utc: Optional[str] = None
     runtime_binding_digest: Optional[str] = None
+    reset_start_utc: Optional[str] = None
+    reset_deadline_utc: Optional[str] = None
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -204,21 +207,19 @@ class VerifiedRuntimeIdentity:
         if self.assurance in {
             RuntimeIdentityAssurance.PRODUCTION_OBSERVED,
             RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED,
+            RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET,
         } and (not isinstance(self.reset_id, str) or not self.reset_id.strip()):
             raise ValueError("observed identity requires reset_id")
-        if self.assurance is RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED:
+        if self.assurance in {
+            RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED,
+            RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET,
+        }:
             if (
                 not isinstance(self.runtime_binding_digest, str)
                 or len(self.runtime_binding_digest) != 64
                 or any(ch not in "0123456789abcdef" for ch in self.runtime_binding_digest)
             ):
                 raise ValueError("fixed runtime binding identity requires a SHA-256 digest")
-            if (
-                not isinstance(self.content_digest, str)
-                or len(self.content_digest) != 64
-                or any(ch not in "0123456789abcdef" for ch in self.content_digest)
-            ):
-                raise ValueError("fixed runtime binding identity requires evidence digest")
             if not isinstance(self.observed_utc, str) or not isinstance(self.expires_utc, str):
                 raise ValueError("fixed runtime binding identity requires freshness timestamps")
             try:
@@ -228,6 +229,27 @@ class VerifiedRuntimeIdentity:
                 raise ValueError("fixed runtime binding identity timestamps are invalid") from exc
             if expires <= observed:
                 raise ValueError("fixed runtime binding identity expires before its observation")
+            if self.assurance is RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET:
+                if (
+                    not isinstance(self.reset_start_utc, str)
+                    or not isinstance(self.reset_deadline_utc, str)
+                ):
+                    raise ValueError("static UTC identity requires reset bounds")
+                try:
+                    reset_start = _identity_utc(self.reset_start_utc)
+                    reset_deadline = _identity_utc(self.reset_deadline_utc)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("static UTC identity reset bounds are invalid") from exc
+                if (
+                    reset_start.hour != 0
+                    or reset_start.minute != 0
+                    or reset_start.second != 0
+                    or reset_start.microsecond != 0
+                    or reset_deadline != reset_start + timedelta(days=1)
+                    or self.reset_id
+                    != f"reset-deadline:{reset_deadline.isoformat().replace('+00:00', 'Z')}"
+                ):
+                    raise ValueError("static UTC identity reset bounds are not a UTC midnight window")
 
     @property
     def permits_supervised_navigation(self) -> bool:
@@ -235,6 +257,7 @@ class VerifiedRuntimeIdentity:
             RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
             RuntimeIdentityAssurance.PRODUCTION_OBSERVED,
             RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED,
+            RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET,
         }
 
     @property
@@ -244,14 +267,14 @@ class VerifiedRuntimeIdentity:
                 isinstance(self.reset_id, str)
                 and bool(self.reset_id.strip())
             )
-        if self.assurance is not RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED:
+        if self.assurance not in {
+            RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED,
+            RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET,
+        }:
             return False
         if (
             not isinstance(self.reset_id, str)
             or not self.reset_id.strip()
-            or not isinstance(self.content_digest, str)
-            or len(self.content_digest) != 64
-            or any(ch not in "0123456789abcdef" for ch in self.content_digest)
             or not isinstance(self.runtime_binding_digest, str)
             or len(self.runtime_binding_digest) != 64
             or any(ch not in "0123456789abcdef" for ch in self.runtime_binding_digest)
@@ -261,7 +284,20 @@ class VerifiedRuntimeIdentity:
         ):
             return False
         try:
-            return _identity_utc(self.expires_utc) > _identity_utc(self.observed_utc)
+            expires = _identity_utc(self.expires_utc)
+            observed = _identity_utc(self.observed_utc)
+            if self.assurance is RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET:
+                if not isinstance(self.reset_start_utc, str) or not isinstance(
+                    self.reset_deadline_utc, str
+                ):
+                    return False
+                return (
+                    expires > observed
+                    and _identity_utc(self.reset_deadline_utc)
+                    > _identity_utc(self.reset_start_utc)
+                    and _identity_utc(self.reset_deadline_utc) >= expires
+                )
+            return expires > observed
         except (TypeError, ValueError):
             return False
 
@@ -310,10 +346,13 @@ def verify_runtime_identity(
             "supervised_navigation_identity_verified",
         )
 
-    if required_assurance is RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED:
+    if required_assurance in {
+        RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED,
+        RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET,
+    }:
         return IdentityVerificationResult(
             None,
-            "fixed_runtime_binding_requires_resource_producer",
+            "fixed_runtime_binding_requires_resource_identity_derivation",
         )
 
     if not observation.machine_observed:
@@ -336,77 +375,56 @@ def verify_runtime_identity(
 
 
 @dataclass(frozen=True)
-class ResourceIdentityEvidence:
-    """Fixed runtime-slot binding plus machine-observed selected-Daily reset evidence."""
+class ResourceResetWindow:
+    """The product-defined reset window selected from one UTC wall-clock sample."""
 
-    account_id: str
-    server_id: str
-    reset_id: str
-    evidence_refs: tuple[str, ...]
-    observed_utc: str
-    expires_utc: str
-    content_digest: str
-    runtime_scope: str
-    runtime_binding_digest: str
-    identity_semantics: str = FIXED_RUNTIME_IDENTITY_SEMANTICS
-    assurance: str = RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED.value
-    machine_observed: bool = True
-    operator_bound: bool = False
+    evaluated_utc: datetime
+    reset_start_utc: datetime
+    reset_deadline_utc: datetime
+    reset_identity_id: str
 
     def __post_init__(self) -> None:
-        for name in (
-            "account_id",
-            "server_id",
-            "reset_id",
-            "observed_utc",
-            "expires_utc",
-            "content_digest",
-            "runtime_scope",
-            "runtime_binding_digest",
-            "identity_semantics",
-            "assurance",
-        ):
+        for name in ("evaluated_utc", "reset_start_utc", "reset_deadline_utc"):
             value = getattr(self, name)
-            if not isinstance(value, str) or not value.strip() or value != value.strip():
-                raise ValueError(f"{name} must be a normalized non-empty string")
-        if self.identity_semantics != FIXED_RUNTIME_IDENTITY_SEMANTICS:
-            raise ValueError("Resource identity evidence semantics are not fixed-slot binding plus reset")
-        if self.assurance != RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED.value:
-            raise ValueError("Resource identity evidence assurance is not fixed-slot binding plus reset")
-        for name in ("content_digest", "runtime_binding_digest"):
-            value = getattr(self, name)
-            if len(value) != 64 or any(ch not in "0123456789abcdef" for ch in value):
-                raise ValueError(f"{name} must be a lowercase SHA-256 digest")
-        if not self.evidence_refs or any(
-            not isinstance(item, str) or not item.strip() for item in self.evidence_refs
+            if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+                raise ValueError(f"{name} must be timezone-aware")
+            object.__setattr__(self, name, value.astimezone(timezone.utc))
+        if (
+            self.reset_start_utc.hour != 0
+            or self.reset_start_utc.minute != 0
+            or self.reset_start_utc.second != 0
+            or self.reset_start_utc.microsecond != 0
+            or self.reset_deadline_utc != self.reset_start_utc + timedelta(days=1)
+            or self.evaluated_utc < self.reset_start_utc
+            or self.evaluated_utc >= self.reset_deadline_utc
+            or self.reset_identity_id
+            != f"reset-deadline:{self.reset_deadline_utc.isoformat().replace('+00:00', 'Z')}"
         ):
-            raise ValueError("Resource identity evidence requires references")
-        if self.machine_observed is not True or self.operator_bound is not False:
-            raise ValueError("Resource identity evidence must be machine-observed and not operator-only")
-
-    def as_dict(self) -> dict[str, object]:
-        return {
-            "account_id": self.account_id,
-            "server_id": self.server_id,
-            "reset_id": self.reset_id,
-            "evidence_refs": self.evidence_refs,
-            "observed_utc": self.observed_utc,
-            "expires_utc": self.expires_utc,
-            "machine_observed": self.machine_observed,
-            "operator_bound": self.operator_bound,
-            "runtime_scope": self.runtime_scope,
-            "runtime_binding_digest": self.runtime_binding_digest,
-            "identity_semantics": self.identity_semantics,
-            "assurance": self.assurance,
-        }
-
-    def computed_digest(self) -> str:
-        encoded = json.dumps(self.as_dict(), sort_keys=True, separators=(",", ":")).encode("utf-8")
-        return hashlib.sha256(encoded).hexdigest()
+            raise ValueError("Resource reset window is not an exact UTC midnight interval")
 
     @property
-    def reset_identity_id(self) -> str:
-        return self.reset_id
+    def reset_start_text(self) -> str:
+        return self.reset_start_utc.isoformat().replace("+00:00", "Z")
+
+    @property
+    def current_utc(self) -> datetime:
+        return self.evaluated_utc
+
+    @property
+    def reset_id(self) -> str:
+        return self.reset_identity_id
+
+    @property
+    def reset_deadline_text(self) -> str:
+        return self.reset_deadline_utc.isoformat().replace("+00:00", "Z")
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "evaluated_utc": self.evaluated_utc.isoformat().replace("+00:00", "Z"),
+            "reset_start_utc": self.reset_start_text,
+            "reset_deadline_utc": self.reset_deadline_text,
+            "reset_identity_id": self.reset_identity_id,
+        }
 
 
 def _identity_utc(value: datetime | str) -> datetime:
@@ -416,142 +434,74 @@ def _identity_utc(value: datetime | str) -> datetime:
         result = datetime.fromisoformat(value.replace("Z", "+00:00"))
     else:
         raise ValueError("identity UTC value must be datetime or ISO string")
-    if result.tzinfo is None:
-        result = result.replace(tzinfo=timezone.utc)
+    if result.tzinfo is None or result.utcoffset() is None:
+        raise ValueError("identity UTC value must be timezone-aware")
     return result.astimezone(timezone.utc)
 
 
-def produce_resource_runtime_identity(
-    configuration: RuntimeIdentityConfiguration,
-    evidence: ResourceIdentityEvidence,
-    current_reset_deadline_evidence: dict[str, object],
-    evaluated_utc: datetime | str,
-    expected_binding: FixedRuntimeBinding | None = None,
-) -> VerifiedRuntimeIdentity:
-    """Produce one fresh fixed-slot identity with a machine-observed Daily reset."""
+def derive_static_utc_reset(evaluated_utc: datetime | str) -> ResourceResetWindow:
+    """Select the active daily reset using a timezone-aware UTC wall-clock sample."""
 
-    if not isinstance(configuration, RuntimeIdentityConfiguration):
-        raise ValueError("Resource identity configuration is required")
-    if not isinstance(evidence, ResourceIdentityEvidence):
-        raise ValueError("Resource identity evidence is required")
+    evaluated = _identity_utc(evaluated_utc)
+    reset_start = evaluated.replace(hour=0, minute=0, second=0, microsecond=0)
+    reset_deadline = reset_start + timedelta(days=1)
+    deadline_text = reset_deadline.isoformat().replace("+00:00", "Z")
+    return ResourceResetWindow(
+        evaluated_utc=evaluated,
+        reset_start_utc=reset_start,
+        reset_deadline_utc=reset_deadline,
+        reset_identity_id=f"reset-deadline:{deadline_text}",
+    )
+
+
+def derive_resource_runtime_identity(
+    expected_binding: FixedRuntimeBinding,
+    evaluated_utc: datetime | str,
+    *,
+    authorization_freshness_seconds: float = RESOURCE_IDENTITY_AUTHORIZATION_FRESHNESS_SECONDS,
+    evidence_refs: tuple[str, ...] = (),
+) -> VerifiedRuntimeIdentity:
+    """Derive Resource authority from fixed-slot binding and static UTC reset policy."""
+
     if not isinstance(expected_binding, FixedRuntimeBinding):
         raise ValueError("Resource expected fixed runtime binding is required")
-    if not isinstance(current_reset_deadline_evidence, dict):
-        raise ValueError("current machine-observed Daily reset deadline evidence is required")
     if (
-        configuration.runtime_scope != expected_binding.runtime_scope
-        or configuration.account_id != expected_binding.account_id
-        or configuration.server_id != expected_binding.server_id
+        type(authorization_freshness_seconds) not in {int, float}
+        or float(authorization_freshness_seconds) <= 0.0
     ):
-        raise ValueError("Resource configuration does not match the fixed runtime binding")
-    if (
-        evidence.runtime_scope != expected_binding.runtime_scope
-        or evidence.runtime_binding_digest != expected_binding.binding_digest
-        or evidence.account_id != expected_binding.account_id
-        or evidence.server_id != expected_binding.server_id
-    ):
-        raise ValueError("Resource evidence does not match the fixed runtime binding")
-    if evidence.computed_digest() != evidence.content_digest:
-        raise ValueError("Resource identity evidence digest mismatch")
-    if current_reset_deadline_evidence.get("machine_observed") is not True:
-        raise ValueError("current Daily reset evidence is not machine-observed")
-    daily_frame = current_reset_deadline_evidence.get("daily_frame")
-    if not isinstance(daily_frame, dict):
-        raise ValueError("current Daily reset evidence is not hash-bound to a frame")
-    frame_path = daily_frame.get("path")
-    frame_digest = daily_frame.get("sha256")
-    frame_captured = daily_frame.get("captured_utc")
-    frame_observed = daily_frame.get("observed_utc")
-    if (
-        not isinstance(frame_path, str)
-        or not frame_path.strip()
-        or not isinstance(frame_digest, str)
-        or len(frame_digest) != 64
-        or any(ch not in "0123456789abcdef" for ch in frame_digest)
-        or not isinstance(frame_captured, str)
-        or not isinstance(frame_observed, str)
-    ):
-        raise ValueError("current Daily reset frame provenance is missing")
-    try:
-        frame_captured_utc = _identity_utc(frame_captured)
-        frame_observed_utc = _identity_utc(frame_observed)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("current Daily reset frame provenance timestamps are invalid") from exc
-    if frame_captured_utc > frame_observed_utc:
-        raise ValueError("current Daily reset frame observation precedes capture")
-    normalized_deadline = current_reset_deadline_evidence.get(
-        "normalized_deadline_utc",
-        current_reset_deadline_evidence.get("reset_deadline_utc"),
+        raise ValueError("Resource authorization freshness must be positive")
+    window = derive_static_utc_reset(evaluated_utc)
+    expires = min(
+        window.evaluated_utc + timedelta(seconds=float(authorization_freshness_seconds)),
+        window.reset_deadline_utc,
     )
-    if not isinstance(normalized_deadline, str) or not normalized_deadline.strip():
-        raise ValueError("current Daily reset deadline is missing")
-    try:
-        deadline_utc = _identity_utc(normalized_deadline)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("current Daily reset deadline is invalid") from exc
-    canonical_deadline = deadline_utc.isoformat().replace("+00:00", "Z")
-    if normalized_deadline != canonical_deadline:
-        raise ValueError("current Daily reset deadline is not an exact UTC timestamp")
-    deadline_identity = current_reset_deadline_evidence.get(
-        "deadline_identity",
-        current_reset_deadline_evidence.get("reset_deadline_identity"),
+    refs = tuple(evidence_refs) or (
+        "identity-source:fixed-runtime-binding",
+        "identity-source:static-utc-midnight-reset",
     )
-    if not isinstance(deadline_identity, str) or not deadline_identity.strip():
-        raise ValueError("current machine-observed reset deadline identity is missing")
-    if deadline_identity != f"reset-deadline:{canonical_deadline}":
-        raise ValueError("current Daily reset deadline identity is not deadline-bound")
-    timer_seconds = current_reset_deadline_evidence.get("reset_timer_seconds")
-    if (
-        type(timer_seconds) is not int
-        or timer_seconds <= 0
-        or deadline_utc != frame_observed_utc + timedelta(seconds=timer_seconds)
-    ):
-        raise ValueError("current Daily reset deadline is not timer-derived")
-    if (
-        deadline_utc - frame_observed_utc
-    ).total_seconds() <= RESOURCE_IDENTITY_MIN_RESET_REMAINING_SECONDS:
-        raise ValueError("current Daily reset deadline is expired or too close to observation")
-    if current_reset_deadline_evidence.get("recurrence_class") != "daily_reset":
-        raise ValueError("current Daily reset evidence is not a daily reset")
-    current_observed = current_reset_deadline_evidence.get(
-        "observed_utc",
-        current_reset_deadline_evidence.get("reset_observed_utc"),
-    )
-    if not isinstance(current_observed, str) or current_observed != frame_observed:
-        raise ValueError("current Daily reset evidence is not frame-bound")
-    if evidence.reset_id != deadline_identity:
-        raise ValueError("Resource reset identity does not match current Daily deadline evidence")
-    if configuration.reset_id is None:
-        raise ValueError("Resource configuration reset identity is unbound")
-    if configuration.reset_id != evidence.reset_id:
-        raise ValueError("Resource reset identity does not match configuration")
-    observed = _identity_utc(evidence.observed_utc)
-    expires = _identity_utc(evidence.expires_utc)
-    evaluated = _identity_utc(evaluated_utc)
-    if evaluated >= deadline_utc:
-        raise ValueError("Resource identity was evaluated at or after the reset deadline")
-    if expires <= observed or evaluated < observed or evaluated > expires:
-        raise ValueError("Resource identity evidence is stale or outside its validity window")
-    try:
-        deadline_observed_utc = _identity_utc(current_observed)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("current reset observation timestamp is invalid") from exc
-    if frame_observed_utc != deadline_observed_utc:
-        raise ValueError("current Daily reset frame is not bound to reset observation")
-    if evaluated < deadline_observed_utc:
-        raise ValueError("Resource identity was evaluated before current reset observation")
+    if any(not isinstance(ref, str) or not ref.strip() for ref in refs):
+        raise ValueError("Resource identity evidence references must be non-empty strings")
     return VerifiedRuntimeIdentity(
-        expected_binding.runtime_scope,
-        expected_binding.account_id,
-        expected_binding.server_id,
-        evidence.reset_id,
-        RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED,
-        evidence.evidence_refs,
-        evidence.content_digest,
-        evidence.observed_utc,
-        evidence.expires_utc,
-        expected_binding.binding_digest,
+        runtime_scope=expected_binding.runtime_scope,
+        account_id=expected_binding.account_id,
+        server_id=expected_binding.server_id,
+        reset_id=window.reset_identity_id,
+        assurance=RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET,
+        evidence_refs=refs,
+        observed_utc=window.evaluated_utc.isoformat().replace("+00:00", "Z"),
+        expires_utc=expires.isoformat().replace("+00:00", "Z"),
+        runtime_binding_digest=expected_binding.binding_digest,
+        reset_start_utc=window.reset_start_text,
+        reset_deadline_utc=window.reset_deadline_text,
     )
+
+
+# Explicit aliases keep the policy vocabulary discoverable to callers without reintroducing a
+# receipt or screen-observation producer.
+derive_static_utc_reset_identity = derive_static_utc_reset
+derive_resource_reset_window = derive_static_utc_reset
+derive_resource_reset_identity = derive_static_utc_reset
+produce_resource_runtime_identity = derive_resource_runtime_identity
 
 
 @dataclass(frozen=True)

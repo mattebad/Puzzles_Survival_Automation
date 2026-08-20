@@ -38,37 +38,37 @@ MAX_INPUTS = ROUTE_MAX_ROUTE_INPUTS
 MAX_RESOURCE_LIST_SWIPES = ROUTE_MAX_RESOURCE_LIST_SWIPES
 ITEM_USE_ACTION_KEY = "daily-resource-item:use-1k-food"
 MAX_ITEM_USE_TRANSPORT_CALLS = 1
-RESOURCE_DISPATCH_SAFETY_MARGIN_SECONDS = 2.0
+RESOURCE_AUTHORIZATION_SAFETY_MARGIN_SECONDS = 2.0
 
 
-class ResourceDispatchWindowError(RuntimeError):
-    """The current wall clock is outside the exact Resource dispatch window."""
+class ResourceAuthorizationWindowError(RuntimeError):
+    """The current wall clock is outside the exact Resource authorization window."""
 
 
 def _normalize_resource_wall_clock(value: datetime) -> datetime:
     if not isinstance(value, datetime):
-        raise ResourceDispatchWindowError(
-            "Resource dispatch wall clock must return a datetime"
+        raise ResourceAuthorizationWindowError(
+            "Resource authorization wall clock must return a datetime"
         )
     if value.tzinfo is None or value.utcoffset() is None:
-        raise ResourceDispatchWindowError(
-            "Resource dispatch wall clock must be timezone-aware UTC"
+        raise ResourceAuthorizationWindowError(
+            "Resource authorization wall clock must be timezone-aware UTC"
         )
     try:
         return value.astimezone(timezone.utc)
     except (TypeError, ValueError, OverflowError) as exc:
-        raise ResourceDispatchWindowError(
-            "Resource dispatch wall clock must be timezone-aware UTC"
+        raise ResourceAuthorizationWindowError(
+            "Resource authorization wall clock must be timezone-aware UTC"
         ) from exc
 
 
 @dataclass(frozen=True)
-class ResourceDispatchWindow:
-    """Immutable receipt/reset bounds carried to the exact Resource Use seam."""
+class ResourceAuthorizationWindow:
+    """Immutable authorization/reset bounds carried to the exact Resource Use seam."""
 
     reset_deadline_utc: datetime
-    receipt_expires_utc: datetime
-    safety_margin_seconds: float = RESOURCE_DISPATCH_SAFETY_MARGIN_SECONDS
+    authorization_expires_utc: datetime
+    safety_margin_seconds: float = RESOURCE_AUTHORIZATION_SAFETY_MARGIN_SECONDS
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -78,20 +78,18 @@ class ResourceDispatchWindow:
         )
         object.__setattr__(
             self,
-            "receipt_expires_utc",
-            _normalize_resource_wall_clock(self.receipt_expires_utc),
+            "authorization_expires_utc",
+            _normalize_resource_wall_clock(self.authorization_expires_utc),
         )
         if (
             type(self.safety_margin_seconds) not in {int, float}
             or not float(self.safety_margin_seconds) > 0.0
         ):
-            raise ValueError("Resource dispatch safety margin must be positive")
+            raise ValueError("Resource authorization safety margin must be positive")
 
     @property
-    def receipt_expiry_utc(self) -> datetime:
-        """Compatibility alias using the receipt's expiry terminology."""
-
-        return self.receipt_expires_utc
+    def authorization_expiry_utc(self) -> datetime:
+        return self.authorization_expires_utc
 
     @property
     def safety_margin(self) -> timedelta:
@@ -107,16 +105,16 @@ class ResourceDispatchWindow:
         return _normalize_resource_wall_clock(value)
 
     def require_current(self, current_utc: datetime) -> datetime:
-        """Require strict margin before both receipt and reset bounds."""
+        """Require strict margin before both authorization and reset bounds."""
 
         current = _normalize_resource_wall_clock(current_utc)
         if (
             current + self.safety_margin >= self.reset_deadline_utc
-            or current + self.safety_margin >= self.receipt_expires_utc
+            or current + self.safety_margin >= self.authorization_expires_utc
         ):
-            raise ResourceDispatchWindowError(
-                "Resource dispatch denied: current UTC is at or inside the "
-                "receipt/reset safety margin"
+            raise ResourceAuthorizationWindowError(
+                "Resource authorization denied: current UTC is at or inside the "
+                "authorization/reset safety margin"
             )
         return current
 
@@ -137,7 +135,7 @@ class AuthorizedResourceItemRuntime:
         request: Any | None = None,
         prepare: Any | None = None,
         now: float | Callable[[], float] = 0.0,
-        dispatch_window: ResourceDispatchWindow | None = None,
+        authorization_window: ResourceAuthorizationWindow | None = None,
         wall_clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._inner = inner
@@ -150,7 +148,7 @@ class AuthorizedResourceItemRuntime:
         self._request = request
         self._prepare = prepare
         self._now = now
-        self._dispatch_window = dispatch_window
+        self._authorization_window = authorization_window
         self._wall_clock = wall_clock
         self._preparation_used = False
 
@@ -232,12 +230,12 @@ class AuthorizedResourceItemRuntime:
             request_value = bundle.request
             capability_value = bundle.capability
             self._prepared = prepared_effect
-        if prepared_effect is None and self._dispatch_window is not None:
+        if prepared_effect is None and self._authorization_window is not None:
             try:
-                self._dispatch_window.require_current(
-                    ResourceDispatchWindow.sample_current_utc(self._wall_clock)
+                self._authorization_window.require_current(
+                    ResourceAuthorizationWindow.sample_current_utc(self._wall_clock)
                 )
-            except ResourceDispatchWindowError as exc:
+            except ResourceAuthorizationWindowError as exc:
                 raise RuntimeError(str(exc)) from exc
         if (
             authority is None
@@ -265,27 +263,27 @@ class AuthorizedResourceItemRuntime:
         if action_key != prepared_effect.action_key and action_key != ITEM_USE_ACTION_KEY:
             raise RuntimeError("Resource action key does not match prepared authority")
         dispatch_action_key = prepared_effect.action_key
-        if self._dispatch_window is None:
-            raise RuntimeError("Resource dispatch authorization window is required")
+        if self._authorization_window is None:
+            raise RuntimeError("Resource authorization window is required")
         effective_now = self._now if now is None else now
         if callable(effective_now):
             effective_now = effective_now()
         try:
-            self._dispatch_window.require_current(
-                ResourceDispatchWindow.sample_current_utc(self._wall_clock)
+            self._authorization_window.require_current(
+                ResourceAuthorizationWindow.sample_current_utc(self._wall_clock)
             )
-        except ResourceDispatchWindowError as exc:
+        except ResourceAuthorizationWindowError as exc:
             try:
                 authority.cancel_prepared_resource_effect(
                     prepared_effect,
                     controller_lease=controller_lease,
                     runtime_lock=runtime_lock,
-                    reason="reset_dispatch_window_expired",
+                    reason="resource_authorization_expired",
                     now=float(effective_now),
                 )
             except BaseException as cleanup_exc:
                 raise RuntimeError(
-                    "Resource dispatch denied and pre-intent cancellation failed"
+                    "Resource authorization denied and pre-intent cancellation failed"
                 ) from cleanup_exc
             raise RuntimeError(str(exc)) from exc
         return authority.dispatch_prepared_resource_item_use(

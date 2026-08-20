@@ -31,7 +31,6 @@ from scripts.bluestacks_adb_readiness import (  # noqa: E402
     ADBReadinessError,
     ensure_adb_ready,
 )
-from scripts.evidence_hygiene import sha256_stream  # noqa: E402
 
 PACKAGE = "com.global.ztmslg"
 NAVIGATION_ASSET_ROOT = "tasks/assets/navigation/800x1280"
@@ -43,14 +42,8 @@ BLUESTACKS_NATIVE_HEIGHT = 1280
 BLUESTACKS_ARTIFACT_ROOT = REPO_ROOT / ".local-captures" / "flow-delivery"
 DEVELOPMENT_SESSION_ROOT = REPO_ROOT / ".local-captures" / "development-sessions"
 RESOURCE_PRIMARY_LOGIN_SLOT_VERSION = "primary-login-slot-v1"
-RESOURCE_IDENTITY_RECEIPT_FILENAME = "resource-identity-receipt.json"
-RESOURCE_IDENTITY_RECEIPT_KIND = "resource_identity_observation"
-RESOURCE_IDENTITY_RECEIPT_VERSION = 2
-RESOURCE_IDENTITY_PRODUCER_KIND = "pnsctl-resource-identity-observation"
-RESOURCE_IDENTITY_PRODUCER_VERSION = "pnsctl-resource-identity-observation-v2"
-RESOURCE_IDENTITY_PRODUCER_OWNER = "pnsctl-resource-identity-observation"
-RESOURCE_IDENTITY_VALIDITY_SECONDS = 600
-RESOURCE_IDENTITY_RECURRENCE_SECONDS = 24 * 60 * 60
+RESOURCE_AUTHORIZATION_FRESHNESS_SECONDS = 600.0
+RESOURCE_RESET_INTERVAL_SECONDS = 24 * 60 * 60
 DEVELOPMENT_CHECKPOINT_PATHS = (
     REPO_ROOT / "BACKLOG.md",
     REPO_ROOT / "tasks" / "flow_delivery_queue.json",
@@ -2417,1070 +2410,178 @@ def _resource_identity_timestamp(value: object, label: str) -> datetime:
     return parsed
 
 
-def _resource_identity_receipt_digest(payload: Mapping[str, Any]) -> str:
-    unsigned = dict(payload)
-    unsigned.pop("receipt_digest", None)
-    encoded = json.dumps(
-        unsigned,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
-def _remove_resource_identity_receipt(path: Path) -> None:
+def _resource_wall_clock(
+    wall_clock: Callable[[], datetime] | None = None,
+) -> datetime:
+    value = datetime.now(timezone.utc) if wall_clock is None else wall_clock()
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+        raise OperatorError("Resource authorization wall clock must be timezone-aware UTC")
     try:
-        if path.is_symlink() or not path.exists():
-            return
-        path.unlink()
-    except OSError:
-        # A failed cleanup is still fail-closed because the consumer requires
-        # the observed summary and receipt to agree.
-        pass
+        return value.astimezone(timezone.utc)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise OperatorError("Resource authorization wall clock must be timezone-aware UTC") from exc
 
 
-def development_session_resource_identity_observe() -> str:
-    """Capture the fixed runtime binding and selected-Daily reset with zero input."""
+def _load_resource_daily_reset_authority() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load the checked-in product authority before deriving Resource reset bounds."""
 
-    import cv2
-    import numpy as np
-
-    from scripts import daily_row_claim_bluestacks as daily
-    from scripts.navigation_development_boundary import DevelopmentSession
-    from tasks.runtime_identity import (
-        ResourceIdentityEvidence,
-        RESOURCE_IDENTITY_MIN_RESET_REMAINING_SECONDS,
-        RuntimeIdentityConfiguration,
-        produce_resource_runtime_identity,
+    from tasks.product_authority import (
+        ProductAuthorityError,
+        get_daily_reset_policy,
+        load_product_authority,
     )
 
-    binding = _resource_fixed_runtime_binding()
-
-    invocation_id = (
-        f"resource-identity-observe-"
-        f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
-    )
-    session_directory = _development_session_directory(invocation_id)
-    receipt_path = session_directory / RESOURCE_IDENTITY_RECEIPT_FILENAME
-    checkpoint_before = _checkpoint_hashes()
-    result: dict[str, Any] = {
-        "status": "failed",
-        "operation": "resource-identity-observe",
-        "session_directory": str(session_directory),
-        "receipt_path": str(receipt_path),
-        "input_count": 0,
-        "action_count": 0,
-        "max_inputs": 0,
-        "dispatch": False,
-        "lifecycle_state_created": False,
-    }
-
     try:
-        with DevelopmentSession(
-            owner=RESOURCE_IDENTITY_PRODUCER_OWNER,
-            invocation_id=invocation_id,
-            session_directory=session_directory,
-            max_inputs=0,
-            allow_zero_inputs=True,
-        ) as session:
-            observation, frame = _development_runtime_observation()
-            if not isinstance(observation, Mapping):
-                raise OperatorError("Resource identity runtime observation is malformed")
-            if observation.get("device_state") != "device":
-                raise OperatorError("Resource identity runtime device state is not device")
-            if observation.get("foreground_package") != PACKAGE:
-                raise OperatorError(
-                    "Resource identity runtime package is not Puzzles & Survival"
-                )
-            if (
-                observation.get("native_width") != BLUESTACKS_NATIVE_WIDTH
-                or observation.get("native_height") != BLUESTACKS_NATIVE_HEIGHT
-            ):
-                raise OperatorError("Resource identity runtime is not native 800x1280")
-            if (
-                not isinstance(frame, bytes)
-                or frame[:8] != b"\x89PNG\r\n\x1a\n"
-                or len(frame) < 24
-            ):
-                raise OperatorError("Resource identity source frame is not a valid PNG")
-            width = int.from_bytes(frame[16:20], "big")
-            height = int.from_bytes(frame[20:24], "big")
-            if (width, height) != (
-                BLUESTACKS_NATIVE_WIDTH,
-                BLUESTACKS_NATIVE_HEIGHT,
-            ):
-                raise OperatorError("Resource identity source frame is not native 800x1280")
-            frame_digest = hashlib.sha256(frame).hexdigest()
-            if observation.get("frame_sha256") != frame_digest:
-                raise OperatorError("Resource identity source frame hash is not runtime-bound")
-
-            source_path = session_directory / "source.png"
-            source_path.write_bytes(frame)
-            encoded = np.frombuffer(frame, dtype=np.uint8)
-            image = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
-            if image is None or tuple(image.shape[:2]) != (
-                BLUESTACKS_NATIVE_HEIGHT,
-                BLUESTACKS_NATIVE_WIDTH,
-            ):
-                raise OperatorError("Resource identity source frame cannot be decoded natively")
-
-            observed = datetime.now(timezone.utc).replace(microsecond=0)
-            observed_utc = observed.isoformat().replace("+00:00", "Z")
-            recognition = daily.DailyRowClaimRecognizer().recognize_daily_claim(
-                image,
-                game_day_id=None,
-                observed_utc=observed,
-            )
-            visual = recognition.visual_evidence
-            if not isinstance(visual, Mapping):
-                raise OperatorError("Resource Daily recognizer evidence is missing")
-            overlay = visual.get("full_frame_overlay")
-            if isinstance(overlay, Mapping) and overlay.get("recognized") is True:
-                raise OperatorError("Resource identity is blocked by an unknown modal")
-            if (
-                not recognition.recognized
-                or recognition.state != daily.DAILY_SELECTED_STATE
-                or visual.get("selected_daily") is not True
-                or visual.get("runtime_profile_id") != daily.BLUESTACKS_RUNTIME_PROFILE_ID
-            ):
-                raise OperatorError(
-                    "Resource identity requires positively recognized selected Daily"
-                )
-
-            derived_identity = visual.get("reset_deadline_identity")
-            derived_deadline = visual.get("reset_deadline_utc")
-            derived_observed = visual.get("reset_observed_utc")
-            timer_seconds = visual.get("reset_timer_seconds")
-            if (
-                not isinstance(derived_identity, str)
-                or not isinstance(derived_deadline, str)
-                or not isinstance(derived_observed, str)
-                or not isinstance(timer_seconds, int)
-                or isinstance(timer_seconds, bool)
-                or timer_seconds <= 0
-            ):
-                raise OperatorError(
-                    "Resource identity reset deadline is not a valid selected-Daily observation"
-                )
-            derived_observed_dt = _resource_identity_timestamp(
-                derived_observed,
-                "Resource recognizer reset observation",
-            )
-            derived_deadline_dt = _resource_identity_timestamp(
-                derived_deadline,
-                "Resource recognizer reset deadline",
-            )
-            if derived_observed_dt != observed or derived_observed != observed_utc:
-                raise OperatorError(
-                    "Resource recognizer reset observation is not bound to capture time"
-                )
-            if derived_deadline_dt != derived_observed_dt + timedelta(seconds=timer_seconds):
-                raise OperatorError(
-                    "Resource recognizer reset deadline is not timer-derived"
-                )
-            if derived_identity != f"reset-deadline:{derived_deadline}":
-                raise OperatorError(
-                    "Resource recognizer reset identity is not bound to its deadline"
-                )
-            if (
-                derived_deadline_dt - observed
-            ).total_seconds() <= RESOURCE_IDENTITY_MIN_RESET_REMAINING_SECONDS:
-                raise OperatorError(
-                    "Resource identity reset deadline is expired or too close to observation"
-                )
-            configuration = RuntimeIdentityConfiguration(
-                binding.runtime_scope,
-                binding.account_id,
-                binding.server_id,
-                derived_identity,
-            )
-
-            expires = min(
-                observed + timedelta(seconds=RESOURCE_IDENTITY_VALIDITY_SECONDS),
-                derived_deadline_dt,
-            )
-            expires_utc = expires.isoformat().replace("+00:00", "Z")
-            frame_ref = {
-                "path": "source.png",
-                "session_relative_path": "source.png",
-                "sha256": frame_digest,
-                "captured_utc": observed_utc,
-                "observed_utc": observed_utc,
-            }
-            evidence_refs = (
-                f"producer-kind:{RESOURCE_IDENTITY_PRODUCER_KIND}",
-                f"producer-version:{RESOURCE_IDENTITY_PRODUCER_VERSION}",
-                f"producer-owner:{RESOURCE_IDENTITY_PRODUCER_OWNER}",
-                f"producer-invocation:{invocation_id}",
-                f"producer-session:{invocation_id}",
-                "identity-semantics:fixed-runtime-binding-plus-observed-reset",
-                f"runtime-binding-kind:{binding.as_dict()['kind']}",
-                f"runtime-binding-digest:{binding.binding_digest}",
-                f"runtime-scope:{binding.runtime_scope}",
-                f"fixed-runtime-serial:{binding.serial}",
-                f"fixed-runtime-profile:{binding.runtime_profile_id}",
-                f"fixed-runtime-package:{binding.package_id}",
-                f"fixed-login-slot-version:{binding.login_slot_version}",
-                "reset-observed:selected-daily-native-frame",
-                "recognizer:DailyRowClaimRecognizer",
-                "frame-path:source.png",
-                f"frame-sha256:{frame_digest}",
-            )
-            deadline_payload: dict[str, Any] = {
-                "displayed_timer": visual.get("reset_timer"),
-                "reset_timer_seconds": timer_seconds,
-                "observed_utc": observed_utc,
-                "reset_observed_utc": derived_observed,
-                "normalized_deadline_utc": derived_deadline,
-                "reset_deadline_utc": derived_deadline,
-                "deadline_identity": derived_identity,
-                "reset_deadline_identity": derived_identity,
-                "tolerance_seconds": visual.get(
-                    "reset_deadline_tolerance_seconds"
-                ),
-                "recurrence_class": "daily_reset",
-                "recurrence_interval_seconds": RESOURCE_IDENTITY_RECURRENCE_SECONDS,
-                "daily_recurrence_seconds": RESOURCE_IDENTITY_RECURRENCE_SECONDS,
-                "recurrence_interval_hours": 24,
-                "machine_observed": True,
-                "daily_frame": frame_ref,
-            }
-            if deadline_payload["tolerance_seconds"] is None:
-                deadline_payload["tolerance_seconds"] = 0
-            if (
-                type(deadline_payload["tolerance_seconds"]) is not int
-                or deadline_payload["tolerance_seconds"] < 0
-            ):
-                raise OperatorError("Resource reset deadline tolerance is invalid")
-
-            provisional_evidence = ResourceIdentityEvidence(
-                account_id=binding.account_id,
-                server_id=binding.server_id,
-                reset_id=configuration.reset_id,
-                evidence_refs=evidence_refs,
-                observed_utc=observed_utc,
-                expires_utc=expires_utc,
-                content_digest="0" * 64,
-                runtime_scope=binding.runtime_scope,
-                runtime_binding_digest=binding.binding_digest,
-            )
-            evidence = ResourceIdentityEvidence(
-                account_id=provisional_evidence.account_id,
-                server_id=provisional_evidence.server_id,
-                reset_id=provisional_evidence.reset_id,
-                evidence_refs=provisional_evidence.evidence_refs,
-                observed_utc=provisional_evidence.observed_utc,
-                expires_utc=provisional_evidence.expires_utc,
-                content_digest=provisional_evidence.computed_digest(),
-                runtime_scope=provisional_evidence.runtime_scope,
-                runtime_binding_digest=provisional_evidence.runtime_binding_digest,
-            )
-            verified = produce_resource_runtime_identity(
-                configuration,
-                evidence,
-                deadline_payload,
-                observed,
-                binding,
-            )
-            if _checkpoint_hashes() != checkpoint_before:
-                raise OperatorError(
-                    "Resource identity observation mutated a persistent checkpoint artifact"
-                )
-
-            producer = {
-                "kind": RESOURCE_IDENTITY_PRODUCER_KIND,
-                "version": RESOURCE_IDENTITY_PRODUCER_VERSION,
-                "owner": RESOURCE_IDENTITY_PRODUCER_OWNER,
-                "invocation_id": invocation_id,
-                "session_id": invocation_id,
-                "session_directory": invocation_id,
-            }
-            receipt: dict[str, Any] = {
-                "schema_version": RESOURCE_IDENTITY_RECEIPT_VERSION,
-                "receipt_kind": RESOURCE_IDENTITY_RECEIPT_KIND,
-                "receipt_version": RESOURCE_IDENTITY_RECEIPT_VERSION,
-                "producer_kind": RESOURCE_IDENTITY_PRODUCER_KIND,
-                "producer_version": RESOURCE_IDENTITY_PRODUCER_VERSION,
-                "producer_owner": RESOURCE_IDENTITY_PRODUCER_OWNER,
-                "producer_invocation_id": invocation_id,
-                "producer_session_id": invocation_id,
-                "producer_session_directory": invocation_id,
-                "producer": producer,
-                "identity_semantics": "fixed_runtime_binding_plus_observed_daily_reset",
-                "assurance": verified.assurance.value,
-                "runtime_binding": binding.as_dict(),
-                "runtime_binding_digest": binding.binding_digest,
-                "runtime_scope": binding.runtime_scope,
-                "account_id": binding.account_id,
-                "server_id": binding.server_id,
-                "reset_id": configuration.reset_id,
-                "observed_utc": evidence.observed_utc,
-                "expires_utc": evidence.expires_utc,
-                "frame": frame_ref,
-                "reset_deadline": {
-                    "identity": derived_identity,
-                    "deadline_utc": derived_deadline,
-                    "observed_utc": derived_observed,
-                    "timer_seconds": timer_seconds,
-                },
-                "recurrence": {
-                    "class": "daily_reset",
-                    "interval_seconds": RESOURCE_IDENTITY_RECURRENCE_SECONDS,
-                    "interval_hours": 24,
-                },
-                "evidence_refs": list(evidence.evidence_refs),
-                "resource_identity_evidence": {
-                    **evidence.as_dict(),
-                    "content_digest": evidence.content_digest,
-                },
-                "current_reset_deadline_evidence": deadline_payload,
-                "self_digest": evidence.content_digest,
-            }
-            receipt["receipt_digest"] = _resource_identity_receipt_digest(receipt)
-            if receipt_path.exists() or receipt_path.is_symlink():
-                raise OperatorError("Resource identity receipt already exists")
-            receipt_path.write_text(
-                json.dumps(receipt, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-            session.terminal_status = "observed"
-            result.update(
-                {
-                    "status": "observed",
-                    "producer_kind": RESOURCE_IDENTITY_PRODUCER_KIND,
-                    "producer_version": RESOURCE_IDENTITY_PRODUCER_VERSION,
-                    "owner": RESOURCE_IDENTITY_PRODUCER_OWNER,
-                    "invocation_id": invocation_id,
-                    "identity_semantics": "fixed_runtime_binding_plus_observed_daily_reset",
-                    "assurance": verified.assurance.value,
-                    "runtime_binding": binding.as_dict(),
-                    "runtime_binding_digest": binding.binding_digest,
-                    "runtime_scope": verified.runtime_scope,
-                    "account_id": verified.account_id,
-                    "server_id": verified.server_id,
-                    "reset_id": verified.reset_id,
-                    "observed_utc": verified.observed_utc,
-                    "expires_utc": verified.expires_utc,
-                    "reset_deadline_identity": derived_identity,
-                    "reset_deadline_utc": derived_deadline,
-                    "frame": frame_ref,
-                    "evidence_refs": list(evidence.evidence_refs),
-                    "ownership_released": False,
-                }
-            )
-            (session_directory / "result.json").write_text(
-                json.dumps(result, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-        summary_path = session_directory / "summary.json"
-        if summary_path.is_symlink() or not summary_path.is_file():
-            raise OperatorError("Resource identity producer summary.json was not written")
-        summary_digest, summary_size = sha256_stream(summary_path)
-        if summary_size <= 0:
-            raise OperatorError("Resource identity producer summary.json is empty")
-        try:
-            persisted_receipt = json.loads(
-                receipt_path.read_text(encoding="utf-8")
-            )
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise OperatorError("Resource identity receipt could not be finalized") from exc
-        if not isinstance(persisted_receipt, dict):
-            raise OperatorError("Resource identity receipt could not be finalized")
-        persisted_receipt["summary_sha256"] = summary_digest
-        persisted_receipt["receipt_digest"] = _resource_identity_receipt_digest(
-            persisted_receipt
-        )
-        receipt_path.write_text(
-            json.dumps(persisted_receipt, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        if _checkpoint_hashes() != checkpoint_before:
-            raise OperatorError(
-                "Resource identity observation mutated a persistent checkpoint artifact"
-            )
-        result["ownership_released"] = True
-        return json.dumps(result, sort_keys=True)
-    except BaseException:
-        _remove_resource_identity_receipt(receipt_path)
-        raise
-
-
-def _load_resource_identity_payload(
-    identity_evidence: Path | None,
-) -> tuple[dict[str, Any], dict[str, Any], Path]:
-    """Load and authenticate a receipt from a prior Resource identity session."""
-
-    root = Path(DEVELOPMENT_SESSION_ROOT)
-    if root.is_symlink() or not root.is_dir():
-        raise OperatorError("Resource identity evidence root is unavailable or unsafe")
-    if identity_evidence is None:
-        raise OperatorError("Resource production identity evidence is unavailable")
-    supplied_path = Path(identity_evidence)
-    if any(part == ".." for part in supplied_path.parts):
-        raise OperatorError("Resource production identity evidence path contains traversal")
-    evidence_path = (
-        supplied_path
-        if supplied_path.is_absolute()
-        else root / supplied_path
-    )
-    evidence_absolute = Path(os.path.abspath(str(evidence_path)))
-    root_absolute = Path(os.path.abspath(str(root)))
-    try:
-        evidence_absolute.relative_to(root_absolute)
-    except ValueError as exc:
+        authority = load_product_authority()
+        policy = get_daily_reset_policy(authority)
+    except ProductAuthorityError as exc:
         raise OperatorError(
-            "Resource production identity evidence must remain beneath the fixed capture root"
+            "Resource product authority or static UTC reset policy is invalid"
         ) from exc
-    probe = evidence_absolute.parent
-    while probe != root_absolute:
-        if probe.is_symlink():
-            raise OperatorError(
-                "Resource production identity evidence path must not use symlink directories"
-            )
-        probe = probe.parent
-    if evidence_path.is_symlink() or not evidence_path.is_file():
-        raise OperatorError(
-            "Resource production identity evidence must be a regular non-symlink file"
-        )
-    if evidence_path.name != RESOURCE_IDENTITY_RECEIPT_FILENAME:
-        raise OperatorError(
-            "Resource production identity evidence must use the exact receipt filename"
-        )
-    try:
-        root_resolved = root.resolve()
-        evidence_resolved = evidence_path.resolve()
-        relative = evidence_resolved.relative_to(root_resolved)
-    except (OSError, ValueError) as exc:
-        raise OperatorError(
-            "Resource production identity evidence must remain beneath the fixed capture root"
-        ) from exc
-    if len(relative.parts) != 2 or relative.parts[-1] != RESOURCE_IDENTITY_RECEIPT_FILENAME:
-        raise OperatorError(
-            "Resource production identity evidence must be directly inside one session directory"
-        )
-    probe = root_resolved
-    for part in relative.parts[:-1]:
-        probe = probe / part
-        if probe.is_symlink() or not probe.is_dir():
-            raise OperatorError(
-                "Resource production identity session must use regular directories"
-            )
-    identity_session = root_resolved / relative.parts[0]
-    if identity_session.is_symlink() or not identity_session.is_dir():
-        raise OperatorError("Resource identity session directory is unavailable or unsafe")
-    try:
-        payload = json.loads(evidence_resolved.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise OperatorError("Resource production identity evidence is unreadable") from exc
-    if not isinstance(payload, Mapping):
-        raise OperatorError("Resource production identity evidence must be an object")
-
-    expected_binding = _resource_fixed_runtime_binding()
-    receipt_binding = payload.get("runtime_binding")
-    if not isinstance(receipt_binding, Mapping) or dict(receipt_binding) != expected_binding.as_dict():
-        raise OperatorError(
-            "Resource identity receipt fixed serial/profile/package/login-slot binding "
-            "does not match current runtime constants"
-        )
-    if (
-        payload.get("identity_semantics")
-        != "fixed_runtime_binding_plus_observed_daily_reset"
-        or payload.get("assurance") != "fixed_runtime_binding_reset_observed"
-        or payload.get("runtime_binding_digest") != expected_binding.binding_digest
-        or payload.get("runtime_scope") != expected_binding.runtime_scope
-        or payload.get("account_id") != expected_binding.account_id
-        or payload.get("server_id") != expected_binding.server_id
-    ):
-        raise OperatorError("Resource identity receipt fixed runtime binding semantics are invalid")
-
-    if (
-        type(payload.get("schema_version")) is not int
-        or payload.get("schema_version") != RESOURCE_IDENTITY_RECEIPT_VERSION
-    ):
-        raise OperatorError("Resource identity receipt schema is unsupported")
-    if payload.get("receipt_kind") != RESOURCE_IDENTITY_RECEIPT_KIND:
-        raise OperatorError("Resource identity receipt kind is not exact")
-    if (
-        type(payload.get("receipt_version")) is not int
-        or payload.get("receipt_version") != RESOURCE_IDENTITY_RECEIPT_VERSION
-    ):
-        raise OperatorError("Resource identity receipt version is not exact")
-
-    producer = payload.get("producer")
-    if not isinstance(producer, Mapping):
-        raise OperatorError("Resource identity receipt producer is missing")
-    producer_fields = {
-        "kind": RESOURCE_IDENTITY_PRODUCER_KIND,
-        "version": RESOURCE_IDENTITY_PRODUCER_VERSION,
-        "owner": RESOURCE_IDENTITY_PRODUCER_OWNER,
-    }
-    for field, expected in producer_fields.items():
-        if producer.get(field) != expected:
-            raise OperatorError(f"Resource identity producer {field} is not exact")
-    if (
-        payload.get("producer_kind") != RESOURCE_IDENTITY_PRODUCER_KIND
-        or payload.get("producer_version") != RESOURCE_IDENTITY_PRODUCER_VERSION
-        or payload.get("producer_owner") != RESOURCE_IDENTITY_PRODUCER_OWNER
-    ):
-        raise OperatorError("Resource identity receipt producer binding is not exact")
-
-    producer_invocation = producer.get("invocation_id")
-    producer_session_id = producer.get("session_id")
-    producer_session_directory = producer.get("session_directory")
-    if (
-        not isinstance(producer_invocation, str)
-        or not producer_invocation.startswith("resource-identity-observe-")
-        or producer_invocation != payload.get("producer_invocation_id")
-        or producer_session_id != producer_invocation
-        or producer_session_directory != identity_session.name
-        or producer_invocation != identity_session.name
-        or payload.get("producer_session_id") != identity_session.name
-        or payload.get("producer_session_directory") != identity_session.name
-    ):
-        raise OperatorError("Resource identity receipt producer session binding is invalid")
-
-    summary_path = identity_session / "summary.json"
-    if summary_path.is_symlink() or not summary_path.is_file():
-        raise OperatorError("Resource identity producer summary.json is required")
-    try:
-        summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise OperatorError("Resource identity producer summary.json is unreadable") from exc
-    if not isinstance(summary, Mapping):
-        raise OperatorError("Resource identity producer summary.json must be an object")
-    if (
-        type(summary.get("schema_version")) is not int
-        or summary.get("schema_version") != 1
-        or summary.get("session_kind") != "ordinary_development"
-        or summary.get("owner") != RESOURCE_IDENTITY_PRODUCER_OWNER
-        or summary.get("invocation_id") != producer_invocation
-        or summary.get("status") != "observed"
-        or type(summary.get("input_count")) is not int
-        or summary.get("input_count") != 0
-        or type(summary.get("action_count")) is not int
-        or summary.get("action_count") != 0
-        or type(summary.get("max_inputs")) is not int
-        or summary.get("max_inputs") != 0
-        or summary.get("ownership_released") is not True
-        or summary.get("lifecycle_state_created") is not False
-    ):
-        raise OperatorError("Resource identity producer summary is not an authenticated zero-input observation")
-    summary_digest = payload.get("summary_sha256")
-    if (
-        not isinstance(summary_digest, str)
-        or re.fullmatch(r"[0-9a-f]{64}", summary_digest.casefold()) is None
-    ):
-        raise OperatorError("Resource identity producer summary digest is missing")
-    try:
-        actual_summary_digest, summary_size = sha256_stream(summary_path)
-    except OSError as exc:
-        raise OperatorError("Resource identity producer summary cannot be hashed") from exc
-    if summary_size <= 0 or actual_summary_digest.casefold() != summary_digest.casefold():
-        raise OperatorError("Resource identity producer summary digest does not match")
-
-    evidence_payload = payload.get(
-        "resource_identity_evidence",
-        None,
-    )
-    deadline_payload = payload.get(
-        "current_reset_deadline_evidence",
-        None,
-    )
-    if not isinstance(evidence_payload, Mapping) or not isinstance(deadline_payload, Mapping):
-        raise OperatorError(
-            "Resource production identity requires current machine-observed reset deadline evidence"
-        )
-    evidence_payload = dict(evidence_payload)
-    deadline_payload = dict(deadline_payload)
-
-    try:
-        from tasks.runtime_identity import ResourceIdentityEvidence
-
-        evidence_refs_value = evidence_payload.get("evidence_refs")
-        if not isinstance(evidence_refs_value, (list, tuple)) or not evidence_refs_value:
-            raise OperatorError("Resource identity receipt evidence references are malformed")
-        if any(
-            not isinstance(value, str) or not value.strip()
-            for value in evidence_refs_value
-        ):
-            raise OperatorError("Resource identity receipt evidence references are malformed")
-        evidence_payload["evidence_refs"] = tuple(evidence_refs_value)
-        evidence = ResourceIdentityEvidence(**evidence_payload)
-        if evidence.content_digest != evidence.computed_digest():
-            raise OperatorError("Resource identity evidence self-digest does not match")
-    except (TypeError, ValueError) as exc:
-        raise OperatorError("Resource identity evidence semantics are invalid") from exc
-
-    runtime_scope = payload.get("runtime_scope")
-    if (
-        not isinstance(runtime_scope, str)
-        or not runtime_scope.strip()
-        or runtime_scope != runtime_scope.strip()
-    ):
-        raise OperatorError("Resource identity receipt runtime scope is not normalized")
-    for field in (
-        "account_id",
-        "server_id",
-        "reset_id",
-        "runtime_scope",
-        "runtime_binding_digest",
-    ):
-        expected_value = (
-            expected_binding.runtime_scope
-            if field == "runtime_scope"
-            else expected_binding.binding_digest
-            if field == "runtime_binding_digest"
-            else payload.get(field)
-        )
-        if payload.get(field) != evidence_payload.get(field) or (
-            field in {"runtime_scope", "runtime_binding_digest"}
-            and evidence_payload.get(field) != expected_value
-        ):
-            raise OperatorError(f"Resource identity receipt {field} binding is invalid")
-    if (
-        payload.get("observed_utc") != evidence_payload.get("observed_utc")
-        or payload.get("expires_utc") != evidence_payload.get("expires_utc")
-        or payload.get("self_digest") != evidence_payload.get("content_digest")
-    ):
-        raise OperatorError("Resource identity receipt freshness or self-digest binding is invalid")
-    _resource_identity_timestamp(
-        evidence_payload.get("observed_utc"),
-        "Resource identity evidence observed_utc",
-    )
-    _resource_identity_timestamp(
-        evidence_payload.get("expires_utc"),
-        "Resource identity evidence expires_utc",
-    )
-
-    receipt_frame = payload.get("frame")
-    deadline_frame = deadline_payload.get("daily_frame")
-    if not isinstance(receipt_frame, Mapping) or not isinstance(deadline_frame, Mapping):
-        raise OperatorError("Resource identity receipt frame binding is missing")
-    for field in ("path", "sha256", "captured_utc", "observed_utc"):
-        if receipt_frame.get(field) != deadline_frame.get(field):
-            raise OperatorError("Resource identity receipt frame binding is inconsistent")
-    session_relative_path = receipt_frame.get("session_relative_path")
-    if session_relative_path is not None and session_relative_path != receipt_frame.get(
-        "path"
-    ):
-        raise OperatorError("Resource identity receipt frame path aliases disagree")
-    frame_value = receipt_frame.get("path")
-    frame_digest = receipt_frame.get("sha256")
-    frame_candidate = Path(frame_value) if isinstance(frame_value, str) else None
-    if (
-        frame_candidate is None
-        or not frame_value.strip()
-        or frame_candidate.is_absolute()
-        or any(part == ".." for part in frame_candidate.parts)
-        or not isinstance(frame_digest, str)
-        or re.fullmatch(r"[0-9a-f]{64}", frame_digest.casefold()) is None
-    ):
-        raise OperatorError("Resource identity receipt frame is not session-bound")
-    lexical_frame = identity_session / frame_candidate
-    if lexical_frame.is_symlink():
-        raise OperatorError("Resource identity receipt frame must not be a symlink")
-    try:
-        bound_frame = _session_relative_path(
-            identity_session,
-            frame_value,
-            "Resource identity receipt frame",
-        )
-        actual_frame_digest, frame_size = sha256_stream(bound_frame)
-    except OSError as exc:
-        raise OperatorError("Resource identity receipt frame cannot be hashed") from exc
-    if frame_size <= 0 or actual_frame_digest.casefold() != frame_digest.casefold():
-        raise OperatorError("Resource identity receipt frame hash is not session-bound")
-    if (
-        deadline_payload.get("recurrence_class") != "daily_reset"
-        or deadline_payload.get("machine_observed") is not True
-        or type(deadline_payload.get("recurrence_interval_seconds")) is not int
-        or deadline_payload.get("recurrence_interval_seconds")
-        != RESOURCE_IDENTITY_RECURRENCE_SECONDS
-        or type(deadline_payload.get("daily_recurrence_seconds")) is not int
-        or deadline_payload.get("daily_recurrence_seconds")
-        != RESOURCE_IDENTITY_RECURRENCE_SECONDS
-        or type(deadline_payload.get("recurrence_interval_hours")) is not int
-        or deadline_payload.get("recurrence_interval_hours") != 24
-    ):
-        raise OperatorError("Resource identity receipt recurrence is not exactly 24 hours")
-    recurrence = payload.get("recurrence")
-    if not isinstance(recurrence, Mapping) or (
-        recurrence.get("class") != "daily_reset"
-        or type(recurrence.get("interval_seconds")) is not int
-        or recurrence.get("interval_seconds") != RESOURCE_IDENTITY_RECURRENCE_SECONDS
-        or type(recurrence.get("interval_hours")) is not int
-        or recurrence.get("interval_hours") != 24
-    ):
-        raise OperatorError("Resource identity receipt recurrence binding is invalid")
-    reset_deadline = payload.get("reset_deadline")
-    if not isinstance(reset_deadline, Mapping) or (
-        reset_deadline.get("identity")
-        != deadline_payload.get("deadline_identity")
-        or reset_deadline.get("deadline_utc")
-        != deadline_payload.get("normalized_deadline_utc")
-        or reset_deadline.get("observed_utc")
-        != deadline_payload.get("observed_utc")
-        or reset_deadline.get("timer_seconds")
-        != deadline_payload.get("reset_timer_seconds")
-    ):
-        raise OperatorError("Resource identity receipt reset deadline binding is invalid")
-
-    receipt_refs = payload.get("evidence_refs")
-    if not isinstance(receipt_refs, list) or receipt_refs != list(
-        evidence_payload["evidence_refs"]
-    ):
-        raise OperatorError("Resource identity receipt evidence references are not bound")
-    required_refs = {
-        f"producer-kind:{RESOURCE_IDENTITY_PRODUCER_KIND}",
-        f"producer-version:{RESOURCE_IDENTITY_PRODUCER_VERSION}",
-        f"producer-owner:{RESOURCE_IDENTITY_PRODUCER_OWNER}",
-        f"producer-invocation:{producer_invocation}",
-        f"producer-session:{identity_session.name}",
-        "identity-semantics:fixed-runtime-binding-plus-observed-reset",
-        f"runtime-binding-kind:{expected_binding.as_dict()['kind']}",
-        f"runtime-binding-digest:{expected_binding.binding_digest}",
-        f"runtime-scope:{expected_binding.runtime_scope}",
-        f"fixed-runtime-serial:{expected_binding.serial}",
-        f"fixed-runtime-profile:{expected_binding.runtime_profile_id}",
-        f"fixed-runtime-package:{expected_binding.package_id}",
-        f"fixed-login-slot-version:{expected_binding.login_slot_version}",
-        "reset-observed:selected-daily-native-frame",
-        f"frame-path:{frame_value}",
-        f"frame-sha256:{frame_digest.casefold()}",
-    }
-    if not required_refs.issubset(set(evidence_payload["evidence_refs"])):
-        raise OperatorError("Resource identity evidence references are incomplete")
-    _resource_identity_timestamp(
-        receipt_frame.get("captured_utc"),
-        "Resource identity frame captured_utc",
-    )
-    _resource_identity_timestamp(
-        receipt_frame.get("observed_utc"),
-        "Resource identity frame observed_utc",
-    )
-    if _resource_identity_receipt_digest(payload) != payload.get("receipt_digest"):
-        raise OperatorError("Resource identity receipt digest does not match its contents")
-
-    # Keep receipt-only bindings private to the loader's returned payload.  The
-    # ResourceIdentityEvidence dataclass is constructed from the public fields
-    # only, while the consumer can still compare the configured scope before
-    # opening any canonical store.
-    deadline_payload["_receipt_runtime_scope"] = runtime_scope
-    deadline_payload["_receipt_producer_invocation_id"] = producer_invocation
-    return evidence_payload, deadline_payload, identity_session
+    return authority, policy
 
 
 def _resource_deadline_evidence(
     payload: Mapping[str, Any],
 ) -> tuple[str, datetime]:
-    """Validate the exact machine-observed deadline and accepted daily recurrence."""
+    """Validate the static UTC reset payload without consulting runtime visuals."""
 
+    from tasks.runtime_identity import derive_static_utc_reset
+
+    authority, reset_policy = _load_resource_daily_reset_authority()
+    if not isinstance(payload, Mapping):
+        raise OperatorError("Resource static reset payload is malformed")
     deadline_identity = payload.get(
-        "deadline_identity",
-        payload.get("reset_deadline_identity"),
+        "reset_identity_id",
+        payload.get("deadline_identity", payload.get("reset_deadline_identity")),
     )
-    normalized = payload.get("normalized_deadline_utc")
+    normalized = payload.get(
+        "reset_deadline_utc",
+        payload.get("normalized_deadline_utc"),
+    )
+    start_value = payload.get("reset_start_utc")
     if not isinstance(deadline_identity, str) or not deadline_identity.strip():
         raise OperatorError("Resource reset deadline identity is missing")
     if not isinstance(normalized, str) or not normalized.strip():
-        raise OperatorError("Resource normalized reset deadline is missing")
-    try:
-        deadline = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
-    except (TypeError, ValueError) as exc:
-        raise OperatorError("Resource normalized reset deadline is invalid") from exc
-    if deadline.tzinfo is None:
-        raise OperatorError("Resource normalized reset deadline must be UTC")
-    deadline = deadline.astimezone(timezone.utc)
-    canonical_deadline = deadline.isoformat().replace("+00:00", "Z")
-    if normalized != canonical_deadline:
-        raise OperatorError("Resource normalized reset deadline is not exact")
-    if deadline_identity != f"reset-deadline:{canonical_deadline}":
-        raise OperatorError("Resource reset deadline identity is not bound to the normalized deadline")
-    recurrence_class = payload.get("recurrence_class", "daily_reset")
-    if recurrence_class != "daily_reset":
-        raise OperatorError("Resource reset evidence is not the accepted daily recurrence")
-    for field, expected in (
-        ("recurrence_interval_seconds", 24 * 60 * 60),
-        ("daily_recurrence_seconds", 24 * 60 * 60),
-    ):
-        if field in payload and payload[field] != expected:
-            raise OperatorError("Resource recurrence interval is not exactly 24 hours")
-    if "recurrence_interval_hours" in payload and payload["recurrence_interval_hours"] != 24:
-        raise OperatorError("Resource recurrence interval is not exactly 24 hours")
-    observed = payload.get("observed_utc", payload.get("reset_observed_utc"))
-    if observed is not None:
-        try:
-            observed_utc = datetime.fromisoformat(str(observed).replace("Z", "+00:00"))
-        except (TypeError, ValueError) as exc:
-            raise OperatorError("Resource reset observation timestamp is invalid") from exc
-        if observed_utc.tzinfo is None or observed_utc.astimezone(timezone.utc) > deadline:
-            raise OperatorError("Resource reset deadline precedes its machine observation")
-    return deadline_identity, deadline
-
-
-def _resource_identity_frame_proof(
-    *,
-    session: Path,
-    evidence_payload: Mapping[str, Any],
-    deadline_payload: Mapping[str, Any],
-) -> tuple[Path, str, datetime, datetime, Mapping[str, Any]]:
-    """Resolve and verify the retained native Daily frame proof.
-
-    JSON is only a transport envelope here.  Production authority comes from
-    rerunning the checked-in Daily recognizer against this exact retained
-    frame, never from ``machine_observed`` or a caller-computed identity.
-    """
-
-    frame_payload: Mapping[str, Any] | None = None
-    for candidate in (
-        deadline_payload.get("daily_frame"),
-        deadline_payload.get("observation_frame"),
-        deadline_payload.get("frame"),
-        evidence_payload.get("daily_frame"),
-        evidence_payload.get("observation_frame"),
-        evidence_payload.get("frame"),
-    ):
-        if isinstance(candidate, Mapping):
-            frame_payload = candidate
-            break
-    if frame_payload is None:
-        raise OperatorError("Resource identity requires a hash-bound Daily observation frame")
-    path_value = frame_payload.get("path") or frame_payload.get("session_relative_path")
-    digest = frame_payload.get("sha256") or frame_payload.get("frame_sha256")
-    captured_value = frame_payload.get("captured_utc") or evidence_payload.get("captured_utc")
-    observed_value = (
-        frame_payload.get("observed_utc")
-        or deadline_payload.get("observed_utc")
-        or deadline_payload.get("reset_observed_utc")
-    )
-    receipt_observed_value = evidence_payload.get("observed_utc")
+        raise OperatorError("Resource reset deadline is missing")
+    if not isinstance(start_value, str) or not start_value.strip():
+        raise OperatorError("Resource reset start is missing")
+    deadline = _resource_identity_timestamp(normalized, "Resource reset deadline")
+    start = _resource_identity_timestamp(start_value, "Resource reset start")
     if (
-        not isinstance(path_value, str)
-        or not isinstance(digest, str)
-        or not re.fullmatch(r"[0-9a-f]{64}", digest.casefold())
-        or not isinstance(captured_value, str)
-        or not isinstance(observed_value, str)
-        or not isinstance(receipt_observed_value, str)
+        deadline_identity != f"reset-deadline:{normalized}"
+        or deadline != start + timedelta(days=1)
+        or start.hour != 0
+        or start.minute != 0
+        or start.second != 0
+        or start.microsecond != 0
+        or payload.get("recurrence_class") != "daily_reset"
+        or payload.get("recurrence_interval_seconds")
+        != reset_policy["interval_seconds"]
+        or payload.get("recurrence_interval_hours") != 24
+        or payload.get("reset_timezone") != reset_policy["timezone"]
+        or payload.get("reset_time") != reset_policy["reset_time"]
+        or payload.get("product_authority_revision")
+        != authority["authority_revision"]
+        or payload.get("product_authority_digest") != authority["authority_digest"]
+        or payload.get("product_policy_id") != reset_policy["policy_id"]
+        or payload.get("reset_policy_id") != reset_policy["policy_id"]
+        or payload.get("assurance") != "fixed_runtime_binding_static_utc_reset"
+        or payload.get("identity_semantics")
+        != "fixed_runtime_binding_plus_static_utc_reset"
     ):
-        raise OperatorError("Resource Daily frame provenance is malformed")
-    try:
-        captured = datetime.fromisoformat(captured_value.replace("Z", "+00:00"))
-        observed = datetime.fromisoformat(observed_value.replace("Z", "+00:00"))
-        receipt_observed = datetime.fromisoformat(
-            receipt_observed_value.replace("Z", "+00:00")
+        raise OperatorError("Resource reset payload is not the static UTC daily rule")
+    evaluated_value = payload.get("_evaluated_utc", payload.get("evaluated_utc"))
+    if evaluated_value is not None:
+        evaluated = _resource_identity_timestamp(
+            evaluated_value,
+            "Resource reset evaluation timestamp",
         )
-    except ValueError as exc:
-        raise OperatorError("Resource Daily frame provenance timestamp is invalid") from exc
-    if (
-        captured.tzinfo is None
-        or observed.tzinfo is None
-        or receipt_observed.tzinfo is None
-    ):
-        raise OperatorError("Resource Daily frame provenance must be UTC")
-    captured = captured.astimezone(timezone.utc)
-    observed = observed.astimezone(timezone.utc)
-    receipt_observed = receipt_observed.astimezone(timezone.utc)
-    now = datetime.now(timezone.utc)
-    if (
-        captured > now
-        or observed > now
-        or receipt_observed > now
-        or (now - captured).total_seconds() > 600
-        or (now - observed).total_seconds() > 600
-        or (now - receipt_observed).total_seconds() > 600
-    ):
-        raise OperatorError("Resource Daily identity frame is stale")
-    if abs((observed - captured).total_seconds()) > 600:
-        raise OperatorError("Resource Daily observation timestamp is not frame-bound")
-    if abs((receipt_observed - observed).total_seconds()) > 600:
-        raise OperatorError("Resource identity receipt timestamp is not frame-bound")
-    frame_candidate = Path(path_value)
-    if frame_candidate.is_absolute():
-        raise OperatorError("resource Daily frame must be a session-relative path")
-    if any(part == ".." for part in frame_candidate.parts):
-        raise OperatorError("resource Daily frame path contains traversal")
-    session_path = Path(session)
-    if session_path.is_symlink() or not session_path.is_dir():
-        raise OperatorError("Resource Daily identity session directory is unavailable or unsafe")
-    session_path = session_path.resolve()
-    lexical_frame = session_path / frame_candidate
-    probe = session_path
-    for part in frame_candidate.parts[:-1]:
-        probe = probe / part
-        if probe.is_symlink() or not probe.is_dir():
-            raise OperatorError("resource Daily frame path uses an unsafe directory")
-    if lexical_frame.is_symlink():
-        raise OperatorError("resource Daily frame must be a regular non-symlink file")
-    frame_path = _session_relative_path(session_path, path_value, "resource Daily frame")
-    try:
-        actual_digest, size = sha256_stream(frame_path)
-    except OSError as exc:
-        raise OperatorError("Resource Daily frame cannot be hashed") from exc
-    if size <= 0 or actual_digest.casefold() != digest.casefold():
-        raise OperatorError("Resource Daily frame hash does not match its provenance")
-    import cv2
-
-    image = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
-    if image is None or tuple(image.shape[:2]) != (
-        BLUESTACKS_NATIVE_HEIGHT,
-        BLUESTACKS_NATIVE_WIDTH,
-    ):
-        raise OperatorError("Resource Daily identity frame is not native 800x1280")
-    from scripts.daily_row_claim_bluestacks import (
-        BLUESTACKS_RUNTIME_PROFILE_ID,
-        DAILY_SELECTED_STATE,
-        DailyRowClaimRecognizer,
-    )
-
-    recognition = DailyRowClaimRecognizer().recognize_daily_claim(
-        image,
-        game_day_id=None,
-        observed_utc=observed,
-    )
-    visual = recognition.visual_evidence or {}
-    if (
-        not recognition.recognized
-        or recognition.state != DAILY_SELECTED_STATE
-        or visual.get("selected_daily") is not True
-        or visual.get("runtime_profile_id") != BLUESTACKS_RUNTIME_PROFILE_ID
-    ):
-        raise OperatorError("Resource Daily identity frame is not positively recognized")
-    return frame_path, actual_digest.casefold(), captured, observed, visual
+        try:
+            expected = derive_static_utc_reset(evaluated)
+        except ValueError as exc:
+            raise OperatorError("Resource reset evaluation timestamp is invalid") from exc
+        if (
+            expected.reset_identity_id != deadline_identity
+            or expected.reset_start_utc != start
+            or expected.reset_deadline_utc != deadline
+        ):
+            raise OperatorError("Resource reset payload does not match its UTC wall-clock sample")
+    return deadline_identity, deadline
 
 
 def _produce_resource_runtime_identity(
     *,
-    runtime_scope: str | None = None,
-    account_id: str | None = None,
-    server_id: str | None = None,
-    reset_id: str | None = None,
-    identity_evidence: Path | None = None,
-    session: Path | None = None,
+    session: Any,
+    wall_clock: Callable[[], datetime] | None = None,
     return_deadline_evidence: bool = False,
 ):
-    """Produce Resource identity from one authenticated receipt and fixed constants.
-
-    The legacy identity arguments remain accepted for generic CLI compatibility, but are ignored
-    for Resource.  The receipt and the current checked-in runtime binding are authoritative.
-    """
+    """Produce Resource identity inside the already-entered DevelopmentSession."""
 
     from tasks.runtime_identity import (
-        ResourceIdentityEvidence,
-        RuntimeIdentityConfiguration,
-        produce_resource_runtime_identity,
+        RuntimeIdentityAssurance,
+        derive_resource_runtime_identity,
+        derive_static_utc_reset,
     )
 
     if session is None:
         raise OperatorError("Resource production identity requires the current session")
-    expected_binding = _resource_fixed_runtime_binding()
-    current_session = Path(session)
-    if current_session.is_symlink() or not current_session.is_dir():
-        raise OperatorError("Resource production identity requires the current session")
-    current_session = current_session.resolve()
-    evidence_payload, deadline_payload, identity_session = _load_resource_identity_payload(
-        identity_evidence
-    )
-    if identity_session == current_session:
-        raise OperatorError(
-            "Resource production identity must come from a prior identity-observation session"
-        )
-    receipt_invocation_id = deadline_payload.get("_receipt_producer_invocation_id")
-    if receipt_invocation_id != identity_session.name:
-        raise OperatorError("Resource production receipt invocation is not session-bound")
-    frame_path, frame_digest, captured_utc, observed_utc, visual = _resource_identity_frame_proof(
-        session=identity_session,
-        evidence_payload=evidence_payload,
-        deadline_payload=deadline_payload,
-    )
-    claimed_deadline_identity, claimed_deadline = _resource_deadline_evidence(deadline_payload)
-    derived_identity = visual.get("reset_deadline_identity")
-    derived_deadline = visual.get("reset_deadline_utc")
-    derived_observed = visual.get("reset_observed_utc")
-    if (
-        derived_identity != claimed_deadline_identity
-        or derived_deadline != deadline_payload.get("normalized_deadline_utc")
-        or derived_observed != deadline_payload.get("observed_utc", deadline_payload.get("reset_observed_utc"))
-    ):
-        raise OperatorError("Resource Daily recognizer disagrees with claimed deadline evidence")
-    verified_deadline_payload = dict(deadline_payload)
-    verified_deadline_payload.update(
-        {
-            "deadline_identity": derived_identity,
-            "normalized_deadline_utc": derived_deadline,
-            "observed_utc": derived_observed,
-            "reset_observed_utc": derived_observed,
-            "reset_timer_seconds": visual.get("reset_timer_seconds"),
-            "daily_frame": {
-                "path": frame_path.relative_to(identity_session).as_posix(),
-                "sha256": frame_digest,
-                "captured_utc": captured_utc.isoformat().replace("+00:00", "Z"),
-                "observed_utc": observed_utc.isoformat().replace("+00:00", "Z"),
-            },
-            "machine_observed": True,
-        }
-    )
-    evaluated_utc = datetime.now(timezone.utc)
-    verified_deadline_payload["_evaluated_utc"] = (
-        evaluated_utc.isoformat().replace("+00:00", "Z")
-    )
-    evidence_refs_value = evidence_payload.get("evidence_refs")
-    if evidence_refs_value is None:
-        evidence_refs = ()
-    elif isinstance(evidence_refs_value, (list, tuple)):
-        evidence_refs = tuple(evidence_refs_value)
-    else:
-        raise OperatorError("Resource identity receipt evidence references are malformed")
-    required_refs = (
-        f"frame-path:{frame_path.relative_to(identity_session).as_posix()}",
-        f"frame-sha256:{frame_digest}",
-        f"producer-session:{identity_session.name}",
-    )
-    producer_refs = {
-        ref for ref in evidence_refs if isinstance(ref, str) and ref.startswith("producer-session:")
-    }
-    frame_path_refs = {
-        ref for ref in evidence_refs if isinstance(ref, str) and ref.startswith("frame-path:")
-    }
-    frame_sha_refs = {
-        ref for ref in evidence_refs if isinstance(ref, str) and ref.startswith("frame-sha256:")
-    }
-    if (
-        (producer_refs and producer_refs != {required_refs[2]})
-        or (frame_path_refs and frame_path_refs != {required_refs[0]})
-        or (frame_sha_refs and frame_sha_refs != {required_refs[1]})
-    ):
-        raise OperatorError(
-            "Resource identity receipt evidence references must bind the prior identity session"
-        )
-    evidence_payload = dict(evidence_payload)
-    if any(ref not in evidence_refs for ref in required_refs):
-        evidence_refs = tuple(dict.fromkeys((*evidence_refs, *required_refs)))
-        evidence_payload["evidence_refs"] = evidence_refs
-        evidence_payload["content_digest"] = "0" * 64
-        provisional = ResourceIdentityEvidence(**dict(evidence_payload))
-        evidence_payload["content_digest"] = provisional.computed_digest()
-    else:
-        evidence_payload["evidence_refs"] = evidence_refs
+    owner = str(getattr(session, "owner", "") or "")
+    invocation_id = str(getattr(session, "invocation_id", "") or "")
+    if not owner or not invocation_id:
+        raise OperatorError("Resource production identity requires the current session binding")
+    binding = _resource_fixed_runtime_binding()
+    evaluated = _resource_wall_clock(wall_clock)
+    authority, reset_policy = _load_resource_daily_reset_authority()
     try:
-        evidence = ResourceIdentityEvidence(**dict(evidence_payload))
-        configuration = RuntimeIdentityConfiguration(
-            expected_binding.runtime_scope,
-            expected_binding.account_id,
-            expected_binding.server_id,
-            evidence.reset_id,
+        window = derive_static_utc_reset(evaluated)
+        identity = derive_resource_runtime_identity(
+            binding,
+            evaluated,
+            authorization_freshness_seconds=RESOURCE_AUTHORIZATION_FRESHNESS_SECONDS,
+            evidence_refs=(
+                "identity-source:fixed-runtime-binding",
+                "identity-source:static-utc-midnight-reset",
+                f"product-authority-revision:{authority['authority_revision']}",
+                f"product-authority-digest:{authority['authority_digest']}",
+                f"product-policy-id:{reset_policy['policy_id']}",
+                f"session-owner:{owner}",
+                f"session-invocation:{invocation_id}",
+            ),
         )
-        identity = produce_resource_runtime_identity(
-            configuration,
-            evidence,
-            verified_deadline_payload,
-            evaluated_utc,
-            expected_binding,
-        )
-        if return_deadline_evidence:
-            return identity, verified_deadline_payload
-        return identity
     except (TypeError, ValueError) as exc:
         raise OperatorError(f"Resource production identity denied: {exc}") from exc
+    deadline_payload: dict[str, Any] = {
+        "reset_identity_id": window.reset_identity_id,
+        "deadline_identity": window.reset_identity_id,
+        "reset_deadline_identity": window.reset_identity_id,
+        "reset_start_utc": window.reset_start_text,
+        "reset_deadline_utc": window.reset_deadline_text,
+        "normalized_deadline_utc": window.reset_deadline_text,
+        "evaluated_utc": window.evaluated_utc.isoformat().replace("+00:00", "Z"),
+        "_evaluated_utc": window.evaluated_utc.isoformat().replace("+00:00", "Z"),
+        "authorization_expires_utc": identity.expires_utc,
+        "recurrence_class": "daily_reset",
+        "recurrence_interval_seconds": reset_policy["interval_seconds"],
+        "recurrence_interval_hours": 24,
+        "reset_timezone": reset_policy["timezone"],
+        "reset_time": reset_policy["reset_time"],
+        "product_authority_revision": authority["authority_revision"],
+        "product_authority_digest": authority["authority_digest"],
+        "product_policy_id": reset_policy["policy_id"],
+        "reset_policy_id": reset_policy["policy_id"],
+        "assurance": identity.assurance.value,
+        "identity_semantics": "fixed_runtime_binding_plus_static_utc_reset",
+        "runtime_scope": binding.runtime_scope,
+        "account_id": binding.account_id,
+        "server_id": binding.server_id,
+    }
+    if identity.assurance is not RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET:
+        raise OperatorError("Resource identity assurance is not static UTC")
+    _resource_deadline_evidence(deadline_payload)
+    if return_deadline_evidence:
+        return identity, deadline_payload
+    return identity
 
 
 def _inspect_admitted_resource_store(path: Path, *, fixed_canonical: bool) -> None:
@@ -3581,7 +2682,7 @@ def _resource_reset_identity(
     verified_identity: Any,
     deadline_payload: Mapping[str, Any],
 ) -> Any:
-    """Bind one Resource reset to the exact observed deadline and 24-hour interval."""
+    """Bind one Resource reset to the exact static UTC midnight interval."""
 
     from safe_action_core.resource_effect_authority import ResourceResetIdentity
     from tasks.runtime_identity import (
@@ -3593,14 +2694,26 @@ def _resource_reset_identity(
         raise OperatorError("Resource runtime identity is missing or not verified")
     if (
         verified_identity.assurance
-        is not RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED
+        is not RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET
     ):
         raise OperatorError(
-            "Resource runtime identity is not FIXED_RUNTIME_BINDING_RESET_OBSERVED"
+            "Resource runtime identity is not FIXED_RUNTIME_BINDING_STATIC_UTC_RESET"
         )
     deadline_identity, deadline = _resource_deadline_evidence(deadline_payload)
-    if verified_identity.reset_id != deadline_identity:
-        raise OperatorError("Resource runtime identity does not match the observed reset deadline")
+    reset_start = _resource_identity_timestamp(
+        str(getattr(verified_identity, "reset_start_utc", "") or ""),
+        "Resource runtime identity reset_start_utc",
+    )
+    identity_deadline = _resource_identity_timestamp(
+        str(getattr(verified_identity, "reset_deadline_utc", "") or ""),
+        "Resource runtime identity reset_deadline_utc",
+    )
+    if (
+        verified_identity.reset_id != deadline_identity
+        or identity_deadline != deadline
+        or deadline_payload.get("reset_start_utc") != reset_start.isoformat().replace("+00:00", "Z")
+    ):
+        raise OperatorError("Resource runtime identity does not match the static UTC reset")
     if not verified_identity.observed_utc or not verified_identity.expires_utc:
         raise OperatorError("Resource runtime identity freshness evidence is incomplete")
     observed = _resource_identity_timestamp(
@@ -3623,8 +2736,8 @@ def _resource_reset_identity(
         raise OperatorError("Resource runtime identity is stale")
     if evaluated >= deadline:
         raise OperatorError("Resource reset deadline has been reached")
-    if deadline <= observed:
-        raise OperatorError("Resource reset deadline is not after observed identity evidence")
+    if reset_start + timedelta(days=1) != deadline or evaluated < reset_start:
+        raise OperatorError("Resource reset is not the active static UTC window")
     evidence_refs = tuple(
         dict.fromkeys(
             (
@@ -3640,7 +2753,7 @@ def _resource_reset_identity(
         runtime_scope=verified_identity.runtime_scope,
         reset_start_utc=(deadline - timedelta(days=1)).isoformat().replace("+00:00", "Z"),
         reset_deadline_utc=deadline.isoformat().replace("+00:00", "Z"),
-        assurance="FIXED_RUNTIME_BINDING_RESET_OBSERVED",
+        assurance=RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET.value,
         observed_at=max(0.0, observed.timestamp()),
         expires_at=expires.timestamp(),
         evidence_refs=evidence_refs,
@@ -3678,8 +2791,8 @@ def _build_resource_runtime_components(
         RESOURCE_TARGET_VARIANT,
     )
     from scripts.flow_delivery_daily_resource_item_bluestacks import (
-        ResourceDispatchWindow,
-        ResourceDispatchWindowError,
+        ResourceAuthorizationWindow,
+        ResourceAuthorizationWindowError,
     )
     from scripts.navigation_development_boundary import DevelopmentSessionError
 
@@ -3695,23 +2808,23 @@ def _build_resource_runtime_components(
         raise OperatorError("Resource authority requires the exact pnsctl owner and invocation")
     runtime_lock.assert_held(owner, invocation_id)
     reset_identity = _resource_reset_identity(verified_identity, deadline_payload)
-    dispatch_window = ResourceDispatchWindow(
+    authorization_window = ResourceAuthorizationWindow(
         reset_deadline_utc=_resource_identity_timestamp(
             reset_identity.reset_deadline_utc,
             "Resource reset deadline",
         ),
-        receipt_expires_utc=_resource_identity_timestamp(
+        authorization_expires_utc=_resource_identity_timestamp(
             verified_identity.expires_utc,
-            "Resource receipt expiry",
+            "Resource authorization expiry",
         ),
     )
     try:
-        dispatch_window.require_current(
-            ResourceDispatchWindow.sample_current_utc(wall_clock)
+        authorization_window.require_current(
+            ResourceAuthorizationWindow.sample_current_utc(wall_clock)
         )
-    except ResourceDispatchWindowError as exc:
+    except ResourceAuthorizationWindowError as exc:
         raise OperatorError(
-            "Resource dispatch window denied before Resource SafetyStore open"
+            "Resource authorization window denied before Resource SafetyStore open"
         ) from exc
     store = _open_admitted_resource_store(
         store_path=store_path,
@@ -3754,7 +2867,7 @@ def _build_resource_runtime_components(
                 raise OperatorError("Resource preparation action key is not the exact Use seam")
             runtime_lock.assert_held(owner, invocation_id)
             now = time.monotonic()
-            authority.create_reset_identity(reset_identity)
+            authority.ensure_static_utc_reset_identity(reset_identity)
             occurrence = authority.create_resource_occurrence(
                 ResourceOccurrenceIdentity(
                     reset_identity.account_id,
@@ -3955,7 +3068,7 @@ def _build_resource_runtime_components(
                 policy=policy,
                 prepare=prepare_resource_effect,
                 now=time.monotonic,
-                dispatch_window=dispatch_window,
+                authorization_window=authorization_window,
                 wall_clock=wall_clock,
             )
 
@@ -3964,7 +3077,7 @@ def _build_resource_runtime_components(
             "authority": authority,
             "store": store,
             "controller_lease": controller_lease,
-            "dispatch_window": dispatch_window,
+            "authorization_window": authorization_window,
         }
     except BaseException:
         if authority is not None and controller_lease is not None:
@@ -4009,6 +3122,7 @@ def development_session_run_flow(
     command_argv: Sequence[str] | None = None,
     _resource_store_path: Path | None = None,
     _resource_store_factory: Callable[[Path], Any] | None = None,
+    _resource_wall_clock: Callable[[], datetime] | None = None,
 ) -> str:
     """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
 
@@ -4197,12 +3311,8 @@ def development_session_run_flow(
             (session_directory / "source.png").write_bytes(frame)
             if flow_id == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION" and live:
                 produced = _produce_resource_runtime_identity(
-                    runtime_scope=runtime_scope,
-                    account_id=account_id,
-                    server_id=server_id,
-                    reset_id=reset_id,
-                    identity_evidence=identity_evidence,
-                    session=session_directory,
+                    session=session,
+                    wall_clock=_resource_wall_clock,
                     return_deadline_evidence=True,
                 )
                 resource_runtime_identity, resource_deadline_evidence = produced
@@ -4212,6 +3322,7 @@ def development_session_run_flow(
                     deadline_payload=resource_deadline_evidence,
                     store_path=_resource_store_path,
                     store_factory=_resource_store_factory,
+                    wall_clock=_resource_wall_clock,
                 )
             queue_context = {
                 "active_flow_id": flow_id,
@@ -7590,28 +6701,24 @@ def conduct_flow(
     if not yes:
         raise OperatorError("live conduct requires --yes")
     resource_flow = flow_id == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
-    if resource_flow and identity_evidence is None:
-        raise OperatorError(
-            "Resource conduct requires the authenticated identity_evidence receipt"
+    observe_output: str | None = None
+    if not resource_flow:
+        observe_output = development_session_observe(
+            max_inputs=1,
+            flow_id=flow_id,
+            command_argv=[
+                "development-session",
+                "observe",
+                "--flow-id",
+                flow_id,
+                "--max-inputs",
+                "1",
+            ],
         )
-
-    observe_output = development_session_observe(
-        max_inputs=1,
-        flow_id=flow_id,
-        command_argv=[
-            "development-session",
-            "observe",
-            "--flow-id",
-            flow_id,
-            "--max-inputs",
-            "1",
-        ],
-    )
     run_kwargs: dict[str, Any] = {
         "live": True,
         "yes": True,
         "max_inputs": maximum,
-        "identity_evidence": identity_evidence,
         "command_argv": [
             "development-session",
             "run-flow",
@@ -7622,6 +6729,8 @@ def conduct_flow(
             str(maximum),
         ],
     }
+    if not resource_flow:
+        run_kwargs["identity_evidence"] = identity_evidence
     if not resource_flow:
         run_kwargs.update(
             {
@@ -7655,9 +6764,11 @@ def conduct_flow(
             "blocker": state.last_blocker,
             "flow_id": flow_id,
             "state_path": str(path),
-            "observe": json.loads(observe_output)
-            if observe_output.strip().startswith("{")
-            else observe_output,
+            "observe": (
+                json.loads(observe_output)
+                if observe_output is not None and observe_output.strip().startswith("{")
+                else observe_output
+            ),
             "run": run_payload,
             "verification": verification,
             "plan": plan,
@@ -7682,10 +6793,6 @@ def parser() -> argparse.ArgumentParser:
     development_observe.add_argument("--flow-id")
     development_observe.add_argument("--scenario")
     development_observe.add_argument("--variant")
-    resource_identity_observe = development_sub.add_parser(
-        "resource-identity-observe",
-        help="zero-input selected-Daily Resource identity observation",
-    )
     daily_row_recon = development_sub.add_parser("daily-row-reconnaissance")
     daily_row_recon.add_argument("--max-inputs", type=int, required=True)
     daily_row_recon.add_argument("--delegated-receipt", type=Path, required=True)
@@ -8035,8 +7142,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                     variant=args.variant,
                     command_argv=command_argv,
                 )
-            elif args.development_command == "resource-identity-observe":
-                output = development_session_resource_identity_observe()
             elif args.development_command == "daily-row-reconnaissance":
                 output = development_session_daily_row_reconnaissance(
                     max_inputs=args.max_inputs,

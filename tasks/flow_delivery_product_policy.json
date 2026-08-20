@@ -336,9 +336,19 @@
       "status": "prohibited",
       "decision": "Unknown cost, target, stage, level, resource, material, or consequence fails closed.",
       "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "daily-reset-static-utc-midnight",
+      "scope": "global.daily_reset",
+      "status": "explicitly_approved",
+      "decision": "Daily reset is exactly 00:00:00 UTC every 86400 seconds.",
+      "timezone": "UTC",
+      "reset_time": "00:00:00",
+      "interval_seconds": 86400,
+      "source": "explicit_user_direction_2026-08-20"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r1",
+  "authority_revision": "flow-delivery-product-authority-v2-r2",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -579,5 +589,5 @@
       "record_digest": "667ff4961534fa5f667e7875b937f9b14e771f03a33e99698b8c43b2e8da80f2"
     }
   ],
-  "authority_digest": "f37a77aca97032b0c7c91d24aa7c207c2f6006c1e4278a060991644d56d9bf82"
+  "authority_digest": "69f9a7b0ee937bf04dec6c671cf2d22b2a1bbd1fecefed1b10da822d7a54da50"
 }

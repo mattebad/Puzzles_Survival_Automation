@@ -3,23 +3,22 @@
 from __future__ import annotations
 
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from tasks.runtime_identity import (
     FixedRuntimeBinding,
-    ResourceIdentityEvidence,
+    ResourceResetWindow,
     RuntimeIdentityAssurance,
     RuntimeIdentityConfiguration,
     RuntimeIdentityObservation,
     RuntimePreflightObservation,
     RuntimePreflightStatus,
     derive_fixed_runtime_binding,
+    derive_resource_runtime_identity,
+    derive_static_utc_reset,
     evaluate_runtime_preflight,
     verify_runtime_identity,
-    produce_resource_runtime_identity,
 )
-import hashlib
-import json
 
 
 PACKAGE = "com.global.ztmslg"
@@ -84,51 +83,17 @@ def _preflight(**changes) -> RuntimePreflightObservation:
     return RuntimePreflightObservation(**values)
 
 
-def _resource_case():
+def _resource_identity_case(
+    evaluated: datetime = datetime(2026, 8, 19, 10, tzinfo=timezone.utc),
+):
     binding = _fixed_binding()
-    observed = datetime(2026, 8, 19, 10, tzinfo=timezone.utc)
-    deadline = observed + timedelta(hours=1)
-    observed_text = observed.isoformat().replace("+00:00", "Z")
-    deadline_text = deadline.isoformat().replace("+00:00", "Z")
-    deadline_identity = f"reset-deadline:{deadline_text}"
-    deadline_evidence = {
-        "deadline_identity": deadline_identity,
-        "observed_utc": observed_text,
-        "normalized_deadline_utc": deadline_text,
-        "reset_timer_seconds": 3600,
-        "recurrence_class": "daily_reset",
-        "machine_observed": True,
-        "daily_frame": {
-            "path": "source.png",
-            "sha256": "a" * 64,
-            "captured_utc": observed_text,
-            "observed_utc": observed_text,
-        },
-    }
-    base = {
-        "account_id": binding.account_id,
-        "server_id": binding.server_id,
-        "reset_id": deadline_identity,
-        "evidence_refs": ("daily-reset-frame.png",),
-        "observed_utc": observed_text,
-        "expires_utc": deadline_text,
-        "machine_observed": True,
-        "operator_bound": False,
-        "runtime_scope": binding.runtime_scope,
-        "runtime_binding_digest": binding.binding_digest,
-    }
-    provisional = ResourceIdentityEvidence(**base, content_digest="0" * 64)
-    evidence = ResourceIdentityEvidence(
-        **base,
-        content_digest=provisional.computed_digest(),
+    identity = derive_resource_runtime_identity(
+        binding,
+        evaluated,
+        evidence_refs=("test:fixed-binding", "test:static-utc-reset"),
     )
-    configuration = RuntimeIdentityConfiguration(
-        binding.runtime_scope,
-        binding.account_id,
-        binding.server_id,
-        deadline_identity,
-    )
-    return binding, configuration, evidence, deadline_evidence, observed, deadline
+    window = derive_static_utc_reset(evaluated)
+    return binding, identity, window
 
 
 class RuntimeIdentityTests(unittest.TestCase):
@@ -287,131 +252,70 @@ class RuntimeIdentityTests(unittest.TestCase):
         self.assertEqual(result.status, RuntimePreflightStatus.BLOCKED)
         self.assertEqual(result.reason, "verified_identity_unavailable")
 
-    def test_resource_identity_requires_fresh_machine_observed_reset_deadline(self) -> None:
-        binding = _fixed_binding()
-        deadline = {
-            "deadline_identity": "reset-deadline:2026-08-19T11:00:00Z",
-            "observed_utc": "2026-08-19T10:00:00Z",
-            "normalized_deadline_utc": "2026-08-19T11:00:00Z",
-            "reset_timer_seconds": 3600,
-            "recurrence_class": "daily_reset",
-            "machine_observed": True,
-            "daily_frame": {
-                "path": "source.png",
-                "sha256": "a" * 64,
-                "captured_utc": "2026-08-19T10:00:00Z",
-                "observed_utc": "2026-08-19T10:00:00Z",
-            },
-        }
-        base = {
-            "account_id": binding.account_id,
-            "server_id": binding.server_id,
-            "reset_id": deadline["deadline_identity"],
-            "evidence_refs": ("daily-reset-frame.png",),
-            "observed_utc": "2026-08-19T10:00:00Z",
-            "expires_utc": "2026-08-19T11:00:00Z",
-            "machine_observed": True,
-            "operator_bound": False,
-            "runtime_scope": binding.runtime_scope,
-            "runtime_binding_digest": binding.binding_digest,
-        }
-        provisional = ResourceIdentityEvidence(**base, content_digest="0" * 64)
-        evidence = ResourceIdentityEvidence(
-            **base,
-            content_digest=provisional.computed_digest(),
-        )
-        identity = produce_resource_runtime_identity(
-            RuntimeIdentityConfiguration(
-                binding.runtime_scope,
-                binding.account_id,
-                binding.server_id,
-                deadline["deadline_identity"],
+    def test_static_reset_selects_previous_current_and_next_utc_windows(self) -> None:
+        cases = (
+            (
+                datetime(2026, 8, 19, 23, 59, 59, 999999, tzinfo=timezone.utc),
+                "2026-08-19T00:00:00Z",
+                "2026-08-20T00:00:00Z",
             ),
-            evidence,
-            deadline,
-            "2026-08-19T10:30:00Z",
-            binding,
+            (
+                datetime(2026, 8, 20, 0, 0, 0, tzinfo=timezone.utc),
+                "2026-08-20T00:00:00Z",
+                "2026-08-21T00:00:00Z",
+            ),
+            (
+                datetime(2026, 8, 20, 0, 0, 1, tzinfo=timezone.utc),
+                "2026-08-20T00:00:00Z",
+                "2026-08-21T00:00:00Z",
+            ),
+        )
+        for evaluated, start, deadline in cases:
+            with self.subTest(evaluated=evaluated):
+                window = derive_static_utc_reset(evaluated)
+                self.assertIsInstance(window, ResourceResetWindow)
+                self.assertEqual(window.reset_start_text, start)
+                self.assertEqual(window.reset_deadline_text, deadline)
+                self.assertEqual(window.reset_identity_id, f"reset-deadline:{deadline}")
+
+    def test_static_reset_rejects_naive_wall_clock(self) -> None:
+        with self.assertRaisesRegex(ValueError, "timezone-aware"):
+            derive_static_utc_reset(datetime(2026, 8, 20, 0, 0, 1))
+
+    def test_resource_identity_uses_static_assurance_and_clips_freshness(self) -> None:
+        binding, identity, window = _resource_identity_case(
+            datetime(2026, 8, 19, 23, 55, tzinfo=timezone.utc)
         )
         self.assertEqual(
             identity.assurance,
-            RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED,
+            RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET,
         )
-        self.assertTrue(identity.permits_production_consequential)
+        self.assertNotEqual(identity.assurance, RuntimeIdentityAssurance.PRODUCTION_OBSERVED)
         self.assertNotEqual(
             identity.assurance,
-            RuntimeIdentityAssurance.PRODUCTION_OBSERVED,
+            RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED,
         )
+        self.assertEqual(identity.reset_id, window.reset_identity_id)
+        self.assertEqual(identity.reset_start_utc, window.reset_start_text)
+        self.assertEqual(identity.reset_deadline_utc, window.reset_deadline_text)
+        self.assertTrue(identity.permits_production_consequential)
+        self.assertEqual(
+            identity.expires_utc,
+            "2026-08-20T00:00:00Z",
+        )
+        self.assertEqual(identity.runtime_binding_digest, binding.binding_digest)
 
-    def test_resource_identity_rejects_reset_mismatch_and_stale_evidence(self) -> None:
-        binding = _fixed_binding()
-        deadline = {
-            "deadline_identity": "reset-deadline:2026-08-19T11:00:00Z",
-            "observed_utc": "2026-08-19T10:00:00Z",
-            "normalized_deadline_utc": "2026-08-19T11:00:00Z",
-            "reset_timer_seconds": 3600,
-            "recurrence_class": "daily_reset",
-            "machine_observed": True,
-            "daily_frame": {
-                "path": "source.png",
-                "sha256": "a" * 64,
-                "captured_utc": "2026-08-19T10:00:00Z",
-                "observed_utc": "2026-08-19T10:00:00Z",
-            },
-        }
-        base = {
-            "account_id": binding.account_id,
-            "server_id": binding.server_id,
-            "reset_id": deadline["deadline_identity"],
-            "evidence_refs": ("daily-reset-frame.png",),
-            "observed_utc": "2026-08-19T10:00:00Z",
-            "expires_utc": "2026-08-19T10:01:00Z",
-            "machine_observed": True,
-            "operator_bound": False,
-            "runtime_scope": binding.runtime_scope,
-            "runtime_binding_digest": binding.binding_digest,
-        }
-        provisional = ResourceIdentityEvidence(**base, content_digest="0" * 64)
-        evidence = ResourceIdentityEvidence(
-            **base,
-            content_digest=provisional.computed_digest(),
-        )
-        configuration = RuntimeIdentityConfiguration(
-            binding.runtime_scope,
-            binding.account_id,
-            binding.server_id,
-            deadline["deadline_identity"],
-        )
-        with self.assertRaises(ValueError):
-            produce_resource_runtime_identity(
-                configuration,
-                evidence,
-                deadline,
-                "2026-08-19T10:30:00Z",
-                binding,
-            )
-        with self.assertRaises(ValueError):
-            produce_resource_runtime_identity(
-                configuration,
-                evidence,
-                {**deadline, "deadline_identity": "reset-deadline:other"},
-                "2026-08-19T10:00:30Z",
-                binding,
+    def test_static_identity_requires_fixed_binding(self) -> None:
+        with self.assertRaisesRegex(ValueError, "fixed runtime binding"):
+            derive_resource_runtime_identity(
+                object(), datetime(2026, 8, 20, tzinfo=timezone.utc)
             )
 
-    def test_resource_identity_denies_at_and_after_exact_reset_deadline(self) -> None:
-        binding, configuration, evidence, deadline_evidence, _observed, deadline = (
-            _resource_case()
+    def test_static_identity_freshness_default_is_ten_minutes(self) -> None:
+        _binding, identity, _window = _resource_identity_case(
+            datetime(2026, 8, 19, 10, tzinfo=timezone.utc)
         )
-        for evaluated in (deadline, deadline + timedelta(seconds=1)):
-            with self.subTest(evaluated=evaluated):
-                with self.assertRaisesRegex(ValueError, "at or after"):
-                    produce_resource_runtime_identity(
-                        configuration,
-                        evidence,
-                        deadline_evidence,
-                        evaluated,
-                        binding,
-                    )
+        self.assertEqual(identity.expires_utc, "2026-08-19T10:10:00Z")
 
     def test_fixed_runtime_binding_is_stable_and_changes_for_each_binding_input(self) -> None:
         baseline = _fixed_binding()

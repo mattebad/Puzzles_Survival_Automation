@@ -20,7 +20,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r1"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r2"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -51,6 +51,27 @@ POLICY_STATUSES = frozenset(
     }
 )
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+DAILY_RESET_POLICY_ID = "daily-reset-static-utc-midnight"
+DAILY_RESET_POLICY_SCOPE = "global.daily_reset"
+DAILY_RESET_POLICY_STATUS = "explicitly_approved"
+DAILY_RESET_POLICY_TIMEZONE = "UTC"
+DAILY_RESET_POLICY_RESET_TIME = "00:00:00"
+DAILY_RESET_POLICY_INTERVAL_SECONDS = 86400
+DAILY_RESET_POLICY_SOURCE = "explicit_user_direction_2026-08-20"
+DAILY_RESET_POLICY_DECISION = (
+    "Daily reset is exactly 00:00:00 UTC every 86400 seconds."
+)
+DAILY_RESET_POLICY_EXPECTED = {
+    "policy_id": DAILY_RESET_POLICY_ID,
+    "scope": DAILY_RESET_POLICY_SCOPE,
+    "status": DAILY_RESET_POLICY_STATUS,
+    "decision": DAILY_RESET_POLICY_DECISION,
+    "timezone": DAILY_RESET_POLICY_TIMEZONE,
+    "reset_time": DAILY_RESET_POLICY_RESET_TIME,
+    "interval_seconds": DAILY_RESET_POLICY_INTERVAL_SECONDS,
+    "source": DAILY_RESET_POLICY_SOURCE,
+}
 
 # Product authority must not absorb implementation, runtime, or orchestration
 # domains.  These are field names rather than words in semantic descriptions.
@@ -446,6 +467,35 @@ def _policy_ids(payload: Mapping[str, Any]) -> set[str]:
     return identities
 
 
+def validate_daily_reset_policy(
+    authority_or_policy: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate and return the exact typed static-UTC reset policy."""
+
+    if not isinstance(authority_or_policy, Mapping):
+        raise ProductAuthorityError("daily reset policy must be an object")
+    if isinstance(authority_or_policy.get("policies"), list):
+        matches = [
+            policy
+            for policy in authority_or_policy["policies"]
+            if isinstance(policy, Mapping)
+            and policy.get("policy_id") == DAILY_RESET_POLICY_ID
+        ]
+        if len(matches) != 1:
+            raise ProductAuthorityError(
+                "product authority must contain exactly one static UTC daily reset policy"
+            )
+        policy = matches[0]
+    else:
+        policy = authority_or_policy
+    for field, expected in DAILY_RESET_POLICY_EXPECTED.items():
+        if policy.get(field) != expected:
+            raise ProductAuthorityError(
+                f"daily reset policy field {field} is not the frozen static UTC value"
+            )
+    return dict(policy)
+
+
 def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
@@ -456,7 +506,7 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 
 
 def validate_product_authority(payload: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate schema v2, all legacy policy entries, records, and digests."""
+    """Validate schema v2, typed policies, records, and digests."""
 
     if payload.get("schema_version") != AUTHORITY_SCHEMA_VERSION:
         raise ProductAuthorityError("unsupported product-policy schema")
@@ -468,6 +518,7 @@ def validate_product_authority(payload: Mapping[str, Any]) -> dict[str, Any]:
     if set(statuses or ()) != set(POLICY_STATUSES):
         raise ProductAuthorityError("product-policy vocabulary mismatch")
     _policy_ids(payload)
+    validate_daily_reset_policy(payload)
     records = _records(payload)
     seen: set[str] = set()
     for record in records:
@@ -492,6 +543,16 @@ def load_product_authority(path: Path = DEFAULT_AUTHORITY_PATH) -> dict[str, Any
 
 
 load_authority = load_product_authority
+
+
+def get_daily_reset_policy(
+    authority: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Load or validate the exact static-UTC reset policy for Resource callers."""
+
+    value = load_product_authority() if authority is None else authority
+    validate_product_authority(value)
+    return validate_daily_reset_policy(value)
 
 
 def product_records_by_id(

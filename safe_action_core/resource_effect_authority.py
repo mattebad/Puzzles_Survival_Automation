@@ -9,7 +9,7 @@ the external game are one transaction.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -42,6 +42,7 @@ RESOURCE_PRODUCT_POLICY_REVISION = "use_resource_item-v1"
 RESOURCE_RECURRENCE_POLICY_REVISION = "daily_reset-v1"
 RESOURCE_BLOCK_SCOPE = "runtime-objective"
 RESOURCE_BLOCK_OBJECTIVE = "use_resource_item"
+RESOURCE_STATIC_UTC_ASSURANCE = "fixed_runtime_binding_static_utc_reset"
 
 
 class ResourceAuthorityError(StoreError):
@@ -60,7 +61,7 @@ class ResourceFenceError(ResourceAuthorityError):
     """A claim, controller, reservation, frame, or invocation fence failed."""
 
 
-RESOURCE_PRE_INTENT_CANCELLATION_REASON = "reset_dispatch_window_expired"
+RESOURCE_PRE_INTENT_CANCELLATION_REASON = "resource_authorization_expired"
 
 
 def _canonical(value: Any) -> Any:
@@ -177,7 +178,7 @@ class ResourceResetIdentity:
     runtime_scope: str
     reset_start_utc: str
     reset_deadline_utc: str
-    assurance: str = "PRODUCTION_OBSERVED"
+    assurance: str = RESOURCE_STATIC_UTC_ASSURANCE
     observed_at: float = 0.0
     expires_at: float | None = None
     evidence_refs: tuple[str, ...] = ()
@@ -553,7 +554,7 @@ class ResourceEffectAuthority:
             runtime_scope=value.get("runtime_scope"),
             reset_start_utc=value.get("reset_start_utc", value.get("start_utc")),
             reset_deadline_utc=value.get("reset_deadline_utc", value.get("deadline_utc")),
-            assurance=value.get("assurance", "PRODUCTION_OBSERVED"),
+            assurance=value.get("assurance", RESOURCE_STATIC_UTC_ASSURANCE),
             observed_at=value.get("observed_at", 0.0),
             expires_at=value.get("expires_at"),
             evidence_refs=tuple(value.get("evidence_refs", ())),
@@ -565,47 +566,145 @@ class ResourceEffectAuthority:
     ) -> ResourceResetIdentity:
         self._assert_v4()
         value = self._reset(identity)
-        payload = value.as_dict()
-        content_digest = _digest(payload)
         with self.store.transaction() as db:
-            _immutable_insert(
-                db,
-                table="resource_reset_identities",
-                id_column="reset_identity_id",
-                object_id=value.reset_identity_id,
-                columns=(
-                    "reset_identity_id",
-                    "account_id",
-                    "server_id",
-                    "runtime_scope",
-                    "reset_start_utc",
-                    "reset_deadline_utc",
-                    "assurance",
-                    "observed_at",
-                    "expires_at",
-                    "evidence_refs_json",
-                    "content_digest",
-                    "payload_json",
-                ),
-                values=(
-                    value.reset_identity_id,
-                    value.account_id,
-                    value.server_id,
-                    value.runtime_scope,
-                    value.reset_start_utc,
-                    value.reset_deadline_utc,
-                    value.assurance,
-                    value.observed_at,
-                    value.expires_at,
-                    _json(value.evidence_refs),
-                    content_digest,
-                    _json(payload),
-                ),
-                payload=payload,
-                digest=content_digest,
-            )
+            self._insert_reset_identity(db, value)
         return value
 
+    @staticmethod
+    def _reset_from_row(row: Mapping[str, Any]) -> ResourceResetIdentity:
+        try:
+            evidence_refs = json.loads(str(row.get("evidence_refs_json") or "[]"))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ResourceIntegrityError("resource reset identity evidence is malformed") from exc
+        if not isinstance(evidence_refs, (list, tuple)):
+            raise ResourceIntegrityError("resource reset identity evidence is malformed")
+        return ResourceResetIdentity(
+            reset_identity_id=row.get("reset_identity_id"),
+            account_id=row.get("account_id"),
+            server_id=row.get("server_id"),
+            runtime_scope=row.get("runtime_scope"),
+            reset_start_utc=row.get("reset_start_utc"),
+            reset_deadline_utc=row.get("reset_deadline_utc"),
+            assurance=row.get("assurance"),
+            observed_at=row.get("observed_at"),
+            expires_at=row.get("expires_at"),
+            evidence_refs=tuple(evidence_refs),
+        )
+
+    def _insert_reset_identity(
+        self,
+        db: sqlite3.Connection,
+        value: ResourceResetIdentity,
+    ) -> None:
+        payload = value.as_dict()
+        content_digest = _digest(payload)
+        _immutable_insert(
+            db,
+            table="resource_reset_identities",
+            id_column="reset_identity_id",
+            object_id=value.reset_identity_id,
+            columns=(
+                "reset_identity_id",
+                "account_id",
+                "server_id",
+                "runtime_scope",
+                "reset_start_utc",
+                "reset_deadline_utc",
+                "assurance",
+                "observed_at",
+                "expires_at",
+                "evidence_refs_json",
+                "content_digest",
+                "payload_json",
+            ),
+            values=(
+                value.reset_identity_id,
+                value.account_id,
+                value.server_id,
+                value.runtime_scope,
+                value.reset_start_utc,
+                value.reset_deadline_utc,
+                value.assurance,
+                value.observed_at,
+                value.expires_at,
+                _json(value.evidence_refs),
+                content_digest,
+                _json(payload),
+            ),
+            payload=payload,
+            digest=content_digest,
+        )
+
+    def ensure_static_utc_reset_identity(
+        self,
+        identity: ResourceResetIdentity | Mapping[str, Any],
+    ) -> ResourceResetIdentity:
+        """Ensure one Resource reset under the static UTC product rule.
+
+        A retained row may carry the exact historical screen-observed assurance/evidence. It is
+        reusable only when the account, server, runtime scope, and exact UTC reset bounds match.
+        Neither the candidate nor a retained row is rewritten.
+        """
+
+        self._assert_v4()
+        value = self._reset(identity)
+        if value.assurance != RESOURCE_STATIC_UTC_ASSURANCE:
+            raise ResourceIntegrityError(
+                "static UTC Resource reset requires the static UTC assurance"
+            )
+        try:
+            start = datetime.fromisoformat(value.reset_start_utc.replace("Z", "+00:00"))
+            deadline = datetime.fromisoformat(value.reset_deadline_utc.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ResourceIntegrityError(
+                "static UTC Resource reset bounds are malformed"
+            ) from exc
+        if (
+            start.tzinfo is None
+            or deadline.tzinfo is None
+            or start.hour != 0
+            or start.minute != 0
+            or start.second != 0
+            or start.microsecond != 0
+            or deadline != start + timedelta(days=1)
+        ):
+            raise ResourceIntegrityError(
+                "static UTC Resource reset must span one exact UTC day"
+            )
+        if value.reset_identity_id != f"reset-deadline:{value.reset_deadline_utc}":
+            raise ResourceIntegrityError(
+                "static UTC Resource reset identity ID does not match its deadline"
+            )
+        with self.store.transaction() as db:
+            existing = _row(
+                db,
+                "SELECT * FROM resource_reset_identities WHERE reset_identity_id=?",
+                (value.reset_identity_id,),
+            )
+            if existing is None:
+                self._insert_reset_identity(db, value)
+                return value
+            if existing["assurance"] not in {
+                RESOURCE_STATIC_UTC_ASSURANCE,
+                "FIXED_RUNTIME_BINDING_RESET_OBSERVED",
+            }:
+                raise ResourceIntegrityError(
+                    "existing Resource reset assurance is not reusable"
+                )
+            core_fields = (
+                "account_id",
+                "server_id",
+                "runtime_scope",
+                "reset_start_utc",
+                "reset_deadline_utc",
+            )
+            if any(existing[field] != getattr(value, field) for field in core_fields):
+                raise ResourceIntegrityError(
+                    "existing Resource reset identity does not match the static UTC core binding"
+                )
+            return self._reset_from_row(existing)
+
+    ensure_reset_identity = ensure_static_utc_reset_identity
     create_reset_identity = append_reset_identity
 
     def create_resource_occurrence(
@@ -3614,6 +3713,78 @@ class ResourceEffectAuthority:
             payload={"reason": reason},
         )
 
+    def _release_reconciled_reservation_claims(
+        self,
+        db: sqlite3.Connection,
+        *,
+        reservation: Mapping[str, Any],
+        effect_state: str,
+        now: float,
+    ) -> None:
+        """Release every still-authorizing claim for one reconciled reservation."""
+
+        normalized = str(effect_state).upper()
+        if normalized not in {"CONFIRMED", "NO_EFFECT", "UNRESOLVED"}:
+            raise ResourceIntegrityError("reconciled claim release effect state is invalid")
+        claims = db.execute(
+            """SELECT * FROM resource_attempt_claims
+               WHERE reservation_id=? ORDER BY claim_id""",
+            (reservation["reservation_id"],),
+        ).fetchall()
+        payload_base = {
+            "reason": "observe_only_effect_reconciled",
+            "effect_state": normalized,
+            "reservation_id": reservation["reservation_id"],
+            "occurrence_id": reservation["occurrence_id"],
+        }
+        for claim_row in claims:
+            claim = dict(claim_row)
+            state = str(claim["state"])
+            if state in {"RELEASED", "EXPIRED"}:
+                continue
+            if state not in {"ACTIVE", "RECONCILIATION_ONLY"}:
+                raise ResourceIntegrityError(
+                    "Resource reservation claim has an unsupported terminalization state"
+                )
+            if (
+                claim["occurrence_id"] != reservation["occurrence_id"]
+                or claim["reservation_id"] != reservation["reservation_id"]
+            ):
+                raise ResourceIntegrityError(
+                    "Resource reservation claim binding is inconsistent"
+                )
+            changed = db.execute(
+                """UPDATE resource_attempt_claims
+                   SET state='RELEASED'
+                   WHERE claim_id=? AND attempt_id=? AND occurrence_id=?
+                     AND reservation_id=? AND state=?""",
+                (
+                    claim["claim_id"],
+                    claim["attempt_id"],
+                    reservation["occurrence_id"],
+                    reservation["reservation_id"],
+                    state,
+                ),
+            ).rowcount
+            if changed != 1:
+                raise ResourceFenceError(
+                    "reconciled Resource claim release compare-and-swap failed"
+                )
+            self._append_transition(
+                db,
+                entity_type="claim",
+                entity_id=claim["claim_id"],
+                state_from=state,
+                state_to="RELEASED",
+                state_revision=int(claim["claim_epoch"]),
+                recorded_at=now,
+                payload={
+                    **payload_base,
+                    "claim_id": claim["claim_id"],
+                    "attempt_id": claim["attempt_id"],
+                },
+            )
+
     def reconcile_resource_effect_observe_only(
         self,
         reservation_id: str,
@@ -3672,6 +3843,12 @@ class ResourceEffectAuthority:
                     raise ResourceIntegrityError(
                         "terminal Resource reservation has no immutable live effect"
                     )
+                self._release_reconciled_reservation_claims(
+                    db,
+                    reservation=current,
+                    effect_state=str(existing["effect_state"]),
+                    now=now,
+                )
                 self._terminalize_linked_action(
                     db,
                     reservation=current,
@@ -3731,6 +3908,12 @@ class ResourceEffectAuthority:
                     state_revision=revision + 1,
                     recorded_at=now,
                     payload={"observe_only": True, "unknown": True},
+                )
+                self._release_reconciled_reservation_claims(
+                    db,
+                    reservation=current,
+                    effect_state="UNRESOLVED",
+                    now=now,
                 )
                 self._terminalize_linked_action(
                     db,
@@ -3805,6 +3988,12 @@ class ResourceEffectAuthority:
                 next_state="COMPLETED" if state == "CONFIRMED" else "NO_EFFECT",
                 now=now,
                 reason="observe_only_effect_reconciled",
+            )
+            self._release_reconciled_reservation_claims(
+                db,
+                reservation=current,
+                effect_state=state,
+                now=now,
             )
             self._terminalize_linked_action(
                 db,

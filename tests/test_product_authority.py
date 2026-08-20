@@ -17,12 +17,20 @@ from scripts.generate_flow_authority_views import (
 from tasks.gameplay_flow_contracts import load_all_flow_contracts
 from tasks.product_authority import (
     AUTHORITY_REVISION,
+    DAILY_RESET_POLICY_ID,
+    DAILY_RESET_POLICY_INTERVAL_SECONDS,
+    DAILY_RESET_POLICY_RESET_TIME,
+    DAILY_RESET_POLICY_SOURCE,
+    DAILY_RESET_POLICY_STATUS,
+    DAILY_RESET_POLICY_TIMEZONE,
     ProductAuthorityError,
     authority_digest,
     canonical_digest,
+    get_daily_reset_policy,
     load_product_authority,
     record_digest,
     validate_contract_product_authority_bindings,
+    validate_daily_reset_policy,
     validate_product_authority,
 )
 
@@ -56,6 +64,50 @@ class ProductAuthorityTests(unittest.TestCase):
         record = deepcopy(self.records["use_resource_item"])
         self.assertEqual(record_digest(record), record["record_digest"])
         self.assertEqual(authority_digest(self.authority), self.authority["authority_digest"])
+
+    def test_daily_reset_policy_is_exact_and_typed(self) -> None:
+        policy = validate_daily_reset_policy(self.authority)
+        self.assertEqual(policy["policy_id"], DAILY_RESET_POLICY_ID)
+        self.assertEqual(policy["status"], DAILY_RESET_POLICY_STATUS)
+        self.assertEqual(policy["timezone"], DAILY_RESET_POLICY_TIMEZONE)
+        self.assertEqual(policy["reset_time"], DAILY_RESET_POLICY_RESET_TIME)
+        self.assertEqual(policy["interval_seconds"], DAILY_RESET_POLICY_INTERVAL_SECONDS)
+        self.assertEqual(policy["source"], DAILY_RESET_POLICY_SOURCE)
+        self.assertEqual(get_daily_reset_policy(self.authority), policy)
+
+        for field, replacement in (
+            ("timezone", "America/New_York"),
+            ("reset_time", "00:00:01"),
+            ("interval_seconds", 3600),
+            ("status", "prohibited"),
+            ("source", "test"),
+        ):
+            with self.subTest(field=field):
+                changed = deepcopy(self.authority)
+                reset_policy = next(
+                    item
+                    for item in changed["policies"]
+                    if item["policy_id"] == DAILY_RESET_POLICY_ID
+                )
+                reset_policy[field] = replacement
+                changed["authority_digest"] = authority_digest(changed)
+                with self.assertRaises(ProductAuthorityError):
+                    validate_product_authority(changed)
+
+    def test_stale_contract_authority_binding_fails_closed(self) -> None:
+        contract = self.contracts["DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"]
+        for field, replacement in (
+            ("product_authority_revision", "flow-delivery-product-authority-v2-r1"),
+            ("product_authority_digest", "0" * 64),
+        ):
+            with self.subTest(field=field):
+                changed = deepcopy(contract)
+                changed["product_authority_binding"][field] = replacement
+                with self.assertRaises(ProductAuthorityError):
+                    validate_contract_product_authority_bindings(
+                        self.authority,
+                        {"resource": changed},
+                    )
 
     def test_resource_semantics_are_direct_owned_one_item(self) -> None:
         record = self.records["use_resource_item"]
