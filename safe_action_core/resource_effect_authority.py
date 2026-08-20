@@ -60,6 +60,9 @@ class ResourceFenceError(ResourceAuthorityError):
     """A claim, controller, reservation, frame, or invocation fence failed."""
 
 
+RESOURCE_PRE_INTENT_CANCELLATION_REASON = "reset_dispatch_window_expired"
+
+
 def _canonical(value: Any) -> Any:
     return snapshot(value)
 
@@ -2538,6 +2541,334 @@ class ResourceEffectAuthority:
             context,
             fence,
         )
+
+    def cancel_prepared_resource_effect(
+        self,
+        prepared: PreparedResourceEffect,
+        *,
+        controller_lease: Mapping[str, Any],
+        runtime_lock: Any,
+        reason: str,
+        now: float = 0.0,
+    ) -> dict[str, Any]:
+        """Atomically close one prepared effect before any transport intent.
+
+        This is deliberately narrower than transport outcome handling: the
+        exact prepared fence, live controller lease, and held runtime lock are
+        required, and any transport fact makes cancellation fail closed.
+        """
+
+        if type(prepared) is not PreparedResourceEffect:
+            raise ResourceFenceError("typed prepared Resource effect is required")
+        if reason != RESOURCE_PRE_INTENT_CANCELLATION_REASON:
+            raise ResourceAuthorizationDenied(
+                "unsupported prepared Resource cancellation reason"
+            )
+        if (
+            prepared.fence.occurrence_id != prepared.occurrence_id
+            or prepared.fence.attempt_id != prepared.attempt_id
+            or prepared.fence.reservation_id != prepared.reservation_id
+            or prepared.fence.reservation_state_revision
+            != prepared.reservation_state_revision
+        ):
+            raise ResourceFenceError(
+                "prepared Resource fence identity does not match prepared effect"
+            )
+        if not isinstance(controller_lease, Mapping):
+            raise ResourceFenceError("Resource controller lease is required")
+        try:
+            owner_id = str(controller_lease.get("owner_id") or "")
+            controller_token = str(
+                controller_lease.get("controller_token")
+                or controller_lease.get("lease_token")
+                or ""
+            )
+            controller_generation = int(
+                controller_lease.get(
+                    "controller_generation", controller_lease.get("generation", 0)
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            raise ResourceFenceError("Resource controller lease is malformed") from exc
+        if not owner_id or not controller_token or controller_generation < 1:
+            raise ResourceFenceError("Resource controller lease is incomplete")
+        assert_held = getattr(runtime_lock, "assert_held", None)
+        if not callable(assert_held):
+            raise ResourceFenceError("held Resource runtime lock is required")
+        try:
+            assert_held(owner_id, prepared.fence.runtime_invocation_id)
+        except BaseException as exc:
+            raise ResourceFenceError("Resource runtime lock is not held") from exc
+
+        cancellation_payload = {
+            "reason": reason,
+            "adapter_invoked": False,
+            "transport_intent_absent": True,
+            "prepared_effect": {
+                "occurrence_id": prepared.occurrence_id,
+                "attempt_id": prepared.attempt_id,
+                "reservation_id": prepared.reservation_id,
+                "action_id": prepared.action_id,
+                "action_key": prepared.action_key,
+                "authorization_generation": prepared.authorization_generation,
+                "reservation_state_revision": prepared.reservation_state_revision,
+                "fence": prepared.fence.as_dict(),
+            },
+        }
+
+        with self.store.transaction() as db:
+            lease = _row(
+                db,
+                "SELECT * FROM controller_lease WHERE singleton=1",
+                (),
+            )
+            if (
+                lease is None
+                or lease["owner_id"] != owner_id
+                or lease["released_at"] is not None
+                or float(lease["expires_at"]) <= now
+                or int(lease["generation"]) != controller_generation
+                or lease["runtime_invocation_id"] != prepared.fence.runtime_invocation_id
+                or lease["lease_mode"] != "execute"
+                or lease["lease_token_digest"] != self.store._lease_token_digest(controller_token)
+            ):
+                raise ResourceFenceError("Resource controller lease is stale")
+
+            reservation = _row(
+                db,
+                "SELECT * FROM resource_reservations WHERE reservation_id=?",
+                (prepared.reservation_id,),
+            )
+            if reservation is None:
+                raise ResourceFenceError("prepared Resource reservation disappeared")
+            if (
+                reservation["occurrence_id"] != prepared.occurrence_id
+                or reservation["attempt_id"] != prepared.attempt_id
+                or reservation["action_id"] != prepared.action_id
+                or int(reservation["effect_ordinal"]) != prepared.context.effect_ordinal
+                or int(reservation["authorization_generation"])
+                != prepared.authorization_generation
+                or reservation["authorization_context_digest"] != prepared.context.digest()
+                or reservation["claim_token_digest"] != prepared.fence.claim_token_digest
+                or int(reservation["claim_epoch"]) != prepared.fence.claim_epoch
+                or reservation["controller_token_digest"]
+                != prepared.fence.controller_token_digest
+                or int(reservation["controller_generation"])
+                != prepared.fence.controller_generation
+                or reservation["runtime_invocation_id"]
+                != prepared.fence.runtime_invocation_id
+                or reservation["immediate_before_sha256"]
+                != prepared.fence.immediate_before_sha256
+            ):
+                raise ResourceFenceError("prepared Resource fence binding is inconsistent")
+
+            occurrence = _row(
+                db,
+                "SELECT * FROM resource_occurrences WHERE occurrence_id=?",
+                (prepared.occurrence_id,),
+            )
+            attempt = _row(
+                db,
+                "SELECT * FROM resource_attempts WHERE attempt_id=? AND occurrence_id=?",
+                (prepared.attempt_id, prepared.occurrence_id),
+            )
+            claim = _row(
+                db,
+                """SELECT * FROM resource_attempt_claims
+                   WHERE attempt_id=? AND occurrence_id=? AND claim_epoch=?
+                     AND claim_token_digest=?""",
+                (
+                    prepared.attempt_id,
+                    prepared.occurrence_id,
+                    prepared.fence.claim_epoch,
+                    prepared.fence.claim_token_digest,
+                ),
+            )
+            action = _row(
+                db,
+                "SELECT * FROM actions WHERE action_id=? AND action_key=?",
+                (prepared.action_id, prepared.action_key),
+            )
+            if occurrence is None or attempt is None or claim is None or action is None:
+                raise ResourceFenceError("prepared Resource entity binding is incomplete")
+            if (
+                occurrence["account_id"] != prepared.context.account_id
+                or occurrence["server_id"] != prepared.context.server_id
+                or occurrence["reset_identity_id"] != prepared.context.reset_identity_id
+                or occurrence["occurrence_key"] != prepared.context.occurrence_key
+            ):
+                raise ResourceFenceError("prepared Resource occurrence fence is stale")
+            if db.execute(
+                "SELECT 1 FROM resource_transport_facts WHERE reservation_id=?",
+                (prepared.reservation_id,),
+            ).fetchone() is not None or db.execute(
+                "SELECT 1 FROM resource_transport_outcomes WHERE reservation_id=?",
+                (prepared.reservation_id,),
+            ).fetchone() is not None:
+                raise ResourceFenceError(
+                    "Resource transport already exists for prepared cancellation"
+                )
+
+            # A second call is safe only when the exact prior terminalization
+            # is present.  Any other terminal state is a stale fence.
+            if reservation["state"] == "CLOSED":
+                prior = _row(
+                    db,
+                    """SELECT payload_json FROM resource_transition_history
+                       WHERE entity_type='reservation' AND entity_id=?
+                         AND state_from='RESERVED' AND state_to='CLOSED'
+                         AND state_revision=?""",
+                    (prepared.reservation_id, prepared.reservation_state_revision + 1),
+                )
+                try:
+                    prior_payload = (
+                        json.loads(str(prior["payload_json"])) if prior is not None else {}
+                    )
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    prior_payload = {}
+                if (
+                    prior_payload.get("payload", {}).get("reason") != reason
+                    or attempt["state"] != "ABANDONED"
+                    or claim["state"] != "RELEASED"
+                    or occurrence["state"] != "BLOCKED"
+                    or action["final_status"] != "cancelled"
+                ):
+                    raise ResourceFenceError("prepared Resource cancellation is not repeatable")
+                return {
+                    "reservation_id": prepared.reservation_id,
+                    "action_id": prepared.action_id,
+                    "idempotent": True,
+                    "reason": reason,
+                    "adapter_invoked": False,
+                    "transport_intent_absent": True,
+                }
+
+            if (
+                reservation["state"] != "RESERVED"
+                or int(reservation["state_revision"])
+                != prepared.reservation_state_revision
+                or occurrence["state"] != "RESERVED"
+                or attempt["state"] != "CLAIMED"
+                or claim["state"] != "ACTIVE"
+                or claim["reservation_id"] != prepared.reservation_id
+                or action["final_status"] != "prepared"
+                or action["input_attempt_at"] is not None
+                or action["transport_result_json"] is not None
+            ):
+                raise ResourceFenceError("prepared Resource effect is no longer pre-input")
+
+            reservation_revision = int(reservation["state_revision"]) + 1
+            if db.execute(
+                """UPDATE resource_reservations
+                   SET state='CLOSED',state_revision=?,updated_at=?
+                   WHERE reservation_id=? AND state='RESERVED' AND state_revision=?""",
+                (
+                    reservation_revision,
+                    now,
+                    prepared.reservation_id,
+                    prepared.reservation_state_revision,
+                ),
+            ).rowcount != 1:
+                raise ResourceFenceError("Resource reservation close compare-and-swap failed")
+            self._append_transition(
+                db,
+                entity_type="reservation",
+                entity_id=prepared.reservation_id,
+                state_from="RESERVED",
+                state_to="CLOSED",
+                state_revision=reservation_revision,
+                recorded_at=now,
+                payload=cancellation_payload,
+            )
+
+            attempt_revision = int(attempt["state_revision"]) + 1
+            if db.execute(
+                """UPDATE resource_attempts
+                   SET state='ABANDONED',state_revision=?,updated_at=?
+                   WHERE attempt_id=? AND occurrence_id=? AND state='CLAIMED'
+                     AND state_revision=?""",
+                (
+                    attempt_revision,
+                    now,
+                    prepared.attempt_id,
+                    prepared.occurrence_id,
+                    int(attempt["state_revision"]),
+                ),
+            ).rowcount != 1:
+                raise ResourceFenceError("Resource attempt abandon compare-and-swap failed")
+            self._append_transition(
+                db,
+                entity_type="attempt",
+                entity_id=prepared.attempt_id,
+                state_from="CLAIMED",
+                state_to="ABANDONED",
+                state_revision=attempt_revision,
+                recorded_at=now,
+                payload=cancellation_payload,
+            )
+
+            if db.execute(
+                """UPDATE resource_attempt_claims SET state='RELEASED'
+                   WHERE claim_id=? AND attempt_id=? AND occurrence_id=?
+                     AND state='ACTIVE' AND reservation_id=?""",
+                (
+                    claim["claim_id"],
+                    prepared.attempt_id,
+                    prepared.occurrence_id,
+                    prepared.reservation_id,
+                ),
+            ).rowcount != 1:
+                raise ResourceFenceError("Resource claim release compare-and-swap failed")
+            self._append_transition(
+                db,
+                entity_type="claim",
+                entity_id=claim["claim_id"],
+                state_from="ACTIVE",
+                state_to="RELEASED",
+                state_revision=int(claim["claim_epoch"]),
+                recorded_at=now,
+                payload=cancellation_payload,
+            )
+
+            self._cas_occurrence(
+                db,
+                occurrence_id=prepared.occurrence_id,
+                expected_states={"RESERVED"},
+                next_state="BLOCKED",
+                now=now,
+                reason=reason,
+            )
+            # The action is transitioned directly because the surrounding
+            # Resource transaction must include every linked state change.
+            if db.execute(
+                """UPDATE actions SET final_status='cancelled',final_reason=?,updated_at=?
+                   WHERE action_id=? AND action_key=? AND final_status='prepared'
+                     AND input_attempt_at IS NULL AND transport_result_json IS NULL""",
+                (reason, now, prepared.action_id, prepared.action_key),
+            ).rowcount != 1:
+                raise ResourceFenceError("prepared action cancellation compare-and-swap failed")
+            self.store._insert_audit(
+                db,
+                action["task_id"],
+                "action_transition",
+                now,
+                {
+                    "reason": reason,
+                    "adapter_invoked": False,
+                    "transport_intent_absent": True,
+                },
+                prepared.action_id,
+                "prepared",
+                "cancelled",
+            )
+            return {
+                "reservation_id": prepared.reservation_id,
+                "action_id": prepared.action_id,
+                "idempotent": False,
+                "reason": reason,
+                "adapter_invoked": False,
+                "transport_intent_absent": True,
+            }
 
     def _reservation(self, reservation_id: str) -> dict[str, Any]:
         value = _row(

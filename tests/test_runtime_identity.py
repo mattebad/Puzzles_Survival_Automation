@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timedelta, timezone
 
 from tasks.runtime_identity import (
+    FixedRuntimeBinding,
     ResourceIdentityEvidence,
     RuntimeIdentityAssurance,
     RuntimeIdentityConfiguration,
     RuntimeIdentityObservation,
     RuntimePreflightObservation,
     RuntimePreflightStatus,
+    derive_fixed_runtime_binding,
     evaluate_runtime_preflight,
     verify_runtime_identity,
     produce_resource_runtime_identity,
@@ -21,6 +24,23 @@ import json
 
 PACKAGE = "com.global.ztmslg"
 PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+SERIAL = "emulator-5554"
+LOGIN_SLOT_VERSION = "primary-login-slot-v1"
+
+
+def _fixed_binding(
+    *,
+    serial: str = SERIAL,
+    profile: str = PROFILE,
+    package: str = PACKAGE,
+    login_slot_version: str = LOGIN_SLOT_VERSION,
+) -> FixedRuntimeBinding:
+    return derive_fixed_runtime_binding(
+        serial,
+        profile,
+        package,
+        login_slot_version,
+    )
 
 
 def _configuration(*, reset_id: str | None = "reset-1") -> RuntimeIdentityConfiguration:
@@ -62,6 +82,53 @@ def _preflight(**changes) -> RuntimePreflightObservation:
     }
     values.update(changes)
     return RuntimePreflightObservation(**values)
+
+
+def _resource_case():
+    binding = _fixed_binding()
+    observed = datetime(2026, 8, 19, 10, tzinfo=timezone.utc)
+    deadline = observed + timedelta(hours=1)
+    observed_text = observed.isoformat().replace("+00:00", "Z")
+    deadline_text = deadline.isoformat().replace("+00:00", "Z")
+    deadline_identity = f"reset-deadline:{deadline_text}"
+    deadline_evidence = {
+        "deadline_identity": deadline_identity,
+        "observed_utc": observed_text,
+        "normalized_deadline_utc": deadline_text,
+        "reset_timer_seconds": 3600,
+        "recurrence_class": "daily_reset",
+        "machine_observed": True,
+        "daily_frame": {
+            "path": "source.png",
+            "sha256": "a" * 64,
+            "captured_utc": observed_text,
+            "observed_utc": observed_text,
+        },
+    }
+    base = {
+        "account_id": binding.account_id,
+        "server_id": binding.server_id,
+        "reset_id": deadline_identity,
+        "evidence_refs": ("daily-reset-frame.png",),
+        "observed_utc": observed_text,
+        "expires_utc": deadline_text,
+        "machine_observed": True,
+        "operator_bound": False,
+        "runtime_scope": binding.runtime_scope,
+        "runtime_binding_digest": binding.binding_digest,
+    }
+    provisional = ResourceIdentityEvidence(**base, content_digest="0" * 64)
+    evidence = ResourceIdentityEvidence(
+        **base,
+        content_digest=provisional.computed_digest(),
+    )
+    configuration = RuntimeIdentityConfiguration(
+        binding.runtime_scope,
+        binding.account_id,
+        binding.server_id,
+        deadline_identity,
+    )
+    return binding, configuration, evidence, deadline_evidence, observed, deadline
 
 
 class RuntimeIdentityTests(unittest.TestCase):
@@ -221,61 +288,97 @@ class RuntimeIdentityTests(unittest.TestCase):
         self.assertEqual(result.reason, "verified_identity_unavailable")
 
     def test_resource_identity_requires_fresh_machine_observed_reset_deadline(self) -> None:
+        binding = _fixed_binding()
         deadline = {
             "deadline_identity": "reset-deadline:2026-08-19T11:00:00Z",
             "observed_utc": "2026-08-19T10:00:00Z",
+            "normalized_deadline_utc": "2026-08-19T11:00:00Z",
+            "reset_timer_seconds": 3600,
+            "recurrence_class": "daily_reset",
+            "machine_observed": True,
+            "daily_frame": {
+                "path": "source.png",
+                "sha256": "a" * 64,
+                "captured_utc": "2026-08-19T10:00:00Z",
+                "observed_utc": "2026-08-19T10:00:00Z",
+            },
         }
         base = {
-            "account_id": "acct-1",
-            "server_id": "server-1",
+            "account_id": binding.account_id,
+            "server_id": binding.server_id,
             "reset_id": deadline["deadline_identity"],
             "evidence_refs": ("daily-reset-frame.png",),
             "observed_utc": "2026-08-19T10:00:00Z",
             "expires_utc": "2026-08-19T11:00:00Z",
             "machine_observed": True,
             "operator_bound": False,
+            "runtime_scope": binding.runtime_scope,
+            "runtime_binding_digest": binding.binding_digest,
         }
-        digest = hashlib.sha256(
-            json.dumps(base, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        evidence = ResourceIdentityEvidence(**base, content_digest=digest)
+        provisional = ResourceIdentityEvidence(**base, content_digest="0" * 64)
+        evidence = ResourceIdentityEvidence(
+            **base,
+            content_digest=provisional.computed_digest(),
+        )
         identity = produce_resource_runtime_identity(
             RuntimeIdentityConfiguration(
-                "bluestacks-dev-primary",
-                "acct-1",
-                "server-1",
+                binding.runtime_scope,
+                binding.account_id,
+                binding.server_id,
                 deadline["deadline_identity"],
             ),
             evidence,
             deadline,
             "2026-08-19T10:30:00Z",
+            binding,
         )
-        self.assertEqual(identity.assurance, RuntimeIdentityAssurance.PRODUCTION_OBSERVED)
+        self.assertEqual(
+            identity.assurance,
+            RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED,
+        )
         self.assertTrue(identity.permits_production_consequential)
+        self.assertNotEqual(
+            identity.assurance,
+            RuntimeIdentityAssurance.PRODUCTION_OBSERVED,
+        )
 
     def test_resource_identity_rejects_reset_mismatch_and_stale_evidence(self) -> None:
+        binding = _fixed_binding()
         deadline = {
             "deadline_identity": "reset-deadline:2026-08-19T11:00:00Z",
             "observed_utc": "2026-08-19T10:00:00Z",
+            "normalized_deadline_utc": "2026-08-19T11:00:00Z",
+            "reset_timer_seconds": 3600,
+            "recurrence_class": "daily_reset",
+            "machine_observed": True,
+            "daily_frame": {
+                "path": "source.png",
+                "sha256": "a" * 64,
+                "captured_utc": "2026-08-19T10:00:00Z",
+                "observed_utc": "2026-08-19T10:00:00Z",
+            },
         }
         base = {
-            "account_id": "acct-1",
-            "server_id": "server-1",
+            "account_id": binding.account_id,
+            "server_id": binding.server_id,
             "reset_id": deadline["deadline_identity"],
             "evidence_refs": ("daily-reset-frame.png",),
             "observed_utc": "2026-08-19T10:00:00Z",
             "expires_utc": "2026-08-19T10:01:00Z",
             "machine_observed": True,
             "operator_bound": False,
+            "runtime_scope": binding.runtime_scope,
+            "runtime_binding_digest": binding.binding_digest,
         }
-        digest = hashlib.sha256(
-            json.dumps(base, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        evidence = ResourceIdentityEvidence(**base, content_digest=digest)
+        provisional = ResourceIdentityEvidence(**base, content_digest="0" * 64)
+        evidence = ResourceIdentityEvidence(
+            **base,
+            content_digest=provisional.computed_digest(),
+        )
         configuration = RuntimeIdentityConfiguration(
-            "bluestacks-dev-primary",
-            "acct-1",
-            "server-1",
+            binding.runtime_scope,
+            binding.account_id,
+            binding.server_id,
             deadline["deadline_identity"],
         )
         with self.assertRaises(ValueError):
@@ -284,6 +387,7 @@ class RuntimeIdentityTests(unittest.TestCase):
                 evidence,
                 deadline,
                 "2026-08-19T10:30:00Z",
+                binding,
             )
         with self.assertRaises(ValueError):
             produce_resource_runtime_identity(
@@ -291,7 +395,38 @@ class RuntimeIdentityTests(unittest.TestCase):
                 evidence,
                 {**deadline, "deadline_identity": "reset-deadline:other"},
                 "2026-08-19T10:00:30Z",
+                binding,
             )
+
+    def test_resource_identity_denies_at_and_after_exact_reset_deadline(self) -> None:
+        binding, configuration, evidence, deadline_evidence, _observed, deadline = (
+            _resource_case()
+        )
+        for evaluated in (deadline, deadline + timedelta(seconds=1)):
+            with self.subTest(evaluated=evaluated):
+                with self.assertRaisesRegex(ValueError, "at or after"):
+                    produce_resource_runtime_identity(
+                        configuration,
+                        evidence,
+                        deadline_evidence,
+                        evaluated,
+                        binding,
+                    )
+
+    def test_fixed_runtime_binding_is_stable_and_changes_for_each_binding_input(self) -> None:
+        baseline = _fixed_binding()
+        self.assertEqual(baseline, _fixed_binding())
+        for changes in (
+            {"serial": "emulator-5556"},
+            {"profile": "pns-bluestacks-5-p64-720x1280-v2"},
+            {"package": "com.example.other"},
+            {"login_slot_version": "primary-login-slot-v2"},
+        ):
+            with self.subTest(changes=changes):
+                changed = _fixed_binding(**changes)
+                self.assertNotEqual(changed.binding_digest, baseline.binding_digest)
+                self.assertNotEqual(changed.account_id, baseline.account_id)
+                self.assertNotEqual(changed.server_id, baseline.server_id)
 
 
 if __name__ == "__main__":

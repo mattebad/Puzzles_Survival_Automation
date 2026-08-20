@@ -10,13 +10,18 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import cv2
 import numpy as np
 
 from safe_action_core import SafetyStore
 from safe_action_core.models import TransportResult
+from safe_action_core.resource_effect_authority import (
+    ResourceFenceError,
+    ResourceOccurrenceIdentity,
+    ResourceResetIdentity,
+)
 from scripts import daily_row_claim_bluestacks as daily
 from scripts import navigation_development_boundary as boundary
 from scripts import daily_resource_item_bluestacks as route
@@ -26,8 +31,10 @@ from scripts.evidence_hygiene import sha256_stream
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.navigation_development_boundary import DevelopmentSession
 from tasks.runtime_identity import (
+    FixedRuntimeBinding,
     ResourceIdentityEvidence,
     RuntimeIdentityConfiguration,
+    derive_fixed_runtime_binding,
     produce_resource_runtime_identity,
 )
 
@@ -69,10 +76,11 @@ def _write_blank_native(path: Path) -> Path:
 
 class DailyResourceItemDeliveryTests(unittest.TestCase):
     def _resource_identity(self):
+        binding = pnsctl._resource_fixed_runtime_binding()
         now = datetime.now(timezone.utc).replace(microsecond=0)
         deadline = now + timedelta(hours=6)
         deadline_utc = deadline.isoformat().replace("+00:00", "Z")
-        observed_utc = (now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
+        observed_utc = now.isoformat().replace("+00:00", "Z")
         expires_utc = (now + timedelta(hours=1)).isoformat().replace("+00:00", "Z")
         deadline_identity = f"reset-deadline:{deadline_utc}"
         deadline_evidence = {
@@ -81,29 +89,39 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
             "observed_utc": observed_utc,
             "normalized_deadline_utc": deadline_utc,
             "deadline_identity": deadline_identity,
+            "machine_observed": True,
+            "daily_frame": {
+                "path": "test-frame.png",
+                "sha256": "0" * 64,
+                "captured_utc": observed_utc,
+                "observed_utc": observed_utc,
+            },
             "tolerance_seconds": 2,
             "recurrence_class": "daily_reset",
         }
         base = ResourceIdentityEvidence(
-            account_id="test-account",
-            server_id="test-server",
+            account_id=binding.account_id,
+            server_id=binding.server_id,
             reset_id=deadline_identity,
             evidence_refs=("test:account-server-reset",),
             observed_utc=observed_utc,
             expires_utc=expires_utc,
             content_digest="0" * 64,
+            runtime_scope=binding.runtime_scope,
+            runtime_binding_digest=binding.binding_digest,
         )
         evidence = replace(base, content_digest=base.computed_digest())
         identity = produce_resource_runtime_identity(
             RuntimeIdentityConfiguration(
-                "test-scope",
-                "test-account",
-                "test-server",
+                binding.runtime_scope,
+                binding.account_id,
+                binding.server_id,
                 deadline_identity,
             ),
             evidence,
             deadline_evidence,
             now,
+            binding,
         )
         return identity, deadline_evidence
 
@@ -113,10 +131,11 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
         *,
         selected_daily: bool = True,
         reset_matches: bool = True,
+        reset_seconds: int = 21600,
         expect_failure: bool = False,
     ) -> tuple[dict[str, object], Path, str, list[tuple[tuple[int, ...], object, object]]]:
         fixed_now = datetime.now(timezone.utc).replace(microsecond=0)
-        deadline = fixed_now + timedelta(hours=6)
+        deadline = fixed_now + timedelta(seconds=reset_seconds)
         deadline_utc = deadline.isoformat().replace("+00:00", "Z")
         derived_reset_id = f"reset-deadline:{deadline_utc}"
         configured_reset_id = (
@@ -143,16 +162,20 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                 observed = observed_utc.astimezone(timezone.utc)
                 observed_text = observed.isoformat().replace("+00:00", "Z")
                 deadline_text = (
-                    observed + timedelta(hours=6)
+                    observed + timedelta(seconds=reset_seconds)
                 ).isoformat().replace("+00:00", "Z")
                 visual = {
                     "selected_daily": selected_daily,
                     "runtime_profile_id": daily.BLUESTACKS_RUNTIME_PROFILE_ID,
-                    "reset_timer": "06:00:00",
-                    "reset_timer_seconds": 21600,
+                    "reset_timer": str(timedelta(seconds=reset_seconds)),
+                    "reset_timer_seconds": reset_seconds,
                     "reset_observed_utc": observed_text,
                     "reset_deadline_utc": deadline_text,
-                    "reset_deadline_identity": f"reset-deadline:{deadline_text}",
+                    "reset_deadline_identity": (
+                        f"reset-deadline:{deadline_text}"
+                        if reset_matches
+                        else f"wrong-reset:{deadline_text}"
+                    ),
                     "reset_deadline_tolerance_seconds": 2,
                 }
                 return daily.FrameRecognition(
@@ -197,12 +220,7 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                         ):
                             try:
                                 output = json.loads(
-                                    pnsctl.development_session_resource_identity_observe(
-                                        runtime_scope="test-scope",
-                                        account_id="test-account",
-                                        server_id="test-server",
-                                        reset_id=configured_reset_id,
-                                    )
+                                    pnsctl.development_session_resource_identity_observe()
                                 )
                             except pnsctl.OperatorError:
                                 if not expect_failure:
@@ -211,8 +229,126 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                             self.assertEqual(runtime_observation.call_count, 1)
         return output, session_directory, configured_reset_id, recognizer_calls
 
+    def test_resource_identity_receipt_clips_ttl_to_near_reset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output, _session, _reset_id, _calls = self._produce_identity_session(
+                Path(tmp),
+                reset_seconds=30,
+            )
+            receipt = json.loads(
+                Path(str(output["receipt_path"])).read_text(encoding="utf-8")
+            )
+        self.assertEqual(
+            receipt["expires_utc"],
+            receipt["current_reset_deadline_evidence"]["normalized_deadline_utc"],
+        )
+
+    def test_resource_identity_observation_rejects_too_close_reset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output, _session, _reset_id, calls = self._produce_identity_session(
+                Path(tmp),
+                reset_seconds=1,
+                expect_failure=True,
+            )
+        self.assertEqual(output, {})
+        self.assertEqual(len(calls), 1)
+
+    def test_resource_reset_boundary_denies_before_store_open(self):
+        identity, deadline_evidence = self._resource_identity()
+        observed = datetime.fromisoformat(
+            deadline_evidence["observed_utc"].replace("Z", "+00:00")
+        )
+        deadline = datetime.fromisoformat(
+            deadline_evidence["normalized_deadline_utc"].replace("Z", "+00:00")
+        )
+        initial_evaluation = observed + timedelta(seconds=1)
+        for label, current in (
+            ("exact-reset", deadline),
+            ("after-reset", deadline + timedelta(seconds=1)),
+            (
+                "safety-margin",
+                deadline
+                - timedelta(
+                    seconds=delivery.RESOURCE_DISPATCH_SAFETY_MARGIN_SECONDS
+                ),
+            ),
+        ):
+            with self.subTest(label=label):
+                expired_payload = dict(
+                    deadline_evidence,
+                    _evaluated_utc=initial_evaluation.isoformat().replace(
+                        "+00:00", "Z"
+                    ),
+                )
+                store_open = Mock(side_effect=AssertionError("store must not open"))
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    with patch.object(
+                        boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"
+                    ):
+                        with patch.object(pnsctl, "_open_admitted_resource_store", store_open):
+                            with DevelopmentSession(
+                                owner="pnsctl-reset-boundary-owner",
+                                invocation_id=f"pnsctl-reset-boundary-{label}",
+                                session_directory=root / "session",
+                                max_inputs=1,
+                            ) as session:
+                                with self.assertRaisesRegex(
+                                    pnsctl.OperatorError,
+                                    "before Resource SafetyStore open",
+                                ):
+                                    pnsctl._build_resource_runtime_components(
+                                        session=session,
+                                        verified_identity=identity,
+                                        deadline_payload=expired_payload,
+                                        store_path=root / "actions.sqlite3",
+                                        store_factory=lambda path: SafetyStore(path),
+                                        wall_clock=lambda: current,
+                                    )
+                                self.assertEqual(session.input_count, 0)
+                store_open.assert_not_called()
+
+    def test_resource_dispatch_window_rejects_naive_timestamps(self):
+        observed = datetime(2026, 8, 20, 10, tzinfo=timezone.utc)
+        deadline = observed + timedelta(hours=1)
+        window = delivery.ResourceDispatchWindow(
+            reset_deadline_utc=deadline,
+            receipt_expires_utc=deadline,
+        )
+        with self.assertRaises(delivery.ResourceDispatchWindowError):
+            window.require_current(datetime(2026, 8, 20, 10, 0, 1))
+        with self.assertRaises(delivery.ResourceDispatchWindowError):
+            delivery.ResourceDispatchWindow(
+                reset_deadline_utc=datetime(2026, 8, 20, 11),
+                receipt_expires_utc=deadline,
+            )
+
+    def test_resource_dispatch_window_denies_exact_and_margin_boundaries(self):
+        observed = datetime(2026, 8, 20, 10, tzinfo=timezone.utc)
+        deadline = observed + timedelta(hours=1)
+        window = delivery.ResourceDispatchWindow(
+            reset_deadline_utc=deadline,
+            receipt_expires_utc=deadline,
+        )
+        for current in (
+            deadline,
+            deadline - window.safety_margin,
+        ):
+            with self.subTest(current=current):
+                with self.assertRaises(delivery.ResourceDispatchWindowError):
+                    window.require_current(current)
+        self.assertEqual(
+            window.require_current(
+                deadline - window.safety_margin - timedelta(microseconds=1)
+            ),
+            deadline - window.safety_margin - timedelta(microseconds=1),
+        )
+
     def test_pnsctl_builds_resource_bundle_inside_same_session_lock(self):
         identity, deadline_evidence = self._resource_identity()
+        dispatch_now = datetime.fromisoformat(
+            deadline_evidence["observed_utc"].replace("Z", "+00:00")
+        ) + timedelta(seconds=10)
 
         class Inner:
             execute = True
@@ -250,6 +386,7 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                         deadline_payload=deadline_evidence,
                         store_path=store_path,
                         store_factory=lambda path: SafetyStore(path),
+                        wall_clock=lambda: dispatch_now,
                     )
                     inner = Inner()
                     runtime = components["runtime_factory"](inner)
@@ -288,6 +425,97 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                         bundle.prepared.fence.runtime_invocation_id,
                         session.invocation_id,
                     )
+                    db = components["store"].connection
+                    claim_id = db.execute(
+                        """SELECT claim_id FROM resource_attempt_claims
+                           WHERE attempt_id=? AND occurrence_id=? AND reservation_id=?""",
+                        (
+                            bundle.prepared.attempt_id,
+                            bundle.prepared.occurrence_id,
+                            bundle.prepared.reservation_id,
+                        ),
+                    ).fetchone()[0]
+
+                    def resource_state():
+                        def rows(query, parameters):
+                            return tuple(
+                                tuple(row)
+                                for row in db.execute(query, parameters).fetchall()
+                            )
+
+                        return {
+                            "reservation": rows(
+                                "SELECT * FROM resource_reservations WHERE reservation_id=?",
+                                (bundle.prepared.reservation_id,),
+                            ),
+                            "attempt": rows(
+                                """SELECT * FROM resource_attempts
+                                   WHERE attempt_id=? AND occurrence_id=?""",
+                                (
+                                    bundle.prepared.attempt_id,
+                                    bundle.prepared.occurrence_id,
+                                ),
+                            ),
+                            "claim": rows(
+                                "SELECT * FROM resource_attempt_claims WHERE claim_id=?",
+                                (claim_id,),
+                            ),
+                            "occurrence": rows(
+                                "SELECT * FROM resource_occurrences WHERE occurrence_id=?",
+                                (bundle.prepared.occurrence_id,),
+                            ),
+                            "action": rows(
+                                "SELECT * FROM actions WHERE action_id=? AND action_key=?",
+                                (
+                                    bundle.prepared.action_id,
+                                    bundle.prepared.action_key,
+                                ),
+                            ),
+                            "transport_facts": rows(
+                                "SELECT * FROM resource_transport_facts WHERE reservation_id=?",
+                                (bundle.prepared.reservation_id,),
+                            ),
+                            "transport_outcomes": rows(
+                                "SELECT * FROM resource_transport_outcomes WHERE reservation_id=?",
+                                (bundle.prepared.reservation_id,),
+                            ),
+                        }
+
+                    before_fence_mutations = resource_state()
+                    for fence_field, replacement in (
+                        (
+                            "occurrence_id",
+                            f"{bundle.prepared.occurrence_id}:mutated",
+                        ),
+                        ("attempt_id", f"{bundle.prepared.attempt_id}:mutated"),
+                        (
+                            "reservation_id",
+                            f"{bundle.prepared.reservation_id}:mutated",
+                        ),
+                        (
+                            "reservation_state_revision",
+                            bundle.prepared.reservation_state_revision + 1,
+                        ),
+                    ):
+                        with self.subTest(fence_field=fence_field):
+                            mutated_fence = replace(
+                                bundle.prepared.fence,
+                                **{fence_field: replacement},
+                            )
+                            mutated_prepared = replace(
+                                bundle.prepared,
+                                fence=mutated_fence,
+                            )
+                            with self.assertRaises(ResourceFenceError):
+                                components["authority"].cancel_prepared_resource_effect(
+                                    mutated_prepared,
+                                    controller_lease=components["controller_lease"],
+                                    runtime_lock=session.runtime_input_lock,
+                                    reason="reset_dispatch_window_expired",
+                                    now=time.monotonic(),
+                                )
+                            self.assertEqual(resource_state(), before_fence_mutations)
+                            self.assertEqual(inner.dispatch_calls, 0)
                     wrong_png = b"\x89PNG\r\n\x1awrong-frame"
                     wrong = CapturedNativeFrame(
                         frame=frame.copy(),
@@ -345,6 +573,205 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                             (100, 100, 140, 140),
                             delivery.ITEM_USE_ACTION_KEY,
                         )
+                    components["authority"].release_resource_controller_lease(
+                        session.owner,
+                        components["controller_lease"]["controller_token"],
+                        time.monotonic(),
+                    )
+                    components["store"].close()
+
+    def test_resource_dispatch_boundary_denies_before_transport_intent(self):
+        identity, deadline_evidence = self._resource_identity()
+        observed = datetime.fromisoformat(
+            deadline_evidence["observed_utc"].replace("Z", "+00:00")
+        )
+        deadline = datetime.fromisoformat(
+            deadline_evidence["normalized_deadline_utc"].replace("Z", "+00:00")
+        )
+        wall_clock_values = iter((observed + timedelta(seconds=10), deadline))
+
+        class Inner:
+            execute = True
+            frame_max_age_seconds = 30.0
+            input_count = 0
+            session = Path("inner-session")
+
+            def __init__(self):
+                self.dispatch_calls = 0
+
+            def dispatch_prepared_resource_item_use(self, *args, **kwargs):
+                self.dispatch_calls += 1
+                raise AssertionError("native adapter must not be invoked")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store_path = root / "actions.sqlite3"
+            seed = SafetyStore(store_path)
+            seed.close()
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with DevelopmentSession(
+                    owner="pnsctl-dispatch-boundary-owner",
+                    invocation_id="pnsctl-dispatch-boundary-invocation",
+                    session_directory=root / "session",
+                    max_inputs=10,
+                ) as session:
+                    components = pnsctl._build_resource_runtime_components(
+                        session=session,
+                        verified_identity=identity,
+                        deadline_payload=deadline_evidence,
+                        store_path=store_path,
+                        store_factory=lambda path: SafetyStore(path),
+                        wall_clock=lambda: next(wall_clock_values),
+                    )
+                    inner = Inner()
+                    runtime = components["runtime_factory"](inner)
+                    frame_bytes = b"\x89PNG\r\n\x1a\nresource-frame"
+                    frame = np.full((1280, 800, 3), 20, dtype=np.uint8)
+                    source = CapturedNativeFrame(
+                        frame=frame,
+                        png=frame_bytes,
+                        sha256=hashlib.sha256(frame_bytes).hexdigest(),
+                        captured_monotonic=time.monotonic(),
+                        path=root / "source.png",
+                    )
+                    bundle = runtime._prepare(
+                        source,
+                        (100, 100, 140, 140),
+                        delivery.ITEM_USE_ACTION_KEY,
+                    )
+                    runtime._prepared = bundle.prepared
+                    runtime._request = bundle.request
+                    runtime._capability = bundle.capability
+                    runtime._preparation_used = True
+                    with self.assertRaisesRegex(RuntimeError, "safety margin"):
+                        runtime.dispatch_one_food_use(
+                            source,
+                            target_roi=(100, 100, 140, 140),
+                            action_key=delivery.ITEM_USE_ACTION_KEY,
+                        )
+                    self.assertEqual(inner.dispatch_calls, 0)
+                    self.assertIsNone(
+                        components["authority"].get_resource_transport(
+                            bundle.prepared.reservation_id
+                        )
+                    )
+                    self.assertIsNone(
+                        components["authority"].get_resource_transport_outcome(
+                            bundle.prepared.reservation_id
+                        )
+                    )
+                    reservation_state = components["store"].connection.execute(
+                        "SELECT state FROM resource_reservations WHERE reservation_id=?",
+                        (bundle.prepared.reservation_id,),
+                    ).fetchone()[0]
+                    self.assertEqual(reservation_state, "CLOSED")
+                    self.assertEqual(
+                        components["store"].connection.execute(
+                            "SELECT state FROM resource_attempts WHERE attempt_id=?",
+                            (bundle.prepared.attempt_id,),
+                        ).fetchone()[0],
+                        "ABANDONED",
+                    )
+                    self.assertEqual(
+                        components["store"].connection.execute(
+                            """SELECT state FROM resource_attempt_claims
+                               WHERE attempt_id=? AND reservation_id=?""",
+                            (
+                                bundle.prepared.attempt_id,
+                                bundle.prepared.reservation_id,
+                            ),
+                        ).fetchone()[0],
+                        "RELEASED",
+                    )
+                    self.assertEqual(
+                        components["store"].connection.execute(
+                            "SELECT state FROM resource_occurrences WHERE occurrence_id=?",
+                            (bundle.prepared.occurrence_id,),
+                        ).fetchone()[0],
+                        "BLOCKED",
+                    )
+                    self.assertEqual(
+                        components["store"].get_action(bundle.prepared.action_id)["final_status"],
+                        "cancelled",
+                    )
+                    transition_payloads = [
+                        json.loads(row[0])
+                        for row in components["store"].connection.execute(
+                            """SELECT payload_json FROM resource_transition_history
+                               WHERE entity_id IN (?,?,?,?)""",
+                            (
+                                bundle.prepared.reservation_id,
+                                bundle.prepared.attempt_id,
+                                bundle.prepared.occurrence_id,
+                                components["store"].connection.execute(
+                                    """SELECT claim_id FROM resource_attempt_claims
+                                       WHERE attempt_id=? AND reservation_id=?""",
+                                    (
+                                        bundle.prepared.attempt_id,
+                                        bundle.prepared.reservation_id,
+                                    ),
+                                ).fetchone()[0],
+                            ),
+                        ).fetchall()
+                    ]
+                    self.assertTrue(
+                        any(
+                            payload["payload"].get("reason")
+                            == "reset_dispatch_window_expired"
+                            and payload["payload"].get("adapter_invoked") is False
+                            and payload["payload"].get("transport_intent_absent") is True
+                            for payload in transition_payloads
+                        )
+                    )
+                    repeated = components["authority"].cancel_prepared_resource_effect(
+                        bundle.prepared,
+                        controller_lease=components["controller_lease"],
+                        runtime_lock=session.runtime_input_lock,
+                        reason="reset_dispatch_window_expired",
+                        now=time.monotonic(),
+                    )
+                    self.assertTrue(repeated["idempotent"])
+                    stale = replace(
+                        bundle.prepared,
+                        fence=replace(
+                            bundle.prepared.fence,
+                            immediate_before_sha256="0" * 64,
+                        ),
+                    )
+                    with self.assertRaises(ResourceFenceError):
+                        components["authority"].cancel_prepared_resource_effect(
+                            stale,
+                            controller_lease=components["controller_lease"],
+                            runtime_lock=session.runtime_input_lock,
+                            reason="reset_dispatch_window_expired",
+                            now=time.monotonic(),
+                        )
+                    binding = pnsctl._resource_fixed_runtime_binding()
+                    next_reset = ResourceResetIdentity(
+                        "reset-deadline:next",
+                        binding.account_id,
+                        binding.server_id,
+                        binding.runtime_scope,
+                        "2026-08-21T00:00:00Z",
+                        "2026-08-22T00:00:00Z",
+                        observed_at=time.monotonic(),
+                        evidence_refs=("test:d-plus-1",),
+                    )
+                    components["authority"].append_reset_identity(next_reset)
+                    next_occurrence = components["authority"].create_resource_occurrence(
+                        ResourceOccurrenceIdentity(
+                            binding.account_id,
+                            binding.server_id,
+                            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+                            next_reset.reset_identity_id,
+                        )
+                    )
+                    next_claim = components["authority"].claim_resource_attempt(
+                        next_occurrence["occurrence_id"],
+                        session.owner,
+                        now=time.monotonic(),
+                    )
+                    self.assertEqual(next_claim.state, "ACTIVE")
                     components["authority"].release_resource_controller_lease(
                         session.owner,
                         components["controller_lease"]["controller_token"],
@@ -437,6 +864,12 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                     "source.png",
                 )
                 runtime_identity = runtime_context["resource_runtime_identity"]
+                binding = pnsctl._resource_fixed_runtime_binding()
+                self.assertEqual(runtime_identity.runtime_scope, binding.runtime_scope)
+                self.assertEqual(runtime_identity.account_id, binding.account_id)
+                self.assertEqual(runtime_identity.server_id, binding.server_id)
+                self.assertNotEqual(runtime_identity.account_id, "test-account")
+                self.assertNotEqual(runtime_identity.server_id, "test-server")
                 self.assertIn(
                     f"producer-session:{identity_session.name}",
                     runtime_identity.evidence_refs,
@@ -607,9 +1040,19 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
             self.assertEqual(receipt["producer_owner"], pnsctl.RESOURCE_IDENTITY_PRODUCER_OWNER)
             self.assertEqual(receipt["producer_invocation_id"], session.name)
             self.assertEqual(receipt["producer_session_id"], session.name)
-            self.assertEqual(receipt["runtime_scope"], "test-scope")
-            self.assertEqual(receipt["account_id"], "test-account")
-            self.assertEqual(receipt["server_id"], "test-server")
+            binding = pnsctl._resource_fixed_runtime_binding()
+            self.assertEqual(receipt["runtime_scope"], binding.runtime_scope)
+            self.assertEqual(receipt["account_id"], binding.account_id)
+            self.assertEqual(receipt["server_id"], binding.server_id)
+            self.assertEqual(receipt["runtime_binding"], binding.as_dict())
+            self.assertEqual(
+                receipt["identity_semantics"],
+                "fixed_runtime_binding_plus_observed_daily_reset",
+            )
+            self.assertEqual(
+                receipt["assurance"],
+                "fixed_runtime_binding_reset_observed",
+            )
             self.assertEqual(receipt["reset_id"], reset_id)
             self.assertEqual(summary["status"], "observed")
             self.assertEqual(summary["owner"], pnsctl.RESOURCE_IDENTITY_PRODUCER_OWNER)
@@ -708,18 +1151,37 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                         with self.assertRaises(pnsctl.OperatorError):
                             pnsctl._load_resource_identity_payload(receipt_path)
 
+    def test_resource_identity_binding_mismatch_fails_before_store_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            capture_root = root / "captures"
+            output, _identity_session, _reset_id, _calls = self._produce_identity_session(
+                capture_root
+            )
+            receipt_path = Path(str(output["receipt_path"]))
+            current_session = root / "current-resource-session"
+            current_session.mkdir()
+
+            with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", capture_root):
+                with patch.object(pnsctl, "BLUESTACKS_SERIAL", "emulator-5556"):
+                    with patch.object(
+                        pnsctl,
+                        "_open_admitted_resource_store",
+                        side_effect=AssertionError("store must not open"),
+                    ):
+                        with self.assertRaisesRegex(
+                            pnsctl.OperatorError,
+                            "fixed serial/profile/package/login-slot binding",
+                        ):
+                            pnsctl._produce_resource_runtime_identity(
+                                identity_evidence=receipt_path,
+                                session=current_session,
+                            )
+
     def test_resource_identity_parser_dispatches_without_runtime_access(self):
         argv = [
             "development-session",
             "resource-identity-observe",
-            "--runtime-scope",
-            "scope",
-            "--account-id",
-            "account",
-            "--server-id",
-            "server",
-            "--reset-id",
-            "reset",
         ]
         with patch.object(
             pnsctl,
@@ -728,12 +1190,7 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
         ) as operation:
             with patch("builtins.print") as printer:
                 self.assertEqual(pnsctl.main(argv), 0)
-        operation.assert_called_once_with(
-            runtime_scope="scope",
-            account_id="account",
-            server_id="server",
-            reset_id="reset",
-        )
+        operation.assert_called_once_with()
         printer.assert_called_once_with('{"status": "observed"}')
 
     def test_resource_identity_rejects_receipt_outside_fixed_root(self):

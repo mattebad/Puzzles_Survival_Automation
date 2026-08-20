@@ -42,11 +42,12 @@ BLUESTACKS_NATIVE_WIDTH = 800
 BLUESTACKS_NATIVE_HEIGHT = 1280
 BLUESTACKS_ARTIFACT_ROOT = REPO_ROOT / ".local-captures" / "flow-delivery"
 DEVELOPMENT_SESSION_ROOT = REPO_ROOT / ".local-captures" / "development-sessions"
+RESOURCE_PRIMARY_LOGIN_SLOT_VERSION = "primary-login-slot-v1"
 RESOURCE_IDENTITY_RECEIPT_FILENAME = "resource-identity-receipt.json"
 RESOURCE_IDENTITY_RECEIPT_KIND = "resource_identity_observation"
-RESOURCE_IDENTITY_RECEIPT_VERSION = 1
+RESOURCE_IDENTITY_RECEIPT_VERSION = 2
 RESOURCE_IDENTITY_PRODUCER_KIND = "pnsctl-resource-identity-observation"
-RESOURCE_IDENTITY_PRODUCER_VERSION = "pnsctl-resource-identity-observation-v1"
+RESOURCE_IDENTITY_PRODUCER_VERSION = "pnsctl-resource-identity-observation-v2"
 RESOURCE_IDENTITY_PRODUCER_OWNER = "pnsctl-resource-identity-observation"
 RESOURCE_IDENTITY_VALIDITY_SECONDS = 600
 RESOURCE_IDENTITY_RECURRENCE_SECONDS = 24 * 60 * 60
@@ -273,6 +274,20 @@ _register_checked_in_bluestacks_handlers()
 
 class OperatorError(RuntimeError):
     pass
+
+
+def _resource_fixed_runtime_binding():
+    """Derive Resource's fixed slot identity from checked-in runtime constants."""
+
+    from scripts.daily_row_claim_bluestacks import BLUESTACKS_RUNTIME_PROFILE_ID
+    from tasks.runtime_identity import derive_fixed_runtime_binding
+
+    return derive_fixed_runtime_binding(
+        serial=BLUESTACKS_SERIAL,
+        runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+        package_id=PACKAGE,
+        login_slot_version=RESOURCE_PRIMARY_LOGIN_SLOT_VERSION,
+    )
 
 
 _NOVA_RESET_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -2424,14 +2439,8 @@ def _remove_resource_identity_receipt(path: Path) -> None:
         pass
 
 
-def development_session_resource_identity_observe(
-    *,
-    runtime_scope: str,
-    account_id: str,
-    server_id: str,
-    reset_id: str,
-) -> str:
-    """Capture and authenticate Resource's selected-Daily reset identity with zero input."""
+def development_session_resource_identity_observe() -> str:
+    """Capture the fixed runtime binding and selected-Daily reset with zero input."""
 
     import cv2
     import numpy as np
@@ -2440,19 +2449,12 @@ def development_session_resource_identity_observe(
     from scripts.navigation_development_boundary import DevelopmentSession
     from tasks.runtime_identity import (
         ResourceIdentityEvidence,
+        RESOURCE_IDENTITY_MIN_RESET_REMAINING_SECONDS,
         RuntimeIdentityConfiguration,
         produce_resource_runtime_identity,
     )
 
-    try:
-        configuration = RuntimeIdentityConfiguration(
-            runtime_scope,
-            account_id,
-            server_id,
-            reset_id,
-        )
-    except (TypeError, ValueError) as exc:
-        raise OperatorError(f"Resource identity configuration denied: {exc}") from exc
+    binding = _resource_fixed_runtime_binding()
 
     invocation_id = (
         f"resource-identity-observe-"
@@ -2551,7 +2553,6 @@ def development_session_resource_identity_observe(
             timer_seconds = visual.get("reset_timer_seconds")
             if (
                 not isinstance(derived_identity, str)
-                or derived_identity != configuration.reset_id
                 or not isinstance(derived_deadline, str)
                 or not isinstance(derived_observed, str)
                 or not isinstance(timer_seconds, int)
@@ -2559,7 +2560,7 @@ def development_session_resource_identity_observe(
                 or timer_seconds <= 0
             ):
                 raise OperatorError(
-                    "Resource identity reset deadline does not match configuration"
+                    "Resource identity reset deadline is not a valid selected-Daily observation"
                 )
             derived_observed_dt = _resource_identity_timestamp(
                 derived_observed,
@@ -2581,8 +2582,23 @@ def development_session_resource_identity_observe(
                 raise OperatorError(
                     "Resource recognizer reset identity is not bound to its deadline"
                 )
+            if (
+                derived_deadline_dt - observed
+            ).total_seconds() <= RESOURCE_IDENTITY_MIN_RESET_REMAINING_SECONDS:
+                raise OperatorError(
+                    "Resource identity reset deadline is expired or too close to observation"
+                )
+            configuration = RuntimeIdentityConfiguration(
+                binding.runtime_scope,
+                binding.account_id,
+                binding.server_id,
+                derived_identity,
+            )
 
-            expires = observed + timedelta(seconds=RESOURCE_IDENTITY_VALIDITY_SECONDS)
+            expires = min(
+                observed + timedelta(seconds=RESOURCE_IDENTITY_VALIDITY_SECONDS),
+                derived_deadline_dt,
+            )
             expires_utc = expires.isoformat().replace("+00:00", "Z")
             frame_ref = {
                 "path": "source.png",
@@ -2597,6 +2613,15 @@ def development_session_resource_identity_observe(
                 f"producer-owner:{RESOURCE_IDENTITY_PRODUCER_OWNER}",
                 f"producer-invocation:{invocation_id}",
                 f"producer-session:{invocation_id}",
+                "identity-semantics:fixed-runtime-binding-plus-observed-reset",
+                f"runtime-binding-kind:{binding.as_dict()['kind']}",
+                f"runtime-binding-digest:{binding.binding_digest}",
+                f"runtime-scope:{binding.runtime_scope}",
+                f"fixed-runtime-serial:{binding.serial}",
+                f"fixed-runtime-profile:{binding.runtime_profile_id}",
+                f"fixed-runtime-package:{binding.package_id}",
+                f"fixed-login-slot-version:{binding.login_slot_version}",
+                "reset-observed:selected-daily-native-frame",
                 "recognizer:DailyRowClaimRecognizer",
                 "frame-path:source.png",
                 f"frame-sha256:{frame_digest}",
@@ -2617,6 +2642,7 @@ def development_session_resource_identity_observe(
                 "recurrence_interval_seconds": RESOURCE_IDENTITY_RECURRENCE_SECONDS,
                 "daily_recurrence_seconds": RESOURCE_IDENTITY_RECURRENCE_SECONDS,
                 "recurrence_interval_hours": 24,
+                "machine_observed": True,
                 "daily_frame": frame_ref,
             }
             if deadline_payload["tolerance_seconds"] is None:
@@ -2628,13 +2654,15 @@ def development_session_resource_identity_observe(
                 raise OperatorError("Resource reset deadline tolerance is invalid")
 
             provisional_evidence = ResourceIdentityEvidence(
-                account_id=configuration.account_id,
-                server_id=configuration.server_id,
+                account_id=binding.account_id,
+                server_id=binding.server_id,
                 reset_id=configuration.reset_id,
                 evidence_refs=evidence_refs,
                 observed_utc=observed_utc,
                 expires_utc=expires_utc,
                 content_digest="0" * 64,
+                runtime_scope=binding.runtime_scope,
+                runtime_binding_digest=binding.binding_digest,
             )
             evidence = ResourceIdentityEvidence(
                 account_id=provisional_evidence.account_id,
@@ -2644,12 +2672,15 @@ def development_session_resource_identity_observe(
                 observed_utc=provisional_evidence.observed_utc,
                 expires_utc=provisional_evidence.expires_utc,
                 content_digest=provisional_evidence.computed_digest(),
+                runtime_scope=provisional_evidence.runtime_scope,
+                runtime_binding_digest=provisional_evidence.runtime_binding_digest,
             )
             verified = produce_resource_runtime_identity(
                 configuration,
                 evidence,
                 deadline_payload,
                 observed,
+                binding,
             )
             if _checkpoint_hashes() != checkpoint_before:
                 raise OperatorError(
@@ -2675,9 +2706,13 @@ def development_session_resource_identity_observe(
                 "producer_session_id": invocation_id,
                 "producer_session_directory": invocation_id,
                 "producer": producer,
-                "runtime_scope": configuration.runtime_scope,
-                "account_id": configuration.account_id,
-                "server_id": configuration.server_id,
+                "identity_semantics": "fixed_runtime_binding_plus_observed_daily_reset",
+                "assurance": verified.assurance.value,
+                "runtime_binding": binding.as_dict(),
+                "runtime_binding_digest": binding.binding_digest,
+                "runtime_scope": binding.runtime_scope,
+                "account_id": binding.account_id,
+                "server_id": binding.server_id,
                 "reset_id": configuration.reset_id,
                 "observed_utc": evidence.observed_utc,
                 "expires_utc": evidence.expires_utc,
@@ -2716,6 +2751,10 @@ def development_session_resource_identity_observe(
                     "producer_version": RESOURCE_IDENTITY_PRODUCER_VERSION,
                     "owner": RESOURCE_IDENTITY_PRODUCER_OWNER,
                     "invocation_id": invocation_id,
+                    "identity_semantics": "fixed_runtime_binding_plus_observed_daily_reset",
+                    "assurance": verified.assurance.value,
+                    "runtime_binding": binding.as_dict(),
+                    "runtime_binding_digest": binding.binding_digest,
                     "runtime_scope": verified.runtime_scope,
                     "account_id": verified.account_id,
                     "server_id": verified.server_id,
@@ -2835,6 +2874,24 @@ def _load_resource_identity_payload(
         raise OperatorError("Resource production identity evidence is unreadable") from exc
     if not isinstance(payload, Mapping):
         raise OperatorError("Resource production identity evidence must be an object")
+
+    expected_binding = _resource_fixed_runtime_binding()
+    receipt_binding = payload.get("runtime_binding")
+    if not isinstance(receipt_binding, Mapping) or dict(receipt_binding) != expected_binding.as_dict():
+        raise OperatorError(
+            "Resource identity receipt fixed serial/profile/package/login-slot binding "
+            "does not match current runtime constants"
+        )
+    if (
+        payload.get("identity_semantics")
+        != "fixed_runtime_binding_plus_observed_daily_reset"
+        or payload.get("assurance") != "fixed_runtime_binding_reset_observed"
+        or payload.get("runtime_binding_digest") != expected_binding.binding_digest
+        or payload.get("runtime_scope") != expected_binding.runtime_scope
+        or payload.get("account_id") != expected_binding.account_id
+        or payload.get("server_id") != expected_binding.server_id
+    ):
+        raise OperatorError("Resource identity receipt fixed runtime binding semantics are invalid")
 
     if (
         type(payload.get("schema_version")) is not int
@@ -2961,8 +3018,24 @@ def _load_resource_identity_payload(
         or runtime_scope != runtime_scope.strip()
     ):
         raise OperatorError("Resource identity receipt runtime scope is not normalized")
-    for field in ("account_id", "server_id", "reset_id"):
-        if payload.get(field) != evidence_payload.get(field):
+    for field in (
+        "account_id",
+        "server_id",
+        "reset_id",
+        "runtime_scope",
+        "runtime_binding_digest",
+    ):
+        expected_value = (
+            expected_binding.runtime_scope
+            if field == "runtime_scope"
+            else expected_binding.binding_digest
+            if field == "runtime_binding_digest"
+            else payload.get(field)
+        )
+        if payload.get(field) != evidence_payload.get(field) or (
+            field in {"runtime_scope", "runtime_binding_digest"}
+            and evidence_payload.get(field) != expected_value
+        ):
             raise OperatorError(f"Resource identity receipt {field} binding is invalid")
     if (
         payload.get("observed_utc") != evidence_payload.get("observed_utc")
@@ -3019,6 +3092,7 @@ def _load_resource_identity_payload(
         raise OperatorError("Resource identity receipt frame hash is not session-bound")
     if (
         deadline_payload.get("recurrence_class") != "daily_reset"
+        or deadline_payload.get("machine_observed") is not True
         or type(deadline_payload.get("recurrence_interval_seconds")) is not int
         or deadline_payload.get("recurrence_interval_seconds")
         != RESOURCE_IDENTITY_RECURRENCE_SECONDS
@@ -3062,6 +3136,15 @@ def _load_resource_identity_payload(
         f"producer-owner:{RESOURCE_IDENTITY_PRODUCER_OWNER}",
         f"producer-invocation:{producer_invocation}",
         f"producer-session:{identity_session.name}",
+        "identity-semantics:fixed-runtime-binding-plus-observed-reset",
+        f"runtime-binding-kind:{expected_binding.as_dict()['kind']}",
+        f"runtime-binding-digest:{expected_binding.binding_digest}",
+        f"runtime-scope:{expected_binding.runtime_scope}",
+        f"fixed-runtime-serial:{expected_binding.serial}",
+        f"fixed-runtime-profile:{expected_binding.runtime_profile_id}",
+        f"fixed-runtime-package:{expected_binding.package_id}",
+        f"fixed-login-slot-version:{expected_binding.login_slot_version}",
+        "reset-observed:selected-daily-native-frame",
         f"frame-path:{frame_value}",
         f"frame-sha256:{frame_digest.casefold()}",
     }
@@ -3267,15 +3350,19 @@ def _resource_identity_frame_proof(
 
 def _produce_resource_runtime_identity(
     *,
-    runtime_scope: str | None,
-    account_id: str | None,
-    server_id: str | None,
-    reset_id: str | None,
-    identity_evidence: Path | None,
+    runtime_scope: str | None = None,
+    account_id: str | None = None,
+    server_id: str | None = None,
+    reset_id: str | None = None,
+    identity_evidence: Path | None = None,
     session: Path | None = None,
     return_deadline_evidence: bool = False,
 ):
-    """Produce the Resource identity once in the pnsctl-owned session context."""
+    """Produce Resource identity from one authenticated receipt and fixed constants.
+
+    The legacy identity arguments remain accepted for generic CLI compatibility, but are ignored
+    for Resource.  The receipt and the current checked-in runtime binding are authoritative.
+    """
 
     from tasks.runtime_identity import (
         ResourceIdentityEvidence,
@@ -3283,17 +3370,9 @@ def _produce_resource_runtime_identity(
         produce_resource_runtime_identity,
     )
 
-    if not all(isinstance(value, str) and value.strip() for value in (
-        runtime_scope,
-        account_id,
-        server_id,
-        reset_id,
-    )):
-        raise OperatorError(
-            "Resource production identity requires runtime scope, account, server, and reset"
-        )
     if session is None:
         raise OperatorError("Resource production identity requires the current session")
+    expected_binding = _resource_fixed_runtime_binding()
     current_session = Path(session)
     if current_session.is_symlink() or not current_session.is_dir():
         raise OperatorError("Resource production identity requires the current session")
@@ -3305,13 +3384,10 @@ def _produce_resource_runtime_identity(
         raise OperatorError(
             "Resource production identity must come from a prior identity-observation session"
         )
-    receipt_runtime_scope = deadline_payload.get("_receipt_runtime_scope")
     receipt_invocation_id = deadline_payload.get("_receipt_producer_invocation_id")
-    if receipt_runtime_scope != str(runtime_scope):
-        raise OperatorError("Resource production runtime scope does not match its receipt")
     if receipt_invocation_id != identity_session.name:
         raise OperatorError("Resource production receipt invocation is not session-bound")
-    frame_path, frame_digest, _captured_utc, observed_utc, visual = _resource_identity_frame_proof(
+    frame_path, frame_digest, captured_utc, observed_utc, visual = _resource_identity_frame_proof(
         session=identity_session,
         evidence_payload=evidence_payload,
         deadline_payload=deadline_payload,
@@ -3337,8 +3413,15 @@ def _produce_resource_runtime_identity(
             "daily_frame": {
                 "path": frame_path.relative_to(identity_session).as_posix(),
                 "sha256": frame_digest,
+                "captured_utc": captured_utc.isoformat().replace("+00:00", "Z"),
+                "observed_utc": observed_utc.isoformat().replace("+00:00", "Z"),
             },
+            "machine_observed": True,
         }
+    )
+    evaluated_utc = datetime.now(timezone.utc)
+    verified_deadline_payload["_evaluated_utc"] = (
+        evaluated_utc.isoformat().replace("+00:00", "Z")
     )
     evidence_refs_value = evidence_payload.get("evidence_refs")
     if evidence_refs_value is None:
@@ -3381,16 +3464,17 @@ def _produce_resource_runtime_identity(
     try:
         evidence = ResourceIdentityEvidence(**dict(evidence_payload))
         configuration = RuntimeIdentityConfiguration(
-            str(runtime_scope),
-            str(account_id),
-            str(server_id),
-            str(reset_id),
+            expected_binding.runtime_scope,
+            expected_binding.account_id,
+            expected_binding.server_id,
+            evidence.reset_id,
         )
         identity = produce_resource_runtime_identity(
             configuration,
             evidence,
             verified_deadline_payload,
-            datetime.now(timezone.utc),
+            evaluated_utc,
+            expected_binding,
         )
         if return_deadline_evidence:
             return identity, verified_deadline_payload
@@ -3507,25 +3591,38 @@ def _resource_reset_identity(
 
     if type(verified_identity) is not VerifiedRuntimeIdentity:
         raise OperatorError("Resource runtime identity is missing or not verified")
-    if verified_identity.assurance is not RuntimeIdentityAssurance.PRODUCTION_OBSERVED:
-        raise OperatorError("Resource runtime identity is not PRODUCTION_OBSERVED")
+    if (
+        verified_identity.assurance
+        is not RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_RESET_OBSERVED
+    ):
+        raise OperatorError(
+            "Resource runtime identity is not FIXED_RUNTIME_BINDING_RESET_OBSERVED"
+        )
     deadline_identity, deadline = _resource_deadline_evidence(deadline_payload)
     if verified_identity.reset_id != deadline_identity:
         raise OperatorError("Resource runtime identity does not match the observed reset deadline")
     if not verified_identity.observed_utc or not verified_identity.expires_utc:
         raise OperatorError("Resource runtime identity freshness evidence is incomplete")
-    try:
-        observed = datetime.fromisoformat(
-            verified_identity.observed_utc.replace("Z", "+00:00")
-        ).astimezone(timezone.utc)
-        expires = datetime.fromisoformat(
-            verified_identity.expires_utc.replace("Z", "+00:00")
-        ).astimezone(timezone.utc)
-    except (AttributeError, TypeError, ValueError) as exc:
-        raise OperatorError("Resource runtime identity freshness evidence is invalid") from exc
-    now = datetime.now(timezone.utc)
-    if observed > now or expires <= now or expires <= observed:
+    observed = _resource_identity_timestamp(
+        verified_identity.observed_utc,
+        "Resource runtime identity observed_utc",
+    )
+    expires = _resource_identity_timestamp(
+        verified_identity.expires_utc,
+        "Resource runtime identity expires_utc",
+    )
+    evaluated_value = deadline_payload.get("_evaluated_utc")
+    if evaluated_value is None:
+        evaluated = datetime.now(timezone.utc)
+    else:
+        evaluated = _resource_identity_timestamp(
+            evaluated_value,
+            "Resource identity evaluation timestamp",
+        )
+    if observed > evaluated or expires <= evaluated or expires <= observed:
         raise OperatorError("Resource runtime identity is stale")
+    if evaluated >= deadline:
+        raise OperatorError("Resource reset deadline has been reached")
     if deadline <= observed:
         raise OperatorError("Resource reset deadline is not after observed identity evidence")
     evidence_refs = tuple(
@@ -3543,7 +3640,7 @@ def _resource_reset_identity(
         runtime_scope=verified_identity.runtime_scope,
         reset_start_utc=(deadline - timedelta(days=1)).isoformat().replace("+00:00", "Z"),
         reset_deadline_utc=deadline.isoformat().replace("+00:00", "Z"),
-        assurance="PRODUCTION_OBSERVED",
+        assurance="FIXED_RUNTIME_BINDING_RESET_OBSERVED",
         observed_at=max(0.0, observed.timestamp()),
         expires_at=expires.timestamp(),
         evidence_refs=evidence_refs,
@@ -3557,6 +3654,7 @@ def _build_resource_runtime_components(
     deadline_payload: Mapping[str, Any],
     store_path: Path | None = None,
     store_factory: Callable[[Path], Any] | None = None,
+    wall_clock: Callable[[], datetime] | None = None,
 ) -> dict[str, Any]:
     """Construct the production Resource authority inside the held session."""
 
@@ -3579,6 +3677,10 @@ def _build_resource_runtime_components(
         RESOURCE_RECURRENCE_POLICY_REVISION,
         RESOURCE_TARGET_VARIANT,
     )
+    from scripts.flow_delivery_daily_resource_item_bluestacks import (
+        ResourceDispatchWindow,
+        ResourceDispatchWindowError,
+    )
     from scripts.navigation_development_boundary import DevelopmentSessionError
 
     if not hasattr(session, "runtime_input_lock"):
@@ -3593,6 +3695,24 @@ def _build_resource_runtime_components(
         raise OperatorError("Resource authority requires the exact pnsctl owner and invocation")
     runtime_lock.assert_held(owner, invocation_id)
     reset_identity = _resource_reset_identity(verified_identity, deadline_payload)
+    dispatch_window = ResourceDispatchWindow(
+        reset_deadline_utc=_resource_identity_timestamp(
+            reset_identity.reset_deadline_utc,
+            "Resource reset deadline",
+        ),
+        receipt_expires_utc=_resource_identity_timestamp(
+            verified_identity.expires_utc,
+            "Resource receipt expiry",
+        ),
+    )
+    try:
+        dispatch_window.require_current(
+            ResourceDispatchWindow.sample_current_utc(wall_clock)
+        )
+    except ResourceDispatchWindowError as exc:
+        raise OperatorError(
+            "Resource dispatch window denied before Resource SafetyStore open"
+        ) from exc
     store = _open_admitted_resource_store(
         store_path=store_path,
         store_factory=store_factory,
@@ -3835,6 +3955,8 @@ def _build_resource_runtime_components(
                 policy=policy,
                 prepare=prepare_resource_effect,
                 now=time.monotonic,
+                dispatch_window=dispatch_window,
+                wall_clock=wall_clock,
             )
 
         return {
@@ -3842,6 +3964,7 @@ def _build_resource_runtime_components(
             "authority": authority,
             "store": store,
             "controller_lease": controller_lease,
+            "dispatch_window": dispatch_window,
         }
     except BaseException:
         if authority is not None and controller_lease is not None:
@@ -7466,6 +7589,11 @@ def conduct_flow(
 
     if not yes:
         raise OperatorError("live conduct requires --yes")
+    resource_flow = flow_id == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
+    if resource_flow and identity_evidence is None:
+        raise OperatorError(
+            "Resource conduct requires the authenticated identity_evidence receipt"
+        )
 
     observe_output = development_session_observe(
         max_inputs=1,
@@ -7479,17 +7607,12 @@ def conduct_flow(
             "1",
         ],
     )
-    run_output = development_session_run_flow(
-        flow_id,
-        live=True,
-        yes=True,
-        max_inputs=maximum,
-        runtime_scope=runtime_scope,
-        account_id=account_id,
-        server_id=server_id,
-        reset_id=reset_id,
-        identity_evidence=identity_evidence,
-        command_argv=[
+    run_kwargs: dict[str, Any] = {
+        "live": True,
+        "yes": True,
+        "max_inputs": maximum,
+        "identity_evidence": identity_evidence,
+        "command_argv": [
             "development-session",
             "run-flow",
             flow_id,
@@ -7498,7 +7621,17 @@ def conduct_flow(
             "--max-inputs",
             str(maximum),
         ],
-    )
+    }
+    if not resource_flow:
+        run_kwargs.update(
+            {
+                "runtime_scope": runtime_scope,
+                "account_id": account_id,
+                "server_id": server_id,
+                "reset_id": reset_id,
+            }
+        )
+    run_output = development_session_run_flow(flow_id, **run_kwargs)
     run_payload = json.loads(run_output) if run_output.strip().startswith("{") else {
         "status": "unknown",
         "raw": run_output,
@@ -7553,10 +7686,6 @@ def parser() -> argparse.ArgumentParser:
         "resource-identity-observe",
         help="zero-input selected-Daily Resource identity observation",
     )
-    resource_identity_observe.add_argument("--runtime-scope", required=True)
-    resource_identity_observe.add_argument("--account-id", required=True)
-    resource_identity_observe.add_argument("--server-id", required=True)
-    resource_identity_observe.add_argument("--reset-id", required=True)
     daily_row_recon = development_sub.add_parser("daily-row-reconnaissance")
     daily_row_recon.add_argument("--max-inputs", type=int, required=True)
     daily_row_recon.add_argument("--delegated-receipt", type=Path, required=True)
@@ -7907,12 +8036,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     command_argv=command_argv,
                 )
             elif args.development_command == "resource-identity-observe":
-                output = development_session_resource_identity_observe(
-                    runtime_scope=args.runtime_scope,
-                    account_id=args.account_id,
-                    server_id=args.server_id,
-                    reset_id=args.reset_id,
-                )
+                output = development_session_resource_identity_observe()
             elif args.development_command == "daily-row-reconnaissance":
                 output = development_session_daily_row_reconnaissance(
                     max_inputs=args.max_inputs,
