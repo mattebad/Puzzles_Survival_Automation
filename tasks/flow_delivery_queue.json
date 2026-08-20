@@ -78,10 +78,12 @@
       },
       {
         "task_id": "use-resource-item",
-        "execution_flow_id": null,
-        "queue_record_state": "staged_non_executable",
-        "depends_on": ["current_selected_daily_catalog_admission"],
-        "blocker": "use_resource_item is historical-only until a current selected-Daily native frame admits it"
+        "execution_flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+        "queue_record_state": "ready",
+        "depends_on": [],
+        "maximum_inputs": 11,
+        "maximum_resource_list_swipes": 8,
+        "blocker": null
       },
       {
         "task_id": "supply-depot",
@@ -4095,6 +4097,124 @@
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/ZOMBIE-LAIR-HOME-MAINTENANCE"
+    },
+    {
+      "flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+      "title": "Integrate one direct 1K Food resource-item use with BlueStacks",
+      "kind": "daily_resource_item_integration",
+      "priority": 75,
+      "status": "completed",
+      "production_registration": "NOT_REGISTERED",
+      "scheduler_enabled": false,
+      "backlog_task_id": "daily-resource-item",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/daily_resource_item_bluestacks.py",
+        "scripts/flow_delivery_daily_resource_item_bluestacks.py",
+        "scripts/pnsctl.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION.json",
+        "tasks/daily_quest_catalog.json",
+        "tasks/daily_quest_execution_matrix.json"
+      ],
+      "navigation_model": "home_to_bag_selected_resource_observed_list_exact_1k_food_to_home",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "One supervised direct 1K Food use from verified Home after the settled selected Resource & Speedup successor (optional category tab tap when another Bag tab is current), at most six progressing measured short list swipes, exact measured-card item/quantity binding, positive resource successor, and verified Home; hard ceiling 10 total inputs with exactly one Use.",
+      "consequence_policy": "Use exactly one owned 1K Food at quantity one from verified Home; never In bulk, AP/Stamina recovery, premium substitution, unidentified items, ordinary Claim, milestone Claim, or Android Back.",
+      "product_policy_status": "supervised_consequential_validation",
+      "maximum_live_attempts": 1,
+      "maximum_inputs": 10,
+      "maximum_live_inputs": 10,
+      "maximum_resource_list_swipes": 6,
+      "live_attempt_count": 1,
+      "live_attempts": [
+        {
+          "session_directory": ".local-captures/development-sessions/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z",
+          "status": "completed",
+          "input_count": 3,
+          "item_use_transport_calls": 1,
+          "resource_delta_verified": true,
+          "terminal_home_verified": true
+        }
+      ],
+      "focused_tests": [
+        "tests.test_daily_resource_item_bluestacks",
+        "tests.test_flow_delivery_daily_resource_item_bluestacks",
+        "tests.test_gameplay_flow_contracts",
+        "tests.test_flow_delivery_validation_profiles"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "item_binding_latency_seconds",
+        "postcondition_latency_seconds"
+      ],
+      "blocked_reason": "",
+      "next_concrete_action": "Do not start daily-milestone-claim until explicitly selected. daily-resource-item live acceptance is complete; registration remains NOT_REGISTERED.",
+      "last_completed_stage": "live_accepted_home_bag_use_home",
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+      "acceptance_criteria": [
+        "verified Home is required before Bag navigation",
+        "exact current-frame measured Resources card containing the 1K Food anchor, owned quantity at least one, quantity exactly one, and one Use dispatch are enforced",
+        "exact owned-count decrement of one for the measured 1K Food item is required before verified Home",
+        "the direct route reaches final verified Home within 10 total inputs with at most six progressing short list swipes",
+        "dry-run and registration remain scheduler-disabled and no Android Back or Claim path is used"
+      ],
+      "scope_prohibitions": [
+        "no In bulk",
+        "no AP or Stamina recovery items",
+        "no premium, paid, diamond, or unidentified item",
+        "no ordinary or milestone Claim",
+        "no Android Back from unproven Bag or Resources",
+        "no production registration or scheduler eligibility",
+        "no Bliss input"
+      ],
+      "reference_docs": [
+        "docs/runtime-input-safety-policy.md",
+        "docs/android-back-state-matrix.md",
+        "docs/validation/daily-resource-item-20260818-r6-manifest.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "scripts/daily_resource_item_bluestacks.py",
+        "scripts/flow_delivery_daily_resource_item_bluestacks.py",
+        "scripts/pnsctl.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/flow_delivery_queue.json",
+        "tasks/flow_delivery_validation_profiles.json",
+        "tasks/gameplay_flow_contracts/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION.json",
+        "tasks/daily_quest_catalog.json",
+        "tasks/daily_quest_execution_matrix.json",
+        "tests/test_daily_resource_item_bluestacks.py",
+        "tests/test_flow_delivery_daily_resource_item_bluestacks.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_flow_delivery_validation_profiles.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "daily-resource-item-use-1k-food",
+          "mode": "consequential_supervised",
+          "notes": "One item-consumption event key daily-resource-item:use-1k-food; fail closed on any second confirmation, quantity chooser, bulk path, ambiguous successor, or missing Home."
+        }
+      ],
+      "required_terminal_states": [
+        "completed",
+        "blocked",
+        "unresolved",
+        "evidence_required"
+      ],
+      "completion_tests": [
+        "tests/test_daily_resource_item_bluestacks.py",
+        "tests/test_flow_delivery_daily_resource_item_bluestacks.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_flow_delivery_validation_profiles.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "supervised_consequential_validation",
+        "maximum_item_use_dispatches": "1",
+        "scheduler_eligibility": "disabled",
+        "claim_action": "not_authorized"
+      }
     }
   ]
 }

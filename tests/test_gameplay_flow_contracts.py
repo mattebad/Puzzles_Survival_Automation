@@ -22,6 +22,8 @@ from tasks.home_context import HOME_NAVIGATION_PRIMITIVES_DIGEST
 
 ROOT = Path(__file__).resolve().parents[1]
 QUEUE_PATH = ROOT / "tasks" / "flow_delivery_queue.json"
+MATRIX_PATH = ROOT / "tasks" / "daily_quest_execution_matrix.json"
+CATALOG_PATH = ROOT / "tasks" / "daily_quest_catalog.json"
 
 
 class GameplayFlowContractTests(unittest.TestCase):
@@ -191,6 +193,97 @@ class GameplayFlowContractTests(unittest.TestCase):
 
     def test_schema_file_exists(self):
         self.assertTrue((CONTRACTS_DIR / "schema.json").is_file())
+
+    def test_daily_resource_item_contract_is_exact_and_not_eligible(self):
+        contract = load_flow_contract(
+            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
+        )
+        self.assertEqual(contract["schema_version"], 1)
+        self.assertEqual(contract["implementation_status"], "reference_implemented")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["required_starting_context"], ["home_ready"])
+        self.assertEqual(contract["navigation_input_authorization"]["maximum_inputs"], 10)
+        self.assertEqual(
+            contract["navigation_input_authorization"]["maximum_resource_list_swipes"],
+            6,
+        )
+        self.assertEqual(
+            contract["navigation_input_authorization"]["maximum_item_use_dispatches"],
+            1,
+        )
+        self.assertEqual(
+            [transition["from"] for transition in contract["state_transitions"]],
+            [
+                "home_ready",
+                "bag",
+                "resources",
+                "resource_list_progress",
+                "1k_food_ready",
+                "1k_food_used",
+                "resource_delta_verified",
+            ],
+        )
+        route_text = json.dumps(contract).casefold()
+        self.assertNotIn("quest_screen", route_text)
+        self.assertNotIn("selected_daily", route_text)
+        self.assertNotIn("daily_progress", route_text)
+        self.assertNotIn("catalog_admission", route_text)
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["quantity"],
+            1,
+        )
+        self.assertIn("1K Food", contract["cost_quantity_requirements"]["resource_or_currency"])
+        self.assertIn("second confirmation", " ".join(contract["unsupported_or_manual_only_states"]))
+        self.assertIn("In bulk", " ".join(contract["unsupported_or_manual_only_states"]))
+        self.assertIn(
+            "daily-resource-item:use-1k-food",
+            contract["completion_identity"],
+        )
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertIn(
+            "optional current-frame-bound Resource & Speedup category tab when another Bag tab is selected",
+            contract["permitted_inputs"],
+        )
+
+    def test_daily_resource_item_has_no_selected_daily_dependency(self):
+        queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
+        matrix = json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+        catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        queue_record = next(
+            item
+            for item in queue["flows"]
+            if item["flow_id"] == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
+        )
+        self.assertEqual(queue_record["dependencies"], [])
+        self.assertEqual(queue_record["direct_dependencies"], [])
+        self.assertEqual(queue_record["maximum_inputs"], 10)
+        self.assertEqual(queue_record["maximum_resource_list_swipes"], 6)
+        self.assertEqual(queue_record["production_registration"], "NOT_REGISTERED")
+        self.assertFalse(queue_record["scheduler_enabled"])
+        matrix_task = next(
+            item
+            for item in matrix["portfolio_reconciliation"]["ordered_atomic_tasks"]
+            if item["task_id"] == "use-resource-item"
+        )
+        self.assertEqual(matrix_task["depends_on"], [])
+        identity = next(
+            item
+            for item in matrix["portfolio_reconciliation"]["non_catalog_portfolio_ownership"]
+            if item["identity"] == "use_resource_item"
+        )
+        self.assertNotIn("catalog_admission_state", identity)
+        catalog_identity = catalog["implementation_reconciliation"]["use_resource_item"]
+        self.assertNotIn("catalog_admitted", catalog_identity)
+        self.assertNotIn("admission_state", catalog_identity)
+        self.assertNotIn(
+            "current_selected_daily_catalog_admission",
+            json.dumps((queue_record, matrix_task, identity, catalog_identity)),
+        )
+        self.assertEqual(matrix_task["maximum_inputs"], 10)
+        self.assertEqual(matrix_task["maximum_resource_list_swipes"], 6)
+        self.assertEqual(catalog_identity["maximum_inputs"], 10)
+        self.assertEqual(catalog_identity["maximum_resource_list_swipes"], 6)
 
 
 if __name__ == "__main__":

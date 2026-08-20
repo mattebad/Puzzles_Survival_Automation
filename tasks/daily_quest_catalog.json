@@ -28,6 +28,17 @@
     "requires_non_main_classification": true,
     "document_prose_or_synthetic_fixture_is_not_proof": true
   },
+  "implementation_reconciliation": {
+    "use_resource_item": {
+      "execution_flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+      "owner_task_id": "use-resource-item",
+      "implementation_state": "OFFLINE_ROUTE_IMPLEMENTED",
+      "scheduler_eligibility": false,
+      "maximum_inputs": 10,
+      "maximum_resource_list_swipes": 6,
+      "notes": "The direct Home-to-Bag selected-resource observed-list route owns exact 1K Food use proof; catalog identity remains separate and does not authorize registration or scheduling."
+    }
+  },
   "reconciliation_records": [
     {"observed_name": "Upgrade building", "classification": "exact_existing_key", "objective_key": "upgrade_building", "source_refs": ["inventory-20260713.json"]},
     {"observed_name": "Join Hero Duel", "classification": "exact_existing_key", "objective_key": "join_hero_duel", "source_refs": ["inventory-20260713.json"]},
@@ -83,9 +94,8 @@
       {
         "candidate_key": "use_resource_item",
         "historical_observation": "Use resource item x1",
-        "current_state": "ADMISSION_EVIDENCE_REQUIRED",
-        "catalog_admitted": false,
-        "missing_evidence": "current selected-Daily native objective-list frame proving the exact identity"
+        "current_state": "DIRECT_RESOURCE_ITEM_ROUTE_IMPLEMENTED",
+        "missing_evidence": "current native direct-route semantic proof"
       },
       {
         "candidate_key": "gather_food",

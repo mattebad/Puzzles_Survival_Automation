@@ -86,6 +86,7 @@ BLUESTACKS_FLOW_IDS = (
     "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
     "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
     "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
+    "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
     "NANOWEAPON-BLUESTACKS-INTEGRATION",
     "RECRUITMENT-BLUESTACKS-INTEGRATION",
@@ -187,6 +188,14 @@ def _register_checked_in_bluestacks_handlers() -> None:
         from flow_delivery_supply_depot_bluestacks import (
             register as register_supply_depot,
         )
+    try:
+        from scripts.flow_delivery_daily_resource_item_bluestacks import (
+            register as register_daily_resource_item,
+        )
+    except ImportError:
+        from flow_delivery_daily_resource_item_bluestacks import (
+            register as register_daily_resource_item,
+        )
 
     register_campaign(
         _BLUESTACKS_FLOW_RUNNERS,
@@ -239,6 +248,11 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
     register_supply_depot(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+    register_daily_resource_item(
         _BLUESTACKS_FLOW_RUNNERS,
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
@@ -4683,6 +4697,7 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
             "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
         }:
             queue = {"active_flow_id": retained_flow_id}
             lease = {
@@ -5691,6 +5706,7 @@ _CONDUCT_DEFAULT_MAX_INPUTS = {
     "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": 8,
     "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION": 4,
     "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": 10,
+    "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": 10,
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": 24,
 }
 _CONDUCT_KNOWLEDGE_PATHS = (

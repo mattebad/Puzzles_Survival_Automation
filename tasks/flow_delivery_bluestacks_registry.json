@@ -80,6 +80,12 @@
       "evidence_validator": "supply_depot_bluestacks_evidence",
       "recovery_handler": "supply_depot_bluestacks_recovery",
       "consequence_class": "consequential"
+    },
+    "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": {
+      "runner": "daily_resource_item_bluestacks_runner",
+      "evidence_validator": "daily_resource_item_bluestacks_evidence",
+      "recovery_handler": "daily_resource_item_bluestacks_recovery",
+      "consequence_class": "consequential"
     }
   }
 }
