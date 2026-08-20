@@ -178,6 +178,34 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
                 third.acquire()
                 third.release()
 
+    def test_development_session_exposes_only_its_currently_held_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path = Path(directory) / "lock.sqlite3"
+            session_path = Path(directory) / "session"
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", lock_path):
+                session = boundary.DevelopmentSession(
+                    owner="development",
+                    invocation_id="development-1",
+                    session_directory=session_path,
+                    max_inputs=1,
+                )
+                with self.assertRaisesRegex(
+                    boundary.DevelopmentSessionError,
+                    "runtime input lock is not held",
+                ):
+                    _ = session.runtime_input_lock
+                with session:
+                    self.assertIs(session.runtime_input_lock, session._ownership.lock)
+                    session.runtime_input_lock.assert_held(
+                        session.owner,
+                        session.invocation_id,
+                    )
+                with self.assertRaisesRegex(
+                    boundary.DevelopmentSessionError,
+                    "runtime input lock is not held",
+                ):
+                    _ = session.runtime_input_lock
+
     def test_cross_process_lock_contention(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "cross.sqlite3")

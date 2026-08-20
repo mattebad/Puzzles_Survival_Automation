@@ -8,7 +8,10 @@ This module performs no capture, transport, persistence, or account-screen autom
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
+import hashlib
+import json
 from typing import Optional
 
 
@@ -85,6 +88,9 @@ class VerifiedRuntimeIdentity:
     reset_id: Optional[str]
     assurance: RuntimeIdentityAssurance
     evidence_refs: tuple[str, ...]
+    content_digest: Optional[str] = None
+    observed_utc: Optional[str] = None
+    expires_utc: Optional[str] = None
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -180,6 +186,136 @@ def verify_runtime_identity(
             observation.evidence_refs,
         ),
         "production_identity_verified",
+    )
+
+
+@dataclass(frozen=True)
+class ResourceIdentityEvidence:
+    """Machine-observed account/server/reset evidence for the Resource route."""
+
+    account_id: str
+    server_id: str
+    reset_id: str
+    evidence_refs: tuple[str, ...]
+    observed_utc: str
+    expires_utc: str
+    content_digest: str
+    machine_observed: bool = True
+    operator_bound: bool = False
+
+    def __post_init__(self) -> None:
+        for name in ("account_id", "server_id", "reset_id", "observed_utc", "expires_utc", "content_digest"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip() or value != value.strip():
+                raise ValueError(f"{name} must be a normalized non-empty string")
+        if len(self.content_digest) != 64 or any(
+            ch not in "0123456789abcdef" for ch in self.content_digest
+        ):
+            raise ValueError("content_digest must be a lowercase SHA-256 digest")
+        if not self.evidence_refs or any(
+            not isinstance(item, str) or not item.strip() for item in self.evidence_refs
+        ):
+            raise ValueError("Resource identity evidence requires references")
+        if self.machine_observed is not True or self.operator_bound is not False:
+            raise ValueError("Resource identity evidence must be machine-observed and not operator-only")
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "account_id": self.account_id,
+            "server_id": self.server_id,
+            "reset_id": self.reset_id,
+            "evidence_refs": self.evidence_refs,
+            "observed_utc": self.observed_utc,
+            "expires_utc": self.expires_utc,
+            "machine_observed": self.machine_observed,
+            "operator_bound": self.operator_bound,
+        }
+
+    def computed_digest(self) -> str:
+        encoded = json.dumps(self.as_dict(), sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @property
+    def reset_identity_id(self) -> str:
+        return self.reset_id
+
+
+def _identity_utc(value: datetime | str) -> datetime:
+    if isinstance(value, datetime):
+        result = value
+    elif isinstance(value, str):
+        result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    else:
+        raise ValueError("identity UTC value must be datetime or ISO string")
+    if result.tzinfo is None:
+        result = result.replace(tzinfo=timezone.utc)
+    return result.astimezone(timezone.utc)
+
+
+def produce_resource_runtime_identity(
+    configuration: RuntimeIdentityConfiguration,
+    evidence: ResourceIdentityEvidence,
+    current_reset_deadline_evidence: dict[str, object],
+    evaluated_utc: datetime | str,
+) -> VerifiedRuntimeIdentity:
+    """Produce one fresh PRODUCTION_OBSERVED identity without performing input."""
+
+    if not isinstance(configuration, RuntimeIdentityConfiguration):
+        raise ValueError("Resource identity configuration is required")
+    if not isinstance(evidence, ResourceIdentityEvidence):
+        raise ValueError("Resource identity evidence is required")
+    if not isinstance(current_reset_deadline_evidence, dict):
+        raise ValueError("current machine-observed Daily reset deadline evidence is required")
+    if evidence.computed_digest() != evidence.content_digest:
+        raise ValueError("Resource identity evidence digest mismatch")
+    deadline_identity = current_reset_deadline_evidence.get(
+        "deadline_identity",
+        current_reset_deadline_evidence.get("reset_deadline_identity"),
+    )
+    if not isinstance(deadline_identity, str) or not deadline_identity.strip():
+        raise ValueError("current machine-observed reset deadline identity is missing")
+    if evidence.reset_id != deadline_identity:
+        raise ValueError("Resource reset identity does not match current Daily deadline evidence")
+    if configuration.reset_id is None:
+        raise ValueError("Resource configuration reset identity is unbound")
+    if configuration.reset_id != evidence.reset_id:
+        raise ValueError("Resource reset identity does not match configuration")
+    observed = _identity_utc(evidence.observed_utc)
+    expires = _identity_utc(evidence.expires_utc)
+    evaluated = _identity_utc(evaluated_utc)
+    if expires <= observed or evaluated < observed or evaluated > expires:
+        raise ValueError("Resource identity evidence is stale or outside its validity window")
+    deadline_observed = current_reset_deadline_evidence.get(
+        "observed_utc",
+        current_reset_deadline_evidence.get("reset_observed_utc"),
+    )
+    if deadline_observed is not None and evaluated < _identity_utc(str(deadline_observed)):
+        raise ValueError("Resource identity was evaluated before current reset observation")
+    observation = RuntimeIdentityObservation(
+        evidence.account_id,
+        evidence.server_id,
+        evidence.reset_id,
+        tuple(evidence.evidence_refs),
+        operator_bound=False,
+        machine_observed=True,
+    )
+    result = verify_runtime_identity(
+        configuration,
+        observation,
+        required_assurance=RuntimeIdentityAssurance.PRODUCTION_OBSERVED,
+    )
+    if result.identity is None:
+        raise ValueError(result.reason)
+    return VerifiedRuntimeIdentity(
+        result.identity.runtime_scope,
+        result.identity.account_id,
+        result.identity.server_id,
+        result.identity.reset_id,
+        result.identity.assurance,
+        result.identity.evidence_refs,
+        evidence.content_digest,
+        evidence.observed_utc,
+        evidence.expires_utc,
     )
 
 

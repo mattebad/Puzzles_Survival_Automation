@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 from tasks.runtime_identity import (
+    ResourceIdentityEvidence,
     RuntimeIdentityAssurance,
     RuntimeIdentityConfiguration,
     RuntimeIdentityObservation,
@@ -12,7 +13,10 @@ from tasks.runtime_identity import (
     RuntimePreflightStatus,
     evaluate_runtime_preflight,
     verify_runtime_identity,
+    produce_resource_runtime_identity,
 )
+import hashlib
+import json
 
 
 PACKAGE = "com.global.ztmslg"
@@ -215,6 +219,79 @@ class RuntimeIdentityTests(unittest.TestCase):
         result = evaluate_runtime_preflight(_preflight(), None)
         self.assertEqual(result.status, RuntimePreflightStatus.BLOCKED)
         self.assertEqual(result.reason, "verified_identity_unavailable")
+
+    def test_resource_identity_requires_fresh_machine_observed_reset_deadline(self) -> None:
+        deadline = {
+            "deadline_identity": "reset-deadline:2026-08-19T11:00:00Z",
+            "observed_utc": "2026-08-19T10:00:00Z",
+        }
+        base = {
+            "account_id": "acct-1",
+            "server_id": "server-1",
+            "reset_id": deadline["deadline_identity"],
+            "evidence_refs": ("daily-reset-frame.png",),
+            "observed_utc": "2026-08-19T10:00:00Z",
+            "expires_utc": "2026-08-19T11:00:00Z",
+            "machine_observed": True,
+            "operator_bound": False,
+        }
+        digest = hashlib.sha256(
+            json.dumps(base, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        evidence = ResourceIdentityEvidence(**base, content_digest=digest)
+        identity = produce_resource_runtime_identity(
+            RuntimeIdentityConfiguration(
+                "bluestacks-dev-primary",
+                "acct-1",
+                "server-1",
+                deadline["deadline_identity"],
+            ),
+            evidence,
+            deadline,
+            "2026-08-19T10:30:00Z",
+        )
+        self.assertEqual(identity.assurance, RuntimeIdentityAssurance.PRODUCTION_OBSERVED)
+        self.assertTrue(identity.permits_production_consequential)
+
+    def test_resource_identity_rejects_reset_mismatch_and_stale_evidence(self) -> None:
+        deadline = {
+            "deadline_identity": "reset-deadline:2026-08-19T11:00:00Z",
+            "observed_utc": "2026-08-19T10:00:00Z",
+        }
+        base = {
+            "account_id": "acct-1",
+            "server_id": "server-1",
+            "reset_id": deadline["deadline_identity"],
+            "evidence_refs": ("daily-reset-frame.png",),
+            "observed_utc": "2026-08-19T10:00:00Z",
+            "expires_utc": "2026-08-19T10:01:00Z",
+            "machine_observed": True,
+            "operator_bound": False,
+        }
+        digest = hashlib.sha256(
+            json.dumps(base, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        evidence = ResourceIdentityEvidence(**base, content_digest=digest)
+        configuration = RuntimeIdentityConfiguration(
+            "bluestacks-dev-primary",
+            "acct-1",
+            "server-1",
+            deadline["deadline_identity"],
+        )
+        with self.assertRaises(ValueError):
+            produce_resource_runtime_identity(
+                configuration,
+                evidence,
+                deadline,
+                "2026-08-19T10:30:00Z",
+            )
+        with self.assertRaises(ValueError):
+            produce_resource_runtime_identity(
+                configuration,
+                evidence,
+                {**deadline, "deadline_identity": "reset-deadline:other"},
+                "2026-08-19T10:00:30Z",
+            )
 
 
 if __name__ == "__main__":

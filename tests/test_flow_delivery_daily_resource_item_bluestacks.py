@@ -1,18 +1,35 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 import shutil
+import sqlite3
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import cv2
 import numpy as np
 
+from safe_action_core import SafetyStore
+from safe_action_core.models import TransportResult
+from scripts import daily_row_claim_bluestacks as daily
+from scripts import navigation_development_boundary as boundary
 from scripts import daily_resource_item_bluestacks as route
 from scripts import flow_delivery_daily_resource_item_bluestacks as delivery
 from scripts import pnsctl
 from scripts.evidence_hygiene import sha256_stream
+from scripts.bluestacks_native_runtime import CapturedNativeFrame
+from scripts.navigation_development_boundary import DevelopmentSession
+from tasks.runtime_identity import (
+    ResourceIdentityEvidence,
+    RuntimeIdentityConfiguration,
+    produce_resource_runtime_identity,
+)
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -51,6 +68,717 @@ def _write_blank_native(path: Path) -> Path:
 
 
 class DailyResourceItemDeliveryTests(unittest.TestCase):
+    def _resource_identity(self):
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        deadline = now + timedelta(hours=6)
+        deadline_utc = deadline.isoformat().replace("+00:00", "Z")
+        observed_utc = (now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
+        expires_utc = (now + timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        deadline_identity = f"reset-deadline:{deadline_utc}"
+        deadline_evidence = {
+            "displayed_timer": "06:00:00",
+            "reset_timer_seconds": 21600,
+            "observed_utc": observed_utc,
+            "normalized_deadline_utc": deadline_utc,
+            "deadline_identity": deadline_identity,
+            "tolerance_seconds": 2,
+            "recurrence_class": "daily_reset",
+        }
+        base = ResourceIdentityEvidence(
+            account_id="test-account",
+            server_id="test-server",
+            reset_id=deadline_identity,
+            evidence_refs=("test:account-server-reset",),
+            observed_utc=observed_utc,
+            expires_utc=expires_utc,
+            content_digest="0" * 64,
+        )
+        evidence = replace(base, content_digest=base.computed_digest())
+        identity = produce_resource_runtime_identity(
+            RuntimeIdentityConfiguration(
+                "test-scope",
+                "test-account",
+                "test-server",
+                deadline_identity,
+            ),
+            evidence,
+            deadline_evidence,
+            now,
+        )
+        return identity, deadline_evidence
+
+    def _produce_identity_session(
+        self,
+        capture_root: Path,
+        *,
+        selected_daily: bool = True,
+        reset_matches: bool = True,
+        expect_failure: bool = False,
+    ) -> tuple[dict[str, object], Path, str, list[tuple[tuple[int, ...], object, object]]]:
+        fixed_now = datetime.now(timezone.utc).replace(microsecond=0)
+        deadline = fixed_now + timedelta(hours=6)
+        deadline_utc = deadline.isoformat().replace("+00:00", "Z")
+        derived_reset_id = f"reset-deadline:{deadline_utc}"
+        configured_reset_id = (
+            derived_reset_id
+            if reset_matches
+            else "reset-deadline:2026-08-20T19:00:00Z"
+        )
+        frame = np.full((1280, 800, 3), (20, 40, 60), dtype=np.uint8)
+        encoded_ok, encoded = cv2.imencode(".png", frame)
+        self.assertTrue(encoded_ok)
+        frame_bytes = encoded.tobytes()
+        frame_digest = hashlib.sha256(frame_bytes).hexdigest()
+        recognizer_calls: list[tuple[tuple[int, ...], object, object]] = []
+
+        class FakeRecognizer:
+            def recognize_daily_claim(
+                self,
+                image: np.ndarray,
+                *,
+                game_day_id=None,
+                observed_utc=None,
+            ):
+                recognizer_calls.append((tuple(image.shape), game_day_id, observed_utc))
+                observed = observed_utc.astimezone(timezone.utc)
+                observed_text = observed.isoformat().replace("+00:00", "Z")
+                deadline_text = (
+                    observed + timedelta(hours=6)
+                ).isoformat().replace("+00:00", "Z")
+                visual = {
+                    "selected_daily": selected_daily,
+                    "runtime_profile_id": daily.BLUESTACKS_RUNTIME_PROFILE_ID,
+                    "reset_timer": "06:00:00",
+                    "reset_timer_seconds": 21600,
+                    "reset_observed_utc": observed_text,
+                    "reset_deadline_utc": deadline_text,
+                    "reset_deadline_identity": f"reset-deadline:{deadline_text}",
+                    "reset_deadline_tolerance_seconds": 2,
+                }
+                return daily.FrameRecognition(
+                    state=(
+                        daily.DAILY_SELECTED_STATE
+                        if selected_daily
+                        else daily.UNKNOWN_STATE
+                    ),
+                    recognized=selected_daily,
+                    visual_evidence=visual,
+                )
+
+        class FixedDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return fixed_now if tz is None else fixed_now.astimezone(tz)
+
+        observation = {
+            "device_state": "device",
+            "foreground_package": pnsctl.PACKAGE,
+            "native_width": 800,
+            "native_height": 1280,
+            "frame_sha256": frame_digest,
+        }
+        invocation = (
+            "resource-identity-observe-"
+            + fixed_now.strftime("%Y%m%dT%H%M%S%fZ")
+        )
+        session_directory = capture_root / invocation
+        with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", capture_root / "lock.sqlite3"):
+            with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", capture_root):
+                with patch.object(pnsctl, "datetime", FixedDateTime):
+                    with patch.object(
+                        pnsctl,
+                        "_development_runtime_observation",
+                        return_value=(observation, frame_bytes),
+                    ) as runtime_observation:
+                        with patch.object(
+                            daily,
+                            "DailyRowClaimRecognizer",
+                            return_value=FakeRecognizer(),
+                        ):
+                            try:
+                                output = json.loads(
+                                    pnsctl.development_session_resource_identity_observe(
+                                        runtime_scope="test-scope",
+                                        account_id="test-account",
+                                        server_id="test-server",
+                                        reset_id=configured_reset_id,
+                                    )
+                                )
+                            except pnsctl.OperatorError:
+                                if not expect_failure:
+                                    raise
+                                output = {}
+                            self.assertEqual(runtime_observation.call_count, 1)
+        return output, session_directory, configured_reset_id, recognizer_calls
+
+    def test_pnsctl_builds_resource_bundle_inside_same_session_lock(self):
+        identity, deadline_evidence = self._resource_identity()
+
+        class Inner:
+            execute = True
+            frame_max_age_seconds = 30.0
+            input_count = 0
+            session = Path("inner-session")
+
+            def __init__(self):
+                self.dispatch_calls = 0
+                self.result = None
+
+            def dispatch_prepared_resource_item_use(self, *args, **kwargs):
+                self.dispatch_calls += 1
+                if self.result is None:
+                    raise AssertionError("wrong-frame regression must stop before native dispatch")
+                return self.result
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store_path = root / "actions.sqlite3"
+            seed = SafetyStore(store_path)
+            seed.close()
+            lock_path = root / "runtime-lock.sqlite3"
+            session_path = root / "session"
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", lock_path):
+                with DevelopmentSession(
+                    owner="pnsctl-test-owner",
+                    invocation_id="pnsctl-test-invocation",
+                    session_directory=session_path,
+                    max_inputs=10,
+                ) as session:
+                    components = pnsctl._build_resource_runtime_components(
+                        session=session,
+                        verified_identity=identity,
+                        deadline_payload=deadline_evidence,
+                        store_path=store_path,
+                        store_factory=lambda path: SafetyStore(path),
+                    )
+                    inner = Inner()
+                    runtime = components["runtime_factory"](inner)
+                    self.assertIs(runtime._runtime_lock, session.runtime_input_lock)
+                    self.assertEqual(
+                        components["controller_lease"]["owner_id"],
+                        session.owner,
+                    )
+                    frame_bytes = b"\x89PNG\r\n\x1a\nresource-frame"
+                    frame = np.full((1280, 800, 3), 20, dtype=np.uint8)
+                    source = CapturedNativeFrame(
+                        frame=frame,
+                        png=frame_bytes,
+                        sha256=hashlib.sha256(frame_bytes).hexdigest(),
+                        captured_monotonic=time.monotonic(),
+                        path=root / "source.png",
+                    )
+                    bundle = runtime._prepare(
+                        source,
+                        (100, 100, 140, 140),
+                        delivery.ITEM_USE_ACTION_KEY,
+                    )
+                    runtime._prepared = bundle.prepared
+                    runtime._request = bundle.request
+                    runtime._capability = bundle.capability
+                    runtime._preparation_used = True
+                    self.assertEqual(
+                        bundle.request.observation.frame_sha256,
+                        bundle.prepared.fence.immediate_before_sha256,
+                    )
+                    self.assertEqual(
+                        bundle.request.effect_dispatch_fence,
+                        bundle.prepared.fence,
+                    )
+                    self.assertEqual(
+                        bundle.prepared.fence.runtime_invocation_id,
+                        session.invocation_id,
+                    )
+                    wrong_png = b"\x89PNG\r\n\x1awrong-frame"
+                    wrong = CapturedNativeFrame(
+                        frame=frame.copy(),
+                        png=wrong_png,
+                        sha256=hashlib.sha256(wrong_png).hexdigest(),
+                        captured_monotonic=time.monotonic(),
+                        path=root / "wrong.png",
+                    )
+                    with self.assertRaisesRegex(RuntimeError, "source frame"):
+                        runtime.dispatch_one_food_use(
+                            wrong,
+                            target_roi=(100, 100, 140, 140),
+                            action_key=delivery.ITEM_USE_ACTION_KEY,
+                        )
+                    self.assertEqual(inner.dispatch_calls, 0)
+                    self.assertIsNone(
+                        components["authority"].get_resource_transport(
+                            bundle.prepared.reservation_id
+                        )
+                    )
+                    self.assertIsNone(
+                        components["authority"].get_resource_transport_outcome(
+                            bundle.prepared.reservation_id
+                        )
+                    )
+                    inner.result = TransportResult(False, "NOT_SENT")
+                    result = runtime.dispatch_one_food_use(
+                        source,
+                        target_roi=(100, 100, 140, 140),
+                        action_key=delivery.ITEM_USE_ACTION_KEY,
+                    )
+                    self.assertEqual(result.transport_code, "NOT_SENT")
+                    self.assertEqual(inner.dispatch_calls, 1)
+                    outcome = components["authority"].get_resource_transport_outcome(
+                        bundle.prepared.reservation_id
+                    )
+                    self.assertIsNotNone(outcome)
+                    assert outcome is not None
+                    self.assertEqual(outcome["state"], "TRANSPORT_UNKNOWN")
+                    self.assertEqual(outcome["adapter_invoked"], 1)
+                    self.assertNotEqual(outcome["state"], "RELEASED_NOT_SENT")
+                    reservation_state = components["store"].connection.execute(
+                        "SELECT state FROM resource_reservations WHERE reservation_id=?",
+                        (bundle.prepared.reservation_id,),
+                    ).fetchone()[0]
+                    self.assertEqual(reservation_state, "TRANSPORT_UNKNOWN")
+                    self.assertIsNotNone(
+                        components["store"].connection.execute(
+                            "SELECT 1 FROM resource_occurrences"
+                        ).fetchone()
+                    )
+                    with self.assertRaises(Exception):
+                        runtime._prepare(
+                            source,
+                            (100, 100, 140, 140),
+                            delivery.ITEM_USE_ACTION_KEY,
+                        )
+                    components["authority"].release_resource_controller_lease(
+                        session.owner,
+                        components["controller_lease"]["controller_token"],
+                        time.monotonic(),
+                    )
+                    components["store"].close()
+
+    def test_pnsctl_resource_store_rejects_missing_or_v3_without_migration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            missing = root / "missing.sqlite3"
+            factory_calls: list[Path] = []
+
+            def factory(path: Path):
+                factory_calls.append(path)
+                return SafetyStore(path)
+
+            with self.assertRaises(pnsctl.OperatorError):
+                pnsctl._open_admitted_resource_store(
+                    store_path=missing,
+                    store_factory=factory,
+                )
+            self.assertEqual(factory_calls, [])
+
+            v3 = root / "v3.sqlite3"
+            seed = SafetyStore(v3)
+            seed.close()
+            db = __import__("sqlite3").connect(v3)
+            db.execute("UPDATE schema_version SET version=3 WHERE singleton=1")
+            db.commit()
+            db.close()
+            with self.assertRaises(pnsctl.OperatorError):
+                pnsctl._open_admitted_resource_store(
+                    store_path=v3,
+                    store_factory=factory,
+                )
+            self.assertEqual(factory_calls, [])
+            verify = __import__("sqlite3").connect(v3)
+            self.assertEqual(
+                verify.execute(
+                    "SELECT version FROM schema_version WHERE singleton=1"
+                ).fetchone()[0],
+                3,
+            )
+            verify.close()
+
+    def test_development_session_real_resource_branch_cleans_up_on_navigation_block(self):
+        seen: dict[str, object] = {}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            capture_root = root / "captures"
+            (
+                producer_output,
+                identity_session,
+                reset_id,
+                producer_recognizer_calls,
+            ) = self._produce_identity_session(capture_root)
+            receipt_path = Path(str(producer_output["receipt_path"]))
+            receipt_hash_before = _digest(receipt_path)
+            frame_path = identity_session / "source.png"
+            frame_hash_before = _digest(frame_path)
+            summary_path = identity_session / "summary.json"
+            summary_hash_before = _digest(summary_path)
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            deadline_payload = receipt["current_reset_deadline_evidence"]
+            frame_observed_utc = str(deadline_payload["observed_utc"])
+            frame = np.full((1280, 800, 3), (5, 15, 25), dtype=np.uint8)
+            source_ok, source_encoded = cv2.imencode(".png", frame)
+            self.assertTrue(source_ok)
+            source_bytes = source_encoded.tobytes()
+            source_digest = hashlib.sha256(source_bytes).hexdigest()
+            session_directory = capture_root / "resource-run"
+            store_path = root / "actions.sqlite3"
+            seed = SafetyStore(store_path)
+            seed.close()
+            opened_stores: list[SafetyStore] = []
+
+            def store_factory(path: Path):
+                store = SafetyStore(path)
+                opened_stores.append(store)
+                return store
+
+            def runner(queue, runtime_context, *, live=False):
+                del queue, live
+                seen.update(runtime_context)
+                self.assertTrue(callable(runtime_context["resource_runtime_factory"]))
+                self.assertEqual(
+                    runtime_context["resource_deadline_evidence"]["daily_frame"]["path"],
+                    "source.png",
+                )
+                runtime_identity = runtime_context["resource_runtime_identity"]
+                self.assertIn(
+                    f"producer-session:{identity_session.name}",
+                    runtime_identity.evidence_refs,
+                )
+                self.assertNotEqual(
+                    runtime_context["development_session"].session_directory,
+                    identity_session,
+                )
+                return json.dumps(
+                    {
+                        "status": "blocked",
+                        "reason": "navigation target unavailable",
+                        "session_directory": "",
+                    }
+                )
+
+            class ResourceIdentityRecognizer:
+                def recognize_daily_claim(
+                    self,
+                    image: np.ndarray,
+                    *,
+                    game_day_id=None,
+                    observed_utc=None,
+                ):
+                    del image
+                    self.calls.append((tuple((1280, 800, 3)), game_day_id, observed_utc))
+                    return daily.FrameRecognition(
+                        state=daily.DAILY_SELECTED_STATE,
+                        recognized=True,
+                        visual_evidence={
+                            "selected_daily": True,
+                            "runtime_profile_id": daily.BLUESTACKS_RUNTIME_PROFILE_ID,
+                            "reset_deadline_identity": deadline_payload[
+                                "deadline_identity"
+                            ],
+                            "reset_deadline_utc": deadline_payload[
+                                "normalized_deadline_utc"
+                            ],
+                            "reset_observed_utc": deadline_payload["observed_utc"],
+                            "reset_timer_seconds": deadline_payload[
+                                "reset_timer_seconds"
+                            ],
+                        },
+                    )
+
+                def __init__(self):
+                    self.calls: list[tuple[tuple[int, ...], object, object]] = []
+
+            recognizer = ResourceIdentityRecognizer()
+
+            def development_observation():
+                return (
+                    {
+                        "device_state": "device",
+                        "screen_state": "HOME_CANONICAL",
+                        "foreground_package": pnsctl.PACKAGE,
+                        "native_width": 800,
+                        "native_height": 1280,
+                        "frame_sha256": source_digest,
+                    },
+                    source_bytes,
+                )
+
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", capture_root):
+                    with patch.object(
+                        pnsctl,
+                        "_development_session_directory",
+                        return_value=session_directory,
+                    ):
+                        with patch.object(
+                            daily,
+                            "DailyRowClaimRecognizer",
+                            return_value=recognizer,
+                        ):
+                            with patch.object(
+                                pnsctl,
+                                "_development_runtime_observation",
+                                side_effect=development_observation,
+                            ):
+                                with patch.object(
+                                    pnsctl,
+                                    "_load_bluestacks_flow_registry",
+                                    return_value={
+                                        delivery.FLOW_ID: {"runner": "resource-runner"}
+                                    },
+                                ):
+                                    with patch.dict(
+                                        pnsctl._BLUESTACKS_FLOW_RUNNERS,
+                                        {"resource-runner": runner},
+                                    ):
+                                        result = json.loads(
+                                            pnsctl.development_session_run_flow(
+                                                delivery.FLOW_ID,
+                                                live=True,
+                                                yes=True,
+                                                max_inputs=10,
+                                                runtime_scope="test-scope",
+                                                account_id="test-account",
+                                                server_id="test-server",
+                                                reset_id=reset_id,
+                                                identity_evidence=receipt_path,
+                                                _resource_store_path=store_path,
+                                                _resource_store_factory=store_factory,
+                                            )
+                                        )
+            self.assertEqual(result["status"], "blocked")
+            self.assertIn("resource_runtime_factory", seen)
+            self.assertEqual(
+                seen["development_session"].session_directory,
+                session_directory,
+            )
+            self.assertTrue((session_directory / "source.png").is_file())
+            self.assertEqual(_digest(session_directory / "source.png"), source_digest)
+            self.assertEqual(
+                producer_recognizer_calls[0][0],
+                (1280, 800, 3),
+            )
+            self.assertEqual(
+                recognizer.calls,
+                [
+                    (
+                        (1280, 800, 3),
+                        None,
+                        datetime.fromisoformat(
+                            frame_observed_utc.replace("Z", "+00:00")
+                        ),
+                    )
+                ],
+            )
+            self.assertEqual(_digest(frame_path), frame_hash_before)
+            self.assertEqual(_digest(receipt_path), receipt_hash_before)
+            self.assertEqual(_digest(summary_path), summary_hash_before)
+            self.assertEqual(len(opened_stores), 1)
+            with self.assertRaises(sqlite3.ProgrammingError):
+                opened_stores[0].connection.execute("SELECT 1")
+            verify = sqlite3.connect(store_path)
+            self.assertIsNotNone(
+                verify.execute(
+                    "SELECT released_at FROM controller_lease WHERE singleton=1"
+                ).fetchone()[0]
+            )
+            verify.close()
+
+    def test_resource_identity_producer_writes_authenticated_zero_input_receipt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            capture_root = Path(tmp) / "captures"
+            output, session, reset_id, recognizer_calls = self._produce_identity_session(
+                capture_root
+            )
+            receipt_path = Path(str(output["receipt_path"]))
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            summary = json.loads(
+                (session / "summary.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                receipt_path.name,
+                pnsctl.RESOURCE_IDENTITY_RECEIPT_FILENAME,
+            )
+            self.assertEqual(
+                receipt["producer_kind"],
+                pnsctl.RESOURCE_IDENTITY_PRODUCER_KIND,
+            )
+            self.assertEqual(
+                receipt["producer_version"],
+                pnsctl.RESOURCE_IDENTITY_PRODUCER_VERSION,
+            )
+            self.assertEqual(receipt["producer_owner"], pnsctl.RESOURCE_IDENTITY_PRODUCER_OWNER)
+            self.assertEqual(receipt["producer_invocation_id"], session.name)
+            self.assertEqual(receipt["producer_session_id"], session.name)
+            self.assertEqual(receipt["runtime_scope"], "test-scope")
+            self.assertEqual(receipt["account_id"], "test-account")
+            self.assertEqual(receipt["server_id"], "test-server")
+            self.assertEqual(receipt["reset_id"], reset_id)
+            self.assertEqual(summary["status"], "observed")
+            self.assertEqual(summary["owner"], pnsctl.RESOURCE_IDENTITY_PRODUCER_OWNER)
+            self.assertEqual(summary["invocation_id"], session.name)
+            self.assertEqual(summary["input_count"], 0)
+            self.assertEqual(summary["action_count"], 0)
+            self.assertEqual(summary["max_inputs"], 0)
+            self.assertTrue(summary["ownership_released"])
+            self.assertFalse(summary["lifecycle_state_created"])
+            self.assertEqual(output["input_count"], 0)
+            self.assertEqual(output["action_count"], 0)
+            self.assertFalse(output["dispatch"])
+            self.assertFalse((Path(tmp) / "actions.sqlite3").exists())
+            frame = session / "source.png"
+            self.assertEqual(receipt["frame"]["path"], "source.png")
+            self.assertEqual(receipt["frame"]["sha256"], _digest(frame))
+            evidence = ResourceIdentityEvidence(
+                **receipt["resource_identity_evidence"]
+            )
+            self.assertEqual(evidence.reset_id, reset_id)
+            self.assertEqual(evidence.content_digest, evidence.computed_digest())
+            self.assertEqual(receipt["self_digest"], evidence.computed_digest())
+            self.assertEqual(
+                receipt["receipt_digest"],
+                pnsctl._resource_identity_receipt_digest(receipt),
+            )
+            self.assertEqual(
+                recognizer_calls[0][2],
+                datetime.fromisoformat(
+                    receipt["observed_utc"].replace("Z", "+00:00")
+                ),
+            )
+
+    def test_resource_identity_producer_fails_closed_without_authoritative_receipt(self):
+        for selected_daily, reset_matches in ((False, True), (True, False)):
+            with self.subTest(selected_daily=selected_daily, reset_matches=reset_matches):
+                with tempfile.TemporaryDirectory() as tmp:
+                    capture_root = Path(tmp) / "captures"
+                    _output, session, _reset_id, _calls = self._produce_identity_session(
+                        capture_root,
+                        selected_daily=selected_daily,
+                        reset_matches=reset_matches,
+                        expect_failure=True,
+                    )
+                    summary = json.loads(
+                        (session / "summary.json").read_text(encoding="utf-8")
+                    )
+                    self.assertEqual(summary["status"], "failed")
+                    self.assertEqual(summary["input_count"], 0)
+                    self.assertEqual(summary["action_count"], 0)
+                    self.assertTrue(summary["ownership_released"])
+                    self.assertFalse(
+                        (session / pnsctl.RESOURCE_IDENTITY_RECEIPT_FILENAME).exists()
+                    )
+
+    def test_resource_identity_consumer_rejects_missing_or_tampered_authentication(self):
+        cases = (
+            ("missing-summary", "missing_summary", None),
+            ("wrong-owner", "summary", ("owner", "wrong-owner")),
+            ("wrong-status", "summary", ("status", "failed")),
+            ("wrong-invocation", "summary", ("invocation_id", "wrong")),
+            ("nonzero-input", "summary", ("input_count", 1)),
+            ("nonzero-action", "summary", ("action_count", 1)),
+            ("tampered-summary-terminal", "summary", ("terminal_at", "tampered")),
+            ("tampered-producer-owner", "producer", ("owner", "wrong-owner")),
+            ("tampered-producer-invocation", "producer", ("invocation_id", "wrong")),
+        )
+        for label, artifact, change in cases:
+            with self.subTest(case=label):
+                with tempfile.TemporaryDirectory() as tmp:
+                    capture_root = Path(tmp) / "captures"
+                    output, session, _reset_id, _calls = self._produce_identity_session(
+                        capture_root
+                    )
+                    receipt_path = Path(str(output["receipt_path"]))
+                    if artifact == "missing_summary":
+                        (session / "summary.json").unlink()
+                    elif artifact == "summary":
+                        summary_path = session / "summary.json"
+                        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+                        assert change is not None
+                        summary[change[0]] = change[1]
+                        summary_path.write_text(
+                            json.dumps(summary, sort_keys=True) + "\n",
+                            encoding="utf-8",
+                        )
+                    else:
+                        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                        assert change is not None
+                        receipt["producer"][change[0]] = change[1]
+                        receipt_path.write_text(
+                            json.dumps(receipt, sort_keys=True) + "\n",
+                            encoding="utf-8",
+                        )
+                    with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", capture_root):
+                        with self.assertRaises(pnsctl.OperatorError):
+                            pnsctl._load_resource_identity_payload(receipt_path)
+
+    def test_resource_identity_parser_dispatches_without_runtime_access(self):
+        argv = [
+            "development-session",
+            "resource-identity-observe",
+            "--runtime-scope",
+            "scope",
+            "--account-id",
+            "account",
+            "--server-id",
+            "server",
+            "--reset-id",
+            "reset",
+        ]
+        with patch.object(
+            pnsctl,
+            "development_session_resource_identity_observe",
+            return_value=json.dumps({"status": "observed"}),
+        ) as operation:
+            with patch("builtins.print") as printer:
+                self.assertEqual(pnsctl.main(argv), 0)
+        operation.assert_called_once_with(
+            runtime_scope="scope",
+            account_id="account",
+            server_id="server",
+            reset_id="reset",
+        )
+        printer.assert_called_once_with('{"status": "observed"}')
+
+    def test_resource_identity_rejects_receipt_outside_fixed_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            capture_root = root / "captures"
+            capture_root.mkdir()
+            outside = root / "outside-identity.json"
+            outside.write_text("{}", encoding="utf-8")
+            with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", capture_root):
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError,
+                    "beneath the fixed capture root",
+                ):
+                    pnsctl._load_resource_identity_payload(outside)
+
+    def test_resource_identity_rejects_frame_escaping_prior_receipt_session(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            identity_session = root / "identity-session"
+            identity_session.mkdir()
+            outside = root / "outside-daily.png"
+            frame = _write_blank_native(outside)
+            now = datetime.now(timezone.utc).replace(microsecond=0)
+            timestamp = now.isoformat().replace("+00:00", "Z")
+            frame_payload = {
+                "path": "../outside-daily.png",
+                "sha256": _digest(frame),
+                "captured_utc": timestamp,
+                "observed_utc": timestamp,
+            }
+            deadline_payload = {
+                "daily_frame": frame_payload,
+                "observed_utc": timestamp,
+            }
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError,
+                "traversal|escapes the session directory",
+            ):
+                pnsctl._resource_identity_frame_proof(
+                    session=identity_session,
+                    evidence_payload={"observed_utc": timestamp},
+                    deadline_payload=deadline_payload,
+                )
+
     def test_authoritative_budgets_agree_across_active_sources(self):
         contract = json.loads(
             (

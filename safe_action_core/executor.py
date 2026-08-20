@@ -113,6 +113,8 @@ class SafeActionExecutor:
             semantic_preconditions=request.semantic_preconditions,
             semantic_postconditions=request.semantic_postconditions,
             runtime_session_id=request.runtime_session_id,
+            resource_authorization_context=request.resource_authorization_context,
+            effect_dispatch_fence=request.effect_dispatch_fence,
         )
 
     def _terminal_with_capability(
@@ -240,6 +242,22 @@ class SafeActionExecutor:
         dry_run: bool = False,
     ) -> ExecutionResult:
         calls = 0
+        if getattr(request, "action_class", None) is ActionClass.OWNED_ITEM_NON_IDEMPOTENT:
+            if capability is not None:
+                retired = self.policy.retire_capability(capability, request)
+                self.store.audit(
+                    request.task_id,
+                    "capability_consume",
+                    self.wall_clock(),
+                    retired.audit,
+                    request.action_id,
+                )
+            return ExecutionResult(
+                request.action_id,
+                ActionStatus.CANCELLED,
+                "RESOURCE_AUTHORITY_REQUIRED",
+                calls,
+            )
         monotonic_now = self.monotonic_clock()
         recorded_at = self.wall_clock()
         pending_capability = capability
@@ -600,6 +618,7 @@ class SafeActionExecutor:
             allowed_confirmation_dialogs=request.allowed_confirmation_dialogs,
             semantic_preconditions=request.semantic_preconditions or (obs.source_state, obs.overlay_state),
             semantic_postconditions=request.semantic_postconditions or (obs.expected_postcondition,),
+            resource_authorization_context=request.resource_authorization_context,
         )
 
 

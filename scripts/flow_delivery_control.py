@@ -34,6 +34,7 @@ from tasks.flow_scenario_attempts import (
     apply_scenario_record,
     validate_named_scenario_state,
 )
+from tasks import product_authority
 
 
 DEFAULT_QUEUE_PATH = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
@@ -1167,7 +1168,14 @@ def _canonical_digest(payload: Mapping[str, Any]) -> str:
 
 
 def validate_policy(payload: Mapping[str, Any]) -> None:
-    if payload.get("schema_version") != 1:
+    schema_version = payload.get("schema_version")
+    if schema_version == 2:
+        try:
+            product_authority.validate_product_authority(payload)
+        except product_authority.ProductAuthorityError as exc:
+            raise FlowDeliveryError(f"product authority validation failed: {exc}") from exc
+        return
+    if schema_version != 1:
         raise FlowDeliveryError("unsupported product-policy schema")
     if payload.get("registry_kind") != "flow_delivery_product_policy":
         raise FlowDeliveryError("wrong product-policy registry kind")
@@ -1702,9 +1710,11 @@ def load_and_validate_authority_consistency(
     coverage_path: Path = DEFAULT_COVERAGE_PATH,
     registry_path: Path = DEFAULT_REGISTRY_PATH,
 ) -> None:
+    policy = _read_json(policy_path)
+    validate_policy(policy)
     validate_authority_consistency(
         _read_json(queue_path),
-        _read_json(policy_path),
+        policy,
         _read_json(coverage_path),
         _read_json(registry_path),
     )
@@ -1724,10 +1734,23 @@ POLICY_REGISTRY_SOURCE_NAME = "flow_delivery_product_policy.json"
 def validate_contract_policy_refs(
     policy_ids: set[str],
     contracts: Mapping[str, Mapping[str, Any]],
+    *,
+    authority: Mapping[str, Any] | None = None,
 ) -> None:
     """O4: every contract product_policy_ref whose source is the product-policy
     registry must resolve to an existing policy_id. Refs sourced from code modules
     are out of scope and skipped."""
+
+    if authority is not None:
+        try:
+            product_authority.validate_contract_product_authority_bindings(
+                authority,
+                contracts,
+            )
+        except product_authority.ProductAuthorityError as exc:
+            raise FlowDeliveryError(
+                f"contract product authority binding validation failed: {exc}"
+            ) from exc
 
     for identity, contract in sorted(contracts.items()):
         for ref in contract.get("product_policy_refs", []):
@@ -1754,6 +1777,8 @@ def load_and_validate_contract_policy_refs(
     contracts_dir: Path = DEFAULT_CONTRACTS_DIR,
 ) -> None:
     policy = _read_json(policy_path)
+    if policy.get("schema_version") == 2:
+        validate_policy(policy)
     contracts: dict[str, Mapping[str, Any]] = {}
     contract_paths: dict[str, Path] = {}
     for path in sorted(contracts_dir.glob("*.json")):
@@ -1768,7 +1793,11 @@ def load_and_validate_contract_policy_refs(
             )
         contracts[flow_id] = contract
         contract_paths[flow_id] = path
-    validate_contract_policy_refs(_policy_ids(policy), contracts)
+    validate_contract_policy_refs(
+        _policy_ids(policy),
+        contracts,
+        authority=policy if policy.get("schema_version") == 2 else None,
+    )
 
 
 def apply_named_scenario_result(

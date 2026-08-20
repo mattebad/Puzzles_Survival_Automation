@@ -5,9 +5,16 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from typing import Any, Mapping
+import time
+from typing import Any, Callable, Mapping
 
-from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime, NativeBox
+from safe_action_core.resource_effect_authority import (
+    PreparedResourceAuthorization,
+    PreparedResourceEffect,
+    ResourceEffectAuthority,
+    ResourceTransportIntentToken,
+)
 from scripts.daily_resource_item_bluestacks import (
     MAX_RESOURCE_LIST_SWIPES as ROUTE_MAX_RESOURCE_LIST_SWIPES,
     MAX_ROUTE_INPUTS as ROUTE_MAX_ROUTE_INPUTS,
@@ -30,6 +37,160 @@ MAX_INPUTS = ROUTE_MAX_ROUTE_INPUTS
 MAX_RESOURCE_LIST_SWIPES = ROUTE_MAX_RESOURCE_LIST_SWIPES
 ITEM_USE_ACTION_KEY = "daily-resource-item:use-1k-food"
 MAX_ITEM_USE_TRANSPORT_CALLS = 1
+
+
+class AuthorizedResourceItemRuntime:
+    """Resource route adapter with a single fenced Use seam."""
+
+    def __init__(
+        self,
+        inner: LocalBlueStacksRuntime,
+        *,
+        authority: ResourceEffectAuthority | None = None,
+        prepared: PreparedResourceEffect | None = None,
+        controller_lease: Mapping[str, Any] | None = None,
+        runtime_lock: Any | None = None,
+        capability: Any | None = None,
+        policy: Any | None = None,
+        request: Any | None = None,
+        prepare: Any | None = None,
+        now: float | Callable[[], float] = 0.0,
+    ) -> None:
+        self._inner = inner
+        self._authority = authority
+        self._prepared = prepared
+        self._controller_lease = controller_lease
+        self._runtime_lock = runtime_lock
+        self._capability = capability
+        self._policy = policy
+        self._request = request
+        self._prepare = prepare
+        self._now = now
+        self._preparation_used = False
+
+    @property
+    def execute(self) -> bool:
+        return self._inner.execute
+
+    @property
+    def frame_max_age_seconds(self) -> float:
+        return self._inner.frame_max_age_seconds
+
+    @property
+    def input_count(self) -> int:
+        return self._inner.input_count
+
+    @property
+    def prepared_action_key(self) -> str | None:
+        return self._prepared.action_key if self._prepared is not None else None
+
+    @property
+    def prepared_effect(self) -> PreparedResourceEffect | None:
+        """Expose the immutable reservation only for observe-only reconciliation."""
+
+        return self._prepared
+
+    @property
+    def session(self) -> Path:
+        return self._inner.session
+
+    def capture(self, label: str) -> CapturedNativeFrame:
+        return self._inner.capture(label)
+
+    def tap(self, source: CapturedNativeFrame, **kwargs: Any) -> None:
+        if (
+            kwargs.get("action_class") == "resource_item_use"
+            or kwargs.get("target_identity") == "daily-resource-item:use-1k-food"
+        ):
+            raise RuntimeError("generic Resource Use tap is forbidden")
+        self._inner.tap(source, **kwargs)
+
+    def tap_navigation(self, source: CapturedNativeFrame, **kwargs: Any) -> None:
+        kwargs = dict(kwargs)
+        kwargs["action_class"] = "navigation"
+        kwargs["consequential"] = False
+        self._inner.tap(source, **kwargs)
+
+    def swipe(self, source: CapturedNativeFrame, **kwargs: Any) -> None:
+        self._inner.swipe(source, **kwargs)
+
+    def swipe_navigation(self, source: CapturedNativeFrame, **kwargs: Any) -> None:
+        self._inner.swipe(source, **kwargs)
+
+    def dispatch_one_food_use(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        target_roi: NativeBox,
+        action_key: str,
+        prepared: PreparedResourceEffect | None = None,
+        request: Any | None = None,
+        capability: Any | None = None,
+        now: float | None = None,
+    ) -> Any:
+        authority = self._authority
+        prepared_effect = prepared or self._prepared
+        controller_lease = self._controller_lease
+        runtime_lock = self._runtime_lock
+        policy = self._policy
+        request_value = request if request is not None else self._request
+        capability_value = capability if capability is not None else self._capability
+        if prepared_effect is None and callable(self._prepare):
+            if self._preparation_used:
+                raise RuntimeError("Resource preparation callback is one-shot")
+            self._preparation_used = True
+            bundle = self._prepare(source, target_roi, action_key)
+            if type(bundle) is not PreparedResourceAuthorization:
+                raise RuntimeError("Resource preparation callback returned no typed bundle")
+            prepared_effect = bundle.prepared
+            request_value = bundle.request
+            capability_value = bundle.capability
+            self._prepared = prepared_effect
+        if (
+            authority is None
+            or prepared_effect is None
+            or not isinstance(controller_lease, Mapping)
+            or runtime_lock is None
+            or policy is None
+            or request_value is None
+            or capability_value is None
+        ):
+            raise RuntimeError("prepared Resource authority, fence, capability, and lock are required")
+        if request_value.resource_authorization_context != prepared_effect.context:
+            raise RuntimeError("Resource request context does not match prepared authority")
+        if request_value.effect_dispatch_fence != prepared_effect.fence:
+            raise RuntimeError("Resource request fence does not match prepared authority")
+        if source.sha256 != prepared_effect.fence.immediate_before_sha256:
+            raise RuntimeError("actual Resource adapter source frame is not the prepared fence")
+        observation = getattr(request_value, "observation", None)
+        if (
+            observation is None
+            or observation.frame_sha256 != source.sha256
+            or observation.target_roi != target_roi
+        ):
+            raise RuntimeError("actual Resource source does not match the request observation")
+        if action_key != prepared_effect.action_key and action_key != ITEM_USE_ACTION_KEY:
+            raise RuntimeError("Resource action key does not match prepared authority")
+        dispatch_action_key = prepared_effect.action_key
+        effective_now = self._now if now is None else now
+        if callable(effective_now):
+            effective_now = effective_now()
+        return authority.dispatch_prepared_resource_item_use(
+            prepared_effect,
+            controller_lease=controller_lease,
+            runtime_lock=runtime_lock,
+            capability=capability_value,
+            request=request_value,
+            policy=policy,
+            adapter=lambda token: self._inner.dispatch_prepared_resource_item_use(
+                source,
+                target_identity="daily-resource-item:use-1k-food",
+                target_roi=target_roi,
+                action_key=dispatch_action_key,
+                transport_intent_token=token,
+            ),
+            now=float(effective_now),
+        )
 
 
 def _pnsctl():
@@ -78,7 +239,13 @@ def _item_use_calls(session: Path) -> int:
             isinstance(row, Mapping)
             and row.get("type") == "dispatch"
             and row.get("execute") is not False
-            and row.get("action_key") == ITEM_USE_ACTION_KEY
+            and (
+                row.get("action_key") == ITEM_USE_ACTION_KEY
+                or (
+                    row.get("target_identity") == "daily-resource-item:use-1k-food"
+                    and str(row.get("action_key") or "").startswith("occ:v1:")
+                )
+            )
         ):
             calls += 1
     return calls
@@ -237,6 +404,113 @@ def _normalize_semantic_for_session(
     return normalized
 
 
+def _reconcile_resource_route(
+    *,
+    runtime: AuthorizedResourceItemRuntime,
+    session: Path,
+    route_result: Mapping[str, Any],
+    item_use_calls: int,
+) -> dict[str, Any] | None:
+    """Persist post-transport semantics without acquiring transport authority."""
+
+    prepared = runtime.prepared_effect
+    authority = runtime._authority
+    if prepared is None or authority is None or item_use_calls <= 0:
+        return None
+    semantic = _normalize_semantic_for_session(session, _semantic_from_result(route_result))
+    before_loaded = _load_bound_native_frame(session, semantic.get("item_before_frame"))
+    after_loaded = _load_bound_native_frame(session, semantic.get("item_after_frame"))
+    evidence: dict[str, Any] = {
+        "observe_only": True,
+        "transport_calls": item_use_calls,
+        "before_owned_quantity": semantic.get("before_owned_quantity"),
+        "after_owned_quantity": semantic.get("after_owned_quantity"),
+        "before_food_resource": semantic.get("before_food_resource"),
+        "after_food_resource": semantic.get("after_food_resource"),
+        "evidence_refs": tuple(
+            ref
+            for frame in (
+                semantic.get("item_before_frame"),
+                semantic.get("item_after_frame"),
+                semantic.get("terminal_home_frame"),
+            )
+            if isinstance(frame, Mapping)
+            for ref in (
+                f"frame-path:{frame.get('path')}",
+                f"frame-sha256:{frame.get('sha256')}",
+            )
+        ),
+    }
+    confirmed = False
+    if before_loaded is not None and after_loaded is not None:
+        _, before_image = before_loaded
+        _, after_image = after_loaded
+        try:
+            before_item = recognize_food_item_in_resources(before_image)
+            after_item = recognize_food_item_in_resources(after_image)
+            before_count = _as_int(
+                before_item.inventory_quantity
+                if before_item.inventory_quantity is not None
+                else before_item.owned_quantity
+            )
+            after_count = _as_int(
+                after_item.inventory_quantity
+                if after_item.inventory_quantity is not None
+                else after_item.owned_quantity
+            )
+            confirmed = bool(
+                before_count is not None
+                and after_count is not None
+                and before_count - after_count == 1
+                and before_count == _as_int(semantic.get("before_owned_quantity"))
+                and after_count == _as_int(semantic.get("after_owned_quantity"))
+                and _resource_delta_verified(
+                    {
+                        "inventory_quantity": before_count,
+                        "food_resource": before_item.food_resource,
+                    },
+                    {
+                        "inventory_quantity": after_count,
+                        "food_resource": after_item.food_resource,
+                    },
+                )
+            )
+            evidence.update(
+                {
+                    "before_owned_quantity": before_count,
+                    "after_owned_quantity": after_count,
+                    "before_food_resource": before_item.food_resource,
+                    "after_food_resource": after_item.food_resource,
+                }
+            )
+        except Exception:
+            confirmed = False
+    evidence["effect_state"] = "EFFECT_CONFIRMED" if confirmed else "UNRESOLVED"
+    evidence["proven_no_effect"] = False
+    reconciled = authority.reconcile_resource_effect_observe_only(
+        prepared.reservation_id,
+        evidence,
+        now=time.monotonic(),
+    )
+    if confirmed:
+        home_ref = semantic.get("terminal_home_frame")
+        home_loaded = _load_bound_native_frame(session, home_ref)
+        if home_loaded is not None:
+            _, home_image = home_loaded
+            home = _recognize_home(home_image)
+            if home.get("recognized") is True and home.get("home_verified") is True:
+                authority.terminal_observation(
+                    {
+                        "occurrence_id": prepared.occurrence_id,
+                        "terminal_state": "HOME_CANONICAL",
+                        "frame_sha256": str(home_ref["sha256"]),
+                        "evidence_refs": evidence["evidence_refs"],
+                    },
+                    now=time.monotonic(),
+                )
+    return dict(reconciled)
+
+
 def _result_payload(
     result: Mapping[str, Any],
     *,
@@ -379,8 +653,24 @@ def run_daily_resource_item(
         runtime_session = runtime.session
         from scripts import daily_resource_item_bluestacks as route
 
-        route_result = route.run_daily_resource_item(runtime, outer_session)
+        runtime_factory = lease.get("resource_runtime_factory")
+        if not callable(runtime_factory):
+            raise pnsctl.OperatorError(
+                "pnsctl did not provide the production Resource runtime factory"
+            )
+        route_runtime = runtime_factory(runtime)
+        if not isinstance(route_runtime, AuthorizedResourceItemRuntime):
+            raise pnsctl.OperatorError(
+                "pnsctl Resource runtime factory returned an invalid adapter"
+            )
+        route_result = route.run_daily_resource_item(route_runtime, outer_session)
         item_use_calls = _item_use_calls(runtime_session)
+        reconciliation = _reconcile_resource_route(
+            runtime=route_runtime,
+            session=runtime_session,
+            route_result=route_result,
+            item_use_calls=item_use_calls,
+        )
         input_count = int(getattr(outer_session, "input_count", 0))
         if input_count > maximum:
             raise pnsctl.OperatorError(
@@ -397,8 +687,24 @@ def run_daily_resource_item(
             item_use_calls=item_use_calls,
             maximum=maximum,
         )
+        if reconciliation is not None:
+            payload["resource_reconciliation"] = reconciliation
     except Exception as exc:
         item_use_calls = _item_use_calls(runtime_session)
+        reconciliation = None
+        if runtime is not None and isinstance(locals().get("route_runtime"), AuthorizedResourceItemRuntime):
+            try:
+                reconciliation = _reconcile_resource_route(
+                    runtime=route_runtime,
+                    session=runtime_session,
+                    route_result={
+                        "semantic_evidence": {},
+                        "status": "unresolved",
+                    },
+                    item_use_calls=item_use_calls,
+                )
+            except Exception:
+                reconciliation = None
         input_count = int(getattr(outer_session, "input_count", 0))
         payload = _result_payload(
             {
@@ -412,6 +718,8 @@ def run_daily_resource_item(
             item_use_calls=item_use_calls,
             maximum=maximum,
         )
+        if reconciliation is not None:
+            payload["resource_reconciliation"] = reconciliation
     _write_delivery_result(
         runtime_session,
         payload,

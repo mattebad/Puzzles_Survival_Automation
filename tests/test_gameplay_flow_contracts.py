@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 import unittest
 
+from jsonschema import Draft202012Validator
+
 from scripts import pnsctl
 from tasks.gameplay_flow_contracts import (
     CONTRACTS_DIR,
@@ -194,11 +196,61 @@ class GameplayFlowContractTests(unittest.TestCase):
     def test_schema_file_exists(self):
         self.assertTrue((CONTRACTS_DIR / "schema.json").is_file())
 
+    def test_published_schema_accepts_all_representative_contracts(self):
+        schema = json.loads(
+            (CONTRACTS_DIR / "schema.json").read_text(encoding="utf-8")
+        )
+        validator = Draft202012Validator(schema)
+        representative_ids = (
+            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+        )
+        for flow_id in representative_ids:
+            contract = load_flow_contract(flow_id)
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(list(validator.iter_errors(contract)), [])
+
+    def test_enhancement_family_sequence_reaches_each_ordered_category(self):
+        contract = load_flow_contract(
+            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+        )
+        transitions = {
+            item["transition_id"]: item
+            for item in contract["transition_contracts"]
+        }
+        advance = transitions["advance-to-next-category"]
+        self.assertEqual(
+            (advance["from"], advance["to"], advance["permitted_input"]),
+            ("SETTLED_SUCCESSOR_RECONCILED", "COMMANDER_INFO_RECOGNIZED", None),
+        )
+        required = contract["scenarios"][0]["required_transitions"]
+        self.assertEqual(required.count("advance-to-next-category"), 2)
+        settled_positions = [
+            index
+            for index, transition_id in enumerate(required)
+            if transition_id == "settle-same-item-successor"
+        ]
+        self.assertEqual(len(settled_positions), 3)
+        self.assertEqual(
+            [required[index + 1] for index in settled_positions[:2]],
+            ["advance-to-next-category", "advance-to-next-category"],
+        )
+        self.assertEqual(required[settled_positions[-1] + 1], "return-canonical-home")
+        self.assertEqual(
+            transitions["quantity-selection-use"]["permitted_input"],
+            "one_quantity_selection_use",
+        )
+        self.assertEqual(
+            transitions["use-one-enhancer"]["permitted_input"],
+            "one_consuming_confirm",
+        )
+
     def test_daily_resource_item_contract_is_exact_and_not_eligible(self):
         contract = load_flow_contract(
             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
         )
-        self.assertEqual(contract["schema_version"], 1)
+        self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(contract["implementation_status"], "reference_implemented")
         self.assertEqual(contract["proof_state"], "evidence_required")
         self.assertEqual(contract["required_starting_context"], ["home_ready"])
@@ -212,7 +264,7 @@ class GameplayFlowContractTests(unittest.TestCase):
             1,
         )
         self.assertEqual(
-            [transition["from"] for transition in contract["state_transitions"]],
+            [transition["from"] for transition in contract["transition_contracts"]],
             [
                 "home_ready",
                 "bag",
@@ -232,12 +284,29 @@ class GameplayFlowContractTests(unittest.TestCase):
             contract["cost_quantity_requirements"]["quantity"],
             1,
         )
-        self.assertIn("1K Food", contract["cost_quantity_requirements"]["resource_or_currency"])
+        self.assertFalse(contract["cost_quantity_requirements"]["free_only"])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 1)
+        self.assertIn(
+            "1K Food",
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+        )
         self.assertIn("second confirmation", " ".join(contract["unsupported_or_manual_only_states"]))
         self.assertIn("In bulk", " ".join(contract["unsupported_or_manual_only_states"]))
         self.assertIn(
             "daily-resource-item:use-1k-food",
             contract["completion_identity"],
+        )
+        self.assertEqual(
+            contract["product_authority_binding"]["binding_type"],
+            "typed_product_record",
+        )
+        self.assertEqual(
+            contract["product_authority_binding"]["home_authority"],
+            "HOME_READY",
+        )
+        self.assertEqual(
+            contract["product_authority_binding"]["terminal_home_authority"],
+            "HOME_CANONICAL",
         )
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])

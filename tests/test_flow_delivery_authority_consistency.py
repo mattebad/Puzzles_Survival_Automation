@@ -539,6 +539,53 @@ class AuthorityConsistencyTests(unittest.TestCase):
     def test_real_repo_contract_policy_refs_resolve(self) -> None:
         control.load_and_validate_contract_policy_refs()
 
+    def test_real_repo_product_authority_bindings_resolve(self) -> None:
+        policy = _read(POLICY)
+        contracts = {}
+        for flow_id in (
+            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+        ):
+            contracts[flow_id] = _read(
+                ROOT / "tasks" / "gameplay_flow_contracts" / f"{flow_id}.json"
+            )
+        control.validate_contract_policy_refs(
+            {
+                entry["policy_id"]
+                for entry in policy["policies"]
+                if "policy_id" in entry
+            },
+            contracts,
+            authority=policy,
+        )
+
+    def test_stale_product_authority_binding_fails_closed(self) -> None:
+        policy = _read(POLICY)
+        contract = _read(
+            ROOT
+            / "tasks"
+            / "gameplay_flow_contracts"
+            / "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION.json"
+        )
+        contract["product_authority_binding"]["product_record_digest"] = "0" * 64
+        with self.assertRaisesRegex(control.FlowDeliveryError, "stale product record digest"):
+            control.validate_contract_policy_refs(
+                {
+                    entry["policy_id"]
+                    for entry in policy["policies"]
+                    if "policy_id" in entry
+                },
+                {"resource": contract},
+                authority=policy,
+            )
+
+    def test_v2_policy_digest_is_required_by_control(self) -> None:
+        policy = deepcopy(_read(POLICY))
+        policy["authority_digest"] = "0" * 64
+        with self.assertRaisesRegex(control.FlowDeliveryError, "product authority validation failed"):
+            control.validate_policy(policy)
+
     def test_contract_policy_ref_unknown_policy_id_raises(self) -> None:
         policy = _read(POLICY)
         real_policy_ids = {

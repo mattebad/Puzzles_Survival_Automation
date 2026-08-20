@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "registry_kind": "flow_delivery_product_policy",
   "purpose": "Record product decisions used by the development-flow queue. This registry does not authorize runtime input by itself.",
   "status_vocabulary": [
@@ -337,5 +337,247 @@
       "decision": "Unknown cost, target, stage, level, resource, material, or consequence fails closed.",
       "source": "explicit_user_direction"
     }
-  ]
+  ],
+  "authority_revision": "flow-delivery-product-authority-v2-r1",
+  "product_records": [
+    {
+      "record_id": "use_resource_item",
+      "record_type": "resource_item",
+      "purpose": "Use exactly one owned 1K Food item through the direct Bag resource route.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_CANONICAL"
+        ],
+        "target": "BAG",
+        "route": [
+          "BAG",
+          "RESOURCES"
+        ]
+      },
+      "objective": "use_resource_item",
+      "action": "use_one_owned_1k_food",
+      "target": {
+        "kind": "resource_item",
+        "item_name": "1K Food",
+        "variant": "1K Food",
+        "owned": true
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "owned_inventory_item",
+          "amount": 1,
+          "unit": "1K Food",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "owned_inventory_delta": -1,
+        "resource_delta_is_not_a_substitute": true
+      },
+      "forbidden_actions": [
+        "Daily navigation",
+        "selected-Daily prerequisite",
+        "bulk use",
+        "AP or Stamina recovery substitution",
+        "premium substitution",
+        "unknown item",
+        "second Use",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "The direct item transaction does not require Daily navigation or selected-Daily admission."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:use-resource-item-direct-route",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-1k-food-transaction",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "use_resource_item-v1",
+      "record_digest": "ce28b70ba87f73f0df72322f070ca8e9d06dcba970fab9d2697e36c9643b53e8"
+    },
+    {
+      "record_id": "enhancement_family",
+      "record_type": "enhancement_family",
+      "purpose": "Enhance one exact equipped Gear, Chip, and Module variant independently.",
+      "recurrence": "independent_one_per_variant",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "COMMANDER",
+        "route": [
+          "COMMANDER",
+          "CATEGORY",
+          "ENHANCE"
+        ]
+      },
+      "objective": "enhance_one_exact_variant",
+      "action": "enhance_each_independent_variant",
+      "target": {
+        "kind": "enhancement_family",
+        "variants": [
+          "Gear",
+          "Chip",
+          "Module"
+        ],
+        "independent": true
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "owned_inventory_material",
+          "amount": 1,
+          "unit": "one_star_material",
+          "free_only": false
+        }
+      },
+      "actions": [
+        {
+          "action_id": "quantity_selection_use",
+          "control": "Use",
+          "quantity": 1,
+          "consumes_material": false,
+          "owns_material_decrement": false
+        },
+        {
+          "action_id": "consuming_confirm",
+          "control": "Confirm",
+          "quantity": 1,
+          "consumes_material": true,
+          "owns_material_decrement": true
+        }
+      ],
+      "semantic_effect": {
+        "successor_requirement": "same exact variant settles after the consuming Confirm",
+        "material_delta_owner": "consuming_confirm",
+        "evidence_boundary": "composite successor evidence remains required"
+      },
+      "forbidden_actions": [
+        "Auto Select",
+        "higher-star material",
+        "premium currency",
+        "unknown material",
+        "real-money confirmation",
+        "Promote",
+        "Modify",
+        "Replace",
+        "Unequip",
+        "Inherit",
+        "identical retry"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Enhancement is an independent resource-affecting product action, not a selected-Daily route."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:enhancement-use-confirm-separation",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-enhancement-family",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "enhancement_family-v1",
+      "record_digest": "a03673be99435a70811467c8d989d380c24a7a824035b906ae865e34ecece095"
+    },
+    {
+      "record_id": "supply_depot",
+      "record_type": "supply_depot",
+      "purpose": "Use only zero-cost Free Supply Depot controls until Free disappears.",
+      "recurrence": "current_observed_attempt_inventory",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_LOCALIZED",
+          "HOME_CANONICAL"
+        ],
+        "target": "SUPPLY_DEPOT",
+        "route": [
+          "SUPPLY_DEPOT"
+        ]
+      },
+      "objective": "supply_depot_free_only",
+      "action": "collect_zero_cost_free_only_until_free_disappears",
+      "target": {
+        "kind": "supply_depot",
+        "free_control": "Free",
+        "paid_control": "diamond"
+      },
+      "quantity_cost": {
+        "quantity": "currently_observed_free_attempts",
+        "cost": {
+          "kind": "zero_cost_free_control",
+          "amount": 0,
+          "unit": "Free",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "free_disappears_required": true,
+        "paid_collection": false,
+        "daily_ownership": "none",
+        "completion_claim": "none"
+      },
+      "forbidden_actions": [
+        "paid control",
+        "diamond control",
+        "real-money confirmation",
+        "unknown cost",
+        "Daily 5/5 completion claim"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Navigation and Free-target evidence do not claim collection or Daily 5/5 completion."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:supply-depot-free-only-boundary",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-supply-depot-free-target",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "supply_depot-v1",
+      "record_digest": "667ff4961534fa5f667e7875b937f9b14e771f03a33e99698b8c43b2e8da80f2"
+    }
+  ],
+  "authority_digest": "f37a77aca97032b0c7c91d24aa7c207c2f6006c1e4278a060991644d56d9bf82"
 }

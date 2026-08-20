@@ -200,6 +200,78 @@
         "type": "string"
       }
     },
+    "navigation_input_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximum_inputs",
+        "maximum_resource_list_swipes",
+        "maximum_item_use_dispatches",
+        "notes"
+      ],
+      "properties": {
+        "maximum_inputs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maximum_resource_list_swipes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maximum_item_use_dispatches": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ordered_categories": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "gear",
+          "chip",
+          "module"
+        ]
+      }
+    },
+    "family_constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "single_development_session",
+        "one_use_per_category",
+        "maximum_total_uses",
+        "completed_category_skip_requires_retained_dispatch_and_successor",
+        "unknown_or_malformed_retained_progress"
+      ],
+      "properties": {
+        "single_development_session": {
+          "type": "boolean"
+        },
+        "one_use_per_category": {
+          "type": "boolean"
+        },
+        "maximum_total_uses": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "completed_category_skip_requires_retained_dispatch_and_successor": {
+          "type": "boolean"
+        },
+        "unknown_or_malformed_retained_progress": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "local_postconditions": {
       "type": "array",
       "items": {
@@ -228,9 +300,16 @@
           ]
         },
         "quantity": {
-          "type": [
-            "integer",
-            "null"
+          "oneOf": [
+            {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            {
+              "const": "not-dispatched-navigation-only"
+            }
           ]
         },
         "resource_or_currency": {
@@ -340,6 +419,104 @@
             "type": "string",
             "minLength": 1
           }
+        }
+      }
+    },
+    "product_authority_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_type",
+        "product_authority_revision",
+        "product_authority_digest",
+        "product_record_id",
+        "product_record_revision",
+        "product_record_digest",
+        "platform",
+        "platform_binding_ids",
+        "platform_profile_id",
+        "package_id",
+        "home_authority",
+        "terminal_home_authority"
+      ],
+      "properties": {
+        "binding_type": {
+          "const": "typed_product_record"
+        },
+        "product_authority_revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_authority_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "product_record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_record_revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_record_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "platform": {
+          "const": "bluestacks"
+        },
+        "platform_binding_ids": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+              "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+              "pns-bluestacks-5-p64-800x1280-v1",
+              "com.global.ztmslg"
+            ]
+          }
+        },
+        "platform_profile_id": {
+          "const": "pns-bluestacks-5-p64-800x1280-v1"
+        },
+        "package_id": {
+          "const": "com.global.ztmslg"
+        },
+        "home_authority": {
+          "type": "string",
+          "enum": [
+            "HOME_READY",
+            "HOME_LOCALIZED",
+            "HOME_CANONICAL"
+          ]
+        },
+        "terminal_home_authority": {
+          "type": "string",
+          "enum": [
+            "HOME_READY",
+            "HOME_LOCALIZED",
+            "HOME_CANONICAL"
+          ]
+        },
+        "accepted_home_authorities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "HOME_READY",
+              "HOME_LOCALIZED",
+              "HOME_CANONICAL"
+            ]
+          }
+        },
+        "selected_daily_prerequisite": {
+          "const": false
         }
       }
     },
@@ -604,6 +781,44 @@
           "product_policy_refs",
           "scenarios",
           "registration_state"
+        ]
+      }
+    },
+    {
+      "if": {
+        "allOf": [
+          {
+            "required": [
+              "schema_version"
+            ],
+            "properties": {
+              "schema_version": {
+                "const": 2
+              }
+            }
+          },
+          {
+            "required": [
+              "product_authority_binding"
+            ],
+            "properties": {
+              "product_authority_binding": {
+                "properties": {
+                  "binding_type": {
+                    "const": "typed_product_record"
+                  }
+                },
+                "required": [
+                  "binding_type"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "then": {
+        "required": [
+          "product_authority_binding"
         ]
       }
     }

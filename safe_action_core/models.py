@@ -46,6 +46,10 @@ CAPABILITY_TIMING_INVALID = "CAPABILITY_TIMING_INVALID"
 CAPABILITY_ISSUED = "CAPABILITY_ISSUED"
 CAPABILITY_EVALUATED = "CAPABILITY_EVALUATED"
 CAPABILITY_EXECUTOR_DRY_RUN = "CAPABILITY_EXECUTOR_DRY_RUN"
+CAPABILITY_RESOURCE_CONTEXT_REQUIRED = "CAPABILITY_RESOURCE_CONTEXT_REQUIRED"
+CAPABILITY_RESOURCE_CONTEXT_MISMATCH = "CAPABILITY_RESOURCE_CONTEXT_MISMATCH"
+CAPABILITY_EFFECT_FENCE_REQUIRED = "CAPABILITY_EFFECT_FENCE_REQUIRED"
+CAPABILITY_EFFECT_FENCE_MISMATCH = "CAPABILITY_EFFECT_FENCE_MISMATCH"
 
 _NAVIGATION_CONTROL_ALLOWLIST = frozenset(
     {
@@ -118,12 +122,168 @@ class ActionClass(str, Enum):
     NAVIGATION_ONLY = "navigation_only"
     ZERO_COST_CONSEQUENTIAL = "zero_cost_consequential"
     SPEND_OR_STRATEGIC = "spend_or_strategic"
+    OWNED_ITEM_NON_IDEMPOTENT = "owned_item_non_idempotent"
 
 
 class PolicyDecision(str, Enum):
     AUTHORIZE = "authorize"
     DENY = "deny"
     GLOBAL_INPUT_LOCK = "global_input_lock"
+
+
+@dataclass(frozen=True)
+class ResourceAuthorizationContext:
+    """Complete immutable identity for one reset-scoped Resource effect."""
+
+    account_id: str
+    server_id: str
+    flow_id: str
+    recurrence_class: str
+    reset_identity_id: str
+    objective_action_id: str
+    target_variant: str
+    effect_ordinal: int
+    quantity: int
+    product_policy_revision: str
+    recurrence_policy_revision: str
+    occurrence_id: str
+    occurrence_key: str
+
+    def __post_init__(self) -> None:
+        for name in (
+            "account_id",
+            "server_id",
+            "flow_id",
+            "recurrence_class",
+            "reset_identity_id",
+            "objective_action_id",
+            "target_variant",
+            "product_policy_revision",
+            "recurrence_policy_revision",
+            "occurrence_id",
+            "occurrence_key",
+        ):
+            object.__setattr__(self, name, _require_exact_str(getattr(self, name), name))
+        if self.recurrence_class != "daily_reset":
+            raise ValueError("Resource recurrence_class must be daily_reset")
+        if self.objective_action_id != "use_resource_item":
+            raise ValueError("Resource objective_action_id must be use_resource_item")
+        if self.target_variant != "1k_food":
+            raise ValueError("Resource target_variant must be 1k_food")
+        if type(self.effect_ordinal) is not int or self.effect_ordinal != 1:
+            raise ValueError("Resource effect_ordinal must be exactly one")
+        if type(self.quantity) is not int or self.quantity != 1:
+            raise ValueError("Resource quantity must be exactly one")
+        if self.occurrence_key != self.expected_occurrence_key():
+            raise ValueError("Resource occurrence_key does not match the complete canonical identity")
+
+    def canonical_tuple(self) -> Tuple[Any, ...]:
+        return (
+            self.account_id,
+            self.server_id,
+            self.flow_id,
+            self.recurrence_class,
+            self.reset_identity_id,
+            self.objective_action_id,
+            self.target_variant,
+            self.effect_ordinal,
+        )
+
+    def canonical_identity(self) -> str:
+        return "|".join(str(item) for item in self.canonical_tuple())
+
+    def expected_occurrence_key(self) -> str:
+        encoded = json.dumps(
+            list(self.canonical_tuple()),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return "occ:v1:" + hashlib.sha256(encoded).hexdigest()
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            name: snapshot(getattr(self, name))
+            for name in (
+                "account_id",
+                "server_id",
+                "flow_id",
+                "recurrence_class",
+                "reset_identity_id",
+                "objective_action_id",
+                "target_variant",
+                "effect_ordinal",
+                "quantity",
+                "product_policy_revision",
+                "recurrence_policy_revision",
+                "occurrence_id",
+                "occurrence_key",
+            )
+        }
+
+    def digest(self) -> str:
+        encoded = json.dumps(self.as_dict(), sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @property
+    def canonical_digest(self) -> str:
+        return self.digest()
+
+
+@dataclass(frozen=True)
+class EffectDispatchFence:
+    """Opaque durable join across claim, controller, runtime, reservation, and frame."""
+
+    occurrence_id: str
+    attempt_id: str
+    reservation_id: str
+    claim_token_digest: str
+    claim_epoch: int
+    controller_token_digest: str
+    controller_generation: int
+    runtime_invocation_id: str
+    reservation_state_revision: int
+    immediate_before_sha256: str
+
+    def __post_init__(self) -> None:
+        for name in (
+            "occurrence_id",
+            "attempt_id",
+            "reservation_id",
+            "claim_token_digest",
+            "controller_token_digest",
+            "runtime_invocation_id",
+            "immediate_before_sha256",
+        ):
+            object.__setattr__(self, name, _require_exact_str(getattr(self, name), name))
+        for name in ("claim_token_digest", "controller_token_digest", "immediate_before_sha256"):
+            _require_sha256(getattr(self, name), name)
+        for name in ("claim_epoch", "controller_generation", "reservation_state_revision"):
+            value = getattr(self, name)
+            if type(value) is not int or value < 0 or (
+                name in {"claim_epoch", "controller_generation"} and value < 1
+            ):
+                raise ValueError(f"{name} must be a valid non-negative integer")
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            name: snapshot(getattr(self, name))
+            for name in (
+                "occurrence_id",
+                "attempt_id",
+                "reservation_id",
+                "claim_token_digest",
+                "claim_epoch",
+                "controller_token_digest",
+                "controller_generation",
+                "runtime_invocation_id",
+                "reservation_state_revision",
+                "immediate_before_sha256",
+            )
+        }
+
+    def digest(self) -> str:
+        encoded = json.dumps(self.as_dict(), sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -193,6 +353,8 @@ class PolicyRequest:
     semantic_preconditions: Tuple[str, ...] = field(default_factory=tuple)
     semantic_postconditions: Tuple[str, ...] = field(default_factory=tuple)
     runtime_session_id: Optional[str] = None
+    resource_authorization_context: Optional[ResourceAuthorizationContext] = None
+    effect_dispatch_fence: Optional[EffectDispatchFence] = None
 
     def with_observation(
         self, observation: Observation, monotonic_now: float, policy_phase: str = "pre_dispatch"
@@ -202,6 +364,14 @@ class PolicyRequest:
             observation=observation,
             monotonic_now=monotonic_now,
             policy_phase=policy_phase,
+        )
+
+    @property
+    def resource_authorization_context_digest(self) -> Optional[str]:
+        return (
+            self.resource_authorization_context.digest()
+            if self.resource_authorization_context is not None
+            else None
         )
 
 
@@ -292,6 +462,8 @@ class CapabilityAuthorityBinding:
     width: int
     height: int
     target_roi: ROI
+    resource_authorization_context_digest: Optional[str] = None
+    effect_dispatch_fence: Optional[EffectDispatchFence] = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "task_id", _require_exact_str(self.task_id, "task_id"))
@@ -322,6 +494,27 @@ class CapabilityAuthorityBinding:
         if roi[0] < 0 or roi[1] < 0 or roi[2] > self.width or roi[3] > self.height:
             raise ValueError("target_roi must be inside native frame geometry")
         object.__setattr__(self, "target_roi", roi)
+        if self.resource_authorization_context_digest is not None:
+            object.__setattr__(
+                self,
+                "resource_authorization_context_digest",
+                _require_sha256(
+                    self.resource_authorization_context_digest,
+                    "resource_authorization_context_digest",
+                ),
+            )
+        if self.effect_dispatch_fence is not None and type(self.effect_dispatch_fence) is not EffectDispatchFence:
+            raise ValueError("effect_dispatch_fence must be an EffectDispatchFence or None")
+        if self.action_class is ActionClass.OWNED_ITEM_NON_IDEMPOTENT:
+            if self.resource_authorization_context_digest is None:
+                raise ValueError(CAPABILITY_RESOURCE_CONTEXT_REQUIRED)
+            if self.effect_dispatch_fence is None:
+                raise ValueError(CAPABILITY_EFFECT_FENCE_REQUIRED)
+        elif (
+            self.resource_authorization_context_digest is not None
+            or self.effect_dispatch_fence is not None
+        ):
+            raise ValueError("Resource authority fields are forbidden for non-Resource capabilities")
 
     def _canonical_items(self) -> Tuple[Tuple[str, Any], ...]:
         return (
@@ -338,6 +531,16 @@ class CapabilityAuthorityBinding:
             ("target_roi", self.target_roi),
             ("task_id", self.task_id),
             ("width", self.width),
+            (
+                "resource_authorization_context_digest",
+                self.resource_authorization_context_digest,
+            ),
+            (
+                "effect_dispatch_fence",
+                self.effect_dispatch_fence.as_dict()
+                if self.effect_dispatch_fence is not None
+                else None,
+            ),
         )
 
     def fingerprint(self) -> str:
@@ -705,6 +908,15 @@ def binding_from_request(request: "PolicyRequest") -> CapabilityAuthorityBinding
     obs = request.observation
     if obs.target_identity is None or obs.target_roi is None:
         raise ValueError(CAPABILITY_SCHEMA_INVALID)
+    context = request.resource_authorization_context
+    fence = request.effect_dispatch_fence
+    context_digest = None
+    if request.action_class is ActionClass.OWNED_ITEM_NON_IDEMPOTENT:
+        if type(context) is not ResourceAuthorizationContext:
+            raise ValueError(CAPABILITY_RESOURCE_CONTEXT_REQUIRED)
+        if type(fence) is not EffectDispatchFence:
+            raise ValueError(CAPABILITY_EFFECT_FENCE_REQUIRED)
+        context_digest = context.digest()
     return CapabilityAuthorityBinding(
         task_id=request.task_id,
         runtime_session_id=session,
@@ -719,6 +931,8 @@ def binding_from_request(request: "PolicyRequest") -> CapabilityAuthorityBinding
         width=obs.width,
         height=obs.height,
         target_roi=obs.target_roi,
+        resource_authorization_context_digest=context_digest,
+        effect_dispatch_fence=fence,
     )
 
 
@@ -772,6 +986,17 @@ def compare_capability_binding(
         return CAPABILITY_SEMANTIC_ACTION_MISMATCH
     if request.action_class is not binding.action_class:
         return CAPABILITY_ACTION_CLASS_MISMATCH
+    if request.action_class is ActionClass.OWNED_ITEM_NON_IDEMPOTENT:
+        context = request.resource_authorization_context
+        fence = request.effect_dispatch_fence
+        if type(context) is not ResourceAuthorizationContext:
+            return CAPABILITY_RESOURCE_CONTEXT_REQUIRED
+        if type(fence) is not EffectDispatchFence:
+            return CAPABILITY_EFFECT_FENCE_REQUIRED
+        if context.digest() != binding.resource_authorization_context_digest:
+            return CAPABILITY_RESOURCE_CONTEXT_MISMATCH
+        if fence != binding.effect_dispatch_fence:
+            return CAPABILITY_EFFECT_FENCE_MISMATCH
     if binding.action_class is ActionClass.NAVIGATION_ONLY:
         forbidden = navigation_capability_forbidden_reason(request)
         if forbidden is not None:
@@ -837,6 +1062,15 @@ class ActionIntent:
     allowed_confirmation_dialogs: Tuple[str, ...] = field(default_factory=tuple)
     semantic_preconditions: Tuple[str, ...] = field(default_factory=tuple)
     semantic_postconditions: Tuple[str, ...] = field(default_factory=tuple)
+    resource_authorization_context: Optional[ResourceAuthorizationContext] = None
+
+    @property
+    def resource_authorization_context_digest(self) -> Optional[str]:
+        return (
+            self.resource_authorization_context.digest()
+            if self.resource_authorization_context is not None
+            else None
+        )
 
 
 @dataclass(frozen=True)
@@ -850,6 +1084,14 @@ def snapshot(value: Any) -> Any:
     """Return a JSON-safe deterministic representation of a model value."""
     if isinstance(value, InputCapability):
         raise TypeError("InputCapability cannot be snapshotted or serialized")
+    if isinstance(value, ResourceAuthorizationContext):
+        result = value.as_dict()
+        result["canonical_digest"] = value.digest()
+        return result
+    if isinstance(value, EffectDispatchFence):
+        result = value.as_dict()
+        result["fence_digest"] = value.digest()
+        return result
     if isinstance(value, CapabilityAuditRecord):
         return value.as_dict()
     if hasattr(value, "__dataclass_fields__"):

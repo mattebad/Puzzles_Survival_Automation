@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "fixture_kind": "resource_effect_authority_historical_sessions",
+  "source_policy": "read_only_retained_native_evidence",
+  "sessions": [
+    {
+      "session_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042027929979Z",
+      "summary": {
+        "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042027929979Z\\summary.json",
+        "sha256": "0a8a392087570c07ff51698f949f105de89105347231a0dcbe1057740cd94e81"
+      },
+      "events": {
+        "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042027929979Z\\runtime\\daily-resource-item-20260819T042028211136Z-20260819T042028299621Z\\events.jsonl",
+        "sha256": "6b8db55aa24be136fb41797ead5b96a6a95203a1e512688758d0718a23f33400"
+      },
+      "status": "blocked",
+      "terminal_state": "incomplete",
+      "action_key": "daily-resource-item:use-1k-food",
+      "transport_at_utc": "2026-08-19T04:20:54.611114Z",
+      "transport_source_frame": {
+        "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042027929979Z\\runtime\\daily-resource-item-20260819T042028211136Z-20260819T042028299621Z\\frames\\0007-daily-resource-item:use-1k-food-immediate-before.png",
+        "sha256": "e00f9a0444913da6131e309cd349a3810cfbdd621ad4b1ecc0129661ab284f48"
+      },
+      "settled_post": {
+        "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042027929979Z\\runtime\\daily-resource-item-20260819T042028211136Z-20260819T042028299621Z\\frames\\0009-daily-resource-item-use-settled.png",
+        "sha256": "997761c578240e2f4ef767645bb123f489aab58728bd68976d0c5605f0fa6ef8"
+      },
+      "owned_quantity": {
+        "before": 129681,
+        "after": 129680
+      },
+      "unknown_fields": {
+        "account_id": null,
+        "server_id": null,
+        "reset_identity_id": null,
+        "runtime_profile_id": null,
+        "authoritative_reset_deadline": null
+      }
+    },
+    {
+      "session_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z",
+      "summary": {
+        "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z\\summary.json",
+        "sha256": "7ec05594b494f5af3119976d3106907290d1c4b51d697c3a5a632e9c07690e48"
+      },
+      "events": {
+        "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z\\runtime\\daily-resource-item-20260819T042658970087Z-20260819T042659055847Z\\events.jsonl",
+        "sha256": "dcc43eb3cd5348ff2db9ec71b924add0e5af8e97824f6d23948aa98860f3a3cc"
+      },
+      "status": "completed",
+      "terminal_state": "home",
+      "action_key": "daily-resource-item:use-1k-food",
+      "transport_at_utc": "2026-08-19T04:27:17.337902Z",
+      "transport_source_frame": {
+        "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z\\runtime\\daily-resource-item-20260819T042658970087Z-20260819T042659055847Z\\frames\\0007-daily-resource-item:use-1k-food-immediate-before.png",
+        "sha256": "4477674e095323fa1a7cefec805002411def0b75d408f617431ff56467c463b8"
+      },
+      "settled_post": {
+        "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z\\runtime\\daily-resource-item-20260819T042658970087Z-20260819T042659055847Z\\frames\\0009-daily-resource-item-use-settled.png",
+        "sha256": "b75827f50c77743bb3a90a8cd699548da77799c2ebd1d59ce6fad210f1e790ee"
+      },
+      "terminal_home": {
+        "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z\\runtime\\daily-resource-item-20260819T042658970087Z-20260819T042659055847Z\\frames\\0013-daily-resource-item-return-home-settled-final.png",
+        "sha256": "c20f50f958f2d80c41e27b8b2e39a2b9dfd6b5be11fdfa441009027a78cf14e9"
+      },
+      "owned_quantity": {
+        "before": 129680,
+        "after": 129679
+      },
+      "unknown_fields": {
+        "account_id": null,
+        "server_id": null,
+        "reset_identity_id": null,
+        "runtime_profile_id": null,
+        "authoritative_reset_deadline": null
+      }
+    }
+  ],
+  "classification": {
+    "code": "SUSPECTED_SAME_CYCLE_DUPLICATE",
+    "scope_key": "runtime-objective:unknown|use_resource_item",
+    "historical_reset_binding": null
+  }
+}

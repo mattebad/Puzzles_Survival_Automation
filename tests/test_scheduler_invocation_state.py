@@ -134,7 +134,7 @@ class SchedulerInvocationStateTests(unittest.TestCase):
             conn.close()
             store = SafetyStore(path)
             try:
-                self.assertEqual(store.schema_version, 3)
+                self.assertEqual(store.schema_version, CURRENT_SCHEMA_VERSION)
                 repo = SQLiteSchedulerInvocationRepository(store)
                 identity = SchedulerIdentity("a", "b", "c", NOVA_TASK_ID)
                 repo.apply_result(SchedulerAwareTaskResult.deferred(identity, "WAIT", 50.0), 1.0)

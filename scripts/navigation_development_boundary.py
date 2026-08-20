@@ -194,6 +194,7 @@ class RuntimeInputLock:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(str(self.path), timeout=0, isolation_level=None)
         try:
+            connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA busy_timeout=0")
             connection.execute(
                 """
@@ -254,6 +255,22 @@ class RuntimeInputLock:
                         pass
         finally:
             connection.close()
+
+    def assert_held(self, owner: str, invocation_id: str) -> None:
+        """Assert ownership through the same live SQLite connection/transaction."""
+
+        if not self._held or self._connection is None:
+            raise NavigationBoundaryError("runtime input lock is not held")
+        if owner != self.owner or invocation_id != self.invocation_id:
+            raise NavigationBoundaryError("runtime input lock owner or invocation mismatch")
+        try:
+            row = self._connection.execute(
+                "SELECT owner, invocation_id FROM runtime_input_lock WHERE singleton=1"
+            ).fetchone()
+        except sqlite3.Error as exc:
+            raise NavigationBoundaryError("runtime input lock connection is stale") from exc
+        if row is None or row["owner"] != owner or row["invocation_id"] != invocation_id:
+            raise NavigationBoundaryError("runtime input lock ownership was lost")
 
     def __enter__(self) -> "RuntimeInputLock":
         return self.acquire()
@@ -758,6 +775,15 @@ class DevelopmentSession:
             raise
         self._entered = True
         return self
+
+    @property
+    def runtime_input_lock(self) -> RuntimeInputLock:
+        """Return this session's already-held lock without permitting replacement."""
+
+        lock = self._ownership.lock
+        if not self._entered or not lock.held:
+            raise DevelopmentSessionError("development session runtime input lock is not held")
+        return lock
 
     def observe(
         self,

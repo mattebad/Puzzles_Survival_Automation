@@ -2,7 +2,11 @@
   "schema_version": 2,
   "flow_id": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
   "product_purpose": "Supervised native BlueStacks enhancement of one equipped Gear, Chip, and Module item from Commander Info in one ordered session.",
-  "ordered_categories": ["gear", "chip", "module"],
+  "ordered_categories": [
+    "gear",
+    "chip",
+    "module"
+  ],
   "family_constraints": {
     "single_development_session": true,
     "one_use_per_category": true,
@@ -37,6 +41,7 @@
     "ENHANCE_PANEL_OPENED",
     "EXACT_ONE_STAR_MATERIAL_SELECTED",
     "QUANTITY_ONE_RECOGNIZED",
+    "ENHANCEMENT_USE_SELECTED",
     "ENHANCEMENT_USE_DISPATCHED",
     "SETTLED_SUCCESSOR_RECONCILED",
     "GEAR_SUCCESSOR_RECONCILED",
@@ -58,7 +63,10 @@
         "shared_canonical_home_recognition",
         "unique_current_frame_top_left_profile_portrait"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "native-enhancement-semantics"
     },
     {
@@ -72,7 +80,10 @@
         "positive_commander_info_header",
         "requested_category_label"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "native-enhancement-semantics"
     },
     {
@@ -86,7 +97,10 @@
         "stable_variant_item_identity",
         "unique_equipped_item_geometry"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "native-enhancement-semantics"
     },
     {
@@ -95,8 +109,14 @@
       "to": "ENHANCE_PANEL_OPENED",
       "planner": "scripts/enhancement_bluestacks.py",
       "permitted_input": "fresh_open_enhance_target",
-      "postconditions": ["fresh_immediate_before_item_binding", "enhance_control"],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "postconditions": [
+        "fresh_immediate_before_item_binding",
+        "enhance_control"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "select-exact-material",
@@ -111,7 +131,10 @@
         "no_auto_select",
         "no_premium_currency"
       ],
-      "terminal_outcomes": ["blocked", "manual_required"],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "native-enhancement-semantics"
     },
     {
@@ -120,23 +143,47 @@
       "to": "QUANTITY_ONE_RECOGNIZED",
       "planner": "scripts/enhancement_bluestacks.py",
       "permitted_input": null,
-      "postconditions": ["fresh_quantity_control", "quantity_exactly_one"],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "postconditions": [
+        "fresh_quantity_control",
+        "quantity_exactly_one"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "quantity-selection-use",
+      "from": "QUANTITY_ONE_RECOGNIZED",
+      "to": "ENHANCEMENT_USE_SELECTED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": "one_quantity_selection_use",
+      "postconditions": [
+        "quantity-one selection is current-frame bound",
+        "Use is not material-consuming"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "native-enhancement-semantics"
     },
     {
       "transition_id": "use-one-enhancer",
-      "from": "QUANTITY_ONE_RECOGNIZED",
+      "from": "ENHANCEMENT_USE_SELECTED",
       "to": "ENHANCEMENT_USE_DISPATCHED",
       "planner": "scripts/enhancement_bluestacks.py",
-      "permitted_input": "one_resource_affecting_use",
+      "permitted_input": "one_consuming_confirm",
       "postconditions": [
-        "fresh_immediate_before",
-        "same_item_variant_and_provenance",
-        "exact_one_star_quantity_one",
-        "use_control",
-        "one_resource_affecting_use_only"
+        "fresh immediate-before same variant binding",
+        "consuming Confirm owns the one-material decrement",
+        "one consuming action only"
       ],
-      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "native-enhancement-semantics"
     },
     {
@@ -151,7 +198,29 @@
         "same_item_and_category",
         "level_or_material_delta_or_associated_result"
       ],
-      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "native-enhancement-successor"
+    },
+    {
+      "transition_id": "advance-to-next-category",
+      "from": "SETTLED_SUCCESSOR_RECONCILED",
+      "to": "COMMANDER_INFO_RECOGNIZED",
+      "planner": "scripts/enhancement_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "same session remains bound",
+        "next ordered category is selected by the caller",
+        "Commander Info successor remains positively recognized"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "native-enhancement-successor"
     },
     {
@@ -166,7 +235,11 @@
         "unique_profile_portrait",
         "no_unknown_overlay"
       ],
-      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "native-enhancement-successor"
     }
   ],
@@ -175,17 +248,18 @@
     "fresh_category_and_equipped_item_targets",
     "fresh_open_enhance_target",
     "fresh_exact_matching_one_star_material",
-    "one_resource_affecting_use",
+    "one_quantity_selection_use",
+    "one_consuming_confirm",
     "fresh_android_back",
     "observe_only_safe_recovery"
   ],
   "consequential_action_class": "ordinary_development_resource_affecting_use",
   "cost_quantity_requirements": {
     "free_only": false,
-    "maximum_cost": 0,
+    "maximum_cost": 1,
     "quantity": 1,
-    "resource_or_currency": "category-specific one-star material",
-    "notes": "Only the final Use consumes one in-game material; real-money confirmation is unsupported."
+    "resource_or_currency": "owned category-specific one-star material",
+    "notes": "Quantity-selection Use and material-consuming Confirm are separate; Confirm owns the decrement."
   },
   "completion_identity": "enhancement-family-bluestacks-integration:gear-chip-module-home-complete",
   "terminal_outcomes": [
@@ -231,6 +305,7 @@
       "status": "evidence_required",
       "blocks": [
         "settle-same-item-successor",
+        "advance-to-next-category",
         "return-canonical-home"
       ],
       "required_evidence": [
@@ -279,7 +354,8 @@
         "fresh_category_and_equipped_item_targets",
         "fresh_open_enhance_target",
         "fresh_exact_matching_one_star_material",
-        "one_resource_affecting_use",
+        "one_quantity_selection_use",
+        "one_consuming_confirm",
         "fresh_android_back"
       ],
       "forbidden_inputs": [],
@@ -290,18 +366,23 @@
         "open-enhance-panel",
         "select-exact-material",
         "recognize-quantity-one",
+        "quantity-selection-use",
         "use-one-enhancer",
         "settle-same-item-successor",
+        "advance-to-next-category",
         "select-category-and-item",
         "open-enhance-panel",
         "select-exact-material",
         "recognize-quantity-one",
+        "quantity-selection-use",
         "use-one-enhancer",
         "settle-same-item-successor",
+        "advance-to-next-category",
         "select-category-and-item",
         "open-enhance-panel",
         "select-exact-material",
         "recognize-quantity-one",
+        "quantity-selection-use",
         "use-one-enhancer",
         "settle-same-item-successor",
         "return-canonical-home"
@@ -333,5 +414,27 @@
   "replay_fixture_proof_state": "current",
   "supervised_live_proof_state": "evidence_required",
   "production_eligible": false,
-  "registration_state": "disabled"
+  "registration_state": "disabled",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r1",
+    "product_authority_digest": "f37a77aca97032b0c7c91d24aa7c207c2f6006c1e4278a060991644d56d9bf82",
+    "product_record_id": "enhancement_family",
+    "product_record_revision": "enhancement_family-v1",
+    "product_record_digest": "a03673be99435a70811467c8d989d380c24a7a824035b906ae865e34ecece095",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ]
+  }
 }
