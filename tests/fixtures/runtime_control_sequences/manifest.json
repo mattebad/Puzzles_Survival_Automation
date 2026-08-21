@@ -1,0 +1,112 @@
+{
+  "schema_name": "runtime_control_sequence_corpus",
+  "schema_version": 1,
+  "capture_kind": "fixture",
+  "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+  "native_dimensions": [800, 1280],
+  "annotation_policy": "independent_provenance_only",
+  "dispatch_policy": "replay_never_dispatches_input",
+  "proof_policy": "missing_proof_remains_evidence_required",
+  "source_manifests": [
+    {
+      "path": "tests/fixtures/native_frame_replay_manifest.json",
+      "sha256": "aa887c1937fdd469bb875b8a201f408c55114df81029c32be62db49153002e89",
+      "role": "native_profile_and_hash_contract"
+    },
+    {
+      "path": "tests/fixtures/world_map_navigation_observations.json",
+      "sha256": "4ebc317f9fa2e4efaec095a074d6547d00527eb34703fc3351d1564979e24f04",
+      "role": "independently-authored-context-negative-reference"
+    },
+    {
+      "path": "tests/fixtures/nova_praise_preflight/manifest.json",
+      "sha256": "b9d1712f38d0817cebffc0fab8aebdfa5952c2eddab4b759304c6e1fccd8ba28",
+      "role": "Nova native frame provenance"
+    },
+    {
+      "path": "tests/fixtures/nova_praise_replay/manifest.json",
+      "sha256": "1715daa758e9895f8359e314b7a25a510c67a8ca6a36495a6d0f89a64a84ed1f",
+      "role": "Nova causal event provenance"
+    },
+    {
+      "path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/manifest.json",
+      "sha256": "4472e0fc1f5c525b92f1a857004a4e152115d7b8e892712c326a3a70ba08b866",
+      "role": "Ultimate native frame provenance"
+    },
+    {
+      "path": "tasks/assets/navigation/800x1280/manifest.json",
+      "sha256": "f227f39e4fe23a9306efba77f8a7b085fb7838ff4039a127cb51295277aa7491",
+      "role": "VIP native asset provenance"
+    },
+    {
+      "path": "tests/fixtures/resource_effect_authority/historical_sessions.json",
+      "sha256": "9ac7f56f23caeb22d1d72c38cac11edb7007512b53c7679a4a9b3f6c178de1cc",
+      "role": "Resource retained event provenance; profile absent"
+    }
+  ],
+  "retained_assets": [
+    {
+      "consumer": "Claim",
+      "path": "tasks/assets/navigation/800x1280/daily_praise_claim.png",
+      "sha256": "60276731cd0227ca8fea15d07e65203c1bb7cbc8bf0c1c632c2791c501b5425b",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+      "native_dimensions": [800, 1280],
+      "provenance": "tests/fixtures/native_frame_replay_manifest.json:sources[1]"
+    },
+    {
+      "consumer": "Nova",
+      "path": "tests/fixtures/nova_praise_preflight/fresh-radial-076741e5.png",
+      "sha256": "076741e5121a2d011d5a623d81358ad0110b053ebea7c752e0235c7d93e16e55",
+      "runtime_profile_id": "native-800x1280",
+      "native_dimensions": [800, 1280],
+      "provenance": "tests/fixtures/nova_praise_preflight/manifest.json:fixtures[fresh-radial-076741e5]"
+    },
+    {
+      "consumer": "Nova",
+      "path": "tests/fixtures/nova_praise_preflight/radial-expired-before-nova-ea6fd89e.png",
+      "sha256": "ea6fd89e9dae862adf965a44fffe15e83653ed84234754f18419d4ac712487cb",
+      "runtime_profile_id": "native-800x1280",
+      "native_dimensions": [800, 1280],
+      "provenance": "tests/fixtures/nova_praise_preflight/manifest.json:fixtures[fresh-radial-nova-bound-ea6fd89e]"
+    },
+    {
+      "consumer": "Ultimate",
+      "path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier1-unselected-from-0258-difficulty-tier-1-immediate-before.png",
+      "sha256": "c262b3db1671ff025b80fa8cce1083e53cc0e78e0e239bad417fe07d822465bf",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+      "native_dimensions": [800, 1280],
+      "provenance": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/manifest.json:templates[tier1_unselected]"
+    },
+    {
+      "consumer": "Ultimate",
+      "path": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/annotated-tier2-unselected-from-0261-difficulty-tier-2-immediate-before.png",
+      "sha256": "f47386ad5576b669d765bb38ddc6aedcf1e52c148036320ef04352af693f2742",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+      "native_dimensions": [800, 1280],
+      "provenance": "tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/manifest.json:templates[tier2_unselected]"
+    },
+    {
+      "consumer": "VIP",
+      "path": "tasks/assets/navigation/800x1280/reset_popup_source.png",
+      "sha256": "73952c7f000dcefcf0fd5c7fe3f47be99eb8037e414fea67d1b116153cb1025e",
+      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "native_dimensions": [800, 1280],
+      "provenance": "tasks/assets/navigation/800x1280/manifest.json:assets[reset_popup_source.png]"
+    }
+  ],
+  "sequences": [
+    {"consumer": "Resource", "primitive": "transition_stability", "proof_state": "evidence_required", "reason": "retained frames lack runtime_profile_id"},
+    {"consumer": "Enhancement", "primitive": "transition_stability", "proof_state": "replayable", "fixture": "tests/fixtures/runtime_control_sequences/enhancement_transition.json"},
+    {"consumer": "Claim", "primitive": "list_search", "proof_state": "replayable", "asset_consumer": "Claim"},
+    {"consumer": "ShopList", "primitive": "list_search", "proof_state": "evidence_required", "reason": "no retained native shop/card sequence"},
+    {"consumer": "Nova", "primitive": "transition_stability", "proof_state": "replayable", "asset_consumer": "Nova"},
+    {"consumer": "Ultimate", "primitive": "list_search", "proof_state": "replayable", "asset_consumer": "Ultimate"},
+    {"consumer": "Ultimate", "primitive": "source_context_modal", "proof_state": "evidence_required", "reason": "retained campaign assets do not prove a modal"},
+    {"consumer": "VIP", "primitive": "source_context_modal", "proof_state": "replayable", "asset_consumer": "VIP"},
+    {"consumer": "WorldMap", "primitive": "source_context_modal", "proof_state": "replayable_negative", "asset_consumer": "VIP"},
+    {"consumer": "Claim", "primitive": "causal_trace", "proof_state": "replayable", "source_manifest": "tests/fixtures/native_frame_replay_manifest.json"},
+    {"consumer": "Nova", "primitive": "causal_trace", "proof_state": "replayable", "source_manifest": "tests/fixtures/nova_praise_replay/manifest.json"},
+    {"consumer": "Resource", "primitive": "causal_trace", "proof_state": "replayable_diagnostic", "source_manifest": "tests/fixtures/resource_effect_authority/historical_sessions.json"},
+    {"consumer": "GatheringSearch", "primitive": "list_search", "proof_state": "evidence_required", "reason": "checked-in gathering fixture is synthetic and has no native provenance"}
+  ]
+}

@@ -714,6 +714,47 @@ def validate_development_action(action_class: str) -> str:
     return ORDINARY_DEVELOPMENT_ACTION
 
 
+def settle_successor(
+    capture: Callable[[str], Any],
+    recognize: Callable[[Any], Any],
+    *,
+    label: str = "settled-successor",
+    stable_polls: int = 2,
+    timeout_polls: int | None = None,
+) -> Any:
+    """Capture and classify a settled successor without dispatching input.
+
+    This is a reusable observation seam for adapters.  It deliberately accepts
+    no transport callback and delegates deterministic state comparison to the
+    pure transition primitive; the caller remains responsible for any runtime
+    capture ownership and semantic policy.
+    """
+
+    from tasks.transition_stability import TransitionObservation, poll_stable_transition
+
+    if not callable(capture) or not callable(recognize):
+        raise DevelopmentSessionError("settled successor requires capture and recognize callbacks")
+    observations: list[Any] = []
+    ceiling = int(timeout_polls) if timeout_polls is not None else None
+    if ceiling is not None and ceiling < 1:
+        raise DevelopmentSessionError("settled successor timeout_polls must be positive")
+    for ordinal in range(1, (ceiling or stable_polls * 2) + 1):
+        frame = capture(f"{label}-{ordinal}")
+        observations.append(TransitionObservation(recognize(frame), evidence_ref=f"{label}-{ordinal}"))
+        result = poll_stable_transition(
+            observations,
+            stable_polls=stable_polls,
+            timeout_polls=ceiling,
+        )
+        if result.status.value in {"stable", "contradictory", "timeout"}:
+            return result
+    return poll_stable_transition(observations, stable_polls=stable_polls, timeout_polls=ceiling)
+
+
+# Name used by callers that treat the seam as a callback factory.
+poll_settled_successor = settle_successor
+
+
 def _validate_development_native_frame(frame: CapturedNativeFrame) -> None:
     height = int(frame.frame.shape[0])
     width = int(frame.frame.shape[1])

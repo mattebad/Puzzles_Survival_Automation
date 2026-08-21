@@ -27,6 +27,7 @@ from scripts.navigation_development_boundary import (
     make_source_safety_facts,
     require_canonical_unresolved_clear,
     require_fixed_orchestrator_path,
+    settle_successor,
 )
 
 
@@ -708,6 +709,20 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
         self.assertEqual(order[1], "session_enter")
         self.assertIn("admission", order)
         self.assertLess(order.index("session_enter"), order.index("admission"))
+
+    def test_settle_successor_only_observes_and_preserves_typed_states(self) -> None:
+        captures: list[str] = []
+        states = iter(("loading", "ready", "ready"))
+
+        def capture(label: str):
+            captures.append(label)
+            return next(states)
+
+        result = settle_successor(capture, lambda frame: {"state": frame}, stable_polls=2)
+        self.assertEqual(result.status.value, "stable")
+        self.assertEqual(result.successor, {"state": "ready"})
+        self.assertEqual(result.input_count, 0)
+        self.assertEqual(len(captures), 3)
 
 
 if __name__ == "__main__":

@@ -50,6 +50,139 @@ class ContextualClass(str, Enum):
     UNKNOWN = "unknown"
 
 
+class ModalSurfaceClass(str, Enum):
+    """Flow-neutral source-context surface classification."""
+
+    NONE = "none"
+    CONTEXTUAL_MODAL = "contextual_modal"
+    FULLSCREEN_SURFACE = "fullscreen_surface"
+    LIST_OR_CARD = "list_or_card"
+    UNKNOWN = "unknown"
+    CONTRADICTORY = "contradictory"
+
+
+class RecoveryBehavior(str, Enum):
+    NONE = "none"
+    DISMISS_CONTEXTUAL = "dismiss_contextual"
+    RETURN_TO_SOURCE = "return_to_source"
+    STOP = "stop"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class SourceContextModalClassification:
+    """Recognition-only modal/recovery result bound to its source context.
+
+    ``confirm_authorized`` is permanently false.  A caller may use the
+    dismissal/recovery classification to decide whether a known benign close
+    is meaningful, but this value never grants a generic Confirm action.
+    """
+
+    source_context: str
+    surface_class: ModalSurfaceClass
+    recovery_behavior: RecoveryBehavior
+    successor_context: str | None = None
+    surface_identity: str | None = None
+    dismiss_target_identity: str | None = None
+    recognized: bool = False
+    contradictory: bool = False
+    confidence: float = 0.0
+    supporting_evidence: tuple[str, ...] = ()
+    reason_code: str = ""
+    confirm_authorized: bool = False
+
+    @property
+    def allows_dismissal(self) -> bool:
+        return self.recovery_behavior is RecoveryBehavior.DISMISS_CONTEXTUAL and self.recognized and not self.contradictory
+
+    @property
+    def allows_recovery(self) -> bool:
+        return self.recovery_behavior in {RecoveryBehavior.DISMISS_CONTEXTUAL, RecoveryBehavior.RETURN_TO_SOURCE} and self.recognized and not self.contradictory
+
+    @property
+    def context(self) -> str:
+        return self.source_context
+
+    @property
+    def modal_class(self) -> ModalSurfaceClass:
+        return self.surface_class
+
+    @property
+    def recovery(self) -> RecoveryBehavior:
+        return self.recovery_behavior
+
+
+def classify_source_context_modal(
+    *,
+    source_context: str,
+    successor_context: str | None = None,
+    surface_identity: str | None = None,
+    surface_class: ModalSurfaceClass | str = ModalSurfaceClass.NONE,
+    recovery_behavior: RecoveryBehavior | str = RecoveryBehavior.NONE,
+    dismiss_target_identity: str | None = None,
+    recognized: bool = False,
+    contradictory: bool = False,
+    confidence: float = 0.0,
+    supporting_evidence: tuple[str, ...] = (),
+) -> SourceContextModalClassification:
+    """Build a fail-closed contextual classification from typed evidence.
+
+    Source context is mandatory. Unknown or contradictory surfaces are
+    represented rather than guessed, and a dismissal target is accepted only
+    for a recognized contextual modal. Generic confirmation is never exposed.
+    """
+
+    if not str(source_context).strip():
+        raise PerceptionBundleError("MISSING_SOURCE_CONTEXT")
+    try:
+        modal = surface_class if isinstance(surface_class, ModalSurfaceClass) else ModalSurfaceClass(str(surface_class))
+    except ValueError:
+        modal = ModalSurfaceClass.UNKNOWN
+    try:
+        recovery = recovery_behavior if isinstance(recovery_behavior, RecoveryBehavior) else RecoveryBehavior(str(recovery_behavior))
+    except ValueError:
+        recovery = RecoveryBehavior.UNKNOWN
+    try:
+        numeric_confidence = float(confidence)
+    except (TypeError, ValueError) as exc:
+        raise PerceptionBundleError("INVALID_MODAL_CONFIDENCE") from exc
+    if not math.isfinite(numeric_confidence) or not 0.0 <= numeric_confidence <= 1.0:
+        raise PerceptionBundleError("INVALID_MODAL_CONFIDENCE")
+    contradiction = bool(contradictory) or modal is ModalSurfaceClass.CONTRADICTORY
+    valid_recognition = bool(recognized) and not contradiction and modal not in {ModalSurfaceClass.UNKNOWN, ModalSurfaceClass.CONTRADICTORY}
+    if modal is ModalSurfaceClass.CONTEXTUAL_MODAL:
+        if recovery is RecoveryBehavior.NONE:
+            recovery = RecoveryBehavior.UNKNOWN
+        if recovery is RecoveryBehavior.DISMISS_CONTEXTUAL and not dismiss_target_identity:
+            valid_recognition = False
+            recovery = RecoveryBehavior.UNKNOWN
+    elif recovery is not RecoveryBehavior.NONE:
+        # Recovery behavior without a modal/surface context is ambiguous.
+        valid_recognition = False
+        recovery = RecoveryBehavior.UNKNOWN
+    return SourceContextModalClassification(
+        source_context=str(source_context),
+        successor_context=str(successor_context) if successor_context is not None else None,
+        surface_class=modal,
+        recovery_behavior=recovery,
+        surface_identity=str(surface_identity) if surface_identity is not None else None,
+        dismiss_target_identity=str(dismiss_target_identity) if dismiss_target_identity is not None else None,
+        recognized=valid_recognition,
+        contradictory=contradiction,
+        confidence=numeric_confidence if valid_recognition else 0.0,
+        supporting_evidence=tuple(str(item) for item in supporting_evidence),
+        reason_code=("CONTRADICTORY_SURFACE" if contradiction else "UNKNOWN_SURFACE" if modal is ModalSurfaceClass.UNKNOWN else "CONTEXTUAL_MODAL" if valid_recognition else "RECOVERY_CONTEXT_INVALID"),
+        confirm_authorized=False,
+    )
+
+
+# Names are intentionally generic; adapters may import whichever reads most
+# naturally without embedding product-specific policy in this module.
+ModalRecoveryClassification = SourceContextModalClassification
+ModalRecoveryResult = SourceContextModalClassification
+classify_modal_recovery = classify_source_context_modal
+
+
 class TransportFreshness(str, Enum):
     OK = "ok"
     STALE = "stale"

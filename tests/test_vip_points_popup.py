@@ -8,6 +8,7 @@ import cv2
 from scripts.bluestacks_popup_recognition import (
     MAX_VIP_POPUP_INPUTS,
     OLD_INVALID_CLOSE_POINT,
+    classify_popup_recovery,
     point_inside,
     recognize_reset_popup,
     translate_crop_bounds,
@@ -65,6 +66,22 @@ class VipPointsPopupTests(unittest.TestCase):
         self.assertTrue(vip_popup_handled(before, after, recognized_successor=True))
         self.assertFalse(vip_popup_handled(before, after, recognized_successor=False))
         self.assertFalse(vip_popup_handled(before, {"recognized": True}, recognized_successor=True))
+
+    def test_popup_recovery_projection_keeps_source_context_and_no_confirm(self):
+        result = classify_popup_recovery(
+            {
+                "recognized": True,
+                "popup_identity": "VIP_POINTS_GET_PTS",
+                "target_identity": "reset-popup-close",
+                "title_text": "Get Pts",
+            },
+            source_context="daily-list",
+            successor_context="daily-list",
+        )
+        self.assertTrue(result.recognized)
+        self.assertEqual(result.source_context, "daily-list")
+        self.assertTrue(result.allows_dismissal)
+        self.assertFalse(result.confirm_authorized)
 
 
 if __name__ == "__main__":
