@@ -136,6 +136,47 @@ class SourceStateSafetyFacts:
 
 
 @dataclass(frozen=True)
+class DevelopmentInitialObservation:
+    """Typed, hash-bound first observation owned by one development session.
+
+    The observation is evidence/state only.  It never supplies input authority;
+    every dispatch still binds a fresh current frame through ``run_action``.
+    """
+
+    observation: Mapping[str, Any]
+    frame_sha256: str
+    frame_path: str = ""
+    invocation_id: str = ""
+
+    def __post_init__(self) -> None:
+        digest = str(self.frame_sha256 or "")
+        if len(digest) != 64 or any(char not in "0123456789abcdefABCDEF" for char in digest):
+            raise DevelopmentSessionError("initial observation frame hash is invalid")
+        declared = self.observation.get("frame_sha256")
+        if declared is not None and str(declared) != digest:
+            raise DevelopmentSessionError("initial observation hash binding is inconsistent")
+
+    def to_mapping(self) -> dict[str, Any]:
+        payload = dict(self.observation)
+        payload["frame_sha256"] = self.frame_sha256
+        if self.frame_path:
+            payload["frame_path"] = self.frame_path
+        if self.invocation_id:
+            payload["invocation_id"] = self.invocation_id
+        return payload
+
+    @property
+    def frame_hash(self) -> str:
+        return self.frame_sha256
+
+
+# Stable descriptive aliases for adapters/tests that refer to the session's
+# first observation without coupling to the concrete class name.
+InitialObservation = DevelopmentInitialObservation
+SessionInitialObservation = DevelopmentInitialObservation
+
+
+@dataclass(frozen=True)
 class NavigationSessionResult:
     status: str
     reason: str
@@ -676,6 +717,9 @@ class DevelopmentSessionError(NavigationBoundaryError):
 _DELEGATED_RUNTIME_CONTEXT: ContextVar[Any | None] = ContextVar(
     "pns_delegated_runtime_context", default=None
 )
+_ACTIVE_DEVELOPMENT_SESSION: ContextVar[Any | None] = ContextVar(
+    "pns_active_development_session", default=None
+)
 
 
 def current_delegated_runtime_context() -> Any | None:
@@ -791,6 +835,7 @@ class DevelopmentSession:
         session_directory: Path,
         max_inputs: int = 12,
         allow_zero_inputs: bool = False,
+        initial_observation: DevelopmentInitialObservation | Mapping[str, Any] | None = None,
     ) -> None:
         if not 0 <= int(max_inputs) <= 100 or (int(max_inputs) == 0 and not allow_zero_inputs):
             raise DevelopmentSessionError("max_inputs must be between 1 and 100")
@@ -801,19 +846,29 @@ class DevelopmentSession:
         self.allow_zero_inputs = bool(allow_zero_inputs)
         self.input_count = 0
         self.actions: list[dict[str, Any]] = []
+        self.control_memory: dict[str, Any] = {}
+        self.causal_trace: dict[str, Any] | None = None
+        self._initial_observation: DevelopmentInitialObservation | None = None
+        self._transport_count_adopted = False
         self.terminal_status: str | None = None
         self.blocker: str | None = None
         self.next_action: str | None = None
         self._ownership = NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id)
         self._entered = False
+        self._context_token = None
+        if initial_observation is not None:
+            self.set_initial_observation(initial_observation)
 
     def __enter__(self) -> "DevelopmentSession":
+        if _ACTIVE_DEVELOPMENT_SESSION.get() is not None:
+            raise DevelopmentSessionError("nested DevelopmentSession ownership is denied")
         self._ownership.__enter__()
         try:
             self.session_directory.mkdir(parents=True, exist_ok=False)
         except Exception:
             self._ownership.__exit__(None, None, None)
             raise
+        self._context_token = _ACTIVE_DEVELOPMENT_SESSION.set(self)
         self._entered = True
         return self
 
@@ -825,6 +880,83 @@ class DevelopmentSession:
         if not self._entered or not lock.held:
             raise DevelopmentSessionError("development session runtime input lock is not held")
         return lock
+
+    @property
+    def is_active(self) -> bool:
+        return bool(self._entered and self._ownership.lock.held)
+
+    @property
+    def initial_observation(self) -> DevelopmentInitialObservation | None:
+        return self._initial_observation
+
+    def set_initial_observation(
+        self,
+        observation: DevelopmentInitialObservation | Mapping[str, Any],
+        *,
+        frame_path: str = "",
+    ) -> DevelopmentInitialObservation:
+        """Bind exactly one typed first observation to this session."""
+
+        if self._initial_observation is not None:
+            raise DevelopmentSessionError("initial observation is already bound")
+        if isinstance(observation, DevelopmentInitialObservation):
+            typed = observation
+        elif isinstance(observation, Mapping):
+            digest = str(observation.get("frame_sha256") or "")
+            typed = DevelopmentInitialObservation(
+                observation=dict(observation),
+                frame_sha256=digest,
+                frame_path=frame_path,
+                invocation_id=self.invocation_id,
+            )
+        else:
+            raise DevelopmentSessionError("initial observation must be typed evidence")
+        if typed.invocation_id and typed.invocation_id != self.invocation_id:
+            raise DevelopmentSessionError("initial observation invocation binding mismatch")
+        self._initial_observation = typed
+        return typed
+
+    def remember_control(self, key: str, value: Any) -> None:
+        """Persist observability/control memory without granting input authority."""
+
+        if not str(key).strip():
+            raise DevelopmentSessionError("control memory key is required")
+        self.control_memory[str(key)] = value
+
+    bind_initial_observation = set_initial_observation
+
+    def set_causal_trace(self, trace: Mapping[str, Any]) -> None:
+        """Retain one read-only causal trace for this attempt."""
+
+        if self.causal_trace is not None:
+            raise DevelopmentSessionError("development session causal trace already recorded")
+        if trace.get("read_only") is not True:
+            raise DevelopmentSessionError("development session causal trace must be read-only")
+        self.causal_trace = dict(trace)
+
+    record_causal_trace = set_causal_trace
+
+    def adopt_retained_transport_count(self, count: int, *, source: str = "events.jsonl") -> int:
+        """Bind an adapter's retained transport count exactly once.
+
+        Resource actions are counted by ``run_action``; adapters that use an
+        existing route controller (World) may adopt its retained dispatch count.
+        A second or conflicting count is rejected rather than silently merged.
+        """
+
+        if self._transport_count_adopted:
+            raise DevelopmentSessionError("development session transport count already adopted")
+        value = int(count)
+        if value < 0 or value > self.max_inputs:
+            raise DevelopmentSessionError("retained transport count exceeds development-session limit")
+        if self.input_count not in {0, value}:
+            raise DevelopmentSessionError(
+                f"retained transport count {value} conflicts with session count {self.input_count}"
+            )
+        self.input_count = value
+        self._transport_count_adopted = True
+        self.remember_control("transport_count_source", source)
+        return value
 
     def observe(
         self,
@@ -946,12 +1078,35 @@ class DevelopmentSession:
             if recovery_used:
                 after = self.observe(capture, label=f"{label}-recovery-post")
                 state = str(recognize(after) or "unknown")
-        status = "completed" if state.lower() != "unknown" else "unknown"
-        reason = "recognized_successor" if status == "completed" else "unknown_successor"
+        effect_action = any(
+            marker in f"{str(action_class).strip().lower()} {str(consequence_class or '').lower()}"
+            for marker in ("effect", "resource", "non_idempotent", "owned_item")
+        )
+        reconciliation_required = state.lower() == "unknown" and effect_action
+        status = (
+            "effect_reconciliation_required"
+            if reconciliation_required
+            else "completed"
+            if state.lower() != "unknown"
+            else "unknown"
+        )
+        reason = (
+            "effect_reconciliation_required"
+            if reconciliation_required
+            else "recognized_successor"
+            if status == "completed"
+            else "unknown_successor"
+        )
         if delegated is not None:
-            delegated.mark_reconciled(label, unresolved=status == "unknown")
+            delegated.mark_reconciled(
+                label,
+                unresolved=(status == "unknown" or reconciliation_required),
+            )
             if recovery_used:
-                delegated.mark_reconciled(recovery_key, unresolved=status == "unknown")
+                delegated.mark_reconciled(
+                    recovery_key,
+                    unresolved=(status == "unknown" or reconciliation_required),
+                )
         row = {
             "ordinal": len(self.actions) + 1,
             "action_class": normalized,
@@ -965,6 +1120,7 @@ class DevelopmentSession:
             "settled_successor_sha256": settled.sha256 if settled is not None else "",
             "after_sha256": after.sha256,
             "recovery_used": recovery_used,
+            "effect_reconciliation_required": reconciliation_required,
         }
         self.actions.append(row)
         with (self.session_directory / "actions.jsonl").open(
@@ -982,7 +1138,11 @@ class DevelopmentSession:
 
     def _write_summary(self, exception: BaseException | None) -> None:
         unknown = next(
-            (row for row in reversed(self.actions) if row.get("status") == "unknown"),
+            (
+                row
+                for row in reversed(self.actions)
+                if row.get("status") in {"unknown", "effect_reconciliation_required"}
+            ),
             None,
         )
         terminal_status = self.terminal_status or ("blocked" if unknown else "completed")
@@ -999,12 +1159,27 @@ class DevelopmentSession:
             "lifecycle_state_created": False,
             "terminal_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
+        if self._initial_observation is not None:
+            summary.update(
+                {
+                    "initial_observation": self._initial_observation.to_mapping(),
+                    "initial_frame_sha256": self._initial_observation.frame_sha256,
+                }
+            )
+        if self.control_memory:
+            summary["control_memory"] = dict(self.control_memory)
+        if self.causal_trace is not None:
+            summary["causal_trace_count"] = 1
+        if self.causal_trace is not None:
+            summary["causal_trace"] = dict(self.causal_trace)
         if (delegated := current_delegated_runtime_context()) is not None:
             summary.update({"receipt_id": delegated.receipt["receipt_id"], "receipt_digest": delegated.receipt["receipt_digest"], "evidence_result_identity": delegated.result_identity})
         if unknown:
             summary["blocker"] = unknown["reason"]
             summary["next_action"] = (
-                "repair recognition or recovery and rerun materially changed behavior"
+                "observe-only effect reconciliation; identical retry is denied"
+                if unknown.get("effect_reconciliation_required")
+                else "repair recognition or recovery and rerun materially changed behavior"
             )
         if self.blocker:
             summary["blocker"] = self.blocker
@@ -1022,6 +1197,9 @@ class DevelopmentSession:
             self._ownership.__exit__(exc_type, exc, tb)
         finally:
             self._write_summary(exc)
+            if self._context_token is not None:
+                _ACTIVE_DEVELOPMENT_SESSION.reset(self._context_token)
+                self._context_token = None
             self._entered = False
 
 

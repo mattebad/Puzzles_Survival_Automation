@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
+import shutil
 import time
 from typing import Any, Callable, Mapping
 
@@ -329,12 +330,93 @@ def _max_inputs(lease: Mapping[str, Any]) -> int:
 
 
 def _outer_session(lease: Mapping[str, Any]) -> Any:
+    from scripts.navigation_development_boundary import DevelopmentSession
+
     session = lease.get("development_session")
-    if session is None or not callable(getattr(session, "run_action", None)):
+    if (
+        not isinstance(session, DevelopmentSession)
+        or session.is_active is not True
+        or str(session.owner) != f"pnsctl-development-session:{FLOW_ID}"
+        or not callable(getattr(session, "run_action", None))
+    ):
         raise _pnsctl().OperatorError(
-            "Daily Resource Item requires the pnsctl-owned DevelopmentSession"
+            "Daily Resource Item requires the active pnsctl-owned DevelopmentSession"
         )
     return session
+
+
+def _initial_observation(lease: Mapping[str, Any], session: Any) -> dict[str, Any]:
+    from scripts.navigation_development_boundary import DevelopmentInitialObservation
+
+    value = lease.get("initial_observation")
+    bound = session.initial_observation
+    if not isinstance(value, DevelopmentInitialObservation):
+        raise _pnsctl().OperatorError(
+            "Daily Resource Item initial observation must be typed session evidence"
+        )
+    if not isinstance(bound, DevelopmentInitialObservation) or value is not bound:
+        raise _pnsctl().OperatorError(
+            "Daily Resource Item initial observation is not exactly session-bound"
+        )
+    digest = str(value.frame_sha256 or "")
+    if (
+        len(digest) != 64
+        or digest != str(lease.get("initial_frame_sha256") or "")
+        or value.invocation_id != session.invocation_id
+    ):
+        raise _pnsctl().OperatorError(
+            "Daily Resource Item initial observation hash or invocation binding is invalid"
+        )
+    return value.to_mapping()
+
+
+def _write_read_only_causal_trace(
+    session: Path,
+    *,
+    flow_result: Mapping[str, Any],
+    initial_observation: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Persist exactly one non-authoritative trace projection for this attempt."""
+
+    events_path = session / "events.jsonl"
+    transport_count = 0
+    event_count = 0
+    if events_path.is_file():
+        for line in events_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            event_count += 1
+            row = json.loads(line)
+            if row.get("type") == "dispatch" and row.get("execute") is not False:
+                transport_count += 1
+    trace = {
+        "schema_version": 1,
+        "trace_count": 1,
+        "read_only": True,
+        "input_authority": False,
+        "stages": [
+            "observation",
+            "intent",
+            "transport",
+            "settled_successor",
+            "semantic_result",
+            "terminal_result",
+        ],
+        "proof_topology": "continuous",
+        "flow_id": FLOW_ID,
+        "invocation_id": str(initial_observation.get("invocation_id") or ""),
+        "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
+        "transport_count": transport_count,
+        "event_count": event_count,
+        "status": str(flow_result.get("status") or "unknown"),
+        "effect_reconciliation_required": bool(
+            flow_result.get("effect_reconciliation_required")
+        ),
+    }
+    (session / "causal-trace.json").write_text(
+        json.dumps(trace, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return trace
 
 
 def _item_use_calls(session: Path) -> int:
@@ -641,6 +723,8 @@ def _result_payload(
         {
             "status": "completed"
             if complete
+            else "effect_reconciliation_required"
+            if item_use_calls and result.get("resource_delta_verified") is not True
             else "unresolved"
             if item_use_calls
             else "blocked",
@@ -654,6 +738,18 @@ def _result_payload(
             "semantic_evidence": _semantic_from_result(result),
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
+            "proof_topology": "continuous",
+            "initial_frame_sha256": str(
+                result.get("initial_frame_sha256") or ""
+            ),
+            "causal_trace_count": 1,
+            "effect_reconciliation_required": bool(
+                result.get("effect_reconciliation_required")
+                or (
+                    item_use_calls > 0
+                    and not result.get("resource_delta_verified") is True
+                )
+            ),
         }
     )
     return payload
@@ -715,6 +811,13 @@ def _write_delivery_result(
         "reason": result.get("reason"),
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
+        "proof_topology": str(result.get("proof_topology") or "continuous"),
+        "initial_observation": result.get("initial_observation"),
+        "initial_frame_sha256": str(result.get("initial_frame_sha256") or ""),
+        "causal_trace_count": int(result.get("causal_trace_count") or 1),
+        "effect_reconciliation_required": bool(
+            result.get("effect_reconciliation_required")
+        ),
     }
     (session / "flow-delivery-result.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n",
@@ -742,6 +845,8 @@ def run_daily_resource_item(
                 "max_inputs": maximum,
                 "max_resource_list_swipes": MAX_RESOURCE_LIST_SWIPES,
                 "item_use_transport_calls": 0,
+                "proof_topology": "composite",
+                "causal_trace_count": 0,
                 "production_registration": "NOT_REGISTERED",
                 "scheduler_enabled": False,
             },
@@ -749,6 +854,7 @@ def run_daily_resource_item(
         )
 
     outer_session = _outer_session(lease)
+    initial_observation = _initial_observation(lease, outer_session)
     outer_directory = Path(outer_session.session_directory)
     runtime: LocalBlueStacksRuntime | None = None
     runtime_session = outer_directory
@@ -762,6 +868,12 @@ def run_daily_resource_item(
             execute=True,
         )
         runtime_session = runtime.session
+        source_path = outer_directory / "source.png"
+        if source_path.is_file():
+            retained_initial = runtime_session / "frames" / "0000-initial-observation.png"
+            retained_initial.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source_path, retained_initial)
+            initial_observation["frame_path"] = "frames/0000-initial-observation.png"
         from scripts import daily_resource_item_bluestacks as route
 
         runtime_factory = lease.get("resource_runtime_factory")
@@ -798,6 +910,8 @@ def run_daily_resource_item(
             item_use_calls=item_use_calls,
             maximum=maximum,
         )
+        payload["initial_observation"] = initial_observation
+        payload["initial_frame_sha256"] = initial_observation["frame_sha256"]
         if reconciliation is not None:
             payload["resource_reconciliation"] = reconciliation
     except Exception as exc:
@@ -829,8 +943,30 @@ def run_daily_resource_item(
             item_use_calls=item_use_calls,
             maximum=maximum,
         )
+        payload["initial_observation"] = initial_observation
+        payload["initial_frame_sha256"] = initial_observation["frame_sha256"]
         if reconciliation is not None:
             payload["resource_reconciliation"] = reconciliation
+    trace = _write_read_only_causal_trace(
+        runtime_session,
+        flow_result=payload,
+        initial_observation=initial_observation,
+    )
+    payload["causal_trace_count"] = 1
+    payload["causal_trace"] = trace
+    try:
+        outer_session.set_causal_trace(trace)
+        outer_session.remember_control("resource_route_status", payload.get("status"))
+        outer_session.remember_control(
+            "target_history",
+            [str(row.get("label") or row.get("action_key") or "") for row in outer_session.actions],
+        )
+        outer_session.remember_control(
+            "recovery_result",
+            payload.get("reason") if payload.get("status") != "completed" else "verified_home",
+        )
+    except AttributeError:
+        pass
     _write_delivery_result(
         runtime_session,
         payload,

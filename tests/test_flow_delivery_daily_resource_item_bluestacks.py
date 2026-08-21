@@ -29,7 +29,10 @@ from scripts import flow_delivery_daily_resource_item_bluestacks as delivery
 from scripts import pnsctl
 from scripts.evidence_hygiene import sha256_stream
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
-from scripts.navigation_development_boundary import DevelopmentSession
+from scripts.navigation_development_boundary import (
+    DevelopmentInitialObservation,
+    DevelopmentSession,
+)
 from tasks.runtime_identity import (
     derive_fixed_runtime_binding,
     derive_resource_runtime_identity,
@@ -73,6 +76,77 @@ def _write_blank_native(path: Path) -> Path:
 
 
 class DailyResourceItemDeliveryTests(unittest.TestCase):
+    def test_live_admission_rejects_unbound_or_fabricated_sessions_before_connect(self):
+        fabricated = type(
+            "FabricatedSession",
+            (),
+            {
+                "owner": "pnsctl-development-session:fake",
+                "is_active": True,
+                "run_action": lambda self, **kwargs: None,
+            },
+        )()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(delivery.LocalBlueStacksRuntime, "connect") as connect:
+                for label, lease in (
+                    ("missing", {}),
+                    ("fabricated", {"development_session": fabricated}),
+                    (
+                        "inactive",
+                        {
+                            "development_session": DevelopmentSession(
+                                owner="pnsctl-development-session:inactive",
+                                invocation_id="inactive",
+                                session_directory=root / "inactive",
+                                max_inputs=10,
+                            )
+                        },
+                    ),
+                ):
+                    with self.subTest(label=label), self.assertRaises(pnsctl.OperatorError):
+                        delivery.run_daily_resource_item(
+                            {}, {**lease, "max_inputs": 10}, live=True
+                        )
+                connect.assert_not_called()
+
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with DevelopmentSession(
+                    owner=f"pnsctl-development-session:{delivery.FLOW_ID}",
+                    invocation_id="bound",
+                    session_directory=root / "bound",
+                    max_inputs=10,
+                ) as session:
+                    digest = hashlib.sha256(b"initial").hexdigest()
+                    bound = DevelopmentInitialObservation(
+                        {"frame_sha256": digest}, digest, invocation_id=session.invocation_id
+                    )
+                    session.set_initial_observation(bound)
+                    base = {
+                        "development_session": session,
+                        "initial_frame_sha256": digest,
+                        "max_inputs": 10,
+                    }
+                    for label, observation in (
+                        ("missing-observation", None),
+                        (
+                            "mismatched-observation",
+                            DevelopmentInitialObservation(
+                                {"frame_sha256": digest}, digest, invocation_id=session.invocation_id
+                            ),
+                        ),
+                    ):
+                        with self.subTest(label=label):
+                            lease = dict(base)
+                            if observation is not None:
+                                lease["initial_observation"] = observation
+                            with patch.object(
+                                delivery.LocalBlueStacksRuntime, "connect"
+                            ) as connect:
+                                with self.assertRaises(pnsctl.OperatorError):
+                                    delivery.run_daily_resource_item({}, lease, live=True)
+                            connect.assert_not_called()
+
     def _resource_identity(self):
         binding = pnsctl._resource_fixed_runtime_binding()
         authority, reset_policy = pnsctl._load_resource_daily_reset_authority()

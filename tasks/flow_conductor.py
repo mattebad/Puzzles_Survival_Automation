@@ -16,6 +16,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 import json
 from pathlib import Path
+import re
 from typing import Any, Iterable, Mapping
 
 
@@ -130,6 +131,7 @@ _EXTERNAL_BLOCKERS = frozenset(
         "manual_only",
         "manual_only_state",
         "manual_required",
+        "external_block",
         "captcha",
         "login",
         "account_selection",
@@ -138,6 +140,18 @@ _EXTERNAL_BLOCKERS = frozenset(
         "product_state",
         "unsupported_product_state",
     }
+)
+# Free text is deliberately narrower than structured status/terminal values:
+# generic words such as ``operator`` or ``manual`` are local diagnostics, not
+# external authority.  These phrases are the existing unambiguous forms that
+# may preserve the caller's exact text when they occur as standalone phrases.
+_EXTERNAL_BLOCKER_TEXT_PHRASES = (
+    "account state",
+    "manual state",
+    "operator must",
+    "requires operator",
+    "operator recovery required",
+    "external recovery required",
 )
 _DONE_STATUSES = frozenset(
     {
@@ -182,6 +196,60 @@ def _summary_text(summary: Mapping[str, Any], *keys: str) -> str:
     return ""
 
 
+def _contains_external_text_marker(text: str) -> bool:
+    """Return whether free text contains an exact token or safe phrase.
+
+    Word boundaries prevent ``OperatorError`` and similar local diagnostic
+    names from inheriting external authority merely because they contain the
+    generic word ``operator``.
+    """
+
+    folded = text.casefold()
+    markers = tuple(_EXTERNAL_BLOCKERS) + _EXTERNAL_BLOCKER_TEXT_PHRASES
+    return any(
+        re.search(
+            rf"(?<![a-z0-9_]){re.escape(marker)}(?![a-z0-9_])",
+            folded,
+        )
+        for marker in markers
+    )
+
+
+def _external_blocker(summary: Mapping[str, Any]) -> str | None:
+    """Find the first external blocker across every summary layer.
+
+    A nested route can carry the authoritative manual/product state while an
+    outer wrapper reports completed or reconciliation-required.  Scan each
+    layer before considering terminal success, returning that layer's exact
+    blocker text when available and otherwise its stable external token.
+    """
+
+    for layer in _summary_layers(summary):
+        matching_tokens: list[str] = []
+        for key in ("status", "terminal"):
+            value = layer.get(key)
+            if value is None or not str(value).strip():
+                continue
+            folded = str(value).strip().casefold()
+            token = folded if folded in _EXTERNAL_BLOCKERS else None
+            if token:
+                matching_tokens.append(token)
+        matching_text = ""
+        for key in ("blocker", "reason", "next_action"):
+            value = layer.get(key)
+            if value is None or not str(value).strip():
+                continue
+            text = str(value).strip()
+            if _contains_external_text_marker(text):
+                matching_text = text
+                break
+        if matching_text:
+            return matching_text
+        if matching_tokens:
+            return matching_tokens[0]
+    return None
+
+
 def summary_milestone(summary: Mapping[str, Any]) -> str | None:
     """Return real route progress, never a wrapper's terminal status."""
 
@@ -223,11 +291,19 @@ def classify_summary(
     status = _summary_text(summary, "status", "terminal").casefold()
     blocker = _summary_text(summary, "blocker", "reason", "next_action")
     blocker_key = blocker.casefold()
+    external_blocker = _external_blocker(summary)
+    if external_blocker:
+        return ConductorDecision.EXTERNAL_BLOCK, external_blocker
     evidence_verified = any(
         layer.get("evidence_verified") is True for layer in _summary_layers(summary)
     )
+    reconciliation_required = any(
+        layer.get("effect_reconciliation_required") is True
+        or layer.get("reconciliation_status") == "effect_reconciliation_required"
+        for layer in _summary_layers(summary)
+    )
 
-    if evidence_verified and (
+    if evidence_verified and not reconciliation_required and (
         status in _DONE_STATUSES
         or any(
             layer.get("terminal_home_verified") is True
@@ -241,9 +317,9 @@ def classify_summary(
         ):
             return ConductorDecision.DONE, blocker or "terminal_postcondition_proven"
 
-    for token in _EXTERNAL_BLOCKERS:
-        if token in blocker_key or token == status:
-            return ConductorDecision.EXTERNAL_BLOCK, blocker or token
+    if reconciliation_required and not blocker:
+        blocker = "effect_reconciliation_required"
+        blocker_key = blocker.casefold()
 
     signature = blocker_key.strip() or status or "unknown_blocker"
     if progress_made:

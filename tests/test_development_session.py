@@ -54,6 +54,51 @@ class FakeRunner:
 
 
 class DevelopmentSessionTests(unittest.TestCase):
+    def test_continuous_session_binds_initial_memory_and_effect_unknown_reconciliation(self):
+        initial_payload = b"initial-observation"
+        initial_hash = hashlib.sha256(initial_payload).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with boundary.DevelopmentSession(
+                    owner="continuous-owner",
+                    invocation_id="continuous-1",
+                    session_directory=root / "session",
+                    max_inputs=1,
+                ) as session:
+                    typed = session.set_initial_observation(
+                        {
+                            "frame_sha256": initial_hash,
+                            "native_width": 800,
+                            "native_height": 1280,
+                        }
+                    )
+                    self.assertIsInstance(typed, boundary.DevelopmentInitialObservation)
+                    session.remember_control("direction", "forward")
+                    with self.assertRaisesRegex(
+                        boundary.DevelopmentSessionError, "nested DevelopmentSession"
+                    ):
+                        with boundary.DevelopmentSession(
+                            owner="nested-owner",
+                            invocation_id="nested-1",
+                            session_directory=root / "nested",
+                            max_inputs=1,
+                        ):
+                            pass
+                    result = session.run_action(
+                        action_class="owned_item_non_idempotent",
+                        label="effect-unknown",
+                        capture=lambda label: frame(label),
+                        dispatch=lambda _source: None,
+                        recognize=lambda _source: "unknown",
+                    )
+                    self.assertEqual(result.status, "effect_reconciliation_required")
+                    self.assertEqual(session.input_count, 1)
+            summary = json.loads((root / "session" / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["initial_frame_sha256"], initial_hash)
+            self.assertEqual(summary["control_memory"]["direction"], "forward")
+            self.assertIn("effect reconciliation", summary["next_action"])
+
     def test_malformed_ruins_continuation_is_rejected_before_runtime_acquisition(self):
         with tempfile.TemporaryDirectory() as directory:
             checkpoint = Path(directory) / "checkpoint.json"

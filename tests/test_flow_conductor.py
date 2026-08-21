@@ -22,6 +22,190 @@ from tasks.gameplay_flow_contracts import FlowContractError, load_flow_contract
 
 
 class FlowConductorTests(unittest.TestCase):
+    def test_nested_external_blockers_precede_done_and_reconciliation(self) -> None:
+        cases = (
+            {
+                "status": "completed",
+                "evidence_verified": True,
+                "result": {
+                    "status": "manual_required",
+                    "reason": "nested account state requires operator",
+                    "effect_reconciliation_required": True,
+                },
+            },
+            {
+                "status": "manual_required",
+                "reason": "outer manual state",
+                "result": {
+                    "status": "completed",
+                    "evidence_verified": True,
+                },
+            },
+            {
+                "status": "completed",
+                "evidence_verified": True,
+                "result": {
+                    "route_result": {
+                        "canary": {
+                            "status": "external_block",
+                            "next_action": "nested external recovery required",
+                        }
+                    }
+                },
+            },
+        )
+        expected_reasons = (
+            "nested account state requires operator",
+            "outer manual state",
+            "nested external recovery required",
+        )
+        state = load_state("FLOW-NESTED-EXTERNAL-BLOCK")
+        for summary, expected in zip(cases, expected_reasons):
+            with self.subTest(expected=expected):
+                decision, reason = classify_summary(summary, state=state)
+                self.assertEqual(decision, ConductorDecision.EXTERNAL_BLOCK)
+                self.assertEqual(reason, expected)
+
+    def test_same_layer_status_and_terminal_external_blockers_both_checked(self) -> None:
+        cases = (
+            (
+                {
+                    "status": "completed",
+                    "terminal": "manual_required",
+                    "reason": "operator must intervene",
+                    "evidence_verified": True,
+                },
+                "operator must intervene",
+            ),
+            (
+                {
+                    "status": "manual_required",
+                    "terminal": "completed",
+                    "reason": "manual account state",
+                    "evidence_verified": True,
+                },
+                "manual account state",
+            ),
+            (
+                {
+                    "status": "completed",
+                    "terminal": "manual_required",
+                    "evidence_verified": True,
+                },
+                "manual_required",
+            ),
+            (
+                {
+                    "status": "completed",
+                    "terminal": "manual_required",
+                    "reason": "ordinary reconciliation is pending",
+                    "evidence_verified": True,
+                },
+                "manual_required",
+            ),
+            (
+                {
+                    "status": "completed",
+                    "evidence_verified": True,
+                    "route_result": {
+                        "status": "completed",
+                        "terminal": "manual_required",
+                        "next_action": "operator recovery required",
+                    },
+                },
+                "operator recovery required",
+            ),
+        )
+        state = load_state("FLOW-SAME-LAYER-EXTERNAL-BLOCK")
+        for summary, expected in cases:
+            with self.subTest(expected=expected):
+                decision, reason = classify_summary(summary, state=state)
+                self.assertEqual(decision, ConductorDecision.EXTERNAL_BLOCK)
+                self.assertEqual(reason, expected)
+
+    def test_structured_external_blockers_require_exact_normalized_tokens(self) -> None:
+        state = load_state("FLOW-EXACT-STRUCTURED-EXTERNAL-BLOCK")
+        for key in ("status", "terminal"):
+            with self.subTest(key=key):
+                decision, _ = classify_summary(
+                    {key: "failed_manual_required_parse"},
+                    state=state,
+                )
+                self.assertNotEqual(decision, ConductorDecision.EXTERNAL_BLOCK)
+
+        for key, value in (
+            ("status", " manual_required "),
+            ("terminal", "MANUAL_ONLY_STATE"),
+        ):
+            with self.subTest(key=key, value=value):
+                decision, reason = classify_summary({key: value}, state=state)
+                self.assertEqual(decision, ConductorDecision.EXTERNAL_BLOCK)
+                self.assertEqual(reason, value.strip().casefold())
+
+    def test_effect_reconciliation_never_becomes_done(self) -> None:
+        state = load_state("DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION")
+        decision, reason = classify_summary(
+            {
+                "status": "completed",
+                "evidence_verified": True,
+                "effect_reconciliation_required": True,
+            },
+            state=state,
+        )
+        self.assertNotEqual(decision, ConductorDecision.DONE)
+        self.assertEqual(reason, "effect_reconciliation_required")
+
+    def test_effect_reconciliation_repeats_converge_without_done(self) -> None:
+        state = load_state("FLOW-EFFECT-RECONCILIATION")
+        summary = {
+            "status": "completed",
+            "evidence_verified": True,
+            "effect_reconciliation_required": True,
+        }
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.CONTINUE.value)
+        self.assertEqual(state.last_blocker, "effect_reconciliation_required")
+        self.assertEqual(state.iterations_since_progress, 1)
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.STEP_BACK.value)
+        self.assertEqual(state.step_backs_spent, 1)
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.ESCALATE.value)
+        self.assertNotEqual(state.last_decision, ConductorDecision.DONE.value)
+
+    def test_nested_reconciliation_progress_resets_without_proving_effect(self) -> None:
+        state = load_state("FLOW-NESTED-EFFECT-RECONCILIATION")
+        state.iterations_since_progress = 2
+        state = record_iteration(
+            state,
+            summary={
+                "status": "completed",
+                "evidence_verified": True,
+                "result": {
+                    "reconciliation_status": "effect_reconciliation_required",
+                },
+            },
+            milestone="COMMANDER_RECOGNIZED",
+        )
+        self.assertEqual(state.last_decision, ConductorDecision.CONTINUE.value)
+        self.assertEqual(state.last_blocker, "effect_reconciliation_required")
+        self.assertEqual(state.furthest_milestone, "COMMANDER_RECOGNIZED")
+        self.assertEqual(state.iterations_since_progress, 0)
+        self.assertNotEqual(state.last_decision, ConductorDecision.DONE.value)
+
+    def test_reconciliation_preserves_external_blocker(self) -> None:
+        state = load_state("FLOW-EFFECT-EXTERNAL-BLOCK")
+        decision, reason = classify_summary(
+            {
+                "status": "blocked",
+                "blocker": "manual_only_state",
+                "result": {"effect_reconciliation_required": True},
+            },
+            state=state,
+        )
+        self.assertEqual(decision, ConductorDecision.EXTERNAL_BLOCK)
+        self.assertEqual(reason, "manual_only_state")
+
     def test_framing_incomplete_blocks_continue(self) -> None:
         state = load_state("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
         state = apply_framing(
@@ -54,6 +238,34 @@ class FlowConductorTests(unittest.TestCase):
             state=state,
         )
         self.assertEqual(manual_required, ConductorDecision.EXTERNAL_BLOCK)
+
+    def test_failed_local_operator_repair_converges_normally(self) -> None:
+        summary = {
+            "status": "failed",
+            "next_action": "repair the local operator error",
+        }
+        state = load_state("FLOW-LOCAL-OPERATOR-REPAIR")
+
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.CONTINUE.value)
+        self.assertNotEqual(state.last_decision, ConductorDecision.EXTERNAL_BLOCK.value)
+
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.STEP_BACK.value)
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.ESCALATE.value)
+
+    def test_operator_error_text_does_not_create_external_block(self) -> None:
+        state = load_state("FLOW-OPERATOR-ERROR-TEXT")
+        decision, reason = classify_summary(
+            {
+                "status": "failed",
+                "reason": "OperatorError: local route repair failed",
+            },
+            state=state,
+        )
+        self.assertEqual(decision, ConductorDecision.CONTINUE)
+        self.assertEqual(reason, "operatorerror: local route repair failed")
 
     def test_completed_execution_requires_verified_evidence_for_done(self) -> None:
         state = load_state("FLOW-VERIFY")

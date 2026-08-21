@@ -13,14 +13,23 @@ import numpy as np
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.flow_delivery_world_map_bluestacks import (
+    FLOW_ID,
     RUNNER_ID,
     RECOVERY_ID,
     VALIDATOR_ID,
+    _run_result,
+    _write_read_only_causal_trace,
     _verify_event_order,
     _verify_route_semantics,
     run_world_map_navigation_foundation,
+    verify_world_map_navigation_foundation,
 )
 from scripts import pnsctl
+from scripts import navigation_development_boundary as boundary
+from scripts.navigation_development_boundary import (
+    DevelopmentInitialObservation,
+    DevelopmentSession,
+)
 from scripts import world_map_navigation_bluestacks as navigation
 from scripts.world_map_navigation_bluestacks import (
     ALLOWED_CONTROL_IDENTITIES,
@@ -423,6 +432,305 @@ def recovery_validator_events(
 
 
 class WorldMapNavigationTests(unittest.TestCase):
+    def test_search_entry_delivery_and_trace_are_diagnostic_non_accepting(self):
+        route = {
+            "path": SEARCH_ENTRY_ONLY_PATH,
+            "status": NAVIGATION_ONLY_COMPLETE,
+            "input_count": 1,
+            "navigation_input_count": 1,
+            "safe_popup_input_count": 0,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            session = Path(directory)
+            (session / "frames").mkdir()
+            (session / "events.jsonl").write_text(
+                json.dumps({"type": "dispatch", "execute": True}) + "\n",
+                encoding="utf-8",
+            )
+            trace = _write_read_only_causal_trace(
+                session,
+                route=route,
+                initial_observation={"invocation_id": "test", "frame_sha256": "a" * 64},
+            )
+            with patch(
+                "scripts.flow_delivery_world_map_bluestacks._native_frames",
+                return_value=["frames/0000.png"],
+            ):
+                delivery = _run_result(
+                    route,
+                    session=session,
+                    lease={"owner": "test-owner"},
+                    operator_returncode=0,
+                    initial_observation={"frame_sha256": "a" * 64},
+                    causal_trace=trace,
+                )
+            self.assertEqual(trace["proof_topology"], "diagnostic")
+            self.assertFalse(trace["acceptance_eligible"])
+            self.assertEqual(delivery["proof_topology"], "diagnostic")
+            self.assertFalse(delivery["acceptance_eligible"])
+
+    def test_search_entry_verifier_returns_diagnostic_verified(self):
+        events, base_route, hashes = hud_validator_events()
+        search_events = [
+            event
+            for event in events
+            if event.get("action_key") == "action-2"
+            or (
+                event.get("type") == "capture"
+                and event.get("sha256") in {"2" * 64, "6" * 64, "8" * 64}
+            )
+            or event.get("event") == "route_terminal"
+        ]
+        search_events[-1] = dict(
+            search_events[-1],
+            state=WORLD_SEARCH_OPEN,
+            frame_sha256="8" * 64,
+        )
+        route = dict(
+            base_route,
+            path=SEARCH_ENTRY_ONLY_PATH,
+            input_count=1,
+            max_inputs=1,
+            navigation_input_count=1,
+            final_state=WORLD_SEARCH_OPEN,
+            terminal_runtime_state=WORLD_SEARCH_OPEN,
+            reason="verified_world_ready_to_search_open",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            session = Path(directory)
+            (session / "frames").mkdir()
+            for ordinal in (2, 6, 8):
+                (session / "frames" / f"{ordinal:04d}.png").write_bytes(b"frame")
+            (session / "events.jsonl").write_text(
+                "".join(json.dumps(event) + "\n" for event in search_events),
+                encoding="utf-8",
+            )
+            result = {
+                "schema_version": 1,
+                "flow_id": FLOW_ID,
+                "status": "completed",
+                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "native_width": 800,
+                "native_height": 1280,
+                "dispatch_count": 1,
+                "input_count": 1,
+                "navigation_input_count": 1,
+                "safe_popup_input_count": 0,
+                "resource_actions": 0,
+                "combat_actions": 0,
+                "node_inputs": 0,
+                "resource_node_selection_inputs": 0,
+                "march_inputs": 0,
+                "formation_inputs": 0,
+                "occupancy_override_inputs": 0,
+                "stamina_inputs": 0,
+                "ap_inputs": 0,
+                "currency_inputs": 0,
+                "forbidden_input_classes": [],
+                "frames": [
+                    "frames/0002.png",
+                    "frames/0006.png",
+                    "frames/0008.png",
+                ],
+                "events_path": "events.jsonl",
+                "world_navigation_result": route,
+                "terminal_runtime_state": WORLD_SEARCH_OPEN,
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+                "proof_topology": "diagnostic",
+                "acceptance_eligible": False,
+                "causal_trace": {
+                    "proof_topology": "diagnostic",
+                    "acceptance_eligible": False,
+                },
+            }
+            (session / "flow-delivery-result.json").write_text(
+                json.dumps(result), encoding="utf-8"
+            )
+            frame_hashes = {
+                "0002.png": "2" * 64,
+                "0006.png": "6" * 64,
+                "0008.png": "8" * 64,
+            }
+            with patch(
+                "scripts.flow_delivery_world_map_bluestacks._hash_native",
+                side_effect=lambda path: frame_hashes[path.name],
+            ):
+                verdict = verify_world_map_navigation_foundation(
+                    {"result": result, "session_directory": str(session)},
+                    {},
+                    {},
+                )
+        self.assertEqual(verdict["status"], "diagnostic_verified")
+        self.assertFalse(verdict["acceptance_eligible"])
+
+    def test_continuous_verifier_rejects_contradictory_acceptance_metadata(self):
+        events, base_route, hashes = hud_validator_events()
+        route = dict(base_route, home_recovery_latency_seconds=1.0)
+        with tempfile.TemporaryDirectory() as directory:
+            session = Path(directory)
+            (session / "frames").mkdir()
+            frame_refs = []
+            frame_hashes = {}
+            for ordinal, digest in enumerate(sorted(hashes), start=1):
+                filename = f"{ordinal:04d}.png"
+                (session / "frames" / filename).write_bytes(b"frame")
+                frame_refs.append(f"frames/{filename}")
+                frame_hashes[filename] = digest
+            (session / "events.jsonl").write_text(
+                "".join(json.dumps(event) + "\n" for event in events),
+                encoding="utf-8",
+            )
+
+            base_result = {
+                "schema_version": 1,
+                "flow_id": FLOW_ID,
+                "status": "completed",
+                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "native_width": 800,
+                "native_height": 1280,
+                "dispatch_count": 4,
+                "input_count": 4,
+                "navigation_input_count": 4,
+                "safe_popup_input_count": 0,
+                "resource_actions": 0,
+                "combat_actions": 0,
+                "node_inputs": 0,
+                "resource_node_selection_inputs": 0,
+                "march_inputs": 0,
+                "formation_inputs": 0,
+                "occupancy_override_inputs": 0,
+                "stamina_inputs": 0,
+                "ap_inputs": 0,
+                "currency_inputs": 0,
+                "forbidden_input_classes": [],
+                "frames": frame_refs,
+                "events_path": "events.jsonl",
+                "world_navigation_result": route,
+                "terminal_runtime_state": HOME_READY,
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+                "proof_topology": "continuous",
+                "causal_trace": {"proof_topology": "continuous"},
+            }
+
+            def verify_result(result):
+                (session / "flow-delivery-result.json").write_text(
+                    json.dumps(result), encoding="utf-8"
+                )
+                with patch(
+                    "scripts.flow_delivery_world_map_bluestacks._hash_native",
+                    side_effect=lambda path: frame_hashes[path.name],
+                ):
+                    return verify_world_map_navigation_foundation(
+                        {"result": result, "session_directory": str(session)},
+                        {},
+                        {},
+                    )
+
+            self.assertEqual(verify_result(dict(base_result))["status"], "verified")
+            result_contradiction = dict(base_result, acceptance_eligible=False)
+            with self.assertRaises(pnsctl.OperatorError):
+                verify_result(result_contradiction)
+            trace_contradiction = dict(base_result)
+            trace_contradiction["causal_trace"] = {
+                "proof_topology": "continuous",
+                "acceptance_eligible": False,
+            }
+            with self.assertRaises(pnsctl.OperatorError):
+                verify_result(trace_contradiction)
+            route_contradiction = dict(base_result)
+            route_contradiction["world_navigation_result"] = dict(
+                route,
+                proof_topology="diagnostic",
+            )
+            with self.assertRaises(pnsctl.OperatorError):
+                verify_result(route_contradiction)
+
+    def test_live_admission_rejects_unbound_or_fabricated_sessions_before_connect(self):
+        fabricated = type(
+            "FabricatedSession",
+            (),
+            {
+                "owner": "pnsctl-development-session:fake",
+                "is_active": True,
+                "run_action": lambda self, **kwargs: None,
+            },
+        )()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", root / "artifacts"):
+                with patch(
+                    "scripts.flow_delivery_world_map_bluestacks.LocalBlueStacksRuntime.connect"
+                ) as connect:
+                    for label, lease in (
+                        ("missing", {}),
+                        ("fabricated", {"development_session": fabricated}),
+                        (
+                            "inactive",
+                            {
+                                "development_session": DevelopmentSession(
+                                    owner="pnsctl-development-session:inactive",
+                                    invocation_id="inactive",
+                                    session_directory=root / "inactive",
+                                    max_inputs=12,
+                                )
+                            },
+                        ),
+                    ):
+                        with self.subTest(label=label), self.assertRaises(pnsctl.OperatorError):
+                            with patch.object(
+                                pnsctl,
+                                "BLUESTACKS_ARTIFACT_ROOT",
+                                root / f"artifacts-{label}",
+                            ):
+                                run_world_map_navigation_foundation(
+                                    {}, {**lease, "max_inputs": 12}, live=True
+                                )
+                    connect.assert_not_called()
+
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with DevelopmentSession(
+                    owner=f"pnsctl-development-session:{FLOW_ID}",
+                    invocation_id="bound",
+                    session_directory=root / "bound",
+                    max_inputs=12,
+                ) as session:
+                    digest = hashlib.sha256(b"initial").hexdigest()
+                    bound = DevelopmentInitialObservation(
+                        {"frame_sha256": digest}, digest, invocation_id=session.invocation_id
+                    )
+                    session.set_initial_observation(bound)
+                    base = {
+                        "development_session": session,
+                        "initial_frame_sha256": digest,
+                        "max_inputs": 12,
+                    }
+                    for label, observation_value in (
+                        ("missing-observation", None),
+                        (
+                            "mismatched-observation",
+                            DevelopmentInitialObservation(
+                                {"frame_sha256": digest}, digest, invocation_id=session.invocation_id
+                            ),
+                        ),
+                    ):
+                        with self.subTest(label=label):
+                            lease = dict(base)
+                            if observation_value is not None:
+                                lease["initial_observation"] = observation_value
+                            with patch(
+                                "scripts.flow_delivery_world_map_bluestacks.LocalBlueStacksRuntime.connect"
+                            ) as connect:
+                                with patch.object(
+                                    pnsctl,
+                                    "BLUESTACKS_ARTIFACT_ROOT",
+                                    root / f"artifacts-{label}",
+                                ):
+                                    with self.assertRaises(pnsctl.OperatorError):
+                                        run_world_map_navigation_foundation({}, lease, live=True)
+                            connect.assert_not_called()
+
     def test_search_entry_only_taps_search_once_and_stops_open(self):
         runtime = FakeRuntime(
             [
@@ -1396,6 +1704,8 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result["max_inputs"], 1)
         self.assertEqual(result["path"], SEARCH_ENTRY_ONLY_PATH)
         self.assertEqual(result["input_count"], 0)
+        self.assertEqual(result["proof_topology"], "diagnostic")
+        self.assertFalse(result["acceptance_eligible"])
 
     def test_retained_popup_recognizer_rejects_non_native_frame(self):
         result = recognize_allowlisted_popup(

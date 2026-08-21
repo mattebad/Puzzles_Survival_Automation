@@ -783,6 +783,29 @@ def _compact_development_action_results(
     return actions
 
 
+def _retained_transport_count(event_rows: Sequence[Mapping[str, Any]]) -> int:
+    """Count only retained, executable transport rows once.
+
+    Semantic/planning/capture rows are observability and never contribute to the
+    session's authoritative input count.
+    """
+
+    seen: set[str] = set()
+    count = 0
+    for row in event_rows:
+        if row.get("type") != "dispatch" or row.get("execute") is False:
+            continue
+        identity = str(
+            row.get("action_key")
+            or f"{row.get('source_sha256', '')}:{row.get('target_identity', '')}:{count}"
+        )
+        if identity in seen:
+            raise OperatorError("duplicate retained transport is not countable")
+        seen.add(identity)
+        count += 1
+    return count
+
+
 def _consume_delegated_receipt(
     receipt_state: Path,
     *,
@@ -3126,7 +3149,10 @@ def development_session_run_flow(
 ) -> str:
     """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
 
-    from scripts.navigation_development_boundary import DevelopmentSession
+    from scripts.navigation_development_boundary import (
+        DevelopmentInitialObservation,
+        DevelopmentSession,
+    )
     from scripts.navigation_development_boundary import delegated_runtime_context
 
     if search_entry_only:
@@ -3308,7 +3334,27 @@ def development_session_run_flow(
             max_inputs=max_inputs,
         ) as session:
             observation, frame = _development_runtime_observation()
+            observation = dict(observation)
+            observation.setdefault("frame_sha256", hashlib.sha256(frame).hexdigest())
             (session_directory / "source.png").write_bytes(frame)
+            initial_observation = DevelopmentInitialObservation(
+                observation=observation,
+                frame_sha256=str(observation.get("frame_sha256") or ""),
+                frame_path="source.png",
+                invocation_id=invocation_id,
+            )
+            session.set_initial_observation(initial_observation)
+            session.remember_control("initial_observation_bound", True)
+            for key, value in (
+                ("viewport_signature", None),
+                ("list_signature", None),
+                ("direction", None),
+                ("target_history", []),
+                ("settle_history", []),
+                ("recovery_result", None),
+                ("pending_semantic_intent", None),
+            ):
+                session.remember_control(key, value)
             if flow_id == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION" and live:
                 produced = _produce_resource_runtime_identity(
                     session=session,
@@ -3363,6 +3409,10 @@ def development_session_run_flow(
                     nova_identity.reset_id if nova_identity is not None else None
                 ),
                 "development_session": session,
+                "initial_observation": initial_observation,
+                "initial_observation_payload": initial_observation.to_mapping(),
+                "initial_frame_sha256": initial_observation.frame_sha256,
+                "session_control_memory": session.control_memory,
                 "resource_runtime_identity": resource_runtime_identity,
                 "resource_deadline_evidence": resource_deadline_evidence,
             }
@@ -3389,18 +3439,34 @@ def development_session_run_flow(
             child_text = str(result.get("session_directory") or "")
             child = Path(child_text) if child_text else None
             event_rows: list[dict[str, Any]] = []
+            transport_evidence_available = False
             if child is not None and child.is_dir():
                 events = child / "events.jsonl"
                 if events.is_file():
+                    transport_evidence_available = True
                     for line in events.read_text(encoding="utf-8").splitlines():
                         row = json.loads(line) if line.strip() else {}
                         if row:
                             event_rows.append(row)
-            action_rows = _compact_development_action_results(event_rows)
-            dispatch_count = len(action_rows)
-            if dispatch_count > max_inputs:
+            retained_action_rows = _compact_development_action_results(event_rows)
+            action_rows = list(session.actions) or retained_action_rows
+            retained_count = (
+                _retained_transport_count(event_rows)
+                if transport_evidence_available
+                else int(session.input_count)
+            )
+            if retained_count > max_inputs:
                 raise OperatorError("development session exceeded its input limit")
-            session.input_count = dispatch_count
+            if session.input_count == 0 and retained_count:
+                session.adopt_retained_transport_count(
+                    retained_count,
+                    source="runtime_session/events.jsonl",
+                )
+            elif session.input_count != retained_count:
+                raise OperatorError(
+                    "development session input count does not match retained transports"
+                )
+            dispatch_count = session.input_count
             session.actions = action_rows
             if action_rows:
                 with (session_directory / "actions.jsonl").open(
@@ -3409,7 +3475,11 @@ def development_session_run_flow(
                     for row in action_rows:
                         handle.write(json.dumps(row, sort_keys=True) + "\n")
             result_status = str(result.get("status") or "unknown")
-            if result_status not in {"completed", "dry_run", "observed"}:
+            if result.get("effect_reconciliation_required") is True:
+                session.terminal_status = "effect_reconciliation_required"
+                session.blocker = "effect_reconciliation_required"
+                session.next_action = "observe-only effect reconciliation; identical retry is denied"
+            elif result_status not in {"completed", "dry_run", "observed"}:
                 session.terminal_status = "blocked"
                 session.blocker = str(
                     result.get("reason") or "development result is not terminal"
@@ -3433,6 +3503,21 @@ def development_session_run_flow(
                 if chest_continuation is not None
                 else None,
                 "runtime_observation": observation,
+                "initial_observation": initial_observation.to_mapping(),
+                "initial_frame_sha256": initial_observation.frame_sha256,
+                "proof_topology": str(
+                    result.get(
+                        "proof_topology",
+                        "continuous"
+                        if flow_id
+                        in {
+                            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+                            "WORLD-MAP-NAVIGATION-FOUNDATION",
+                        }
+                        else "composite",
+                    )
+                ),
+                "causal_trace_count": int(result.get("causal_trace_count") or 0),
                 "lifecycle_state_created": False,
                 "persistent_checkpoint_artifacts_unchanged": True,
                 "result": result,
@@ -6488,6 +6573,19 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
     )
     if not 1 <= maximum <= 100:
         raise OperatorError("conduct max_inputs must be between 1 and 100")
+    if (
+        flow_id
+        in {
+            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+            "WORLD-MAP-NAVIGATION-FOUNDATION",
+        }
+        and requested is not None
+        and maximum == 1
+    ):
+        raise OperatorError(
+            "continuous-session conduct acceptance requires a multi-input ceiling; "
+            "use direct development-session diagnostics for one-input evidence"
+        )
     return maximum
 
 
@@ -6559,6 +6657,24 @@ def _conductor_live_summary(
                 "status": retained.get("status", run_payload.get("status", "unknown")),
                 "result": retained,
             }
+            if flow_id in {
+                "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+                "WORLD-MAP-NAVIGATION-FOUNDATION",
+            }:
+                if retained.get("proof_topology") != "continuous":
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "continuous proof topology is required for migrated conduct",
+                        }
+                    )
+                elif retained.get("causal_trace_count") != 1:
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "exactly one causal trace is required for migrated conduct",
+                        }
+                    )
         except OperatorError as exc:
             summary = {
                 "status": "evidence_required",
@@ -6613,7 +6729,8 @@ def conduct_flow(
 
     Dry-run by default: validates framing, prints the plan, and writes/updates the
     conductor-owned per-flow state file. Live execution requires ``--live --yes`` and
-    goes through development-session observe + run-flow (never bypasses pnsctl).
+    uses one thin development-session run-flow invocation for migrated routes
+    (never bypasses pnsctl).
     """
 
     from tasks.flow_conductor import (
@@ -6701,8 +6818,9 @@ def conduct_flow(
     if not yes:
         raise OperatorError("live conduct requires --yes")
     resource_flow = flow_id == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
+    continuous_session_flow = resource_flow or flow_id == "WORLD-MAP-NAVIGATION-FOUNDATION"
     observe_output: str | None = None
-    if not resource_flow:
+    if not continuous_session_flow:
         observe_output = development_session_observe(
             max_inputs=1,
             flow_id=flow_id,

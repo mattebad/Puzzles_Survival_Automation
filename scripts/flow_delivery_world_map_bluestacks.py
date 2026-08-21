@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import os
+import shutil
 from typing import Any, Mapping
 
 import cv2
@@ -51,6 +52,12 @@ _FORBIDDEN_MARKERS = (
 _OVERLAY_ABSENT = frozenset({"none", "none_observed", ""})
 
 
+def _is_diagnostic_route(route: Mapping[str, Any]) -> bool:
+    """Return whether the retained route is the one-input search diagnostic."""
+
+    return str(route.get("path") or "") == SEARCH_ENTRY_ONLY_PATH
+
+
 def _pnsctl():
     from scripts import pnsctl
 
@@ -70,6 +77,88 @@ def _maximum_inputs(lease: Mapping[str, Any]) -> int:
     if not 1 <= maximum <= MAX_ROUTE_INPUTS:
         raise _pnsctl().OperatorError("World navigation max_inputs must be between 1 and 20")
     return maximum
+
+
+def _outer_session(lease: Mapping[str, Any]) -> Any:
+    from scripts.navigation_development_boundary import DevelopmentSession
+
+    session = lease.get("development_session")
+    if (
+        not isinstance(session, DevelopmentSession)
+        or session.is_active is not True
+        or str(session.owner) != f"pnsctl-development-session:{FLOW_ID}"
+        or not callable(getattr(session, "run_action", None))
+    ):
+        raise _pnsctl().OperatorError(
+            "World navigation requires the active pnsctl-owned DevelopmentSession"
+        )
+    return session
+
+
+def _initial_observation(lease: Mapping[str, Any], session: Any) -> dict[str, Any]:
+    from scripts.navigation_development_boundary import DevelopmentInitialObservation
+
+    value = lease.get("initial_observation")
+    bound = session.initial_observation
+    if not isinstance(value, DevelopmentInitialObservation):
+        raise _pnsctl().OperatorError(
+            "World navigation initial observation must be typed session evidence"
+        )
+    if not isinstance(bound, DevelopmentInitialObservation) or value is not bound:
+        raise _pnsctl().OperatorError(
+            "World navigation initial observation is not exactly session-bound"
+        )
+    digest = str(value.frame_sha256 or "")
+    if (
+        len(digest) != 64
+        or digest != str(lease.get("initial_frame_sha256") or "")
+        or value.invocation_id != session.invocation_id
+    ):
+        raise _pnsctl().OperatorError(
+            "World navigation initial observation hash or invocation binding is invalid"
+        )
+    return value.to_mapping()
+
+
+def _write_read_only_causal_trace(
+    session: Path,
+    *,
+    route: Mapping[str, Any],
+    initial_observation: Mapping[str, Any],
+) -> dict[str, Any]:
+    events = _read_events(session / "events.jsonl")
+    transport_count = sum(
+        1
+        for event in events
+        if event.get("type") == "dispatch" and event.get("execute") is not False
+    )
+    diagnostic = _is_diagnostic_route(route)
+    trace = {
+        "schema_version": 1,
+        "trace_count": 1,
+        "read_only": True,
+        "input_authority": False,
+        "stages": [
+            "observation",
+            "intent",
+            "transport",
+            "settled_successor",
+            "semantic_result",
+            "terminal_result",
+        ],
+        "proof_topology": "diagnostic" if diagnostic else "continuous",
+        "flow_id": FLOW_ID,
+        "invocation_id": str(initial_observation.get("invocation_id") or ""),
+        "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
+        "transport_count": transport_count,
+        "event_count": len(events),
+        "status": str(route.get("status") or "unknown"),
+        "effect_classes": [],
+    }
+    if diagnostic:
+        trace["acceptance_eligible"] = False
+    _write_json(session / "causal-trace.json", trace)
+    return trace
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -109,9 +198,12 @@ def _run_result(
     lease: Mapping[str, Any],
     operator_returncode: int,
     recovery_only: bool = False,
+    initial_observation: Mapping[str, Any] | None = None,
+    causal_trace: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     frames = _native_frames(session)
     status = str(route.get("status") or BLOCKED_FAIL_CLOSED)
+    diagnostic = _is_diagnostic_route(route)
     delivery_status = "completed" if status == NAVIGATION_ONLY_COMPLETE else "blocked"
     path = str(
         route.get("path")
@@ -168,7 +260,16 @@ def _run_result(
         "ap_inputs": 0,
         "currency_inputs": 0,
         "forbidden_input_classes": [],
+        "proof_topology": "diagnostic" if diagnostic else "continuous",
+        "initial_observation": dict(initial_observation or {}),
+        "initial_frame_sha256": str(
+            (initial_observation or {}).get("frame_sha256") or ""
+        ),
+        "causal_trace_count": 1 if causal_trace is not None else 0,
+        "causal_trace": dict(causal_trace or {}),
     }
+    if diagnostic:
+        delivery["acceptance_eligible"] = False
     _write_json(session / "flow-delivery-result.json", delivery)
     return delivery
 
@@ -193,6 +294,7 @@ def run_world_map_navigation_foundation(
     root = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"run-{_stamp()}"
     root.mkdir(parents=True, exist_ok=False)
     if not live:
+        diagnostic = search_entry_only
         result = {
             "status": "dry_run",
             "flow_id": FLOW_ID,
@@ -220,13 +322,19 @@ def run_world_map_navigation_foundation(
                 if recovery_only
                 else FULL_ROUTE_PATH
             ),
+            "proof_topology": "diagnostic" if diagnostic else "composite",
+            "causal_trace_count": 0,
             "session_directory": str(root),
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
         }
+        if diagnostic:
+            result["acceptance_eligible"] = False
         _write_json(root / "dry-run-result.json", result)
         return json.dumps(result, sort_keys=True)
 
+    outer_session = _outer_session(lease)
+    initial_observation = _initial_observation(lease, outer_session)
     try:
         runtime = LocalBlueStacksRuntime.connect(
             adb=str(pnsctl.BLUESTACKS_ADB),
@@ -250,12 +358,70 @@ def run_world_map_navigation_foundation(
             )
         )
         session = runtime.session
+        source_path = Path(str(outer_session.session_directory)) / "source.png"
+        if source_path.is_file():
+            retained_initial = session / "frames" / "0000-initial-observation.png"
+            retained_initial.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source_path, retained_initial)
+            initial_observation["frame_path"] = "frames/0000-initial-observation.png"
+        retained_events = _read_events(session / "events.jsonl")
+        retained_keys: set[str] = set()
+        retained_count = 0
+        for event in retained_events:
+            if event.get("type") != "dispatch" or event.get("execute") is False:
+                continue
+            identity = str(
+                event.get("action_key")
+                or f"{event.get('source_sha256', '')}:{event.get('target_identity', '')}:{retained_count}"
+            )
+            if identity in retained_keys:
+                raise pnsctl.OperatorError("World navigation retained transport is duplicated")
+            retained_keys.add(identity)
+            retained_count += 1
+        if int(route.get("input_count") or 0) != retained_count:
+            raise pnsctl.OperatorError(
+                "World navigation route count does not match retained transports"
+            )
+        if hasattr(outer_session, "adopt_retained_transport_count"):
+            outer_session.adopt_retained_transport_count(
+                retained_count,
+                source="runtime_session/events.jsonl",
+            )
+        elif int(getattr(outer_session, "input_count", 0)) != retained_count:
+            raise pnsctl.OperatorError(
+                "World navigation input count does not match retained transports"
+            )
+        causal_trace = _write_read_only_causal_trace(
+            session,
+            route=route,
+            initial_observation=initial_observation,
+        )
+        if hasattr(outer_session, "set_causal_trace"):
+            outer_session.set_causal_trace(causal_trace)
+            outer_session.remember_control("world_route_status", route.get("status"))
+            route_events = route.get("route_events")
+            if isinstance(route_events, list):
+                outer_session.remember_control(
+                    "target_history",
+                    [
+                        str(event.get("target_identity") or "")
+                        for event in route_events
+                        if isinstance(event, Mapping)
+                        and event.get("target_identity")
+                    ],
+                )
+            outer_session.remember_control(
+                "recovery_result",
+                route.get("reason") if route.get("status") != NAVIGATION_ONLY_COMPLETE else "terminal_home_verified",
+            )
         delivery = _run_result(
             route,
             session=session,
             lease=lease,
             operator_returncode=0,
             recovery_only=recovery_only,
+            initial_observation=initial_observation,
+            causal_trace=causal_trace,
         )
     except Exception:
         # Do not invent a successful route result after a transport or capture
@@ -272,7 +438,14 @@ def run_world_map_navigation_foundation(
         "reason": route.get("reason"),
         "path": route.get("path"),
         "terminal_runtime_state": delivery["terminal_runtime_state"],
+        "proof_topology": delivery.get("proof_topology"),
+        "initial_observation": delivery.get("initial_observation"),
+        "initial_frame_sha256": delivery.get("initial_frame_sha256"),
+        "causal_trace_count": delivery.get("causal_trace_count"),
+        "causal_trace": delivery.get("causal_trace"),
     }
+    if "acceptance_eligible" in delivery:
+        result["acceptance_eligible"] = delivery["acceptance_eligible"]
     return json.dumps(result, sort_keys=True)
 
 
@@ -851,14 +1024,77 @@ def verify_world_map_navigation_foundation(
     _verify_popup_successors(events, result["world_navigation_result"], hashes)
     _verify_route_semantics(result, events)
     route = result["world_navigation_result"]
+    diagnostic = _is_diagnostic_route(route)
+    expected_topology = "diagnostic" if diagnostic else "continuous"
+    route_topology = route.get("proof_topology")
+    if route_topology is not None and route_topology != expected_topology:
+        raise _pnsctl().OperatorError(
+            "World navigation route proof topology does not match route path"
+        )
+    if result.get("proof_topology") != expected_topology:
+        raise _pnsctl().OperatorError(
+            "World navigation proof topology does not match route path"
+        )
+    trace = result.get("causal_trace")
+    if not isinstance(trace, Mapping) or trace.get("proof_topology") != expected_topology:
+        raise _pnsctl().OperatorError(
+            "World navigation causal trace topology does not match route path"
+        )
+    metadata_layers = (
+        ("route", route),
+        ("result", result),
+        ("causal trace", trace),
+    )
+    if diagnostic:
+        if result.get("acceptance_eligible") is not False:
+            raise _pnsctl().OperatorError(
+                "World navigation acceptance eligibility is invalid"
+            )
+        if trace.get("acceptance_eligible") is not False:
+            raise _pnsctl().OperatorError(
+                "World navigation causal trace acceptance eligibility is invalid"
+            )
+        if any(
+            "acceptance_eligible" in layer
+            and layer.get("acceptance_eligible") is not False
+            for _label, layer in metadata_layers
+        ):
+            raise _pnsctl().OperatorError(
+                "World navigation diagnostic acceptance metadata is inconsistent"
+            )
+    elif any(
+        "acceptance_eligible" in layer
+        and layer.get("acceptance_eligible") is not True
+        for _label, layer in metadata_layers
+    ):
+        raise _pnsctl().OperatorError(
+            "World navigation continuous acceptance metadata is contradictory"
+        )
     if route.get("status") != NAVIGATION_ONLY_COMPLETE:
-        return {
+        blocked_verdict = {
             "status": "evidence_required",
             "flow_id": FLOW_ID,
             "reason": str(route.get("reason") or "blocked_fail_closed"),
             "session_directory": str(session),
             "navigation_input_count": route.get("navigation_input_count", 0),
             "safe_popup_input_count": route.get("safe_popup_input_count", 0),
+        }
+        if diagnostic:
+            blocked_verdict["acceptance_eligible"] = False
+        return blocked_verdict
+    if diagnostic:
+        return {
+        "status": "diagnostic_verified",
+            "acceptance_eligible": False,
+            "flow_id": FLOW_ID,
+            "terminal": NAVIGATION_ONLY_COMPLETE,
+            "session_directory": str(session),
+            "navigation_input_count": route["navigation_input_count"],
+            "safe_popup_input_count": route["safe_popup_input_count"],
+            "terminal_runtime_state": result["terminal_runtime_state"],
+            "proof_topology": "diagnostic",
+            "production_registration": "NOT_REGISTERED",
+            "scheduler_enabled": False,
         }
     return {
         "status": "verified",
@@ -911,4 +1147,3 @@ def register(
 run_world_map_navigation_bluestacks = run_world_map_navigation_foundation
 verify_world_map_navigation_bluestacks = verify_world_map_navigation_foundation
 recover_world_map_navigation_bluestacks = recover_world_map_navigation_foundation
-
