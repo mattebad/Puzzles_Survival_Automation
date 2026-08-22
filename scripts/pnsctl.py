@@ -3523,6 +3523,7 @@ def development_session_run_flow(
                             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
                             "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
                             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+                            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
                         }
                         else "composite",
                     )
@@ -5398,7 +5399,11 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
             "manual_required",
             *(
                 {"effect_reconciliation_required"}
-                if result.get("flow_id") == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+                if result.get("flow_id")
+                in {
+                    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+                    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+                }
                 else set()
             ),
         }:
@@ -6597,6 +6602,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
             "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
         }
         and requested is not None
         and maximum == 1
@@ -6682,6 +6688,7 @@ def _conductor_live_summary(
                 "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
                 "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
                 "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+                "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
             }:
                 if retained.get("proof_topology") != "continuous":
                     summary.update(
@@ -6876,6 +6883,7 @@ def conduct_flow(
         "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
         "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
         "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+        "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
     }
     observe_output: str | None = None
     if not continuous_session_flow:

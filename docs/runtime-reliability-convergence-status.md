@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, and Bioenhancer product authority accepted offline | The first four migration packets are closed; Bioenhancer typed authority is accepted and its separate session lane is next. Registration/scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, and Bioenhancer product/session lanes accepted offline | Bioenhancer now has accepted typed authority and a separate one-session adapter. Daily Milestone Claim dependency selection is next. Registration/scheduling remain disabled. |
 
 ## Frozen product rule
 
@@ -751,3 +751,40 @@ change, registration, scheduling, or authority broadening occurred. Registration
 is `NOT_REGISTERED`, scheduler eligibility is disabled, and runtime ownership is
 absent. Next is only the separate parent-owned Bioenhancer continuous-session
 adapter migration offline.
+
+## Stage 7 Bioenhancer continuous-session migration
+
+The separate parent-owned Medium lane accepted Bioenhancer's existing route
+controller without changing product semantics. `pnsctl conduct` now invokes it
+inside one active flow-owned `DevelopmentSession` and performs no separate
+pre-run observation. Before runtime connection, the adapter requires exact
+object identity with the session-bound typed, frame-hash-bound, invocation-bound
+initial observation.
+
+The route retains inspect/current-frame binding, one zero-cost Free Research 1x,
+paid/10x/unknown/stale denial, cooldown-only semantic successor, and canonical
+Home. Native `events.jsonl` is recounted for exact total transports and the one
+research ceiling. Exactly one retained causal trace is read-only and explicitly
+non-authoritative. A dispatch without both positive cooldown proof and terminal
+Home becomes `effect_reconciliation_required`, records identical-retry denial,
+and cannot reach conductor `DONE`. Completed conduct is also gated by the
+checked-in route verifier and truthful `continuous` topology.
+
+Validation passed 9 adapter tests, 32 conductor tests, 16 DevelopmentSession
+tests, 11 Bioenhancer safety/controller tests, and 57 authority/contract/catalog
+tests. Focused profile passed 9, receipt
+`7d247c8e4f36bafeccaa3d53b5bc7218ff3f073731889f652c7d3b5013291513`;
+architecture passed 92, receipt
+`7c934a3fff7f2f4a2a242eb50d8c4c4765d6292c1da6628cad31355541da6d8f`.
+The only failure was a `local_defect`: the first draft declared the trace through
+the generic artifact vocabulary. It was corrected route-locally by retaining
+and comparing `causal-trace.json` in the Bioenhancer verifier; no shared
+architecture changed.
+
+Parent integration accepted the offline lane. No emulator, ADB, BlueStacks
+observation, runtime input, Free Research, evidence relabeling, registration,
+scheduling, or authority broadening occurred. Historical Bliss proof remains
+non-accepting; a current uninterrupted BlueStacks session remains
+`evidence_required`. Registration is `NOT_REGISTERED`, scheduler eligibility is
+disabled, and ownership is absent. The next serial Stage 7 action is only the
+Daily Milestone Claim product-record/gameplay-contract dependency audit.

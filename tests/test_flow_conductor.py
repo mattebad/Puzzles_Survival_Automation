@@ -662,6 +662,99 @@ class FlowConductorTests(unittest.TestCase):
             self.assertIsNone(result["observe"])
             self.assertEqual(result["decision"], ConductorDecision.DONE.value)
 
+    def test_bioenhancer_conduct_uses_one_session_and_checked_route_gate(self) -> None:
+        flow_id = "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+        retained = {
+            "schema_version": 1,
+            "flow_id": flow_id,
+            "status": "completed",
+            "proof_topology": "continuous",
+            "causal_trace_count": 1,
+            "terminal_home_verified": True,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                patch(
+                    "tasks.gameplay_flow_contracts.load_flow_contract",
+                    return_value={
+                        "flow_id": flow_id,
+                        "consequential_action_class": "ordinary_zero_cost_research",
+                    },
+                ),
+                patch.object(pnsctl, "development_session_observe") as observe,
+                patch.object(
+                    pnsctl,
+                    "development_session_run_flow",
+                    return_value=json.dumps(
+                        {
+                            "status": "completed",
+                            "runtime_session_directory": "retained",
+                        }
+                    ),
+                ) as run_flow,
+                patch.object(
+                    pnsctl,
+                    "_retained_flow_result",
+                    return_value=(Path("retained"), retained),
+                ),
+                patch.object(
+                    pnsctl,
+                    "bluestacks_verify_flow",
+                    return_value=json.dumps({"status": "verified", "flow_id": flow_id}),
+                ) as verify,
+            ):
+                result = json.loads(
+                    pnsctl.conduct_flow(
+                        flow_id,
+                        live=True,
+                        yes=True,
+                        state_root=root,
+                    )
+                )
+            observe.assert_not_called()
+            run_flow.assert_called_once()
+            verify.assert_called_once_with(Path("retained"))
+            self.assertIsNone(result["observe"])
+            self.assertEqual(result["decision"], ConductorDecision.DONE.value)
+
+        for mutation in (
+            {"proof_topology": "composite"},
+            {"causal_trace_count": 0},
+        ):
+            with self.subTest(mutation=mutation), patch.object(
+                pnsctl,
+                "_retained_flow_result",
+                return_value=(Path("retained"), {**retained, **mutation}),
+            ), patch.object(pnsctl, "bluestacks_verify_flow") as verify:
+                summary, verification = pnsctl._conductor_live_summary(
+                    flow_id,
+                    {"status": "completed", "runtime_session_directory": "retained"},
+                )
+            self.assertEqual(summary["status"], "evidence_required")
+            self.assertIsNone(verification)
+            verify.assert_not_called()
+
+        with patch.object(
+            pnsctl,
+            "_retained_flow_result",
+            return_value=(
+                Path("retained"),
+                {
+                    **retained,
+                    "status": "effect_reconciliation_required",
+                    "effect_reconciliation_required": True,
+                },
+            ),
+        ), patch.object(pnsctl, "bluestacks_verify_flow") as verify:
+            summary, verification = pnsctl._conductor_live_summary(
+                flow_id,
+                {"status": "effect_reconciliation_required", "runtime_session_directory": "retained"},
+            )
+        self.assertEqual(summary["status"], "effect_reconciliation_required")
+        self.assertIsNone(verification)
+        verify.assert_not_called()
+
     def test_ultimate_terminal_conduct_uses_one_session_and_preserves_composite_proof(
         self,
     ) -> None:

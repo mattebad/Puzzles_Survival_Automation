@@ -8,33 +8,33 @@
   "attributable_dirty_paths": [".cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md"],
   "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "bioenhancer-product-record-migration",
+  "current_task_id": "bioenhancer-continuous-session-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "bioenhancer-continuous-session-migration",
-  "next_task_activation_status": "awaiting_explicit_selection",
+  "next_task_id": "daily-milestone-claim-dependency-audit",
+  "next_task_activation_status": "authorized_by_user_for_serial_stage_7_continuation",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "bioenhancer_product_record_accepted_offline",
+  "active_delivery_stage": "bioenhancer_continuous_session_accepted_offline",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "57 Bioenhancer authority/contract/catalog tests and 6 adapter tests passed; focused profile passed 6 tests with receipt 760f7d1174e66a78c6a8f89f6c98721f9e71482cc45a50c1f891040a2b6762fc.",
-  "latest_architecture_validation_result": "Bioenhancer architecture profile passed 92 tests with receipt ef5d6befbea493a0edd560e91e77803e2d23775de8d2151bf77389ecbf84d038.",
+  "latest_focused_validation_result": "9 Bioenhancer adapter tests, 32 conductor tests, 16 DevelopmentSession tests, 11 Bioenhancer safety tests, and 57 authority/contract/catalog tests passed; focused profile passed 9 with receipt 7d247c8e4f36bafeccaa3d53b5bc7218ff3f073731889f652c7d3b5013291513.",
+  "latest_architecture_validation_result": "Bioenhancer architecture profile passed 92 tests with receipt 7c934a3fff7f2f4a2a242eb50d8c4c4765d6292c1da6628cad31355541da6d8f.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Bioenhancer product-record migration used zero runtime input and zero research actions",
+  "current_live_attempt_state": "not authorized and not attempted; Bioenhancer session migration used zero runtime input and zero research actions",
   "current_evidence_or_session_reference": "checked-in Daily execution-matrix Bioenhancer row retains July Bliss-platform research/reconciliation provenance as non-accepting for current BlueStacks proof",
-  "last_safe_completed_step": "Accepted typed Bioenhancer authority after bounded Luna implementation, clean Terra review, and focused/architecture validation.",
-  "exact_next_permitted_action": "Execute only the parent-owned Bioenhancer continuous-session adapter migration offline; do not perform a research action.",
+  "last_safe_completed_step": "Accepted the parent-owned Bioenhancer one-session adapter after exact, safety, conductor, session, focused, and architecture validation.",
+  "exact_next_permitted_action": "Audit only Daily Milestone Claim product authority and its revision-bound gameplay contract, then select one atomic dependency lane offline.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not consume Free Research to relabel historical proof, route through selected Daily for attribution, combine another flow, or begin Stage 8, scheduler, registration, live runtime work, or push.",
+  "prohibited_repeated_action": "Do not consume Free Research to relabel historical proof, perform a Milestone Claim, combine product and session lanes, or begin Stage 8, scheduler, registration, live runtime work, or push.",
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "stage_revision": "bioenhancer-product-record-migration-r1",
-  "stage_type": "heavy_product_authority_shared_binding_extension",
-  "product_precondition": "Bioenhancer lacked a typed record and had only a schema-1 unbound gameplay contract; r6 record bioenhancer_research-v1 is now proven",
-  "failure_class": "core_contract dependency resolved; no implementation or review finding",
-  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 2, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "stage_revision": "bioenhancer-continuous-session-migration-r1",
+  "stage_type": "parent_owned_medium_offline_integration",
+  "product_precondition": "Commit dff36cf accepted r6 record bioenhancer_research-v1 and its exact schema-2 gameplay contract",
+  "failure_class": "one local_defect in generic causal-trace artifact declaration was repaired route-locally; no product, core-contract, process-state, or diminishing-returns failure",
+  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 0, "live_attempts_used": 0, "runtime_inputs_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
   "evidence": {"evidence_requirement": "Historical Bliss Bioenhancer proof remains non-accepting; current BlueStacks uninterrupted one-session proof remains evidence_required", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
@@ -43,7 +43,7 @@
 
 # Current handoff
 
-## Stage 7 Bioenhancer product-record migration
+## Stage 7 Bioenhancer product and continuous-session migrations
 
 Heavy revision `bioenhancer-product-record-migration-r1`, manifest SHA-256
 `b3cce031eb1b0d6426a69990f1d27525aa02b229993ca1a5d0d242889af7a57f`,
@@ -59,8 +59,29 @@ non-accepting; current BlueStacks proof is `evidence_required`.
 Luna passed 57 affected and 6 adapter tests; Terra found no must-fix defect.
 Focused 6 receipt `760f7d1174e66a78c6a8f89f6c98721f9e71482cc45a50c1f891040a2b6762fc`;
 architecture 92 receipt `ef5d6befbea493a0edd560e91e77803e2d23775de8d2151bf77389ecbf84d038`.
-Zero live input/research; registration disabled and ownership absent. Next is
-only the separate offline Bioenhancer continuous-session adapter lane.
+Commit `dff36cf` closed the product-only predecessor. The separate Medium lane
+now requires one exact active flow-owned session and the identical typed,
+hash/invocation-bound initial observation before runtime connection. `conduct`
+does not pre-observe. The unchanged controller retains current-frame binding,
+paid/10x denial, one Free Research ceiling, cooldown successor, and Home.
+
+The adapter recounts every native transport and the one Free Research dispatch,
+writes exactly one read-only/non-authoritative causal trace, and labels proof
+`continuous` only for one uninterrupted session. A dispatch without verified
+cooldown plus terminal Home is `effect_reconciliation_required`, denies an
+identical retry, and vetoes conductor `DONE`; the checked-in verifier is the
+final gate.
+
+Validation passed 9 adapter, 32 conductor, 16 session, 11 Bioenhancer safety,
+and 57 authority/contract/catalog tests. Focused 9 receipt
+`7d247c8e4f36bafeccaa3d53b5bc7218ff3f073731889f652c7d3b5013291513`;
+architecture 92 receipt
+`7c934a3fff7f2f4a2a242eb50d8c4c4765d6292c1da6628cad31355541da6d8f`.
+One route-local causal-trace artifact declaration `local_defect` was repaired.
+Zero live input/research; historical Bliss proof remains non-accepting and a
+current uninterrupted BlueStacks session stays `evidence_required`. Registration
+and scheduling remain disabled, ownership absent. Next is only the Daily
+Milestone Claim dependency audit.
 
 ## Stage 7 Ultimate product and terminal-session migrations
 
@@ -101,117 +122,15 @@ authority, review, evidence, and receipt history is retained in durable status.
 
 ## Prior Stage 6 closure
 
-Runtime Reliability Stage 6 continuous DevelopmentSession/thin conduct is
-accepted for offline foundation scope in the commit containing this handoff.
-Its base predecessor is commit `e5b8d51`. The accepted frozen revision is
-`continuous-development-session-thin-conduct-r6`, recorded in
-`docs/runtime-reliability-stage-6-continuous-session-execution-manifest-r6.md`
-(SHA-256
-`68c94af7113a8c506e603384dfdf2149ed4cee8a3f1215d71bbf43e7e2692356`).
-
-Resource and World are the representative migrated pair. Live `conduct` no
-longer creates a separate observation session for them. One active parent-owned
-`DevelopmentSession` now binds the typed initial native observation, shared
-non-authoritative control memory, retained transports, exactly one read-only
-causal trace, proof topology, and the terminal summary. `conduct` remains a thin
-framing/admission, one-run invocation, route-verifier, convergence, and
-classification layer. Explicit live `--max-inputs 1` acceptance is rejected.
-
-The independent review found one `local_defect`: Resource and World adapters
-accepted fabricated session-like objects because missing active/bound fields
-defaulted permissively. The one consolidated repair now requires the real active
-flow-owned `DevelopmentSession` and the exact typed initial-observation object
-bound to it before any runtime connection. The independent recheck found the
-defect resolved with no new must-fix finding. Final r1 parent inspection then found
-a separate `core_contract` defect in `tasks/flow_conductor.py`: the new
-`effect_reconciliation_required` branch returns `CONTINUE` before the existing
-repeated-defect and diminishing-returns logic. A persistently unobservable
-effect could therefore loop through no-progress reconciliation instead of
-reaching `STEP_BACK` and eventual escalation. Explicit continuation authorized
-r2. The bounded correction makes reconciliation-required a hard `DONE` veto
-while feeding first, repeated, and post-step-back no-progress states through
-the existing `CONTINUE` → `STEP_BACK` → `ESCALATE` convergence path. Genuine
-milestone progress may continue without proving the effect. The independent r2
-review reported no findings. A later independent external review found two
-additional concrete acceptance defects, both reproduced by the parent:
-
-- the direct one-input World `SEARCH_ENTRY_ONLY_PATH` diagnostic is stamped
-  `proof_topology: continuous` and the checked-in verifier returns `verified`,
-  even though one-input diagnostics must remain non-accepting evidence;
-- external-blocker detection selects only the first status/blocker text, so an
-  outer `completed` reconciliation summary can hide nested `manual_required`
-  and return `CONTINUE` instead of `EXTERNAL_BLOCK`.
-
-R3 correctly makes search-entry results and traces diagnostic/non-accepting and
-adds all-layer external-blocker scanning. Parent validation passed. The final
-independent review nevertheless found two further concrete `core_contract`
-gaps, both confirmed by the parent:
-
-- within one summary layer, `status: completed` is inspected before
-  `terminal: manual_required`, so the manual-only terminal can still be hidden
-  and the conductor can return `DONE`;
-- a full/recovery World result and trace with continuous topology but explicit
-  `acceptance_eligible: false` can still return `verified`, rather than failing
-  closed on contradictory acceptance metadata.
-
-The user explicitly authorized same-chat continuation and r4. R4 fixed both r3
-findings: same-layer `status` and `terminal` are independently inspected, and
-continuous World evidence explicitly marked non-accepting now fails closed.
-The initial r4 review found one reason-fallback defect. The single authorized
-repair correctly returns the stable `manual_required` token when accompanying
-text is unrelated.
-
-The independent recheck then found a new must-fix regression: the repair added
-generic `operator` substring matching. Ordinary verifier reasons such as
-`OperatorError: ...`, or local instructions such as `repair the local operator
-error`, can therefore become `EXTERNAL_BLOCK` instead of following the existing
-local-defect/convergence path. The parent reproduced this result. Because r4's
-single repair and recheck are spent, no second r4 repair is authorized. The
-integration decision is `STEP_BACK` with failure class `diminishing_returns`.
-
-Under the user's standing same-chat authorization, r5 replaced generic
-free-text `operator`, `manual`, and `external` authority with boundary-safe
-exact external tokens and narrowly enumerated unambiguous phrases. Local
-`OperatorError` and `repair the local operator error` cases now follow normal
-convergence. The independent r5 review found one remaining authority defect:
-structured `status`/`terminal` matching still accepts external tokens as
-substrings. The parent reproduced `failed_manual_required_parse` returning
-`EXTERNAL_BLOCK / manual_required`. R5 has no repair loop, and repeated matcher
-findings are now `diminishing_returns`; integration remains withheld pending an
-explicit exact-token architecture continuation.
-
-Explicit continuation authorized r6. Structured `status` and `terminal` now
-normalize by strip/casefold and match external states only by exact membership;
-composed values such as `failed_manual_required_parse` remain on the ordinary
-convergence path. R5's boundary-safe free-text rules remain unchanged. The r6
-independent review reported no findings and independently confirmed exact-token
-positives and composed/namespaced negatives. The parent integration decision is
-`accepted for Stage 6 offline continuous-session/thin-conduct scope`.
-
-R6 validation passed 83 focused conductor/World tests, 77 combined
-session/navigation/conductor/lean tests with one existing skip, and 77
-Resource/World tests. Final checked-in profiles passed: Resource focused 66
-(`7b394deab9d5199f259d4baa67a840f9f3658ae1350ff7b261f59a4e1119c356`),
-World focused 100
-(`cd8e8e7576d737e96bd1293cd8a07bb590a8990f7e03cd0381e4ce6c448112ab`),
-shared navigation 20
-(`c281c7c0bf9027592b2860171312ed044fcbd9ce38e4dc980acb211af08111bc`),
-and committed-closure architecture 92
-(`984466b19079b581e0f3cc5a9356b618109d996fda945f4eba468be80055e7de`).
-
-`MONITOR-UNOBSERVED-EFFECT-RECONCILIATION` records the user-raised reliability
-concern: a real effect may occur while recognition misses its successor. The
-runtime preserves that case as reconciliation-required rather than success or
-failure, denies identical retry, and leaves improvement to each flow's future
-observe-only reconciliation. Daily Claim, Nova, Enhancement, and Ultimate have
-exact future Medium packets in
-`docs/runtime-reliability-stage-6-flow-migration-packets.md`.
-
-The current parent integration decision is `accepted offline`. The optional World
-navigation-only native shadow was not run. No emulator, ADB, BlueStacks,
-gameplay, or other runtime input occurred. Production registration remains
-`NOT_REGISTERED`, scheduler eligibility remains disabled, the closure is
-recorded by the commit containing this handoff, and no push occurred.
+Accepted offline revision `continuous-development-session-thin-conduct-r6` has
+manifest SHA-256
+`68c94af7113a8c506e603384dfdf2149ed4cee8a3f1215d71bbf43e7e2692356`.
+Resource and World prove the shared one-session contract, exact typed initial
+observation, transport accounting, one non-authoritative trace, thin checked
+conduct, exact external-blocker authority, and bounded reconciliation
+`CONTINUE → STEP_BACK → ESCALATE`. Detailed revision history and receipts remain
+in durable status. No Stage 6 live input occurred; registration and scheduling
+remain disabled.
 
 ## Prior Stage 3 closure
 
