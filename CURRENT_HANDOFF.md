@@ -8,40 +8,78 @@
   "attributable_dirty_paths": [".cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md"],
   "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "nova-praise-product-record-migration",
+  "current_task_id": "nova-praise-continuous-session-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "nova-praise-continuous-session-migration",
-  "next_task_activation_status": "awaiting_explicit_selection",
+  "next_task_id": "enhancement-family-product-record-dependency-audit",
+  "next_task_activation_status": "ready",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "nova_praise_product_record_committed_closure",
+  "active_delivery_stage": "nova_praise_continuous_session_accepted_offline",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "49 product-authority/contract/catalog tests passed; Nova focused profile passed 172 tests with receipt 1be74ca2d2d6d0988e7c0fde3b94d046296137fd2aab28a8e2dfc422061280f8.",
-  "latest_architecture_validation_result": "92 final integration architecture tests passed with receipt 7f200187f22ae894ad3be32108d3ff7ddac14acdd79ec87680cfa3059fd919e7.",
+  "latest_focused_validation_result": "47 Nova admission/adapter tests, 15 DevelopmentSession tests, and 28 conductor tests passed; Nova focused profile passed 172 tests with receipt 74cdb810d0859a8c4f060ba3fcc1bee48cb37117e34a79242dcab224cf20f63b.",
+  "latest_architecture_validation_result": "92 final integration architecture tests passed with receipt 33229ace42cf1ddc8ac2d988890f0a787f13e7aa9471cfa732b14286afd25265.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Nova product-record migration used zero runtime input",
-  "current_evidence_or_session_reference": "retained Nova pulse session nova-praise-one-free-pulse-20260722T223535494658Z as referenced by checked-in queue/contract provenance",
-  "last_safe_completed_step": "Recorded the accepted Nova Praise product-record migration in the clean closure commit containing this handoff.",
-  "exact_next_permitted_action": "Select the separate parent-owned Nova Praise continuous-session migration offline; live input remains separately unauthorized.",
+  "current_live_attempt_state": "not authorized and not attempted; Nova continuous-session migration used zero runtime input",
+  "current_evidence_or_session_reference": "checked-in Nova controller/session contract and existing focused fixtures; retained native session was not reopened or relabeled",
+  "last_safe_completed_step": "Accepted the Nova Praise parent-owned continuous-session migration after focused, shared-session, conductor, and architecture validation.",
+  "exact_next_permitted_action": "Audit the Enhancement family typed product record and revision-bound gameplay contract, then select exactly one atomic dependency lane; live input remains separately unauthorized.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not begin Enhancement, Ultimate, Stage 8, scheduler, registration, live runtime work, or push before the Nova continuous-session atomic lane is closed or blocked.",
+  "prohibited_repeated_action": "Do not combine Enhancement product-record and continuous-session migrations, begin Ultimate before Enhancement closes or blocks, or begin Stage 8, scheduler, registration, live runtime work, or push.",
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "stage_revision": "nova-praise-product-record-migration-r1",
-  "stage_type": "committed_offline_product_record",
-  "product_precondition": "typed Nova Praise record and revision-bound contract now proven",
-  "failure_class": "one repaired core_contract review finding and one test-command local_defect; no unresolved failure",
-  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 4, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "stage_revision": "nova-praise-continuous-session-migration-r1",
+  "stage_type": "parent_owned_medium_offline_integration",
+  "product_precondition": "Nova record nova_praise-v1 and its revision-bound gameplay contract were proven by committed predecessor 5451b2c",
+  "failure_class": "no product/core/local/diminishing failure; legacy validate_governance schema-2 rejection of the accepted schema-3 handoff is process_state",
+  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 0, "live_attempts_used": 0, "runtime_inputs_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Nova continuous-session topology remains the separate next atomic migration; retained one-Praise proof remains historical and non-authorizing", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
+  "evidence": {"evidence_requirement": "Native uninterrupted Nova continuous proof remains evidence_required; offline route verification and topology are accepted", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
 # Current handoff
+
+## Stage 7 Nova Praise continuous-session migration
+
+The parent-owned Medium lane binds the unchanged supervised one-free-Praise
+controller to one real active flow-owned `DevelopmentSession`; live conduct has
+no pre-run observation session. Before guard/controller execution, the adapter
+requires exact object identity for the typed session observation plus matching
+invocation and native-frame hash. The session retains Home Atlas navigation,
+one Praise, exact transports, attempts/cooldown successor, one read-only trace,
+and terminal Home. Dispatch without the full successor becomes
+`effect_reconciliation_required`, preserving the conductor `DONE` veto and
+identical-retry denial.
+
+The checked-in verifier rehashes the initial frame, recounts `events.jsonl`, and
+requires exactly one consequential Praise, `X -> X-1`, policy cooldown,
+confirmed journal, canonical Home, continuous topology, and one trace. Explicit
+one-input conduct acceptance is rejected. Existing blocker precedence and
+bounded `CONTINUE -> STEP_BACK -> ESCALATE` convergence are unchanged.
+
+Validation:
+
+- exact plus existing Nova adapter/admission suites: 47 passed;
+- `DevelopmentSession` suite: 15 passed;
+- conductor suite: 28 passed;
+- Nova focused profile: 172 passed, receipt
+  `74cdb810d0859a8c4f060ba3fcc1bee48cb37117e34a79242dcab224cf20f63b`;
+- architecture profile: 92 passed, receipt
+  `33229ace42cf1ddc8ac2d988890f0a787f13e7aa9471cfa732b14286afd25265`;
+- `git diff --check` passed.
+
+No task test failed or repair loop ran. The legacy governance validator rejected
+the accepted schema-3 handoff because it still requires schema 2; this is a
+pre-existing `process_state` tooling mismatch, not a Nova defect. No retained native evidence was reopened or
+relabeled; runtime input and live observation were zero. Native uninterrupted
+proof remains `evidence_required`. Registration is `NOT_REGISTERED`, scheduling
+is disabled, ownership is absent, and shared authority is unchanged. Offline
+integration is accepted. Next: audit Enhancement product/contract authority and
+select exactly one atomic dependency lane.
 
 ## Stage 7 Nova Praise product-record migration
 

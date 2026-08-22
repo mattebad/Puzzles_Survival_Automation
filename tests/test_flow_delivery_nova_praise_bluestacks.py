@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -10,14 +11,22 @@ import unittest
 from unittest.mock import patch
 
 import scripts.pnsctl as pnsctl
+import scripts.flow_delivery_nova_praise_bluestacks as delivery
+import scripts.navigation_development_boundary as boundary
+from scripts.navigation_development_boundary import (
+    DevelopmentInitialObservation,
+    DevelopmentSession,
+)
 from scripts.flow_delivery_nova_praise_bluestacks import (
     FLOW_ID,
     MAX_INPUTS,
     MAX_PRAISE,
     RUNNER_ID,
+    _write_delivery_result,
     _identity,
     _max_inputs,
     run_nova_praise_supervised_one_free_pulse,
+    verify_nova_praise_supervised_one_free_pulse,
 )
 
 
@@ -143,6 +152,265 @@ class NovaFlowDeliveryBindingTests(unittest.TestCase):
                             str(session),
                             reset_id="../escape",
                         )
+
+    def test_live_admission_requires_exact_active_session_observation(self) -> None:
+        fabricated = SimpleNamespace(
+            owner=f"pnsctl-development-session:{FLOW_ID}",
+            is_active=True,
+            run_action=lambda **_kwargs: None,
+        )
+        with patch.object(delivery, "_candidate_commit") as candidate:
+            for label, session in (("missing", None), ("fabricated", fabricated)):
+                lease = self._lease()
+                lease["development_session"] = session
+                with self.subTest(label=label), self.assertRaises(pnsctl.OperatorError):
+                    run_nova_praise_supervised_one_free_pulse({}, lease, live=True)
+            candidate.assert_not_called()
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with DevelopmentSession(
+                    owner=f"pnsctl-development-session:{FLOW_ID}",
+                    invocation_id="nova-bound",
+                    session_directory=root / "outer",
+                    max_inputs=MAX_INPUTS,
+                ) as session:
+                    digest = hashlib.sha256(b"initial").hexdigest()
+                    bound = DevelopmentInitialObservation(
+                        {"frame_sha256": digest},
+                        digest,
+                        invocation_id=session.invocation_id,
+                    )
+                    session.set_initial_observation(bound)
+                    lease = {
+                        **self._lease(),
+                        "owner": session.owner,
+                        "development_session": session,
+                        "initial_frame_sha256": digest,
+                        "initial_observation": DevelopmentInitialObservation(
+                            {"frame_sha256": digest},
+                            digest,
+                            invocation_id=session.invocation_id,
+                        ),
+                    }
+                    with patch.object(delivery, "_candidate_commit") as candidate:
+                        with self.assertRaises(pnsctl.OperatorError):
+                            run_nova_praise_supervised_one_free_pulse({}, lease, live=True)
+                        candidate.assert_not_called()
+
+    def _route_result(self, session: Path, **overrides) -> dict:
+        payload = {
+            "schema_version": 1,
+            "status": "completed",
+            "reason": "confirmed_praise_and_verified_safe_return_home",
+            "session_directory": str(session),
+            "navigation_input_count": 4,
+            "praise_transport_calls": 1,
+            "attempts_before": 6,
+            "attempts_after": 5,
+            "cooldown_seconds": 300,
+            "action_id": "nova-action",
+            "action_key": "nova-praise:key",
+            "journal_status": "confirmed",
+            "evidence_refs": ["frames/post.png"],
+            "terminal_home_verified": True,
+            "production_registration": "NOT_REGISTERED",
+            "scheduler_enabled": False,
+        }
+        payload.update(overrides)
+        return payload
+
+    def _write_events(self, session: Path) -> None:
+        rows = [
+            {"type": "dispatch", "execute": True, "action_key": f"navigation-{index}"}
+            for index in range(4)
+        ]
+        rows.append(
+            {
+                "type": "dispatch",
+                "execute": True,
+                "consequential": True,
+                "action_key": "nova-praise:key",
+            }
+        )
+        (session / "events.jsonl").write_text(
+            "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+        )
+
+    def test_live_route_binds_initial_observation_trace_and_exact_transports(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            child = root / "runtime"
+            (child / "frames").mkdir(parents=True)
+            (child / "frames" / "post.png").write_bytes(b"post")
+            self._write_events(child)
+            initial_bytes = b"typed-nova-initial"
+            digest = hashlib.sha256(initial_bytes).hexdigest()
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with DevelopmentSession(
+                    owner=f"pnsctl-development-session:{FLOW_ID}",
+                    invocation_id="nova-continuous",
+                    session_directory=root / "outer",
+                    max_inputs=MAX_INPUTS,
+                ) as session:
+                    (session.session_directory / "source.png").write_bytes(initial_bytes)
+                    initial = DevelopmentInitialObservation(
+                        {"frame_sha256": digest},
+                        digest,
+                        frame_path="source.png",
+                        invocation_id=session.invocation_id,
+                    )
+                    session.set_initial_observation(initial)
+                    lease = {
+                        **self._lease(),
+                        "owner": session.owner,
+                        "development_session": session,
+                        "initial_observation": initial,
+                        "initial_frame_sha256": digest,
+                    }
+                    route_result = self._route_result(child)
+                    with (
+                        patch.object(delivery, "_candidate_commit", return_value="a" * 40),
+                        patch.object(pnsctl, "_create_nova_supervised_invocation_guard"),
+                        patch.object(pnsctl, "_bind_nova_supervised_invocation_guard_session"),
+                        patch.object(pnsctl, "_finalize_nova_supervised_invocation_guard"),
+                        patch.object(pnsctl, "_persist_nova_session_result", return_value={}),
+                        patch(
+                            "scripts.nova_praise_bluestacks.run_nova_praise_one_free_pulse",
+                            return_value=json.dumps(route_result),
+                        ),
+                    ):
+                        result = json.loads(
+                            run_nova_praise_supervised_one_free_pulse({}, lease, live=True)
+                        )
+                    self.assertEqual(result["status"], "completed")
+                    self.assertEqual(result["proof_topology"], "continuous")
+                    self.assertIs(initial, session.initial_observation)
+                    self.assertEqual(result["initial_frame_sha256"], digest)
+                    self.assertEqual(result["causal_trace_count"], 1)
+                    self.assertTrue(result["causal_trace"]["read_only"])
+                    self.assertFalse(result["causal_trace"]["input_authority"])
+                    self.assertEqual(result["causal_trace"]["transport_count"], 5)
+                    self.assertEqual(result["praise_transport_calls"], 1)
+                    self.assertEqual(session.causal_trace, result["causal_trace"])
+
+    def test_dispatch_bearing_unknown_requires_reconciliation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            child = root / "runtime"
+            (child / "frames").mkdir(parents=True)
+            (child / "frames" / "post.png").write_bytes(b"post")
+            self._write_events(child)
+            initial_bytes = b"unknown-initial"
+            digest = hashlib.sha256(initial_bytes).hexdigest()
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with DevelopmentSession(
+                    owner=f"pnsctl-development-session:{FLOW_ID}",
+                    invocation_id="nova-unknown",
+                    session_directory=root / "outer",
+                    max_inputs=MAX_INPUTS,
+                ) as session:
+                    (session.session_directory / "source.png").write_bytes(initial_bytes)
+                    initial = DevelopmentInitialObservation(
+                        {"frame_sha256": digest}, digest, invocation_id=session.invocation_id
+                    )
+                    session.set_initial_observation(initial)
+                    lease = {
+                        **self._lease(),
+                        "owner": session.owner,
+                        "development_session": session,
+                        "initial_observation": initial,
+                        "initial_frame_sha256": digest,
+                    }
+                    route_result = self._route_result(
+                        child,
+                        status="unresolved",
+                        journal_status="pending_reconciliation",
+                        terminal_home_verified=False,
+                    )
+                    with (
+                        patch.object(delivery, "_candidate_commit", return_value="a" * 40),
+                        patch.object(pnsctl, "_create_nova_supervised_invocation_guard"),
+                        patch.object(pnsctl, "_bind_nova_supervised_invocation_guard_session"),
+                        patch.object(pnsctl, "_finalize_nova_supervised_invocation_guard"),
+                        patch.object(pnsctl, "_persist_nova_session_result", return_value={}),
+                        patch(
+                            "scripts.nova_praise_bluestacks.run_nova_praise_one_free_pulse",
+                            return_value=json.dumps(route_result),
+                        ),
+                    ):
+                        result = json.loads(
+                            run_nova_praise_supervised_one_free_pulse({}, lease, live=True)
+                        )
+                    self.assertEqual(result["status"], "effect_reconciliation_required")
+                    self.assertTrue(result["effect_reconciliation_required"])
+                    self.assertTrue(result["scenario_record"]["unresolved_action"])
+
+    def test_checked_in_verifier_recounts_transport_and_semantic_successor(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            session = Path(directory)
+            (session / "frames").mkdir()
+            initial_bytes = b"verified-initial"
+            (session / "frames" / "initial.png").write_bytes(initial_bytes)
+            (session / "frames" / "post.png").write_bytes(b"post")
+            digest = hashlib.sha256(initial_bytes).hexdigest()
+            self._write_events(session)
+            trace = {
+                "trace_count": 1,
+                "read_only": True,
+                "input_authority": False,
+                "proof_topology": "continuous",
+                "initial_frame_sha256": digest,
+                "transport_count": 5,
+                "praise_transport_calls": 1,
+            }
+            result = {
+                **self._route_result(session),
+                "input_count": 5,
+                "proof_topology": "continuous",
+                "initial_observation": {
+                    "frame_sha256": digest,
+                    "frame_path": "frames/initial.png",
+                    "invocation_id": "verified-invocation",
+                },
+                "initial_frame_sha256": digest,
+                "causal_trace_count": 1,
+                "causal_trace": trace,
+                "effect_reconciliation_required": False,
+            }
+            _write_delivery_result(
+                session,
+                result,
+                lease={"owner": "test-owner"},
+                maximum=MAX_INPUTS,
+                candidate_commit="a" * 40,
+            )
+            retained = json.loads(
+                (session / "flow-delivery-result.json").read_text(encoding="utf-8")
+            )
+            verdict = verify_nova_praise_supervised_one_free_pulse(
+                {"result": retained, "session_directory": str(session)}, {}, {}
+            )
+            self.assertEqual(verdict["status"], "verified")
+            self.assertTrue(verdict["transport_accounting_verified"])
+            self.assertTrue(verdict["semantic_successor_verified"])
+
+            forged = dict(retained)
+            forged["input_count"] = 4
+            verdict = verify_nova_praise_supervised_one_free_pulse(
+                {"result": forged, "session_directory": str(session)}, {}, {}
+            )
+            self.assertEqual(verdict["status"], "evidence_required")
+            self.assertFalse(verdict["transport_accounting_verified"])
+
+            missing_successor = dict(retained)
+            missing_successor["attempts_after"] = retained["attempts_before"]
+            verdict = verify_nova_praise_supervised_one_free_pulse(
+                {"result": missing_successor, "session_directory": str(session)}, {}, {}
+            )
+            self.assertEqual(verdict["status"], "evidence_required")
+            self.assertFalse(verdict["semantic_successor_verified"])
 
 
 if __name__ == "__main__":

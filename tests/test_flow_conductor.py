@@ -542,6 +542,66 @@ class FlowConductorTests(unittest.TestCase):
             self.assertIsNone(result["observe"])
             self.assertEqual(result["decision"], ConductorDecision.DONE.value)
 
+    def test_nova_conduct_uses_one_run_session_without_pre_observe(self) -> None:
+        flow_id = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
+        retained = {
+            "schema_version": 1,
+            "flow_id": flow_id,
+            "status": "completed",
+            "proof_topology": "continuous",
+            "causal_trace_count": 1,
+            "terminal_home_verified": True,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                patch(
+                    "tasks.gameplay_flow_contracts.load_flow_contract",
+                    return_value={
+                        "flow_id": flow_id,
+                        "consequential_action_class": "ordinary_development",
+                    },
+                ),
+                patch.object(pnsctl, "development_session_observe") as observe,
+                patch.object(
+                    pnsctl,
+                    "development_session_run_flow",
+                    return_value=json.dumps(
+                        {
+                            "status": "completed",
+                            "runtime_session_directory": "retained",
+                        }
+                    ),
+                ) as run_flow,
+                patch.object(
+                    pnsctl,
+                    "_retained_flow_result",
+                    return_value=(Path("retained"), retained),
+                ),
+                patch.object(
+                    pnsctl,
+                    "bluestacks_verify_flow",
+                    return_value=json.dumps({"status": "verified", "flow_id": flow_id}),
+                ),
+            ):
+                result = json.loads(
+                    pnsctl.conduct_flow(
+                        flow_id,
+                        live=True,
+                        yes=True,
+                        state_root=root,
+                        runtime_scope="bluestacks-dev-primary",
+                        account_id="acct-1",
+                        server_id="server-1",
+                        reset_id="game-day-2026-08-18",
+                        identity_evidence=Path("identity.json"),
+                    )
+                )
+            observe.assert_not_called()
+            run_flow.assert_called_once()
+            self.assertIsNone(result["observe"])
+            self.assertEqual(result["decision"], ConductorDecision.DONE.value)
+
     def test_framing_is_derived_from_bound_handlers_and_policy(self) -> None:
         flow_id = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
         complete = pnsctl._derive_conductor_framing(flow_id)

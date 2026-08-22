@@ -3514,6 +3514,7 @@ def development_session_run_flow(
                             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
                             "WORLD-MAP-NAVIGATION-FOUNDATION",
                             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                            "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
                         }
                         else "composite",
                     )
@@ -6580,6 +6581,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
             "WORLD-MAP-NAVIGATION-FOUNDATION",
             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+            "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
         }
         and requested is not None
         and maximum == 1
@@ -6663,6 +6665,7 @@ def _conductor_live_summary(
                 "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
                 "WORLD-MAP-NAVIGATION-FOUNDATION",
                 "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
             }:
                 if retained.get("proof_topology") != "continuous":
                     summary.update(
@@ -6825,6 +6828,7 @@ def conduct_flow(
         "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
         "WORLD-MAP-NAVIGATION-FOUNDATION",
         "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+        "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
     }
     observe_output: str | None = None
     if not continuous_session_flow:

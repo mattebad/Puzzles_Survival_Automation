@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim lanes and Nova Praise product-record lane accepted offline in commits containing this status | Daily Claim has typed authority and a real-session adapter. Nova now has typed direct-action authority; its separate continuous-session migration is next. Registration and scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim and Nova Praise product/session lanes accepted offline in commits containing this status | Daily Claim and Nova both have typed authority and parent-owned continuous-session adapters. Enhancement dependency selection is next. Registration and scheduling remain disabled. |
 
 ## Frozen product rule
 
@@ -567,3 +567,39 @@ Registration remains `NOT_REGISTERED`, scheduler eligibility remains disabled,
 runtime ownership is absent, and no push occurred. The commit containing this
 status records the accepted product-record lane. Exact next action is the
 separate offline Nova Praise continuous-session migration.
+
+## Stage 7 Nova Praise continuous-session migration
+
+The parent-owned Medium migration preserved the existing Nova controller,
+one-Praise product policy, current-frame binding, and SafetyStore boundary while
+binding the route to one real active flow-owned `DevelopmentSession`. Nova live
+conduct no longer creates a separate pre-run observation session. The adapter
+requires exact object identity for the typed, hash- and invocation-bound initial
+observation before the invocation guard or controller may run.
+
+The continuous result carries exact retained transport accounting, exactly one
+consequential Praise, attempts `X -> X-1`, policy-consistent cooldown, one
+read-only/non-authoritative causal trace, and canonical Home. Its checked-in
+verifier independently rehashes the initial frame and recounts `events.jsonl`;
+transport alone never proves semantic success. Any Praise dispatch without the
+verified successor becomes `effect_reconciliation_required`, preserving the
+shared `DONE` veto, identical-retry denial, external-blocker precedence, and
+bounded convergence ladder.
+
+Validation passed 47 Nova adapter/admission tests, 15 DevelopmentSession tests,
+and 28 conductor tests. The focused Nova profile passed 172 tests with receipt
+`74cdb810d0859a8c4f060ba3fcc1bee48cb37117e34a79242dcab224cf20f63b`;
+the architecture profile passed 92 tests with receipt
+`33229ace42cf1ddc8ac2d988890f0a787f13e7aa9471cfa732b14286afd25265`.
+No task failure or repair loop occurred. The legacy governance validator still
+requires handoff schema 2 and rejects the accepted schema-3 handoff; this is
+classified `process_state` and did not alter current truth.
+
+Parent integration is accepted for offline Nova continuous-session scope. No
+emulator, ADB, BlueStacks observation, gameplay input, retained-evidence
+relabeling, registration, scheduler change, or runtime-authority expansion
+occurred. Native uninterrupted Nova proof remains `evidence_required`.
+Registration is `NOT_REGISTERED`, scheduler eligibility is disabled, and
+runtime ownership is absent. Exact next permitted action is the Enhancement
+product-record/gameplay-contract dependency audit, selecting only one atomic
+dependency lane before any adapter migration.
