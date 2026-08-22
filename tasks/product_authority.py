@@ -20,7 +20,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r5"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r6"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -46,6 +46,7 @@ RECORD_TYPES = frozenset(
         "aggregate_daily_claim",
         "nova_praise",
         "ultimate_challenge",
+        "bioenhancer_research",
     }
 )
 RECORD_IDS = frozenset(
@@ -56,6 +57,7 @@ RECORD_IDS = frozenset(
         "aggregate_daily_claim",
         "nova_praise",
         "ultimate_challenge",
+        "bioenhancer_research",
     }
 )
 PRODUCT_RECORD_IDS = RECORD_IDS
@@ -271,6 +273,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "aggregate_daily_claim": "DAILY",
         "nova_praise": "RESEARCH_LAB",
         "ultimate_challenge": "CAMPAIGN",
+        "bioenhancer_research": "RESEARCH_LAB",
     }[record_type]
     if target != expected_target:
         raise ProductAuthorityError(
@@ -293,6 +296,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "aggregate_daily_claim": "aggregate_daily_claim",
         "nova_praise": "nova_praise",
         "ultimate_challenge": "ultimate_challenge",
+        "bioenhancer_research": "bioenhancer_research",
     }[record_id]
     if record_type != expected_type:
         raise ProductAuthorityError("product record id/type discriminator mismatch")
@@ -728,6 +732,92 @@ def _validate_ultimate_challenge_record(record: Mapping[str, Any]) -> None:
             )
 
 
+def _validate_bioenhancer_research_record(record: Mapping[str, Any]) -> None:
+    """Validate one direct, zero-cost Bioenhancer Free Research pulse."""
+
+    if record["objective"] != "bioenhancer_research_one_free_pulse":
+        raise ProductAuthorityError(
+            "Bioenhancer record objective must be bioenhancer_research_one_free_pulse"
+        )
+    if record["action"] != "dispatch_one_free_bioenhancer_research":
+        raise ProductAuthorityError(
+            "Bioenhancer action must be dispatch_one_free_bioenhancer_research"
+        )
+    if record["recurrence"] != "cooldown_pulse":
+        raise ProductAuthorityError("Bioenhancer recurrence must be cooldown_pulse")
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != [
+        "HOME_READY",
+        "HOME_LOCALIZED",
+        "HOME_CANONICAL",
+    ] or route.get("route") != ["RESEARCH_LAB", "BIOENHANCER"]:
+        raise ProductAuthorityError(
+            "Bioenhancer entry route must bind Home to Research Lab and Bioenhancer"
+        )
+    target = record.get("target")
+    if not isinstance(target, Mapping) or (
+        target.get("kind") != "bioenhancer_research"
+        or target.get("eligibility") != "one_free_attempt_available"
+        or target.get("control") != "Free Research 1x"
+        or target.get("quantity") != 1
+    ):
+        raise ProductAuthorityError(
+            "Bioenhancer target must require one currently eligible free Research 1x"
+        )
+    quantity_cost = record.get("quantity_cost")
+    if not isinstance(quantity_cost, Mapping) or quantity_cost.get("quantity") != 1:
+        raise ProductAuthorityError("Bioenhancer quantity must be exactly one")
+    cost = quantity_cost.get("cost")
+    if not isinstance(cost, Mapping) or (
+        cost.get("kind") != "zero_cost_free_bioenhancer_research"
+        or cost.get("amount") != 0
+        or cost.get("unit") != "Free Research 1x"
+        or cost.get("free_only") is not True
+    ):
+        raise ProductAuthorityError("Bioenhancer must be free and zero-cost")
+    effect = record["semantic_effect"]
+    if (
+        effect.get("effect_ordinal") != 1
+        or effect.get("cooldown_successor_required") is not True
+        or effect.get("count_text_not_sufficient") is not True
+        or effect.get("dispatch_is_not_success_proof") is not True
+        or effect.get("success_requires") != "positive_free_cooldown_successor"
+        or effect.get("paid_fallback") is not False
+        or effect.get("ten_x_fallback") is not False
+        or effect.get("identical_retry") is not False
+    ):
+        raise ProductAuthorityError(
+            "Bioenhancer must type one free action, cooldown successor, dispatch separation, and retry/cost boundaries"
+        )
+    ownership = record["daily_ownership"]
+    if (
+        ownership.get("daily_owner") is not None
+        or ownership.get("point_credit_trigger") is not None
+        or ownership.get("selected_daily_prerequisite") is not False
+    ):
+        raise ProductAuthorityError("Bioenhancer must not own selected Daily")
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Bioenhancer terminal requirement must return to canonical Home"
+        )
+    forbidden = " ".join(str(item) for item in record.get("forbidden_actions", []))
+    forbidden_lower = forbidden.casefold()
+    for marker in (
+        "paid",
+        "10x",
+        "unknown",
+        "contradictory",
+        "stale",
+        "identical retry",
+        "real-money",
+    ):
+        if marker not in forbidden_lower:
+            raise ProductAuthorityError(f"Bioenhancer must forbid {marker} actions")
+
+
 def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
     """Validate one typed representative record without mutating it."""
 
@@ -742,8 +832,10 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_aggregate_daily_claim_record(record)
     elif record_type == "nova_praise":
         _validate_nova_praise_record(record)
-    else:
+    elif record_type == "ultimate_challenge":
         _validate_ultimate_challenge_record(record)
+    else:
+        _validate_bioenhancer_research_record(record)
     return dict(record)
 
 
@@ -801,8 +893,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 6:
-        raise ProductAuthorityError("product authority requires exactly six records")
+    if not isinstance(records, list) or len(records) != 7:
+        raise ProductAuthorityError("product authority requires exactly seven records")
     return records
 
 

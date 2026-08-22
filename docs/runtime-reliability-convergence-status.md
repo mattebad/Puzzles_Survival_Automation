@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, and Ultimate product/session lanes accepted offline | The first four migration packets are closed offline. The remaining portfolio dispositions continue serially with Bioenhancer dependency selection. Registration/scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, and Bioenhancer product authority accepted offline | The first four migration packets are closed; Bioenhancer typed authority is accepted and its separate session lane is next. Registration/scheduling remain disabled. |
 
 ## Frozen product rule
 
@@ -712,3 +712,42 @@ uninterrupted terminal proof remains `evidence_required`. Registration is
 `NOT_REGISTERED`, scheduler eligibility is disabled, and ownership is absent.
 The next serial Stage 7 action is the Bioenhancer product-record and gameplay-
 contract dependency audit; it must select only one atomic dependency lane.
+
+## Stage 7 Bioenhancer product-record migration
+
+The dependency gate found Bioenhancer absent from typed authority and its
+gameplay contract still schema 1 without a revision-bound record. The Heavy
+product-only branch was therefore selected and kept separate from its adapter
+migration. Frozen revision `bioenhancer-product-record-migration-r1` has manifest
+SHA-256 `b3cce031eb1b0d6426a69990f1d27525aa02b229993ca1a5d0d242889af7a57f`.
+
+Authority r6 digest
+`369d85615d30e1776b0fa719f11b8fbc85da7a0978342494f2d9deb37d9b951d`
+contains record `bioenhancer_research-v1`, digest
+`5f36370751b2ff5071c0f42fbe15a28a3c628b28aa1ecf588337f5d32cb61207`.
+It types the direct Home→Research Lab→Bioenhancer route, one currently eligible
+zero-cost Free Research 1x, no paid/10x/unknown/stale fallback, positive cooldown
+successor, dispatch-versus-success separation, identical-retry denial, and
+separate canonical Home. Daily/Claim ownership and point trigger remain null;
+the catalog references the record with no selected-Daily prerequisite.
+
+The Bioenhancer contract is now schema 2 and exact r6/record/BlueStacks bound.
+Historical July Bliss research and Daily reconciliation provenance remains
+immutable platform-scoped, non-accepting evidence; current uninterrupted
+BlueStacks proof stays `evidence_required`. The six previously bound contracts
+changed only their global authority revision/digest.
+
+Luna's bounded implementation passed 57 authority/contract/catalog tests and 6
+adapter tests. Terra's read-only review found no must-fix defect and verified the
+mechanical prior-contract rebind. Parent focused profile passed 6 tests, receipt
+`760f7d1174e66a78c6a8f89f6c98721f9e71482cc45a50c1f891040a2b6762fc`;
+architecture passed 92, receipt
+`ef5d6befbea493a0edd560e91e77803e2d23775de8d2151bf77389ecbf84d038`.
+No failure or repair loop occurred.
+
+Parent integration accepted the offline product-record lane. No emulator, ADB,
+BlueStacks observation, research action, evidence relabeling, adapter/runtime
+change, registration, scheduling, or authority broadening occurred. Registration
+is `NOT_REGISTERED`, scheduler eligibility is disabled, and runtime ownership is
+absent. Next is only the separate parent-owned Bioenhancer continuous-session
+adapter migration offline.

@@ -479,8 +479,8 @@
   "supervised_live_proof_state": "current",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r5",
-    "product_authority_digest": "be2b53e1792f6e9d799bc48987a431263dcf035ff5aa01cb87337b43f9d867f7",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r6",
+    "product_authority_digest": "369d85615d30e1776b0fa719f11b8fbc85da7a0978342494f2d9deb37d9b951d",
     "product_record_id": "nova_praise",
     "product_record_revision": "nova_praise-v1",
     "product_record_digest": "959fe8201ce0250dcab494dc65f930cf52c753b1ac5833d22bcb3a1abea2b2ae",

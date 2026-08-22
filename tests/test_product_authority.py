@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_six_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_seven_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -60,6 +60,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "aggregate_daily_claim",
                 "nova_praise",
                 "ultimate_challenge",
+                "bioenhancer_research",
             },
         )
         validate_product_authority(self.authority)
@@ -87,6 +88,7 @@ class ProductAuthorityTests(unittest.TestCase):
             "supply_depot",
             "nova_praise",
             "ultimate_challenge",
+            "bioenhancer_research",
         ):
             self.assertFalse(self.records[record_id]["daily_ownership"]["selected_daily_prerequisite"])
 
@@ -324,6 +326,79 @@ class ProductAuthorityTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
                 validate_product_authority(changed)
 
+    def test_bioenhancer_product_is_one_free_cooldown_pulse_and_not_daily_owned(self) -> None:
+        record = self.records["bioenhancer_research"]
+        self.assertEqual(record["record_type"], "bioenhancer_research")
+        self.assertEqual(record["recurrence"], "cooldown_pulse")
+        self.assertEqual(record["semantic_entry_route"]["target"], "RESEARCH_LAB")
+        self.assertEqual(
+            record["semantic_entry_route"]["route"],
+            ["RESEARCH_LAB", "BIOENHANCER"],
+        )
+        self.assertEqual(record["target"]["eligibility"], "one_free_attempt_available")
+        self.assertEqual(record["target"]["control"], "Free Research 1x")
+        self.assertEqual(record["quantity_cost"]["quantity"], 1)
+        self.assertEqual(record["quantity_cost"]["cost"]["amount"], 0)
+        self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["cooldown_successor_required"])
+        self.assertTrue(effect["count_text_not_sufficient"])
+        self.assertTrue(effect["dispatch_is_not_success_proof"])
+        self.assertFalse(effect["paid_fallback"])
+        self.assertFalse(effect["ten_x_fallback"])
+        self.assertFalse(effect["identical_retry"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertIsNone(record["daily_ownership"]["point_credit_trigger"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        self.assertEqual(record["terminal_requirement"]["home_authority"], "HOME_CANONICAL")
+
+    def test_bioenhancer_safety_fields_fail_closed_with_fresh_digests(self) -> None:
+        mutations = (
+            ("action", lambda record: record.__setitem__("action", "research_10x")),
+            (
+                "free_only",
+                lambda record: record["quantity_cost"]["cost"].__setitem__(
+                    "free_only", False
+                ),
+            ),
+            (
+                "cooldown_successor",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "cooldown_successor_required", False
+                ),
+            ),
+            (
+                "dispatch_separation",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "dispatch_is_not_success_proof", False
+                ),
+            ),
+            (
+                "retry_denial",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "identical_retry", True
+                ),
+            ),
+            (
+                "direct_ownership",
+                lambda record: record["daily_ownership"].__setitem__(
+                    "daily_owner", "bioenhancer_research"
+                ),
+            ),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(self.authority)
+            bio = next(
+                item
+                for item in changed["product_records"]
+                if item["record_id"] == "bioenhancer_research"
+            )
+            mutate(bio)
+            bio["record_digest"] = record_digest(bio)
+            changed["authority_digest"] = authority_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_authority(changed)
+
     def test_product_records_have_no_forbidden_authority_domains(self) -> None:
         forbidden = {
             "coordinate",
@@ -409,6 +484,24 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertIn("attempt 13", notes)
         self.assertIn("attempt 14", notes)
         self.assertIn("composite", notes)
+
+    def test_bioenhancer_contract_binds_direct_record_and_preserves_historical_boundary(self) -> None:
+        contract = self.contracts["BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"]
+        binding = contract["product_authority_binding"]
+        self.assertEqual(binding["product_record_id"], "bioenhancer_research")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_revision"], "bioenhancer_research-v1")
+        self.assertEqual(binding["home_authority"], "HOME_LOCALIZED")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["replay_fixture_proof_state"], "evidence_required")
+        evidence = " ".join(contract["evidence_requirements"]).casefold()
+        self.assertIn("historical bliss", evidence)
+        self.assertIn("current bluestacks", evidence)
+        self.assertIn("non-accepting", evidence)
 
     def test_stale_revision_or_digest_fails_closed(self) -> None:
         stale_revision = deepcopy(self.authority)

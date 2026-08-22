@@ -546,6 +546,8 @@
       "aliases": [
         "Bioenhancer research"
       ],
+      "product_record_id": "bioenhancer_research",
+      "selected_daily_prerequisite": false,
       "handler_family": "bioenhancer",
       "route_name": "daily_go_to_bioenhancer",
       "consequence_class": "zero_cost_consequential",

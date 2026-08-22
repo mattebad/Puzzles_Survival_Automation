@@ -8,40 +8,59 @@
   "attributable_dirty_paths": [".cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md"],
   "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "ultimate-terminal-continuous-session-migration",
+  "current_task_id": "bioenhancer-product-record-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "bioenhancer-product-record-dependency-audit",
+  "next_task_id": "bioenhancer-continuous-session-migration",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "ultimate_terminal_session_accepted_offline",
+  "active_delivery_stage": "bioenhancer_product_record_accepted_offline",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "106 Ultimate controller/adapter tests, 31 conductor tests, and 16 DevelopmentSession tests passed; final Ultimate focused profile passed 27 tests with receipt a3ef27b1b7644611cadefc291e58ad74bd6064f640d6e070b1496e8bcc935a92.",
-  "latest_architecture_validation_result": "Final Ultimate architecture profile passed 27 tests with receipt 7e7876f9adfd47a9f8ab37c547c71e1089f5ed3c874ad72c6887137458c2c01f.",
+  "latest_focused_validation_result": "57 Bioenhancer authority/contract/catalog tests and 6 adapter tests passed; focused profile passed 6 tests with receipt 760f7d1174e66a78c6a8f89f6c98721f9e71482cc45a50c1f891040a2b6762fc.",
+  "latest_architecture_validation_result": "Bioenhancer architecture profile passed 92 tests with receipt ef5d6befbea493a0edd560e91e77803e2d23775de8d2151bf77389ecbf84d038.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Ultimate terminal migration used zero runtime input and zero Flee",
-  "current_evidence_or_session_reference": "checked-in queue provenance: attempt 13 verified one zero-resource Flee; attempt 14 verified measured terminal Home recovery; topology remains composite",
-  "last_safe_completed_step": "Accepted the parent-owned Ultimate terminal-session adapter after focused, session, conductor, and architecture validation.",
-  "exact_next_permitted_action": "Audit Bioenhancer product authority and its revision-bound contract, then select only its missing product-record or continuous-session atomic lane offline.",
+  "current_live_attempt_state": "not authorized and not attempted; Bioenhancer product-record migration used zero runtime input and zero research actions",
+  "current_evidence_or_session_reference": "checked-in Daily execution-matrix Bioenhancer row retains July Bliss-platform research/reconciliation provenance as non-accepting for current BlueStacks proof",
+  "last_safe_completed_step": "Accepted typed Bioenhancer authority after bounded Luna implementation, clean Terra review, and focused/architecture validation.",
+  "exact_next_permitted_action": "Execute only the parent-owned Bioenhancer continuous-session adapter migration offline; do not perform a research action.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not repeat Flee, relabel attempts 13/14 continuous, combine Bioenhancer dependency lanes, or begin Stage 8, scheduler, registration, live runtime work, or push.",
+  "prohibited_repeated_action": "Do not consume Free Research to relabel historical proof, route through selected Daily for attribution, combine another flow, or begin Stage 8, scheduler, registration, live runtime work, or push.",
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "stage_revision": "ultimate-terminal-continuous-session-migration-r1",
-  "stage_type": "parent_owned_medium_offline_integration",
-  "product_precondition": "Ultimate record ultimate_challenge-v1 and its r5-bound schema-v2 gameplay contract were accepted in commit ac4e334",
-  "failure_class": "one local_defect in nested runtime transport evidence accounting was repaired; no product, core-contract, process-state, or diminishing-returns failure",
-  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 0, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "stage_revision": "bioenhancer-product-record-migration-r1",
+  "stage_type": "heavy_product_authority_shared_binding_extension",
+  "product_precondition": "Bioenhancer lacked a typed record and had only a schema-1 unbound gameplay contract; r6 record bioenhancer_research-v1 is now proven",
+  "failure_class": "core_contract dependency resolved; no implementation or review finding",
+  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 2, "live_attempts_used": 0, "runtime_inputs_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Ultimate attempts 13/14 remain immutable composite proof; a native uninterrupted terminal-session canary remains evidence_required", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
+  "evidence": {"evidence_requirement": "Historical Bliss Bioenhancer proof remains non-accepting; current BlueStacks uninterrupted one-session proof remains evidence_required", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
 # Current handoff
+
+## Stage 7 Bioenhancer product-record migration
+
+Heavy revision `bioenhancer-product-record-migration-r1`, manifest SHA-256
+`b3cce031eb1b0d6426a69990f1d27525aa02b229993ca1a5d0d242889af7a57f`,
+added typed record `bioenhancer_research-v1` digest
+`5f36370751b2ff5071c0f42fbe15a28a3c628b28aa1ecf588337f5d32cb61207`.
+Authority r6 digest is
+`369d85615d30e1776b0fa719f11b8fbc85da7a0978342494f2d9deb37d9b951d`.
+It preserves direct Home routing, one zero-cost Free Research 1x, cooldown
+successor, dispatch/success separation, retry denial, no paid/10x fallback,
+null Daily/Claim ownership, and canonical Home. Historical Bliss evidence stays
+non-accepting; current BlueStacks proof is `evidence_required`.
+
+Luna passed 57 affected and 6 adapter tests; Terra found no must-fix defect.
+Focused 6 receipt `760f7d1174e66a78c6a8f89f6c98721f9e71482cc45a50c1f891040a2b6762fc`;
+architecture 92 receipt `ef5d6befbea493a0edd560e91e77803e2d23775de8d2151bf77389ecbf84d038`.
+Zero live input/research; registration disabled and ownership absent. Next is
+only the separate offline Bioenhancer continuous-session adapter lane.
 
 ## Stage 7 Ultimate product and terminal-session migrations
 
@@ -61,21 +80,9 @@ or Flee; native uninterrupted terminal proof remains `evidence_required`.
 
 ## Stage 7 Enhancement continuous-session migration
 
-Current record `enhancement_family-v1` and its schema-v2 r4-bound contract passed
-38 precondition tests. The Medium adapter now admits only the real active session
-and exact typed initial observation before reservation/runtime mutation, with no
-pre-observe session. Only uninterrupted Gear/Chip/Module plus Home proof is
-`continuous`; retained proof stays non-accepting `composite`. The verifier
-rehashes/recounts native evidence and requires one read-only trace, ordered
-successors, rerecognition, and Home. Dispatch-bearing unknown remains durable
-reconciliation-required.
-
-Validation passed 83 affected tests, focused 59 receipt
-`a856aa24a82808082d9665be9ba816fe223540438dc1d5bafd889bfb9543944a`,
-and architecture 92 after one activation-token `local_defect`, receipt
-`72494ec31da50f5ee27c1a13d0fceb86a1fb576729b28f84c21585279d4be5e1`.
-Offline accepted; zero live input/consumption, registration disabled, ownership
-absent. Next is the Ultimate dependency audit; never repeat Flee.
+Prior commit `1db306e` accepted Enhancement's exact one-session family adapter.
+Focused 59 receipt `a856aa24...3944a`; architecture 92 receipt
+`72494ec31...be5e1`. Retained proof remains non-accepting `composite`.
 
 ## Stage 7 Nova Praise continuous-session migration
 

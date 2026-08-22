@@ -278,8 +278,8 @@
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r5",
-    "product_authority_digest": "be2b53e1792f6e9d799bc48987a431263dcf035ff5aa01cb87337b43f9d867f7",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r6",
+    "product_authority_digest": "369d85615d30e1776b0fa719f11b8fbc85da7a0978342494f2d9deb37d9b951d",
     "product_record_id": "use_resource_item",
     "product_record_revision": "use_resource_item-v1",
     "product_record_digest": "ce28b70ba87f73f0df72322f070ca8e9d06dcba970fab9d2697e36c9643b53e8",

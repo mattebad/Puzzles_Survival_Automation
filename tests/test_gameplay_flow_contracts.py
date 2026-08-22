@@ -68,6 +68,36 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertIn("composite", proof_notes)
         self.assertIn("continuous terminal-reconciliation", proof_notes)
 
+    def test_bioenhancer_contract_is_free_only_and_historical_evidence_non_accepting(self):
+        contract = load_flow_contract(
+            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+        )
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(
+            contract["product_authority_binding"]["product_record_id"],
+            "bioenhancer_research",
+        )
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
+        dispatch = next(
+            item
+            for item in contract["transition_contracts"]
+            if item["transition_id"] == "dispatch-free-research"
+        )
+        self.assertIn("cooldown successor", " ".join(dispatch["postconditions"]).casefold())
+        self.assertIn("count text alone", " ".join(dispatch["postconditions"]).casefold())
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["replay_fixture_proof_state"], "evidence_required")
+        scenario = contract["scenarios"][0]
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+        evidence = " ".join(contract["evidence_requirements"]).casefold()
+        self.assertIn("historical bliss", evidence)
+        self.assertIn("non-accepting", evidence)
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["registration_state"], "disabled")
+
     def test_nova_contract_separates_live_proof_from_production_eligibility(self):
         nova = load_flow_contract("NOVA-PRAISE-HOME-ATLAS-MIGRATION")
         self.assertEqual(nova["schema_version"], 2)
@@ -211,6 +241,7 @@ class GameplayFlowContractTests(unittest.TestCase):
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
             "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
         )
         for flow_id in representative_ids:
             contract = load_flow_contract(flow_id)
