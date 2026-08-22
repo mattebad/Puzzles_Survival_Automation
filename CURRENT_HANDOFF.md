@@ -8,61 +8,56 @@
   "attributable_dirty_paths": [".cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md"],
   "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "ultimate-terminal-product-record-migration",
+  "current_task_id": "ultimate-terminal-continuous-session-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "ultimate-terminal-continuous-session-migration",
+  "next_task_id": "bioenhancer-product-record-dependency-audit",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "ultimate_product_record_accepted_offline",
+  "active_delivery_stage": "ultimate_terminal_session_accepted_offline",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "52 Ultimate product-authority/contract/catalog tests passed; Ultimate focused profile passed 27 tests with receipt fbea02942579ea2130a7b147c81971c8c1935a560d2b5620fd3a68c8f906f7ad.",
-  "latest_architecture_validation_result": "Ultimate architecture profile passed 27 tests with receipt 5de5e55a48aec8c26d421e4b3455d433b0b5d20b5d41f011bf501c021d820273.",
+  "latest_focused_validation_result": "106 Ultimate controller/adapter tests, 31 conductor tests, and 16 DevelopmentSession tests passed; final Ultimate focused profile passed 27 tests with receipt a3ef27b1b7644611cadefc291e58ad74bd6064f640d6e070b1496e8bcc935a92.",
+  "latest_architecture_validation_result": "Final Ultimate architecture profile passed 27 tests with receipt 7e7876f9adfd47a9f8ab37c547c71e1089f5ed3c874ad72c6887137458c2c01f.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Ultimate product-record migration used zero runtime input and zero Flee",
+  "current_live_attempt_state": "not authorized and not attempted; Ultimate terminal migration used zero runtime input and zero Flee",
   "current_evidence_or_session_reference": "checked-in queue provenance: attempt 13 verified one zero-resource Flee; attempt 14 verified measured terminal Home recovery; topology remains composite",
-  "last_safe_completed_step": "Accepted typed Ultimate authority after bounded Luna implementation, clean Terra review, and focused/architecture validation.",
-  "exact_next_permitted_action": "Execute only the parent-owned Ultimate terminal continuous-session adapter migration offline; never repeat Flee and keep retained proof composite.",
+  "last_safe_completed_step": "Accepted the parent-owned Ultimate terminal-session adapter after focused, session, conductor, and architecture validation.",
+  "exact_next_permitted_action": "Audit Bioenhancer product authority and its revision-bound contract, then select only its missing product-record or continuous-session atomic lane offline.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not repeat Flee, relabel attempts 13/14 continuous, begin another flow before Ultimate terminal migration closes, or begin Stage 8, scheduler, registration, live runtime work, or push.",
+  "prohibited_repeated_action": "Do not repeat Flee, relabel attempts 13/14 continuous, combine Bioenhancer dependency lanes, or begin Stage 8, scheduler, registration, live runtime work, or push.",
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "stage_revision": "ultimate-terminal-product-record-migration-r1",
-  "stage_type": "heavy_product_authority_shared_binding_extension",
-  "product_precondition": "Ultimate lacked a typed record and contract binding; record ultimate_challenge-v1 and r5 binding are now proven",
-  "failure_class": "core_contract dependency resolved; one process_state implementer-freeze correction, no review finding",
-  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 2, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "stage_revision": "ultimate-terminal-continuous-session-migration-r1",
+  "stage_type": "parent_owned_medium_offline_integration",
+  "product_precondition": "Ultimate record ultimate_challenge-v1 and its r5-bound schema-v2 gameplay contract were accepted in commit ac4e334",
+  "failure_class": "one local_defect in nested runtime transport evidence accounting was repaired; no product, core-contract, process-state, or diminishing-returns failure",
+  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 0, "live_attempts_used": 0, "runtime_inputs_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Ultimate attempts 13/14 remain immutable composite proof; uninterrupted terminal reconciliation remains evidence_required", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
+  "evidence": {"evidence_requirement": "Ultimate attempts 13/14 remain immutable composite proof; a native uninterrupted terminal-session canary remains evidence_required", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
 # Current handoff
 
-## Stage 7 Ultimate product-record migration
+## Stage 7 Ultimate product and terminal-session migrations
 
-Heavy revision `ultimate-terminal-product-record-migration-r1`, manifest SHA-256
-`df413033fdad364daca2f83c0d14f78af20c8cab4ef87186349fcca635373327`,
-added record `ultimate_challenge-v1` digest
-`8ce40a2975bf07b34d41751a45a16281ab303ce2071370fd878e5e7c63a3b609`.
-Authority r5 digest is
-`be2b53e1792f6e9d799bc48987a431263dcf035ff5aa01cb87337b43f9d867f7`.
-It types direct/non-Daily/non-Campaign-AP ownership, once/reset one zero-cost
-Flee, dispatch-versus-success separation, repeat denial, and separate canonical
-Home terminal. Attempts 13/14 remain immutable composite proof; uninterrupted
-terminal reconciliation stays `evidence_required` and Flee must never repeat.
+Commit `ac4e334` accepted typed record `ultimate_challenge-v1` and r5 authority.
+The separate Medium terminal lane now runs only the existing post-Flee
+Ultimate→Campaign→measured-exit→Home seam inside one exact flow-owned session,
+with typed/hash/invocation-bound initial evidence and no pre-observe session.
+It recounts nested native transports, emits one read-only trace, requires zero
+new Flee, and gates `DONE` through the checked-in verifier. Attempts 13/14 stay
+truthful `composite`; only terminal reconciliation is `continuous`.
 
-Luna’s bounded implementation passed 52 affected tests. Terra reported no
-findings. Focused 27 receipt
-`fbea02942579ea2130a7b147c81971c8c1935a560d2b5620fd3a68c8f906f7ad`;
-architecture 27 receipt
-`5de5e55a48aec8c26d421e4b3455d433b0b5d20b5d41f011bf501c021d820273`.
-Zero live input/Flee; registration disabled and ownership absent. Next is only
-the offline Ultimate terminal continuous-session adapter lane.
+Validation passed 106 Ultimate, 31 conductor, and 16 session tests. Final
+focused 27 receipt `a3ef27b1b7644611cadefc291e58ad74bd6064f640d6e070b1496e8bcc935a92`;
+architecture 27 receipt `7e7876f9adfd47a9f8ab37c547c71e1089f5ed3c874ad72c6887137458c2c01f`.
+One nested-transport accounting `local_defect` was repaired. Zero runtime input
+or Flee; native uninterrupted terminal proof remains `evidence_required`.
 
 ## Stage 7 Enhancement continuous-session migration
 

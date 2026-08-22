@@ -17,9 +17,15 @@ import cv2
 import numpy as np
 
 from scripts import bluestacks_ultimate_challenge as ultimate
+from scripts import pnsctl
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts import flow_delivery_ultimate_challenge_bluestacks as delivery
 from scripts.flow_delivery_evidence import require_operator_evidence
+from scripts import navigation_development_boundary as boundary
+from scripts.navigation_development_boundary import (
+    DevelopmentInitialObservation,
+    DevelopmentSession,
+)
 from tasks.home_atlas import (
     AmbiguityState,
     AtlasViewport,
@@ -3554,6 +3560,33 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             payload = frame_path.read_bytes()
             result["home_frame"] = "frames/canonical-home-terminal.png"
             result["home_frame_sha256"] = hashlib.sha256(payload).hexdigest()
+            (child / "events.jsonl").write_text(
+                json.dumps({"type": "post_flee_home_route", "flow_id": FLOW_ID})
+                + "\n",
+                encoding="utf-8",
+            )
+            if input_count:
+                runtime = child / "runtime"
+                runtime.mkdir()
+                (runtime / "events.jsonl").write_text(
+                    "".join(
+                        json.dumps(
+                            {
+                                "type": "dispatch",
+                                "execute": True,
+                                "target_identity": (
+                                    "ultimate-challenge-back"
+                                    if index == 0
+                                    else "campaign-exit-base"
+                                ),
+                                "action_key": f"terminal-{index}",
+                            }
+                        )
+                        + "\n"
+                        for index in range(input_count)
+                    ),
+                    encoding="utf-8",
+                )
             return __import__("subprocess").CompletedProcess(
                 command,
                 child_returncode
@@ -3604,24 +3637,41 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
 
     def test_daily_wrapper_accepts_minimal_development_session_context(self) -> None:
         queue = {"active_flow_id": FLOW_ID, "development_session": True}
-        lease = {
-            "owner": "test-owner",
-            "runtime_ownership_state": "held",
-            "max_inputs": 16,
-            "development_session": SimpleNamespace(
-                session_directory=Path("outer-development-session"),
-                run_action=lambda **_kwargs: None,
-            ),
-        }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            command, _load_state, _record_home, _save_state = self._run_wrapper(
-                root,
-                terminal="already_completed",
-                home_nav_recognized=True,
-                queue_context=queue,
-                lease_context=lease,
-            )
+            initial_bytes = b"typed-ultimate-terminal-initial"
+            digest = hashlib.sha256(initial_bytes).hexdigest()
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with DevelopmentSession(
+                    owner=f"pnsctl-development-session:{FLOW_ID}",
+                    invocation_id="ultimate-terminal-continuous",
+                    session_directory=root / "outer",
+                    max_inputs=16,
+                ) as session:
+                    (session.session_directory / "source.png").write_bytes(initial_bytes)
+                    initial = DevelopmentInitialObservation(
+                        {"frame_sha256": digest},
+                        digest,
+                        frame_path="source.png",
+                        invocation_id=session.invocation_id,
+                    )
+                    session.set_initial_observation(initial)
+                    lease = {
+                        "owner": session.owner,
+                        "runtime_ownership_state": "held",
+                        "max_inputs": 16,
+                        "development_session": session,
+                        "initial_observation": initial,
+                        "initial_frame_sha256": digest,
+                    }
+                    command, _load_state, _record_home, _save_state = self._run_wrapper(
+                        root,
+                        terminal="complete_for_reset",
+                        home_nav_recognized=True,
+                        input_count=2,
+                        queue_context=queue,
+                        lease_context=lease,
+                    )
             result_paths = list(
                 (root / "artifacts" / FLOW_ID).glob(
                     "daily-*/nav-child/flow-delivery-result.json"
@@ -3629,12 +3679,84 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             )
             self.assertEqual(len(result_paths), 1)
             delivery_result = json.loads(result_paths[0].read_text(encoding="utf-8"))
+            with patch.object(delivery, "_pnsctl", return_value=pnsctl):
+                verified = delivery.verify_ultimate_challenge_daily(
+                    {
+                        "result": delivery_result,
+                        "session_directory": str(result_paths[0].parent),
+                    },
+                    {},
+                    {},
+                )
 
         self.assertEqual(command[command.index("--max-total-inputs") + 1], "16")
+        self.assertIn("--post-flee-home-only", command)
+        self.assertNotIn("--daily", command)
         self.assertIsNone(delivery_result["attempt_budget"])
         self.assertIsNone(delivery_result["legacy_attempt_budget"])
         self.assertEqual(delivery_result["max_inputs"], 16)
         self.assertEqual(delivery_result["session_max_inputs"], 16)
+        self.assertEqual(delivery_result["new_flee_transport_count"], 0)
+        self.assertEqual(
+            delivery_result["actions"][0]["action_class"],
+            "terminal_reconciliation",
+        )
+        self.assertEqual(delivery_result["proof_topology"], "composite")
+        self.assertEqual(
+            delivery_result["terminal_reconciliation_topology"], "continuous"
+        )
+        self.assertEqual(delivery_result["causal_trace_count"], 1)
+        self.assertEqual(
+            delivery_result["retained_effect_evidence_refs"],
+            list(delivery.RETAINED_EFFECT_EVIDENCE_REFS),
+        )
+        self.assertEqual(verified["status"], "verified")
+        self.assertTrue(verified["initial_observation_verified"])
+        self.assertTrue(verified["transport_accounting_verified"])
+        self.assertTrue(verified["zero_new_flee_verified"])
+
+    def test_terminal_session_rejects_equal_but_nonidentical_initial_observation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            digest = hashlib.sha256(b"typed-ultimate-terminal-initial").hexdigest()
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with DevelopmentSession(
+                    owner=f"pnsctl-development-session:{FLOW_ID}",
+                    invocation_id="ultimate-terminal-identity",
+                    session_directory=root / "outer",
+                    max_inputs=16,
+                ) as session:
+                    bound = DevelopmentInitialObservation(
+                        {"frame_sha256": digest},
+                        digest,
+                        invocation_id=session.invocation_id,
+                    )
+                    session.set_initial_observation(bound)
+                    duplicate = DevelopmentInitialObservation(
+                        {"frame_sha256": digest},
+                        digest,
+                        invocation_id=session.invocation_id,
+                    )
+                    lease = {
+                        "owner": session.owner,
+                        "runtime_ownership_state": "held",
+                        "max_inputs": 16,
+                        "development_session": session,
+                        "initial_observation": duplicate,
+                        "initial_frame_sha256": digest,
+                    }
+                    with patch.object(delivery.subprocess, "run") as child:
+                        with self.assertRaisesRegex(RuntimeError, "exactly session-bound"):
+                            delivery.run_ultimate_challenge_daily(
+                                {
+                                    "active_flow_id": FLOW_ID,
+                                    "development_session": True,
+                                },
+                                lease,
+                            )
+                    child.assert_not_called()
 
     def test_daily_wrapper_rejects_invalid_development_session_context_before_child(
         self,

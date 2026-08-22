@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, and Ultimate product authority lanes accepted offline | Daily, Nova, and Enhancement have continuous-session adapters. Ultimate now has typed authority; its terminal-only session migration is next, with Flee immutable. Registration/scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, and Ultimate product/session lanes accepted offline | The first four migration packets are closed offline. The remaining portfolio dispositions continue serially with Bioenhancer dependency selection. Registration/scheduling remain disabled. |
 
 ## Frozen product rule
 
@@ -675,3 +675,40 @@ Flee count were both zero. Registration remains `NOT_REGISTERED`, scheduler
 eligibility remains disabled, runtime ownership is absent, and no evidence was
 recreated or relabeled. The next permitted action is only the separate offline
 Ultimate terminal continuous-session migration; it must never repeat Flee.
+
+## Stage 7 Ultimate terminal continuous-session migration
+
+The parent-owned Medium lane preserved the accepted Ultimate controller and
+bound only its existing post-Flee terminal route to one real active
+`DevelopmentSession`. Live conduct no longer creates a separate pre-run
+observation session. The adapter requires exact object identity with the typed,
+hash-bound, invocation-bound session observation before launching the existing
+`--post-flee-home-only` route.
+
+The retained semantic effect remains attempt 13's verified zero-resource Flee;
+the adapter never repeats or relabels it. The uninterrupted session contains
+current Ultimate-main recognition, the verified Campaign successor, measured
+Campaign exit, and canonical Home. It recounts the real nested
+`runtime/events.jsonl` transports, requires zero `tap_flee` rows, writes exactly
+one read-only/non-authoritative causal trace, and separates semantic effect from
+terminal completion. Overall attempts 13/14 remain `composite`; only the new
+terminal reconciliation topology is `continuous`. The conductor therefore
+vetoes `DONE` for a false continuous overall label, any new Flee, a missing
+trace, or an unverified route result.
+
+Validation passed 106 Ultimate controller/adapter tests, 31 conductor tests,
+and 16 DevelopmentSession tests. The final focused profile passed 27 tests with
+receipt `a3ef27b1b7644611cadefc291e58ad74bd6064f640d6e070b1496e8bcc935a92`;
+the final architecture profile passed 27 with receipt
+`7e7876f9adfd47a9f8ab37c547c71e1089f5ed3c874ad72c6887137458c2c01f`.
+An initial top-level-only event recount was classified `local_defect`; the
+repair reads the production child runtime transport stream and a shared-session
+regression proves exact adoption. No other failure class occurred.
+
+Parent integration accepted the offline terminal-session lane. No emulator,
+ADB, BlueStacks observation, runtime input, new Flee, evidence relabeling,
+registration, scheduling, or runtime-authority expansion occurred. Native
+uninterrupted terminal proof remains `evidence_required`. Registration is
+`NOT_REGISTERED`, scheduler eligibility is disabled, and ownership is absent.
+The next serial Stage 7 action is the Bioenhancer product-record and gameplay-
+contract dependency audit; it must select only one atomic dependency lane.

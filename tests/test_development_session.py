@@ -623,6 +623,74 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertEqual(action["after_sha256"], "b" * 64)
             self.assertEqual(action["status"], "post_captured")
 
+    def test_ultimate_session_adopts_adapter_verified_nested_transport_count(self) -> None:
+        flow_id = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            child = root / "runtime-child"
+            child.mkdir()
+            (child / "events.jsonl").write_text(
+                json.dumps({"type": "post_flee_home_route", "flow_id": flow_id})
+                + "\n",
+                encoding="utf-8",
+            )
+
+            def runner(queue, lease, *, live=True):
+                self.assertEqual(
+                    queue,
+                    {"active_flow_id": flow_id, "development_session": True},
+                )
+                self.assertTrue(lease["development_session"].is_active)
+                return json.dumps(
+                    {
+                        "status": "completed",
+                        "flow_id": flow_id,
+                        "session_directory": str(child),
+                        "dispatch": live,
+                        "retained_transport_count": 2,
+                        "proof_topology": "composite",
+                        "terminal_reconciliation_topology": "continuous",
+                        "causal_trace_count": 1,
+                    }
+                )
+
+            png = b"ultimate-typed-initial"
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(png).hexdigest(),
+            }
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl, "BLUESTACKS_FLOW_IDS", (flow_id,)
+            ), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={flow_id: {"runner": "ultimate-runner"}},
+            ), patch.dict(
+                pnsctl._BLUESTACKS_FLOW_RUNNERS,
+                {"ultimate-runner": runner},
+            ), patch.object(
+                pnsctl,
+                "_development_runtime_observation",
+                return_value=(observation, png),
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                result = json.loads(
+                    pnsctl.development_session_run_flow(
+                        flow_id, live=True, yes=True, max_inputs=16
+                    )
+                )
+            self.assertEqual(result["input_count"], 2)
+            self.assertEqual(result["proof_topology"], "composite")
+            self.assertTrue(result["persistent_checkpoint_artifacts_unchanged"])
+
 
 if __name__ == "__main__":
     unittest.main()

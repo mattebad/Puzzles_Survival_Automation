@@ -3455,6 +3455,13 @@ def development_session_run_flow(
                 if transport_evidence_available
                 else int(session.input_count)
             )
+            if flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
+                ultimate_retained = result.get("retained_transport_count")
+                if type(ultimate_retained) is not int or ultimate_retained < 0:
+                    raise OperatorError(
+                        "Ultimate terminal route did not report retained transport accounting"
+                    )
+                retained_count = ultimate_retained
             if retained_count > max_inputs:
                 raise OperatorError("development session exceeded its input limit")
             if session.input_count == 0 and retained_count:
@@ -6589,6 +6596,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
             "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
         }
         and requested is not None
         and maximum == 1
@@ -6687,6 +6695,35 @@ def _conductor_live_summary(
                         {
                             "status": "evidence_required",
                             "reason": "exactly one causal trace is required for migrated conduct",
+                        }
+                    )
+            elif flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
+                if retained.get("proof_topology") != "composite":
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "Ultimate retained Flee proof must remain composite",
+                        }
+                    )
+                elif retained.get("terminal_reconciliation_topology") != "continuous":
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "Ultimate terminal reconciliation must be continuous",
+                        }
+                    )
+                elif retained.get("new_flee_transport_count") != 0:
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "Ultimate terminal reconciliation must perform zero new Flee actions",
+                        }
+                    )
+                elif retained.get("causal_trace_count") != 1:
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "exactly one causal trace is required for Ultimate terminal reconciliation",
                         }
                     )
         except OperatorError as exc:
@@ -6838,6 +6875,7 @@ def conduct_flow(
         "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
         "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
         "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+        "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
     }
     observe_output: str | None = None
     if not continuous_session_flow:
