@@ -206,11 +206,26 @@ class GameplayFlowContractTests(unittest.TestCase):
             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+            "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
         )
         for flow_id in representative_ids:
             contract = load_flow_contract(flow_id)
             with self.subTest(flow_id=flow_id):
                 self.assertEqual(list(validator.iter_errors(contract)), [])
+
+    def test_nova_praise_contract_is_bound_free_only_and_registration_disabled(self):
+        contract = load_flow_contract("NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE")
+        self.assertEqual(contract["product_authority_binding"]["product_record_id"], "nova_praise")
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
+        route = contract["transition_contracts"]
+        praise = next(item for item in route if item["transition_id"] == "dispatch_one_free_praise")
+        self.assertEqual(praise["permitted_input"], "exactly_one_free_praise_when_authorized")
+        self.assertIn("attempts_remaining_decremented_by_one", praise["postconditions"])
+        self.assertIn("cooldown_consistent_with_fixed_300_second_policy_after_capture_delay", praise["postconditions"])
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
 
     def test_daily_claim_contract_is_aggregate_row_local_and_fail_closed(self):
         contract = load_flow_contract("DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION")

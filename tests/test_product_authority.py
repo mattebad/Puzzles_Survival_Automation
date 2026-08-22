@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_four_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_five_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -58,6 +58,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "enhancement_family",
                 "supply_depot",
                 "aggregate_daily_claim",
+                "nova_praise",
             },
         )
         validate_product_authority(self.authority)
@@ -79,7 +80,7 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(record["semantic_effect"]["dispatch_is_not_success_proof"])
         self.assertEqual(record["daily_ownership"]["daily_owner"], "aggregate_daily_claim")
         self.assertTrue(record["daily_ownership"]["selected_daily_prerequisite"])
-        for record_id in ("use_resource_item", "enhancement_family", "supply_depot"):
+        for record_id in ("use_resource_item", "enhancement_family", "supply_depot", "nova_praise"):
             self.assertFalse(self.records[record_id]["daily_ownership"]["selected_daily_prerequisite"])
 
     def test_direct_records_reject_daily_owner_and_point_credit_even_with_fresh_digests(self) -> None:
@@ -104,7 +105,11 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertIn("non-claimable claim row", forbidden)
 
         changed = deepcopy(self.authority)
-        daily = changed["product_records"][-1]
+        daily = next(
+            item
+            for item in changed["product_records"]
+            if item["record_id"] == "aggregate_daily_claim"
+        )
         daily["forbidden_actions"].remove("non-claimable Claim row")
         daily["record_digest"] = record_digest(daily)
         changed["authority_digest"] = authority_digest(changed)
@@ -202,6 +207,67 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(record["daily_ownership"]["daily_owner"], None)
         self.assertNotIn("daily 5/5", json.dumps(record["semantic_effect"]).casefold())
 
+    def test_nova_praise_product_is_one_free_pulse_and_not_daily_owned(self) -> None:
+        record = self.records["nova_praise"]
+        self.assertEqual(record["record_type"], "nova_praise")
+        self.assertEqual(record["recurrence"], "cooldown_pulse")
+        self.assertEqual(record["semantic_entry_route"]["target"], "RESEARCH_LAB")
+        self.assertEqual(record["target"]["eligibility"], "one_free_attempt_available")
+        self.assertEqual(record["target"]["control"], "Praise")
+        self.assertEqual(record["quantity_cost"]["quantity"], 1)
+        self.assertEqual(record["quantity_cost"]["cost"]["amount"], 0)
+        self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
+        effect = record["semantic_effect"]
+        self.assertEqual((effect["attempts_before"], effect["attempts_after"]), ("X", "X-1"))
+        self.assertEqual(effect["cooldown_seconds"], 300)
+        self.assertFalse(effect["paid_fallback"])
+        self.assertFalse(effect["identical_retry"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertIsNone(record["daily_ownership"]["point_credit_trigger"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        self.assertEqual(record["terminal_requirement"]["home_authority"], "HOME_CANONICAL")
+
+    def test_nova_praise_required_action_success_and_terminal_fields_fail_closed(self) -> None:
+        mutations = (
+            ("action", lambda record: record.__setitem__("action", "safe_return_home")),
+            (
+                "cooldown_policy",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "cooldown_policy", "fixed_300_seconds"
+                ),
+            ),
+            (
+                "success_requires",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "success_requires", "attempt_decrement_only"
+                ),
+            ),
+            (
+                "terminal_home_authority",
+                lambda record: record["terminal_requirement"].__setitem__(
+                    "home_authority", "HOME_READY"
+                ),
+            ),
+            (
+                "terminal_return_required",
+                lambda record: record["terminal_requirement"].__setitem__(
+                    "return_required", False
+                ),
+            ),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(self.authority)
+            nova = next(
+                item
+                for item in changed["product_records"]
+                if item["record_id"] == "nova_praise"
+            )
+            mutate(nova)
+            nova["record_digest"] = record_digest(nova)
+            changed["authority_digest"] = authority_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_authority(changed)
+
     def test_product_records_have_no_forbidden_authority_domains(self) -> None:
         forbidden = {
             "coordinate",
@@ -261,6 +327,17 @@ class ProductAuthorityTests(unittest.TestCase):
             " ".join(contract["evidence_requirements"]).casefold(),
         )
 
+    def test_nova_praise_contract_binds_direct_record_and_preserves_disabled_state(self) -> None:
+        contract = self.contracts["NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"]
+        binding = contract["product_authority_binding"]
+        self.assertEqual(binding["product_record_id"], "nova_praise")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_revision"], "nova_praise-v1")
+        self.assertEqual(binding["home_authority"], "HOME_LOCALIZED")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["registration_state"], "disabled")
+
     def test_stale_revision_or_digest_fails_closed(self) -> None:
         stale_revision = deepcopy(self.authority)
         stale_revision["authority_revision"] = "old-authority-revision"
@@ -277,6 +354,23 @@ class ProductAuthorityTests(unittest.TestCase):
         stale_record["authority_digest"] = authority_digest(stale_record)
         with self.assertRaisesRegex(ProductAuthorityError, "stale record digest"):
             validate_product_authority(stale_record)
+
+    def test_stale_nova_record_binding_fails_closed(self) -> None:
+        contract = deepcopy(self.contracts["NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"])
+        for field, value in (
+            ("product_record_revision", "nova_praise-old"),
+            ("product_record_digest", "0" * 64),
+        ):
+            changed = deepcopy(contract)
+            changed["product_authority_binding"][field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(
+                ProductAuthorityError,
+                "stale product record",
+            ):
+                validate_contract_product_authority_bindings(
+                    self.authority,
+                    {"nova": changed},
+                )
 
     def test_selected_daily_generic_home_and_bliss_mutations_fail(self) -> None:
         contract = self.contracts["DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"]

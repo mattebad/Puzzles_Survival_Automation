@@ -45,6 +45,14 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(owner["registration_state"], "NOT_REGISTERED")
         self.assertFalse(owner["scheduler_eligibility"])
 
+    def test_catalog_praise_references_nova_without_selected_daily_prerequisite(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        objective = next(
+            item for item in raw["objectives"] if item["objective_key"] == "personal_might_praise"
+        )
+        self.assertEqual(objective["product_record_id"], "nova_praise")
+        self.assertFalse(objective["selected_daily_prerequisite"])
+
 
 class OperatorCliTests(unittest.TestCase):
     def test_promoted_navigation_asset_manifest_hashes_match(self):

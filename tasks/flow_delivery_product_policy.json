@@ -348,7 +348,7 @@
       "source": "explicit_user_direction_2026-08-20"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r3",
+  "authority_revision": "flow-delivery-product-authority-v2-r4",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -663,7 +663,85 @@
       ],
       "record_revision": "aggregate_daily_claim-v1",
       "record_digest": "560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41"
+    },
+    {
+      "record_id": "nova_praise",
+      "record_type": "nova_praise",
+      "purpose": "Dispatch one eligible zero-cost Nova Praise pulse from the native Home-to-Nova route.",
+      "recurrence": "cooldown_pulse",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_LOCALIZED",
+          "HOME_CANONICAL"
+        ],
+        "target": "RESEARCH_LAB",
+        "route": [
+          "RESEARCH_LAB",
+          "NOVA_LAB"
+        ]
+      },
+      "objective": "nova_praise_one_free_pulse",
+      "action": "dispatch_one_free_praise",
+      "target": {
+        "kind": "nova_praise",
+        "eligibility": "one_free_attempt_available",
+        "control": "Praise",
+        "quantity": 1
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_praise",
+          "amount": 0,
+          "unit": "Praise",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "attempts_before": "X",
+        "attempts_after": "X-1",
+        "cooldown_seconds": 300,
+        "cooldown_policy": "fixed_300_seconds_after_capture_delay",
+        "paid_fallback": false,
+        "identical_retry": false,
+        "dispatch_is_not_success_proof": true,
+        "success_requires": "attempt_decrement_and_cooldown_successor"
+      },
+      "forbidden_actions": [
+        "paid fallback",
+        "premium currency",
+        "unknown eligibility",
+        "contradictory attempt state",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Nova Praise is a direct action and does not require, own, or attribute selected Daily progress."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:nova-one-free-praise-attempt-cooldown-2026-07-22",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-nova-praise-attempt-and-home-return",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "nova_praise-v1",
+      "record_digest": "959fe8201ce0250dcab494dc65f930cf52c753b1ac5833d22bcb3a1abea2b2ae"
     }
   ],
-  "authority_digest": "5b85b4ac49d5e5d109a36517b14e59e2259fe51a79c7e67b49371724a01cde5d"
+  "authority_digest": "28331c423c10c423b8b9c2752922f2443b89d1fc3956c9599c4c6eb516a4a45f"
 }

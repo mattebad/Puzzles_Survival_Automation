@@ -289,8 +289,8 @@
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r3",
-    "product_authority_digest": "5b85b4ac49d5e5d109a36517b14e59e2259fe51a79c7e67b49371724a01cde5d",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r4",
+    "product_authority_digest": "28331c423c10c423b8b9c2752922f2443b89d1fc3956c9599c4c6eb516a4a45f",
     "product_record_id": "aggregate_daily_claim",
     "product_record_revision": "aggregate_daily_claim-v1",
     "product_record_digest": "560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41",

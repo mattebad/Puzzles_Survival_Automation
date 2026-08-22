@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim product-record and continuous-session atomic lanes accepted offline in the commit containing this status | Daily Claim now has typed product authority plus one real-session adapter and checked-in route verification. Direct-action Daily coupling remains rejected. Native continuous proof and all other portfolio flows remain unstarted. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim lanes and Nova Praise product-record lane accepted offline in commits containing this status | Daily Claim has typed authority and a real-session adapter. Nova now has typed direct-action authority; its separate continuous-session migration is next. Registration and scheduling remain disabled. |
 
 ## Frozen product rule
 
@@ -511,3 +511,59 @@ recorded by the commit containing this status; no push occurred. Exact next
 permitted action is explicit authorization for a Daily native continuous-session
 canary, otherwise a new atomic workstream selection. No other flow, Stage 8 work,
 scheduler, or registration work may begin from this task.
+
+## Stage 7 Nova Praise product-record migration
+
+The next serial dependency gate found Nova Praise missing from typed product
+authority even though its retained schema-v2 gameplay contract and supervised
+one-free-Praise proof were current. The atomic lane therefore migrated only the
+Nova product record and contract binding. Its frozen Heavy revision is
+`nova-praise-product-record-migration-r1`, manifest SHA-256
+`7a40a56660839f16bb0b863c489f8a0bd549e0a717de9d906718975709596163`.
+
+Accepted identifiers:
+
+- authority revision `flow-delivery-product-authority-v2-r4`, digest
+  `28331c423c10c423b8b9c2752922f2443b89d1fc3956c9599c4c6eb516a4a45f`;
+- Nova record revision `nova_praise-v1`, digest
+  `959fe8201ce0250dcab494dc65f930cf52c753b1ac5833d22bcb3a1abea2b2ae`.
+
+The direct-action record types one eligible zero-cost Praise, quantity one,
+attempts `X -> X-1`, fixed 300-second cooldown after capture delay, semantic
+success requiring both decrement and cooldown, no paid fallback, no identical
+retry, and canonical Home. Its Daily owner and point trigger remain null and
+`selected_daily_prerequisite` remains false. The catalog objective
+`personal_might_praise` references `nova_praise` without selected-Daily routing.
+
+The four prior contracts changed only their global authority revision/digest.
+The existing Nova contract is now revision/digest-bound to the new record and
+current BlueStacks platform identifiers. Runtime controllers, selectors,
+adapters, conduct/session behavior, evidence, registration, and scheduling did
+not change.
+
+Independent review raised one `core_contract` finding: a freshly re-digested Nova
+record could weaken the exact action, cooldown policy, successor requirement, or
+Home terminal and still validate. The single consolidated repair added exact
+fail-closed validation and five mutation regressions. The bounded recheck found
+the finding resolved with no new must-fix regression. One parent test invocation
+used the wrong method name and was classified `local_defect`; the corrected exact
+regression passed.
+
+Validation:
+
+- product-authority/gameplay-contract/catalog suites: 49 passed;
+- reviewer recheck package: 38 passed;
+- Nova focused profile: 172 passed, receipt
+  `1be74ca2d2d6d0988e7c0fde3b94d046296137fd2aab28a8e2dfc422061280f8`;
+- architecture profile: 92 passed, receipt
+  `7f200187f22ae894ad3be32108d3ff7ddac14acdd79ec87680cfa3059fd919e7`;
+- `git diff --check` passed.
+
+Retained session `nova-praise-one-free-pulse-20260722T223535494658Z`
+(candidate `0ca611c5d42998b3d5c260c24c9604586d2aa831`, attempts `7 -> 6`, cooldown
+`299s`, one Praise transport, terminal Home) was used only through checked-in
+provenance and was not recursively inspected or relabeled. Runtime inputs: zero.
+Registration remains `NOT_REGISTERED`, scheduler eligibility remains disabled,
+runtime ownership is absent, and no push occurred. The commit containing this
+status records the accepted product-record lane. Exact next action is the
+separate offline Nova Praise continuous-session migration.

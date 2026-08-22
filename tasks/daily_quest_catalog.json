@@ -579,6 +579,8 @@
         "Praise 1x in Personal Might rank",
         "Personal Might praise"
       ],
+      "product_record_id": "nova_praise",
+      "selected_daily_prerequisite": false,
       "handler_family": "praise",
       "route_name": "daily_go_to_personal_might",
       "consequence_class": "zero_cost_consequential",
