@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, and Daily Milestone product authority accepted offline | Milestone is typed but its route remains evidence-blocked; Supply Depot dependency selection is next. Registration/scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, and Supply Depot session lanes accepted offline | Milestone remains evidence-blocked; Supply is one-session migrated; Recruitment dependency selection is next. Registration/scheduling remain disabled. |
 
 ## Frozen product rule
 
@@ -828,3 +828,39 @@ selector/adapter change, evidence mutation, registration, scheduling, commit by
 a worker, or push occurred. Current ready/successor/Home proof remains
 `evidence_required`, so no Milestone route implementation is admitted by this
 lane. Next is only the Supply Depot dependency audit.
+
+## Stage 7 Supply Depot continuous-session migration
+
+The dependency gate proved current r7 record `supply_depot-v1` and its exact
+schema-2 binding, so the parent selected only the Medium continuous-session
+lane. The existing Supply controller and Free-only product semantics are
+unchanged. One active flow-owned `DevelopmentSession` now carries the exact
+typed, frame-hash-bound, invocation-bound initial observation; live conduct no
+longer creates a separate pre-observation session.
+
+The adapter recounts the native transport stream and exact one-hold ceiling,
+retains one read-only/non-authoritative causal trace, and marks proof
+`continuous` only for one uninterrupted session. Completion requires the
+recognized attempt count to reach zero, all Free controls to disappear, and
+canonical Home. Transport or the hold alone never proves collection. A
+hold-bearing unknown is `effect_reconciliation_required`, denies identical
+retry, and cannot reach conductor `DONE`; the checked-in verifier rehashes the
+initial frame, recounts transports/holds, compares the retained trace, and
+checks the semantic terminal. Paid, diamond, ambiguous, and unknown controls
+remain fail-closed. Retained navigation/Free-target evidence does not establish
+collection or Daily `5/5` attribution.
+
+Validation passed 8 adapter plus 32 conductor tests, 75 Supply controller and
+DevelopmentSession tests, focused profile 8 receipt
+`21d2184ba75969cdd7e1f75101eddde3f1edf69d1344255eb9564a236b0ca036`,
+and architecture 92 receipt
+`ff47b92baf60b59dcc859bf0fca1232ad0047717aab8fb25fb6f501ea4f06a0d`.
+No failure class or repair loop occurred.
+
+Parent integration accepted the offline lane. No emulator, ADB, BlueStacks
+observation, runtime input, collection hold, paid/diamond action, evidence
+relabeling, registration, scheduling, or authority broadening occurred. A
+current uninterrupted Free-exhaustion plus canonical Home session remains
+`evidence_required`. Registration is `NOT_REGISTERED`, scheduler eligibility is
+disabled, and ownership is absent. Next is only the Recruitment dependency
+audit.

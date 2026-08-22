@@ -3524,6 +3524,7 @@ def development_session_run_flow(
                             "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
                             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
                             "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+                            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
                         }
                         else "composite",
                     )
@@ -5403,6 +5404,7 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
                 in {
                     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
                     "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+                    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
                 }
                 else set()
             ),
@@ -6603,6 +6605,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
         }
         and requested is not None
         and maximum == 1
@@ -6689,6 +6692,7 @@ def _conductor_live_summary(
                 "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
                 "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
                 "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+                "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
             }:
                 if retained.get("proof_topology") != "continuous":
                     summary.update(
@@ -6884,6 +6888,7 @@ def conduct_flow(
         "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
         "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
         "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+        "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
     }
     observe_output: str | None = None
     if not continuous_session_flow:

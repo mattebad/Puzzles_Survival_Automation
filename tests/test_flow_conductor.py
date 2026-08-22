@@ -370,6 +370,8 @@ class FlowConductorTests(unittest.TestCase):
             "status": "completed",
             "terminal_home_verified": True,
             "dispatch": True,
+            "proof_topology": "continuous",
+            "causal_trace_count": 1,
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -433,6 +435,8 @@ class FlowConductorTests(unittest.TestCase):
             "status": "completed",
             "terminal_home_verified": True,
             "dispatch": True,
+            "proof_topology": "continuous",
+            "causal_trace_count": 1,
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -444,11 +448,7 @@ class FlowConductorTests(unittest.TestCase):
                         "consequential_action_class": "ordinary_resource_use",
                     },
                 ),
-                patch.object(
-                    pnsctl,
-                    "development_session_observe",
-                    return_value=json.dumps({"status": "observed"}),
-                ),
+                patch.object(pnsctl, "development_session_observe") as observe,
                 patch.object(
                     pnsctl,
                     "development_session_run_flow",
@@ -480,6 +480,7 @@ class FlowConductorTests(unittest.TestCase):
                         state_root=root,
                     )
                 )
+            observe.assert_not_called()
             self.assertEqual(result["decision"], ConductorDecision.DONE.value)
             completed_state = load_state(flow_id, root=root)
             self.assertEqual(completed_state.status, "done")

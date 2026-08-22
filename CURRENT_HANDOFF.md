@@ -8,40 +8,61 @@
   "attributable_dirty_paths": [".cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md"],
   "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "daily-milestone-claim-product-record-migration",
+  "current_task_id": "supply-depot-continuous-session-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "supply-depot-dependency-audit",
+  "next_task_id": "recruitment-dependency-audit",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "daily_milestone_product_record_accepted_offline",
+  "active_delivery_stage": "supply_depot_continuous_session_accepted_offline",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "66 Milestone authority/contract/catalog/Activity Milestone tests passed; Terra independently confirmed the same 66 tests and all seven mechanical prior-contract rebinds.",
-  "latest_architecture_validation_result": "After correcting one handoff activation-token process_state mismatch, Milestone architecture passed 92 tests with receipt 34c5b6c32f3b08e82b3a548f21caded14b83fa62f4e05afbd87c613a089146a5.",
+  "latest_focused_validation_result": "8 Supply adapter tests and 32 conductor tests passed; 75 Supply controller/session tests passed; focused profile passed 8 with receipt 21d2184ba75969cdd7e1f75101eddde3f1edf69d1344255eb9564a236b0ca036.",
+  "latest_architecture_validation_result": "Supply Depot architecture profile passed 92 tests with receipt ff47b92baf60b59dcc859bf0fca1232ad0047717aab8fb25fb6f501ea4f06a0d.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Milestone product-record migration used zero runtime input and zero Claim actions",
-  "current_evidence_or_session_reference": "Phase E Bliss/synthetic Activity Milestone fixture remains diagnostic and non-accepting; current BlueStacks ready/successor/Home proof is evidence_required",
-  "last_safe_completed_step": "Accepted typed Daily Milestone Claim authority after bounded Luna implementation, clean Terra review, and parent focused validation.",
-  "exact_next_permitted_action": "Audit only Supply Depot product authority and its revision-bound gameplay contract, then select one atomic dependency lane offline.",
+  "current_live_attempt_state": "not authorized and not attempted; Supply Depot session migration used zero runtime input and zero collection holds",
+  "current_evidence_or_session_reference": "retained Supply navigation and Free-target authority is preserved; a current uninterrupted Free-exhaustion and canonical-Home session remains evidence_required",
+  "last_safe_completed_step": "Accepted the parent-owned Supply Depot one-session adapter after exact, safety, conductor, focused, and architecture validation.",
+  "exact_next_permitted_action": "Audit only Recruitment product authority and its revision-bound gameplay contract, then select one atomic dependency lane offline.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not perform a Milestone Claim without current authorized native proof, implement its route in the product-only lane, combine another atomic lane, or begin Stage 8, scheduler, registration, live runtime work, or push.",
+  "prohibited_repeated_action": "Do not perform a Supply collection hold merely to relabel proof, infer Daily 5/5, touch paid/diamond controls, combine another atomic lane, or begin Stage 8, scheduler, registration, live runtime work, or push.",
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "stage_revision": "daily-milestone-claim-product-record-migration-r1",
-  "stage_type": "heavy_product_authority_shared_binding_extension",
-  "product_precondition": "Milestone lacked a typed record and had only a schema-1 unbound placeholder; r7 record activity_milestone_claim-v1 is now proven",
-  "failure_class": "core_contract dependency resolved; one parent-owned handoff token process_state corrected; no implementation or review finding",
-  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 2, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "stage_revision": "supply-depot-continuous-session-migration-r1",
+  "stage_type": "parent_owned_medium_offline_integration",
+  "product_precondition": "r7 record supply_depot-v1 and its exact schema-2 gameplay contract were current at commit ec5ce8d",
+  "failure_class": "no product, core-contract, local-defect, process-state, or diminishing-returns failure",
+  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 0, "live_attempts_used": 0, "runtime_inputs_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Current BlueStacks ready Milestone, same-milestone/points successor, and canonical Home proof remain evidence_required; no route implementation is authorized by the product record", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
+  "evidence": {"evidence_requirement": "Current uninterrupted BlueStacks Free-exhaustion plus canonical Home proof remains evidence_required; retained navigation/Free-target evidence does not prove collection or Daily 5/5", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
 # Current handoff
+
+## Stage 7 Supply Depot continuous-session migration
+
+The current r7 record `supply_depot-v1` and exact schema-2 contract proved the
+product precondition. The separate parent-owned Medium lane binds the unchanged
+controller to one active flow-owned session and the identical typed,
+hash/invocation-bound initial observation; `conduct` creates no pre-run session.
+It recounts all native transports and the one bounded Free hold, emits exactly
+one read-only/non-authoritative trace, and labels only uninterrupted proof
+`continuous`. Paid/diamond/unknown controls remain denied.
+
+Completion requires Free attempts at zero, every Free control absent, and
+canonical Home. A hold-bearing unknown becomes `effect_reconciliation_required`,
+denies identical retry, and vetoes `DONE`; checked-in verification is mandatory.
+No Daily `5/5` or action attribution is inferred from retained navigation proof.
+Validation passed 8 adapter, 32 conductor, and 75 Supply/session tests. Focused
+receipt `21d2184ba75969cdd7e1f75101eddde3f1edf69d1344255eb9564a236b0ca036`;
+architecture receipt
+`ff47b92baf60b59dcc859bf0fca1232ad0047717aab8fb25fb6f501ea4f06a0d`.
+Zero live input/hold; current uninterrupted proof remains `evidence_required`.
+Registration/scheduling remain disabled. Next is Recruitment dependency audit.
 
 ## Stage 7 Daily Milestone Claim product-record migration
 
