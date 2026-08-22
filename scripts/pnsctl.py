@@ -3515,6 +3515,7 @@ def development_session_run_flow(
                             "WORLD-MAP-NAVIGATION-FOUNDATION",
                             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
                             "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+                            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
                         }
                         else "composite",
                     )
@@ -5388,6 +5389,11 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
             "blocked",
             "unresolved",
             "manual_required",
+            *(
+                {"effect_reconciliation_required"}
+                if result.get("flow_id") == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+                else set()
+            ),
         }:
             raise OperatorError("flow result is not terminally completed")
     if result.get("serial") != BLUESTACKS_SERIAL:
@@ -6582,6 +6588,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
             "WORLD-MAP-NAVIGATION-FOUNDATION",
             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
             "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
         }
         and requested is not None
         and maximum == 1
@@ -6666,6 +6673,7 @@ def _conductor_live_summary(
                 "WORLD-MAP-NAVIGATION-FOUNDATION",
                 "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
                 "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+                "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
             }:
                 if retained.get("proof_topology") != "continuous":
                     summary.update(
@@ -6829,6 +6837,7 @@ def conduct_flow(
         "WORLD-MAP-NAVIGATION-FOUNDATION",
         "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
         "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+        "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
     }
     observe_output: str | None = None
     if not continuous_session_flow:

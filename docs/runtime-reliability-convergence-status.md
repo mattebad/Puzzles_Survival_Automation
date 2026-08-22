@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim and Nova Praise product/session lanes accepted offline in commits containing this status | Daily Claim and Nova both have typed authority and parent-owned continuous-session adapters. Enhancement dependency selection is next. Registration and scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, and Enhancement product/session lanes accepted offline in commits containing this status | Daily, Nova, and Enhancement have typed authority plus parent-owned continuous-session adapters. Enhancement retained proof remains composite; Ultimate dependency selection is next. Registration and scheduling remain disabled. |
 
 ## Frozen product rule
 
@@ -603,3 +603,40 @@ Registration is `NOT_REGISTERED`, scheduler eligibility is disabled, and
 runtime ownership is absent. Exact next permitted action is the Enhancement
 product-record/gameplay-contract dependency audit, selecting only one atomic
 dependency lane before any adapter migration.
+
+## Stage 7 Enhancement continuous-session migration
+
+The Enhancement dependency gate found current Stage 2 authority, so no product
+migration was combined with this lane. Record `enhancement_family-v1` digest
+`a03673be99435a70811467c8d989d380c24a7a824035b906ae865e34ecece095`
+and its schema-v2 contract bind authority r4 digest
+`28331c423c10c423b8b9c2752922f2443b89d1fc3956c9599c4c6eb516a4a45f`.
+The precondition suite passed 38 tests.
+
+The parent-owned Medium migration preserves direct Commander navigation, exact
+Gear/Chip/Module identity, quantity one, non-consuming selection `Use`,
+consuming `Confirm`, durable unresolved reservations, same-item successor, and
+canonical Home. The adapter now requires the real active flow-owned session and
+the exact typed initial observation before reservation/runtime mutation. Live
+conduct has no separate pre-observe session. Continuous topology is emitted
+only when all three categories and terminal Home occur uninterrupted; retained
+cross-session proof remains non-accepting `composite` without new consumption.
+
+The checked-in verifier rehashes the initial frame, recounts native dispatches,
+requires exactly one read-only trace, independently rerecognizes ordered
+successors, and rejects composite or reconciliation-required proof. Validation
+passed 39 Enhancement tests, 29 conductor tests, and 15 DevelopmentSession tests.
+The focused profile passed 59 tests with receipt
+`a856aa24a82808082d9665be9ba816fe223540438dc1d5bafd889bfb9543944a`.
+An initial architecture failure was a `local_defect` in handoff activation
+vocabulary (`ready` instead of `awaiting_explicit_selection`); the exact repair
+passed, followed by 92 architecture tests with receipt
+`72494ec31da50f5ee27c1a13d0fceb86a1fb576729b28f84c21585279d4be5e1`.
+
+No live observation, material consumption, emulator/ADB input, evidence
+relabeling, registration, scheduling, or runtime-authority expansion occurred.
+Retained Enhancement proof remains `composite`; an uninterrupted native family
+session remains `evidence_required`. Registration is `NOT_REGISTERED`, scheduler
+eligibility is disabled, and runtime ownership is absent. Parent integration is
+accepted offline. Exact next action is the Ultimate terminal-reconciliation
+product/contract dependency audit; verified Flee must never be repeated.
