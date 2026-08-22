@@ -20,7 +20,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r7"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r8"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -48,6 +48,7 @@ RECORD_TYPES = frozenset(
         "nova_praise",
         "ultimate_challenge",
         "bioenhancer_research",
+        "noahs_tavern_recruitment",
     }
 )
 RECORD_IDS = frozenset(
@@ -60,6 +61,7 @@ RECORD_IDS = frozenset(
         "nova_praise",
         "ultimate_challenge",
         "bioenhancer_research",
+        "noahs_tavern_recruitment",
     }
 )
 PRODUCT_RECORD_IDS = RECORD_IDS
@@ -277,6 +279,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "nova_praise": "RESEARCH_LAB",
         "ultimate_challenge": "CAMPAIGN",
         "bioenhancer_research": "RESEARCH_LAB",
+        "noahs_tavern_recruitment": "NOAHS_TAVERN",
     }[record_type]
     if target != expected_target:
         raise ProductAuthorityError(
@@ -301,6 +304,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "nova_praise": "nova_praise",
         "ultimate_challenge": "ultimate_challenge",
         "bioenhancer_research": "bioenhancer_research",
+        "noahs_tavern_recruitment": "noahs_tavern_recruitment",
     }[record_id]
     if record_type != expected_type:
         raise ProductAuthorityError("product record id/type discriminator mismatch")
@@ -339,9 +343,12 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         raise ProductAuthorityError(
             "direct product record must not require a selected-Daily prerequisite"
         )
-    elif record["daily_ownership"].get("daily_owner") is not None or record[
+    elif record_type != "noahs_tavern_recruitment" and (
+        record["daily_ownership"].get("daily_owner") is not None
+        or record[
         "daily_ownership"
-    ].get("point_credit_trigger") is not None:
+        ].get("point_credit_trigger") is not None
+    ):
         raise ProductAuthorityError(
             "direct product record must not own Daily or claim point credit"
         )
@@ -836,6 +843,136 @@ def _validate_ultimate_challenge_record(record: Mapping[str, Any]) -> None:
             )
 
 
+def _validate_noahs_tavern_recruitment_record(record: Mapping[str, Any]) -> None:
+    """Validate the split Daily/maintenance free-recruitment authority."""
+
+    if record["objective"] != "noahs_tavern_recruitment":
+        raise ProductAuthorityError(
+            "Recruitment record objective must be noahs_tavern_recruitment"
+        )
+    if record["action"] != "dispatch_one_free_recruitment_single":
+        raise ProductAuthorityError(
+            "Recruitment action must be dispatch_one_free_recruitment_single"
+        )
+    if record["recurrence"] != "daily_reset_and_independent_cooldown_pulse":
+        raise ProductAuthorityError(
+            "Recruitment recurrence must bind reset and independent cooldown pulses"
+        )
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != [
+        "HOME_READY",
+        "HOME_LOCALIZED",
+        "HOME_CANONICAL",
+    ] or route.get("route") != ["NOAHS_TAVERN"]:
+        raise ProductAuthorityError(
+            "Recruitment entry route must bind Home to Noah's Tavern"
+        )
+    target = record.get("target")
+    tiers = target.get("tiers") if isinstance(target, Mapping) else None
+    expected_tiers = {
+        "basic": {
+            "free_attempts_per_reset": 5,
+            "cooldown_seconds": 600,
+            "owns_daily_completion": True,
+        },
+        "intermediate": {
+            "free_attempts_per_window": 1,
+            "cooldown_seconds": 86400,
+            "owns_daily_completion": False,
+        },
+        "advanced": {
+            "free_attempts_per_window": 1,
+            "cooldown_seconds": 172800,
+            "owns_daily_completion": False,
+        },
+    }
+    if not isinstance(target, Mapping) or (
+        target.get("kind") != "noahs_tavern_recruitment"
+        or target.get("eligibility") != "one_current_tier_free_single_available"
+        or target.get("control") != "Free single"
+        or target.get("quantity") != 1
+        or target.get("tier_selection_required") is not True
+        or tiers != expected_tiers
+    ):
+        raise ProductAuthorityError(
+            "Recruitment target must bind one current tier's free single"
+        )
+    quantity_cost = record.get("quantity_cost")
+    if not isinstance(quantity_cost, Mapping) or quantity_cost.get("quantity") != 1:
+        raise ProductAuthorityError("Recruitment quantity must be exactly one")
+    cost = quantity_cost.get("cost")
+    if not isinstance(cost, Mapping) or (
+        cost.get("kind") != "zero_cost_free_recruitment_single"
+        or cost.get("amount") != 0
+        or cost.get("unit") != "Free single"
+        or cost.get("free_only") is not True
+    ):
+        raise ProductAuthorityError("Recruitment must be free and zero-cost")
+    effect = record["semantic_effect"]
+    if (
+        effect.get("effect_ordinal") != 1
+        or effect.get("basic_daily_ceiling") != 5
+        or effect.get("basic_cooldown_seconds") != 600
+        or effect.get("intermediate_cooldown_seconds") != 86400
+        or effect.get("advanced_cooldown_seconds") != 172800
+        or effect.get("reset_bound_basic_progress") is not True
+        or effect.get("independent_tier_cooldowns") is not True
+        or effect.get("tier_state_persisted") is not True
+        or effect.get("current_tier_successor_required") is not True
+        or effect.get("dispatch_is_not_success_proof") is not True
+        or effect.get("success_requires")
+        != "positive_same_tier_recruit_result_and_free_attempt_successor"
+        or effect.get("paid_fallback") is not False
+        or effect.get("premium_fallback") is not False
+        or effect.get("item_backed_fallback") is not False
+        or effect.get("ten_x_fallback") is not False
+        or effect.get("identical_retry") is not False
+        or effect.get("basic_owns_daily_completion") is not True
+        or effect.get("intermediate_owns_daily_completion") is not False
+        or effect.get("advanced_owns_daily_completion") is not False
+    ):
+        raise ProductAuthorityError(
+            "Recruitment must type Basic five/reset, independent tier cooldowns, successor proof, and ownership boundaries"
+        )
+    ownership = record["daily_ownership"]
+    if (
+        ownership.get("daily_owner") != "five_basic_free_singles_per_reset"
+        or ownership.get("point_credit_trigger")
+        != "five_basic_recruit_successors"
+        or ownership.get("selected_daily_prerequisite") is not False
+    ):
+        raise ProductAuthorityError(
+            "Recruitment must assign Daily completion only to Basic five"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Recruitment terminal requirement must return to canonical Home"
+        )
+    forbidden = " ".join(str(item) for item in record.get("forbidden_actions", []))
+    forbidden_lower = forbidden.casefold()
+    for marker in (
+        "paid",
+        "premium",
+        "item-backed",
+        "10x",
+        "ambiguous",
+        "unknown",
+        "contradictory",
+        "stale",
+        "identical retry",
+        "real-money",
+        "intermediate Daily",
+        "advanced Daily",
+    ):
+        if marker.casefold() not in forbidden_lower:
+            raise ProductAuthorityError(
+                f"Recruitment must forbid {marker} actions"
+            )
+
+
 def _validate_bioenhancer_research_record(record: Mapping[str, Any]) -> None:
     """Validate one direct, zero-cost Bioenhancer Free Research pulse."""
 
@@ -940,6 +1077,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_nova_praise_record(record)
     elif record_type == "ultimate_challenge":
         _validate_ultimate_challenge_record(record)
+    elif record_type == "noahs_tavern_recruitment":
+        _validate_noahs_tavern_recruitment_record(record)
     else:
         _validate_bioenhancer_research_record(record)
     return dict(record)
@@ -999,8 +1138,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 8:
-        raise ProductAuthorityError("product authority requires exactly eight records")
+    if not isinstance(records, list) or len(records) != 9:
+        raise ProductAuthorityError("product authority requires exactly nine records")
     return records
 
 

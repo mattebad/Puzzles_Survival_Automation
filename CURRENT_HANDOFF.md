@@ -8,40 +8,75 @@
   "attributable_dirty_paths": [".cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md"],
   "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "supply-depot-continuous-session-migration",
+  "current_task_id": "recruitment-product-record-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "recruitment-dependency-audit",
+  "next_task_id": "recruitment-continuous-session-migration",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "supply_depot_continuous_session_accepted_offline",
+  "active_delivery_stage": "recruitment_product_record_accepted_offline",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "8 Supply adapter tests and 32 conductor tests passed; 75 Supply controller/session tests passed; focused profile passed 8 with receipt 21d2184ba75969cdd7e1f75101eddde3f1edf69d1344255eb9564a236b0ca036.",
-  "latest_architecture_validation_result": "Supply Depot architecture profile passed 92 tests with receipt ff47b92baf60b59dcc859bf0fca1232ad0047717aab8fb25fb6f501ea4f06a0d.",
+  "latest_focused_validation_result": "Luna and Terra each passed 96 Recruitment authority/contract/catalog/controller-policy tests; Terra found no defect and all 29 authority bindings validated; 38 current orchestrator/handoff tests passed.",
+  "latest_architecture_validation_result": "Recruitment product-authority architecture profile passed 92 tests with receipt 48f2096081c7f982eca877e1cd2d9cb9f8810a4ce0a125753ae8712a2481d6fd.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Supply Depot session migration used zero runtime input and zero collection holds",
-  "current_evidence_or_session_reference": "retained Supply navigation and Free-target authority is preserved; a current uninterrupted Free-exhaustion and canonical-Home session remains evidence_required",
-  "last_safe_completed_step": "Accepted the parent-owned Supply Depot one-session adapter after exact, safety, conductor, focused, and architecture validation.",
-  "exact_next_permitted_action": "Audit only Recruitment product authority and its revision-bound gameplay contract, then select one atomic dependency lane offline.",
+  "current_live_attempt_state": "not authorized and not attempted; Recruitment product migration used zero runtime input and zero recruit actions",
+  "current_evidence_or_session_reference": "retained 2026-07-16 semantic mechanics record cc5d306033c559d014947ee48449b794e0e3e8c7175cff2011d2336d6ad896c4 remains non-accepting; current uninterrupted Basic-five and three-tier maintenance proof is evidence_required",
+  "last_safe_completed_step": "Accepted typed r8 Recruitment authority and two exact contract bindings after bounded Luna implementation, clean Terra review, and parent integration.",
+  "exact_next_permitted_action": "Select only the Recruitment continuous-session migration offline and bind the unchanged Noah controller to one parent-owned DevelopmentSession.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not perform a Supply collection hold merely to relabel proof, infer Daily 5/5, touch paid/diamond controls, combine another atomic lane, or begin Stage 8, scheduler, registration, live runtime work, or push.",
+  "prohibited_repeated_action": "Do not perform a recruit merely to relabel retained proof, substitute paid/premium/item-backed/10x controls, combine another product lane, begin Stage 8, registration/scheduler work, live runtime work, or push.",
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "stage_revision": "supply-depot-continuous-session-migration-r1",
-  "stage_type": "parent_owned_medium_offline_integration",
-  "product_precondition": "r7 record supply_depot-v1 and its exact schema-2 gameplay contract were current at commit ec5ce8d",
-  "failure_class": "no product, core-contract, local-defect, process-state, or diminishing-returns failure",
-  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 0, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "stage_revision": "recruitment-product-record-migration-r1",
+  "stage_type": "heavy_product_authority_shared_binding_extension",
+  "product_precondition": "Recruitment lacked a typed product record and both schema-2 reference contracts were unbound; r8 record noahs_tavern_recruitment-v1 is now proven",
+  "failure_class": "core_contract dependency resolved; one closure-only legacy token-context suite exposed pre-existing schema/queue/index process_state outside this allowlist; no implementation/review defect or diminishing_returns",
+  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 2, "live_attempts_used": 0, "runtime_inputs_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Current uninterrupted BlueStacks Free-exhaustion plus canonical Home proof remains evidence_required; retained navigation/Free-target evidence does not prove collection or Daily 5/5", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
+  "evidence": {"evidence_requirement": "Current uninterrupted BlueStacks Basic-five/reset and independent Basic/Int./Advanced maintenance successors with canonical Home remain evidence_required; retained semantic and synthetic evidence is non-accepting", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
 # Current handoff
+
+## Stage 7 Recruitment product-record migration
+
+Heavy revision `recruitment-product-record-migration-r1`, manifest SHA-256
+`64aeef2aa09cc3a9113bcdd5585749e7e04b0f0c4e357c71e0b3b2890dc60a25`,
+adds r8 record `noahs_tavern_recruitment-v1`, digest
+`dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e`;
+authority digest is
+`3b64ef5caf8755449bed680c4555117f658db1cf2c50c9df1d17c3019d5bf5c2`.
+It separates Basic five/reset Daily ownership (600-second windows) from
+independent zero-cost Basic/Int./Advanced maintenance (600/86400/172800
+seconds). Every action is one current-tier free single; paid, premium,
+item-backed, 10x, ambiguous, unknown, contradictory, stale, and identical
+retry paths remain forbidden. Dispatch is not success, a same-tier result and
+attempt successor is required, tier state is persisted, and canonical Home is
+separate.
+
+Both Recruitment schema-2 contracts bind the same r8 record and native
+BlueStacks profile while remaining `evidence_required`, not production eligible,
+and registration-disabled. The eight prior contracts changed only their global
+r8 authority fields and retained their record digests/semantics. Catalog
+ownership maps only the Basic-five objective and keeps selected Daily out of the
+direct route. Luna and Terra each passed 96 focused tests; Terra found no defect,
+verified the mechanical rebinds, and all 29 bindings validated. Thirty-eight
+current orchestrator/handoff tests also passed. Architecture
+passed 92, receipt
+`48f2096081c7f982eca877e1cd2d9cb9f8810a4ce0a125753ae8712a2481d6fd`.
+
+Retained semantic mechanics record
+`cc5d306033c559d014947ee48449b794e0e3e8c7175cff2011d2336d6ad896c4`
+and synthetic fixtures remain non-accepting; current uninterrupted Basic-five,
+three-tier maintenance, successors, and Home proof remain `evidence_required`.
+Zero emulator/ADB/BlueStacks observation, runtime input, or recruit occurred.
+Registration/scheduling remain disabled and runtime ownership is absent. Next
+is only the Recruitment continuous-session migration.
 
 ## Stage 7 Supply Depot continuous-session migration
 

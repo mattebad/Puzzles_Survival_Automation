@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, and Supply Depot session lanes accepted offline | Milestone remains evidence-blocked; Supply is one-session migrated; Recruitment dependency selection is next. Registration/scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, and Recruitment authority lanes accepted offline | Recruitment is typed but its route remains evidence-blocked; its continuous-session migration is next. Registration/scheduling remain disabled. |
 
 ## Frozen product rule
 
@@ -864,3 +864,55 @@ current uninterrupted Free-exhaustion plus canonical Home session remains
 `evidence_required`. Registration is `NOT_REGISTERED`, scheduler eligibility is
 disabled, and ownership is absent. Next is only the Recruitment dependency
 audit.
+
+## Stage 7 Recruitment product-record migration
+
+The dependency gate found no Recruitment product record and two unbound
+schema-2 reference contracts, so Heavy revision
+`recruitment-product-record-migration-r1` selected only the product-authority
+lane. Manifest SHA-256 is
+`64aeef2aa09cc3a9113bcdd5585749e7e04b0f0c4e357c71e0b3b2890dc60a25`.
+
+Authority r8 digest
+`3b64ef5caf8755449bed680c4555117f658db1cf2c50c9df1d17c3019d5bf5c2`
+adds `noahs_tavern_recruitment-v1`, digest
+`dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e`.
+The record types Basic five/reset with exact 600-second availability windows and
+separates that Daily ownership from independent Basic, Int., and Advanced
+free-single maintenance at exact 600/86400/172800-second cooldowns. Each tier
+state is persisted independently. Only one current-tier enabled free single at
+quantity one and cost zero is allowed. Paid, premium, item-backed, 10x,
+ambiguous, unknown, contradictory, stale, real-money, and identical-retry paths
+are forbidden. Dispatch is not semantic success; a positive same-tier recruit
+result and free-attempt successor are required before canonical Home.
+
+Both Recruitment contracts now bind the same r8 record and native BlueStacks
+profile. They remain `evidence_required`, not production eligible, and
+registration-disabled. Catalog ownership maps only `recruit_noahs_tavern` to
+the direct record, with no selected-Daily prerequisite. All eight prior bound
+contracts changed only their global authority revision/digest; every prior
+record digest and product semantic is unchanged.
+
+Luna and Terra independently passed 96 focused
+authority/contract/catalog/Recruitment tests. Terra found no must-fix defect,
+verified the mechanical rebind, and all 29 authority bindings validated. The
+architecture profile passed 92 tests, receipt
+`48f2096081c7f982eca877e1cd2d9cb9f8810a4ce0a125753ae8712a2481d6fd`;
+38 current orchestrator/handoff tests and `git diff --check` passed. A broader
+closure-only token-context module exposed pre-existing schema-2, queue/backlog,
+indexing, manifest-pointer, and retired-status expectations. It is classified
+`process_state`, is outside this authority allowlist, and did not justify repair
+or alter Recruitment acceptance. No implementation/review defect occurred
+after resolving the missing `core_contract` dependency.
+
+Parent integration accepted the offline lane. Retained 2026-07-16 semantic
+mechanics evidence at digest
+`cc5d306033c559d014947ee48449b794e0e3e8c7175cff2011d2336d6ad896c4`
+and Phase E synthetic fixtures remain diagnostic/non-accepting. Current
+uninterrupted production-controller Basic-five, three-tier maintenance,
+same-tier successor, and canonical Home proof remains `evidence_required`.
+No emulator, ADB, BlueStacks observation, runtime input, recruit, evidence
+mutation, runtime/controller/selector change, registration, scheduling, commit
+by a worker, or push occurred. Registration remains `NOT_REGISTERED`, scheduler
+eligibility disabled, and ownership absent. Next is only the Recruitment
+continuous-session migration.

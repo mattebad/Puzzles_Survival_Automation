@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_eight_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_nine_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -62,6 +62,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "nova_praise",
                 "ultimate_challenge",
                 "bioenhancer_research",
+                "noahs_tavern_recruitment",
             },
         )
         validate_product_authority(self.authority)
@@ -93,6 +94,27 @@ class ProductAuthorityTests(unittest.TestCase):
             "bioenhancer_research",
         ):
             self.assertFalse(self.records[record_id]["daily_ownership"]["selected_daily_prerequisite"])
+
+    def test_recruitment_record_separates_basic_daily_from_tier_maintenance(self) -> None:
+        record = self.records["noahs_tavern_recruitment"]
+        self.assertEqual(record["record_type"], "noahs_tavern_recruitment")
+        self.assertEqual(record["record_revision"], "noahs_tavern_recruitment-v1")
+        self.assertEqual(record["semantic_entry_route"]["target"], "NOAHS_TAVERN")
+        self.assertEqual(record["target"]["quantity"], 1)
+        self.assertTrue(record["target"]["tier_selection_required"])
+        self.assertEqual(record["target"]["tiers"]["basic"]["free_attempts_per_reset"], 5)
+        self.assertEqual(record["target"]["tiers"]["basic"]["cooldown_seconds"], 600)
+        self.assertEqual(record["target"]["tiers"]["intermediate"]["cooldown_seconds"], 86400)
+        self.assertEqual(record["target"]["tiers"]["advanced"]["cooldown_seconds"], 172800)
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["reset_bound_basic_progress"])
+        self.assertTrue(effect["independent_tier_cooldowns"])
+        self.assertTrue(effect["dispatch_is_not_success_proof"])
+        self.assertFalse(effect["identical_retry"])
+        self.assertEqual(record["daily_ownership"]["daily_owner"], "five_basic_free_singles_per_reset")
+        self.assertEqual(record["daily_ownership"]["point_credit_trigger"], "five_basic_recruit_successors")
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        self.assertEqual(record["terminal_requirement"]["home_authority"], "HOME_CANONICAL")
 
     def test_direct_records_reject_daily_owner_and_point_credit_even_with_fresh_digests(self) -> None:
         for field, replacement in (

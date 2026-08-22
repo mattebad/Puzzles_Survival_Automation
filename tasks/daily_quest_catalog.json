@@ -315,6 +315,8 @@
       "policy_mode": "free_only_pending_proof",
       "implementation_status": "CATALOGED",
       "live_validation_status": "NOT_STARTED",
+      "product_record_id": "noahs_tavern_recruitment",
+      "selected_daily_prerequisite": false,
       "progress_format": "current/5",
       "claim_support": "ordinary_row_only",
       "next_development_priority": 6,

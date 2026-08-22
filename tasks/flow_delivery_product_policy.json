@@ -348,7 +348,7 @@
       "source": "explicit_user_direction_2026-08-20"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r7",
+  "authority_revision": "flow-delivery-product-authority-v2-r8",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -986,7 +986,118 @@
       ],
       "record_revision": "bioenhancer_research-v1",
       "record_digest": "5f36370751b2ff5071c0f42fbe15a28a3c628b28aa1ecf588337f5d32cb61207"
+    },
+    {
+      "record_id": "noahs_tavern_recruitment",
+      "record_type": "noahs_tavern_recruitment",
+      "purpose": "Maintain the Recruitment Daily Basic-five objective and independent zero-cost Basic, Intermediate, and Advanced single-recruit windows from Noah's Tavern.",
+      "recurrence": "daily_reset_and_independent_cooldown_pulse",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_LOCALIZED",
+          "HOME_CANONICAL"
+        ],
+        "target": "NOAHS_TAVERN",
+        "route": [
+          "NOAHS_TAVERN"
+        ]
+      },
+      "objective": "noahs_tavern_recruitment",
+      "action": "dispatch_one_free_recruitment_single",
+      "target": {
+        "kind": "noahs_tavern_recruitment",
+        "eligibility": "one_current_tier_free_single_available",
+        "control": "Free single",
+        "quantity": 1,
+        "tier_selection_required": true,
+        "tiers": {
+          "basic": {
+            "free_attempts_per_reset": 5,
+            "cooldown_seconds": 600,
+            "owns_daily_completion": true
+          },
+          "intermediate": {
+            "free_attempts_per_window": 1,
+            "cooldown_seconds": 86400,
+            "owns_daily_completion": false
+          },
+          "advanced": {
+            "free_attempts_per_window": 1,
+            "cooldown_seconds": 172800,
+            "owns_daily_completion": false
+          }
+        }
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_free_recruitment_single",
+          "amount": 0,
+          "unit": "Free single",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "basic_daily_ceiling": 5,
+        "basic_cooldown_seconds": 600,
+        "intermediate_cooldown_seconds": 86400,
+        "advanced_cooldown_seconds": 172800,
+        "reset_bound_basic_progress": true,
+        "independent_tier_cooldowns": true,
+        "tier_state_persisted": true,
+        "current_tier_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "success_requires": "positive_same_tier_recruit_result_and_free_attempt_successor",
+        "paid_fallback": false,
+        "premium_fallback": false,
+        "item_backed_fallback": false,
+        "ten_x_fallback": false,
+        "identical_retry": false,
+        "basic_owns_daily_completion": true,
+        "intermediate_owns_daily_completion": false,
+        "advanced_owns_daily_completion": false
+      },
+      "forbidden_actions": [
+        "paid recruitment",
+        "premium recruitment",
+        "item-backed recruitment",
+        "Recruitment 10x",
+        "ambiguous cost",
+        "unknown control",
+        "contradictory recruitment state",
+        "stale target",
+        "identical retry",
+        "real-money confirmation",
+        "Intermediate Daily completion",
+        "Advanced Daily completion"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": "five_basic_free_singles_per_reset",
+        "point_credit_trigger": "five_basic_recruit_successors",
+        "selected_daily_prerequisite": false,
+        "notes": "Only Basic free singles own the Recruitment Daily objective; Intermediate and Advanced maintenance remain independent and never claim Daily completion or points."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:recruitment-basic-five-and-three-tier-maintenance",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-noahs-tavern-free-single-tiers",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "noahs_tavern_recruitment-v1",
+      "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "7ecac59c562120d3babb1a65455afcd15f30402f0ba0251c1835ac754a5a2c03"
+  "authority_digest": "3b64ef5caf8755449bed680c4555117f658db1cf2c50c9df1d17c3019d5bf5c2"
 }

@@ -51,8 +51,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r7",
-    "product_authority_digest": "7ecac59c562120d3babb1a65455afcd15f30402f0ba0251c1835ac754a5a2c03",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r8",
+    "product_authority_digest": "3b64ef5caf8755449bed680c4555117f658db1cf2c50c9df1d17c3019d5bf5c2",
     "product_record_id": "ultimate_challenge",
     "product_record_revision": "ultimate_challenge-v1",
     "product_record_digest": "8ce40a2975bf07b34d41751a45a16281ab303ce2071370fd878e5e7c63a3b609",

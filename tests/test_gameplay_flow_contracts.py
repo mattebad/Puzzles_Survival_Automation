@@ -190,6 +190,24 @@ class GameplayFlowContractTests(unittest.TestCase):
             self.assertFalse(daily["production_eligible"])
             self.assertFalse(maintenance["production_eligible"])
 
+    def test_recruitment_contracts_bind_one_r8_record_and_remain_evidence_gated(self):
+        for flow_id in (
+            "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+        ):
+            contract = load_flow_contract(flow_id)
+            binding = contract["product_authority_binding"]
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+                self.assertEqual(binding["product_record_id"], "noahs_tavern_recruitment")
+                self.assertEqual(binding["product_record_revision"], "noahs_tavern_recruitment-v1")
+                self.assertEqual(binding["platform"], "bluestacks")
+                self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+                self.assertFalse(binding["selected_daily_prerequisite"])
+                self.assertEqual(contract["proof_state"], "evidence_required")
+                self.assertFalse(contract["production_eligible"])
+                self.assertEqual(contract["registration_state"], "disabled")
+
     def test_exact_policy_quantities_cooldowns_and_home_terminals(self):
         nano_daily = json.dumps(load_flow_contract("NANOWEAPON-BLUESTACKS-INTEGRATION"))
         nano_maintenance = json.dumps(load_flow_contract("NANO-MATERIAL-PRODUCTION-MAINTENANCE"))
@@ -244,6 +262,8 @@ class GameplayFlowContractTests(unittest.TestCase):
             "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
         )
         for flow_id in representative_ids:
             contract = load_flow_contract(flow_id)

@@ -63,6 +63,18 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(objective["product_record_id"], "bioenhancer_research")
         self.assertFalse(objective["selected_daily_prerequisite"])
 
+    def test_catalog_recruitment_maps_only_basic_five_objective_to_direct_record(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        objective = next(
+            item
+            for item in raw["objectives"]
+            if item["objective_key"] == "recruit_noahs_tavern"
+        )
+        self.assertEqual(objective["product_record_id"], "noahs_tavern_recruitment")
+        self.assertFalse(objective["selected_daily_prerequisite"])
+        self.assertEqual(objective["progress_format"], "current/5")
+        self.assertEqual(objective["claim_support"], "ordinary_row_only")
+
     def test_catalog_separates_milestone_claim_from_ordinary_row_claim(self):
         raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
         ordinary = raw["claim_ownership"]["ordinary_claim"]
