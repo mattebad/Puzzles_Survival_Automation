@@ -37,6 +37,26 @@
       "maximum_inputs": 10,
       "maximum_resource_list_swipes": 6,
       "notes": "The direct Home-to-Bag selected-resource observed-list route owns exact 1K Food use proof; catalog identity remains separate and does not authorize registration or scheduling."
+    },
+    "aggregate_daily_claim": {
+      "execution_flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+      "owner_task_id": "daily-row-claim",
+      "product_record_id": "aggregate_daily_claim",
+      "implementation_state": "LIVE_VALIDATED",
+      "daily_claim_ownership": "sole_ordinary_claim_owner",
+      "registration_state": "NOT_REGISTERED",
+      "scheduler_eligibility": false,
+      "notes": "The aggregate selected-Daily route alone owns one ordinary free row-local Claim tap; objective handlers provide completion attribution only."
+    }
+  },
+  "claim_ownership": {
+    "ordinary_claim": {
+      "product_record_id": "aggregate_daily_claim",
+      "execution_flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+      "owner_task_id": "daily-row-claim",
+      "sole_owner": true,
+      "registration_state": "NOT_REGISTERED",
+      "scheduler_eligibility": false
     }
   },
   "reconciliation_records": [

@@ -202,6 +202,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         )
         validator = Draft202012Validator(schema)
         representative_ids = (
+            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
@@ -210,6 +211,39 @@ class GameplayFlowContractTests(unittest.TestCase):
             contract = load_flow_contract(flow_id)
             with self.subTest(flow_id=flow_id):
                 self.assertEqual(list(validator.iter_errors(contract)), [])
+
+    def test_daily_claim_contract_is_aggregate_row_local_and_fail_closed(self):
+        contract = load_flow_contract("DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION")
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(contract["trigger_cadence_type"], "daily_once")
+        self.assertEqual(contract["reset_scope"], "daily_reset")
+        self.assertEqual(
+            contract["product_authority_binding"]["product_record_id"],
+            "aggregate_daily_claim",
+        )
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
+        self.assertEqual(
+            contract["transition_contracts"][2]["permitted_input"],
+            "current-frame-bound ordinary free non-milestone Claim tap",
+        )
+        self.assertIn(
+            "reconcile-unknown-claim-effect",
+            {item["transition_id"] for item in contract["transition_contracts"]},
+        )
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertTrue(
+            any(
+                item["scenario_id"] == "selected-daily-aggregate-claim-unknown-successor"
+                and "current-frame-bound ordinary free non-milestone Claim tap"
+                in item["forbidden_inputs"]
+                for item in contract["scenarios"]
+            )
+        )
+        self.assertIn("non-claimable Claim row", contract["unsupported_or_manual_only_states"])
+        self.assertIn("non-claimable", contract["cooldown_deferred_behavior"])
 
     def test_enhancement_family_sequence_reaches_each_ordered_category(self):
         contract = load_flow_contract(

@@ -33,6 +33,18 @@ class CatalogTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "selected-Daily provenance"):
                 load_catalog()
 
+    def test_catalog_names_aggregate_claim_as_sole_ordinary_owner(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        owner = raw["claim_ownership"]["ordinary_claim"]
+        self.assertEqual(owner["product_record_id"], "aggregate_daily_claim")
+        self.assertEqual(
+            owner["execution_flow_id"],
+            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+        )
+        self.assertTrue(owner["sole_owner"])
+        self.assertEqual(owner["registration_state"], "NOT_REGISTERED")
+        self.assertFalse(owner["scheduler_eligibility"])
+
 
 class OperatorCliTests(unittest.TestCase):
     def test_promoted_navigation_asset_manifest_hashes_match(self):

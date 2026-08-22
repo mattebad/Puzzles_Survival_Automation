@@ -348,7 +348,7 @@
       "source": "explicit_user_direction_2026-08-20"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r2",
+  "authority_revision": "flow-delivery-product-authority-v2-r3",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -587,7 +587,83 @@
       ],
       "record_revision": "supply_depot-v1",
       "record_digest": "667ff4961534fa5f667e7875b937f9b14e771f03a33e99698b8c43b2e8da80f2"
+    },
+    {
+      "record_id": "aggregate_daily_claim",
+      "record_type": "aggregate_daily_claim",
+      "purpose": "Claim exactly one ordinary free non-milestone row-local Claim control on selected Daily.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_CANONICAL"
+        ],
+        "target": "DAILY",
+        "route": [
+          "DAILY"
+        ]
+      },
+      "objective": "aggregate_daily_claim",
+      "action": "claim_one_ordinary_row_local_control",
+      "target": {
+        "kind": "ordinary_daily_claim",
+        "selected_daily": true,
+        "row_local": true,
+        "milestone": false,
+        "control": "Claim"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_claim",
+          "amount": 0,
+          "unit": "Claim",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "positive_points_delta_required": true,
+        "ordinary_claim_controls_cleared_required": true,
+        "dispatch_is_not_success_proof": true,
+        "objective_identity_not_authorization_input": true
+      },
+      "forbidden_actions": [
+        "milestone Claim",
+        "non-claimable Claim row",
+        "cost-bearing Claim",
+        "clipped Claim row",
+        "unknown Claim row",
+        "contradictory Claim row",
+        "stale Claim target",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": "aggregate_daily_claim",
+        "point_credit_trigger": "positive_points_delta_and_ordinary_claim_controls_cleared",
+        "selected_daily_prerequisite": true,
+        "notes": "The aggregate Claim record alone owns ordinary selected-Daily Claim controls; direct-action records cannot require selected Daily."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:aggregate-daily-claim-row-local-free-control",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-selected-daily-aggregate-claim",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "aggregate_daily_claim-v1",
+      "record_digest": "560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41"
     }
   ],
-  "authority_digest": "69f9a7b0ee937bf04dec6c671cf2d22b2a1bbd1fecefed1b10da822d7a54da50"
+  "authority_digest": "5b85b4ac49d5e5d109a36517b14e59e2259fe51a79c7e67b49371724a01cde5d"
 }

@@ -14,6 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim product-record and continuous-session atomic lanes accepted offline in the commit containing this status | Daily Claim now has typed product authority plus one real-session adapter and checked-in route verification. Direct-action Daily coupling remains rejected. Native continuous proof and all other portfolio flows remain unstarted. |
 
 ## Frozen product rule
 
@@ -392,3 +393,121 @@ future reliability issue, not missing Stage 6 evidence.
 No runtime input, registration, scheduling, live canary, downstream migration,
 or push occurred. Stage 6 is recorded by the commit containing this status.
 Exact next permitted action is explicit selection of the next atomic workstream.
+
+## Stage 7 Daily Claim product-record migration
+
+The first atomic Stage 7 lane selected the product-record dependency for
+`DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION`. Stage 6 predecessor commit `80eed01`
+was clean and its r6 manifest SHA-256 matched
+`68c94af7113a8c506e603384dfdf2149ed4cee8a3f1215d71bbf43e7e2692356`.
+Runtime ownership was absent, unresolved action state was clear, production
+registration was `NOT_REGISTERED`, and scheduler eligibility was disabled.
+
+The dependency was missing: `aggregate-daily-claim` existed only as a legacy
+policy entry, while the typed record set had no Daily Claim record and its
+schema-v1 gameplay contract had no revision/digest binding. The shared
+validator was direct-action-only and the global authority digest required
+mechanical rebinds of the three previously migrated contracts. The parent
+classified this as a `core_contract` scope discovery, promoted the atomic lane
+to Heavy before mutation, and froze
+`docs/runtime-reliability-stage-7-daily-claim-product-record-execution-manifest-r1.md`.
+
+Accepted authority identifiers:
+
+- authority revision `flow-delivery-product-authority-v2-r3`, digest
+  `5b85b4ac49d5e5d109a36517b14e59e2259fe51a79c7e67b49371724a01cde5d`;
+- Daily record revision `aggregate_daily_claim-v1`, digest
+  `560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41`.
+
+The new record is the sole legitimate selected-Daily and ordinary Claim owner.
+It types reset recurrence, Home-to-Daily entry, one free row-local ordinary
+Claim, exact one-dispatch ceiling, positive points/control successor, canonical
+Home, and immutable user/native authority references. Direct-action records
+must retain null Daily owner/point trigger and
+`selected_daily_prerequisite: false`. The Resource, Enhancement, and Supply
+contracts changed only their global authority revision/digest fields; their
+product records and behaviors remain unchanged.
+
+The Daily v2 contract keeps clipped, cost-bearing, non-claimable, unknown,
+contradictory, and stale rows at zero input; dispatch is transport evidence only;
+unknown successor becomes reconciliation-required and cannot authorize an
+identical retry. The retained Claim and Home-return receipts
+`c2ddc2ea-60b4-404a-a7b3-784ffaff9d08` and
+`d4a6822b-a486-44a9-a2b7-4b71a0f5265c` remain composite proof and were not
+relabeled continuous. `MONITOR-UNOBSERVED-EFFECT-RECONCILIATION` remains active.
+
+The initial independent review found two `local_defect` gaps: non-aggregate
+records did not reject non-null Daily owner/point-trigger fields, and the known
+non-claimable negative was not explicit. The one consolidated repair resolved
+both. The bounded recheck found no new must-fix regression.
+
+Validation:
+
+- 43 product-authority/gameplay-contract/catalog tests passed.
+- Daily focused profile passed 9 tests with receipt
+  `bebd0feb6752124390313187301f87c3c93e379880fd91a33ae617eb47e6cf2f`.
+- Final post-closure architecture profile passed 92 tests with receipt
+  `3fc29bb9b82e6fa12e131b7e1f7b02dce2be651a78b7497552637f10c591cfc1`.
+- `git diff --check` passed.
+
+An earlier closure run found one parent-owned metadata `local_defect`: the
+handoff used an unsupported next-task activation token. Restoring the checked-in
+`awaiting_explicit_selection` vocabulary resolved it; the final architecture
+profile above passed.
+
+The parent integration decision is `accepted for Daily Claim product-record
+migration offline scope`. No live observation, emulator, ADB, BlueStacks,
+gameplay, session, or runtime input occurred. Registration remains
+`NOT_REGISTERED`, scheduler eligibility remains disabled, runtime ownership is
+absent, and no commit or push occurred. The accepted candidate is uncommitted.
+The user subsequently authorized stacking the separate Daily Claim
+continuous-session migration on this accepted uncommitted candidate. Its result
+is recorded below. No other Stage 7 flow may begin.
+
+## Stage 7 Daily Claim continuous-session migration
+
+The parent-owned Medium lane preserved the existing Claim controller and product
+semantics. `scripts/pnsctl.py` now treats Daily Claim as a migrated continuous
+flow: live conduct has no separate pre-run observation, rejects the legacy
+one-input override, and requires continuous topology plus exactly one causal
+trace. The Daily adapter admits only the real active flow-owned
+`DevelopmentSession` and the exact typed initial-observation object already
+bound to it, with matching hash and invocation, before any runtime connection.
+
+The same session carries reconnaissance, row-local Claim intent and binding,
+exact retained transport count, one read-only/non-authoritative causal trace,
+points plus exhausted-Control successor, and terminal Home. The checked-in
+route verifier rehashes the retained initial frame, recounts all dispatches and
+the exact one Claim transport from `events.jsonl`, rejects dispatch as semantic
+proof, requires positive points and zero ordinary Claim controls, rejects every
+reconciliation-required outcome, and gates conductor `DONE`. Existing bounded
+`CONTINUE -> STEP_BACK -> ESCALATE`, manual/external blocker precedence, and
+unknown-effect identical-retry denial remain unchanged.
+
+Validation:
+
+- exact Daily adapter regressions: 6 passed;
+- existing Daily controller suite: 86 passed, 16 skipped;
+- complete conductor suite: 27 passed;
+- available Daily Claim suite: 9 passed;
+- checked-in Daily focused profile: 9 passed, receipt
+  `d7434623f7402c6fdb95f2822ca96903c4a045e3e15916542d4e5fdef55d5c93`;
+- architecture profile: 92 passed, receipt
+  `2edbdff9d81ccd2c5f60627413ab170e099484313946b5c76e28c1aecaacfaf7`.
+
+The only observed failure was a test assertion that expected the typed initial
+observation's serialized mapping to be nested. It was classified `local_defect`
+and repaired; the exact regression then passed. There were no `product_state`,
+`core_contract`, `process_state`, or `diminishing_returns` failures.
+
+The retained Claim receipt `c2ddc2ea-60b4-404a-a7b3-784ffaff9d08` and Home
+receipt `d4a6822b-a486-44a9-a2b7-4b71a0f5265c` remain composite and were not
+recursively inspected, relabeled, or duplicated. No live input or observation
+occurred. Native uninterrupted continuous proof remains `evidence_required`.
+Registration is `NOT_REGISTERED`, scheduler eligibility is disabled, runtime
+ownership is absent, and no shared authority was broadened. Parent integration
+accepted the offline Daily continuous-session scope. The stacked candidate is
+recorded by the commit containing this status; no push occurred. Exact next
+permitted action is explicit authorization for a Daily native continuous-session
+canary, otherwise a new atomic workstream selection. No other flow, Stage 8 work,
+scheduler, or registration work may begin from this task.

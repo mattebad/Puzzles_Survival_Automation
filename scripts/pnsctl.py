@@ -3513,6 +3513,7 @@ def development_session_run_flow(
                         in {
                             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
                             "WORLD-MAP-NAVIGATION-FOUNDATION",
+                            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
                         }
                         else "composite",
                     )
@@ -6578,6 +6579,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
         in {
             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
             "WORLD-MAP-NAVIGATION-FOUNDATION",
+            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
         }
         and requested is not None
         and maximum == 1
@@ -6660,6 +6662,7 @@ def _conductor_live_summary(
             if flow_id in {
                 "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
                 "WORLD-MAP-NAVIGATION-FOUNDATION",
+                "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
             }:
                 if retained.get("proof_topology") != "continuous":
                     summary.update(
@@ -6818,7 +6821,11 @@ def conduct_flow(
     if not yes:
         raise OperatorError("live conduct requires --yes")
     resource_flow = flow_id == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
-    continuous_session_flow = resource_flow or flow_id == "WORLD-MAP-NAVIGATION-FOUNDATION"
+    continuous_session_flow = flow_id in {
+        "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+        "WORLD-MAP-NAVIGATION-FOUNDATION",
+        "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+    }
     observe_output: str | None = None
     if not continuous_session_flow:
         observe_output = development_session_observe(

@@ -3,45 +3,94 @@
   "schema_version": 3,
   "branch": "feature/runtime-reliability-convergence",
   "head_binding": "commit-containing-this-handoff",
-  "last_product_candidate_head": "compute_from_git",
+  "last_product_candidate_head": "commit-containing-this-handoff",
   "ahead_behind": {"source": "compute_from_git"},
-  "attributable_dirty_paths": [],
+  "attributable_dirty_paths": [".cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md"],
   "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "continuous-development-session-thin-conduct",
+  "current_task_id": "daily-claim-continuous-session-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "runtime-reliability-next-workstream-selection",
+  "next_task_id": "daily-claim-native-continuous-canary",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "continuous_session_completed_offline",
-  "active_execution_manifest_path": "docs/runtime-reliability-stage-6-continuous-session-execution-manifest-r6.md",
+  "active_delivery_stage": "daily_claim_continuous_session_committed_closure",
+  "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "R6 parent checks passed 83 conductor/World tests, 77 session/navigation/conductor/lean tests with one existing skip, and 77 Resource/World tests. Resource focused passed 66 (7b394deab9d5199f259d4baa67a840f9f3658ae1350ff7b261f59a4e1119c356); World focused passed 100 (cd8e8e7576d737e96bd1293cd8a07bb590a8990f7e03cd0381e4ce6c448112ab); shared navigation passed 20 (c281c7c0bf9027592b2860171312ed044fcbd9ce38e4dc980acb211af08111bc).",
-  "latest_architecture_validation_result": "92 committed-closure architecture tests passed (984466b19079b581e0f3cc5a9356b618109d996fda945f4eba468be80055e7de).",
+  "latest_focused_validation_result": "Daily adapter 6, controller 86 (16 skipped), conductor 27, availability 9; checked-in Daily focused profile passed 9 tests with receipt d7434623f7402c6fdb95f2822ca96903c4a045e3e15916542d4e5fdef55d5c93.",
+  "latest_architecture_validation_result": "92 final integration architecture tests passed with receipt 2edbdff9d81ccd2c5f60627413ab170e099484313946b5c76e28c1aecaacfaf7.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "optional World navigation shadow was not required or attempted; Stage 6 used zero runtime input",
-  "current_evidence_or_session_reference": "docs/runtime-reliability-stage-6-flow-migration-packets.md",
-  "last_safe_completed_step": "Accepted r6 integration after exact structured-token equality, no-finding independent review, focused Resource/World, shared-navigation, and architecture profiles all passed.",
-  "exact_next_permitted_action": "Stage 6 is recorded by the commit containing this handoff; await explicit selection of the next atomic workstream.",
+  "current_live_attempt_state": "not authorized and not attempted; the stacked Daily Claim product-record and continuous-session candidate used zero runtime input",
+  "current_evidence_or_session_reference": "retained composite Claim receipt c2ddc2ea-60b4-404a-a7b3-784ffaff9d08 and Home-return receipt d4a6822b-a486-44a9-a2b7-4b71a0f5265c as referenced by the gameplay contract",
+  "last_safe_completed_step": "Recorded the accepted Daily Claim product-record and continuous-session migrations in the clean closure commit containing this handoff.",
+  "exact_next_permitted_action": "Explicitly authorize a Daily Claim native continuous-session canary on this clean committed candidate; otherwise await a new atomic workstream selection.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not begin portfolio migration, run a live canary, enable registration/scheduling, commit without explicit request, amend prior commits, or push.",
+  "prohibited_repeated_action": "Do not begin another flow, Stage 8, scheduler, registration, live runtime work, another commit, or push without new authority.",
   "control_owner": "sol_parent",
-  "control_parent_conversation_id": "01a02175-5bc3-7033-b401-621bb9041a4c",
-  "stage_revision": "continuous-development-session-thin-conduct-r6",
-  "stage_type": "accepted_offline_foundation",
-  "product_precondition": "not_applicable_offline_zero_input_stage",
-  "failure_class": "none",
-  "budgets": {"stage_revisions_used": 6, "managed_turns_used": 16, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "control_parent_conversation_id": "current-task",
+  "stage_revision": "daily-claim-continuous-session-medium-r1",
+  "stage_type": "committed_offline_medium_migration",
+  "product_precondition": "typed Daily Claim record and revision-bound contract now proven",
+  "failure_class": "one repaired test-only local_defect; no unresolved failure",
+  "budgets": {"live_attempts_used": 0, "runtime_inputs_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "NONE_FOR_ACCEPTED_OFFLINE_FOUNDATION", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
+  "evidence": {"evidence_requirement": "offline continuous-session contract is accepted; native uninterrupted continuous proof remains evidence_required and retained Claim/Home proof remains composite", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
 # Current handoff
+
+## Stage 7 Daily Claim atomic migrations
+
+The accepted Daily product-record dependency was stacked by explicit user
+authorization on clean Stage 6 predecessor `80eed01`; its r6 manifest digest is
+`68c94af7113a8c506e603384dfdf2149ed4cee8a3f1215d71bbf43e7e2692356`.
+
+The accepted dependency is authority revision
+`flow-delivery-product-authority-v2-r3` (digest
+`5b85b4ac49d5e5d109a36517b14e59e2259fe51a79c7e67b49371724a01cde5d`)
+and Daily record `aggregate_daily_claim-v1` (digest
+`560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41`).
+Its Heavy manifest is retained at
+`docs/runtime-reliability-stage-7-daily-claim-product-record-execution-manifest-r1.md`.
+Direct-action records still reject selected-Daily ownership. Product validation
+passed 43 tests, focused receipt `bebd0feb6752124390313187301f87c3c93e379880fd91a33ae617eb47e6cf2f`,
+and architecture receipt `3fc29bb9b82e6fa12e131b7e1f7b02dce2be651a78b7497552637f10c591cfc1`.
+
+The continuous-session migration binds the unchanged row-local Claim controller
+to the real active flow-owned `DevelopmentSession`. The exact typed initial
+observation object must be the object already bound to that session and its hash
+and invocation must match before runtime connection. Live `conduct` now invokes
+one run session without a separate pre-observe session. The adapter retains exact
+transport events, exactly one read-only non-authoritative causal trace, continuous
+topology, and reconciliation-required state for every dispatch-bearing unknown.
+The checked-in verifier independently hashes the retained initial frame, recounts
+all transports and the sole Claim dispatch, requires both points increase and
+ordinary Claim-control exhaustion, and verifies terminal Home before `DONE`.
+
+The existing controller retains all row-local safety and Home semantics; no
+selector, shared primitive, safety authority, registration, or scheduler changed.
+
+Offline suites and profiles passed; exact counts and receipt digests are in the
+structured state and durable convergence status. One test-only `local_defect`
+was repaired; no unresolved failure remains.
+
+Parent integration decision: `accepted for Daily Claim continuous-session
+migration offline scope`. Retained native Claim receipt
+`c2ddc2ea-60b4-404a-a7b3-784ffaff9d08` and Home-return receipt
+`d4a6822b-a486-44a9-a2b7-4b71a0f5265c` were used only through their existing
+contract references and remain composite. No emulator, ADB, BlueStacks,
+gameplay observation, session, or runtime input occurred. Registration remains
+`NOT_REGISTERED`, scheduler eligibility remains disabled, runtime ownership is
+absent, and no push occurred. The stacked candidate is recorded by the commit
+containing this handoff. Native uninterrupted continuous proof remains
+`evidence_required`; it requires separate live authorization. No other Stage 7
+flow may begin from this task.
+
+## Prior Stage 6 closure
 
 Runtime Reliability Stage 6 continuous DevelopmentSession/thin conduct is
 accepted for offline foundation scope in the commit containing this handoff.

@@ -20,7 +20,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r2"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r3"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -38,8 +38,12 @@ KNOWN_BLUESTACKS_BINDING_IDS = frozenset(
 )
 EXPECTED_BLUESTACKS_BINDING_IDS = KNOWN_BLUESTACKS_BINDING_IDS
 HOME_AUTHORITIES = frozenset({"HOME_READY", "HOME_LOCALIZED", "HOME_CANONICAL"})
-RECORD_TYPES = frozenset({"resource_item", "enhancement_family", "supply_depot"})
-RECORD_IDS = frozenset({"use_resource_item", "enhancement_family", "supply_depot"})
+RECORD_TYPES = frozenset(
+    {"resource_item", "enhancement_family", "supply_depot", "aggregate_daily_claim"}
+)
+RECORD_IDS = frozenset(
+    {"use_resource_item", "enhancement_family", "supply_depot", "aggregate_daily_claim"}
+)
 PRODUCT_RECORD_IDS = RECORD_IDS
 POLICY_STATUSES = frozenset(
     {
@@ -250,6 +254,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "resource_item": "BAG",
         "enhancement_family": "COMMANDER",
         "supply_depot": "SUPPLY_DEPOT",
+        "aggregate_daily_claim": "DAILY",
     }[record_type]
     if target != expected_target:
         raise ProductAuthorityError(
@@ -269,6 +274,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "use_resource_item": "resource_item",
         "enhancement_family": "enhancement_family",
         "supply_depot": "supply_depot",
+        "aggregate_daily_claim": "aggregate_daily_claim",
     }[record_id]
     if record_type != expected_type:
         raise ProductAuthorityError("product record id/type discriminator mismatch")
@@ -297,9 +303,21 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         raise ProductAuthorityError("terminal requirement must use HOME_CANONICAL")
     if not isinstance(record["daily_ownership"], Mapping):
         raise ProductAuthorityError("daily_ownership must be an object")
-    if record["daily_ownership"].get("selected_daily_prerequisite") is not False:
+    selected_daily = record["daily_ownership"].get("selected_daily_prerequisite")
+    if record_type == "aggregate_daily_claim":
+        if selected_daily is not True:
+            raise ProductAuthorityError(
+                "aggregate Daily Claim record must require selected-Daily ownership"
+            )
+    elif selected_daily is not False:
         raise ProductAuthorityError(
-            "product record must not require a selected-Daily prerequisite"
+            "direct product record must not require a selected-Daily prerequisite"
+        )
+    elif record["daily_ownership"].get("daily_owner") is not None or record[
+        "daily_ownership"
+    ].get("point_credit_trigger") is not None:
+        raise ProductAuthorityError(
+            "direct product record must not own Daily or claim point credit"
         )
     _validate_home_route(record, record_type)
     _validate_authority_references(record.get("authority_references"), "authority_references")
@@ -433,6 +451,84 @@ def _validate_supply_record(record: Mapping[str, Any]) -> None:
         )
 
 
+def _validate_aggregate_daily_claim_record(record: Mapping[str, Any]) -> None:
+    """Validate the sole product record allowed to own selected Daily."""
+
+    if record["objective"] != "aggregate_daily_claim":
+        raise ProductAuthorityError(
+            "aggregate Daily Claim record objective must be aggregate_daily_claim"
+        )
+    if record["recurrence"] != "daily_reset_scoped":
+        raise ProductAuthorityError(
+            "aggregate Daily Claim recurrence must be daily_reset_scoped"
+        )
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != ["HOME_READY", "HOME_CANONICAL"] or route.get(
+        "route"
+    ) != ["DAILY"]:
+        raise ProductAuthorityError(
+            "aggregate Daily Claim entry route must be Home to Daily"
+        )
+    target = record.get("target")
+    if not isinstance(target, Mapping) or (
+        target.get("kind") != "ordinary_daily_claim"
+        or target.get("selected_daily") is not True
+        or target.get("row_local") is not True
+        or target.get("milestone") is not False
+        or target.get("control") != "Claim"
+    ):
+        raise ProductAuthorityError(
+            "aggregate Daily Claim must target one ordinary row-local Claim control"
+        )
+    quantity_cost = record.get("quantity_cost")
+    if not isinstance(quantity_cost, Mapping) or quantity_cost.get("quantity") != 1:
+        raise ProductAuthorityError(
+            "aggregate Daily Claim quantity must be exactly one dispatch"
+        )
+    cost = quantity_cost.get("cost")
+    if not isinstance(cost, Mapping) or (
+        cost.get("kind") != "zero_cost_claim"
+        or cost.get("amount") != 0
+        or cost.get("unit") != "Claim"
+        or cost.get("free_only") is not True
+    ):
+        raise ProductAuthorityError("aggregate Daily Claim must be free and zero-cost")
+    effect = record["semantic_effect"]
+    if (
+        effect.get("effect_ordinal") != 1
+        or effect.get("positive_points_delta_required") is not True
+        or effect.get("ordinary_claim_controls_cleared_required") is not True
+        or effect.get("dispatch_is_not_success_proof") is not True
+    ):
+        raise ProductAuthorityError(
+            "aggregate Daily Claim requires one dispatch and positive points/control successor"
+        )
+    ownership = record["daily_ownership"]
+    if ownership.get("daily_owner") != "aggregate_daily_claim" or ownership.get(
+        "point_credit_trigger"
+    ) != "positive_points_delta_and_ordinary_claim_controls_cleared":
+        raise ProductAuthorityError(
+            "aggregate Daily Claim ownership and point trigger are incomplete"
+        )
+    forbidden = " ".join(str(item) for item in record.get("forbidden_actions", []))
+    forbidden_lower = forbidden.casefold()
+    for marker in (
+        "milestone",
+        "non-claimable",
+        "cost-bearing",
+        "clipped",
+        "unknown",
+        "contradictory",
+        "stale",
+        "identical retry",
+        "real-money",
+    ):
+        if marker not in forbidden_lower:
+            raise ProductAuthorityError(
+                f"aggregate Daily Claim must forbid {marker} controls"
+            )
+
+
 def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
     """Validate one typed representative record without mutating it."""
 
@@ -441,8 +537,10 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_resource_record(record)
     elif record_type == "enhancement_family":
         _validate_enhancement_record(record)
-    else:
+    elif record_type == "supply_depot":
         _validate_supply_record(record)
+    else:
+        _validate_aggregate_daily_claim_record(record)
     return dict(record)
 
 
@@ -500,8 +598,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 3:
-        raise ProductAuthorityError("product authority requires exactly three records")
+    if not isinstance(records, list) or len(records) != 4:
+        raise ProductAuthorityError("product authority requires exactly four records")
     return records
 
 
@@ -660,6 +758,10 @@ def validate_contract_product_authority_binding(
 
     binding = _binding_from_contract(contract)
     if binding is None:
+        if contract.get("flow_id") == "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION":
+            raise ProductAuthorityError(
+                "Daily Claim contract requires an aggregate product-authority binding"
+            )
         return dict(contract)
     validate_product_authority(authority)
     required = {
@@ -690,6 +792,18 @@ def validate_contract_product_authority_binding(
     if record_id not in records:
         raise ProductAuthorityError(f"contract references unknown product record: {record_id}")
     record = records[record_id]
+    if record_id == "aggregate_daily_claim" and contract.get(
+        "flow_id"
+    ) != "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION":
+        raise ProductAuthorityError(
+            "aggregate Daily Claim record is reserved for the Daily Claim flow"
+        )
+    if record_id != "aggregate_daily_claim" and contract.get(
+        "flow_id"
+    ) == "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION":
+        raise ProductAuthorityError(
+            "Daily Claim flow must bind the aggregate Daily Claim record"
+        )
     if binding["product_record_revision"] != record["record_revision"]:
         raise ProductAuthorityError("contract references stale product record revision")
     if binding["product_record_digest"] != record["record_digest"]:
@@ -749,7 +863,12 @@ def validate_contract_product_authority_binding(
         raise ProductAuthorityError(
             "representative direct-action contract cannot require selected Daily"
         )
-    _validate_direct_route_contract_content(contract)
+    if record_id != "aggregate_daily_claim":
+        _validate_direct_route_contract_content(contract)
+    elif binding.get("selected_daily_prerequisite") is not None:
+        raise ProductAuthorityError(
+            "aggregate Daily Claim binding must use product-record selected-Daily ownership"
+        )
     return dict(contract)
 
 
@@ -773,4 +892,3 @@ def validate_contract_product_authority_bindings(
 validate_contract_binding = validate_contract_product_authority_binding
 validate_contract_bindings = validate_contract_product_authority_bindings
 validate_authority = validate_product_authority
-
