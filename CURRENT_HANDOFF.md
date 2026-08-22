@@ -8,40 +8,61 @@
   "attributable_dirty_paths": [".cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md"],
   "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "enhancement-family-continuous-session-migration",
+  "current_task_id": "ultimate-terminal-product-record-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "ultimate-terminal-product-record-dependency-audit",
+  "next_task_id": "ultimate-terminal-continuous-session-migration",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "enhancement_family_continuous_session_accepted_offline",
+  "active_delivery_stage": "ultimate_product_record_accepted_offline",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "38 product-authority/contract precondition tests and 83 Enhancement/session/conductor tests passed; Enhancement focused profile passed 59 tests with receipt a856aa24a82808082d9665be9ba816fe223540438dc1d5bafd889bfb9543944a.",
-  "latest_architecture_validation_result": "92 final integration architecture tests passed after one metadata repair with receipt 72494ec31da50f5ee27c1a13d0fceb86a1fb576729b28f84c21585279d4be5e1.",
+  "latest_focused_validation_result": "52 Ultimate product-authority/contract/catalog tests passed; Ultimate focused profile passed 27 tests with receipt fbea02942579ea2130a7b147c81971c8c1935a560d2b5620fd3a68c8f906f7ad.",
+  "latest_architecture_validation_result": "Ultimate architecture profile passed 27 tests with receipt 5de5e55a48aec8c26d421e4b3455d433b0b5d20b5d41f011bf501c021d820273.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Enhancement continuous-session migration used zero runtime input",
-  "current_evidence_or_session_reference": "checked-in Enhancement product/contract authority and focused provenance-bound fixtures; retained native proof remains composite/evidence_required and was not relabeled",
-  "last_safe_completed_step": "Accepted the Enhancement parent-owned continuous-session migration after focused, shared-session, conductor, and architecture validation.",
-  "exact_next_permitted_action": "Audit Ultimate terminal reconciliation typed product authority and revision-bound gameplay contract, then select exactly one atomic dependency lane; live input remains separately unauthorized.",
+  "current_live_attempt_state": "not authorized and not attempted; Ultimate product-record migration used zero runtime input and zero Flee",
+  "current_evidence_or_session_reference": "checked-in queue provenance: attempt 13 verified one zero-resource Flee; attempt 14 verified measured terminal Home recovery; topology remains composite",
+  "last_safe_completed_step": "Accepted typed Ultimate authority after bounded Luna implementation, clean Terra review, and focused/architecture validation.",
+  "exact_next_permitted_action": "Execute only the parent-owned Ultimate terminal continuous-session adapter migration offline; never repeat Flee and keep retained proof composite.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not repeat Enhancement consumption to relabel composite proof, combine Ultimate dependency lanes, repeat Flee, or begin Stage 8, scheduler, registration, live runtime work, or push.",
+  "prohibited_repeated_action": "Do not repeat Flee, relabel attempts 13/14 continuous, begin another flow before Ultimate terminal migration closes, or begin Stage 8, scheduler, registration, live runtime work, or push.",
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "stage_revision": "enhancement-family-continuous-session-migration-r1",
-  "stage_type": "parent_owned_medium_offline_integration",
-  "product_precondition": "Enhancement record enhancement_family-v1 and its r4 revision-bound schema-v2 gameplay contract passed 38 authority/contract tests",
-  "failure_class": "one repaired local_defect in next-task activation vocabulary; legacy validate_governance schema-2 mismatch remains process_state",
-  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 0, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "stage_revision": "ultimate-terminal-product-record-migration-r1",
+  "stage_type": "heavy_product_authority_shared_binding_extension",
+  "product_precondition": "Ultimate lacked a typed record and contract binding; record ultimate_challenge-v1 and r5 binding are now proven",
+  "failure_class": "core_contract dependency resolved; one process_state implementer-freeze correction, no review finding",
+  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 2, "live_attempts_used": 0, "runtime_inputs_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Retained Enhancement proof remains composite; native uninterrupted Gear/Chip/Module continuous proof remains evidence_required", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
+  "evidence": {"evidence_requirement": "Ultimate attempts 13/14 remain immutable composite proof; uninterrupted terminal reconciliation remains evidence_required", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
 # Current handoff
+
+## Stage 7 Ultimate product-record migration
+
+Heavy revision `ultimate-terminal-product-record-migration-r1`, manifest SHA-256
+`df413033fdad364daca2f83c0d14f78af20c8cab4ef87186349fcca635373327`,
+added record `ultimate_challenge-v1` digest
+`8ce40a2975bf07b34d41751a45a16281ab303ce2071370fd878e5e7c63a3b609`.
+Authority r5 digest is
+`be2b53e1792f6e9d799bc48987a431263dcf035ff5aa01cb87337b43f9d867f7`.
+It types direct/non-Daily/non-Campaign-AP ownership, once/reset one zero-cost
+Flee, dispatch-versus-success separation, repeat denial, and separate canonical
+Home terminal. Attempts 13/14 remain immutable composite proof; uninterrupted
+terminal reconciliation stays `evidence_required` and Flee must never repeat.
+
+Luna’s bounded implementation passed 52 affected tests. Terra reported no
+findings. Focused 27 receipt
+`fbea02942579ea2130a7b147c81971c8c1935a560d2b5620fd3a68c8f906f7ad`;
+architecture 27 receipt
+`5de5e55a48aec8c26d421e4b3455d433b0b5d20b5d41f011bf501c021d820273`.
+Zero live input/Flee; registration disabled and ownership absent. Next is only
+the offline Ultimate terminal continuous-session adapter lane.
 
 ## Stage 7 Enhancement continuous-session migration
 
@@ -73,35 +94,8 @@ disabled.
 
 ## Stage 7 Nova Praise product-record migration
 
-The missing Nova dependency is now typed as direct-action record
-`nova_praise-v1`, digest
-`959fe8201ce0250dcab494dc65f930cf52c753b1ac5833d22bcb3a1abea2b2ae`.
-Authority revision `flow-delivery-product-authority-v2-r4` has digest
-`28331c423c10c423b8b9c2752922f2443b89d1fc3956c9599c4c6eb516a4a45f`.
-It preserves one eligible zero-cost Praise, attempts `X -> X-1`, fixed 300-second
-cooldown, no paid fallback or identical retry, and canonical Home. Nova retains
-null Daily ownership and no selected-Daily prerequisite.
-
-Resource, Enhancement, Supply, and Daily Claim contracts changed only their
-global authority revision/digest. Nova is bound to its record and current native
-BlueStacks identifiers; the catalog `personal_might_praise` row references the
-record without routing through Daily. Retained session
-`nova-praise-one-free-pulse-20260722T223535494658Z` remains historical proof and
-was not reopened or relabeled.
-
-Independent review found one `core_contract` validator gap for freshly re-digested
-action/cooldown/success/Home mutations. The single repair closed all five cases;
-the bounded recheck found no new defect. A mistyped targeted test command was a
-parent `local_defect`; the corrected regression passed. Final validation: 49
-authority/contract/catalog tests, Nova focused 172 receipt
-`1be74ca2d2d6d0988e7c0fde3b94d046296137fd2aab28a8e2dfc422061280f8`,
-and architecture 92 receipt
-`7f200187f22ae894ad3be32108d3ff7ddac14acdd79ec87680cfa3059fd919e7`.
-
-Parent integration decision: accepted offline product-record scope. No runtime
-input, observation, emulator, ADB, registration, scheduler, or adapter change
-occurred. The commit containing this handoff records the atomic lane. Exact next
-action is the separate offline Nova continuous-session migration.
+Prior commit `5451b2c` accepted typed record `nova_praise-v1`; its exact
+authority, review, evidence, and receipt history is retained in durable status.
 
 ## Prior Stage 6 closure
 

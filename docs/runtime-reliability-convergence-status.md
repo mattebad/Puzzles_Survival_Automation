@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, and Enhancement product/session lanes accepted offline in commits containing this status | Daily, Nova, and Enhancement have typed authority plus parent-owned continuous-session adapters. Enhancement retained proof remains composite; Ultimate dependency selection is next. Registration and scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, and Ultimate product authority lanes accepted offline | Daily, Nova, and Enhancement have continuous-session adapters. Ultimate now has typed authority; its terminal-only session migration is next, with Flee immutable. Registration/scheduling remain disabled. |
 
 ## Frozen product rule
 
@@ -640,3 +640,38 @@ session remains `evidence_required`. Registration is `NOT_REGISTERED`, scheduler
 eligibility is disabled, and runtime ownership is absent. Parent integration is
 accepted offline. Exact next action is the Ultimate terminal-reconciliation
 product/contract dependency audit; verified Flee must never be repeated.
+
+## Stage 7 Ultimate product-record migration
+
+The dependency audit found no typed Ultimate product record or revision-bound
+product contract, so the Heavy atomic product-authority lane was selected and
+kept separate from the terminal-session adapter migration. Frozen revision
+`ultimate-terminal-product-record-migration-r1` has manifest SHA-256
+`df413033fdad364daca2f83c0d14f78af20c8cab4ef87186349fcca635373327`.
+
+Accepted authority r5 digest
+`be2b53e1792f6e9d799bc48987a431263dcf035ff5aa01cb87337b43f9d867f7`
+contains record `ultimate_challenge-v1`, digest
+`8ce40a2975bf07b34d41751a45a16281ab303ce2071370fd878e5e7c63a3b609`.
+It owns the direct Ultimate action independently of Daily and Campaign AP,
+allows exactly one zero-cost Flee per reset, denies repeats, separates dispatch
+from semantic effect, and requires canonical Home as a distinct terminal.
+Previously bound contracts changed only their global authority revision/digest.
+
+Checked-in provenance from attempt 13 proves one Flee with zero resource use;
+attempt 14 proves the measured Ultimate-to-Campaign-to-Home terminal route with
+no new Flee. That proof remains immutable `composite`; uninterrupted terminal
+reconciliation remains `evidence_required`. Luna's bounded implementation and
+52-test self-check completed; Terra found no must-fix defect. Parent validation
+passed 52 affected tests, focused 27 receipt
+`fbea02942579ea2130a7b147c81971c8c1935a560d2b5620fd3a68c8f906f7ad`,
+and architecture 27 receipt
+`5de5e55a48aec8c26d421e4b3455d433b0b5d20b5d41f011bf501c021d820273`.
+One implementer-freeze coordination correction was `process_state`; no product
+or runtime failure occurred.
+
+Parent integration accepted the offline product-record lane. Runtime input and
+Flee count were both zero. Registration remains `NOT_REGISTERED`, scheduler
+eligibility remains disabled, runtime ownership is absent, and no evidence was
+recreated or relabeled. The next permitted action is only the separate offline
+Ultimate terminal continuous-session migration; it must never repeat Flee.

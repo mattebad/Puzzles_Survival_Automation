@@ -31,13 +31,14 @@
     {"policy_id": "ultimate-challenge-unresolved-execution-details", "source": "tasks/flow_delivery_product_policy.json"},
     {"policy_id": "ultimate-challenge-one-success-per-reset", "source": "tasks/flow_delivery_product_policy.json"}
   ],
-  "evidence_requirements": ["Retained navigation and reset-idempotency implementation is current.", "The ordered offline policy controller, zero-resource guards, explicit canonical-Home persistence gate, and zero-transport missing-evidence result are implemented.", "Native Challenge, lineup Challenge, upper-right Exit, Flee warning, completion, and canonical Home evidence is required.", "Consequential SafetyStore/journal integration, production-controller positive replay, and a later supervised canary are required before promotion."],
+  "evidence_requirements": ["Retained navigation and reset-idempotency implementation is current.", "The ordered offline policy controller, zero-resource guards, explicit canonical-Home persistence gate, and zero-transport missing-evidence result are implemented.", "Retained attempt 13 proves exactly one Flee and zero resource delta; retained attempt 14 proves measured Ultimate-main to Campaign to canonical Home recovery. These retained artifacts are composite proof across sessions.", "An uninterrupted continuous terminal-reconciliation session remains evidence_required; no Flee may be repeated to relabel the retained composite proof.", "Native Challenge, lineup Challenge, upper-right Exit, Flee warning, completion, and canonical Home evidence is required for any future uninterrupted terminal reconciliation.", "Consequential SafetyStore/journal integration, production-controller positive replay, and a later supervised canary are required before promotion."],
   "evidence_gates": [
-    {"gate_id": "ultimate_flee_replay", "status": "evidence_required", "blocks": ["open_lineup", "start_challenge", "open_flee_warning", "confirm_flee", "ultimate_flee_production"], "required_evidence": ["hash-bound native selector corpus", "production recognizer and SafeAction/SafetyStore journal integration", "production-controller positive replay through Flee and canonical Home"], "current_offline_result": "evidence_required_zero_transport", "permitted_inputs": []}
+    {"gate_id": "ultimate_flee_replay", "status": "evidence_required", "blocks": ["open_lineup", "start_challenge", "open_flee_warning", "confirm_flee", "ultimate_flee_production"], "required_evidence": ["hash-bound native selector corpus", "production recognizer and SafeAction/SafetyStore journal integration", "production-controller positive replay through Flee and canonical Home"], "permitted_inputs": []}
   ],
   "replay_fixture_requirements": [
     {"fixture_id": "ultimate_navigation_and_already_complete", "status": "synthetic_policy_ok", "path": null, "notes": "Offline policy tests cover entry recognition, reset idempotency, exact transition order, resource prohibitions, canonical-Home completion, and the missing-evidence gate; they are not native replay evidence."},
-    {"fixture_id": "ultimate_flee_sequence", "status": "required_evidence", "path": null, "notes": "No native consequential sequence exists; self-declared hashes or synthetic observations cannot open the replay gate."}
+    {"fixture_id": "ultimate_flee_sequence", "status": "required_evidence", "path": null, "notes": "Retained attempt 13 provides immutable native Flee successor and zero-resource proof; its proof topology is composite and it is not an uninterrupted session with terminal Home."},
+    {"fixture_id": "ultimate_terminal_home_recovery", "status": "required_evidence", "path": null, "notes": "Retained attempt 14 provides immutable measured Ultimate-main to Campaign to canonical Home recovery with no new Flee; its proof is composite with attempt 13 and does not satisfy uninterrupted terminal reconciliation."}
   ],
   "scenarios": [
     {"scenario_id": "ultimate_flee_production", "mode": "blocked_until_evidence", "start_state": "home_canonical", "terminal_state": "blocked", "permitted_inputs": [], "forbidden_inputs": ["navigate_ultimate_challenge", "tap_challenge", "tap_lineup_challenge", "tap_upper_right_exit", "tap_flee", "return_canonical_home"], "required_transitions": [], "evidence_gate_ids": ["ultimate_flee_replay"], "notes": "The exact execution policy is approved and implemented offline, but the production scenario remains blocked until native evidence and replay promotion; the offline gate reports evidence_required with zero transport and Auto Battle is prohibited."}
@@ -46,8 +47,30 @@
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
   "offline_proof_state": "current",
-  "replay_fixture_proof_state": "evidence_required",
+  "replay_fixture_proof_state": "current",
   "supervised_live_proof_state": "evidence_required",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r5",
+    "product_authority_digest": "be2b53e1792f6e9d799bc48987a431263dcf035ff5aa01cb87337b43f9d867f7",
+    "product_record_id": "ultimate_challenge",
+    "product_record_revision": "ultimate_challenge-v1",
+    "product_record_digest": "8ce40a2975bf07b34d41751a45a16281ab303ce2071370fd878e5e7c63a3b609",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ]
+  },
   "registration_state": "disabled",
   "production_eligible": false
 }

@@ -64,6 +64,9 @@ class GameplayFlowContractTests(unittest.TestCase):
         )
         self.assertEqual(scenario["mode"], "blocked_until_evidence")
         self.assertEqual(scenario["permitted_inputs"], [])
+        proof_notes = " ".join(contract["evidence_requirements"]).casefold()
+        self.assertIn("composite", proof_notes)
+        self.assertIn("continuous terminal-reconciliation", proof_notes)
 
     def test_nova_contract_separates_live_proof_from_production_eligibility(self):
         nova = load_flow_contract("NOVA-PRAISE-HOME-ATLAS-MIGRATION")
@@ -207,6 +210,7 @@ class GameplayFlowContractTests(unittest.TestCase):
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
             "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
         )
         for flow_id in representative_ids:
             contract = load_flow_contract(flow_id)

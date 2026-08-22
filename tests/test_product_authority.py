@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_five_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_six_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -59,6 +59,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "supply_depot",
                 "aggregate_daily_claim",
                 "nova_praise",
+                "ultimate_challenge",
             },
         )
         validate_product_authority(self.authority)
@@ -80,7 +81,13 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(record["semantic_effect"]["dispatch_is_not_success_proof"])
         self.assertEqual(record["daily_ownership"]["daily_owner"], "aggregate_daily_claim")
         self.assertTrue(record["daily_ownership"]["selected_daily_prerequisite"])
-        for record_id in ("use_resource_item", "enhancement_family", "supply_depot", "nova_praise"):
+        for record_id in (
+            "use_resource_item",
+            "enhancement_family",
+            "supply_depot",
+            "nova_praise",
+            "ultimate_challenge",
+        ):
             self.assertFalse(self.records[record_id]["daily_ownership"]["selected_daily_prerequisite"])
 
     def test_direct_records_reject_daily_owner_and_point_credit_even_with_fresh_digests(self) -> None:
@@ -268,6 +275,55 @@ class ProductAuthorityTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
                 validate_product_authority(changed)
 
+    def test_ultimate_challenge_product_is_one_free_reset_bound_flee(self) -> None:
+        record = self.records["ultimate_challenge"]
+        self.assertEqual(record["record_type"], "ultimate_challenge")
+        self.assertEqual(record["recurrence"], "daily_reset_scoped")
+        self.assertEqual(record["semantic_entry_route"]["target"], "CAMPAIGN")
+        self.assertEqual(
+            record["semantic_entry_route"]["route"],
+            ["CAMPAIGN", "ULTIMATE_CHALLENGE"],
+        )
+        self.assertEqual(record["target"]["control"], "Flee")
+        self.assertTrue(record["target"]["reset_bound"])
+        self.assertEqual(record["quantity_cost"]["quantity"], 1)
+        self.assertEqual(record["quantity_cost"]["cost"]["amount"], 0)
+        self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
+        effect = record["semantic_effect"]
+        self.assertEqual(effect["flee_ceiling"], 1)
+        self.assertEqual(effect["resource_delta"], 0)
+        self.assertTrue(effect["resource_delta_is_zero"])
+        self.assertTrue(effect["dispatch_is_not_success_proof"])
+        self.assertTrue(effect["terminal_home_separate"])
+        self.assertFalse(effect["repeated_flee"])
+        self.assertFalse(effect["identical_retry"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in ("auto battle", "second flee", "campaign ap", "ap spend"):
+            self.assertIn(marker, forbidden)
+        self.assertEqual(record["terminal_requirement"]["home_authority"], "HOME_CANONICAL")
+
+    def test_ultimate_challenge_safety_fields_fail_closed_with_fresh_digests(self) -> None:
+        mutations = (
+            ("flee_ceiling", lambda record: record["semantic_effect"].__setitem__("flee_ceiling", 2)),
+            ("zero_cost", lambda record: record["quantity_cost"]["cost"].__setitem__("amount", 1)),
+            ("repeat_denial", lambda record: record["semantic_effect"].__setitem__("repeated_flee", True)),
+            ("terminal_separation", lambda record: record["semantic_effect"].__setitem__("terminal_home_separate", False)),
+            ("direct_ownership", lambda record: record["daily_ownership"].__setitem__("daily_owner", "ultimate_challenge")),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(self.authority)
+            ultimate = next(
+                item
+                for item in changed["product_records"]
+                if item["record_id"] == "ultimate_challenge"
+            )
+            mutate(ultimate)
+            ultimate["record_digest"] = record_digest(ultimate)
+            changed["authority_digest"] = authority_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_authority(changed)
+
     def test_product_records_have_no_forbidden_authority_domains(self) -> None:
         forbidden = {
             "coordinate",
@@ -337,6 +393,22 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
         self.assertFalse(contract["production_eligible"])
         self.assertEqual(contract["registration_state"], "disabled")
+
+    def test_ultimate_contract_binds_direct_record_and_retains_composite_proof(self) -> None:
+        contract = self.contracts["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]
+        binding = contract["product_authority_binding"]
+        self.assertEqual(binding["product_record_id"], "ultimate_challenge")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_revision"], "ultimate_challenge-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertEqual(contract["replay_fixture_proof_state"], "current")
+        notes = " ".join(contract["evidence_requirements"]).casefold()
+        self.assertIn("attempt 13", notes)
+        self.assertIn("attempt 14", notes)
+        self.assertIn("composite", notes)
 
     def test_stale_revision_or_digest_fails_closed(self) -> None:
         stale_revision = deepcopy(self.authority)

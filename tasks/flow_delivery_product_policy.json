@@ -348,7 +348,7 @@
       "source": "explicit_user_direction_2026-08-20"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r4",
+  "authority_revision": "flow-delivery-product-authority-v2-r5",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -741,7 +741,91 @@
       ],
       "record_revision": "nova_praise-v1",
       "record_digest": "959fe8201ce0250dcab494dc65f930cf52c753b1ac5833d22bcb3a1abea2b2ae"
+    },
+    {
+      "record_id": "ultimate_challenge",
+      "record_type": "ultimate_challenge",
+      "purpose": "Complete one verified zero-cost Ultimate Challenge Flee per game-day reset.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "CAMPAIGN",
+        "route": [
+          "CAMPAIGN",
+          "ULTIMATE_CHALLENGE"
+        ]
+      },
+      "objective": "ultimate_challenge_one_free_flee",
+      "action": "complete_one_free_ultimate_flee",
+      "target": {
+        "kind": "ultimate_challenge",
+        "eligibility": "once_per_verified_reset",
+        "control": "Flee",
+        "quantity": 1,
+        "reset_bound": true
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_ultimate_flee",
+          "amount": 0,
+          "unit": "Flee",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "flee_ceiling": 1,
+        "resource_delta": 0,
+        "resource_delta_is_zero": true,
+        "dispatch_is_not_success_proof": true,
+        "success_requires": "verified_flee_successor",
+        "terminal_home_separate": true,
+        "repeated_flee": false,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Auto Battle",
+        "second Flee",
+        "repeated Flee",
+        "Campaign AP execution",
+        "Campaign AP spend",
+        "AP spend",
+        "Stamina spend",
+        "currency spend",
+        "item spend",
+        "unknown Challenge action",
+        "unknown cost",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Ultimate Challenge is a direct reset-bound flow, not Campaign AP and not selected Daily ownership."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:ultimate-one-free-flee-per-reset",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-ultimate-flee-and-home-recovery",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "ultimate_challenge-v1",
+      "record_digest": "8ce40a2975bf07b34d41751a45a16281ab303ce2071370fd878e5e7c63a3b609"
     }
   ],
-  "authority_digest": "28331c423c10c423b8b9c2752922f2443b89d1fc3956c9599c4c6eb516a4a45f"
+  "authority_digest": "be2b53e1792f6e9d799bc48987a431263dcf035ff5aa01cb87337b43f9d867f7"
 }
