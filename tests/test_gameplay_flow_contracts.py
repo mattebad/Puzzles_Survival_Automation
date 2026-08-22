@@ -20,6 +20,7 @@ from tasks.gameplay_flow_contracts import (
     validate_flow_contract,
 )
 from tasks.home_context import HOME_NAVIGATION_PRIMITIVES_DIGEST
+from tasks.product_authority import AUTHORITY_REVISION
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -236,6 +237,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         validator = Draft202012Validator(schema)
         representative_ids = (
             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+            "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
@@ -294,6 +296,39 @@ class GameplayFlowContractTests(unittest.TestCase):
         )
         self.assertIn("non-claimable Claim row", contract["unsupported_or_manual_only_states"])
         self.assertIn("non-claimable", contract["cooldown_deferred_behavior"])
+
+    def test_daily_milestone_contract_is_separate_free_chest_route_and_evidence_gated(self):
+        contract = load_flow_contract("DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(contract["required_starting_context"], ["home_canonical"])
+        self.assertEqual(binding["product_record_id"], "activity_milestone_claim")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_revision"], "activity_milestone_claim-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
+        self.assertEqual(contract["implementation_status"], "contract_only")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["registration_state"], "disabled")
+        transitions = {item["transition_id"]: item for item in contract["transition_contracts"]}
+        self.assertEqual(
+            transitions["dispatch-milestone"]["permitted_input"],
+            "exactly_one_zero_cost_ready_milestone_chest_claim",
+        )
+        self.assertIn(
+            "same milestone opened/claimed successor or positive bound points successor is required",
+            transitions["dispatch-milestone"]["postconditions"],
+        )
+        self.assertIn(
+            "effect_reconciliation_required",
+            contract["unsupported_or_manual_only_states"],
+        )
+        self.assertIn("current native bluestacks", " ".join(contract["evidence_requirements"]).casefold())
 
     def test_enhancement_family_sequence_reaches_each_ordered_category(self):
         contract = load_flow_contract(

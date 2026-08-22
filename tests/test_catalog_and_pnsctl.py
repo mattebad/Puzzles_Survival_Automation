@@ -63,6 +63,20 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(objective["product_record_id"], "bioenhancer_research")
         self.assertFalse(objective["selected_daily_prerequisite"])
 
+    def test_catalog_separates_milestone_claim_from_ordinary_row_claim(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        ordinary = raw["claim_ownership"]["ordinary_claim"]
+        milestone = raw["claim_ownership"]["milestone_claim"]
+        self.assertEqual(milestone["product_record_id"], "activity_milestone_claim")
+        self.assertEqual(
+            milestone["execution_flow_id"],
+            "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
+        )
+        self.assertTrue(milestone["sole_owner"])
+        self.assertEqual(milestone["ordinary_claim_owner"], ordinary["product_record_id"])
+        self.assertEqual(milestone["registration_state"], "NOT_REGISTERED")
+        self.assertFalse(milestone["scheduler_eligibility"])
+
 
 class OperatorCliTests(unittest.TestCase):
     def test_promoted_navigation_asset_manifest_hashes_match(self):

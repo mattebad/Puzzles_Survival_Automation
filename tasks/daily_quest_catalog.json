@@ -57,6 +57,16 @@
       "sole_owner": true,
       "registration_state": "NOT_REGISTERED",
       "scheduler_eligibility": false
+    },
+    "milestone_claim": {
+      "product_record_id": "activity_milestone_claim",
+      "execution_flow_id": "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
+      "owner_task_id": "daily-milestone-claim",
+      "sole_owner": true,
+      "ordinary_claim_owner": "aggregate_daily_claim",
+      "registration_state": "NOT_REGISTERED",
+      "scheduler_eligibility": false,
+      "notes": "Milestone chest ownership is separate from ordinary row Claim ownership and does not own Daily objective point credit."
     }
   },
   "reconciliation_records": [

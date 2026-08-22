@@ -20,7 +20,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r6"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r7"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -44,6 +44,7 @@ RECORD_TYPES = frozenset(
         "enhancement_family",
         "supply_depot",
         "aggregate_daily_claim",
+        "activity_milestone_claim",
         "nova_praise",
         "ultimate_challenge",
         "bioenhancer_research",
@@ -55,6 +56,7 @@ RECORD_IDS = frozenset(
         "enhancement_family",
         "supply_depot",
         "aggregate_daily_claim",
+        "activity_milestone_claim",
         "nova_praise",
         "ultimate_challenge",
         "bioenhancer_research",
@@ -271,6 +273,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "enhancement_family": "COMMANDER",
         "supply_depot": "SUPPLY_DEPOT",
         "aggregate_daily_claim": "DAILY",
+        "activity_milestone_claim": "QUEST",
         "nova_praise": "RESEARCH_LAB",
         "ultimate_challenge": "CAMPAIGN",
         "bioenhancer_research": "RESEARCH_LAB",
@@ -294,6 +297,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "enhancement_family": "enhancement_family",
         "supply_depot": "supply_depot",
         "aggregate_daily_claim": "aggregate_daily_claim",
+        "activity_milestone_claim": "activity_milestone_claim",
         "nova_praise": "nova_praise",
         "ultimate_challenge": "ultimate_challenge",
         "bioenhancer_research": "bioenhancer_research",
@@ -548,6 +552,106 @@ def _validate_aggregate_daily_claim_record(record: Mapping[str, Any]) -> None:
         if marker not in forbidden_lower:
             raise ProductAuthorityError(
                 f"aggregate Daily Claim must forbid {marker} controls"
+            )
+
+
+def _validate_activity_milestone_claim_record(record: Mapping[str, Any]) -> None:
+    """Validate one reset-bound, zero-cost Activity Milestone chest claim."""
+
+    if record["objective"] != "activity_milestone_claim_one_ready_chest":
+        raise ProductAuthorityError(
+            "Activity Milestone record objective must be activity_milestone_claim_one_ready_chest"
+        )
+    if record["action"] != "claim_one_activity_milestone_chest":
+        raise ProductAuthorityError(
+            "Activity Milestone action must be claim_one_activity_milestone_chest"
+        )
+    if record["recurrence"] != "daily_reset_scoped":
+        raise ProductAuthorityError(
+            "Activity Milestone recurrence must be daily_reset_scoped"
+        )
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
+        "route"
+    ) != ["QUEST", "ACTIVITY_MILESTONES"]:
+        raise ProductAuthorityError(
+            "Activity Milestone entry route must bind canonical Home to Quest and Activity Milestones"
+        )
+    target = record.get("target")
+    if not isinstance(target, Mapping) or (
+        target.get("kind") != "activity_milestone_chest"
+        or target.get("eligibility") != "one_current_ready_free_milestone_per_reset"
+        or target.get("panel") != "ACTIVITY_MILESTONES"
+        or target.get("control") != "MILESTONE_CHEST"
+        or target.get("quantity") != 1
+        or target.get("reset_bound") is not True
+        or target.get("fully_visible") is not True
+    ):
+        raise ProductAuthorityError(
+            "Activity Milestone target must bind one current, ready, fully visible free chest"
+        )
+    quantity_cost = record.get("quantity_cost")
+    if not isinstance(quantity_cost, Mapping) or quantity_cost.get("quantity") != 1:
+        raise ProductAuthorityError(
+            "Activity Milestone quantity must be exactly one chest dispatch"
+        )
+    cost = quantity_cost.get("cost")
+    if not isinstance(cost, Mapping) or (
+        cost.get("kind") != "zero_cost_milestone_claim"
+        or cost.get("amount") != 0
+        or cost.get("unit") != "MILESTONE_CHEST"
+        or cost.get("free_only") is not True
+    ):
+        raise ProductAuthorityError(
+            "Activity Milestone must be free and zero-cost"
+        )
+    effect = record["semantic_effect"]
+    if (
+        effect.get("effect_ordinal") != 1
+        or effect.get("same_milestone_successor_required") is not True
+        or effect.get("positive_bound_points_successor_allowed") is not True
+        or effect.get("dispatch_is_not_success_proof") is not True
+        or effect.get("success_requires")
+        != "same_milestone_opened_or_positive_bound_points_successor"
+        or effect.get("terminal_home_separate") is not True
+        or effect.get("identical_retry") is not False
+    ):
+        raise ProductAuthorityError(
+            "Activity Milestone must require same-milestone successor, separate dispatch and terminal proof, and retry denial"
+        )
+    ownership = record["daily_ownership"]
+    if (
+        ownership.get("daily_owner") is not None
+        or ownership.get("point_credit_trigger") is not None
+        or ownership.get("selected_daily_prerequisite") is not False
+    ):
+        raise ProductAuthorityError(
+            "Activity Milestone must not own ordinary Daily Claim or point credit"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Activity Milestone terminal requirement must return to canonical Home"
+        )
+    forbidden = " ".join(str(item) for item in record.get("forbidden_actions", []))
+    forbidden_lower = forbidden.casefold()
+    for marker in (
+        "not-ready",
+        "already-claimed",
+        "clipped",
+        "cost-bearing",
+        "unknown",
+        "contradictory",
+        "stale",
+        "ordinary claim",
+        "real-money",
+        "identical retry",
+    ):
+        if marker not in forbidden_lower:
+            raise ProductAuthorityError(
+                f"Activity Milestone must forbid {marker} controls"
             )
 
 
@@ -830,6 +934,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_supply_record(record)
     elif record_type == "aggregate_daily_claim":
         _validate_aggregate_daily_claim_record(record)
+    elif record_type == "activity_milestone_claim":
+        _validate_activity_milestone_claim_record(record)
     elif record_type == "nova_praise":
         _validate_nova_praise_record(record)
     elif record_type == "ultimate_challenge":
@@ -893,8 +999,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 7:
-        raise ProductAuthorityError("product authority requires exactly seven records")
+    if not isinstance(records, list) or len(records) != 8:
+        raise ProductAuthorityError("product authority requires exactly eight records")
     return records
 
 
@@ -1111,6 +1217,18 @@ def validate_contract_product_authority_binding(
         raise ProductAuthorityError(
             "Ultimate Challenge flow must bind the Ultimate Challenge record"
         )
+    if record_id == "activity_milestone_claim" and contract.get(
+        "flow_id"
+    ) != "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION":
+        raise ProductAuthorityError(
+            "Activity Milestone record is reserved for the Daily Milestone flow"
+        )
+    if record_id != "activity_milestone_claim" and contract.get(
+        "flow_id"
+    ) == "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION":
+        raise ProductAuthorityError(
+            "Daily Milestone flow must bind the Activity Milestone record"
+        )
     if binding["product_record_revision"] != record["record_revision"]:
         raise ProductAuthorityError("contract references stale product record revision")
     if binding["product_record_digest"] != record["record_digest"]:
@@ -1170,9 +1288,11 @@ def validate_contract_product_authority_binding(
         raise ProductAuthorityError(
             "representative direct-action contract cannot require selected Daily"
         )
-    if record_id != "aggregate_daily_claim":
+    if record_id not in {"aggregate_daily_claim", "activity_milestone_claim"}:
         _validate_direct_route_contract_content(contract)
-    elif binding.get("selected_daily_prerequisite") is not None:
+    elif record_id == "aggregate_daily_claim" and binding.get(
+        "selected_daily_prerequisite"
+    ) is not None:
         raise ProductAuthorityError(
             "aggregate Daily Claim binding must use product-record selected-Daily ownership"
         )

@@ -348,7 +348,7 @@
       "source": "explicit_user_direction_2026-08-20"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r6",
+  "authority_revision": "flow-delivery-product-authority-v2-r7",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -665,6 +665,88 @@
       "record_digest": "560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41"
     },
     {
+      "record_id": "activity_milestone_claim",
+      "record_type": "activity_milestone_claim",
+      "purpose": "Claim exactly one currently ready, fully visible, zero-cost Activity Milestone chest per daily reset occurrence.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "QUEST",
+        "route": [
+          "QUEST",
+          "ACTIVITY_MILESTONES"
+        ]
+      },
+      "objective": "activity_milestone_claim_one_ready_chest",
+      "action": "claim_one_activity_milestone_chest",
+      "target": {
+        "kind": "activity_milestone_chest",
+        "eligibility": "one_current_ready_free_milestone_per_reset",
+        "panel": "ACTIVITY_MILESTONES",
+        "control": "MILESTONE_CHEST",
+        "quantity": 1,
+        "reset_bound": true,
+        "fully_visible": true
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_milestone_claim",
+          "amount": 0,
+          "unit": "MILESTONE_CHEST",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "same_milestone_successor_required": true,
+        "positive_bound_points_successor_allowed": true,
+        "dispatch_is_not_success_proof": true,
+        "success_requires": "same_milestone_opened_or_positive_bound_points_successor",
+        "terminal_home_separate": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "not-ready milestone",
+        "already-claimed milestone",
+        "clipped milestone chest",
+        "cost-bearing milestone chest",
+        "unknown milestone control",
+        "contradictory milestone state",
+        "stale milestone target",
+        "ordinary Claim control",
+        "real-money confirmation",
+        "identical retry"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true,
+        "same_milestone_successor_required_before_return": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Activity Milestone is a separate support reward surface; aggregate Daily Claim remains the sole ordinary row Claim and point owner."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:daily-milestone-ready-chest-separation",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-daily-activity-milestone-chest",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "activity_milestone_claim-v1",
+      "record_digest": "fc39004cd8e4727fc5fed56cc656d2b1790908a1e57e0b82bc65493b1bf5a638"
+    },
+    {
       "record_id": "nova_praise",
       "record_type": "nova_praise",
       "purpose": "Dispatch one eligible zero-cost Nova Praise pulse from the native Home-to-Nova route.",
@@ -906,5 +988,5 @@
       "record_digest": "5f36370751b2ff5071c0f42fbe15a28a3c628b28aa1ecf588337f5d32cb61207"
     }
   ],
-  "authority_digest": "369d85615d30e1776b0fa719f11b8fbc85da7a0978342494f2d9deb37d9b951d"
+  "authority_digest": "7ecac59c562120d3babb1a65455afcd15f30402f0ba0251c1835ac754a5a2c03"
 }

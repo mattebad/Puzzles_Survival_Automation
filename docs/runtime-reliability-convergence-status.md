@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, and Bioenhancer product/session lanes accepted offline | Bioenhancer now has accepted typed authority and a separate one-session adapter. Daily Milestone Claim dependency selection is next. Registration/scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, and Daily Milestone product authority accepted offline | Milestone is typed but its route remains evidence-blocked; Supply Depot dependency selection is next. Registration/scheduling remain disabled. |
 
 ## Frozen product rule
 
@@ -788,3 +788,43 @@ non-accepting; a current uninterrupted BlueStacks session remains
 `evidence_required`. Registration is `NOT_REGISTERED`, scheduler eligibility is
 disabled, and ownership is absent. The next serial Stage 7 action is only the
 Daily Milestone Claim product-record/gameplay-contract dependency audit.
+
+## Stage 7 Daily Milestone Claim product-record migration
+
+The dependency gate found no typed Milestone record and only a schema-1 unbound
+placeholder contract. Heavy product-only revision
+`daily-milestone-claim-product-record-migration-r1` was therefore selected;
+manifest SHA-256 is
+`f84c62b5608acc33fedeaff9220eed1e94557e88d216512aeda24677f5e9fbdb`.
+
+Authority r7 digest
+`7ecac59c562120d3babb1a65455afcd15f30402f0ba0251c1835ac754a5a2c03`
+adds `activity_milestone_claim-v1`, digest
+`fc39004cd8e4727fc5fed56cc656d2b1790908a1e57e0b82bc65493b1bf5a638`.
+It types canonical Home→Quest→Activity Milestones, one exact current ready,
+fully visible, zero-cost chest per reset occurrence, dispatch/success separation,
+same-milestone opened/claimed or positive bound-points successor, reconciliation
+and retry denial for unknown effect, and separate canonical Home. Ordinary row
+Claim and Daily objective point ownership remain with the existing aggregate
+record; the catalog adds a separate Milestone claim owner.
+
+The Milestone contract is schema 2 and exact r7/record/BlueStacks bound while
+remaining `contract_only`, `evidence_required`, not production eligible, and
+registration-disabled. Phase E Bliss/synthetic observations remain diagnostic
+and cannot satisfy current BlueStacks acceptance. The seven prior bound
+contracts changed only their global revision/digest.
+
+Luna passed 66 authority/contract/catalog/Activity Milestone tests. Terra's
+read-only review found no must-fix defect, independently passed the same tests,
+and verified the mechanical rebind. Its architecture run exposed one pre-existing
+parent handoff activation-token mismatch, classified `process_state`; the parent
+restored the schema-required `awaiting_explicit_selection` value before final
+architecture validation. Final architecture passed 92 tests, receipt
+`34c5b6c32f3b08e82b3a548f21caded14b83fa62f4e05afbd87c613a089146a5`.
+No product repair was required.
+
+No emulator, ADB, BlueStacks observation, runtime input, Milestone Claim,
+selector/adapter change, evidence mutation, registration, scheduling, commit by
+a worker, or push occurred. Current ready/successor/Home proof remains
+`evidence_required`, so no Milestone route implementation is admitted by this
+lane. Next is only the Supply Depot dependency audit.

@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_seven_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_eight_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -58,6 +58,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "enhancement_family",
                 "supply_depot",
                 "aggregate_daily_claim",
+                "activity_milestone_claim",
                 "nova_praise",
                 "ultimate_challenge",
                 "bioenhancer_research",
@@ -86,6 +87,7 @@ class ProductAuthorityTests(unittest.TestCase):
             "use_resource_item",
             "enhancement_family",
             "supply_depot",
+            "activity_milestone_claim",
             "nova_praise",
             "ultimate_challenge",
             "bioenhancer_research",
@@ -124,6 +126,69 @@ class ProductAuthorityTests(unittest.TestCase):
         changed["authority_digest"] = authority_digest(changed)
         with self.assertRaisesRegex(ProductAuthorityError, "must forbid non-claimable"):
             validate_product_authority(changed)
+
+    def test_activity_milestone_product_is_one_free_ready_chest_and_not_ordinary_claim_owned(self) -> None:
+        record = self.records["activity_milestone_claim"]
+        self.assertEqual(record["record_type"], "activity_milestone_claim")
+        self.assertEqual(record["recurrence"], "daily_reset_scoped")
+        self.assertEqual(record["semantic_entry_route"]["target"], "QUEST")
+        self.assertEqual(
+            record["semantic_entry_route"]["route"],
+            ["QUEST", "ACTIVITY_MILESTONES"],
+        )
+        target = record["target"]
+        self.assertEqual(target["kind"], "activity_milestone_chest")
+        self.assertEqual(target["control"], "MILESTONE_CHEST")
+        self.assertTrue(target["fully_visible"])
+        self.assertTrue(target["reset_bound"])
+        self.assertEqual(record["quantity_cost"]["quantity"], 1)
+        self.assertEqual(record["quantity_cost"]["cost"]["amount"], 0)
+        self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["same_milestone_successor_required"])
+        self.assertTrue(effect["positive_bound_points_successor_allowed"])
+        self.assertTrue(effect["dispatch_is_not_success_proof"])
+        self.assertFalse(effect["identical_retry"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertIsNone(record["daily_ownership"]["point_credit_trigger"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in (
+            "not-ready",
+            "already-claimed",
+            "clipped",
+            "cost-bearing",
+            "ordinary claim",
+            "unknown",
+            "contradictory",
+            "stale",
+            "real-money",
+            "identical retry",
+        ):
+            self.assertIn(marker, forbidden)
+        self.assertEqual(record["terminal_requirement"]["home_authority"], "HOME_CANONICAL")
+
+    def test_activity_milestone_safety_fields_fail_closed_with_fresh_digests(self) -> None:
+        mutations = (
+            ("ready", lambda record: record["target"].__setitem__("eligibility", "already_claimed")),
+            ("free_only", lambda record: record["quantity_cost"]["cost"].__setitem__("free_only", False)),
+            ("successor", lambda record: record["semantic_effect"].__setitem__("same_milestone_successor_required", False)),
+            ("dispatch_separation", lambda record: record["semantic_effect"].__setitem__("dispatch_is_not_success_proof", False)),
+            ("retry_denial", lambda record: record["semantic_effect"].__setitem__("identical_retry", True)),
+            ("ordinary_ownership", lambda record: record["daily_ownership"].__setitem__("point_credit_trigger", "points")),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(self.authority)
+            milestone = next(
+                item
+                for item in changed["product_records"]
+                if item["record_id"] == "activity_milestone_claim"
+            )
+            mutate(milestone)
+            milestone["record_digest"] = record_digest(milestone)
+            changed["authority_digest"] = authority_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_authority(changed)
 
     def test_digest_excludes_only_its_own_field(self) -> None:
         first = {"a": 1, "digest": "0" * 64}

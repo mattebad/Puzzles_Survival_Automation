@@ -8,40 +8,62 @@
   "attributable_dirty_paths": [".cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md"],
   "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "bioenhancer-continuous-session-migration",
+  "current_task_id": "daily-milestone-claim-product-record-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "daily-milestone-claim-dependency-audit",
-  "next_task_activation_status": "authorized_by_user_for_serial_stage_7_continuation",
+  "next_task_id": "supply-depot-dependency-audit",
+  "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "bioenhancer_continuous_session_accepted_offline",
+  "active_delivery_stage": "daily_milestone_product_record_accepted_offline",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "9 Bioenhancer adapter tests, 32 conductor tests, 16 DevelopmentSession tests, 11 Bioenhancer safety tests, and 57 authority/contract/catalog tests passed; focused profile passed 9 with receipt 7d247c8e4f36bafeccaa3d53b5bc7218ff3f073731889f652c7d3b5013291513.",
-  "latest_architecture_validation_result": "Bioenhancer architecture profile passed 92 tests with receipt 7c934a3fff7f2f4a2a242eb50d8c4c4765d6292c1da6628cad31355541da6d8f.",
+  "latest_focused_validation_result": "66 Milestone authority/contract/catalog/Activity Milestone tests passed; Terra independently confirmed the same 66 tests and all seven mechanical prior-contract rebinds.",
+  "latest_architecture_validation_result": "After correcting one handoff activation-token process_state mismatch, Milestone architecture passed 92 tests with receipt 34c5b6c32f3b08e82b3a548f21caded14b83fa62f4e05afbd87c613a089146a5.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Bioenhancer session migration used zero runtime input and zero research actions",
-  "current_evidence_or_session_reference": "checked-in Daily execution-matrix Bioenhancer row retains July Bliss-platform research/reconciliation provenance as non-accepting for current BlueStacks proof",
-  "last_safe_completed_step": "Accepted the parent-owned Bioenhancer one-session adapter after exact, safety, conductor, session, focused, and architecture validation.",
-  "exact_next_permitted_action": "Audit only Daily Milestone Claim product authority and its revision-bound gameplay contract, then select one atomic dependency lane offline.",
+  "current_live_attempt_state": "not authorized and not attempted; Milestone product-record migration used zero runtime input and zero Claim actions",
+  "current_evidence_or_session_reference": "Phase E Bliss/synthetic Activity Milestone fixture remains diagnostic and non-accepting; current BlueStacks ready/successor/Home proof is evidence_required",
+  "last_safe_completed_step": "Accepted typed Daily Milestone Claim authority after bounded Luna implementation, clean Terra review, and parent focused validation.",
+  "exact_next_permitted_action": "Audit only Supply Depot product authority and its revision-bound gameplay contract, then select one atomic dependency lane offline.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not consume Free Research to relabel historical proof, perform a Milestone Claim, combine product and session lanes, or begin Stage 8, scheduler, registration, live runtime work, or push.",
+  "prohibited_repeated_action": "Do not perform a Milestone Claim without current authorized native proof, implement its route in the product-only lane, combine another atomic lane, or begin Stage 8, scheduler, registration, live runtime work, or push.",
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "stage_revision": "bioenhancer-continuous-session-migration-r1",
-  "stage_type": "parent_owned_medium_offline_integration",
-  "product_precondition": "Commit dff36cf accepted r6 record bioenhancer_research-v1 and its exact schema-2 gameplay contract",
-  "failure_class": "one local_defect in generic causal-trace artifact declaration was repaired route-locally; no product, core-contract, process-state, or diminishing-returns failure",
-  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 0, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "stage_revision": "daily-milestone-claim-product-record-migration-r1",
+  "stage_type": "heavy_product_authority_shared_binding_extension",
+  "product_precondition": "Milestone lacked a typed record and had only a schema-1 unbound placeholder; r7 record activity_milestone_claim-v1 is now proven",
+  "failure_class": "core_contract dependency resolved; one parent-owned handoff token process_state corrected; no implementation or review finding",
+  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 2, "live_attempts_used": 0, "runtime_inputs_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Historical Bliss Bioenhancer proof remains non-accepting; current BlueStacks uninterrupted one-session proof remains evidence_required", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
+  "evidence": {"evidence_requirement": "Current BlueStacks ready Milestone, same-milestone/points successor, and canonical Home proof remain evidence_required; no route implementation is authorized by the product record", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
 # Current handoff
+
+## Stage 7 Daily Milestone Claim product-record migration
+
+Heavy revision `daily-milestone-claim-product-record-migration-r1`, manifest
+SHA-256 `f84c62b5608acc33fedeaff9220eed1e94557e88d216512aeda24677f5e9fbdb`,
+adds r7 record `activity_milestone_claim-v1`, digest
+`fc39004cd8e4727fc5fed56cc656d2b1790908a1e57e0b82bc65493b1bf5a638`;
+authority digest is
+`7ecac59c562120d3babb1a65455afcd15f30402f0ba0251c1835ac754a5a2c03`.
+It owns one current ready, fully visible, zero-cost Activity Milestone chest,
+separate from ordinary row Claim and Daily point ownership. Dispatch is not
+success; same-milestone opened/claimed or positive bound-points successor is
+required, unknown effect denies identical retry, and canonical Home is separate.
+
+The schema-2 BlueStacks contract remains `contract_only`, `evidence_required`,
+not production eligible, and registration-disabled. The Phase E Bliss/synthetic
+fixture is diagnostic only; current ready/successor/Home evidence is missing.
+Luna and Terra each passed 66 focused tests; Terra found no defect and verified
+all seven prior contracts changed only global r7 binding fields. Architecture
+passed 92, receipt
+`34c5b6c32f3b08e82b3a548f21caded14b83fa62f4e05afbd87c613a089146a5`.
+Zero live input or Claim occurred. Next is only the Supply Depot dependency audit.
 
 ## Stage 7 Bioenhancer product and continuous-session migrations
 
