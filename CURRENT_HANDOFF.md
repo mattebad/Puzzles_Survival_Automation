@@ -5,39 +5,70 @@
   "head_binding": "commit-containing-this-handoff",
   "last_product_candidate_head": "commit-containing-this-handoff",
   "ahead_behind": {"source": "compute_from_git"},
-  "attributable_dirty_paths": [".cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md"],
-  "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
+  "attributable_dirty_paths": ["scripts/flow_delivery_recruitment_bluestacks.py", "tests/test_flow_delivery_recruitment_bluestacks.py", "scripts/pnsctl.py", "tasks/flow_delivery_bluestacks_registry.json", "tasks/flow_delivery_validation_profiles.json", "CURRENT_HANDOFF.md", "docs/runtime-reliability-convergence-status.md"],
+  "task_start_worktree": {"tracked_dirty_paths": ["AGENTS.md", "docs/flow-delivery-validation-policy.md", "tests/test_flow_delivery_workflow_policy.py"], "protected_untracked_paths": [".omp/", "Start-PnS-OMP.ps1", "Stop-PnS-OMP.ps1", ".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "recruitment-product-record-migration",
+  "current_task_id": "recruitment-continuous-session-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "recruitment-continuous-session-migration",
+  "next_task_id": "daily-milestone-claim-continuous-session-or-evidence-blocked-disposition",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "recruitment_product_record_accepted_offline",
+  "active_delivery_stage": "recruitment_continuous_session_accepted_offline",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "Luna and Terra each passed 96 Recruitment authority/contract/catalog/controller-policy tests; Terra found no defect and all 29 authority bindings validated; 38 current orchestrator/handoff tests passed.",
-  "latest_architecture_validation_result": "Recruitment product-authority architecture profile passed 92 tests with receipt 48f2096081c7f982eca877e1cd2d9cb9f8810a4ce0a125753ae8712a2481d6fd.",
+  "latest_focused_validation_result": "Recruitment adapter focused profile passed 5 tests with receipt 76d74033d78109f8c3f59f38b85b8a5fb0d035fd0d147ee72515229e158cb6d8; affected Recruitment/conductor suites passed 77 tests; no runtime input.",
+  "latest_architecture_validation_result": "Recruitment architecture profile passed 92 tests with receipt ff077480db0b7f79b004242eefe4d1c0d3314ad08ddc53362a6e19bca94a00a2.",
+
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Recruitment product migration used zero runtime input and zero recruit actions",
-  "current_evidence_or_session_reference": "retained 2026-07-16 semantic mechanics record cc5d306033c559d014947ee48449b794e0e3e8c7175cff2011d2336d6ad896c4 remains non-accepting; current uninterrupted Basic-five and three-tier maintenance proof is evidence_required",
-  "last_safe_completed_step": "Accepted typed r8 Recruitment authority and two exact contract bindings after bounded Luna implementation, clean Terra review, and parent integration.",
-  "exact_next_permitted_action": "Select only the Recruitment continuous-session migration offline and bind the unchanged Noah controller to one parent-owned DevelopmentSession.",
+  "current_live_attempt_state": "not authorized and not attempted; continuous-session integration used zero emulator/ADB/BlueStacks observation, zero runtime input, and zero recruit actions",
+  "current_evidence_or_session_reference": "Retained 2026-07-16 semantic mechanics record cc5d306033c559d014947ee48449b794e0e3e8c7175cff2011d2336d6ad896c4 remains non-accepting; new continuous route proof remains evidence_required",
+  "last_safe_completed_step": "Bound the existing Noah controller route to the checked-in Recruitment flow registry and one active flow-owned DevelopmentSession contract with typed identity-bound initial evidence, native/recruit count reconciliation, one read-only trace, retry denial, and verifier-gated completion.",
+  "exact_next_permitted_action": "Select only Daily Milestone Claim continuous-session migration or complete its evidence-blocked disposition; do not combine a product migration.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not perform a recruit merely to relabel retained proof, substitute paid/premium/item-backed/10x controls, combine another product lane, begin Stage 8, registration/scheduler work, live runtime work, or push.",
+  "prohibited_repeated_action": "Do not perform a recruit merely to relabel retained proof, substitute paid/premium/item-backed/10x controls, combine product and session migrations, begin Stage 8, registration/scheduler work, live runtime work, or use emulator/ADB/BlueStacks.",
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "stage_revision": "recruitment-product-record-migration-r1",
-  "stage_type": "heavy_product_authority_shared_binding_extension",
-  "product_precondition": "Recruitment lacked a typed product record and both schema-2 reference contracts were unbound; r8 record noahs_tavern_recruitment-v1 is now proven",
-  "failure_class": "core_contract dependency resolved; one closure-only legacy token-context suite exposed pre-existing schema/queue/index process_state outside this allowlist; no implementation/review defect or diminishing_returns",
-  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 2, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "stage_revision": "recruitment-continuous-session-migration-r1",
+  "stage_type": "medium_continuous_session_flow_integration",
+  "product_precondition": "Recruitment r8 product authority and both schema-2 contract bindings are current; no product paths changed.",
+  "failure_class": "none; focused and architecture validation passed; deferred PR review is pending and no independent review is claimed",
+  "budgets": {"stage_revisions_used": 1, "managed_turns_used": 1, "live_attempts_used": 0, "runtime_inputs_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Current uninterrupted BlueStacks Basic-five/reset and independent Basic/Int./Advanced maintenance successors with canonical Home remain evidence_required; retained semantic and synthetic evidence is non-accepting", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true}
+  "evidence": {"evidence_requirement": "Current uninterrupted typed/hash-bound Recruitment session with Basic five/reset and independent Basic/Int./Advanced successors plus canonical Home remains evidence_required; retained semantic and synthetic evidence is non-accepting", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true},
+  "deferred_independent_review": "Sol 5.6 PR review pending; self-review only; no independent review claimed.",
+  "stage_7_ordered_plan": [
+    "1 Daily Milestone Claim continuous-session migration or evidence-blocked disposition",
+    "2 Campaign AP product authority",
+    "3 Campaign AP continuous-session migration",
+    "4 Troop Training product authority",
+    "5 Troop Training continuous-session migration",
+    "6 World product authority without rebuilding accepted Stage 6 session",
+    "7 Gathering product authority",
+    "8 Gathering route/session migration",
+    "9 Zombie Lair product authority and offline disposition",
+    "10 Nano Material product authority and maintenance/session migration",
+    "11 Nanoweapon product authority and adapter/session repair",
+    "12 Ruins Shop product authority and route/session disposition",
+    "13 Rare Earth Shop product authority and route disposition",
+    "14 Alliance Shop product authority and route disposition",
+    "15 Box purchase product decision, block, or retirement",
+    "16 Hero Upgrade product authority and route disposition",
+    "17 Hero Duel product authority and offline/combat-blocked disposition",
+    "18 VIP popup helper authority and route disposition",
+    "19 Ruins Challenge ownership selection or retirement",
+    "20 Personal Might Praise/legacy Claim migration or retirement",
+    "21 Remaining catalog and active-plan tickets with one durable disposition each",
+    "22 Legacy retirement and final Stage 7 closure"
+  ],
+  "next_three_atomic_tasks": [
+    "Daily Milestone Claim route integration or evidence-blocked disposition: reuse accepted r7 authority, preserve row/claim separation, bind one session if route exists, otherwise name evidence owner and next admissible action.",
+    "Campaign AP product authority: product record, revision-bound contract, catalog authority, generated authority views, and focused tests only; no selectors or session behavior.",
+    "Campaign AP continuous-session migration: bind unchanged controller and exact AP/result/Home semantics to one session only after product authority is current."
+  ]
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
@@ -301,3 +332,38 @@ architecture profile now passes all 92 tests with receipt digest
 The next execution-stage task at that baseline was Stage 3 control primitives, corresponding to
 “Shared control primitives through offline replay” (Stage 5 in the expanded
 umbrella plan). That historical selection is now complete.
+## Stage 7 Recruitment continuous-session migration
+
+The separate offline session lane registers `RECRUITMENT-BLUESTACKS-INTEGRATION`
+with `pnsctl conduct` and binds the unchanged Noah controller/native route to
+one active flow-owned `DevelopmentSession`. Conduct no longer creates a
+pre-observation session for Recruitment. The adapter requires the real active
+session, exact typed initial-observation identity, invocation/hash binding, and
+the existing 12-input full-pass ceiling; the existing direct continuation
+route retains its separate 4-input ceiling.
+
+The adapter recounts every retained native transport and exact
+`noahs-tavern-daily-free` recruit transport, preserves the controller's
+current-frame tier/free-control binding and persisted tier state, emits one
+read-only non-authoritative causal trace, and requires result/decrement/
+cooldown successors plus canonical Home. A dispatch-bearing unresolved result
+is `effect_reconciliation_required`, denies identical retry, and cannot pass
+the checked-in verifier. Product authority, selectors, route semantics,
+registration, and scheduler state were not broadened.
+
+Focused adapter validation passed 5 tests, the affected Recruitment/conductor
+suite passed 77 tests, and the architecture profile passed 92 tests. Receipt
+digests are recorded in the state JSON above. `git diff --check` passed.
+Zero emulator/ADB/BlueStacks observation, runtime input, and recruit actions
+occurred. Retained native proof remains `evidence_required`. Sol 5.6 PR review
+is pending and was not claimed.
+
+## Stage 7 ordered remainder and next-three detail
+
+The machine-readable state above is the persistent ordered plan. Next:
+Daily Milestone Claim route integration or truthful evidence-blocked
+disposition; Campaign AP product authority; Campaign AP continuous-session
+migration. Product authority and session migrations remain separate atomic
+tasks. All remaining canonical-plan/catalog entries require one durable
+migrated, blocked-with-owner, disabled-with-owner, or retired disposition
+before Stage 7 closure.

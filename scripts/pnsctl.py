@@ -192,6 +192,15 @@ def _register_checked_in_bluestacks_handlers() -> None:
             register as register_supply_depot,
         )
     try:
+        from scripts.flow_delivery_recruitment_bluestacks import (
+            register as register_recruitment,
+        )
+    except ImportError:
+        from flow_delivery_recruitment_bluestacks import (
+            register as register_recruitment,
+        )
+
+    try:
         from scripts.flow_delivery_daily_resource_item_bluestacks import (
             register as register_daily_resource_item,
         )
@@ -260,6 +269,12 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
+    register_recruitment(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+
 
 
 _register_checked_in_bluestacks_handlers()
@@ -6579,6 +6594,7 @@ _CONDUCT_DEFAULT_MAX_INPUTS = {
     "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": 10,
     "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": 10,
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": 24,
+    "RECRUITMENT-BLUESTACKS-INTEGRATION": 12,
 }
 _CONDUCT_KNOWLEDGE_PATHS = (
     REPO_ROOT / "AGENTS.md",
@@ -6596,6 +6612,13 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
     if not 1 <= maximum <= 100:
         raise OperatorError("conduct max_inputs must be between 1 and 100")
     if (
+        flow_id == "RECRUITMENT-BLUESTACKS-INTEGRATION"
+        and maximum != 12
+    ):
+        raise OperatorError(
+            "Recruitment full-pass conduct requires exact max_inputs=12"
+        )
+    if (
         flow_id
         in {
             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
@@ -6606,6 +6629,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-BLUESTACKS-INTEGRATION",
         }
         and requested is not None
         and maximum == 1
@@ -6693,6 +6717,7 @@ def _conductor_live_summary(
                 "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
                 "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
                 "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+                "RECRUITMENT-BLUESTACKS-INTEGRATION",
             }:
                 if retained.get("proof_topology") != "continuous":
                     summary.update(
@@ -6889,6 +6914,7 @@ def conduct_flow(
         "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
         "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
         "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+        "RECRUITMENT-BLUESTACKS-INTEGRATION",
     }
     observe_output: str | None = None
     if not continuous_session_flow:

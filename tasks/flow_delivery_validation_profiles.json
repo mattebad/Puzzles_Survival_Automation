@@ -44,6 +44,11 @@
         "tests.test_flow_delivery_bioenhancer_bluestacks"
       ]
     },
+    "RECRUITMENT-BLUESTACKS-INTEGRATION": {
+      "focused_tests": [
+        "tests.test_flow_delivery_recruitment_bluestacks"
+      ]
+    },
     "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": {
       "focused_tests": [
         "tests.test_flow_delivery_supply_depot_bluestacks"

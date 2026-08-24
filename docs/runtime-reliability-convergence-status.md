@@ -14,7 +14,8 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, and Recruitment authority lanes accepted offline | Recruitment is typed but its route remains evidence-blocked; its continuous-session migration is next. Registration/scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, and Recruitment continuous-session lanes accepted offline | Recruitment is bound to one flow-owned DevelopmentSession and checked-in conductor/route verifier, but current uninterrupted Basic-five/reset and independent Basic/Int./Advanced native proof remains evidence_required. Registration/scheduling remain disabled. Next is Daily Milestone Claim route integration or evidence-blocked disposition. |
+
 
 ## Frozen product rule
 
@@ -913,6 +914,77 @@ uninterrupted production-controller Basic-five, three-tier maintenance,
 same-tier successor, and canonical Home proof remains `evidence_required`.
 No emulator, ADB, BlueStacks observation, runtime input, recruit, evidence
 mutation, runtime/controller/selector change, registration, scheduling, commit
-by a worker, or push occurred. Registration remains `NOT_REGISTERED`, scheduler
-eligibility disabled, and ownership absent. Next is only the Recruitment
-continuous-session migration.
+by a worker, or push occurred in that product-only lane. Registration remains
+`NOT_REGISTERED`, scheduler eligibility disabled, and ownership absent. The
+next action recorded at that predecessor boundary was the separate Recruitment
+continuous-session migration, now accepted in the section below.
+
+## Stage 7 Recruitment continuous-session migration
+
+The separate offline Medium lane registered
+`RECRUITMENT-BLUESTACKS-INTEGRATION` with the checked-in BlueStacks flow
+registry and `pnsctl conduct`. Recruitment now runs through one active
+flow-owned `DevelopmentSession`; conduct does not create a separate
+pre-observation session. The adapter requires the exact active session,
+typed/hash-bound/invocation-bound initial observation object identity, the
+existing 12-input full-pass ceiling, and the existing 4-input continuation
+ceiling remains unchanged in the direct continuation route.
+
+The unchanged Noah route retains canonical Home Atlas entry, current-frame
+tier and free-control binding, Basic five/reset ownership, independent
+600/86400/172800-second tier persistence, result/decrement/cooldown successors,
+paid/premium/item-backed/10x/ambiguous/unknown/contradictory/stale rejection,
+and Claim separation. The adapter recounts every retained native transport and
+exact free-recruit transport, records exactly one read-only
+non-authoritative causal trace, and gates completion through the checked-in
+Recruitment verifier. A dispatch-bearing unknown is
+`effect_reconciliation_required`, denies identical retry, and cannot authorize
+`DONE`. Registration remains `NOT_REGISTERED`, scheduler eligibility remains
+disabled, runtime ownership is absent.
+
+Focused Recruitment adapter validation passed 5 tests with receipt
+`76d74033d78109f8c3f59f38b85b8a5fb0d035fd0d147ee72515229e158cb6d8`.
+Affected Recruitment/controller/conductor validation passed 77 tests.
+The architecture profile passed 92 tests with receipt
+`ff077480db0b7f79b004242eefe4d1c0d3314ad08ddc53362a6e19bca94a00a2`.
+`git diff --check` passed. Zero emulator/ADB/BlueStacks observation, runtime
+input, and recruit actions occurred. Retained native proof remains
+`evidence_required`. Failure classification: no remaining local defect;
+deferred Sol 5.6 PR review remains pending and was not claimed.
+
+## Stage 7 ordered remainder plan
+
+Persistent order after Recruitment:
+
+1. Daily Milestone Claim route integration or evidence-blocked disposition.
+2. Campaign AP product authority.
+3. Campaign AP continuous-session migration.
+4. Troop Training product authority.
+5. Troop Training continuous-session migration.
+6. World product authority without rebuilding its accepted Stage 6 session.
+7. Gathering product authority.
+8. Gathering route/session migration.
+9. Zombie Lair product authority and offline disposition.
+10. Nano Material product authority and maintenance/session migration.
+11. Nanoweapon product authority and adapter/session repair.
+12. Ruins Shop product authority and route/session disposition.
+13. Rare Earth Shop product authority and independent route disposition.
+14. Alliance Shop product authority and route disposition.
+15. Box purchase product decision, blocking, or retirement.
+16. Hero Upgrade product authority and route disposition.
+17. Hero Duel product authority and offline/combat-blocked disposition.
+18. VIP popup helper authority and route disposition.
+19. Ruins Challenge ownership selection or retirement.
+20. Personal Might Praise/legacy Claim migration or retirement.
+21. Every remaining catalog and active-plan ticket.
+22. Legacy retirement and final Stage 7 closure.
+
+Next three are fully detailed only as:
+
+- Daily Milestone Claim: reuse accepted r7 authority; bind existing route to
+  one session if implementation exists, or record exact evidence owner and next
+  admissible action without input.
+- Campaign AP product authority: product record, revision-bound contract,
+  catalog ownership, generated authority views, and focused tests only.
+- Campaign AP session migration: after product authority is current, bind the
+  unchanged controller and AP/result/Home semantics to one session only.
