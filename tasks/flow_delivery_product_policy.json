@@ -402,6 +402,13 @@
       "source": "explicit_user_direction"
     },
     {
+      "policy_id": "vip-popup-helper",
+      "scope": "vip_points_popup.dismissal",
+      "status": "navigation_only_validation",
+      "decision": "One fresh exact VIP Get Pts popup may be recognized and closed once only after bounded dismissal and a settled source-context successor; resource, currency, march, stamina, AP, combat, registration, and scheduler behavior remain out of scope.",
+      "source": "explicit_user_direction_and_native_popup_policy"
+    },
+    {
       "policy_id": "daily-reset-static-utc-midnight",
       "scope": "global.daily_reset",
       "status": "explicitly_approved",
@@ -2133,6 +2140,96 @@
       "record_digest": "c9dfe10930bc432630388d5edaabcdc294c8925a1d8c2e24d7b1255be07b5418"
     },
     {
+      "record_id": "vip_points_popup_dismissal",
+      "record_type": "vip_points_popup_dismissal",
+      "purpose": "Validate one allowlisted VIP Get Pts popup dismissal without resource or combat behavior.",
+      "recurrence": "navigation_session",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_LOCALIZED",
+          "HOME_CANONICAL"
+        ],
+        "target": "HOME",
+        "route": [
+          "VIP_POINTS_POPUP"
+        ]
+      },
+      "objective": "vip_points_popup_dismissal",
+      "action": "dismiss_one_allowlisted_vip_points_popup",
+      "target": {
+        "kind": "vip_points_popup",
+        "popup_identity": "VIP_POINTS_GET_PTS",
+        "close_control": "RESET_POPUP_CLOSE",
+        "eligibility": "fresh_current_frame_allowlisted_popup",
+        "maximum_inputs": 1,
+        "successor": "recognized_source_context_without_popup"
+      },
+      "quantity_cost": {
+        "quantity": 0,
+        "cost": {
+          "kind": "none",
+          "amount": 0,
+          "unit": "none",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "navigation_only": true,
+        "popup_absent_successor_required": true,
+        "source_context_successor_required": true,
+        "bounded_single_close": true,
+        "no_resource_input": true,
+        "no_march_input": true,
+        "no_attack_input": true,
+        "no_stamina_input": true,
+        "no_ap_input": true,
+        "no_currency_input": true,
+        "dispatch_is_not_success_proof": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "unknown popup",
+        "ambiguous popup",
+        "generic close",
+        "multiple popup inputs",
+        "resource input",
+        "march input",
+        "attack input",
+        "stamina input",
+        "AP input",
+        "currency input",
+        "combat",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "VIP popup dismissal is navigation-only shared prerequisite and never owns Daily progress or claim credit."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:vip-get-points-popup-dismissal",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-vip-get-points-popup",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "vip_points_popup_dismissal-v1",
+      "record_digest": "8a404595f42795568e9fa469a9e5b91f3dce6a542e70218f7956ab338d5b4a60"
+    },
+    {
       "record_id": "campaign_ap",
       "record_type": "campaign_ap",
       "purpose": "Run bounded Campaign AP Auto Battle on an approved configured Story stage while AP covers its verified cost.",
@@ -2338,5 +2435,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "7464367747c0ab03a6bd75337ad6ed229ca7c1c0ce46fffff7c0bdf92f4eac1b"
+  "authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd"
 }

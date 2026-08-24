@@ -57,6 +57,39 @@
       {"objective_key": "supply_depot", "owner_task_id": "supply-depot", "state": "EVIDENCE_REQUIRED"},
       {"objective_key": "ruins_challenge", "owner_task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS", "state": "ACCEPTED_EXISTING"}
     ],
+    "catalog_disposition": {
+      "upgrade_building": {"owner_task_id": "DQ-FLOW-BUILDING-UPGRADE", "disposition": "defer_not_current_portfolio", "dispatch_authority": null},
+      "join_hero_duel": {"owner_task_id": "hero-duel", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "upgrade_tech": {"owner_task_id": "DQ-FLOW-TECH-UPGRADE", "disposition": "defer_not_current_portfolio", "dispatch_authority": null},
+      "train_fighter": {"owner_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION", "disposition": "retain_existing_owner", "dispatch_authority": null},
+      "train_rider": {"owner_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION", "disposition": "retain_existing_owner", "dispatch_authority": null},
+      "train_shooter": {"owner_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION", "disposition": "retain_existing_owner", "dispatch_authority": null},
+      "train_vehicle": {"owner_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION", "disposition": "retain_existing_owner", "dispatch_authority": null},
+      "recruit_noahs_tavern": {"owner_task_id": "RECRUITMENT-BLUESTACKS-INTEGRATION", "disposition": "retain_existing_owner", "dispatch_authority": null},
+      "upgrade_hero": {"owner_task_id": "hero-upgrade", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "defeat_zombie_lair": {"owner_task_id": "DQ-FLOW-ZOMBIE-LAIR", "disposition": "defer_explicit", "dispatch_authority": null},
+      "consume_stamina": {"owner_task_id": "DQ-FLOW-STAMINA", "disposition": "defer_not_current_portfolio", "dispatch_authority": null},
+      "consume_ap": {"owner_task_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY", "disposition": "retain_existing_owner", "dispatch_authority": null},
+      "help_allies": {"owner_task_id": "DQ-FLOW-ALLIANCE-HELP", "disposition": "retain_existing_owner", "dispatch_authority": null},
+      "buy_box": {"owner_task_id": "DQ-FLOW-PURCHASES", "disposition": "defer_not_current_portfolio", "dispatch_authority": null},
+      "gather_wood": {"owner_task_id": "gathering-variant-canaries", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "gather_steel": {"owner_task_id": "gathering-variant-canaries", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "gather_gas": {"owner_task_id": "gathering-variant-canaries", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "boost_resource_building_output": {"owner_task_id": "DQ-FLOW-RESOURCE-BOOST", "disposition": "defer_not_current_portfolio", "dispatch_authority": null},
+      "ruins_shop_purchase": {"owner_task_id": "ruins-shop-purchase", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "rare_earth_shop_purchase": {"owner_task_id": "rare-earth-shop-purchase", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "alliance_shop_purchase": {"owner_task_id": "alliance-shop-purchase", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "speedup_using_items": {"owner_task_id": "DQ-FLOW-SPEEDUP", "disposition": "defer_explicit", "dispatch_authority": null},
+      "bioenhancer_research": {"owner_task_id": "DQ-FLOW-BIOENHANCER", "disposition": "retain_existing_owner", "dispatch_authority": null},
+      "craft_nanoweapon": {"owner_task_id": "nanoweapon-daily", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "personal_might_praise": {"owner_task_id": "DQ-FLOW-PERSONAL-MIGHT-PRAISE", "disposition": "retain_observation_only", "dispatch_authority": null},
+      "enhance_chip": {"owner_task_id": "enhancement-chip-native-proof", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "enhance_module": {"owner_task_id": "enhancement-module-native-proof", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "enhance_gear": {"owner_task_id": "enhancement-gear-native-proof", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "donate_alliance_tech": {"owner_task_id": "alliance-tech-donation", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "supply_depot": {"owner_task_id": "supply-depot", "disposition": "retain_owner_blocked", "dispatch_authority": null},
+      "ruins_challenge": {"owner_task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS", "disposition": "retain_observation_only", "dispatch_authority": null}
+    },
     "non_catalog_portfolio_ownership": [
       {"identity": "delegated_live_operator", "owner_task_id": "delegated-live-operator", "state": "ACCEPTED_EXISTING"},
       {"identity": "enhancement_offline_integration", "owner_task_id": "enhancement-offline-integration", "state": "ACCEPTED_EXISTING"},
@@ -80,6 +113,42 @@
       {"identity": "gathering_food_march_proving_slice", "owner_task_id": "gathering-march-dispatch", "state": "IMPLEMENTATION_AND_EVIDENCE_REQUIRED"},
       {"identity": "rare_earth_pit_income", "owner_task_id": "portfolio-closeout", "state": "DEFERRED_EXPLICIT"}
     ],
+    "legacy_retirement": {
+      "status": "accepted_offline",
+      "registration_state": "NOT_REGISTERED",
+      "scheduler_eligibility": false,
+      "entries": [
+        {
+          "legacy_id": "PERSONAL-MIGHT-PRAISE-BLISS-PILOT",
+          "state": "retired_historical_evidence",
+          "replacement": "DQ-FLOW-PERSONAL-MIGHT-PRAISE completion attribution",
+          "runtime_authority": false
+        },
+        {
+          "legacy_id": "personal_might_daily_claim",
+          "state": "retired_historical_evidence",
+          "replacement": "aggregate_daily_claim plus PersonalMightPraiseHandler observation",
+          "runtime_authority": false
+        },
+        {
+          "legacy_id": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
+          "state": "completed_canonical_route_migration",
+          "replacement": "accepted canonical Home Atlas Supply Depot route",
+          "runtime_authority": false
+        },
+        {
+          "legacy_id": "scripts/daily_claim_canary.py",
+          "state": "retired_compatibility_shim",
+          "replacement": "receipt-bound pnsctl Daily Claim route",
+          "runtime_authority": false
+        }
+      ],
+      "invariants": [
+        "No retired Bliss or receipt-free adapter may be registered.",
+        "Historical evidence remains diagnostic and non-authorizing.",
+        "No legacy path may create a second Claim owner or scheduler path."
+      ]
+    },
     "ordered_atomic_tasks": [
       {
         "task_id": "daily-row-claim",
@@ -1239,6 +1308,15 @@
       "missing_evidence": "BlueStacks selected-Daily progress before and after independently completed Praise activity",
       "required_product_or_policy_decisions": "none for offline completion attribution; any future gameplay provider requires a separate promoted task",
       "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY"],
+      "ownership_disposition": {
+        "catalog_owner": "DQ-FLOW-PERSONAL-MIGHT-PRAISE",
+        "completion_attribution_owner": "tasks.daily_quest.PersonalMightPraiseHandler",
+        "dispatch_authority": null,
+        "claim_authority": "aggregate_daily_claim",
+        "legacy_adapter": "PERSONAL-MIGHT-PRAISE-BLISS-PILOT",
+        "state": "accepted_existing_observation_only",
+        "notes": "Retain completion-attribution ownership only. Retire Bliss gameplay ownership and historical Praise dispatch; no target, route, action, registration, or scheduler authority is inferred."
+      },
       "backlog_task_id": "DQ-FLOW-PERSONAL-MIGHT-PRAISE",
       "prompt_path": "docs/prompts/daily-quest/dq-flow-personal-might-praise.md"
     },
@@ -1450,7 +1528,15 @@
       "required_product_or_policy_decisions": "entry/combat policy",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-CHALLENGES",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-challenges.md"
+      "prompt_path": "docs/prompts/daily-quest/dq-flow-challenges.md",
+      "ownership_disposition": {
+        "catalog_owner": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
+        "navigation_prerequisite_flow": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+        "dispatch_authority": null,
+        "claim_authority": "aggregate_daily_claim",
+        "state": "accepted_existing_blocked",
+        "notes": "Retain Daily catalog ownership. Home Atlas flow owns navigation evidence only; challenge_disabled owns no entry or combat input. Do not create a second Ruins product record or infer completion from navigation."
+      }
     }
   ]
 }

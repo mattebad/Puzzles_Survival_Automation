@@ -1,0 +1,179 @@
+{
+  "schema_version": 2,
+  "flow_id": "VIP-GET-PTS-POPUP-DISMISSAL",
+  "product_purpose": "Validate one bounded VIP Get Pts popup dismissal without resource, currency, march, or combat behavior.",
+  "trigger_cadence_type": "evidence_gated",
+  "reset_scope": "one popup candidate per fresh source frame",
+  "required_starting_context": ["home_ready", "home_localized", "home_canonical"],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    },
+    {
+      "primitive_id": "reset_popup_close",
+      "version_digest_field": "RESET_POPUP_CLOSE_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_ready",
+    "home_localized",
+    "home_canonical",
+    "vip_points_popup",
+    "popup_dismissal_successor",
+    "blocked"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "observe_vip_points_popup_route",
+      "from": "home_ready",
+      "to": "vip_points_popup",
+      "planner": "VipPointsPopupEvidenceGate",
+      "permitted_input": null,
+      "postconditions": [
+        "fresh current-frame VIP_POINTS_GET_PTS identity",
+        "RESET_POPUP_CLOSE is spatially associated with the popup"
+      ],
+      "terminal_outcomes": ["blocked"],
+      "evidence_gate_id": "vip_points_popup_native_evidence"
+    },
+    {
+      "transition_id": "observe_vip_points_popup_dismissal_successor",
+      "from": "vip_points_popup",
+      "to": "popup_dismissal_successor",
+      "planner": "VipPointsPopupEvidenceGate",
+      "permitted_input": null,
+      "postconditions": [
+        "bounded close remains one-input maximum",
+        "popup is absent",
+        "source context successor is settled and re-recognized"
+      ],
+      "terminal_outcomes": ["blocked"],
+      "evidence_gate_id": "vip_points_popup_native_evidence"
+    },
+    {
+      "transition_id": "return_canonical_home",
+      "from": "popup_dismissal_successor",
+      "to": "home_canonical",
+      "planner": "VipPointsPopupEvidenceGate",
+      "permitted_input": null,
+      "postconditions": [
+        "canonical Home remains required terminal state",
+        "no resource or combat input occurred"
+      ],
+      "terminal_outcomes": ["blocked"],
+      "evidence_gate_id": "vip_points_popup_native_evidence"
+    }
+  ],
+  "permitted_inputs": [],
+  "consequential_action_class": "vip_popup_dismissal_candidate_observation",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 0,
+    "resource_or_currency": null,
+    "notes": "The helper is navigation-only. Current native popup, close, and settled successor proof is missing; no input is authorized offline."
+  },
+  "completion_identity": "vip-points-popup:dismissal:observed",
+  "terminal_outcomes": ["deferred", "blocked", "manual_required"],
+  "cooldown_deferred_behavior": "Keep helper dormant until exact native popup and successor evidence are current; never register or schedule it.",
+  "bounded_recovery_behavior": "Stop on unknown, ambiguous, stale, or generic popup state; deny identical retry and preserve blocked disposition.",
+  "evidence_requirements": [
+    "fresh native VIP_POINTS_GET_PTS popup identity",
+    "native RESET_POPUP_CLOSE target and bounded close geometry",
+    "popup absence with settled source-context successor",
+    "canonical Home route/session proof",
+    "zero resource, currency, march, formation, stamina, AP, node, and combat input"
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "vip_points_popup_native_evidence",
+      "status": "evidence_required",
+      "blocks": [
+        "observe_vip_points_popup_route",
+        "observe_vip_points_popup_dismissal_successor",
+        "return_canonical_home"
+      ],
+      "required_evidence": [
+        "hash-bound native VIP Get Pts popup and close target corpus",
+        "settled source-context successor and canonical Home route/session replay"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "vip_points_popup_production",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_ready",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [],
+      "required_transitions": [
+        "observe_vip_points_popup_route",
+        "observe_vip_points_popup_dismissal_successor",
+        "return_canonical_home"
+      ],
+      "evidence_gate_ids": ["vip_points_popup_native_evidence"]
+    }
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "vip_points_popup_native_source",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "The retained popup fixture is diagnostic; it does not establish current route/session or successor proof."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "unknown popup",
+    "ambiguous popup",
+    "generic close",
+    "multiple popup inputs",
+    "resource input",
+    "currency input",
+    "march input",
+    "formation input",
+    "stamina input",
+    "AP input",
+    "combat input",
+    "registration",
+    "scheduler"
+  ],
+  "implementation_status": "contract_only",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_policy_refs": [
+    {
+      "policy_id": "vip-popup-helper",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "registration_state": "disabled",
+  "production_eligible": false,
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r11",
+    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
+    "product_record_id": "vip_points_popup_dismissal",
+    "product_record_revision": "vip_points_popup_dismissal-v1",
+    "product_record_digest": "8a404595f42795568e9fa469a9e5b91f3dce6a542e70218f7956ab338d5b4a60",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_READY",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": ["HOME_READY", "HOME_LOCALIZED", "HOME_CANONICAL"],
+    "selected_daily_prerequisite": false
+  }
+}

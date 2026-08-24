@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
+from pathlib import Path
 import unittest
 
 from tasks import daily_quest
@@ -67,6 +69,31 @@ class PersonalMightCompletionAttributionTests(unittest.TestCase):
         self.assertNotIn("HELP_ALL_ACTION", source_names)
         self.assertNotIn("PROFILE_ID", source_names)
 
+    def test_matrix_retires_legacy_dispatch_and_keeps_completion_owner(self) -> None:
+        matrix_path = (
+            Path(__file__).resolve().parents[1]
+            / "tasks"
+            / "daily_quest_execution_matrix.json"
+        )
+        matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+        row = next(
+            item
+            for item in matrix["objectives"]
+            if item["objective_key"] == "personal_might_praise"
+        )
+        ownership = row["ownership_disposition"]
+        self.assertEqual(ownership["catalog_owner"], "DQ-FLOW-PERSONAL-MIGHT-PRAISE")
+        self.assertEqual(
+            ownership["completion_attribution_owner"],
+            "tasks.daily_quest.PersonalMightPraiseHandler",
+        )
+        self.assertIsNone(ownership["dispatch_authority"])
+        self.assertEqual(ownership["claim_authority"], "aggregate_daily_claim")
+        self.assertEqual(
+            ownership["legacy_adapter"],
+            "PERSONAL-MIGHT-PRAISE-BLISS-PILOT",
+        )
+        self.assertEqual(ownership["state"], "accepted_existing_observation_only")
 
 if __name__ == "__main__":
     unittest.main()

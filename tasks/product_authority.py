@@ -60,6 +60,7 @@ RECORD_TYPES = frozenset(
         "hero_duel",
         "nanoweapon_normal_craft",
         "nano_material_production",
+        "vip_points_popup_dismissal",
         "world_map_navigation",
     }
 )
@@ -85,6 +86,7 @@ RECORD_IDS = frozenset(
         "hero_duel",
         "nanoweapon_normal_craft",
         "nano_material_production",
+        "vip_points_popup_dismissal",
         "world_map_navigation",
     }
 )
@@ -315,6 +317,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "nanoweapon_normal_craft": "NANOWEAPON",
         "nano_material_production": "NANOWEAPON",
         "world_map_navigation": "WORLD",
+        "vip_points_popup_dismissal": "HOME",
     }[record_type]
     if target != expected_target:
         raise ProductAuthorityError(
@@ -352,6 +355,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "nanoweapon_normal_craft": "nanoweapon_normal_craft",
         "nano_material_production": "nano_material_production",
         "world_map_navigation": "world_map_navigation",
+        "vip_points_popup_dismissal": "vip_points_popup_dismissal",
     }[record_id]
     if record_type != expected_type:
         raise ProductAuthorityError("product record id/type discriminator mismatch")
@@ -2183,6 +2187,110 @@ def _validate_world_map_navigation_record(record: Mapping[str, Any]) -> None:
                 f"World Map forbidden actions must include {marker}"
             )
 
+def _validate_vip_points_popup_dismissal_record(record: Mapping[str, Any]) -> None:
+    """Validate one bounded, navigation-only VIP Get Pts popup dismissal."""
+
+    if record["objective"] != "vip_points_popup_dismissal":
+        raise ProductAuthorityError(
+            "VIP popup record objective must be vip_points_popup_dismissal"
+        )
+    if record["action"] != "dismiss_one_allowlisted_vip_points_popup":
+        raise ProductAuthorityError(
+            "VIP popup action must dismiss_one_allowlisted_vip_points_popup"
+        )
+    if record["recurrence"] != "navigation_session":
+        raise ProductAuthorityError("VIP popup recurrence must be navigation_session")
+    route = record["semantic_entry_route"]
+    if (
+        route.get("source_home_authorities")
+        != ["HOME_READY", "HOME_LOCALIZED", "HOME_CANONICAL"]
+        or route.get("target") != "HOME"
+        or route.get("route") != ["VIP_POINTS_POPUP"]
+    ):
+        raise ProductAuthorityError(
+            "VIP popup entry route must bind typed Home authorities to VIP_POINTS_POPUP"
+        )
+    target = record["target"]
+    if (
+        target.get("kind") != "vip_points_popup"
+        or target.get("popup_identity") != "VIP_POINTS_GET_PTS"
+        or target.get("close_control") != "RESET_POPUP_CLOSE"
+        or target.get("eligibility") != "fresh_current_frame_allowlisted_popup"
+        or target.get("maximum_inputs") != 1
+        or target.get("successor") != "recognized_source_context_without_popup"
+    ):
+        raise ProductAuthorityError(
+            "VIP popup target must require one fresh allowlisted Get Pts popup"
+        )
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 0
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "none"
+        or cost.get("amount") != 0
+        or cost.get("unit") != "none"
+        or cost.get("free_only") is not True
+    ):
+        raise ProductAuthorityError("VIP popup dismissal must be zero-cost")
+    effect = record["semantic_effect"]
+    required_effects = (
+        "navigation_only",
+        "popup_absent_successor_required",
+        "source_context_successor_required",
+        "bounded_single_close",
+        "no_resource_input",
+        "no_march_input",
+        "no_attack_input",
+        "no_stamina_input",
+        "no_ap_input",
+        "no_currency_input",
+        "dispatch_is_not_success_proof",
+    )
+    if effect.get("effect_ordinal") != 1 or any(
+        effect.get(field) is not True for field in required_effects
+    ):
+        raise ProductAuthorityError(
+            "VIP popup dismissal successor or safety effect is incomplete"
+        )
+    if effect.get("identical_retry") is not False:
+        raise ProductAuthorityError("VIP popup dismissal must deny identical retry")
+    ownership = record["daily_ownership"]
+    if (
+        ownership.get("daily_owner") is not None
+        or ownership.get("point_credit_trigger") is not None
+        or ownership.get("selected_daily_prerequisite") is not False
+    ):
+        raise ProductAuthorityError("VIP popup dismissal must not own Daily progress")
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "VIP popup terminal requirement must return to canonical Home"
+        )
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "unknown",
+        "ambiguous",
+        "generic close",
+        "multiple popup",
+        "resource",
+        "march",
+        "attack",
+        "stamina",
+        "ap",
+        "currency",
+        "combat",
+        "identical retry",
+        "real-money",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(
+                f"VIP popup forbidden actions must include {marker}"
+            )
+
+
 def _validate_campaign_ap_record(record: Mapping[str, Any]) -> None:
     """Validate bounded AP-funded Auto Battle product authority."""
 
@@ -2407,6 +2515,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_nanoweapon_normal_craft_record(record)
     elif record_type == "nano_material_production":
         _validate_nano_material_production_record(record)
+    elif record_type == "vip_points_popup_dismissal":
+        _validate_vip_points_popup_dismissal_record(record)
     elif record_type == "world_map_navigation":
         _validate_world_map_navigation_record(record)
     elif record_type == "campaign_ap":
@@ -2469,8 +2579,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 21:
-        raise ProductAuthorityError("product authority requires exactly twenty-one records")
+    if not isinstance(records, list) or len(records) != 22:
+        raise ProductAuthorityError("product authority requires exactly twenty-two records")
     return records
 
 
@@ -2788,6 +2898,18 @@ def validate_contract_product_authority_binding(
     ) == "WORLD-MAP-NAVIGATION-FOUNDATION":
         raise ProductAuthorityError(
             "World Map navigation flow must bind the World Map record"
+        )
+    if record_id == "vip_points_popup_dismissal" and contract.get(
+        "flow_id"
+    ) != "VIP-GET-PTS-POPUP-DISMISSAL":
+        raise ProductAuthorityError(
+            "VIP popup record is reserved for the VIP popup dismissal flow"
+        )
+    if record_id != "vip_points_popup_dismissal" and contract.get(
+        "flow_id"
+    ) == "VIP-GET-PTS-POPUP-DISMISSAL":
+        raise ProductAuthorityError(
+            "VIP popup dismissal flow must bind the VIP popup record"
         )
     if binding["product_record_revision"] != record["record_revision"]:
         raise ProductAuthorityError("contract references stale product record revision")

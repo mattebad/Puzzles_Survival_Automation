@@ -4,7 +4,9 @@
   "product_purpose": "Observe one bounded Hero Upgrade candidate without authorizing material spend or Upgrade dispatch.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "up to three candidates per reset after explicit product decision",
-  "required_starting_context": ["home_canonical"],
+  "required_starting_context": [
+    "home_canonical"
+  ],
   "shared_primitive_dependencies": [
     {
       "primitive_id": "home_navigation_primitives",
@@ -29,7 +31,9 @@
         "Hero route remains an offline observation contract",
         "no navigation input is authorized"
       ],
-      "terminal_outcomes": ["blocked"],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "hero_upgrade_replay"
     },
     {
@@ -43,7 +47,9 @@
         "current level, next level, material, exact amount, balance, and Upgrade state are recognized",
         "one-level successor, material delta, completion progress, and canonical Home evidence are captured"
       ],
-      "terminal_outcomes": ["blocked"],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "hero_upgrade_replay"
     },
     {
@@ -55,7 +61,9 @@
       "postconditions": [
         "canonical Home remains the required terminal state"
       ],
-      "terminal_outcomes": ["blocked"],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "hero_upgrade_replay"
     }
   ],
@@ -69,7 +77,11 @@
     "notes": "Current hero, level, material, amount, and balance are unresolved; no Upgrade dispatch or material spend is authorized."
   },
   "completion_identity": "hero-upgrade:candidate:observed",
-  "terminal_outcomes": ["deferred", "blocked", "manual_required"],
+  "terminal_outcomes": [
+    "deferred",
+    "blocked",
+    "manual_required"
+  ],
   "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native hero-upgrade evidence are current; never schedule or register this flow.",
   "bounded_recovery_behavior": "Stop on unknown hero, level, material, cost, balance, queue, successor, progress, or terminal Home state; preserve blocked disposition.",
   "evidence_requirements": [
@@ -106,7 +118,9 @@
         "observe_hero_upgrade_candidate",
         "return_canonical_home"
       ],
-      "evidence_gate_ids": ["hero_upgrade_replay"]
+      "evidence_gate_ids": [
+        "hero_upgrade_replay"
+      ]
     }
   ],
   "replay_fixture_requirements": [
@@ -150,7 +164,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "7464367747c0ab03a6bd75337ad6ed229ca7c1c0ce46fffff7c0bdf92f4eac1b",
+    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
     "product_record_id": "hero_upgrade",
     "product_record_revision": "hero_upgrade-v1",
     "product_record_digest": "555f1c71d54d17256eab6c2fef1914c446b1502a136eaa798191397725ab0891",
@@ -165,7 +179,9 @@
     "package_id": "com.global.ztmslg",
     "home_authority": "HOME_CANONICAL",
     "terminal_home_authority": "HOME_CANONICAL",
-    "accepted_home_authorities": ["HOME_CANONICAL"],
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
     "selected_daily_prerequisite": false
   }
 }

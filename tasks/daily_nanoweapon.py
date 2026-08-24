@@ -1,4 +1,4 @@
-"""Offline adapter for the Daily Craft Nanoweapon objective."""
+"""Offline adapter for the Daily Normal Craft Nanoweapon objective."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ DAILY_NANOWEAPON_COMPLETION = "daily-nanoweapon:completed"
 
 @dataclass(frozen=True)
 class DailyNanoweaponObservation:
-    """Selected-Daily row plus one current-frame Craft Weapon observation."""
+    """Selected-Daily row plus one current-frame Normal Craft observation."""
 
     selected_daily_row: bool
     objective_key: str
@@ -33,7 +33,7 @@ class DailyNanoweaponObservation:
 def daily_nanoweapon_authorizeable(
     observation: DailyNanoweaponObservation,
 ) -> bool:
-    """Require exact selected-Daily identity and one free known craft."""
+    """Require exact selected-Daily identity and one Normal Craft start."""
 
     return bool(
         observation.selected_daily_row

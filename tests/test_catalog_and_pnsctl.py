@@ -35,6 +35,46 @@ class CatalogTests(unittest.TestCase):
         self.assertIn("no product authorization", row["resource_policy"])
         self.assertIn("no purchase dispatch", row["action_transaction_boundary"])
         self.assertIn("explicit product authorization remains absent", row["required_product_or_policy_decisions"])
+    def test_every_catalog_objective_has_one_durable_disposition(self):
+        matrix = json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+        reconciliation = matrix["portfolio_reconciliation"]
+        owners = {
+            item["objective_key"]: item["owner_task_id"]
+            for item in reconciliation["catalog_objective_ownership"]
+        }
+        dispositions = reconciliation["catalog_disposition"]
+        self.assertEqual(set(dispositions), set(owners))
+        allowed = {
+            "defer_not_current_portfolio",
+            "defer_explicit",
+            "retain_existing_owner",
+            "retain_owner_blocked",
+            "retain_observation_only",
+        }
+        for key, owner in owners.items():
+            with self.subTest(objective=key):
+                self.assertEqual(dispositions[key]["owner_task_id"], owner)
+                self.assertIn(dispositions[key]["disposition"], allowed)
+                self.assertIsNone(dispositions[key]["dispatch_authority"])
+    def test_legacy_retirement_keeps_replacements_non_authorizing(self):
+        matrix = json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+        retirement = matrix["portfolio_reconciliation"]["legacy_retirement"]
+        self.assertEqual(retirement["status"], "accepted_offline")
+        self.assertEqual(retirement["registration_state"], "NOT_REGISTERED")
+        self.assertFalse(retirement["scheduler_eligibility"])
+        entries = {item["legacy_id"]: item for item in retirement["entries"]}
+        self.assertEqual(
+            set(entries),
+            {
+                "PERSONAL-MIGHT-PRAISE-BLISS-PILOT",
+                "personal_might_daily_claim",
+                "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
+                "scripts/daily_claim_canary.py",
+            },
+        )
+        for entry in entries.values():
+            self.assertFalse(entry["runtime_authority"])
+            self.assertTrue(entry["replacement"])
 
     def test_loader_rejects_row_without_selected_daily_provenance(self):
         raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))

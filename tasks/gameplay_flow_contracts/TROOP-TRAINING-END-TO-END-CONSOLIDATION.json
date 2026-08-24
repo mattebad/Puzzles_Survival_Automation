@@ -4,14 +4,57 @@
   "product_purpose": "Supervised development validation of one configurable four-type Troop Training route using one canonical Home Atlas entry and verified top-tab transitions.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "reset_identity",
-  "required_starting_context": ["home_canonical"],
-  "shared_primitive_dependencies": [{"primitive_id": "home_navigation_primitives", "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST", "required": true}],
-  "recognized_states": ["home_canonical", "facility_radial_exact", "training_screen_exact", "active_queue_reconciled", "training_started", "home_returned", "blocked", "unknown_fail_closed"],
+  "required_starting_context": [
+    "home_canonical"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "facility_radial_exact",
+    "training_screen_exact",
+    "active_queue_reconciled",
+    "training_started",
+    "home_returned",
+    "blocked",
+    "unknown_fail_closed"
+  ],
   "per_type_contract": {
-    "fighter": {"enabled": true, "target_tier": 8, "quantity_mode": "current_max", "training_policy": "continuous", "allow_resource_boxes": true},
-    "vehicle": {"enabled": true, "target_tier": 1, "quantity_mode": "current_max", "training_policy": "continuous", "allow_resource_boxes": true},
-    "shooter": {"enabled": true, "target_tier": 8, "quantity": 250, "quantity_mode": "fixed", "training_policy": "once_daily", "allow_resource_boxes": false},
-    "rider": {"enabled": true, "target_tier": 1, "quantity": 250, "quantity_mode": "fixed", "training_policy": "once_daily", "allow_resource_boxes": false}
+    "fighter": {
+      "enabled": true,
+      "target_tier": 8,
+      "quantity_mode": "current_max",
+      "training_policy": "continuous",
+      "allow_resource_boxes": true
+    },
+    "vehicle": {
+      "enabled": true,
+      "target_tier": 1,
+      "quantity_mode": "current_max",
+      "training_policy": "continuous",
+      "allow_resource_boxes": true
+    },
+    "shooter": {
+      "enabled": true,
+      "target_tier": 8,
+      "quantity": 250,
+      "quantity_mode": "fixed",
+      "training_policy": "once_daily",
+      "allow_resource_boxes": false
+    },
+    "rider": {
+      "enabled": true,
+      "target_tier": 1,
+      "quantity": 250,
+      "quantity_mode": "fixed",
+      "training_policy": "once_daily",
+      "allow_resource_boxes": false
+    }
   },
   "required_postconditions": [
     "current_max selected quantity equals positively recognized current numeric maximum",
@@ -22,16 +65,67 @@
     "one canonical facility entry and one terminal fresh canonical Home Atlas localization bound the verified tab pass",
     "once_daily initiation persists by reset identity and troop type"
   ],
-  "permitted_inputs": ["home_to_facility_navigation", "radial_train_navigation", "verified_top_tab_navigation", "tier_selection", "quantity_entry", "normal_timed_train", "Fighter_or_Vehicle_resource_box_confirmation", "safe_home_return", "train_now", "premium", "speedup", "cash_mall", "shooter_or_rider_resource_boxes", "registration", "scheduler_promotion", "arbitrary_adb"],
-  "prohibited_inputs": ["Train Now", "premium", "speedup", "Cash Mall", "Shooter_or_Rider_resource_boxes", "registration", "scheduler_promotion", "arbitrary_adb"],
+  "permitted_inputs": [
+    "home_to_facility_navigation",
+    "radial_train_navigation",
+    "verified_top_tab_navigation",
+    "tier_selection",
+    "quantity_entry",
+    "normal_timed_train",
+    "Fighter_or_Vehicle_resource_box_confirmation",
+    "safe_home_return",
+    "train_now",
+    "premium",
+    "speedup",
+    "cash_mall",
+    "shooter_or_rider_resource_boxes",
+    "registration",
+    "scheduler_promotion",
+    "arbitrary_adb"
+  ],
+  "prohibited_inputs": [
+    "Train Now",
+    "premium",
+    "speedup",
+    "Cash Mall",
+    "Shooter_or_Rider_resource_boxes",
+    "registration",
+    "scheduler_promotion",
+    "arbitrary_adb"
+  ],
   "consequential_action_class": "supervised_consequential_validation",
-  "cost_quantity_requirements": {"free_only": false, "maximum_cost": null, "quantity": "configured_fixed_or_current_max", "resource_or_currency": "known_resources_only", "notes": "No premium or real-money action is supported."},
+  "cost_quantity_requirements": {
+    "free_only": false,
+    "maximum_cost": null,
+    "quantity": "configured_fixed_or_current_max",
+    "resource_or_currency": "known_resources_only",
+    "notes": "No premium or real-money action is supported."
+  },
   "completion_identity": "troop-training-end-to-end-consolidation:complete",
-  "terminal_outcomes": ["action_performed", "deferred", "blocked", "manual_required"],
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "blocked",
+    "manual_required"
+  ],
   "cooldown_deferred_behavior": "once_daily_or_continuous_policy_reconciled_read_only",
   "bounded_recovery_behavior": "observe_only_or_safe_home_return",
-  "replay_fixture_requirements": [{"fixture_id": "four_type_config_and_queue_successors", "status": "required_evidence", "path": "tests/test_troop_training.py", "notes": "Independent contract fixtures; native evidence remains required."}],
-  "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "unknown_modal"],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "four_type_config_and_queue_successors",
+      "status": "required_evidence",
+      "path": "tests/test_troop_training.py",
+      "notes": "Independent contract fixtures; native evidence remains required."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "unknown_modal"
+  ],
   "transition_contracts": [
     {
       "transition_id": "home_to_facility",
@@ -39,8 +133,13 @@
       "to": "facility_radial_exact",
       "planner": "fresh_atlas_facility_binding",
       "permitted_input": "home_to_facility_navigation",
-      "postconditions": ["exact canonical facility entry"],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "postconditions": [
+        "exact canonical facility entry"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "facility_to_training",
@@ -48,8 +147,13 @@
       "to": "training_screen_exact",
       "planner": "normal_train_navigation",
       "permitted_input": "radial_train_navigation",
-      "postconditions": ["exact facility identity"],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "postconditions": [
+        "exact facility identity"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "rebind_top_tab",
@@ -57,8 +161,13 @@
       "to": "training_screen_exact",
       "planner": "freshly_bound_top_tab",
       "permitted_input": "verified_top_tab_navigation",
-      "postconditions": ["exact troop identity re-recognized after tab transition"],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "postconditions": [
+        "exact troop identity re-recognized after tab transition"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "start_timed_training",
@@ -66,8 +175,15 @@
       "to": "training_started",
       "planner": "normal_timed_train",
       "permitted_input": "normal_timed_train",
-      "postconditions": ["exact queue label, tier, quantity, and positive timer successor"],
-      "terminal_outcomes": ["action_performed", "deferred", "blocked", "manual_required"]
+      "postconditions": [
+        "exact queue label, tier, quantity, and positive timer successor"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "return_canonical_home",
@@ -75,8 +191,15 @@
       "to": "home_returned",
       "planner": "safe_home_return",
       "permitted_input": "safe_home_return",
-      "postconditions": ["fresh canonical Home proof"],
-      "terminal_outcomes": ["complete_for_reset", "deferred", "blocked", "manual_required"]
+      "postconditions": [
+        "fresh canonical Home proof"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "deferred",
+        "blocked",
+        "manual_required"
+      ]
     }
   ],
   "scenarios": [
@@ -85,10 +208,36 @@
       "mode": "consequential_supervised",
       "start_state": "home_canonical",
       "terminal_state": "home_returned",
-      "permitted_inputs": ["home_to_facility_navigation", "radial_train_navigation", "verified_top_tab_navigation", "tier_selection", "quantity_entry", "normal_timed_train", "Fighter_or_Vehicle_resource_box_confirmation", "safe_home_return"],
-      "forbidden_inputs": ["train_now", "premium", "speedup", "cash_mall", "shooter_or_rider_resource_boxes", "registration", "scheduler_promotion", "arbitrary_adb"],
-      "required_transitions": ["home_to_facility", "facility_to_training", "rebind_top_tab", "start_timed_training", "return_canonical_home"],
-      "evidence_gate_ids": ["troop_training_native_evidence"],
+      "permitted_inputs": [
+        "home_to_facility_navigation",
+        "radial_train_navigation",
+        "verified_top_tab_navigation",
+        "tier_selection",
+        "quantity_entry",
+        "normal_timed_train",
+        "Fighter_or_Vehicle_resource_box_confirmation",
+        "safe_home_return"
+      ],
+      "forbidden_inputs": [
+        "train_now",
+        "premium",
+        "speedup",
+        "cash_mall",
+        "shooter_or_rider_resource_boxes",
+        "registration",
+        "scheduler_promotion",
+        "arbitrary_adb"
+      ],
+      "required_transitions": [
+        "home_to_facility",
+        "facility_to_training",
+        "rebind_top_tab",
+        "start_timed_training",
+        "return_canonical_home"
+      ],
+      "evidence_gate_ids": [
+        "troop_training_native_evidence"
+      ],
       "notes": "At most one bounded canary; native evidence remains required."
     }
   ],
@@ -96,14 +245,28 @@
     {
       "gate_id": "troop_training_native_evidence",
       "status": "evidence_required",
-      "blocks": ["troop_training_consolidation_supervised_canary"],
-      "required_evidence": ["native source/immediate-before/post frames", "resolved config", "queue label/tier/quantity/timer", "resource readings/delta", "terminal canonical Home hashes"],
+      "blocks": [
+        "troop_training_consolidation_supervised_canary"
+      ],
+      "required_evidence": [
+        "native source/immediate-before/post frames",
+        "resolved config",
+        "queue label/tier/quantity/timer",
+        "resource readings/delta",
+        "terminal canonical Home hashes"
+      ],
       "permitted_inputs": []
     }
   ],
   "product_policy_refs": [
-    {"policy_id": "troop-training-resource-policy", "source": "tasks/flow_delivery_product_policy.json"},
-    {"policy_id": "daily-reset-static-utc-midnight", "source": "tasks/flow_delivery_product_policy.json"}
+    {
+      "policy_id": "troop-training-resource-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "daily-reset-static-utc-midnight",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
   ],
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
@@ -111,12 +274,20 @@
   "offline_proof_state": "current",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
-  "evidence_requirements": ["native source/immediate-before/post frames", "resolved config", "queue label/tier/quantity/timer", "resource readings/delta", "one canonical Home entry localization", "shared-tab transitions", "terminal result and hashes"],
+  "evidence_requirements": [
+    "native source/immediate-before/post frames",
+    "resolved config",
+    "queue label/tier/quantity/timer",
+    "resource readings/delta",
+    "one canonical Home entry localization",
+    "shared-tab transitions",
+    "terminal result and hashes"
+  ],
   "recovery_behavior": "observe-only or safe canonical Home return; never retry unresolved Train",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "7464367747c0ab03a6bd75337ad6ed229ca7c1c0ce46fffff7c0bdf92f4eac1b",
+    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
     "product_record_id": "troop_training",
     "product_record_revision": "troop_training-v1",
     "product_record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537",
@@ -131,7 +302,9 @@
     "package_id": "com.global.ztmslg",
     "home_authority": "HOME_CANONICAL",
     "terminal_home_authority": "HOME_CANONICAL",
-    "accepted_home_authorities": ["HOME_CANONICAL"],
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
     "selected_daily_prerequisite": false
   },
   "registration_state": "disabled"

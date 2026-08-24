@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_twenty_one_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_twenty_two_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -74,6 +74,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "hero_duel",
                 "nanoweapon_normal_craft",
                 "nano_material_production",
+                "vip_points_popup_dismissal",
                 "world_map_navigation",
             },
         )
@@ -416,6 +417,31 @@ class ProductAuthorityTests(unittest.TestCase):
         for marker in ("march", "attack", "stamina", "ap", "resource", "combat"):
             self.assertIn(marker, forbidden)
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+    def test_vip_points_popup_record_is_bounded_navigation_only_helper(self) -> None:
+        record = self.records["vip_points_popup_dismissal"]
+        self.assertEqual(record["record_type"], "vip_points_popup_dismissal")
+        self.assertEqual(record["record_revision"], "vip_points_popup_dismissal-v1")
+        self.assertEqual(
+            record["semantic_entry_route"]["source_home_authorities"],
+            ["HOME_READY", "HOME_LOCALIZED", "HOME_CANONICAL"],
+        )
+        self.assertEqual(record["semantic_entry_route"]["target"], "HOME")
+        target = record["target"]
+        self.assertEqual(target["popup_identity"], "VIP_POINTS_GET_PTS")
+        self.assertEqual(target["close_control"], "RESET_POPUP_CLOSE")
+        self.assertEqual(target["maximum_inputs"], 1)
+        self.assertEqual(record["quantity_cost"]["quantity"], 0)
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["navigation_only"])
+        self.assertTrue(effect["popup_absent_successor_required"])
+        self.assertTrue(effect["source_context_successor_required"])
+        self.assertTrue(effect["bounded_single_close"])
+        self.assertFalse(effect["identical_retry"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in ("unknown", "ambiguous", "generic close", "resource", "combat"):
+            self.assertIn(marker, forbidden)
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+
 
     def test_gathering_record_binds_supported_variants_and_free_node_guards(self) -> None:
         record = self.records["gathering_resources"]

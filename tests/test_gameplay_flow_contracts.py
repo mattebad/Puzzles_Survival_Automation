@@ -335,6 +335,23 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
         self.assertEqual(contract["proof_state"], "evidence_required")
+    def test_vip_points_popup_contract_binds_bounded_helper_and_stays_disabled(self):
+        contract = load_flow_contract("VIP-GET-PTS-POPUP-DISMISSAL")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "vip_points_popup_dismissal")
+        self.assertEqual(binding["product_record_revision"], "vip_points_popup_dismissal-v1")
+        self.assertEqual(binding["home_authority"], "HOME_READY")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["consequential_action_class"], "vip_popup_dismissal_candidate_observation")
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["permitted_inputs"], [])
+        self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
 
     def test_gathering_contract_binds_typed_variants_and_stays_evidence_gated(self):
         contract = load_flow_contract("GATHERING-BLUESTACKS-INTEGRATION")

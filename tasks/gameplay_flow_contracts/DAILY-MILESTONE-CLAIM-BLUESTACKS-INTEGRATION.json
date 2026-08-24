@@ -4,10 +4,20 @@
   "product_purpose": "From canonical Home, open Quest Activity Milestones and claim exactly one current, ready, fully visible, zero-cost milestone chest, prove its same-milestone successor, and return to canonical Home.",
   "trigger_cadence_type": "daily_once",
   "reset_scope": "daily_reset",
-  "required_starting_context": ["home_canonical"],
+  "required_starting_context": [
+    "home_canonical"
+  ],
   "shared_primitive_dependencies": [
-    {"primitive_id": "home_navigation_primitives", "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST", "required": true},
-    {"primitive_id": "native_bluestacks_capture_and_session_boundary", "version_digest_field": "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST", "required": true}
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    },
+    {
+      "primitive_id": "native_bluestacks_capture_and_session_boundary",
+      "version_digest_field": "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "required": true
+    }
   ],
   "recognized_states": [
     "home_canonical",
@@ -28,8 +38,13 @@
       "to": "quest",
       "planner": "DailyMilestoneClaimNavigation",
       "permitted_input": "open_quest_from_home",
-      "postconditions": ["fresh native frame positively recognizes Quest"],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "postconditions": [
+        "fresh native frame positively recognizes Quest"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "open-activity-milestones",
@@ -37,8 +52,13 @@
       "to": "activity_milestones",
       "planner": "DailyMilestoneClaimNavigation",
       "permitted_input": "open_activity_milestones_panel",
-      "postconditions": ["fresh native frame positively recognizes Activity Milestones"],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "postconditions": [
+        "fresh native frame positively recognizes Activity Milestones"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "bind-ready-milestone",
@@ -51,7 +71,11 @@
         "milestone is ready, fully visible, recognized, and zero-cost",
         "not-ready, already-claimed, clipped, cost-bearing, unknown, contradictory, and stale targets are rejected"
       ],
-      "terminal_outcomes": ["deferred", "blocked", "manual_required"]
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "dispatch-milestone",
@@ -65,7 +89,11 @@
         "same milestone opened/claimed successor or positive bound points successor is required",
         "an unknown successor requires reconciliation and denies an identical retry"
       ],
-      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
       "evidence_gate_id": "daily_milestone_native_replay"
     },
     {
@@ -78,7 +106,9 @@
         "no identical milestone claim retry",
         "unresolved effect remains a conductor DONE veto"
       ],
-      "terminal_outcomes": ["blocked"]
+      "terminal_outcomes": [
+        "blocked"
+      ]
     },
     {
       "transition_id": "return-canonical-home",
@@ -90,7 +120,11 @@
         "same milestone successor remains bound before return",
         "canonical Home is positively recognized"
       ],
-      "terminal_outcomes": ["complete_for_reset", "blocked", "manual_required"]
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ]
     },
     {
       "transition_id": "block-unknown",
@@ -102,7 +136,9 @@
         "no milestone transport is dispatched",
         "identical retry is denied"
       ],
-      "terminal_outcomes": ["blocked"]
+      "terminal_outcomes": [
+        "blocked"
+      ]
     }
   ],
   "permitted_inputs": [
@@ -120,13 +156,27 @@
     "notes": "Only one exact current ready zero-cost milestone chest is permitted."
   },
   "completion_identity": "daily-milestone-claim:one-ready-chest-home-complete",
-  "terminal_outcomes": ["action_performed", "deferred", "blocked", "manual_required"],
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "blocked",
+    "manual_required"
+  ],
   "cooldown_deferred_behavior": "A not-ready, already-claimed, absent, or ambiguous milestone permits no dispatch and remains deferred or blocked until a later positively bound observation.",
   "bounded_recovery_behavior": "Unknown or contradictory results fail closed. A dispatch-bearing unknown becomes effect_reconciliation_required, denies identical retry, and vetoes DONE. Return to canonical Home only after the same milestone successor is verified.",
   "product_policy_refs": [
-    {"policy_id": "daily-milestone-claim", "source": "tasks/flow_delivery_product_policy.json"},
-    {"policy_id": "unknown-consequence", "source": "tasks/flow_delivery_product_policy.json"},
-    {"policy_id": "premium-spending", "source": "tasks/flow_delivery_product_policy.json"}
+    {
+      "policy_id": "daily-milestone-claim",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "unknown-consequence",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "premium-spending",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
   ],
   "evidence_requirements": [
     "Existing Phase E Bliss and synthetic milestone observations are platform-scoped diagnostic evidence and cannot satisfy current BlueStacks acceptance.",
@@ -138,7 +188,10 @@
     {
       "gate_id": "daily_milestone_native_replay",
       "status": "evidence_required",
-      "blocks": ["dispatch-milestone", "daily-milestone-claim-production"],
+      "blocks": [
+        "dispatch-milestone",
+        "daily-milestone-claim-production"
+      ],
       "required_evidence": [
         "current native BlueStacks 800x1280 source and immediate-before exact ready milestone binding",
         "same-milestone opened/claimed or positive bound points successor",
@@ -175,7 +228,9 @@
         "return_canonical_home"
       ],
       "required_transitions": [],
-      "evidence_gate_ids": ["daily_milestone_native_replay"],
+      "evidence_gate_ids": [
+        "daily_milestone_native_replay"
+      ],
       "notes": "The typed product authority is validated offline, but current BlueStacks uninterrupted proof is evidence_required."
     }
   ],
@@ -203,7 +258,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "7464367747c0ab03a6bd75337ad6ed229ca7c1c0ce46fffff7c0bdf92f4eac1b",
+    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
     "product_record_id": "activity_milestone_claim",
     "product_record_revision": "activity_milestone_claim-v1",
     "product_record_digest": "fc39004cd8e4727fc5fed56cc656d2b1790908a1e57e0b82bc65493b1bf5a638",
@@ -218,7 +273,9 @@
     "package_id": "com.global.ztmslg",
     "home_authority": "HOME_CANONICAL",
     "terminal_home_authority": "HOME_CANONICAL",
-    "accepted_home_authorities": ["HOME_CANONICAL"],
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
     "selected_daily_prerequisite": false
   },
   "registration_state": "disabled",

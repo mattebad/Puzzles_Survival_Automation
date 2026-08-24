@@ -4393,6 +4393,44 @@
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/HERO-DUEL-EVIDENCE-GATE"
+    },
+    {
+      "flow_id": "VIP-GET-PTS-POPUP-DISMISSAL",
+      "title": "Record VIP Get Pts popup helper authority and evidence gate",
+      "kind": "vip_popup_helper_evidence_gate",
+      "priority": 175,
+      "status": "blocked",
+      "backlog_task_id": "vip-get-points-popup-dismissal",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/bluestacks_popup_recognition.py",
+        "tasks/profile.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/VIP-GET-PTS-POPUP-DISMISSAL.json"
+      ],
+      "navigation_model": "typed_vip_get_pts_popup_observation_and_bounded_dismissal_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; one fresh exact VIP Get Pts popup, native Close target, bounded dismissal, settled source-context successor, and canonical Home route/session evidence are required before any safe popup input.",
+      "consequence_policy": "One allowlisted popup close remains navigation-only and evidence-gated; resource, currency, march, stamina, AP, combat, registration, and scheduler behavior remain prohibited.",
+      "product_policy_status": "navigation_only_validation",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_vip_points_popup.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "safe_popup_input_count",
+        "popup_successor_settle_latency_seconds"
+      ],
+      "blocked_reason": "Fresh native VIP_POINTS_GET_PTS identity, Close target, bounded dismissal, settled successor, and canonical Home route/session proof are missing.",
+      "next_concrete_action": "Acquire one lean native VIP Get Pts popup and settled successor corpus; keep popup input disabled until evidence review.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/VIP-GET-PTS-POPUP-DISMISSAL"
     }
   ]
 }

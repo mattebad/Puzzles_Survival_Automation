@@ -100,8 +100,12 @@
       "to": "free_single_available",
       "planner": "classify_selected_basic_tab",
       "permitted_input": null,
-      "postconditions": ["Basic free single is positively enabled and zero cost"],
-      "terminal_outcomes": ["blocked"]
+      "postconditions": [
+        "Basic free single is positively enabled and zero cost"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
     },
     {
       "transition_id": "classify_basic_cooldown",
@@ -109,8 +113,12 @@
       "to": "free_single_cooldown",
       "planner": "classify_selected_basic_tab",
       "permitted_input": null,
-      "postconditions": ["Basic cooldown is recognized and due time uses 600 seconds"],
-      "terminal_outcomes": ["deferred"]
+      "postconditions": [
+        "Basic cooldown is recognized and due time uses 600 seconds"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
     },
     {
       "transition_id": "classify_basic_exhausted",
@@ -118,8 +126,12 @@
       "to": "free_single_exhausted",
       "planner": "classify_selected_basic_tab",
       "permitted_input": null,
-      "postconditions": ["Basic free attempts are positively exhausted for the reset"],
-      "terminal_outcomes": ["deferred"]
+      "postconditions": [
+        "Basic free attempts are positively exhausted for the reset"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
     },
     {
       "transition_id": "classify_int_available",
@@ -127,8 +139,12 @@
       "to": "free_single_available",
       "planner": "classify_selected_int_tab",
       "permitted_input": null,
-      "postconditions": ["Int. free single is positively enabled and zero cost"],
-      "terminal_outcomes": ["blocked"]
+      "postconditions": [
+        "Int. free single is positively enabled and zero cost"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
     },
     {
       "transition_id": "classify_int_cooldown",
@@ -136,8 +152,12 @@
       "to": "free_single_cooldown",
       "planner": "classify_selected_int_tab",
       "permitted_input": null,
-      "postconditions": ["Int. cooldown is recognized and due time uses 86400 seconds"],
-      "terminal_outcomes": ["deferred"]
+      "postconditions": [
+        "Int. cooldown is recognized and due time uses 86400 seconds"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
     },
     {
       "transition_id": "classify_int_exhausted",
@@ -145,8 +165,12 @@
       "to": "free_single_exhausted",
       "planner": "classify_selected_int_tab",
       "permitted_input": null,
-      "postconditions": ["Int. free attempt is positively unavailable outside cooldown"],
-      "terminal_outcomes": ["deferred"]
+      "postconditions": [
+        "Int. free attempt is positively unavailable outside cooldown"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
     },
     {
       "transition_id": "classify_advanced_available",
@@ -154,8 +178,12 @@
       "to": "free_single_available",
       "planner": "classify_selected_advanced_tab",
       "permitted_input": null,
-      "postconditions": ["Advanced free single is positively enabled and zero cost"],
-      "terminal_outcomes": ["blocked"]
+      "postconditions": [
+        "Advanced free single is positively enabled and zero cost"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
     },
     {
       "transition_id": "classify_advanced_cooldown",
@@ -163,8 +191,12 @@
       "to": "free_single_cooldown",
       "planner": "classify_selected_advanced_tab",
       "permitted_input": null,
-      "postconditions": ["Advanced cooldown is recognized and due time uses 172800 seconds"],
-      "terminal_outcomes": ["deferred"]
+      "postconditions": [
+        "Advanced cooldown is recognized and due time uses 172800 seconds"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
     },
     {
       "transition_id": "classify_advanced_exhausted",
@@ -172,8 +204,12 @@
       "to": "free_single_exhausted",
       "planner": "classify_selected_advanced_tab",
       "permitted_input": null,
-      "postconditions": ["Advanced free attempt is positively unavailable outside cooldown"],
-      "terminal_outcomes": ["deferred"]
+      "postconditions": [
+        "Advanced free attempt is positively unavailable outside cooldown"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
     },
     {
       "transition_id": "authorize_available_free_single",
@@ -501,7 +537,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "7464367747c0ab03a6bd75337ad6ed229ca7c1c0ce46fffff7c0bdf92f4eac1b",
+    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
     "product_record_id": "noahs_tavern_recruitment",
     "product_record_revision": "noahs_tavern_recruitment-v1",
     "product_record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e",

@@ -4,7 +4,9 @@
   "product_purpose": "Observe one bounded Rare Earth Shop purchase candidate without authorizing Buy or currency spend.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "one candidate per reset after explicit product decision",
-  "required_starting_context": ["home_canonical"],
+  "required_starting_context": [
+    "home_canonical"
+  ],
   "shared_primitive_dependencies": [
     {
       "primitive_id": "home_navigation_primitives",
@@ -29,7 +31,9 @@
         "Rare Earth Shop route remains an offline observation contract",
         "no navigation input is authorized"
       ],
-      "terminal_outcomes": ["blocked"],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "rare_earth_native_offer_replay"
     },
     {
@@ -43,7 +47,9 @@
         "current currency and exact cost are recognized",
         "sufficient balance, quantity one, and item/currency successor evidence are captured"
       ],
-      "terminal_outcomes": ["blocked"],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "rare_earth_native_offer_replay"
     },
     {
@@ -55,7 +61,9 @@
       "postconditions": [
         "canonical Home remains the required terminal state"
       ],
-      "terminal_outcomes": ["blocked"],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "rare_earth_native_offer_replay"
     }
   ],
@@ -69,7 +77,11 @@
     "notes": "Current item, currency, and cost are unresolved; no Buy dispatch or currency spend is authorized."
   },
   "completion_identity": "rare-earth-shop:purchase:candidate-observed",
-  "terminal_outcomes": ["deferred", "blocked", "manual_required"],
+  "terminal_outcomes": [
+    "deferred",
+    "blocked",
+    "manual_required"
+  ],
   "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native offer evidence are current; never schedule or register this flow.",
   "bounded_recovery_behavior": "Stop on unknown shop, item, currency, cost, balance, quantity, successor, or terminal Home state; preserve blocked disposition.",
   "evidence_requirements": [
@@ -106,7 +118,9 @@
         "observe_allowlisted_candidate",
         "return_canonical_home"
       ],
-      "evidence_gate_ids": ["rare_earth_native_offer_replay"]
+      "evidence_gate_ids": [
+        "rare_earth_native_offer_replay"
+      ]
     }
   ],
   "replay_fixture_requirements": [
@@ -146,7 +160,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "7464367747c0ab03a6bd75337ad6ed229ca7c1c0ce46fffff7c0bdf92f4eac1b",
+    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
     "product_record_id": "rare_earth_shop_purchase",
     "product_record_revision": "rare_earth_shop_purchase-v1",
     "product_record_digest": "47c28608b0b5e9471ad7c912e6f0fafca3d64aff49d1c1f34c4ebb3a22911904",
@@ -161,7 +175,9 @@
     "package_id": "com.global.ztmslg",
     "home_authority": "HOME_CANONICAL",
     "terminal_home_authority": "HOME_CANONICAL",
-    "accepted_home_authorities": ["HOME_CANONICAL"],
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
     "selected_daily_prerequisite": false
   }
 }

@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, Gathering product authority, Zombie Lair product-authority, Nano Material product-authority, Nanoweapon product-authority/offline-adapter, Ruins Shop product-authority/evidence-gate, Rare Earth Shop product-authority/evidence-gate, Alliance Shop product-authority/evidence-gate, Hero Upgrade product-authority/evidence-gate, and Hero Duel product-authority/evidence-gate lanes accepted offline; Milestone continuous-session lane dispositioned blocked; Gathering route/session, Nano Material route/session, Nanoweapon route/session, and shop/hero/combat route/session lanes remain blocked by missing native evidence. Registration and scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, Gathering product authority, Zombie Lair product-authority, Nano Material product-authority, Nanoweapon product-authority/offline-adapter, Ruins Shop product-authority/evidence-gate, Rare Earth Shop product-authority/evidence-gate, Alliance Shop product-authority/evidence-gate, Hero Upgrade product-authority/evidence-gate, Hero Duel product-authority/evidence-gate, and VIP popup helper product-authority/evidence-gate lanes accepted offline; route/session lanes remain blocked… |
 
 
 
@@ -1407,24 +1407,91 @@ result, loss/Exit safety, or canonical-Home route/session proof exists. No PvP
 entry, runtime input, registration, scheduler change, or emulator/ADB/BlueStacks
 observation occurred. Next is only VIP popup helper authority.
 
-## Stage 7 ordered remainder plan
+## Stage 7 VIP popup helper product-authority migration
 
-Persistent order after Hero Duel product-authority migration:
+VIP popup helper now has typed `vip_points_popup_dismissal-v1` authority with record
+digest `8a404595f42795568e9fa469a9e5b91f3dce6a542e70218f7956ab338d5b4a60` and
+authority digest
+`7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd`. The
+record binds exact `VIP_POINTS_GET_PTS` identity, `RESET_POPUP_CLOSE`, one fresh
+current-frame candidate, zero cost, one bounded close maximum, and a settled
+source-context successor. Resource, currency, march, stamina, AP, and combat
+inputs remain forbidden; helper never owns Daily progress.
 
-1. Ruins Shop product authority and route/session disposition.
-2. Rare Earth Shop product authority and independent route disposition.
-3. Alliance Shop product authority and route disposition.
-4. Box purchase product decision, blocking, or retirement.
-5. Hero Upgrade product authority and route disposition.
-6. Hero Duel product authority and offline/combat-blocked disposition.
-7. VIP popup helper authority and route disposition.
-8. Ruins Challenge ownership selection or retirement.
-9. Personal Might Praise/legacy Claim migration or retirement.
-10. Every remaining catalog and active-plan ticket.
-11. Legacy retirement and final Stage 7 closure.
+Policy is `navigation_only_validation`, not scheduler or runtime authorization.
+Schema-2 `VIP-GET-PTS-POPUP-DISMISSAL` binds the record, remains input-free,
+registration-disabled, production-ineligible, and `evidence_required`.
+`flow_delivery_queue.json` records the flow blocked at priority 175. The
+retained popup fixture and recognizer tests remain diagnostic; no current native
+popup, bounded dismissal successor, or canonical-Home route/session proof is
+claimed.
 
-Next three are fully detailed only as:
+Product, contract, queue, and popup profiles passed 121 tests. No popup close,
+resource input, combat input, registration, scheduler change, or
+emulator/ADB/BlueStacks observation occurred. Next is only Ruins Challenge
+ownership selection or retirement.
 
-- Hero Upgrade product authority: preserve route disposition.
-- Hero Duel product authority: preserve offline/combat-blocked disposition.
-- VIP popup helper authority: establish typed helper and route disposition.
+## Stage 7 Ruins Challenge ownership disposition
+
+Ruins Challenge keeps one catalog owner:
+`DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS`. The completed
+`RUINS-CHALLENGE-HOME-ATLAS-MIGRATION` flow is only its navigation
+prerequisite and owns no challenge entry, combat, chest, reward, or Daily
+completion. `tasks/challenge_disabled.py` remains the fail-closed dispatch
+boundary, and `aggregate_daily_claim` remains sole Claim owner.
+
+The matrix now records `accepted_existing_blocked`, null dispatch authority,
+and no second Ruins product record. Existing navigation evidence cannot infer
+challenge completion. Registration and scheduler remain disabled; no native
+observation or input occurred during this disposition.
+
+## Stage 7 Personal Might Praise ownership disposition
+
+Personal Might Praise keeps one completion-attribution owner:
+`DQ-FLOW-PERSONAL-MIGHT-PRAISE` via
+`tasks.daily_quest.PersonalMightPraiseHandler`. Provider exposes progress
+observation only; it has no route, target, transaction, or gameplay dispatch
+authority. `aggregate_daily_claim` remains sole Claim owner.
+
+The legacy `PERSONAL-MIGHT-PRAISE-BLISS-PILOT` gameplay ownership is retired to
+historical evidence. Matrix state is
+`accepted_existing_observation_only`; registration and scheduler remain
+disabled. No new Personal Might product record is created, and no native
+observation or Praise input occurred during this disposition.
+
+## Stage 7 remaining catalog dispositions
+
+`daily_quest_execution_matrix.json` now gives every catalog objective one
+durable disposition. Owners are retained, explicitly deferred, or
+evidence-blocked; every `dispatch_authority` is null. Existing typed product
+records remain limited to admitted product flows, while disabled or unresolved
+catalog rows do not gain synthetic targets, costs, route authority, or
+scheduler eligibility.
+
+Verification covers exact owner-set parity and the allowed disposition
+vocabulary. No catalog input, registration, scheduler change, or native
+observation occurred.
+
+## Stage 7 legacy retirement
+
+Legacy retirement is accepted offline. `PERSONAL-MIGHT-PRAISE-BLISS-PILOT` and
+`personal_might_daily_claim` remain historical evidence only; completion
+attribution uses the current Personal Might provider and Claim remains
+aggregate-owned. `SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT` retains its completed
+canonical-route migration. `scripts/daily_claim_canary.py` remains a retired
+compatibility shim for the receipt-bound `pnsctl` route.
+
+All listed replacements remain `NOT_REGISTERED`, scheduler-disabled, and
+non-authorizing. No destructive deletion, native observation, or runtime input
+occurred; legacy evidence remains immutable diagnostic history.
+
+## Stage 7 closure
+
+Stage 7 offline convergence is closed. Typed product authorities now cover all
+admitted product flows through Hero Duel and the VIP Get Pts popup helper.
+Ruins Challenge, Personal Might Praise, every remaining catalog objective, and
+known legacy adapters have explicit non-authorizing dispositions.
+
+Native evidence remains the only blocker for later live-validation stages.
+No registration, scheduler activation, native observation, or gameplay input
+occurred in this closure.

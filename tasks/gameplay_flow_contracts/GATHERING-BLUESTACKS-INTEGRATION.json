@@ -4,7 +4,9 @@
   "product_purpose": "Evidence-gated Wood, Steel, and Gas level-5 resource-node gathering.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "daily_reset",
-  "required_starting_context": ["world_map"],
+  "required_starting_context": [
+    "world_map"
+  ],
   "shared_primitive_dependencies": [],
   "recognized_states": [
     "world_map",
@@ -24,8 +26,12 @@
       "to": "search",
       "planner": "GatheringRuntimeController",
       "permitted_input": "open_world_search",
-      "postconditions": ["Search surface positively recognized"],
-      "terminal_outcomes": ["blocked"],
+      "postconditions": [
+        "Search surface positively recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "gathering_variant_canary"
     },
     {
@@ -34,8 +40,12 @@
       "to": "resource_category",
       "planner": "GatheringRuntimeController",
       "permitted_input": "select_resource_category",
-      "postconditions": ["Requested Wood, Steel, or Gas category positively recognized"],
-      "terminal_outcomes": ["blocked"],
+      "postconditions": [
+        "Requested Wood, Steel, or Gas category positively recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "gathering_variant_canary"
     },
     {
@@ -44,8 +54,12 @@
       "to": "resource_category",
       "planner": "GatheringRuntimeController",
       "permitted_input": "reveal_gas",
-      "postconditions": ["Gas successor is positively recognized after one bounded left swipe"],
-      "terminal_outcomes": ["blocked"],
+      "postconditions": [
+        "Gas successor is positively recognized after one bounded left swipe"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "gathering_variant_canary"
     },
     {
@@ -54,8 +68,12 @@
       "to": "level_5_node",
       "planner": "GatheringRuntimeController",
       "permitted_input": "select_exact_level_five",
-      "postconditions": ["Exact level-5 node results positively recognized"],
-      "terminal_outcomes": ["blocked"],
+      "postconditions": [
+        "Exact level-5 node results positively recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "gathering_variant_canary"
     },
     {
@@ -64,8 +82,12 @@
       "to": "resource_node_bound",
       "planner": "GatheringRuntimeController",
       "permitted_input": "bind_free_current_frame_node",
-      "postconditions": ["Requested node is current-frame bound, free, unoccupied, and not already targeted"],
-      "terminal_outcomes": ["blocked"],
+      "postconditions": [
+        "Requested node is current-frame bound, free, unoccupied, and not already targeted"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "gathering_variant_canary"
     },
     {
@@ -74,8 +96,12 @@
       "to": "march_dispatch_ready",
       "planner": "GatheringRuntimeController",
       "permitted_input": "verify_free_march_and_default_formation",
-      "postconditions": ["One free march slot and default formation positively recognized"],
-      "terminal_outcomes": ["blocked"],
+      "postconditions": [
+        "One free march slot and default formation positively recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "gathering_variant_canary"
     },
     {
@@ -84,8 +110,13 @@
       "to": "resource_progress",
       "planner": "GatheringRuntimeController",
       "permitted_input": "dispatch_one_gathering_march",
-      "postconditions": ["Known requested variant and node successor are positively recognized"],
-      "terminal_outcomes": ["action_performed", "blocked"],
+      "postconditions": [
+        "Known requested variant and node successor are positively recognized"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked"
+      ],
       "evidence_gate_id": "gathering_variant_canary"
     },
     {
@@ -94,8 +125,13 @@
       "to": "home_returned",
       "planner": "GatheringRuntimeController",
       "permitted_input": "reconcile_resource_progress_and_return_home",
-      "postconditions": ["Positive requested-resource progress and canonical Home are recognized"],
-      "terminal_outcomes": ["complete_for_reset", "blocked"],
+      "postconditions": [
+        "Positive requested-resource progress and canonical Home are recognized"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked"
+      ],
       "evidence_gate_id": "gathering_variant_canary"
     }
   ],
@@ -125,12 +161,24 @@
     "notes": "One exact variant dispatch requires a free level-5 node, one free march slot, default formation, and no resource or currency cost."
   },
   "completion_identity": "gathering-resources:variant-progress",
-  "terminal_outcomes": ["action_performed", "deferred", "complete_for_reset", "blocked", "manual_required"],
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "blocked",
+    "manual_required"
+  ],
   "cooldown_deferred_behavior": "Defer when no free march slot or no independently proven free level-5 node exists.",
   "bounded_recovery_behavior": "Fail closed on unknown resource, stale node frame, occupied or targeted node, missing slot, wrong formation, unknown successor, or missing progress; deny identical retry.",
   "product_policy_refs": [
-    {"policy_id": "gathering-existing-march-or-occupied-target", "source": "tasks/flow_delivery_product_policy.json"},
-    {"policy_id": "gathering-resource-node-march-policy", "source": "tasks/flow_delivery_product_policy.json"}
+    {
+      "policy_id": "gathering-existing-march-or-occupied-target",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "gathering-resource-node-march-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
   ],
   "evidence_requirements": [
     "fresh native Search category and exact level-5 evidence for each supported variant",
@@ -153,7 +201,9 @@
         "reconcile_resource_progress_and_return_home",
         "gathering_variant_canary"
       ],
-      "required_evidence": ["native Gathering source, successor, progress, and canonical Home evidence"],
+      "required_evidence": [
+        "native Gathering source, successor, progress, and canonical Home evidence"
+      ],
       "permitted_inputs": [],
       "notes": "Product authority is current offline; live route/session migration is separate and not authorized by this gate."
     }
@@ -192,7 +242,9 @@
         "dispatch_one_gathering_march",
         "reconcile_resource_progress_and_return_home"
       ],
-      "evidence_gate_ids": ["gathering_variant_canary"],
+      "evidence_gate_ids": [
+        "gathering_variant_canary"
+      ],
       "notes": "Wood, Steel, and Gas remain independent variants; Food is not admitted."
     }
   ],
@@ -217,7 +269,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "7464367747c0ab03a6bd75337ad6ed229ca7c1c0ce46fffff7c0bdf92f4eac1b",
+    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
     "product_record_id": "gathering_resources",
     "product_record_revision": "gathering_resources-v1",
     "product_record_digest": "13f171b493fed806b93d81231572e2922f223ce24f487278533d305923cf7700",
@@ -232,7 +284,9 @@
     "package_id": "com.global.ztmslg",
     "home_authority": "HOME_READY",
     "terminal_home_authority": "HOME_CANONICAL",
-    "accepted_home_authorities": ["HOME_READY"],
+    "accepted_home_authorities": [
+      "HOME_READY"
+    ],
     "selected_daily_prerequisite": false
   },
   "registration_state": "disabled",
