@@ -106,6 +106,26 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertEqual(campaign["historical_live_attempt_count"], 3)
         self.assertEqual(len(campaign["historical_live_attempts"]), 3)
 
+    def test_recruitment_registry_consequence_matches_queue_validation_profile(self) -> None:
+        queue = _read(QUEUE)
+        registry = _read(REGISTRY)
+        flow_id = "RECRUITMENT-BLUESTACKS-INTEGRATION"
+        flow = {item["flow_id"]: item for item in queue["flows"]}[flow_id]
+        registry_entry = registry["flows"][flow_id]
+        self.assertEqual(registry_entry["consequence_class"], "consequential")
+        self.assertEqual(
+            flow["product_policy_status"],
+            "supervised_consequential_validation",
+        )
+        self.assertEqual(flow["status"], "completed")
+        self.assertEqual(flow["live_attempt_count"], 5)
+        self.assertEqual(
+            queue["portfolio_staging"]["registration_state"],
+            "all newly scoped handlers NOT_REGISTERED",
+        )
+        self.assertIn("NOT_REGISTERED", flow["next_concrete_action"])
+        self.assertFalse(queue["gameplay_scheduler"])
+
     def test_bioenhancer_registry_flow_has_blocked_non_scheduler_queue_owner(self) -> None:
         queue = _read(QUEUE)
         registry = _read(REGISTRY)
