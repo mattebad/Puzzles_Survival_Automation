@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, and Campaign AP product-authority lanes accepted offline; Milestone continuous-session lane dispositioned blocked | Campaign AP product authority is accepted offline; its native production-controller proof and continuous-session migration remain separate. Milestone remains `blocked_evidence_required` for missing BlueStacks-native ready-chest/successor/Home evidence. Registration/scheduling remain disabled. Next is Campaign AP continuous-session migration only. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, and Campaign AP continuous-session lanes accepted offline; Milestone continuous-session lane dispositioned blocked | Campaign AP continuous-session behavior is now bound to one outer DevelopmentSession offline, while native production-controller proof remains `evidence_required`. Milestone remains `blocked_evidence_required` for missing BlueStacks-native ready-chest/successor/Home evidence. Registration/scheduling remain disabled. Next is Troop Training product authority only. |
 
 
 
@@ -1025,37 +1025,62 @@ production-controller positive stage/cost/result/AP-delta/Home proof remains
 required before any live admission. Next is only the Campaign AP
 continuous-session migration.
 
+
+## Stage 7 Campaign AP continuous-session migration
+
+The unchanged Campaign Auto Battle controller now runs only inside one
+flow-owned `DevelopmentSession` for
+`CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY`. The adapter requires the exact typed,
+hash/invocation-bound initial observation, exact 12-input ceiling, current
+session owner, retained native transport accounting, and one read-only causal
+trace. `conduct` does not create a pre-observation session. Sessionless live
+dispatch is rejected.
+
+The route keeps the existing Home Atlas entry and Campaign controller. It binds
+the configured Story destination and static AP cost, requires exact AP
+before/after and ledger delta, positive battle-result successor, canonical Home,
+no refill/Sweep/Blitz/Auto Complete action, no identical retry after an
+unresolved effect, and checked-in verification before `DONE`. Proof topology is
+`continuous`; registration is `NOT_REGISTERED` and scheduler eligibility is
+false.
+
+Focused Campaign validation passed 50 tests with receipt
+`2d6453eae4a4837edae3a7197a4b1b5c978fde0727045f34caac19373727f9f3`. The
+architecture profile passed 44 tests with receipt
+`15ba02c6907b3ed2c1580a128d749b83a52882b5887b5782fac0602e6e5f7387`.
+No emulator/ADB/BlueStacks observation, runtime input, or AP spend occurred.
+Retained native continuous proof remains `evidence_required`. Next is only Troop Training product
+authority.
+
 ## Stage 7 ordered remainder plan
 
-Persistent order after Campaign AP product authority:
+Persistent order after Campaign AP continuous-session migration:
 
-1. Campaign AP continuous-session migration.
-2. Troop Training product authority.
-3. Troop Training continuous-session migration.
-4. World product authority without rebuilding its accepted Stage 6 session.
-5. Gathering product authority.
-6. Gathering route/session migration.
-7. Zombie Lair product authority and offline disposition.
-8. Nano Material product authority and maintenance/session migration.
-9. Nanoweapon product authority and adapter/session repair.
-10. Ruins Shop product authority and route/session disposition.
-11. Rare Earth Shop product authority and independent route disposition.
-12. Alliance Shop product authority and route disposition.
-13. Box purchase product decision, blocking, or retirement.
-14. Hero Upgrade product authority and route disposition.
-15. Hero Duel product authority and offline/combat-blocked disposition.
-16. VIP popup helper authority and route disposition.
-17. Ruins Challenge ownership selection or retirement.
-18. Personal Might Praise/legacy Claim migration or retirement.
-19. Every remaining catalog and active-plan ticket.
-20. Legacy retirement and final Stage 7 closure.
+1. Troop Training product authority.
+2. Troop Training continuous-session migration.
+3. World product authority without rebuilding its accepted Stage 6 session.
+4. Gathering product authority.
+5. Gathering route/session migration.
+6. Zombie Lair product authority and offline disposition.
+7. Nano Material product authority and maintenance/session migration.
+8. Nanoweapon product authority and adapter/session repair.
+9. Ruins Shop product authority and route/session disposition.
+10. Rare Earth Shop product authority and independent route disposition.
+11. Alliance Shop product authority and route disposition.
+12. Box purchase product decision, blocking, or retirement.
+13. Hero Upgrade product authority and route disposition.
+14. Hero Duel product authority and offline/combat-blocked disposition.
+15. VIP popup helper authority and route disposition.
+16. Ruins Challenge ownership selection or retirement.
+17. Personal Might Praise/legacy Claim migration or retirement.
+18. Every remaining catalog and active-plan ticket.
+19. Legacy retirement and final Stage 7 closure.
 
 Next three are fully detailed only as:
 
-- Campaign AP session migration: bind the unchanged controller and exact
-  AP/result/Home semantics to one flow-owned session; retain evidence gating,
-  no identical retry, disabled registration, and zero live input here.
 - Troop Training product authority: add typed record, revision-bound contract,
   catalog/generated authority mapping, and focused tests only.
 - Troop Training session migration: bind existing queue/slot behavior to one
   session only after its product authority is current.
+- World product authority: add typed record and revision-bound authority
+  without rebuilding the accepted Stage 6 session.

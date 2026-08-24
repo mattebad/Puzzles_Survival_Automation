@@ -67,6 +67,24 @@
       "maximum_inputs": 10,
       "maximum_resource_list_swipes": 6
     },
+    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": {
+      "focused_tests": [
+        "tests.test_campaign_auto_battle",
+        "tests.test_campaign_auto_battle_runtime",
+        "tests.test_campaign_ap",
+        "tests.test_daily_campaign_ap",
+        "tests.test_campaign_stage9_destination_replay",
+        "tests.test_flow_delivery_campaign_bluestacks"
+      ],
+      "architecture_tests": [
+        "tests.test_flow_delivery_orchestrator",
+        "tests.test_flow_delivery_campaign_bluestacks"
+      ],
+      "consequential": [
+        "tests.test_flow_delivery_campaign_bluestacks"
+      ],
+      "maximum_inputs": 12
+    },
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
       "focused_tests": [
         "tests.test_campaign_auto_battle",

@@ -3470,6 +3470,13 @@ def development_session_run_flow(
                 if transport_evidence_available
                 else int(session.input_count)
             )
+            if flow_id == "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
+                campaign_retained = result.get("campaign_transport_count")
+                if type(campaign_retained) is not int or campaign_retained < 0:
+                    raise OperatorError(
+                        "Campaign AP route did not report retained transport accounting"
+                    )
+                retained_count = campaign_retained
             if flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
                 ultimate_retained = result.get("retained_transport_count")
                 if type(ultimate_retained) is not int or ultimate_retained < 0:
@@ -6595,6 +6602,7 @@ _CONDUCT_DEFAULT_MAX_INPUTS = {
     "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": 10,
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": 24,
     "RECRUITMENT-BLUESTACKS-INTEGRATION": 12,
+    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": 12,
 }
 _CONDUCT_KNOWLEDGE_PATHS = (
     REPO_ROOT / "AGENTS.md",
@@ -6630,6 +6638,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
             "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
             "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
         }
         and requested is not None
         and maximum == 1
@@ -6718,6 +6727,7 @@ def _conductor_live_summary(
                 "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
                 "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
                 "RECRUITMENT-BLUESTACKS-INTEGRATION",
+                "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
             }:
                 if retained.get("proof_topology") != "continuous":
                     summary.update(
@@ -6915,6 +6925,7 @@ def conduct_flow(
         "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
         "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
         "RECRUITMENT-BLUESTACKS-INTEGRATION",
+        "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
     }
     observe_output: str | None = None
     if not continuous_session_flow:
