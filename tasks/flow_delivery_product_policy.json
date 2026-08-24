@@ -348,7 +348,7 @@
       "source": "explicit_user_direction_2026-08-20"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r9",
+  "authority_revision": "flow-delivery-product-authority-v2-r10",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -988,6 +988,124 @@
       "record_digest": "5f36370751b2ff5071c0f42fbe15a28a3c628b28aa1ecf588337f5d32cb61207"
     },
     {
+      "record_id": "troop_training",
+      "record_type": "troop_training",
+      "purpose": "Maintain one configured Troop Training queue or reset-bounded daily pass across four independently configured troop types.",
+      "recurrence": "queue_slot_and_daily_reset",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "TRAINING_FACILITIES",
+        "route": [
+          "TRAINING_FACILITIES"
+        ]
+      },
+      "objective": "troop_training_queue_or_daily_pass",
+      "action": "dispatch_one_configured_troop_training_action",
+      "target": {
+        "kind": "troop_training",
+        "facility_entry": "one_canonical_home_atlas_training_route",
+        "known_resources": [
+          "food",
+          "wood",
+          "steel",
+          "gas"
+        ],
+        "per_type_contract": {
+          "fighter": {
+            "enabled": true,
+            "target_tier": 8,
+            "quantity_mode": "current_max",
+            "training_policy": "continuous",
+            "allow_resource_boxes": true
+          },
+          "vehicle": {
+            "enabled": true,
+            "target_tier": 1,
+            "quantity_mode": "current_max",
+            "training_policy": "continuous",
+            "allow_resource_boxes": true
+          },
+          "shooter": {
+            "enabled": true,
+            "target_tier": 8,
+            "quantity": 250,
+            "quantity_mode": "fixed",
+            "training_policy": "once_daily",
+            "allow_resource_boxes": false
+          },
+          "rider": {
+            "enabled": true,
+            "target_tier": 1,
+            "quantity": 250,
+            "quantity_mode": "fixed",
+            "training_policy": "once_daily",
+            "allow_resource_boxes": false
+          }
+        }
+      },
+      "quantity_cost": {
+        "quantity": "per_type_configured",
+        "cost": {
+          "kind": "known_base_resources",
+          "amount": "per_type_configured",
+          "unit": "Food/Wood/Steel/Gas",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "queue_slot_effect": true,
+        "active_queue_successor_required": true,
+        "positive_timer_spatial_association_required": true,
+        "current_max_numeric_reconciliation_required": true,
+        "fixed_quantity_exact_required": true,
+        "known_resources_required": true,
+        "resource_box_policy_bound": true,
+        "once_daily_reset_identity_bound": true,
+        "continuous_policy_repeats_when_slot_available": true,
+        "dispatch_is_not_success_proof": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Train Now",
+        "premium",
+        "speedup",
+        "Cash Mall",
+        "Shooter or Rider resource boxes",
+        "unknown tier",
+        "unknown quantity",
+        "unknown resource",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Troop Training is a direct queue or reset-bounded action; aggregate Daily Claim remains the sole ordinary row Claim owner."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:troop-training-four-type-policy",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-troop-training-queue-and-timer",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "troop_training-v1",
+      "record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537"
+    },
+    {
       "record_id": "campaign_ap",
       "record_type": "campaign_ap",
       "purpose": "Run bounded Campaign AP Auto Battle on an approved configured Story stage while AP covers its verified cost.",
@@ -1193,5 +1311,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "29de535c71217cd19658a7651d6c4cd911f7d855542b6f90f6a160db7efbfee2"
+  "authority_digest": "23a096e015bd54b3d7da0e1c0b95c0fcefd0ea6d69dd71c8213953d57592ad28"
 }

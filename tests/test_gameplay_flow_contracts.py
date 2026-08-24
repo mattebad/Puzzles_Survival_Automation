@@ -192,6 +192,19 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertFalse(contract["production_eligible"])
         self.assertEqual(contract["registration_state"], "disabled")
 
+    def test_troop_training_contract_binds_four_type_product_record_and_stays_disabled(self):
+        contract = load_flow_contract("TROOP-TRAINING-END-TO-END-CONSOLIDATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "troop_training")
+        self.assertEqual(binding["product_record_revision"], "troop_training-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["proof_state"], "evidence_required")
     def test_daily_and_maintenance_contract_identities_are_separate(self):
         pairs = (
             ("NANOWEAPON-BLUESTACKS-INTEGRATION", "NANO-MATERIAL-PRODUCTION-MAINTENANCE"),

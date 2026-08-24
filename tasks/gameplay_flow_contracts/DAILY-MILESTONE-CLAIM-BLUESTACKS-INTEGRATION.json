@@ -202,8 +202,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r9",
-    "product_authority_digest": "29de535c71217cd19658a7651d6c4cd911f7d855542b6f90f6a160db7efbfee2",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r10",
+    "product_authority_digest": "23a096e015bd54b3d7da0e1c0b95c0fcefd0ea6d69dd71c8213953d57592ad28",
     "product_record_id": "activity_milestone_claim",
     "product_record_revision": "activity_milestone_claim-v1",
     "product_record_digest": "fc39004cd8e4727fc5fed56cc656d2b1790908a1e57e0b82bc65493b1bf5a638",

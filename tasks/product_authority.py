@@ -20,7 +20,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r9"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r10"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -50,6 +50,7 @@ RECORD_TYPES = frozenset(
         "bioenhancer_research",
         "noahs_tavern_recruitment",
         "campaign_ap",
+        "troop_training",
     }
 )
 RECORD_IDS = frozenset(
@@ -64,6 +65,7 @@ RECORD_IDS = frozenset(
         "bioenhancer_research",
         "noahs_tavern_recruitment",
         "campaign_ap",
+        "troop_training",
     }
 )
 PRODUCT_RECORD_IDS = RECORD_IDS
@@ -283,6 +285,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "bioenhancer_research": "RESEARCH_LAB",
         "noahs_tavern_recruitment": "NOAHS_TAVERN",
         "campaign_ap": "CAMPAIGN",
+        "troop_training": "TRAINING_FACILITIES",
     }[record_type]
     if target != expected_target:
         raise ProductAuthorityError(
@@ -309,6 +312,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "bioenhancer_research": "bioenhancer_research",
         "noahs_tavern_recruitment": "noahs_tavern_recruitment",
         "campaign_ap": "campaign_ap",
+        "troop_training": "troop_training",
     }[record_id]
     if record_type != expected_type:
         raise ProductAuthorityError("product record id/type discriminator mismatch")
@@ -977,6 +981,141 @@ def _validate_noahs_tavern_recruitment_record(record: Mapping[str, Any]) -> None
             )
 
 
+def _validate_troop_training_record(record: Mapping[str, Any]) -> None:
+    """Validate four independently configured queue/slot training variants."""
+
+    if record["objective"] != "troop_training_queue_or_daily_pass":
+        raise ProductAuthorityError(
+            "Troop Training record objective must be troop_training_queue_or_daily_pass"
+        )
+    if record["action"] != "dispatch_one_configured_troop_training_action":
+        raise ProductAuthorityError(
+            "Troop Training action must be dispatch_one_configured_troop_training_action"
+        )
+    if record["recurrence"] != "queue_slot_and_daily_reset":
+        raise ProductAuthorityError(
+            "Troop Training recurrence must be queue_slot_and_daily_reset"
+        )
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
+        "route"
+    ) != ["TRAINING_FACILITIES"]:
+        raise ProductAuthorityError(
+            "Troop Training entry route must bind canonical Home to Training facilities"
+        )
+    target = record.get("target")
+    expected_variants = {
+        "fighter": {
+            "enabled": True,
+            "target_tier": 8,
+            "quantity_mode": "current_max",
+            "training_policy": "continuous",
+            "allow_resource_boxes": True,
+        },
+        "vehicle": {
+            "enabled": True,
+            "target_tier": 1,
+            "quantity_mode": "current_max",
+            "training_policy": "continuous",
+            "allow_resource_boxes": True,
+        },
+        "shooter": {
+            "enabled": True,
+            "target_tier": 8,
+            "quantity": 250,
+            "quantity_mode": "fixed",
+            "training_policy": "once_daily",
+            "allow_resource_boxes": False,
+        },
+        "rider": {
+            "enabled": True,
+            "target_tier": 1,
+            "quantity": 250,
+            "quantity_mode": "fixed",
+            "training_policy": "once_daily",
+            "allow_resource_boxes": False,
+        },
+    }
+    if not isinstance(target, Mapping) or target.get("kind") != "troop_training":
+        raise ProductAuthorityError("Troop Training target kind is incomplete")
+    if target.get("facility_entry") != "one_canonical_home_atlas_training_route":
+        raise ProductAuthorityError("Troop Training target must use one canonical facility route")
+    if target.get("per_type_contract") != expected_variants:
+        raise ProductAuthorityError(
+            "Troop Training target must preserve exact four-type configuration"
+        )
+    if target.get("known_resources") != ["food", "wood", "steel", "gas"]:
+        raise ProductAuthorityError("Troop Training target must bind known base resources")
+    quantity_cost = record.get("quantity_cost")
+    if not isinstance(quantity_cost, Mapping) or quantity_cost.get(
+        "quantity"
+    ) != "per_type_configured":
+        raise ProductAuthorityError(
+            "Troop Training quantity must remain per-type configured"
+        )
+    cost = quantity_cost.get("cost")
+    if not isinstance(cost, Mapping) or (
+        cost.get("kind") != "known_base_resources"
+        or cost.get("amount") != "per_type_configured"
+        or cost.get("unit") != "Food/Wood/Steel/Gas"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError(
+            "Troop Training must bind configured known-resource cost"
+        )
+    effect = record["semantic_effect"]
+    required_effects = {
+        "effect_ordinal": 1,
+        "queue_slot_effect": True,
+        "active_queue_successor_required": True,
+        "positive_timer_spatial_association_required": True,
+        "current_max_numeric_reconciliation_required": True,
+        "fixed_quantity_exact_required": True,
+        "known_resources_required": True,
+        "resource_box_policy_bound": True,
+        "once_daily_reset_identity_bound": True,
+        "continuous_policy_repeats_when_slot_available": True,
+        "dispatch_is_not_success_proof": True,
+        "identical_retry": False,
+    }
+    if any(effect.get(key) != value for key, value in required_effects.items()):
+        raise ProductAuthorityError(
+            "Troop Training must require queue/timer successor and exact quantity policy"
+        )
+    ownership = record["daily_ownership"]
+    if (
+        ownership.get("daily_owner") is not None
+        or ownership.get("point_credit_trigger") is not None
+        or ownership.get("selected_daily_prerequisite") is not False
+    ):
+        raise ProductAuthorityError(
+            "Troop Training must not own selected Daily or point credit"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Troop Training terminal requirement must return to canonical Home"
+        )
+    forbidden = " ".join(str(item) for item in record.get("forbidden_actions", []))
+    forbidden_lower = forbidden.casefold()
+    for marker in (
+        "train now",
+        "premium",
+        "speedup",
+        "cash mall",
+        "shooter or rider resource boxes",
+        "unknown tier",
+        "unknown quantity",
+        "unknown resource",
+        "identical retry",
+        "real-money",
+    ):
+        if marker not in forbidden_lower:
+            raise ProductAuthorityError(f"Troop Training must forbid {marker} actions")
+
+
 def _validate_campaign_ap_record(record: Mapping[str, Any]) -> None:
     """Validate bounded AP-funded Auto Battle product authority."""
 
@@ -1183,6 +1322,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_ultimate_challenge_record(record)
     elif record_type == "noahs_tavern_recruitment":
         _validate_noahs_tavern_recruitment_record(record)
+    elif record_type == "troop_training":
+        _validate_troop_training_record(record)
     elif record_type == "campaign_ap":
         _validate_campaign_ap_record(record)
     else:
@@ -1244,8 +1385,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 10:
-        raise ProductAuthorityError("product authority requires exactly ten records")
+    if not isinstance(records, list) or len(records) != 11:
+        raise ProductAuthorityError("product authority requires exactly eleven records")
     return records
 
 
@@ -1485,6 +1626,18 @@ def validate_contract_product_authority_binding(
     ) == "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
         raise ProductAuthorityError(
             "Campaign AP Auto Battle flow must bind the Campaign AP record"
+        )
+    if record_id == "troop_training" and contract.get(
+        "flow_id"
+    ) != "TROOP-TRAINING-END-TO-END-CONSOLIDATION":
+        raise ProductAuthorityError(
+            "Troop Training record is reserved for the Troop Training consolidation flow"
+        )
+    if record_id != "troop_training" and contract.get(
+        "flow_id"
+    ) == "TROOP-TRAINING-END-TO-END-CONSOLIDATION":
+        raise ProductAuthorityError(
+            "Troop Training consolidation flow must bind the Troop Training record"
         )
     if binding["product_record_revision"] != record["record_revision"]:
         raise ProductAuthorityError("contract references stale product record revision")

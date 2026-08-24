@@ -258,8 +258,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r9",
-    "product_authority_digest": "29de535c71217cd19658a7651d6c4cd911f7d855542b6f90f6a160db7efbfee2",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r10",
+    "product_authority_digest": "23a096e015bd54b3d7da0e1c0b95c0fcefd0ea6d69dd71c8213953d57592ad28",
     "product_record_id": "bioenhancer_research",
     "product_record_revision": "bioenhancer_research-v1",
     "product_record_digest": "5f36370751b2ff5071c0f42fbe15a28a3c628b28aa1ecf588337f5d32cb61207",

@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
   "product_purpose": "Supervised development validation of one configurable four-type Troop Training route using one canonical Home Atlas entry and verified top-tab transitions.",
   "trigger_cadence_type": "evidence_gated",
@@ -22,7 +22,7 @@
     "one canonical facility entry and one terminal fresh canonical Home Atlas localization bound the verified tab pass",
     "once_daily initiation persists by reset identity and troop type"
   ],
-  "permitted_inputs": ["home_to_facility_navigation", "radial_train_navigation", "verified_top_tab_navigation", "tier_selection", "quantity_entry", "normal_timed_train", "Fighter_or_Vehicle_resource_box_confirmation", "safe_home_return"],
+  "permitted_inputs": ["home_to_facility_navigation", "radial_train_navigation", "verified_top_tab_navigation", "tier_selection", "quantity_entry", "normal_timed_train", "Fighter_or_Vehicle_resource_box_confirmation", "safe_home_return", "train_now", "premium", "speedup", "cash_mall", "shooter_or_rider_resource_boxes", "registration", "scheduler_promotion", "arbitrary_adb"],
   "prohibited_inputs": ["Train Now", "premium", "speedup", "Cash Mall", "Shooter_or_Rider_resource_boxes", "registration", "scheduler_promotion", "arbitrary_adb"],
   "consequential_action_class": "supervised_consequential_validation",
   "cost_quantity_requirements": {"free_only": false, "maximum_cost": null, "quantity": "configured_fixed_or_current_max", "resource_or_currency": "known_resources_only", "notes": "No premium or real-money action is supported."},
@@ -32,21 +32,107 @@
   "bounded_recovery_behavior": "observe_only_or_safe_home_return",
   "replay_fixture_requirements": [{"fixture_id": "four_type_config_and_queue_successors", "status": "required_evidence", "path": "tests/test_troop_training.py", "notes": "Independent contract fixtures; native evidence remains required."}],
   "unsupported_or_manual_only_states": ["login", "captcha", "tutorial", "account_selection_or_switching", "credential_entry", "unknown_modal"],
-  "state_transitions": [
-    {"from": "home_canonical", "to": "facility_radial_exact", "via": "fresh_atlas_facility_binding", "notes": "Single canonical facility entry for the configured tab pass."},
-    {"from": "facility_radial_exact", "to": "training_screen_exact", "via": "normal_train_navigation", "notes": "Exact facility identity."},
-    {"from": "training_screen_exact", "to": "training_screen_exact", "via": "freshly_bound_top_tab", "notes": "Exact troop identity must be re-recognized after every tab transition."},
-    {"from": "training_screen_exact", "to": "training_started", "via": "normal_timed_train", "notes": "Exact queue successor required."},
-    {"from": "training_started", "to": "home_returned", "via": "safe_home_return", "notes": "Fresh canonical Home proof required."}
+  "transition_contracts": [
+    {
+      "transition_id": "home_to_facility",
+      "from": "home_canonical",
+      "to": "facility_radial_exact",
+      "planner": "fresh_atlas_facility_binding",
+      "permitted_input": "home_to_facility_navigation",
+      "postconditions": ["exact canonical facility entry"],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "facility_to_training",
+      "from": "facility_radial_exact",
+      "to": "training_screen_exact",
+      "planner": "normal_train_navigation",
+      "permitted_input": "radial_train_navigation",
+      "postconditions": ["exact facility identity"],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "rebind_top_tab",
+      "from": "training_screen_exact",
+      "to": "training_screen_exact",
+      "planner": "freshly_bound_top_tab",
+      "permitted_input": "verified_top_tab_navigation",
+      "postconditions": ["exact troop identity re-recognized after tab transition"],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "start_timed_training",
+      "from": "training_screen_exact",
+      "to": "training_started",
+      "planner": "normal_timed_train",
+      "permitted_input": "normal_timed_train",
+      "postconditions": ["exact queue label, tier, quantity, and positive timer successor"],
+      "terminal_outcomes": ["action_performed", "deferred", "blocked", "manual_required"]
+    },
+    {
+      "transition_id": "return_canonical_home",
+      "from": "training_started",
+      "to": "home_returned",
+      "planner": "safe_home_return",
+      "permitted_input": "safe_home_return",
+      "postconditions": ["fresh canonical Home proof"],
+      "terminal_outcomes": ["complete_for_reset", "deferred", "blocked", "manual_required"]
+    }
   ],
-  "local_postconditions": ["exact configured tier and quantity", "exact queue label/timer successor", "terminal canonical Home"],
-  "live_validation_scenarios": [{"id": "troop-training-consolidation-supervised-canary", "mode": "consequential_supervised", "notes": "At most one bounded canary."}],
+  "scenarios": [
+    {
+      "scenario_id": "troop_training_consolidation_supervised_canary",
+      "mode": "consequential_supervised",
+      "start_state": "home_canonical",
+      "terminal_state": "home_returned",
+      "permitted_inputs": ["home_to_facility_navigation", "radial_train_navigation", "verified_top_tab_navigation", "tier_selection", "quantity_entry", "normal_timed_train", "Fighter_or_Vehicle_resource_box_confirmation", "safe_home_return"],
+      "forbidden_inputs": ["train_now", "premium", "speedup", "cash_mall", "shooter_or_rider_resource_boxes", "registration", "scheduler_promotion", "arbitrary_adb"],
+      "required_transitions": ["home_to_facility", "facility_to_training", "rebind_top_tab", "start_timed_training", "return_canonical_home"],
+      "evidence_gate_ids": ["troop_training_native_evidence"],
+      "notes": "At most one bounded canary; native evidence remains required."
+    }
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "troop_training_native_evidence",
+      "status": "evidence_required",
+      "blocks": ["troop_training_consolidation_supervised_canary"],
+      "required_evidence": ["native source/immediate-before/post frames", "resolved config", "queue label/tier/quantity/timer", "resource readings/delta", "terminal canonical Home hashes"],
+      "permitted_inputs": []
+    }
+  ],
+  "product_policy_refs": [
+    {"policy_id": "troop-training-resource-policy", "source": "tasks/flow_delivery_product_policy.json"},
+    {"policy_id": "daily-reset-static-utc-midnight", "source": "tasks/flow_delivery_product_policy.json"}
+  ],
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
   "production_eligible": false,
-  "registration_status": "NOT_REGISTERED",
-  "scheduler_eligibility": false,
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
   "evidence_requirements": ["native source/immediate-before/post frames", "resolved config", "queue label/tier/quantity/timer", "resource readings/delta", "one canonical Home entry localization", "shared-tab transitions", "terminal result and hashes"],
   "recovery_behavior": "observe-only or safe canonical Home return; never retry unresolved Train",
-  "daily_quest_authority": "DISABLED_POLICY and NOT_REGISTERED; this contract cannot promote or inherit DQ authority"
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r10",
+    "product_authority_digest": "23a096e015bd54b3d7da0e1c0b95c0fcefd0ea6d69dd71c8213953d57592ad28",
+    "product_record_id": "troop_training",
+    "product_record_revision": "troop_training-v1",
+    "product_record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": ["HOME_CANONICAL"],
+    "selected_daily_prerequisite": false
+  },
+  "registration_state": "disabled"
 }

@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_ten_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_eleven_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -64,6 +64,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "bioenhancer_research",
                 "noahs_tavern_recruitment",
                 "campaign_ap",
+                "troop_training",
             },
         )
         validate_product_authority(self.authority)
@@ -93,6 +94,7 @@ class ProductAuthorityTests(unittest.TestCase):
             "nova_praise",
             "ultimate_challenge",
             "bioenhancer_research",
+            "troop_training",
         ):
             self.assertFalse(self.records[record_id]["daily_ownership"]["selected_daily_prerequisite"])
 
@@ -146,6 +148,30 @@ class ProductAuthorityTests(unittest.TestCase):
         ):
             self.assertIn(marker, forbidden)
 
+    def test_troop_training_record_preserves_four_type_queue_and_daily_policy(self) -> None:
+        record = self.records["troop_training"]
+        self.assertEqual(record["record_type"], "troop_training")
+        self.assertEqual(record["record_revision"], "troop_training-v1")
+        self.assertEqual(record["semantic_entry_route"]["target"], "TRAINING_FACILITIES")
+        variants = record["target"]["per_type_contract"]
+        self.assertEqual(variants["fighter"]["target_tier"], 8)
+        self.assertEqual(variants["fighter"]["quantity_mode"], "current_max")
+        self.assertEqual(variants["fighter"]["training_policy"], "continuous")
+        self.assertTrue(variants["fighter"]["allow_resource_boxes"])
+        self.assertEqual(variants["vehicle"]["target_tier"], 1)
+        self.assertEqual(variants["vehicle"]["training_policy"], "continuous")
+        self.assertEqual(variants["shooter"]["quantity"], 250)
+        self.assertEqual(variants["shooter"]["training_policy"], "once_daily")
+        self.assertFalse(variants["shooter"]["allow_resource_boxes"])
+        self.assertEqual(variants["rider"]["quantity"], 250)
+        self.assertEqual(variants["rider"]["training_policy"], "once_daily")
+        self.assertFalse(variants["rider"]["allow_resource_boxes"])
+        self.assertTrue(record["semantic_effect"]["active_queue_successor_required"])
+        self.assertTrue(record["semantic_effect"]["positive_timer_spatial_association_required"])
+        self.assertTrue(record["semantic_effect"]["once_daily_reset_identity_bound"])
+        self.assertFalse(record["semantic_effect"]["identical_retry"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
     def test_direct_records_reject_daily_owner_and_point_credit_even_with_fresh_digests(self) -> None:
         for field, replacement in (
             ("daily_owner", "aggregate_daily_claim"),

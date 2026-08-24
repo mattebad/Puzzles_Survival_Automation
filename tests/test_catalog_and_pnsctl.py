@@ -84,6 +84,22 @@ class CatalogTests(unittest.TestCase):
         self.assertFalse(objective["selected_daily_prerequisite"])
         self.assertEqual(objective["progress_format"], "current/20")
         self.assertEqual(objective["claim_support"], "ordinary_row_only")
+    def test_catalog_maps_all_troop_training_rows_without_selected_daily_prerequisite(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        objectives = {
+            item["objective_key"]: item
+            for item in raw["objectives"]
+            if item["objective_key"] in {"train_fighter", "train_vehicle", "train_shooter", "train_rider"}
+        }
+        self.assertEqual(
+            set(objectives),
+            {"train_fighter", "train_vehicle", "train_shooter", "train_rider"},
+        )
+        for objective in objectives.values():
+            with self.subTest(objective=objective["objective_key"]):
+                self.assertEqual(objective["product_record_id"], "troop_training")
+                self.assertFalse(objective["selected_daily_prerequisite"])
+                self.assertEqual(objective["claim_support"], "ordinary_row_only")
 
     def test_catalog_separates_milestone_claim_from_ordinary_row_claim(self):
         raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
