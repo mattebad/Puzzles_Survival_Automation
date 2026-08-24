@@ -2,81 +2,73 @@
 {
   "schema_version": 3,
   "branch": "feature/runtime-reliability-convergence",
-  "head_binding": "commit-containing-this-handoff",
-  "last_product_candidate_head": "commit-containing-this-handoff",
+  "head_binding": "92d352f6c835ce344881f151779c12b53c220b55",
+  "last_product_candidate_head": "92d352f6c835ce344881f151779c12b53c220b55",
   "ahead_behind": {"source": "compute_from_git"},
   "attributable_dirty_paths": [
     "CURRENT_HANDOFF.md",
+    "docs/daily-quest-execution-matrix.md",
+    "docs/daily-quest-handler-status.md",
     "docs/runtime-reliability-convergence-status.md",
+    "docs/validation/runtime-reliability-stage-8-readiness-report-r1.md",
+    "scripts/validate_governance.py",
     "tasks/daily_quest_execution_matrix.json",
-    "tasks/flow_delivery_product_policy.json",
-    "tasks/flow_delivery_queue.json",
-    "tasks/gameplay_flow_contracts/BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY.json",
-    "tasks/gameplay_flow_contracts/DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/GATHERING-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/NANO-MATERIAL-PRODUCTION-MAINTENANCE.json",
-    "tasks/gameplay_flow_contracts/NANOWEAPON-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE.json",
-    "tasks/gameplay_flow_contracts/RECRUITMENT-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE.json",
-    "tasks/gameplay_flow_contracts/RUINS-SHOP-PURCHASE-EVIDENCE-GATE.json",
-    "tasks/gameplay_flow_contracts/RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE.json",
-    "tasks/gameplay_flow_contracts/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE.json",
-    "tasks/gameplay_flow_contracts/SUPPLY-DEPOT-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/TROOP-TRAINING-END-TO-END-CONSOLIDATION.json",
-    "tasks/gameplay_flow_contracts/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/WORLD-MAP-NAVIGATION-FOUNDATION.json",
-    "tasks/gameplay_flow_contracts/ZOMBIE-LAIR-BLUESTACKS-INTEGRATION.json",
-    "tasks/gameplay_flow_contracts/ZOMBIE-LAIR-HOME-MAINTENANCE.json",
-    "tasks/gameplay_flow_contracts/HERO-UPGRADE-EVIDENCE-GATE.json",
-    "tasks/gameplay_flow_contracts/HERO-DUEL-EVIDENCE-GATE.json",
-    "tasks/gameplay_flow_contracts/VIP-GET-PTS-POPUP-DISMISSAL.json",
-    "tasks/product_authority.py",
+    "tests/test_automation_service_scheduler.py",
+    "tests/test_daily_bioenhancer.py",
     "tests/test_flow_delivery_orchestrator.py",
-    "tests/test_gameplay_flow_contracts.py",
-    "tests/test_catalog_and_pnsctl.py",
-    "tests/test_product_authority.py",
-    "tests/test_vip_points_popup.py",
-    "tests/test_challenge_disabled.py",
-    "tests/test_personal_might_praise.py"
+    "tests/test_flow_delivery_token_context_hygiene.py",
+    "tests/test_flow_delivery_workflow_policy.py",
+    "tests/test_governance_validation.py"
   ],
-  "task_start_worktree": {"tracked_dirty_paths": ["AGENTS.md", "docs/flow-delivery-validation-policy.md", "tests/test_flow_delivery_workflow_policy.py"], "protected_untracked_paths": [".omp/", "Start-PnS-OMP.ps1", "Stop-PnS-OMP.ps1", ".local-captures/", ".local-orchestrator/"]},
-  "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "legacy-retirement",
-  "current_task_state": "completed_offline",
-  "next_task_id": "final-stage-7-closure",
-  "next_task_activation_status": "awaiting_explicit_selection",
+  "task_start_worktree": {
+    "tracked_dirty_paths": [
+      "CURRENT_HANDOFF.md",
+      "docs/daily-quest-execution-matrix.md",
+      "docs/daily-quest-handler-status.md",
+      "docs/runtime-reliability-convergence-status.md",
+      "tasks/daily_quest_execution_matrix.json",
+      "tests/test_daily_bioenhancer.py"
+    ],
+    "protected_untracked_paths": [
+      ".omp/",
+      "Start-PnS-OMP.ps1",
+      "Stop-PnS-OMP.ps1",
+      "UsersburniAppDataLocalTemprecruitment-conductor-state/",
+      "docs/validation/runtime-reliability-stage-8-readiness-report-r1.md"
+    ]
+  },
+  "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-orchestrator/", ".local-tools/", "evidence/"],
+  "current_task_id": "stage-8-entry-gate",
+  "current_task_state": "completed",
+  "next_task_id": "stage-9-autonomous-service-implementation",
+  "next_task_activation_status": "awaiting_explicit_activation",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "stage_7_closed_offline",
+  "active_delivery_stage": "stage_8_parent_accepted_ready",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "VIP popup, Ruins ownership, Personal Might, catalog disposition, and legacy retirement profiles passed 149 tests; no runtime input.",
-  "latest_architecture_validation_result": "Manual opt-in only; no separate architecture profile run for legacy retirement.",
+  "latest_focused_validation_result": "Nova runtime/scheduler profile passed 143 tests; exact Nova restart/duplicate and guard ceiling profile passed 7 tests; schema-3 process correction passed 15 tests.",
+  "latest_architecture_validation_result": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE accepted with one continuous session, durable reset guard, confirmed central action, closed/reopened-store same-reset duplicate denial, and next-reset eligibility.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; legacy retirement used zero emulator/ADB/BlueStacks observation and zero runtime input",
-  "current_evidence_or_session_reference": "Legacy paths have explicit non-authorizing replacements and immutable historical dispositions; no new native evidence or dispatch authority is claimed",
-  "last_safe_completed_step": "Recorded legacy retirement dispositions for Bliss Praise, Daily Claim, Supply Depot, and receipt-free canary paths; preserved replacements without deletion, registration, scheduling, or runtime authority.",
-  "exact_next_permitted_action": "Perform final Stage 7 closure only; preserve all non-authorizing dispositions and do not begin Stage 8.",
-  "current_blocker": "Native evidence remains unavailable; no scheduler or registration activation is permitted.",
-  "prohibited_repeated_action": "Do not use emulator/ADB/BlueStacks, dispatch any catalog action, add synthetic product authority, reactivate legacy adapters, register, schedule, or begin Stage 8.",
-  "stage_revision": "stage-7-closure-r1",
-  "stage_type": "closure",
-  "product_precondition": "All admitted product authorities and non-authorizing catalog/legacy dispositions are durable; no unresolved row gains runtime eligibility.",
-  "failure_class": "none offline",
-  "budgets": {"stage_revisions_used": 2, "managed_turns_used": 2, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "current_live_attempt_state": "Completed one authorized current Nova pulse: 6 total inputs, 5 navigation, exactly 1 zero-cost Praise, zero resource/currency inputs, zero combat confirmations, no live repeat.",
+  "current_evidence_or_session_reference": ".local-captures/development-sessions/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE-20260824T194955792183Z/result.json; verified continuous topology, attempts 7 to 6, cooldown 296 seconds, confirmed action, terminal Home, ownership released",
+  "last_safe_completed_step": "Sol parent accepted Stage 8 READY with exactly one minimal preferred cohort: NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE.",
+  "exact_next_permitted_action": "No Stage 9 work is authorized by Stage 8; only a separate explicit Stage 9 authorization may begin implementation from the accepted Nova cohort and disabled-by-default boundaries.",
+  "current_blocker": "Stage 8 has no blocker; Stage 9 remains dependency-blocked pending separate explicit authorization.",
+  "prohibited_repeated_action": "Do not repeat Nova Praise during game-day-2026-08-24, implement or pulse Stage 9, register any flow, enable scheduler eligibility, dispatch combat, or confirm any real-money surface.",
+  "stage_revision": "runtime-reliability-stage-8-parent-entry-gate-r2",
+  "stage_type": "integration_scheduler_entry_gate",
+  "product_precondition": "Exact scheduler-entry cohort NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE is accepted; every nonselected flow retains its prior disposition and all production registration remains disabled.",
+  "failure_class": "none",
+  "budgets": {"stage_revisions_used": 2, "managed_turns_used": 2, "live_attempts_used": 1, "runtime_inputs_used": 6},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Fresh native evidence remains required for every live-validation route; offline dispositions cannot authorize route or dispatch", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true},
+  "evidence": {"evidence_requirement": "Selected Nova cohort has current accepted temporal evidence; every nonselected live-validation route retains its recorded evidence requirement", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true},
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "deferred_independent_review": "Sol 5.6 PR review pending; self-review only; no independent review claimed.",
+  "deferred_independent_review": "Two bounded read-only investigations established Daily Back exclusion and schema-3 process ownership; Sol made the candidate and final gate decisions.",
   "stage_7_ordered_plan": [
     "1 Daily Milestone Claim continuous-session migration or evidence-blocked disposition",
     "2 Campaign AP product authority",
@@ -99,12 +91,12 @@
     "19 Ruins Challenge ownership disposition — sole Daily catalog owner retained; navigation prerequisite separate; dispatch blocked",
     "20 Personal Might Praise disposition — completion attribution retained; legacy Bliss gameplay retired; dispatch blocked",
     "21 Remaining catalog dispositions — every objective has owner parity, durable disposition, and null dispatch authority",
-    "22 Legacy retirement and final Stage 7 closure — accepted offline; no Stage 8 activation"
+    "22 Legacy retirement and final Stage 7 closure — accepted and published at 92d352f6c835ce344881f151779c12b53c220b55; no Stage 8 activation"
   ],
   "next_three_atomic_tasks": [
-    "Legacy retirement: historical Bliss, Daily Claim, Supply Depot, and receipt-free canary paths have non-authorizing dispositions.",
-    "Final Stage 7 closure: preserve all evidence gates, registration bans, scheduler bans, and no-input constraints.",
-    "Stage 8: not permitted until fresh native evidence and explicit activation."
+    "Stage 8: accepted READY with preferred cohort NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE and empty fallback.",
+    "Stage 9: remain inactive until separately authorized; consume the accepted typed authority, reset persistence, singleton ownership, and exact ceiling.",
+    "Operations: never repeat Nova during game-day-2026-08-24; keep registration and scheduler disabled."
   ]
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -420,11 +412,36 @@ Home-ready/World/Search/Home proof remains required. Gathering product authority
 and its route disposition are already recorded; no new Gathering correction is
 pending.
 
-## Stage 7 ordered remainder and next-three detail
+## Stage 7 closure and next-stage gate
 
-The machine-readable state above is the persistent ordered plan. Gathering
-product authority and its route disposition are already recorded. Only final
-Stage 7 closure validation and publication remain. Supply Depot and Bioenhancer
-queue membership must remain consistent with registry ownership. All evidence
-gates remain truthful; registration and scheduling remain disabled. Stage 8 has
-not begun and is not authorized by this correction.
+At Stage 7 closure, final validation and publication were complete at accepted
+head `92d352f6c835ce344881f151779c12b53c220b55`. Gathering product authority and
+route disposition were recorded; Supply and Bioenhancer queue membership was
+consistent with registry ownership. Retained evidence and all
+`evidence_required` dispositions were unchanged. No live input occurred during
+correction or review. Registration remained `NOT_REGISTERED`, scheduler
+eligibility remained disabled, and the then-next action was the parent-owned
+Stage 8 entry gate. The current machine-readable state and decision are below.
+
+## Stage 8 parent integration and scheduler-entry decision
+
+Sol parent accepted the bounded Stage 8 packet as `NOT_READY`. The complete
+portfolio disposition ledger, historical/current evidence boundary, shared
+runtime architecture, disabled registration/scheduler state, and zero-input
+audit pass. Preferred and fallback cohorts remain empty.
+
+No candidate has the complete current recurrence, restart persistence,
+duplicate-pulse acceptance, occurrence/effect persistence, and parent-accepted
+phase-ceiling receipts required for scheduler entry. The nearest and selected
+follow-on evidence workstream is
+`DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION`, product record
+`aggregate_daily_claim-v1`, digest
+`560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41`.
+It is not activated by this decision.
+
+Two pre-existing `process_state` baselines remain separate: the schema-3
+handoff is not described by the schema-2 governance validator and its focused
+test still asserts an older activation token; the workflow-policy test retains
+four literals from route generations superseded by current `AGENTS.md`.
+Neither failure was caused by the Stage 8 packet. No live input, registration,
+scheduler eligibility, commit, or push was authorized.

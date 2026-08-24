@@ -14,7 +14,8 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, Gathering product authority, Zombie Lair product-authority, Nano Material product-authority, Nanoweapon product-authority/offline-adapter, Ruins Shop product-authority/evidence-gate, Rare Earth Shop product-authority/evidence-gate, Alliance Shop product-authority/evidence-gate, Hero Upgrade product-authority/evidence-gate, Hero Duel product-authority/evidence-gate, and VIP popup helper product-authority/evidence-gate lanes accepted offline; route/session lanes remain blocked… |
+| 5 — full portfolio migrations (umbrella Stage 7) | Complete in accepted Stage 7 closure | Accepted Stage 7 closure is published at `92d352f6c835ce344881f151779c12b53c220b55`; every catalog and active-plan entry has an explicit migrated, blocked, observation-only, deferred, or retired disposition. Native proof remains required. |
+| 6 — integration and scheduler-entry gate (umbrella Stage 8) | Parent accepted `NOT_READY` | Full-portfolio disposition and shared offline-safety gates pass, but preferred/fallback cohorts are empty because no candidate has complete current recurrence, restart, occurrence-persistence, duplicate-pulse, and parent-ceiling receipts. Registration and scheduling remain disabled; Stage 9 is not admitted. |
 
 
 
@@ -1495,3 +1496,62 @@ known legacy adapters have explicit non-authorizing dispositions.
 Native evidence remains the only blocker for later live-validation stages.
 No registration, scheduler activation, native observation, or gameplay input
 occurred in this closure.
+
+## Stage 8 parent integration and scheduler-entry gate
+
+Sol parent accepted the Stage 8 readiness packet as `NOT_READY`. The disposition
+ledger covers all catalog, support, active-plan, product-policy, gameplay
+contract, queue, coverage, and known legacy keys exactly once. Bioenhancer
+retained evidence is historical/non-accepting; no current proof was inferred.
+Shared singleton ownership, continuous `DevelopmentSession`, causal-trace,
+transport/effect separation, stale-frame rejection, unknown-result/no-identical-
+retry handling, persistence seams, and retired-route non-executability remain
+accepted offline.
+
+The preferred and fallback cohorts are both empty. No candidate has current
+accepted recurrence, restart persistence, occurrence/effect persistence,
+duplicate-pulse acceptance, and an accepted exact phase ceiling. Registration
+remains `NOT_REGISTERED`; all scheduler eligibility remains disabled. Stage 9
+is not admitted.
+
+The single next atomic workstream, requiring separate activation, is
+`DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION` scheduler-entry evidence closure for
+`aggregate_daily_claim-v1`, digest
+`560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41`.
+Its existing ceiling is four total inputs, at most one ordinary free Claim,
+zero resource/currency inputs, and zero combat confirmations. Required receipts
+are one uninterrupted current session with typed/hash/invocation/object-bound
+initial observation, exact transport/effect/trace and canonical-Home proof,
+once-per-reset occurrence persistence across restart, and accepted duplicate-
+pulse suppression. This Stage 8 decision does not execute or authorize that
+workstream.
+
+Two pre-existing `process_state` baselines remain outside the Stage 8 packet:
+schema-3 `CURRENT_HANDOFF.md` is not represented by the schema-2 governance
+validator and its focused test asserts an older activation token; the workflow
+policy test asserts four route literals superseded by current `AGENTS.md`.
+Focused parent validation otherwise passed 154 scheduler, persistence,
+authority, contract, and Bioenhancer tests. No live observation/input, runtime
+ownership, registration, scheduler pulse, commit, or push occurred.
+
+## Stage 8 final scheduler-entry acceptance
+
+The prior `NOT_READY` checkpoint was superseded after explicit authorization of the bounded
+evidence loop. Daily Row Claim was excluded because selected-Daily Android Back remains
+`evidence_required` and prohibited. Sol instead accepted one minimal preferred cohort:
+`NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE`, bound to typed record `nova_praise-v1` digest
+`959fe8201ce0250dcab494dc65f930cf52c753b1ac5833d22bcb3a1abea2b2ae`.
+The fallback cohort is empty because iteration stopped after the first accepted cohort.
+
+The current `game-day-2026-08-24` continuous `pnsctl conduct` receipt used one flow-owned
+`DevelopmentSession`, six of eight allowed inputs, five navigation transports, and exactly one
+zero-cost Praise. Attempts changed 7 to 6, cooldown was verified at 296 seconds, the central action
+journal is confirmed, one read-only causal trace recounts every transport, and canonical Home is
+verified. The reset guard and confirmed action persist after process exit. Exact-candidate
+closed/reopened-store simulation denies a duplicate same-reset pulse with zero handler calls and
+admits the next reset. No live repeat occurred.
+
+The final Stage 8 decision is `READY`. Every nonselected flow keeps its prior explicit disposition.
+Production registration remains `NOT_REGISTERED`; scheduler eligibility and scheduler execution
+remain disabled. Runtime ownership and unresolved action state are clear. Stage 9 was not
+implemented or activated, and no commit or push occurred.

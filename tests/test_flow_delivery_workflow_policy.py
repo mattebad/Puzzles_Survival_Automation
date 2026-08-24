@@ -18,26 +18,27 @@ class FlowDeliveryWorkflowPolicyTests(unittest.TestCase):
         )
 
     def test_route_and_parent_integration_guardrails_are_project_local(self) -> None:
+        normalized_agents = " ".join(self.agents.split())
         for marker in (
-            "| Substantive live gameplay-flow development | Heavy; parent orchestration with `executor_luna`",
-            "Promote Medium to Heavy",
-            "second materially distinct live failure",
+            "| Routine live flow delivery / lean reproof of an already-contracted flow | Medium via `pnsctl conduct`",
+            "Promote to Heavy only for architecture, safety-boundary, cross-contract redesign, or `diminishing_returns` STEP_BACK",
+            "| New architecture, safety-boundary, or cross-contract redesign | Heavy; Sol control-plane with bounded Luna + Terra",
             "One initial live failure alone",
             "the parent performs the integration review and owns the final integration decision",
-            "one coherent pre-canary integration acceptance",
+            "The Sol parent owns architecture and one coherent pre-canary integration acceptance",
             "one parent integration gate",
             "do not automatically spawn a child `executor_sol`",
             "no child Sol review is automatic",
         ):
             with self.subTest(marker=marker):
-                self.assertIn(marker, self.agents)
+                self.assertIn(marker, normalized_agents)
         self.assertNotIn(
             "exactly one coherent pre-canary `executor_sol` integration gate",
-            self.agents,
+            normalized_agents,
         )
         self.assertNotIn(
             "must trigger a dedicated `executor_sol` integration review",
-            self.agents,
+            normalized_agents,
         )
 
     def test_compact_ladder_and_manual_full_rule_are_explicit(self) -> None:

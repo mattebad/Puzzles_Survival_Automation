@@ -121,6 +121,77 @@ class AutomationServiceSchedulerTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_nova_candidate_restart_and_duplicate_pulse_simulation(self) -> None:
+        flow_id = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
+        descriptor = FlowDescriptor(
+            flow_id,
+            "nova_praise",
+            "nova",
+            "one_free_praise",
+            "reset_pulse",
+            priority=1,
+            scheduler_eligible=True,
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            first_store = SafetyStore(path)
+            try:
+                first_handler = CompleteHandler(descriptor)
+                first = UtcPulseCoordinator(
+                    SQLiteSchedulerInvocationRepository(first_store),
+                    (descriptor,),
+                    {flow_id: first_handler},
+                    activation_authority=TestActivationAuthority(),
+                ).pulse(
+                    SchedulerFacts(
+                        "primary-account",
+                        "primary-server",
+                        "game-day-2026-08-24",
+                        100.0,
+                        health_ok=True,
+                    )
+                )
+                self.assertEqual(first.candidate.descriptor.flow_id, flow_id)
+                self.assertEqual(first_handler.calls, 1)
+            finally:
+                first_store.close()
+
+            restarted_store = SafetyStore(path)
+            try:
+                restarted_handler = CompleteHandler(descriptor)
+                restarted = UtcPulseCoordinator(
+                    SQLiteSchedulerInvocationRepository(restarted_store),
+                    (descriptor,),
+                    {flow_id: restarted_handler},
+                    activation_authority=TestActivationAuthority(),
+                )
+                duplicate = restarted.pulse(
+                    SchedulerFacts(
+                        "primary-account",
+                        "primary-server",
+                        "game-day-2026-08-24",
+                        101.0,
+                        health_ok=True,
+                    )
+                )
+                self.assertIsNone(duplicate.candidate)
+                self.assertEqual(duplicate.reason_code, "NO_ELIGIBLE_TASK")
+                self.assertEqual(restarted_handler.calls, 0)
+
+                next_reset = restarted.pulse(
+                    SchedulerFacts(
+                        "primary-account",
+                        "primary-server",
+                        "game-day-2026-08-25",
+                        102.0,
+                        health_ok=True,
+                    )
+                )
+                self.assertEqual(next_reset.candidate.descriptor.flow_id, flow_id)
+                self.assertEqual(restarted_handler.calls, 1)
+            finally:
+                restarted_store.close()
+
     def test_deadline_is_utc_epoch_and_global_locks_skip_without_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             store = SafetyStore(Path(folder) / "state.sqlite3")

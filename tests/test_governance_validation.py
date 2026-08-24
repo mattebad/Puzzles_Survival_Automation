@@ -26,26 +26,18 @@ class GovernanceValidationTests(unittest.TestCase):
         self.assertEqual(payload["max_completed_flows_per_parent_conversation"], 2)
         self.assertIn(".local-orchestrator/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
 
-    def test_handoff_has_distinct_current_and_next_task_fields(self):
+    def test_handoff_has_distinct_current_and_next_stage_fields(self):
         state = validate_governance.parse_handoff()
-        backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-        current = validate_governance.task_block(backlog, state["current_task_id"])
-        successor = validate_governance.task_block(backlog, state["next_task_id"])
-        current_fields = validate_governance.validate_task_contract(
-            current,
-            state["current_task_id"],
-        )
-        validate_governance.validate_active_task_state(
-            state,
-            current_fields,
-            state["current_task_id"],
-        )
-        if state["next_task_activation_status"] == "ready":
-            self.assertIn("Status: Ready", successor)
-        elif state["next_task_activation_status"] == "dependency_blocked":
-            self.assertIn("Status: Blocked", successor)
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
-        self.assertEqual(state["exact_next_permitted_action"], state["exact_next_permitted_action"].strip())
+        self.assertEqual(
+            state["next_task_activation_status"],
+            "awaiting_explicit_activation",
+        )
+        self.assertEqual(
+            state["exact_next_permitted_action"],
+            state["exact_next_permitted_action"].strip(),
+        )
+        self.assertEqual(state["control_owner"], "sol_parent")
         self.assertNotIn("actions_already_performed", state)
 
     def test_manifest_uses_fixed_artifact_state_schema(self):
@@ -90,40 +82,30 @@ class GovernanceValidationTests(unittest.TestCase):
         self.assertIn("evidence/**/*.png", patterns)
         self.assertNotIn("evidence/current-evidence-manifest.json", patterns)
 
-    def test_declared_successor_exists_without_becoming_active(self):
+    def test_declared_successor_remains_inactive(self):
         state = validate_governance.parse_handoff()
-        backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-        next_block = validate_governance.task_block(backlog, state["next_task_id"])
-        if state["next_task_activation_status"] == "ready":
-            self.assertIn("Status: Ready", next_block)
-        elif state["next_task_activation_status"] == "dependency_blocked":
-            self.assertIn("Status: Blocked", next_block)
-        self.assertNotEqual(state["current_task_id"], state["next_task_id"])
-        validate_governance.validate_successor(backlog, state)
-        validate_governance.validate_repository(ROOT)
+        self.assertIsInstance(state["next_task_id"], str)
+        self.assertEqual(
+            state["next_task_activation_status"],
+            "awaiting_explicit_activation",
+        )
+        self.assertEqual(state["active_task_or_flow"], "none")
 
-    def test_active_task_evidence_contract_is_complete(self):
+    def test_active_stage_evidence_contract_is_complete(self):
         state = validate_governance.parse_handoff()
-        backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-        active_block = validate_governance.task_block(backlog, state["current_task_id"])
-        fields = validate_governance.validate_task_contract(
-            active_block,
-            state["current_task_id"],
+        evidence = state["evidence"]
+        self.assertTrue(evidence["evidence_requirement"].strip())
+        self.assertTrue(evidence["monitoring_issue"].strip())
+        self.assertTrue(evidence["do_not_recursively_inspect_parent_evidence_tree"])
+        self.assertEqual(
+            set(state["budgets"]),
+            {
+                "stage_revisions_used",
+                "managed_turns_used",
+                "live_attempts_used",
+                "runtime_inputs_used",
+            },
         )
-        requirement = fields["Evidence requirement"].split(None, 1)[0].rstrip(":,.;")
-        self.assertEqual(state["evidence"]["evidence_requirement"], requirement)
-        validated = validate_governance.validate_task_evidence(
-            state,
-            fields,
-            state["current_task_id"],
-            ROOT,
-        )
-        if requirement == "NOT_APPLICABLE":
-            self.assertIsNone(validated)
-            self.assertIsNone(state["evidence"]["active_evidence_manifest"])
-        else:
-            self.assertIsNotNone(validated)
-            self.assertIsInstance(state["evidence"]["active_evidence_manifest"], str)
 
     def test_existing_gov_and_mvp_contracts_remain_structurally_valid(self):
         backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
@@ -166,39 +148,31 @@ class GovernanceValidationTests(unittest.TestCase):
             with self.assertRaises(validate_governance.GovernanceValidationError):
                 validate_governance.parse_handoff(passed_path)
 
-    def test_offline_evidence_requires_explicit_reason(self):
-        state = copy.deepcopy(validate_governance.parse_handoff())
-        backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-        fields = validate_governance.validate_task_contract(
-            validate_governance.task_block(backlog, state["current_task_id"]),
-            state["current_task_id"],
+    def test_schema_three_rejects_empty_evidence_requirement(self):
+        text = (ROOT / "CURRENT_HANDOFF.md").read_text(encoding="utf-8")
+        current = validate_governance.parse_handoff()["evidence"]["evidence_requirement"]
+        candidate = text.replace(
+            json.dumps(current),
+            '""',
+            1,
         )
-        state["evidence"]["evidence_requirement_reason"] = ""
-        with self.assertRaises(validate_governance.GovernanceValidationError):
-            validate_governance.validate_task_evidence(
-                state,
-                fields,
-                state["current_task_id"],
-                ROOT,
-            )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "CURRENT_HANDOFF.md"
+            path.write_text(candidate, encoding="utf-8")
+            with self.assertRaises(validate_governance.GovernanceValidationError):
+                validate_governance.parse_handoff(path)
 
-    def test_live_task_cannot_bypass_required_evidence(self):
-        state = copy.deepcopy(validate_governance.parse_handoff())
-        backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-        mvp_fields = validate_governance.validate_task_contract(
-            validate_governance.task_block(backlog, "MVP-QUEST-TO-CLAIM"),
-            "MVP-QUEST-TO-CLAIM",
+    def test_schema_three_rejects_scheduler_enablement(self):
+        text = (ROOT / "CURRENT_HANDOFF.md").read_text(encoding="utf-8").replace(
+            '"scheduler_enabled": false',
+            '"scheduler_enabled": true',
+            1,
         )
-        state["evidence"]["evidence_requirement"] = "NOT_APPLICABLE"
-        state["evidence"]["evidence_requirement_reason"] = "incorrect bypass"
-        state["evidence"]["active_evidence_manifest"] = None
-        with self.assertRaises(validate_governance.GovernanceValidationError):
-            validate_governance.validate_task_evidence(
-                state,
-                mvp_fields,
-                "MVP-QUEST-TO-CLAIM",
-                ROOT,
-            )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "CURRENT_HANDOFF.md"
+            path.write_text(text, encoding="utf-8")
+            with self.assertRaises(validate_governance.GovernanceValidationError):
+                validate_governance.parse_handoff(path)
 
 
 if __name__ == "__main__":
