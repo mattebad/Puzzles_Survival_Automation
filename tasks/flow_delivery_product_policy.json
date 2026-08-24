@@ -1106,6 +1106,100 @@
       "record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537"
     },
     {
+      "record_id": "nano_material_production",
+      "record_type": "nano_material_production",
+      "purpose": "Authorize independent zero-resource Nano Material Production maintenance with one exact six-hour batch.",
+      "recurrence": "cooldown_pulse",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "NANOWEAPON",
+        "route": [
+          "NANOWEAPON",
+          "MATERIAL_PRODUCTION"
+        ]
+      },
+      "objective": "nano_material_production_maintenance",
+      "action": "maintain_one_nano_material_production",
+      "target": {
+        "kind": "nano_material_production",
+        "tab": "MATERIAL_PRODUCTION",
+        "maximum_active_productions": 1,
+        "production_duration_seconds": 21600,
+        "completed_claim_allowed": true,
+        "idle_start_allowed": true,
+        "active_due_time_refresh_allowed": true,
+        "base_resource_cost": 0,
+        "boxes_allowed": false,
+        "currency_cost": 0,
+        "item_cost": 0,
+        "daily_craft_ownership": "separate_nanoweapon_product",
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_resource_maintenance",
+          "amount": 0,
+          "unit": "resource_or_currency",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "completed_claim_successor_allowed": true,
+        "idle_start_successor_allowed": true,
+        "active_due_time_successor_required": true,
+        "single_active_production_required": true,
+        "exact_duration_required": true,
+        "zero_resource_cost_required": true,
+        "canonical_home_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "base resource",
+        "resource box",
+        "currency",
+        "item",
+        "Normal Craft",
+        "Exclusive Craft",
+        "Daily nanoweapon craft",
+        "multiple active productions",
+        "wrong duration",
+        "unknown production state",
+        "ambiguous production state",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Nano Material Production is independent maintenance and owns no Daily objective or ordinary Claim."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:nano-material-production-maintenance",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-nanoweapon-material-production",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "nano_material_production-v1",
+      "record_digest": "49fe5e4486ea94482a076df2e0332640d74f6be8ef240bb509c29c8ee40198a2"
+    },
+    {
       "record_id": "zombie_lair",
       "record_type": "zombie_lair",
       "purpose": "Authorize notification-driven Zombie Lair maintenance with bounded eligible joins and separate first-join Daily ownership.",
@@ -1599,5 +1693,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "08e7e4d639366cc67b0d2b58e1ff54ba2d9c119f491646bf5bd14bddb6e6ec8f"
+  "authority_digest": "05f60fe417f462caadca70a39893e7cf6fda7a22e04cec4fee9fc94afa621598"
 }

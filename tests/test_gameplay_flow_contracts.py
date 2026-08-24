@@ -260,6 +260,29 @@ class GameplayFlowContractTests(unittest.TestCase):
                 self.assertEqual(contract["registration_state"], "disabled")
                 self.assertFalse(contract["production_eligible"])
                 self.assertEqual(contract["proof_state"], "evidence_required")
+    def test_nano_material_contract_binds_zero_resource_batch_and_stays_disabled(self):
+        contract = load_flow_contract("NANO-MATERIAL-PRODUCTION-MAINTENANCE")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "nano_material_production")
+        self.assertEqual(binding["product_record_revision"], "nano_material_production-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(
+            contract["consequential_action_class"],
+            "zero_resource_claim_and_timed_maintenance_start",
+        )
+        self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["proof_state"], "not_implemented")
+        self.assertEqual(contract["scenarios"][0]["mode"], "blocked_until_policy")
+        self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
+
     def test_daily_and_maintenance_contract_identities_are_separate(self):
         pairs = (
             ("NANOWEAPON-BLUESTACKS-INTEGRATION", "NANO-MATERIAL-PRODUCTION-MAINTENANCE"),

@@ -3494,8 +3494,8 @@
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "No Material Production implementation, native selector corpus, production replay, or supervised canary exists.",
-      "next_concrete_action": "Implement the zero-resource six-hour Material Production state machine and offline replay after Recruitment maintenance.",
+      "blocked_reason": "No Material Production recognizer, controller, persistence, native selector corpus, production replay, or supervised canary exists; typed product authority is accepted offline but route/session migration cannot begin.",
+      "next_concrete_action": "Keep Nano Material route/session migration dispositioned blocked offline; do not add an adapter, synthetic selector, no-op runner, registration, scheduler, or runtime input. Advance to Nanoweapon product authority only.",
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NANO-MATERIAL-PRODUCTION-MAINTENANCE"

@@ -203,7 +203,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "08e7e4d639366cc67b0d2b58e1ff54ba2d9c119f491646bf5bd14bddb6e6ec8f",
+    "product_authority_digest": "05f60fe417f462caadca70a39893e7cf6fda7a22e04cec4fee9fc94afa621598",
     "product_record_id": "activity_milestone_claim",
     "product_record_revision": "activity_milestone_claim-v1",
     "product_record_digest": "fc39004cd8e4727fc5fed56cc656d2b1790908a1e57e0b82bc65493b1bf5a638",

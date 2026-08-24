@@ -53,6 +53,7 @@ RECORD_TYPES = frozenset(
         "troop_training",
         "gathering_resources",
         "zombie_lair",
+        "nano_material_production",
         "world_map_navigation",
     }
 )
@@ -71,6 +72,7 @@ RECORD_IDS = frozenset(
         "troop_training",
         "gathering_resources",
         "zombie_lair",
+        "nano_material_production",
         "world_map_navigation",
     }
 )
@@ -294,6 +296,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "troop_training": "TRAINING_FACILITIES",
         "gathering_resources": "WORLD",
         "zombie_lair": "ZOMBIE_LAIR",
+        "nano_material_production": "NANOWEAPON",
         "world_map_navigation": "WORLD",
     }[record_type]
     if target != expected_target:
@@ -324,6 +327,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "troop_training": "troop_training",
         "gathering_resources": "gathering_resources",
         "zombie_lair": "zombie_lair",
+        "nano_material_production": "nano_material_production",
         "world_map_navigation": "world_map_navigation",
     }[record_id]
     if record_type != expected_type:
@@ -1239,6 +1243,105 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
             )
 
 
+def _validate_nano_material_production_record(record: Mapping[str, Any]) -> None:
+    """Validate independent zero-resource six-hour material maintenance."""
+
+    if record["objective"] != "nano_material_production_maintenance":
+        raise ProductAuthorityError(
+            "Nano Material record objective must be nano_material_production_maintenance"
+        )
+    if record["action"] != "maintain_one_nano_material_production":
+        raise ProductAuthorityError(
+            "Nano Material action must be maintain_one_nano_material_production"
+        )
+    if record["recurrence"] != "cooldown_pulse":
+        raise ProductAuthorityError("Nano Material recurrence must be cooldown_pulse")
+    route = record["semantic_entry_route"]
+    if (
+        route.get("source_home_authorities") != ["HOME_CANONICAL"]
+        or route.get("route") != ["NANOWEAPON", "MATERIAL_PRODUCTION"]
+    ):
+        raise ProductAuthorityError(
+            "Nano Material entry route must bind canonical Home to Material Production"
+        )
+    target = record["target"]
+    if (
+        target.get("kind") != "nano_material_production"
+        or target.get("tab") != "MATERIAL_PRODUCTION"
+        or target.get("maximum_active_productions") != 1
+        or target.get("production_duration_seconds") != 21600
+        or target.get("completed_claim_allowed") is not True
+        or target.get("idle_start_allowed") is not True
+        or target.get("active_due_time_refresh_allowed") is not True
+        or target.get("base_resource_cost") != 0
+        or target.get("boxes_allowed") is not False
+        or target.get("currency_cost") != 0
+        or target.get("item_cost") != 0
+        or target.get("daily_craft_ownership") != "separate_nanoweapon_product"
+        or target.get("terminal_home") != "HOME_CANONICAL"
+    ):
+        raise ProductAuthorityError(
+            "Nano Material target must bind one zero-resource six-hour production"
+        )
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 1
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "zero_resource_maintenance"
+        or cost.get("amount") != 0
+        or cost.get("unit") != "resource_or_currency"
+        or cost.get("free_only") is not True
+    ):
+        raise ProductAuthorityError(
+            "Nano Material must bind one free zero-resource maintenance batch"
+        )
+    effect = record["semantic_effect"]
+    required_effects = (
+        "completed_claim_successor_allowed",
+        "idle_start_successor_allowed",
+        "active_due_time_successor_required",
+        "single_active_production_required",
+        "exact_duration_required",
+        "zero_resource_cost_required",
+        "canonical_home_successor_required",
+        "dispatch_is_not_success_proof",
+    )
+    if (
+        effect.get("effect_ordinal") != 1
+        or any(effect.get(field) is not True for field in required_effects)
+        or effect.get("daily_ownership") != "none"
+        or effect.get("identical_retry") is not False
+    ):
+        raise ProductAuthorityError(
+            "Nano Material successor, cost, or retry safety effect is incomplete"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Nano Material terminal requirement must return to canonical Home"
+        )
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "base resource",
+        "resource box",
+        "currency",
+        "item",
+        "normal craft",
+        "exclusive craft",
+        "multiple active",
+        "wrong duration",
+        "unknown production",
+        "identical retry",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(
+                f"Nano Material forbidden actions must include {marker}"
+            )
+
+
 def _validate_zombie_lair_record(record: Mapping[str, Any]) -> None:
     """Validate bounded notification-driven Zombie Lair authority."""
 
@@ -1657,6 +1760,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_gathering_resources_record(record)
     elif record_type == "zombie_lair":
         _validate_zombie_lair_record(record)
+    elif record_type == "nano_material_production":
+        _validate_nano_material_production_record(record)
     elif record_type == "world_map_navigation":
         _validate_world_map_navigation_record(record)
     elif record_type == "campaign_ap":
@@ -1720,8 +1825,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 14:
-        raise ProductAuthorityError("product authority requires exactly fourteen records")
+    if not isinstance(records, list) or len(records) != 15:
+        raise ProductAuthorityError("product authority requires exactly fifteen records")
     return records
 
 
@@ -2003,6 +2108,18 @@ def validate_contract_product_authority_binding(
     }:
         raise ProductAuthorityError(
             "Zombie Lair contracts must bind the Zombie Lair record"
+        )
+    if record_id == "nano_material_production" and contract.get(
+        "flow_id"
+    ) != "NANO-MATERIAL-PRODUCTION-MAINTENANCE":
+        raise ProductAuthorityError(
+            "Nano Material record is reserved for the Nano Material flow"
+        )
+    if record_id != "nano_material_production" and contract.get(
+        "flow_id"
+    ) == "NANO-MATERIAL-PRODUCTION-MAINTENANCE":
+        raise ProductAuthorityError(
+            "Nano Material flow must bind the Nano Material record"
         )
     if record_id == "world_map_navigation" and contract.get(
         "flow_id"

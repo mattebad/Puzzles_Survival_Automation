@@ -279,7 +279,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "08e7e4d639366cc67b0d2b58e1ff54ba2d9c119f491646bf5bd14bddb6e6ec8f",
+    "product_authority_digest": "05f60fe417f462caadca70a39893e7cf6fda7a22e04cec4fee9fc94afa621598",
     "product_record_id": "use_resource_item",
     "product_record_revision": "use_resource_item-v1",
     "product_record_digest": "ce28b70ba87f73f0df72322f070ca8e9d06dcba970fab9d2697e36c9643b53e8",

@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, Gathering product authority, and Zombie Lair product-authority lanes accepted offline; Milestone continuous-session lane dispositioned blocked; Gathering route/session migration dispositioned blocked | Zombie Lair authority binds one record across Daily completion and Home maintenance, with exact level/stamina/refill boundaries and disabled registration. Native Zombie notification/eligible-level/stamina/Quick-Join/successor/Home proof remains `evidence_required`; Gathering route/session remains blocked for missing native implementation/evidence. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, Gathering product authority, Zombie Lair product-authority, and Nano Material product-authority lanes accepted offline; Milestone continuous-session lane dispositioned blocked; Gathering route/session migration and Nano Material route/session migration dispositioned blocked | Nano Material authority binds one zero-resource six-hour Material Production batch with claim/start/defer successors and disabled registration. Native Material Production recognizer/controller/persistence, selector, timer, successor, and Home proof remain absent; route/session stays blocked. |
 
 
 
@@ -1114,7 +1114,7 @@ World now has typed `world_map_navigation-v1` authority under
 `flow-delivery-product-authority-v2-r11`, record digest
 `c9dfe10930bc432630388d5edaabcdc294c8925a1d8c2e24d7b1255be07b5418`, and
 authority digest
-`08e7e4d639366cc67b0d2b58e1ff54ba2d9c119f491646bf5bd14bddb6e6ec8f`.
+`05f60fe417f462caadca70a39893e7cf6fda7a22e04cec4fee9fc94afa621598`.
 The record binds `HOME_READY` to `WORLD`, `SEARCH`, `WORLD`, and `HOME`,
 with zero quantity, zero cost, canonical Home terminal proof, no Daily
 ownership, and no resource, march, attack, stamina, AP, currency, combat, or
@@ -1139,7 +1139,7 @@ Gathering now has typed `gathering_resources-v1` authority under
 `flow-delivery-product-authority-v2-r11`, record digest
 `13f171b493fed806b93d81231572e2922f223ce24f487278533d305923cf7700`, and
 authority digest
-`08e7e4d639366cc67b0d2b58e1ff54ba2d9c119f491646bf5bd14bddb6e6ec8f`.
+`05f60fe417f462caadca70a39893e7cf6fda7a22e04cec4fee9fc94afa621598`.
 The record covers independent Wood, Steel, and Gas variants at exact level 5,
 Search category binding, one bounded Gas reveal swipe, current-frame free-node
 binding, one free march slot, default formation, positive resource/node/march
@@ -1182,7 +1182,7 @@ Zombie Lair now has typed `zombie_lair-v1` authority under
 `flow-delivery-product-authority-v2-r11`, record digest
 `e9a6c9b34e504fcd779138fdb872331a80a3c1f7b5384cd5ee0b10c5b0de7dab`, and
 authority digest
-`08e7e4d639366cc67b0d2b58e1ff54ba2d9c119f491646bf5bd14bddb6e6ec8f`.
+`05f60fe417f462caadca70a39893e7cf6fda7a22e04cec4fee9fc94afa621598`.
 The shared record binds notification-driven maintenance, eligible levels 30
 through 55, Quick Join, exactly 28 stamina per join, bounded
 `min(eligible_count, floor(current_stamina/28))` joins, configured formation,
@@ -1200,6 +1200,36 @@ tests with receipt
 No emulator/ADB/BlueStacks observation, runtime input, or Zombie Lair join
 occurred. Native notification/eligible-level/stamina/Quick-Join/successor/Home
 proof remains required. Next is only Nano Material product authority.
+
+## Stage 7 Nano Material product-authority migration
+
+Nano Material Production now has typed `nano_material_production-v1`
+authority under `flow-delivery-product-authority-v2-r11`, record digest
+`49fe5e4486ea94482a076df2e0332640d74f6be8ef240bb509c29c8ee40198a2`, and
+authority digest
+`05f60fe417f462caadca70a39893e7cf6fda7a22e04cec4fee9fc94afa621598`.
+The record binds canonical Home to Nanoweapon Material Production, exactly one
+active batch, exact `21600` seconds, completed-claim then idle-start successor
+semantics, active due-time refresh, zero base resources/boxes/currency/items,
+separate Nanoweapon Daily ownership, and canonical Home return. Multiple active
+productions, wrong duration, craft controls, unknown state, and identical retry
+remain forbidden.
+
+The schema-2 Nano Material contract binds the typed record and remains
+`proof_state: not_implemented`, `production_eligible: false`, and
+registration-disabled behind route, claim, start, and replay evidence gates.
+Nano focused validation passed 26 tests with receipt
+`97b8df95db79d90b72b4b22dc99df136395da3e08bfa793dbac95ab8553e959a`;
+the authority/contract/Nanoweapon suites passed 67 tests. The architecture
+profile passed 92 tests with receipt
+`8d39d9cfff31fb3cc950fc2853acf84a85a6e84082fae0688ddea085cd7bb1eb`.
+
+Nano Material route/session migration is blocked offline. No native Material
+Production recognizer, controller, persistence, selector corpus, positive
+idle/active/complete/timer/Home replay, or supervised canary exists. No
+adapter, synthetic selector, no-op runner, registration, scheduler change,
+emulator/ADB/BlueStacks observation, or runtime input was added. Next is only
+Nanoweapon product authority.
 
 ## Stage 7 ordered remainder plan
 
