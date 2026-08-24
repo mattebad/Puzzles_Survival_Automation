@@ -341,7 +341,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "1a89217743c97799450289d73ed7ec372c2200fc45cde3c5944de46cb5a163c5",
+    "product_authority_digest": "0b82d9611426b9ba50d07be72d48f8b8cf14ca4ba3bb5ae718ca1566878b4a55",
     "product_record_id": "world_map_navigation",
     "product_record_revision": "world_map_navigation-v1",
     "product_record_digest": "c9dfe10930bc432630388d5edaabcdc294c8925a1d8c2e24d7b1255be07b5418",

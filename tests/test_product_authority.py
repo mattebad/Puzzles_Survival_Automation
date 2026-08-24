@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_sixteen_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_seventeen_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -67,6 +67,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "troop_training",
                 "gathering_resources",
                 "zombie_lair",
+                "ruins_shop_purchase",
                 "nanoweapon_normal_craft",
                 "nano_material_production",
                 "world_map_navigation",
@@ -102,11 +103,57 @@ class ProductAuthorityTests(unittest.TestCase):
             "troop_training",
             "gathering_resources",
             "zombie_lair",
+            "ruins_shop_purchase",
             "nanoweapon_normal_craft",
             "nano_material_production",
             "world_map_navigation",
         ):
             self.assertFalse(self.records[record_id]["daily_ownership"]["selected_daily_prerequisite"])
+    def test_ruins_shop_candidate_is_unresolved_and_non_dispatching(self) -> None:
+        record = self.records["ruins_shop_purchase"]
+        policy = next(
+            item
+            for item in self.authority["policies"]
+            if item["policy_id"] == "ruins-shop-purchase-policy"
+        )
+        self.assertEqual(policy["status"], "unresolved_user_decision")
+        self.assertFalse(policy["purchase_dispatch_allowed"])
+        self.assertEqual(record["record_type"], "ruins_shop_purchase")
+        self.assertEqual(record["recurrence"], "daily_reset_scoped")
+        self.assertEqual(
+            record["semantic_entry_route"]["route"],
+            ["RUINS_SHOP"],
+        )
+        target = record["target"]
+        self.assertEqual(target["candidate_item"], "three_star_chip_material")
+        self.assertEqual(target["candidate_currency"], "RUINS_COINS")
+        self.assertEqual(target["candidate_cost"], 15)
+        self.assertEqual(target["quantity"], 1)
+        self.assertEqual(target["policy_status"], "unresolved_user_decision")
+        self.assertFalse(target["purchase_dispatch_allowed"])
+        self.assertEqual(record["quantity_cost"]["cost"]["amount"], 15)
+        self.assertEqual(record["quantity_cost"]["cost"]["unit"], "RUINS_COINS")
+        self.assertFalse(record["quantity_cost"]["cost"]["free_only"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["offer_observation_successor_required"])
+        self.assertTrue(effect["exact_cost_evidence_required"])
+        self.assertTrue(effect["balance_evidence_required"])
+        self.assertFalse(effect["purchase_dispatch_allowed"])
+        self.assertTrue(effect["canonical_home_successor_required"])
+        self.assertFalse(effect["identical_retry"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in (
+            "buy",
+            "purchase dispatch",
+            "currency spend",
+            "unknown",
+            "ambiguous",
+            "insufficient balance",
+        ):
+            self.assertIn(marker, forbidden)
+
 
     def test_nano_material_production_is_one_zero_resource_six_hour_batch(self) -> None:
         record = self.records["nano_material_production"]

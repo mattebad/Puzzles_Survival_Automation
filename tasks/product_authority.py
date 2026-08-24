@@ -53,6 +53,7 @@ RECORD_TYPES = frozenset(
         "troop_training",
         "gathering_resources",
         "zombie_lair",
+        "ruins_shop_purchase",
         "nanoweapon_normal_craft",
         "nano_material_production",
         "world_map_navigation",
@@ -73,6 +74,7 @@ RECORD_IDS = frozenset(
         "troop_training",
         "gathering_resources",
         "zombie_lair",
+        "ruins_shop_purchase",
         "nanoweapon_normal_craft",
         "nano_material_production",
         "world_map_navigation",
@@ -298,6 +300,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "troop_training": "TRAINING_FACILITIES",
         "gathering_resources": "WORLD",
         "zombie_lair": "ZOMBIE_LAIR",
+        "ruins_shop_purchase": "RUINS_SHOP",
         "nanoweapon_normal_craft": "NANOWEAPON",
         "nano_material_production": "NANOWEAPON",
         "world_map_navigation": "WORLD",
@@ -330,6 +333,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "troop_training": "troop_training",
         "gathering_resources": "gathering_resources",
         "zombie_lair": "zombie_lair",
+        "ruins_shop_purchase": "ruins_shop_purchase",
         "nanoweapon_normal_craft": "nanoweapon_normal_craft",
         "nano_material_production": "nano_material_production",
         "world_map_navigation": "world_map_navigation",
@@ -1246,6 +1250,98 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
                 f"Gathering forbidden actions must include {marker}"
             )
 
+def _validate_ruins_shop_purchase_record(record: Mapping[str, Any]) -> None:
+    """Validate an unresolved, non-dispatch Ruins Shop purchase candidate."""
+
+    if record["objective"] != "ruins_shop_purchase":
+        raise ProductAuthorityError(
+            "Ruins Shop record objective must be ruins_shop_purchase"
+        )
+    if record["action"] != "observe_one_ruins_shop_purchase_candidate":
+        raise ProductAuthorityError(
+            "Ruins Shop action must remain observation-only until product approval"
+        )
+    if record["recurrence"] != "daily_reset_scoped":
+        raise ProductAuthorityError("Ruins Shop recurrence must be daily_reset_scoped")
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
+        "route"
+    ) != ["RUINS_SHOP"]:
+        raise ProductAuthorityError(
+            "Ruins Shop entry route must bind canonical Home to Ruins Shop"
+        )
+    target = record["target"]
+    if (
+        not isinstance(target, Mapping)
+        or target.get("kind") != "ruins_shop_purchase"
+        or target.get("shop") != "RUINS_SHOP"
+        or target.get("candidate_item") != "three_star_chip_material"
+        or target.get("candidate_currency") != "RUINS_COINS"
+        or target.get("candidate_cost") != 15
+        or target.get("quantity") != 1
+        or target.get("policy_status") != "unresolved_user_decision"
+        or target.get("purchase_dispatch_allowed") is not False
+        or target.get("terminal_home") != "HOME_CANONICAL"
+    ):
+        raise ProductAuthorityError(
+            "Ruins Shop target must preserve unresolved three-star Chip and 15-coin bounds"
+        )
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 1
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "candidate_currency_cost"
+        or cost.get("amount") != 15
+        or cost.get("unit") != "RUINS_COINS"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError(
+            "Ruins Shop candidate must preserve one 15 RUINS_COINS cost"
+        )
+    effect = record["semantic_effect"]
+    required_effects = {
+        "effect_ordinal": 1,
+        "offer_observation_successor_required": True,
+        "exact_cost_evidence_required": True,
+        "balance_evidence_required": True,
+        "purchase_dispatch_allowed": False,
+        "currency_delta_required_for_purchase_proof": True,
+        "daily_progress_successor_required_for_purchase_proof": True,
+        "canonical_home_successor_required": True,
+        "dispatch_is_not_success_proof": True,
+        "daily_ownership": "none",
+        "identical_retry": False,
+    }
+    if any(effect.get(key) != value for key, value in required_effects.items()):
+        raise ProductAuthorityError(
+            "Ruins Shop candidate must stay evidence-gated and non-dispatching"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Ruins Shop terminal requirement must return to canonical Home"
+        )
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "buy",
+        "purchase dispatch",
+        "currency spend",
+        "premium offer",
+        "unknown",
+        "ambiguous",
+        "insufficient balance",
+        "identical retry",
+        "real-money",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(
+                f"Ruins Shop candidate must forbid {marker} actions"
+            )
+
+
 
 def _validate_nanoweapon_normal_craft_record(record: Mapping[str, Any]) -> None:
     """Validate one exact once-per-reset Normal Craft Nanoweapon action."""
@@ -1844,8 +1940,6 @@ def _validate_bioenhancer_research_record(record: Mapping[str, Any]) -> None:
 
 
 def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate one typed representative record without mutating it."""
-
     record_id, record_type = _validate_common_record(record)
     if record_type == "resource_item":
         _validate_resource_record(record)
@@ -1869,6 +1963,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_gathering_resources_record(record)
     elif record_type == "zombie_lair":
         _validate_zombie_lair_record(record)
+    elif record_type == "ruins_shop_purchase":
+        _validate_ruins_shop_purchase_record(record)
     elif record_type == "nanoweapon_normal_craft":
         _validate_nanoweapon_normal_craft_record(record)
     elif record_type == "nano_material_production":
@@ -1936,8 +2032,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 16:
-        raise ProductAuthorityError("product authority requires exactly sixteen records")
+    if not isinstance(records, list) or len(records) != 17:
+        raise ProductAuthorityError("product authority requires exactly seventeen records")
     return records
 
 

@@ -418,7 +418,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "1a89217743c97799450289d73ed7ec372c2200fc45cde3c5944de46cb5a163c5",
+    "product_authority_digest": "0b82d9611426b9ba50d07be72d48f8b8cf14ca4ba3bb5ae718ca1566878b4a55",
     "product_record_id": "enhancement_family",
     "product_record_revision": "enhancement_family-v1",
     "product_record_digest": "a03673be99435a70811467c8d989d380c24a7a824035b906ae865e34ecece095",
