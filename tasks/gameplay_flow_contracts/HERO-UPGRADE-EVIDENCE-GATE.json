@@ -1,9 +1,9 @@
 {
   "schema_version": 2,
-  "flow_id": "RUINS-SHOP-PURCHASE-EVIDENCE-GATE",
-  "product_purpose": "Observe one bounded Ruins Shop purchase candidate without authorizing Buy or currency spend.",
+  "flow_id": "HERO-UPGRADE-EVIDENCE-GATE",
+  "product_purpose": "Observe one bounded Hero Upgrade candidate without authorizing material spend or Upgrade dispatch.",
   "trigger_cadence_type": "evidence_gated",
-  "reset_scope": "one candidate per reset after explicit product decision",
+  "reset_scope": "up to three candidates per reset after explicit product decision",
   "required_starting_context": ["home_canonical"],
   "shared_primitive_dependencies": [
     {
@@ -14,80 +14,80 @@
   ],
   "recognized_states": [
     "home_canonical",
-    "ruins_shop",
-    "offer_observation",
+    "hero",
+    "upgrade_observation",
     "blocked"
   ],
   "transition_contracts": [
     {
-      "transition_id": "observe_ruins_shop_route",
+      "transition_id": "observe_hero_upgrade_route",
       "from": "home_canonical",
-      "to": "ruins_shop",
-      "planner": "RuinsShopPurchaseEvidenceGate",
+      "to": "hero",
+      "planner": "HeroUpgradeEvidenceGate",
       "permitted_input": null,
       "postconditions": [
-        "Ruins Shop route remains an offline observation contract",
+        "Hero route remains an offline observation contract",
         "no navigation input is authorized"
       ],
       "terminal_outcomes": ["blocked"],
-      "evidence_gate_id": "ruins_shop_native_offer_replay"
+      "evidence_gate_id": "hero_upgrade_replay"
     },
     {
-      "transition_id": "observe_allowlisted_candidate",
-      "from": "ruins_shop",
-      "to": "offer_observation",
-      "planner": "RuinsShopPurchaseEvidenceGate",
+      "transition_id": "observe_hero_upgrade_candidate",
+      "from": "hero",
+      "to": "upgrade_observation",
+      "planner": "HeroUpgradeEvidenceGate",
       "permitted_input": null,
       "postconditions": [
-        "current three-star Chip material identity is recognized",
-        "current 15 RUINS_COINS cost and sufficient balance are recognized",
-        "quantity one and item/currency successor evidence are captured"
+        "current Wally identity and selected-hero state are recognized",
+        "current level, next level, material, exact amount, balance, and Upgrade state are recognized",
+        "one-level successor, material delta, completion progress, and canonical Home evidence are captured"
       ],
       "terminal_outcomes": ["blocked"],
-      "evidence_gate_id": "ruins_shop_native_offer_replay"
+      "evidence_gate_id": "hero_upgrade_replay"
     },
     {
       "transition_id": "return_canonical_home",
-      "from": "offer_observation",
+      "from": "upgrade_observation",
       "to": "home_canonical",
-      "planner": "RuinsShopPurchaseEvidenceGate",
+      "planner": "HeroUpgradeEvidenceGate",
       "permitted_input": null,
       "postconditions": [
         "canonical Home remains the required terminal state"
       ],
       "terminal_outcomes": ["blocked"],
-      "evidence_gate_id": "ruins_shop_native_offer_replay"
+      "evidence_gate_id": "hero_upgrade_replay"
     }
   ],
   "permitted_inputs": [],
-  "consequential_action_class": "ruins_shop_purchase_candidate_observation",
+  "consequential_action_class": "hero_upgrade_candidate_observation",
   "cost_quantity_requirements": {
     "free_only": false,
-    "maximum_cost": 15,
+    "maximum_cost": null,
     "quantity": 1,
-    "resource_or_currency": "RUINS_COINS",
-    "notes": "Candidate bounds are unresolved; no Buy dispatch or currency spend is authorized."
+    "resource_or_currency": "UNKNOWN_HERO_MATERIAL",
+    "notes": "Current hero, level, material, amount, and balance are unresolved; no Upgrade dispatch or material spend is authorized."
   },
-  "completion_identity": "ruins-shop:purchase:candidate-observed",
+  "completion_identity": "hero-upgrade:candidate:observed",
   "terminal_outcomes": ["deferred", "blocked", "manual_required"],
-  "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native offer evidence are current; never schedule or register this flow.",
-  "bounded_recovery_behavior": "Stop on unknown shop, item, cost, balance, quantity, successor, or terminal Home state; preserve blocked disposition.",
+  "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native hero-upgrade evidence are current; never schedule or register this flow.",
+  "bounded_recovery_behavior": "Stop on unknown hero, level, material, cost, balance, queue, successor, progress, or terminal Home state; preserve blocked disposition.",
   "evidence_requirements": [
-    "Current native Ruins Shop target and current three-star Chip material label are missing.",
-    "Current 15 RUINS_COINS cost, sufficient balance, quantity bound, item delta, currency delta, and successor evidence are missing.",
+    "Current native Hero surface, Wally identity, selected state, and Upgrade control are missing.",
+    "Current level transition, exact hero material and amount, balance, one-level successor, material delta, completion progress, and quantity-one evidence are missing.",
     "Canonical Home return and production-controller route/session proof are missing."
   ],
   "evidence_gates": [
     {
-      "gate_id": "ruins_shop_native_offer_replay",
+      "gate_id": "hero_upgrade_replay",
       "status": "evidence_required",
       "blocks": [
-        "observe_ruins_shop_route",
-        "observe_allowlisted_candidate",
+        "observe_hero_upgrade_route",
+        "observe_hero_upgrade_candidate",
         "return_canonical_home"
       ],
       "required_evidence": [
-        "hash-bound native Ruins Shop offer corpus",
+        "hash-bound native Hero Upgrade surface corpus",
         "production-controller positive route/session replay"
       ],
       "permitted_inputs": []
@@ -95,37 +95,42 @@
   ],
   "scenarios": [
     {
-      "scenario_id": "ruins_shop_purchase_production",
+      "scenario_id": "hero_upgrade_production",
       "mode": "blocked_until_evidence",
       "start_state": "home_canonical",
       "terminal_state": "blocked",
       "permitted_inputs": [],
       "forbidden_inputs": [],
       "required_transitions": [
-        "observe_ruins_shop_route",
-        "observe_allowlisted_candidate",
+        "observe_hero_upgrade_route",
+        "observe_hero_upgrade_candidate",
         "return_canonical_home"
       ],
-      "evidence_gate_ids": ["ruins_shop_native_offer_replay"]
+      "evidence_gate_ids": ["hero_upgrade_replay"]
     }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "ruins_shop_native_offer",
+      "fixture_id": "hero_upgrade_native_surface",
       "status": "required_evidence",
       "path": null,
-      "notes": "Synthetic disabled-purchase arithmetic does not establish current three-star Chip identity or 15-coin authority."
+      "notes": "Synthetic disabled-upgrade arithmetic does not establish current Wally identity, level, material, exact amount, balance, or product authorization."
     }
   ],
   "unsupported_or_manual_only_states": [
-    "Buy",
-    "currency spend",
-    "unknown item",
-    "ambiguous item",
+    "Upgrade",
+    "Upgrade dispatch",
+    "material spend",
+    "premium material",
+    "unknown hero",
+    "ambiguous hero",
+    "unknown level",
+    "ambiguous level",
+    "unknown material",
+    "ambiguous material",
     "unknown cost",
-    "insufficient balance",
-    "quantity greater than one",
-    "purchase confirmation",
+    "insufficient material balance",
+    "completion progress greater than three",
     "registration",
     "scheduler"
   ],
@@ -136,7 +141,7 @@
   "supervised_live_proof_state": "evidence_required",
   "product_policy_refs": [
     {
-      "policy_id": "ruins-shop-purchase-policy",
+      "policy_id": "hero-upgrade-policy",
       "source": "tasks/flow_delivery_product_policy.json"
     }
   ],
@@ -146,9 +151,9 @@
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
     "product_authority_digest": "55525c4bb337ccd8a6bc0ff56026c1c704bf72b7473f4ecadb3a60934f420c29",
-    "product_record_id": "ruins_shop_purchase",
-    "product_record_revision": "ruins_shop_purchase-v1",
-    "product_record_digest": "eadc1a6c93de0c64d9ad5a3143a99a6834cfcba5bbfd0dea964698b86dd42222",
+    "product_record_id": "hero_upgrade",
+    "product_record_revision": "hero_upgrade-v1",
+    "product_record_digest": "555f1c71d54d17256eab6c2fef1914c446b1502a136eaa798191397725ab0891",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

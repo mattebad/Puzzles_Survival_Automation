@@ -151,10 +151,10 @@
       },
       {
         "task_id": "hero-upgrade",
-        "execution_flow_id": null,
+        "execution_flow_id": "HERO-UPGRADE-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": [],
-        "blocker": "Wally/reset/reorder native evidence and product-specific implementation are missing"
+        "blocker": "current Wally identity, selected-hero level/material/cost/balance successors, reset/reorder state, and canonical Home evidence are missing"
       },
       {
         "task_id": "hero-duel",
@@ -4323,6 +4323,41 @@
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE"
+    },
+    {
+      "flow_id": "HERO-UPGRADE-EVIDENCE-GATE",
+      "title": "Record Hero Upgrade authority and evidence gate",
+      "kind": "hero_upgrade_evidence_gate",
+      "priority": 173,
+      "status": "blocked",
+      "backlog_task_id": "hero-upgrade",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/hero_upgrade_disabled.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/HERO-UPGRADE-EVIDENCE-GATE.json",
+        "tasks/daily_quest_execution_matrix.json"
+      ],
+      "navigation_model": "canonical_home_to_hero_upgrade_observation_and_home_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current Wally identity, selected Hero state, exact level/material/amount/balance, one-level successor, daily progress, and canonical Home evidence are required before any route/session input.",
+      "consequence_policy": "Upgrade dispatch and material spend remain prohibited under global upgrade policy; synthetic arithmetic is non-authorizing.",
+      "product_policy_status": "prohibited",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_hero_upgrade_disabled.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current native Hero surface, Wally identity, level transition, material amount/balance, daily successor, and Home route/session evidence are missing.",
+      "next_concrete_action": "Resolve Hero Upgrade product allowlist and acquire lean native Hero surface plus canonical-Home route/session evidence; keep Upgrade dispatch disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/HERO-UPGRADE-EVIDENCE-GATE"
     }
   ]
 }

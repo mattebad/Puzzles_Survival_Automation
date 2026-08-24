@@ -56,6 +56,7 @@ RECORD_TYPES = frozenset(
         "ruins_shop_purchase",
         "rare_earth_shop_purchase",
         "alliance_shop_purchase",
+        "hero_upgrade",
         "nanoweapon_normal_craft",
         "nano_material_production",
         "world_map_navigation",
@@ -79,6 +80,7 @@ RECORD_IDS = frozenset(
         "ruins_shop_purchase",
         "rare_earth_shop_purchase",
         "alliance_shop_purchase",
+        "hero_upgrade",
         "nanoweapon_normal_craft",
         "nano_material_production",
         "world_map_navigation",
@@ -306,6 +308,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "ruins_shop_purchase": "RUINS_SHOP",
         "rare_earth_shop_purchase": "RARE_EARTH_SHOP",
         "alliance_shop_purchase": "ALLIANCE_SHOP",
+        "hero_upgrade": "HERO",
         "nanoweapon_normal_craft": "NANOWEAPON",
         "nano_material_production": "NANOWEAPON",
         "world_map_navigation": "WORLD",
@@ -341,6 +344,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "ruins_shop_purchase": "ruins_shop_purchase",
         "rare_earth_shop_purchase": "rare_earth_shop_purchase",
         "alliance_shop_purchase": "alliance_shop_purchase",
+        "hero_upgrade": "hero_upgrade",
         "nanoweapon_normal_craft": "nanoweapon_normal_craft",
         "nano_material_production": "nano_material_production",
         "world_map_navigation": "world_map_navigation",
@@ -1256,6 +1260,116 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
             raise ProductAuthorityError(
                 f"Gathering forbidden actions must include {marker}"
             )
+def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
+    """Validate an unresolved, non-dispatch Hero Upgrade candidate."""
+
+    if record["objective"] != "upgrade_hero":
+        raise ProductAuthorityError(
+            "Hero Upgrade record objective must be upgrade_hero"
+        )
+    if record["action"] != "observe_one_hero_upgrade_candidate":
+        raise ProductAuthorityError(
+            "Hero Upgrade action must remain observation-only until product approval"
+        )
+    if record["recurrence"] != "daily_reset_scoped":
+        raise ProductAuthorityError(
+            "Hero Upgrade recurrence must be daily_reset_scoped"
+        )
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
+        "route"
+    ) != ["HERO"]:
+        raise ProductAuthorityError(
+            "Hero Upgrade entry route must bind canonical Home to Hero"
+        )
+    target = record["target"]
+    if (
+        not isinstance(target, Mapping)
+        or target.get("kind") != "hero_upgrade"
+        or target.get("hero_identity") != "unknown_current_wally"
+        or target.get("hero_selected") is not True
+        or target.get("current_level") is not None
+        or target.get("target_level") is not None
+        or target.get("target_identity") != "HERO_UPGRADE"
+        or target.get("candidate_material") != "unknown_current_hero_material"
+        or target.get("candidate_amount") is not None
+        or target.get("candidate_balance") is not None
+        or target.get("daily_progress_before") != 0
+        or target.get("daily_completion_target") != 3
+        or target.get("policy_status") != "prohibited"
+        or target.get("upgrade_dispatch_allowed") is not False
+        or target.get("terminal_home") != "HOME_CANONICAL"
+    ):
+        raise ProductAuthorityError(
+            "Hero Upgrade target must preserve unknown hero, level, and material bounds"
+        )
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 1
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "unresolved_resource_cost"
+        or cost.get("amount") is not None
+        or cost.get("unit") != "UNKNOWN_HERO_MATERIAL"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError(
+            "Hero Upgrade candidate must keep unknown material cost fail-closed"
+        )
+    effect = record["semantic_effect"]
+    required_effects = {
+        "effect_ordinal": 1,
+        "exact_hero_evidence_required": True,
+        "exact_level_evidence_required": True,
+        "exact_material_evidence_required": True,
+        "exact_cost_evidence_required": True,
+        "balance_evidence_required": True,
+        "level_successor_required": True,
+        "daily_progress_successor_required": True,
+        "daily_progress_maximum": 3,
+        "upgrade_dispatch_allowed": False,
+        "material_delta_required_for_upgrade_proof": True,
+        "hero_level_delta_required_for_upgrade_proof": True,
+        "canonical_home_successor_required": True,
+        "dispatch_is_not_success_proof": True,
+        "daily_ownership": "none",
+        "identical_retry": False,
+    }
+    if any(effect.get(key) != value for key, value in required_effects.items()):
+        raise ProductAuthorityError(
+            "Hero Upgrade candidate must stay evidence-gated and non-dispatching"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Hero Upgrade terminal requirement must return to canonical Home"
+        )
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "upgrade",
+        "upgrade dispatch",
+        "material spend",
+        "premium material",
+        "unknown hero",
+        "ambiguous hero",
+        "unknown level",
+        "ambiguous level",
+        "unknown material",
+        "ambiguous material",
+        "unknown cost",
+        "ambiguous cost",
+        "insufficient material balance",
+        "identical retry",
+        "real-money",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(
+                f"Hero Upgrade candidate must forbid {marker} actions"
+            )
+
+
 def _validate_alliance_shop_purchase_record(record: Mapping[str, Any]) -> None:
     """Validate an unresolved, non-dispatch Alliance Shop candidate."""
 
@@ -2173,6 +2287,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_zombie_lair_record(record)
     elif record_type == "rare_earth_shop_purchase":
         _validate_rare_earth_shop_purchase_record(record)
+    elif record_type == "hero_upgrade":
+        _validate_hero_upgrade_record(record)
     elif record_type == "alliance_shop_purchase":
         _validate_alliance_shop_purchase_record(record)
     elif record_type == "ruins_shop_purchase":
@@ -2242,10 +2358,8 @@ def validate_daily_reset_policy(
 
 def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
-    if records is None:
-        records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 19:
-        raise ProductAuthorityError("product authority requires exactly nineteen records")
+    if not isinstance(records, list) or len(records) != 20:
+        raise ProductAuthorityError("product authority requires exactly twenty records")
     return records
 
 

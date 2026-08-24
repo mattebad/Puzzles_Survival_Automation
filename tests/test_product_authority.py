@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_nineteen_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_twenty_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -70,6 +70,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "ruins_shop_purchase",
                 "rare_earth_shop_purchase",
                 "alliance_shop_purchase",
+                "hero_upgrade",
                 "nanoweapon_normal_craft",
                 "nano_material_production",
                 "world_map_navigation",
@@ -108,6 +109,7 @@ class ProductAuthorityTests(unittest.TestCase):
             "ruins_shop_purchase",
             "rare_earth_shop_purchase",
             "alliance_shop_purchase",
+            "hero_upgrade",
             "nanoweapon_normal_craft",
             "nano_material_production",
             "world_map_navigation",
@@ -196,6 +198,49 @@ class ProductAuthorityTests(unittest.TestCase):
             "purchase dispatch",
             "currency spend",
             "insufficient balance",
+        ):
+            self.assertIn(marker, forbidden)
+
+    def test_hero_upgrade_candidate_keeps_unknown_material_fail_closed(self) -> None:
+        record = self.records["hero_upgrade"]
+        policy = next(
+            item
+            for item in self.authority["policies"]
+            if item["policy_id"] == "hero-upgrade-policy"
+        )
+        self.assertEqual(policy["status"], "prohibited")
+        self.assertFalse(policy["upgrade_dispatch_allowed"])
+        self.assertEqual(record["record_type"], "hero_upgrade")
+        self.assertEqual(record["semantic_entry_route"]["route"], ["HERO"])
+        target = record["target"]
+        self.assertEqual(target["hero_identity"], "unknown_current_wally")
+        self.assertIsNone(target["current_level"])
+        self.assertIsNone(target["target_level"])
+        self.assertEqual(target["candidate_material"], "unknown_current_hero_material")
+        self.assertIsNone(target["candidate_amount"])
+        self.assertIsNone(target["candidate_balance"])
+        self.assertEqual(target["daily_completion_target"], 3)
+        self.assertFalse(target["upgrade_dispatch_allowed"])
+        cost = record["quantity_cost"]["cost"]
+        self.assertIsNone(cost["amount"])
+        self.assertEqual(cost["unit"], "UNKNOWN_HERO_MATERIAL")
+        self.assertFalse(cost["free_only"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["exact_hero_evidence_required"])
+        self.assertTrue(effect["exact_level_evidence_required"])
+        self.assertTrue(effect["exact_material_evidence_required"])
+        self.assertTrue(effect["level_successor_required"])
+        self.assertTrue(effect["daily_progress_successor_required"])
+        self.assertFalse(effect["upgrade_dispatch_allowed"])
+        self.assertTrue(effect["canonical_home_successor_required"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in (
+            "upgrade",
+            "material spend",
+            "unknown hero",
+            "unknown material",
+            "unknown cost",
+            "insufficient material balance",
         ):
             self.assertIn(marker, forbidden)
 
