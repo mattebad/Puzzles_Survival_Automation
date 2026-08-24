@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, and Gathering product-authority lanes accepted offline; Milestone continuous-session lane dispositioned blocked | Gathering authority binds independent Wood, Steel, and Gas level-5 node variants and upgrades its contract to schema 2 without dispatch or route/session migration. Native Gathering category/level-5/free-node/march/progress/Home proof remains `evidence_required`; Milestone remains `blocked_evidence_required` for missing BlueStacks-native ready-chest/successor/Home evidence. Registration/scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, and Gathering product-authority lanes accepted offline; Milestone continuous-session lane dispositioned blocked; Gathering route/session migration dispositioned blocked | Gathering route/session migration is blocked offline because no native Search/category/level-5/Gas/node/march implementation or positive evidence exists. No adapter, registration, scheduler change, or runtime input was added. Native Gathering proof remains `evidence_required`; Milestone remains `blocked_evidence_required` for missing BlueStacks-native ready-chest/successor/Home evidence. |
 
 
 
@@ -1161,30 +1161,43 @@ comma; the handoff was repaired and the rerun passed. No emulator/ADB/BlueStacks
 observation, runtime input, or march occurred. Next is only Gathering
 route/session migration.
 
+## Stage 7 Gathering route/session migration disposition
+
+Gathering route/session migration is blocked offline. The checked-in
+`tasks/gathering.py` contract is pure Wood/Steel/Gas policy logic; no native
+Search/category/level-5/Gas/node/march route implementation exists for a
+continuous-session binding. Queue blockers still cover exact Search categories,
+level-5 selection, bounded Gas reveal, current-frame free-tile occupancy,
+free-slot/default-formation replay, and native successor/progress/Home evidence.
+
+No adapter, selector, registration, scheduler change, emulator/ADB/BlueStacks
+observation, runtime input, or march was added. Product authority remains
+current, and the route/session task is explicitly blocked rather than
+replaced by synthetic selectors or a no-op runner. Next is only Zombie Lair
+product authority.
+
 ## Stage 7 ordered remainder plan
 
-Persistent order after Gathering product-authority migration:
+Persistent order after Gathering route/session blocked disposition:
 
-1. Gathering route/session migration.
-2. Zombie Lair product authority and offline disposition.
-3. Nano Material product authority and maintenance/session migration.
-4. Nanoweapon product authority and adapter/session repair.
-5. Ruins Shop product authority and route/session disposition.
-6. Rare Earth Shop product authority and independent route disposition.
-7. Alliance Shop product authority and route disposition.
-8. Box purchase product decision, blocking, or retirement.
-9. Hero Upgrade product authority and route disposition.
-10. Hero Duel product authority and offline/combat-blocked disposition.
-11. VIP popup helper authority and route disposition.
-12. Ruins Challenge ownership selection or retirement.
-13. Personal Might Praise/legacy Claim migration or retirement.
-14. Every remaining catalog and active-plan ticket.
-15. Legacy retirement and final Stage 7 closure.
+1. Zombie Lair product authority and offline disposition.
+2. Nano Material product authority and maintenance/session migration.
+3. Nanoweapon product authority and adapter/session repair.
+4. Ruins Shop product authority and route/session disposition.
+5. Rare Earth Shop product authority and independent route disposition.
+6. Alliance Shop product authority and route disposition.
+7. Box purchase product decision, blocking, or retirement.
+8. Hero Upgrade product authority and route disposition.
+9. Hero Duel product authority and offline/combat-blocked disposition.
+10. VIP popup helper authority and route disposition.
+11. Ruins Challenge ownership selection or retirement.
+12. Personal Might Praise/legacy Claim migration or retirement.
+13. Every remaining catalog and active-plan ticket.
+14. Legacy retirement and final Stage 7 closure.
 
 Next three are fully detailed only as:
 
-- Gathering route/session migration: execute only after Gathering product
-  authority is current.
 - Zombie Lair product authority: preserve offline disposition and no runtime
   input.
 - Nano Material product authority: keep maintenance/session migration separate.
+- Nanoweapon product authority: preserve disabled/repair-gated route status.

@@ -9,12 +9,12 @@
 
   "task_start_worktree": {"tracked_dirty_paths": ["AGENTS.md", "docs/flow-delivery-validation-policy.md", "tests/test_flow_delivery_workflow_policy.py"], "protected_untracked_paths": [".omp/", "Start-PnS-OMP.ps1", "Stop-PnS-OMP.ps1", ".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "gathering-product-authority-migration",
-  "current_task_state": "completed_offline",
-  "next_task_id": "gathering-route-session-migration",
+  "current_task_id": "gathering-route-session-migration",
+  "current_task_state": "blocked_evidence",
+  "next_task_id": "zombie-lair-product-authority-migration",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "gathering_product_authority_accepted_offline",
+  "active_delivery_stage": "gathering_route_session_blocked_offline",
 
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
@@ -24,21 +24,21 @@
   "latest_focused_validation_result": "Gathering focused profile passed 11 tests with receipt 228010c8d6c716074bf21cce2cbafd7103469858ed3b1eb46b1711262cb2aa3d; authority/contract suites passed 64 tests; no runtime input.",
   "latest_architecture_validation_result": "Gathering architecture profile passed 92 tests with receipt 6427b746852d519e793f4d81fbee5969ddd463e73fabf09265a705646a1f74de; no runtime input.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Gathering product authority migration used zero emulator/ADB/BlueStacks observation and zero runtime input",
-  "current_evidence_or_session_reference": "No current Gathering native category/level-5/node/march/progress/Home proof is being claimed; typed authority and pure fixtures remain non-authorizing, and route/session migration remains separate",
-  "last_safe_completed_step": "Added gathering_resources-v1 typed authority for independent Wood, Steel, and Gas level-5 variants with current-frame free-node, free-slot, default-formation, successor, and no-Food guards; upgraded the contract to schema 2 without dispatch.",
-  "exact_next_permitted_action": "Perform Gathering route/session migration only; do not combine it with Zombie Lair or any march dispatch.",
-  "current_blocker": "Native Gathering category/level-5/free-node/march/progress/Home proof remains required before live admission; registration and scheduling stay disabled.",
-  "prohibited_repeated_action": "Do not dispatch a Gathering march, use emulator/ADB/BlueStacks, combine Gathering route/session work with Zombie Lair, begin Stage 8, or change registration/scheduler state.",
-  "stage_revision": "gathering-product-authority-migration-r1",
-  "stage_type": "product_authority_migration",
-  "product_precondition": "Gathering product authority and schema-2 contract are current; route/session migration remains a separate next task.",
-  "failure_class": "none offline",
-  "budgets": {"stage_revisions_used": 3, "managed_turns_used": 4, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "current_live_attempt_state": "not authorized and not attempted; Gathering route/session migration was not started because no native route implementation or positive evidence exists",
+  "current_evidence_or_session_reference": "No current Gathering native category/level-5/node/march/progress/Home proof is being claimed; product authority and pure fixtures remain non-authorizing",
+  "last_safe_completed_step": "Dispositioned Gathering route/session migration blocked offline because Search category/level-5 selectors, bounded Gas reveal, free-node occupancy binding, free-slot/default-formation replay, and native successor evidence are missing; no adapter, registration, or runtime input was added.",
+  "exact_next_permitted_action": "Perform Zombie Lair product authority migration only; preserve Gathering blocked disposition and do not dispatch a march.",
+  "current_blocker": "Gathering route/session migration lacks the native Search/category/level-5/Gas/node/march implementation and evidence required for a safe session binding; registration and scheduling stay disabled.",
+  "prohibited_repeated_action": "Do not invent a Gathering adapter, dispatch a march, use emulator/ADB/BlueStacks, combine Zombie Lair with Gathering route work, begin Stage 8, or change registration/scheduler state.",
+  "stage_revision": "gathering-route-session-migration-r1",
+  "stage_type": "medium_continuous_session_migration",
+  "product_precondition": "Gathering product authority is current, but native route implementation and positive evidence are absent.",
+  "failure_class": "product_state",
+  "budgets": {"stage_revisions_used": 3, "managed_turns_used": 5, "live_attempts_used": 0, "runtime_inputs_used": 0},
 
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Native Gathering category/level-5/free-node/march/progress/Home proof remains required before live admission; current authority and pure fixtures are non-authorizing", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true},
+  "evidence": {"evidence_requirement": "Gathering route/session migration requires native Search/category/level-5/Gas/node/march/progress/Home proof and an existing route implementation; current authority and pure fixtures are non-authorizing", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true},
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
   "deferred_independent_review": "Sol 5.6 PR review pending; self-review only; no independent review claimed.",
@@ -50,7 +50,7 @@
     "5 Troop Training continuous-session migration",
     "6 World product authority without rebuilding accepted Stage 6 session — accepted offline",
     "7 Gathering product authority — accepted offline",
-    "8 Gathering route/session migration",
+    "8 Gathering route/session migration — blocked offline pending native route implementation/evidence",
     "9 Zombie Lair product authority and offline disposition",
     "10 Nano Material product authority and maintenance/session migration",
     "11 Nanoweapon product authority and adapter/session repair",
@@ -67,9 +67,9 @@
     "22 Legacy retirement and final Stage 7 closure"
   ],
   "next_three_atomic_tasks": [
-    "Gathering product authority: gathering_resources-v1 authority and schema-2 contract are accepted offline; no route/session migration or march dispatch occurred.",
-    "Gathering route/session migration: execute only as a separate task after the product authority acceptance.",
-    "Zombie Lair product authority: preserve offline disposition and no runtime input."
+    "Gathering route/session migration: blocked offline; do not invent selectors or dispatch without native implementation/evidence.",
+    "Zombie Lair product authority: preserve offline disposition and no runtime input.",
+    "Nano Material product authority: keep maintenance/session migration separate."
   ]
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
