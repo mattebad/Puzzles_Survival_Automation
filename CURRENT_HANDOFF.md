@@ -9,32 +9,32 @@
 
   "task_start_worktree": {"tracked_dirty_paths": ["AGENTS.md", "docs/flow-delivery-validation-policy.md", "tests/test_flow_delivery_workflow_policy.py"], "protected_untracked_paths": [".omp/", "Start-PnS-OMP.ps1", "Stop-PnS-OMP.ps1", ".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "troop-training-continuous-session-migration",
+  "current_task_id": "world-product-authority-migration",
   "current_task_state": "completed_offline",
-  "next_task_id": "world-product-authority-migration",
+  "next_task_id": "gathering-product-authority-migration",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "troop_training_continuous_session_accepted_offline",
+  "active_delivery_stage": "world_product_authority_accepted_offline",
 
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "Troop Training continuous-session adapter, pnsctl conductor binding, retained accounting, and verifier tests passed 48 tests with receipt 1a91d46a7e778c215c779657c7295e95c031619047f34b7b3fdb0bdc887107bb; no runtime input.",
-  "latest_architecture_validation_result": "Troop Training architecture profile passed 86 tests with receipt ad0a13d5310557e0de4183092acabc2b71f1621f4acb9b8a172ffb95c17b5998; no runtime input.",
+  "latest_focused_validation_result": "World product authority and bound contract validation passed 100 tests with receipt 66f41566e4bd4a075ac8ca6dc85d4907358926ba3c9808da577659cfc63870df; no runtime input.",
+  "latest_architecture_validation_result": "World architecture profile passed 92 tests with receipt d5f929a1c4c66432af0fcbfe34bfc521198bf888cec98128ca4ba27d055943ee; no runtime input.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Troop Training continuous-session migration used zero emulator/ADB/BlueStacks observation and zero runtime input",
-  "current_evidence_or_session_reference": "No current Troop Training production-controller positive queue/timer/resource/Home proof is being claimed; session binding and synthetic fixtures remain non-authorizing",
-  "last_safe_completed_step": "Bound the existing Troop Training queue/slot controller to one flow-owned pnsctl DevelopmentSession with exact 32-input ceiling, typed hash/invocation-bound initial observation, retained native transport accounting, one read-only causal trace, continuous proof topology, and sessionless-live rejection.",
-  "exact_next_permitted_action": "Perform World product authority migration only; do not rebuild the accepted Stage 6 session, start runtime work, or combine it with Gathering.",
-  "current_blocker": "Native Troop Training positive queue/timer/resource/Home proof remains required; registration and scheduling stay disabled.",
-  "prohibited_repeated_action": "Do not dispatch Troop Training, use emulator/ADB/BlueStacks, rebuild Stage 6 World session, combine World product authority with Gathering work, begin Stage 8, or change registration/scheduler state.",
-  "stage_revision": "troop-training-continuous-session-migration-r1",
-  "stage_type": "medium_continuous_session_migration",
-  "product_precondition": "Troop Training r10 resource/tier/quantity authority and revision-bound consolidation contract are current.",
+  "current_live_attempt_state": "not authorized and not attempted; World product authority migration used zero emulator/ADB/BlueStacks observation and zero runtime input",
+  "current_evidence_or_session_reference": "No current World positive Home-ready/World/Search/Home production proof is being claimed; accepted Stage 6 session remains unchanged, and typed product authority plus synthetic fixtures remain non-authorizing",
+  "last_safe_completed_step": "Added world_map_navigation-v1 typed authority, canonical digest binding, navigation-only zero-cost semantics, explicit no-march/no-resource/no-combat prohibitions, and schema-2 contract binding without rebuilding the accepted Stage 6 World session.",
+  "exact_next_permitted_action": "Perform Gathering product authority migration only; do not start Gathering route/session work or combine it with Zombie Lair.",
+  "current_blocker": "Native World positive Home-ready/World/Search/Home proof remains required before live admission; registration and scheduling stay disabled.",
+  "prohibited_repeated_action": "Do not rebuild Stage 6 World session, dispatch World gameplay, use emulator/ADB/BlueStacks, combine Gathering product authority with route/session work, begin Stage 8, or change registration/scheduler state.",
+  "stage_revision": "world-product-authority-migration-r1",
+  "stage_type": "product_authority_migration",
+  "product_precondition": "World navigation-only contract and accepted Stage 6 session remain current; no route/session rebuild is permitted.",
   "failure_class": "none offline",
-  "budgets": {"stage_revisions_used": 2, "managed_turns_used": 2, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "budgets": {"stage_revisions_used": 3, "managed_turns_used": 3, "live_attempts_used": 0, "runtime_inputs_used": 0},
 
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
@@ -48,7 +48,7 @@
     "3 Campaign AP continuous-session migration",
     "4 Troop Training product authority",
     "5 Troop Training continuous-session migration",
-    "6 World product authority without rebuilding accepted Stage 6 session",
+    "6 World product authority without rebuilding accepted Stage 6 session — accepted offline",
     "7 Gathering product authority",
     "8 Gathering route/session migration",
     "9 Zombie Lair product authority and offline disposition",
@@ -67,9 +67,9 @@
     "22 Legacy retirement and final Stage 7 closure"
   ],
   "next_three_atomic_tasks": [
-    "Troop Training continuous-session migration: bind existing queue/slot behavior to one flow-owned DevelopmentSession only after r10 product authority is current.",
-    "World product authority: add typed record and revision-bound authority without rebuilding the accepted Stage 6 session.",
-    "Gathering product authority: add typed record and preserve the separate route/session order."
+    "World product authority: typed world_map_navigation-v1 authority and contract binding are accepted offline; accepted Stage 6 session remains unchanged.",
+    "Gathering product authority: add typed record and preserve the separate route/session order.",
+    "Gathering route/session migration: execute only after Gathering product authority is current.",
   ]
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -360,12 +360,35 @@ Zero emulator/ADB/BlueStacks observation, runtime input, and recruit actions
 occurred. Retained native proof remains `evidence_required`. Sol 5.6 PR review
 is pending and was not claimed.
 
+## Stage 7 World product-authority migration
+
+World now has typed `world_map_navigation-v1` authority under
+`flow-delivery-product-authority-v2-r11`, record digest
+`c9dfe10930bc432630388d5edaabcdc294c8925a1d8c2e24d7b1255be07b5418`, and
+authority digest
+`e6f3fd25109628f17cc6d79713669b036be35560c780854425953b7423389e98`.
+The record binds `HOME_READY` to `WORLD`, `SEARCH`, `WORLD`, and `HOME`,
+with zero quantity, zero cost, canonical Home terminal proof, no Daily
+ownership, and no resource, march, attack, stamina, AP, currency, combat, or
+node authority. Dispatch is not success; World, Search, Home, and popup
+successors are required, and identical retry is forbidden.
+
+The schema-2 World contract binds the typed record and remains
+`evidence_required`, not production eligible, and registration-disabled.
+Focused World validation passed 100 tests with receipt
+`66f41566e4bd4a075ac8ca6dc85d4907358926ba3c9808da577659cfc63870df`;
+architecture passed 92 tests with receipt
+`d5f929a1c4c66432af0fcbfe34bfc521198bf888cec98128ca4ba27d055943ee`.
+No emulator/ADB/BlueStacks observation or runtime input occurred. The
+accepted Stage 6 World session was not rebuilt. Native positive World
+Home-ready/World/Search/Home proof remains required. Next is only Gathering
+product authority.
+
 ## Stage 7 ordered remainder and next-three detail
 
 The machine-readable state above is the persistent ordered plan. Next:
-Daily Milestone Claim route integration or truthful evidence-blocked
-disposition; Campaign AP product authority; Campaign AP continuous-session
-migration. Product authority and session migrations remain separate atomic
-tasks. All remaining canonical-plan/catalog entries require one durable
-migrated, blocked-with-owner, disabled-with-owner, or retired disposition
-before Stage 7 closure.
+Gathering product authority, then its separate route/session migration.
+Product authority and session migrations remain separate atomic tasks. All
+remaining canonical-plan/catalog entries require one durable migrated,
+blocked-with-owner, disabled-with-owner, or retired disposition before Stage 7
+closure.

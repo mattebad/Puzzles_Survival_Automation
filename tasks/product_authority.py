@@ -20,7 +20,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r10"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r11"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -51,6 +51,7 @@ RECORD_TYPES = frozenset(
         "noahs_tavern_recruitment",
         "campaign_ap",
         "troop_training",
+        "world_map_navigation",
     }
 )
 RECORD_IDS = frozenset(
@@ -66,6 +67,7 @@ RECORD_IDS = frozenset(
         "noahs_tavern_recruitment",
         "campaign_ap",
         "troop_training",
+        "world_map_navigation",
     }
 )
 PRODUCT_RECORD_IDS = RECORD_IDS
@@ -286,6 +288,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "noahs_tavern_recruitment": "NOAHS_TAVERN",
         "campaign_ap": "CAMPAIGN",
         "troop_training": "TRAINING_FACILITIES",
+        "world_map_navigation": "WORLD",
     }[record_type]
     if target != expected_target:
         raise ProductAuthorityError(
@@ -313,6 +316,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "noahs_tavern_recruitment": "noahs_tavern_recruitment",
         "campaign_ap": "campaign_ap",
         "troop_training": "troop_training",
+        "world_map_navigation": "world_map_navigation",
     }[record_id]
     if record_type != expected_type:
         raise ProductAuthorityError("product record id/type discriminator mismatch")
@@ -1116,6 +1120,99 @@ def _validate_troop_training_record(record: Mapping[str, Any]) -> None:
             raise ProductAuthorityError(f"Troop Training must forbid {marker} actions")
 
 
+def _validate_world_map_navigation_record(record: Mapping[str, Any]) -> None:
+    """Validate navigation-only Home-to-World/Search-to-Home authority."""
+
+    if record["objective"] != "world_map_navigation_round_trip":
+        raise ProductAuthorityError(
+            "World Map record objective must be world_map_navigation_round_trip"
+        )
+    if record["action"] != "navigate_world_search_round_trip":
+        raise ProductAuthorityError(
+            "World Map action must be navigate_world_search_round_trip"
+        )
+    if record["recurrence"] != "navigation_session":
+        raise ProductAuthorityError("World Map recurrence must be navigation_session")
+    route = record["semantic_entry_route"]
+    if (
+        route.get("source_home_authorities") != ["HOME_READY"]
+        or route.get("route") != ["WORLD", "SEARCH", "WORLD", "HOME"]
+    ):
+        raise ProductAuthorityError(
+            "World Map entry route must bind HOME_READY to World/Search/Home"
+        )
+    target = record["target"]
+    if (
+        target.get("kind") != "world_map_navigation"
+        or target.get("search_control") != "WORLD_SEARCH"
+        or target.get("atlas_authority") != "out_of_scope"
+        or target.get("march_authority") != "forbidden"
+    ):
+        raise ProductAuthorityError("World Map target authority is not navigation-only")
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 0
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "none"
+        or cost.get("amount") != 0
+        or cost.get("unit") != "none"
+        or cost.get("free_only") is not True
+    ):
+        raise ProductAuthorityError("World Map navigation must be zero-cost")
+    effect = record["semantic_effect"]
+    if effect.get("effect_ordinal") != 1:
+        raise ProductAuthorityError("World Map navigation effect ordinal must be one")
+    required_effects = (
+        "navigation_only",
+        "world_successor_required",
+        "search_successor_required",
+        "home_successor_required",
+        "popup_successor_required",
+        "dispatch_is_not_success_proof",
+        "no_resource_input",
+        "no_march_input",
+        "no_attack_input",
+        "no_stamina_input",
+        "no_ap_input",
+    )
+    if any(effect.get(field) is not True for field in required_effects):
+        raise ProductAuthorityError("World Map navigation successor or safety effect is incomplete")
+    if effect.get("identical_retry") is not False:
+        raise ProductAuthorityError("World Map navigation must deny identical retry")
+    ownership = record["daily_ownership"]
+    if (
+        ownership.get("daily_owner") is not None
+        or ownership.get("point_credit_trigger") is not None
+        or ownership.get("selected_daily_prerequisite") is not False
+    ):
+        raise ProductAuthorityError("World Map navigation must not own Daily progress")
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "World Map navigation terminal requirement must return to canonical Home"
+        )
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "march",
+        "attack",
+        "stamina",
+        "ap",
+        "resource",
+        "currency",
+        "combat",
+        "node",
+        "unknown",
+        "ambiguous",
+        "identical retry",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(
+                f"World Map forbidden actions must include {marker}"
+            )
+
 def _validate_campaign_ap_record(record: Mapping[str, Any]) -> None:
     """Validate bounded AP-funded Auto Battle product authority."""
 
@@ -1324,6 +1421,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_noahs_tavern_recruitment_record(record)
     elif record_type == "troop_training":
         _validate_troop_training_record(record)
+    elif record_type == "world_map_navigation":
+        _validate_world_map_navigation_record(record)
     elif record_type == "campaign_ap":
         _validate_campaign_ap_record(record)
     else:
@@ -1385,8 +1484,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 11:
-        raise ProductAuthorityError("product authority requires exactly eleven records")
+    if not isinstance(records, list) or len(records) != 12:
+        raise ProductAuthorityError("product authority requires exactly twelve records")
     return records
 
 
@@ -1638,6 +1737,18 @@ def validate_contract_product_authority_binding(
     ) == "TROOP-TRAINING-END-TO-END-CONSOLIDATION":
         raise ProductAuthorityError(
             "Troop Training consolidation flow must bind the Troop Training record"
+        )
+    if record_id == "world_map_navigation" and contract.get(
+        "flow_id"
+    ) != "WORLD-MAP-NAVIGATION-FOUNDATION":
+        raise ProductAuthorityError(
+            "World Map record is reserved for the World Map navigation flow"
+        )
+    if record_id != "world_map_navigation" and contract.get(
+        "flow_id"
+    ) == "WORLD-MAP-NAVIGATION-FOUNDATION":
+        raise ProductAuthorityError(
+            "World Map navigation flow must bind the World Map record"
         )
     if binding["product_record_revision"] != record["record_revision"]:
         raise ProductAuthorityError("contract references stale product record revision")

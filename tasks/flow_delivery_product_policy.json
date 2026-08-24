@@ -348,7 +348,7 @@
       "source": "explicit_user_direction_2026-08-20"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r10",
+  "authority_revision": "flow-delivery-product-authority-v2-r11",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1106,6 +1106,95 @@
       "record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537"
     },
     {
+      "record_id": "world_map_navigation",
+      "record_type": "world_map_navigation",
+      "purpose": "Validate one HUD Home-ready to World Search to Home navigation round trip without gameplay dispatch.",
+      "recurrence": "navigation_session",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY"
+        ],
+        "target": "WORLD",
+        "route": [
+          "WORLD",
+          "SEARCH",
+          "WORLD",
+          "HOME"
+        ]
+      },
+      "objective": "world_map_navigation_round_trip",
+      "action": "navigate_world_search_round_trip",
+      "target": {
+        "kind": "world_map_navigation",
+        "home_to_world_control": "HOME_TO_WORLD",
+        "search_control": "WORLD_SEARCH",
+        "world_to_home_control": "WORLD_TO_HOME",
+        "atlas_authority": "out_of_scope",
+        "march_authority": "forbidden"
+      },
+      "quantity_cost": {
+        "quantity": 0,
+        "cost": {
+          "kind": "none",
+          "amount": 0,
+          "unit": "none",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "navigation_only": true,
+        "world_successor_required": true,
+        "search_successor_required": true,
+        "home_successor_required": true,
+        "popup_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "no_resource_input": true,
+        "no_march_input": true,
+        "no_attack_input": true,
+        "no_stamina_input": true,
+        "no_ap_input": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "resource node selection",
+        "march",
+        "attack",
+        "stamina",
+        "AP",
+        "currency",
+        "combat",
+        "unknown target",
+        "ambiguous popup",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "World navigation is a non-Daily navigation foundation; it grants no Daily progress and authorizes no gameplay action."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:world-map-navigation-only",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-world-hud-search-controls",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "world_map_navigation-v1",
+      "record_digest": "c9dfe10930bc432630388d5edaabcdc294c8925a1d8c2e24d7b1255be07b5418"
+    },
+    {
       "record_id": "campaign_ap",
       "record_type": "campaign_ap",
       "purpose": "Run bounded Campaign AP Auto Battle on an approved configured Story stage while AP covers its verified cost.",
@@ -1311,5 +1400,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "23a096e015bd54b3d7da0e1c0b95c0fcefd0ea6d69dd71c8213953d57592ad28"
+  "authority_digest": "e6f3fd25109628f17cc6d79713669b036be35560c780854425953b7423389e98"
 }

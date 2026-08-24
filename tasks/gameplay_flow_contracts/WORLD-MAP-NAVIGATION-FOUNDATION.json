@@ -338,6 +338,27 @@
   "offline_proof_state": "current",
   "replay_fixture_proof_state": "current",
   "supervised_live_proof_state": "evidence_required",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r11",
+    "product_authority_digest": "e6f3fd25109628f17cc6d79713669b036be35560c780854425953b7423389e98",
+    "product_record_id": "world_map_navigation",
+    "product_record_revision": "world_map_navigation-v1",
+    "product_record_digest": "c9dfe10930bc432630388d5edaabcdc294c8925a1d8c2e24d7b1255be07b5418",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_READY",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": ["HOME_READY"],
+    "selected_daily_prerequisite": false
+  },
   "registration_state": "disabled",
   "production_eligible": false
 }

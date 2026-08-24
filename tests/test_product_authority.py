@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_eleven_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_twelve_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -65,6 +65,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "noahs_tavern_recruitment",
                 "campaign_ap",
                 "troop_training",
+                "world_map_navigation",
             },
         )
         validate_product_authority(self.authority)
@@ -95,8 +96,29 @@ class ProductAuthorityTests(unittest.TestCase):
             "ultimate_challenge",
             "bioenhancer_research",
             "troop_training",
+            "world_map_navigation",
         ):
             self.assertFalse(self.records[record_id]["daily_ownership"]["selected_daily_prerequisite"])
+
+    def test_world_navigation_record_is_zero_cost_and_non_gameplay(self) -> None:
+        record = self.records["world_map_navigation"]
+        self.assertEqual(record["record_type"], "world_map_navigation")
+        self.assertEqual(record["record_revision"], "world_map_navigation-v1")
+        self.assertEqual(record["semantic_entry_route"]["source_home_authorities"], ["HOME_READY"])
+        self.assertEqual(record["semantic_entry_route"]["target"], "WORLD")
+        self.assertEqual(record["target"]["search_control"], "WORLD_SEARCH")
+        self.assertEqual(record["target"]["atlas_authority"], "out_of_scope")
+        self.assertEqual(record["quantity_cost"]["quantity"], 0)
+        self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["navigation_only"])
+        self.assertTrue(effect["search_successor_required"])
+        self.assertTrue(effect["home_successor_required"])
+        self.assertFalse(effect["identical_retry"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in ("march", "attack", "stamina", "ap", "resource", "combat"):
+            self.assertIn(marker, forbidden)
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
 
     def test_recruitment_record_separates_basic_daily_from_tier_maintenance(self) -> None:
         record = self.records["noahs_tavern_recruitment"]
