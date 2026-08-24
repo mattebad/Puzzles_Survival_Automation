@@ -6,6 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 from subprocess import CompletedProcess
 import tempfile
+from contextlib import contextmanager
 import textwrap
 import unittest
 from unittest.mock import patch
@@ -19,6 +20,7 @@ from scripts import pnsctl
 from scripts.flow_delivery_troop_training_bluestacks import (
     FLOW_ID,
     MAX_DISPATCH_BEARING_CANARY_RUNS,
+    MAX_INPUTS,
     RECOVERY_ID,
     RUNNER_ID,
     VALIDATOR_ID,
@@ -47,8 +49,38 @@ from tasks.troop_training import (
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class TroopTrainingFlowDeliveryTests(unittest.TestCase):
+    @contextmanager
+    def _live_lease(self, root: Path, *, recovery_only: bool = False):
+        digest = "1" * 64
+        with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+            session = boundary.DevelopmentSession(
+                owner=f"pnsctl-development-session:{FLOW_ID}",
+                invocation_id="troop-continuous",
+                session_directory=root / "outer",
+                max_inputs=MAX_INPUTS,
+            )
+            session.__enter__()
+        (session.session_directory / "source.png").write_bytes(b"troop-initial")
+        initial = boundary.DevelopmentInitialObservation(
+            {"frame_sha256": digest},
+            digest,
+            frame_path="source.png",
+            invocation_id=session.invocation_id,
+        )
+        session.set_initial_observation(initial)
+        try:
+            yield {
+                "owner": session.owner,
+                "development_session": session,
+                "initial_observation": initial,
+                "initial_frame_sha256": digest,
+                "max_inputs": MAX_INPUTS,
+                "troop_training_reset_identity": "reset",
+                "troop_training_recovery_only": recovery_only,
+            }
+        finally:
+            session.__exit__(None, None, None)
     def test_main_configures_troop_runtime_frame_age_without_changing_shared_default(self) -> None:
         runtime = SimpleNamespace(session=Path("mock-troop-training-session"), frame_max_age_seconds=30.0)
         result = TroopTrainingRouteResult(
@@ -273,18 +305,10 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
             with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", root / "artifacts"), patch.object(
                 delivery, "REPO_ROOT", harness
             ):
-                result = json.loads(
-                    run_troop_training_consolidation(
-                        {},
-                        {
-                            "owner": "test",
-                            "max_inputs": 4,
-                            "troop_training_reset_identity": "reset",
-                            "troop_training_recovery_only": True,
-                        },
-                        live=True,
+                with self._live_lease(root, recovery_only=True) as lease:
+                    result = json.loads(
+                        run_troop_training_consolidation({}, lease, live=True)
                     )
-                )
             self.assertEqual(result["status"], "blocked")
             self.assertTrue(result["recovery_only"])
             child = Path(result["session_directory"])
@@ -344,18 +368,10 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
             with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", root / "artifacts"), patch.object(
                 delivery, "REPO_ROOT", harness
             ):
-                with self.assertRaisesRegex(pnsctl.OperatorError, r"no JSON result \(returncode 7\)"):
-                    run_troop_training_consolidation(
-                        {},
-                        {
-                            "owner": "test",
-                            "max_inputs": 4,
-                            "troop_training_reset_identity": "reset",
-                            "troop_training_recovery_only": True,
-                        },
-                        live=True,
-                    )
-            run_root = next((root / "artifacts" / FLOW_ID).glob("run-*"))
+                with self._live_lease(root, recovery_only=True) as lease:
+                    with self.assertRaisesRegex(pnsctl.OperatorError, r"no JSON result \(returncode 7\)"):
+                        run_troop_training_consolidation({}, lease, live=True)
+            run_root = root / "outer" / "runtime"
             failure = json.loads((run_root / "operator-failure.json").read_text(encoding="utf-8"))
             self.assertEqual(failure["operator_returncode"], 7)
             self.assertEqual((run_root / "operator-stderr.log").read_text(encoding="utf-8"), "child traceback\n")
@@ -571,6 +587,12 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         self.assertEqual(result["max_inputs"], 32)
         self.assertEqual(result["production_registration"], "NOT_REGISTERED")
 
+
+    def test_live_runner_rejects_sessionless_dispatch(self) -> None:
+        with self.assertRaisesRegex(
+            pnsctl.OperatorError, "active pnsctl-owned DevelopmentSession"
+        ):
+            run_troop_training_consolidation({}, {}, live=True)
     def test_recovery_is_observe_only(self) -> None:
         with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", ROOT / ".local-captures" / "test-flow-delivery"):
             result = json.loads(recover_troop_training_consolidation({}, {}))
@@ -628,12 +650,9 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                     __import__("scripts.flow_delivery_troop_training_bluestacks", fromlist=["subprocess"]).subprocess,
                     "run", side_effect=fake_run,
                 ):
-                    with self.assertRaisesRegex(pnsctl.OperatorError, "native evidence"):
-                        run_troop_training_consolidation(
-                            {},
-                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset"},
-                            live=True,
-                        )
+                    with self._live_lease(root) as lease:
+                        with self.assertRaisesRegex(pnsctl.OperatorError, "native evidence"):
+                            run_troop_training_consolidation({}, lease, live=True)
                 self.assertFalse((flow_root / "events.jsonl").exists())
                 self.assertFalse((flow_root / "ledger.jsonl").exists())
                 self.assertFalse((flow_root / "journal.jsonl").exists())
@@ -649,18 +668,10 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                     return CompletedProcess(command, 7, stdout="partial child output\n", stderr="child traceback\n")
 
                 with patch.object(delivery.subprocess, "run", side_effect=fake_run):
-                    with self.assertRaisesRegex(pnsctl.OperatorError, "no JSON result"):
-                        run_troop_training_consolidation(
-                            {},
-                            {
-                                "owner": "test",
-                                "max_inputs": 4,
-                                "troop_training_reset_identity": "reset",
-                                "troop_training_recovery_only": True,
-                            },
-                            live=True,
-                        )
-            run_root = next(root.glob(f"{FLOW_ID}/run-*"))
+                    with self._live_lease(root, recovery_only=True) as lease:
+                        with self.assertRaisesRegex(pnsctl.OperatorError, "no JSON result"):
+                            run_troop_training_consolidation({}, lease, live=True)
+            run_root = root / "outer" / "runtime"
             failure = json.loads((run_root / "operator-failure.json").read_text(encoding="utf-8"))
             self.assertEqual(failure["operator_returncode"], 7)
             self.assertTrue(failure["recovery_only"])
@@ -683,16 +694,21 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
 
             def fake_run(command, **_kwargs):
                 output = Path(command[command.index("--output-directory") + 1])
-                frames = output / "frames"
-                frames.mkdir(parents=True)
-                (frames / "0001-source.png").write_bytes(b"native")
+                (output / "frames").mkdir(parents=True)
+                (output / "frames" / "0001-source.png").write_bytes(b"native")
                 (output / "events.jsonl").write_text(
                     json.dumps({"type": "capture"}) + "\n", encoding="utf-8"
                 )
                 return CompletedProcess(
                     command,
                     3,
-                    stdout=json.dumps({"status": "blocked", "session": str(output), "final_home_recognized": False}),
+                    stdout=json.dumps(
+                        {
+                            "status": "blocked",
+                            "session": str(output),
+                            "final_home_recognized": False,
+                        }
+                    ),
                     stderr="",
                 )
 
@@ -700,13 +716,10 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 import scripts.flow_delivery_troop_training_bluestacks as delivery
 
                 with patch.object(delivery.subprocess, "run", side_effect=fake_run):
-                    result = json.loads(
-                        run_troop_training_consolidation(
-                            {},
-                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset"},
-                            live=True,
+                    with self._live_lease(root) as lease:
+                        result = json.loads(
+                            run_troop_training_consolidation({}, lease, live=True)
                         )
-                    )
             self.assertEqual(result["dispatch_count"], 0)
 
     def test_recovery_only_remains_permitted_after_one_prior_dispatch_evidence(self) -> None:
@@ -715,24 +728,31 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
             prior = root / FLOW_ID / "run-prior"
             prior.mkdir(parents=True)
             (prior / "events.jsonl").write_text(
-                json.dumps({"type": "dispatch", "action_key": "prior"}) + "\n", encoding="utf-8"
+                json.dumps({"type": "dispatch", "action_key": "prior"}) + "\n",
+                encoding="utf-8",
             )
             (prior / "flow-delivery-result.json").write_text(
-                json.dumps({"flow_id": FLOW_ID, "events_path": "events.jsonl", "dispatch": True}), encoding="utf-8"
+                json.dumps({"flow_id": FLOW_ID, "events_path": "events.jsonl", "dispatch": True}),
+                encoding="utf-8",
             )
 
             def fake_run(command, **_kwargs):
                 output = Path(command[command.index("--output-directory") + 1])
-                frames = output / "frames"
-                frames.mkdir(parents=True)
-                (frames / "0001-source.png").write_bytes(b"native")
+                (output / "frames").mkdir(parents=True)
+                (output / "frames" / "0001-source.png").write_bytes(b"native")
                 (output / "events.jsonl").write_text(
                     json.dumps({"type": "capture"}) + "\n", encoding="utf-8"
                 )
                 return CompletedProcess(
                     command,
                     3,
-                    stdout=json.dumps({"status": "blocked", "session": str(output), "final_home_recognized": False}),
+                    stdout=json.dumps(
+                        {
+                            "status": "blocked",
+                            "session": str(output),
+                            "final_home_recognized": False,
+                        }
+                    ),
                     stderr="",
                 )
 
@@ -740,39 +760,44 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 import scripts.flow_delivery_troop_training_bluestacks as delivery
 
                 with patch.object(delivery.subprocess, "run", side_effect=fake_run):
-                    result = json.loads(
-                        run_troop_training_consolidation(
-                            {},
-                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset", "troop_training_recovery_only": True},
-                            live=True,
+                    with self._live_lease(root, recovery_only=True) as lease:
+                        result = json.loads(
+                            run_troop_training_consolidation({}, lease, live=True)
                         )
-                    )
             self.assertEqual(result["dispatch_count"], 0)
 
     def test_recovery_only_remains_permitted_after_two_prior_dispatch_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for ordinal in range(2):
-                flow_root = root / FLOW_ID / f"run-prior-{ordinal}"
-                flow_root.mkdir(parents=True)
-                (flow_root / "events.jsonl").write_text(
-                    json.dumps({"type": "dispatch", "action_key": f"prior-{ordinal}"}) + "\n", encoding="utf-8"
+                prior = root / FLOW_ID / f"run-prior-{ordinal}"
+                prior.mkdir(parents=True)
+                (prior / "events.jsonl").write_text(
+                    json.dumps({"type": "dispatch", "action_key": f"prior-{ordinal}"}) + "\n",
+                    encoding="utf-8",
                 )
-                (flow_root / "flow-delivery-result.json").write_text(
-                    json.dumps({"flow_id": FLOW_ID, "events_path": "events.jsonl", "dispatch": True}), encoding="utf-8"
+                (prior / "flow-delivery-result.json").write_text(
+                    json.dumps({"flow_id": FLOW_ID, "events_path": "events.jsonl", "dispatch": True}),
+                    encoding="utf-8",
                 )
+
             def fake_run(command, **_kwargs):
                 output = Path(command[command.index("--output-directory") + 1])
-                frames = output / "frames"
-                frames.mkdir(parents=True)
-                (frames / "0001-source.png").write_bytes(b"native")
+                (output / "frames").mkdir(parents=True)
+                (output / "frames" / "0001-source.png").write_bytes(b"native")
                 (output / "events.jsonl").write_text(
                     json.dumps({"type": "capture"}) + "\n", encoding="utf-8"
                 )
                 return CompletedProcess(
                     command,
                     3,
-                    stdout=json.dumps({"status": "blocked", "session": str(output), "final_home_recognized": False}),
+                    stdout=json.dumps(
+                        {
+                            "status": "blocked",
+                            "session": str(output),
+                            "final_home_recognized": False,
+                        }
+                    ),
                     stderr="",
                 )
 
@@ -780,37 +805,44 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 import scripts.flow_delivery_troop_training_bluestacks as delivery
 
                 with patch.object(delivery.subprocess, "run", side_effect=fake_run):
-                    result = json.loads(
-                        run_troop_training_consolidation(
-                            {},
-                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset", "troop_training_recovery_only": True},
-                            live=True,
+                    with self._live_lease(root, recovery_only=True) as lease:
+                        result = json.loads(
+                            run_troop_training_consolidation({}, lease, live=True)
                         )
-                    )
             self.assertEqual(result["dispatch_count"], 0)
 
     def test_recovery_only_remains_permitted_after_three_prior_dispatch_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for ordinal in range(3):
-                flow_root = root / FLOW_ID / f"run-prior-{ordinal}"
-                flow_root.mkdir(parents=True)
-                (flow_root / "events.jsonl").write_text(
-                    json.dumps({"type": "dispatch", "action_key": f"prior-{ordinal}"}) + "\n", encoding="utf-8"
+                prior = root / FLOW_ID / f"run-prior-{ordinal}"
+                prior.mkdir(parents=True)
+                (prior / "events.jsonl").write_text(
+                    json.dumps({"type": "dispatch", "action_key": f"prior-{ordinal}"}) + "\n",
+                    encoding="utf-8",
                 )
-                (flow_root / "flow-delivery-result.json").write_text(
-                    json.dumps({"flow_id": FLOW_ID, "events_path": "events.jsonl", "dispatch": True}), encoding="utf-8"
+                (prior / "flow-delivery-result.json").write_text(
+                    json.dumps({"flow_id": FLOW_ID, "events_path": "events.jsonl", "dispatch": True}),
+                    encoding="utf-8",
                 )
+
             def fake_run(command, **_kwargs):
                 output = Path(command[command.index("--output-directory") + 1])
-                frames = output / "frames"
-                frames.mkdir(parents=True)
-                (frames / "0001-source.png").write_bytes(b"native")
-                (output / "events.jsonl").write_text(json.dumps({"type": "capture"}) + "\n", encoding="utf-8")
+                (output / "frames").mkdir(parents=True)
+                (output / "frames" / "0001-source.png").write_bytes(b"native")
+                (output / "events.jsonl").write_text(
+                    json.dumps({"type": "capture"}) + "\n", encoding="utf-8"
+                )
                 return CompletedProcess(
                     command,
                     3,
-                    stdout=json.dumps({"status": "blocked", "session": str(output), "final_home_recognized": False}),
+                    stdout=json.dumps(
+                        {
+                            "status": "blocked",
+                            "session": str(output),
+                            "final_home_recognized": False,
+                        }
+                    ),
                     stderr="",
                 )
 
@@ -818,34 +850,29 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 import scripts.flow_delivery_troop_training_bluestacks as delivery
 
                 with patch.object(delivery.subprocess, "run", side_effect=fake_run):
-                    result = json.loads(
-                        run_troop_training_consolidation(
-                            {},
-                            {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset", "troop_training_recovery_only": True},
-                            live=True,
+                    with self._live_lease(root, recovery_only=True) as lease:
+                        result = json.loads(
+                            run_troop_training_consolidation({}, lease, live=True)
                         )
-                    )
             self.assertEqual(result["dispatch_count"], 0)
 
     def test_live_canary_admission_rejects_one_prior_dispatch_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for ordinal in range(MAX_DISPATCH_BEARING_CANARY_RUNS):
-                flow_root = root / FLOW_ID / f"run-prior-{ordinal}"
-                flow_root.mkdir(parents=True)
-                (flow_root / "events.jsonl").write_text(
-                    json.dumps({"type": "dispatch", "action_key": f"prior-{ordinal}"}) + "\n", encoding="utf-8"
-                )
-                (flow_root / "flow-delivery-result.json").write_text(
-                    json.dumps({"flow_id": FLOW_ID, "events_path": "events.jsonl", "dispatch": True}), encoding="utf-8"
-                )
+            prior = root / FLOW_ID / "run-prior"
+            prior.mkdir(parents=True)
+            (prior / "events.jsonl").write_text(
+                json.dumps({"type": "dispatch", "action_key": "prior"}) + "\n",
+                encoding="utf-8",
+            )
+            (prior / "flow-delivery-result.json").write_text(
+                json.dumps({"flow_id": FLOW_ID, "events_path": "events.jsonl", "dispatch": True}),
+                encoding="utf-8",
+            )
             with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", root):
-                with self.assertRaisesRegex(pnsctl.OperatorError, "maximum-live-canary"):
-                    run_troop_training_consolidation(
-                        {},
-                        {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset"},
-                        live=True,
-                    )
+                with self._live_lease(root) as lease:
+                    with self.assertRaisesRegex(pnsctl.OperatorError, "maximum-live-canary"):
+                        run_troop_training_consolidation({}, lease, live=True)
 
     def test_live_canary_admission_uses_full_count_boundary(self) -> None:
         configured_max = MAX_DISPATCH_BEARING_CANARY_RUNS
@@ -853,14 +880,21 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
 
         def fake_run(command, **_kwargs):
             output = Path(command[command.index("--output-directory") + 1])
-            frames = output / "frames"
-            frames.mkdir(parents=True)
-            (frames / "0001-source.png").write_bytes(b"native")
-            (output / "events.jsonl").write_text(json.dumps({"type": "capture"}) + "\n", encoding="utf-8")
+            (output / "frames").mkdir(parents=True)
+            (output / "frames" / "0001-source.png").write_bytes(b"native")
+            (output / "events.jsonl").write_text(
+                json.dumps({"type": "capture"}) + "\n", encoding="utf-8"
+            )
             return CompletedProcess(
                 command,
                 3,
-                stdout=json.dumps({"status": "blocked", "session": str(output), "final_home_recognized": False}),
+                stdout=json.dumps(
+                    {
+                        "status": "blocked",
+                        "session": str(output),
+                        "final_home_recognized": False,
+                    }
+                ),
                 stderr="",
             )
 
@@ -868,13 +902,13 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
             with self.subTest(prior_count=prior_count), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 for ordinal in range(prior_count):
-                    flow_root = root / FLOW_ID / f"run-prior-{ordinal}"
-                    flow_root.mkdir(parents=True)
-                    (flow_root / "events.jsonl").write_text(
+                    prior = root / FLOW_ID / f"run-prior-{ordinal}"
+                    prior.mkdir(parents=True)
+                    (prior / "events.jsonl").write_text(
                         json.dumps({"type": "dispatch", "action_key": f"prior-{ordinal}"}) + "\n",
                         encoding="utf-8",
                     )
-                    (flow_root / "flow-delivery-result.json").write_text(
+                    (prior / "flow-delivery-result.json").write_text(
                         json.dumps({"flow_id": FLOW_ID, "events_path": "events.jsonl", "dispatch": True}),
                         encoding="utf-8",
                     )
@@ -882,21 +916,15 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                     import scripts.flow_delivery_troop_training_bluestacks as delivery
 
                     if prior_count == configured_max:
-                        with self.assertRaisesRegex(pnsctl.OperatorError, "maximum-live-canary"):
-                            run_troop_training_consolidation(
-                                {},
-                                {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset"},
-                                live=True,
-                            )
+                        with self._live_lease(root) as lease:
+                            with self.assertRaisesRegex(pnsctl.OperatorError, "maximum-live-canary"):
+                                run_troop_training_consolidation({}, lease, live=True)
                     else:
                         with patch.object(delivery.subprocess, "run", side_effect=fake_run):
-                            result = json.loads(
-                                run_troop_training_consolidation(
-                                    {},
-                                    {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset"},
-                                    live=True,
+                            with self._live_lease(root) as lease:
+                                result = json.loads(
+                                    run_troop_training_consolidation({}, lease, live=True)
                                 )
-                            )
                         self.assertEqual(result["dispatch_count"], 0)
 
     def test_live_canary_admission_rejects_malformed_prior_result(self) -> None:
@@ -941,11 +969,12 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
 
                 import scripts.flow_delivery_troop_training_bluestacks as delivery
                 with patch.object(delivery.subprocess, "run", side_effect=fake_run):
-                    result = json.loads(run_troop_training_consolidation(
-                        {}, {"owner": "test", "max_inputs": 5, "troop_training_reset_identity": "reset"}, live=True
-                    ))
-            self.assertEqual(result["max_inputs"], 5)
-            self.assertEqual(captured_env["PNS_DEVELOPMENT_MAX_INPUTS"], "5")
+                    with self._live_lease(root) as lease:
+                        result = json.loads(
+                            run_troop_training_consolidation({}, lease, live=True)
+                        )
+            self.assertEqual(result["max_inputs"], MAX_INPUTS)
+            self.assertEqual(captured_env["PNS_DEVELOPMENT_MAX_INPUTS"], str(MAX_INPUTS))
 
     def test_recovery_runner_uses_only_return_home_command_and_bypasses_canary_guard(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -978,18 +1007,10 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 import scripts.flow_delivery_troop_training_bluestacks as delivery
 
                 with patch.object(delivery.subprocess, "run", side_effect=fake_run) as process:
-                    result = json.loads(
-                        run_troop_training_consolidation(
-                            {},
-                            {
-                                "owner": "test",
-                                "max_inputs": 4,
-                                "troop_training_reset_identity": "reset",
-                                "troop_training_recovery_only": True,
-                            },
-                            live=True,
+                    with self._live_lease(root, recovery_only=True) as lease:
+                        result = json.loads(
+                            run_troop_training_consolidation({}, lease, live=True)
                         )
-                    )
             command = process.call_args.args[0]
             self.assertIn("--return-home-only", command)
             self.assertIn("--recovery-active-queue", command)
@@ -1004,12 +1025,20 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
 
     def test_released_session_verify_uses_retained_troop_context(self) -> None:
         structure = {"result": {"flow_id": FLOW_ID}, "session_directory": "retained"}
-        with patch.object(pnsctl, "_load_flow_delivery_state", side_effect=pnsctl.OperatorError("released")), patch.object(
+        with patch.object(
+            pnsctl,
+            "_retained_flow_result",
+            return_value=(Path("retained"), {"flow_id": FLOW_ID}),
+        ), patch.object(
+            pnsctl, "_load_flow_delivery_state", side_effect=pnsctl.OperatorError("released")
+        ), patch.object(
             pnsctl, "_retained_troop_training_state", return_value=(
                 {"active_flow_id": FLOW_ID},
                 {"active_stage": "evidence_review"},
-            ),
-        ), patch.object(pnsctl, "_load_bluestacks_flow_registry", return_value={FLOW_ID: {"evidence_validator": VALIDATOR_ID}}), patch.object(
+            )
+        ), patch.object(
+            pnsctl, "_load_bluestacks_flow_registry", return_value={FLOW_ID: {"evidence_validator": VALIDATOR_ID}}
+        ), patch.object(
             pnsctl, "_verify_flow_structure", return_value=structure
         ), patch.dict(
             pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS,
@@ -1031,7 +1060,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
             FLOW_ID,
             live=True,
             yes=True,
-            max_inputs=4,
+            max_inputs=MAX_INPUTS,
             recovery_only=True,
         )
 

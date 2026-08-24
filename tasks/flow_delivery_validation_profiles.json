@@ -29,6 +29,14 @@
       "focused_tests": [
         "tests.test_flow_delivery_troop_training"
       ],
+      "architecture_tests": [
+        "tests.test_flow_delivery_orchestrator",
+        "tests.test_flow_delivery_troop_training"
+      ],
+      "consequential": [
+        "tests.test_flow_delivery_troop_training"
+      ],
+      "maximum_inputs": 32,
       "shared_navigation": [
         "tests.test_navigation_development_boundary",
         "tests.test_flow_delivery_troop_training"

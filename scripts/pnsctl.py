@@ -3477,6 +3477,13 @@ def development_session_run_flow(
                         "Campaign AP route did not report retained transport accounting"
                     )
                 retained_count = campaign_retained
+            if flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION" and live:
+                troop_retained = result.get("troop_training_transport_count")
+                if type(troop_retained) is not int or troop_retained < 0:
+                    raise OperatorError(
+                        "Troop Training route did not report retained transport accounting"
+                    )
+                retained_count = troop_retained
             if flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
                 ultimate_retained = result.get("retained_transport_count")
                 if type(ultimate_retained) is not int or ultimate_retained < 0:
@@ -3547,6 +3554,7 @@ def development_session_run_flow(
                             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
                             "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
                             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+                            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
                         }
                         else "composite",
                     )
@@ -5640,7 +5648,7 @@ def bluestacks_recover_home() -> str:
             "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
             live=True,
             yes=True,
-            max_inputs=4,
+            max_inputs=32,
             recovery_only=True,
         )
     if lease.get("active_stage") not in {
@@ -6603,6 +6611,7 @@ _CONDUCT_DEFAULT_MAX_INPUTS = {
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": 24,
     "RECRUITMENT-BLUESTACKS-INTEGRATION": 12,
     "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": 12,
+    "TROOP-TRAINING-END-TO-END-CONSOLIDATION": 32,
 }
 _CONDUCT_KNOWLEDGE_PATHS = (
     REPO_ROOT / "AGENTS.md",
@@ -6627,6 +6636,13 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
             "Recruitment full-pass conduct requires exact max_inputs=12"
         )
     if (
+        flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
+        and maximum != 32
+    ):
+        raise OperatorError(
+            "Troop Training continuous conduct requires exact max_inputs=32"
+        )
+    if (
         flow_id
         in {
             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
@@ -6639,6 +6655,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
             "RECRUITMENT-BLUESTACKS-INTEGRATION",
             "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
         }
         and requested is not None
         and maximum == 1
@@ -6728,6 +6745,7 @@ def _conductor_live_summary(
                 "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
                 "RECRUITMENT-BLUESTACKS-INTEGRATION",
                 "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+                "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
             }:
                 if retained.get("proof_topology") != "continuous":
                     summary.update(
@@ -6926,6 +6944,7 @@ def conduct_flow(
         "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
         "RECRUITMENT-BLUESTACKS-INTEGRATION",
         "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+        "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
     }
     observe_output: str | None = None
     if not continuous_session_flow:
