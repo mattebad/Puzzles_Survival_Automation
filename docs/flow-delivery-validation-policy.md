@@ -13,9 +13,18 @@ explicit user route selection wins and remains active until changed; otherwise u
 before entering this ladder. This document keeps the runnable validation mechanics and the stage
 admission contract.
 
+An explicitly selected `Solo` route is the recognized single-agent exception
+defined in `AGENTS.md`. It replaces role choreography and per-task independent
+review with one named agent's serial plan/implement/validate/self-review/close
+loop. It does not waive this validation ladder, atomic scope, failure
+classification, evidence truth, runtime safety, registration/scheduler
+separation, Git protections, or action-specific authorization. If review is
+deferred to a PR, closure records it as pending and never as completed.
+
 ## Stage admission
 
-The Sol parent is the mandatory `control_plane_owner` for Heavy work. Before
+Absent an explicit `Solo` selection, the Sol parent is the mandatory
+`control_plane_owner` for Heavy work. Before
 implementation, review, or canary, the parent records the frozen revision,
 stage type, failure class, budgets, and product precondition. Diagnostic probes
 may begin at `evidence_required`; implementation and review require `proven` or

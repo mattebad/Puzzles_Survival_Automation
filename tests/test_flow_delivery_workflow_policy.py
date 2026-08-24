@@ -59,6 +59,29 @@ class FlowDeliveryWorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("Sol gate", self.policy)
         self.assertIn("do not create a second validation framework", self.agents.lower())
 
+    def test_explicit_solo_route_overrides_ceremony_not_safety(self) -> None:
+        normalized_agents = " ".join(self.agents.split())
+        normalized_policy = " ".join(self.policy.split())
+        for marker in (
+            "Recognized `Solo` route override",
+            "`Route: Solo`",
+            "One named agent serially owns planning, architecture, implementation",
+            "overrides Light/Medium/Heavy role choreography",
+            "never silently substitute another model",
+            "review as pending rather than claiming it occurred",
+            "hard safety/manual/user-decision blockers still stop",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, normalized_agents)
+        for marker in (
+            "explicitly selected `Solo` route",
+            "does not waive this validation ladder",
+            "closure records it as pending",
+            "Absent an explicit `Solo` selection",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, normalized_policy)
+
     def test_runtime_phases_keep_current_bluestacks_and_future_bliss_distinct(self) -> None:
         normalized = " ".join(self.agents.split())
         for marker in (

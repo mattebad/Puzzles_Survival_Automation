@@ -167,10 +167,40 @@ P&S project workflow constraints:
 - For substantive behavior changes, run the existing deterministic validation hierarchy—focused and flow-specific checks followed by any required architecture or integration gate—before any live emulator canary. Use the local BlueStacks / P&S emulator for current live verification; use Bliss only for an explicitly selected future porting or Bliss-validation task.
 - For cross-cutting changes involving state recognition, navigation, recovery or retry behavior, ADB contracts, or multiple interacting production packages, the parent performs the integration review and owns the final integration decision; do not automatically spawn a child `executor_sol`.
 - Never use `git add .`. Never automatically commit unrelated working-tree changes. Stage only explicitly enumerated active-task paths and preserve all pre-existing user modifications; this overrides automatic closure Git defaults.
+- **Recognized `Solo` route override:** the user may explicitly select the
+  `Solo` route by saying `Route: Solo` or `use the Solo route`. The selection
+  may optionally name one exact model/reasoning level and a deferred review
+  owner, for example `Route: Solo; model: GPT-5.6 Luna XHigh; review: Sol PR`.
+  `Solo` is never selected automatically and remains active until the user
+  changes it or the session ends.
+  - One named agent serially owns planning, architecture, implementation,
+    validation, self-review, integration acceptance, durable closure, and any
+    explicitly authorized commit/push. It does not spawn planners,
+    implementers, testers, reviewers, or procedural subagents.
+  - `Solo` overrides Light/Medium/Heavy role choreography, frozen-stage
+    delegation, independent-review requirements, and managed-turn ceremony,
+    including for work that the automatic matrix would classify Heavy. It does
+    not change the task's technical risk classification, and the agent must
+    still identify architecture, safety, cross-contract, and live boundaries.
+  - Atomic task separation, exact writable scope, focused-to-architecture
+    validation, failure classification, truthful evidence/proof topology,
+    current-frame input safety, singleton runtime ownership, registration and
+    scheduler separation, destructive-action safeguards, Git protections, and
+    explicit live/commit/push authorization remain mandatory.
+  - A missing named model must stop with an availability report; never silently
+    substitute another model. A manual-only state, real-money confirmation,
+    required safety weakening, contradictory authority with no dominant safe
+    resolution, or another decision reserved explicitly to the user remains a
+    user blocker even under `Solo`.
+  - When the user defers independent review to a later PR, the Solo agent must
+    record that review as pending rather than claiming it occurred. Passing
+    self-review and tests may close each bounded atomic implementation, while
+    the final PR remains subject to the named deferred reviewer.
 - Unless the user explicitly selects a route, the main agent must automatically choose the proportionate route for each new task and may change routes between tasks: Light for trivial or leaf work, Medium for localized substantive changes handled primarily by the main agent, and Heavy only for genuinely multi-module or independently parallelizable work. Briefly state an automatic Medium or Heavy selection before substantive execution. An explicit user route selection overrides automatic selection and remains active until the user changes it or the session ends.
 - Route the work using this project-local matrix (an explicit user route still wins):
 | Scope | Default route and owner | Promotion rule |
 | --- | --- | --- |
+| Explicit user `Solo` override | Solo; one user-named agent owns the complete serial task loop | Never automatic; hard safety/manual/user-decision blockers still stop |
 | Trivial or leaf | Light direct fast path | No delegation required |
 | Localized/offline, including one-file fixes | Medium; main-agent owned | Promote when a trigger in the Heavy row appears |
 | Routine live flow delivery / lean reproof of an already-contracted flow | Medium via `pnsctl conduct`; repair-and-continue in-session | Promote to Heavy only for architecture, safety-boundary, cross-contract redesign, or `diminishing_returns` STEP_BACK |
