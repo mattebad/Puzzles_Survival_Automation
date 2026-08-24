@@ -118,7 +118,7 @@ class GameplayFlowContractTests(unittest.TestCase):
             "alliance_shop_purchase",
         )
 
-    def test_hero_upgrade_contract_is_observation_only_and_unknown_material_fails_closed(self):
+    def test_hero_upgrade_contract_is_observation_only_and_wali_semantics_fail_closed(self):
         contract = load_flow_contract("HERO-UPGRADE-EVIDENCE-GATE")
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(
@@ -126,16 +126,26 @@ class GameplayFlowContractTests(unittest.TestCase):
             "hero-upgrade-policy",
         )
         self.assertEqual(contract["permitted_inputs"], [])
-        self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
+        requirements = contract["cost_quantity_requirements"]
+        self.assertIsNone(requirements["maximum_cost"])
         self.assertEqual(
-            contract["cost_quantity_requirements"]["resource_or_currency"],
-            "UNKNOWN_HERO_MATERIAL",
+            requirements["resource_or_currency"],
+            "STANDARD_HERO_MATERIAL_FIRST",
         )
-        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertTrue(requirements["standard_material_first"])
+        exception = requirements["diamond_reset_exception"]
+        self.assertTrue(exception["allowed"])
+        self.assertEqual(exception["amount"], 150)
+        self.assertTrue(exception["only_when_needed"])
+        self.assertEqual(exception["maximum_per_reset"], 1)
         self.assertEqual(contract["implementation_status"], "contract_only")
         self.assertEqual(contract["proof_state"], "evidence_required")
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
+        unsupported = " ".join(contract["unsupported_or_manual_only_states"]).casefold()
+        self.assertIn("upgrade dispatch before native evidence", unsupported)
+        self.assertIn("unbounded diamond spend", unsupported)
+        self.assertNotIn("material spend", unsupported)
         scenario = contract["scenarios"][0]
         self.assertEqual(scenario["mode"], "blocked_until_evidence")
         self.assertEqual(scenario["permitted_inputs"], [])
@@ -353,13 +363,15 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["permitted_inputs"], [])
         self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
 
-    def test_gathering_contract_binds_typed_variants_and_stays_evidence_gated(self):
+    def test_gathering_contract_binds_direct_timer_variants_and_stays_evidence_gated(self):
         contract = load_flow_contract("GATHERING-BLUESTACKS-INTEGRATION")
         binding = contract["product_authority_binding"]
         self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(contract["trigger_cadence_type"], "evidence_gated")
+        self.assertEqual(contract["reset_scope"], "pulse_and_march_slot_timer")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "gathering_resources")
-        self.assertEqual(binding["product_record_revision"], "gathering_resources-v1")
+        self.assertEqual(binding["product_record_revision"], "gathering_resources-v2")
         self.assertEqual(binding["home_authority"], "HOME_READY")
         self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
@@ -368,11 +380,9 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
-        self.assertEqual(contract["proof_state"], "evidence_required")
-        scenario = contract["scenarios"][0]
-        self.assertEqual(scenario["mode"], "blocked_until_evidence")
-        self.assertEqual(scenario["permitted_inputs"], [])
-        self.assertIn("dispatch_attack", scenario["forbidden_inputs"])
+        self.assertIn("select_food", contract["scenarios"][0]["forbidden_inputs"])
+        self.assertIn("dispatch_attack", contract["scenarios"][0]["forbidden_inputs"])
+        self.assertIn("retry_identical_dispatch", contract["scenarios"][0]["forbidden_inputs"])
 
     def test_zombie_lair_contracts_bind_one_record_and_stay_disabled(self):
         for flow_id in (

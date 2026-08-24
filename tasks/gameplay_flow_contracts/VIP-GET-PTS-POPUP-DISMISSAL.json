@@ -4,7 +4,11 @@
   "product_purpose": "Validate one bounded VIP Get Pts popup dismissal without resource, currency, march, or combat behavior.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "one popup candidate per fresh source frame",
-  "required_starting_context": ["home_ready", "home_localized", "home_canonical"],
+  "required_starting_context": [
+    "home_ready",
+    "home_localized",
+    "home_canonical"
+  ],
   "shared_primitive_dependencies": [
     {
       "primitive_id": "home_navigation_primitives",
@@ -36,7 +40,9 @@
         "fresh current-frame VIP_POINTS_GET_PTS identity",
         "RESET_POPUP_CLOSE is spatially associated with the popup"
       ],
-      "terminal_outcomes": ["blocked"],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "vip_points_popup_native_evidence"
     },
     {
@@ -50,7 +56,9 @@
         "popup is absent",
         "source context successor is settled and re-recognized"
       ],
-      "terminal_outcomes": ["blocked"],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "vip_points_popup_native_evidence"
     },
     {
@@ -63,7 +71,9 @@
         "canonical Home remains required terminal state",
         "no resource or combat input occurred"
       ],
-      "terminal_outcomes": ["blocked"],
+      "terminal_outcomes": [
+        "blocked"
+      ],
       "evidence_gate_id": "vip_points_popup_native_evidence"
     }
   ],
@@ -77,7 +87,11 @@
     "notes": "The helper is navigation-only. Current native popup, close, and settled successor proof is missing; no input is authorized offline."
   },
   "completion_identity": "vip-points-popup:dismissal:observed",
-  "terminal_outcomes": ["deferred", "blocked", "manual_required"],
+  "terminal_outcomes": [
+    "deferred",
+    "blocked",
+    "manual_required"
+  ],
   "cooldown_deferred_behavior": "Keep helper dormant until exact native popup and successor evidence are current; never register or schedule it.",
   "bounded_recovery_behavior": "Stop on unknown, ambiguous, stale, or generic popup state; deny identical retry and preserve blocked disposition.",
   "evidence_requirements": [
@@ -116,7 +130,9 @@
         "observe_vip_points_popup_dismissal_successor",
         "return_canonical_home"
       ],
-      "evidence_gate_ids": ["vip_points_popup_native_evidence"]
+      "evidence_gate_ids": [
+        "vip_points_popup_native_evidence"
+      ]
     }
   ],
   "replay_fixture_requirements": [
@@ -157,8 +173,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
     "product_record_id": "vip_points_popup_dismissal",
     "product_record_revision": "vip_points_popup_dismissal-v1",
     "product_record_digest": "8a404595f42795568e9fa469a9e5b91f3dce6a542e70218f7956ab338d5b4a60",
@@ -173,7 +189,11 @@
     "package_id": "com.global.ztmslg",
     "home_authority": "HOME_READY",
     "terminal_home_authority": "HOME_CANONICAL",
-    "accepted_home_authorities": ["HOME_READY", "HOME_LOCALIZED", "HOME_CANONICAL"],
+    "accepted_home_authorities": [
+      "HOME_READY",
+      "HOME_LOCALIZED",
+      "HOME_CANONICAL"
+    ],
     "selected_daily_prerequisite": false
   }
 }

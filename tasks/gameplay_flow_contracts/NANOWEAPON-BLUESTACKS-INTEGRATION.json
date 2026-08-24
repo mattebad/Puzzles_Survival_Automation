@@ -500,8 +500,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
     "product_record_id": "nanoweapon_normal_craft",
     "product_record_revision": "nanoweapon_normal_craft-v1",
     "product_record_digest": "8f925c4e7156c65c8ef026f23074b6f691bb823233d1b12ba613661411ec8254",

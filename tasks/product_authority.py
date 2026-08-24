@@ -20,7 +20,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r11"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r12"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -1169,9 +1169,9 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
         raise ProductAuthorityError(
             "Gathering action must be dispatch_one_gathering_march"
         )
-    if record["recurrence"] != "evidence_gated_variant_canary":
+    if record["recurrence"] != "pulse_march_slot_timer":
         raise ProductAuthorityError(
-            "Gathering recurrence must be evidence_gated_variant_canary"
+            "Gathering recurrence must be pulse_march_slot_timer"
         )
     route = record["semantic_entry_route"]
     if (
@@ -1194,7 +1194,7 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
         or target.get("occupancy") != "free_only"
         or target.get("march_slot") != "one_free_slot"
         or target.get("formation") != "default"
-        or target.get("source_daily_row_required") is not True
+        or target.get("source_daily_row_required") is not False
         or target.get("food_authority") != "forbidden"
     ):
         raise ProductAuthorityError(
@@ -1219,6 +1219,11 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
         "level_5_node_identity_required",
         "free_occupancy_successor_required",
         "march_identity_successor_required",
+        "free_march_slot_required",
+        "default_formation_required",
+        "outbound_timer_successor_required",
+        "return_timer_successor_required",
+        "terminal_home_successor_required",
         "resource_progress_successor_required",
         "dispatch_is_not_success_proof",
     )
@@ -1373,7 +1378,7 @@ def _validate_hero_duel_record(record: Mapping[str, Any]) -> None:
 
 
 def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
-    """Validate an unresolved, non-dispatch Hero Upgrade candidate."""
+    """Validate approved Wali upgrade semantics with dispatch still disabled."""
 
     if record["objective"] != "upgrade_hero":
         raise ProductAuthorityError(
@@ -1381,7 +1386,7 @@ def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
         )
     if record["action"] != "observe_one_hero_upgrade_candidate":
         raise ProductAuthorityError(
-            "Hero Upgrade action must remain observation-only until product approval"
+            "Hero Upgrade action must remain observation-only until native evidence and route admission"
         )
     if record["recurrence"] != "daily_reset_scoped":
         raise ProductAuthorityError(
@@ -1398,17 +1403,17 @@ def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
     if (
         not isinstance(target, Mapping)
         or target.get("kind") != "hero_upgrade"
-        or target.get("hero_identity") != "unknown_current_wally"
+        or target.get("hero_identity") != "Wali"
         or target.get("hero_selected") is not True
         or target.get("current_level") is not None
         or target.get("target_level") is not None
         or target.get("target_identity") != "HERO_UPGRADE"
-        or target.get("candidate_material") != "unknown_current_hero_material"
+        or target.get("candidate_material") != "standard_hero_material"
         or target.get("candidate_amount") is not None
         or target.get("candidate_balance") is not None
         or target.get("daily_progress_before") != 0
         or target.get("daily_completion_target") != 3
-        or target.get("policy_status") != "prohibited"
+        or target.get("policy_status") != "explicitly_approved"
         or target.get("upgrade_dispatch_allowed") is not False
         or target.get("terminal_home") != "HOME_CANONICAL"
     ):
@@ -1420,13 +1425,25 @@ def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
     if (
         quantity_cost.get("quantity") != 1
         or not isinstance(cost, Mapping)
-        or cost.get("kind") != "unresolved_resource_cost"
+        or cost.get("kind") != "standard_hero_material_first"
         or cost.get("amount") is not None
-        or cost.get("unit") != "UNKNOWN_HERO_MATERIAL"
+        or cost.get("unit") != "STANDARD_HERO_MATERIAL"
         or cost.get("free_only") is not False
     ):
         raise ProductAuthorityError(
-            "Hero Upgrade candidate must keep unknown material cost fail-closed"
+            "Hero Upgrade must use standard hero material first with exact cost evidence required"
+        )
+    exception = quantity_cost.get("diamond_reset_exception")
+    if (
+        not isinstance(exception, Mapping)
+        or exception.get("allowed") is not True
+        or exception.get("amount") != 150
+        or exception.get("unit") != "DIAMONDS"
+        or exception.get("only_when_needed") is not True
+        or exception.get("maximum_per_reset") != 1
+    ):
+        raise ProductAuthorityError(
+            "Hero Upgrade must bound one needed 150-diamond reset exception per reset"
         )
     effect = record["semantic_effect"]
     required_effects = {
@@ -1439,7 +1456,13 @@ def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
         "level_successor_required": True,
         "daily_progress_successor_required": True,
         "daily_progress_maximum": 3,
+        "standard_material_first": True,
+        "diamond_reset_exception_allowed": True,
+        "diamond_reset_exception_amount": 150,
+        "diamond_reset_exception_only_when_needed": True,
+        "diamond_reset_exception_maximum_per_reset": 1,
         "upgrade_dispatch_allowed": False,
+        "native_evidence_required": True,
         "material_delta_required_for_upgrade_proof": True,
         "hero_level_delta_required_for_upgrade_proof": True,
         "canonical_home_successor_required": True,
@@ -1460,10 +1483,9 @@ def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
         )
     forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
     for marker in (
-        "upgrade",
-        "upgrade dispatch",
-        "material spend",
+        "upgrade dispatch before native evidence and route admission",
         "premium material",
+        "premium currency outside the 150-diamond reset exception",
         "unknown hero",
         "ambiguous hero",
         "unknown level",
@@ -1473,6 +1495,13 @@ def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
         "unknown cost",
         "ambiguous cost",
         "insufficient material balance",
+        "unbounded diamond spend",
+        "diamond reset without need",
+        "diamond reset above 150",
+        "repeated 150-diamond reset exception",
+        "daily progress greater than three",
+        "hero level delta without material delta",
+        "material delta without hero level successor",
         "identical retry",
         "real-money",
     ):

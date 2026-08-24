@@ -32,6 +32,7 @@ from tasks.product_authority import (
     validate_contract_product_authority_bindings,
     validate_daily_reset_policy,
     validate_product_authority,
+    validate_product_record,
 )
 
 
@@ -204,48 +205,73 @@ class ProductAuthorityTests(unittest.TestCase):
         ):
             self.assertIn(marker, forbidden)
 
-    def test_hero_upgrade_candidate_keeps_unknown_material_fail_closed(self) -> None:
+    def test_hero_upgrade_candidate_keeps_approved_semantics_fail_closed(self) -> None:
         record = self.records["hero_upgrade"]
         policy = next(
             item
             for item in self.authority["policies"]
             if item["policy_id"] == "hero-upgrade-policy"
         )
-        self.assertEqual(policy["status"], "prohibited")
+        self.assertEqual(policy["status"], "explicitly_approved")
         self.assertFalse(policy["upgrade_dispatch_allowed"])
+        self.assertEqual(policy["candidate_hero"], "Wali")
+        self.assertEqual(policy["diamond_reset_exception"]["amount"], 150)
+        self.assertTrue(policy["diamond_reset_exception"]["only_when_needed"])
         self.assertEqual(record["record_type"], "hero_upgrade")
+        self.assertEqual(record["record_revision"], "hero_upgrade-v2")
         self.assertEqual(record["semantic_entry_route"]["route"], ["HERO"])
         target = record["target"]
-        self.assertEqual(target["hero_identity"], "unknown_current_wally")
+        self.assertEqual(target["hero_identity"], "Wali")
         self.assertIsNone(target["current_level"])
         self.assertIsNone(target["target_level"])
-        self.assertEqual(target["candidate_material"], "unknown_current_hero_material")
+        self.assertEqual(target["candidate_material"], "standard_hero_material")
         self.assertIsNone(target["candidate_amount"])
         self.assertIsNone(target["candidate_balance"])
         self.assertEqual(target["daily_completion_target"], 3)
+        self.assertEqual(target["policy_status"], "explicitly_approved")
         self.assertFalse(target["upgrade_dispatch_allowed"])
         cost = record["quantity_cost"]["cost"]
         self.assertIsNone(cost["amount"])
-        self.assertEqual(cost["unit"], "UNKNOWN_HERO_MATERIAL")
+        self.assertEqual(cost["kind"], "standard_hero_material_first")
+        self.assertEqual(cost["unit"], "STANDARD_HERO_MATERIAL")
         self.assertFalse(cost["free_only"])
+        exception = record["quantity_cost"]["diamond_reset_exception"]
+        self.assertEqual(exception["amount"], 150)
+        self.assertTrue(exception["only_when_needed"])
+        self.assertEqual(exception["maximum_per_reset"], 1)
         effect = record["semantic_effect"]
         self.assertTrue(effect["exact_hero_evidence_required"])
         self.assertTrue(effect["exact_level_evidence_required"])
         self.assertTrue(effect["exact_material_evidence_required"])
-        self.assertTrue(effect["level_successor_required"])
-        self.assertTrue(effect["daily_progress_successor_required"])
+        self.assertTrue(effect["standard_material_first"])
+        self.assertTrue(effect["native_evidence_required"])
         self.assertFalse(effect["upgrade_dispatch_allowed"])
         self.assertTrue(effect["canonical_home_successor_required"])
         forbidden = json.dumps(record["forbidden_actions"]).casefold()
         for marker in (
-            "upgrade",
-            "material spend",
+            "upgrade dispatch before native evidence",
+            "premium material",
+            "premium currency outside the 150-diamond reset exception",
             "unknown hero",
             "unknown material",
             "unknown cost",
-            "insufficient material balance",
+            "unbounded diamond spend",
+            "repeated 150-diamond reset exception",
         ):
             self.assertIn(marker, forbidden)
+        self.assertNotIn('"upgrade"', forbidden)
+        self.assertNotIn("material spend", forbidden)
+
+    def test_gathering_validator_rejects_validation_recurrence_or_daily_coupling(self) -> None:
+        record = self.records["gathering_resources"]
+        invalid_recurrence = deepcopy(record)
+        invalid_recurrence["recurrence"] = "evidence_gated_variant_canary"
+        with self.assertRaises(ProductAuthorityError):
+            validate_product_record(invalid_recurrence)
+        invalid_daily = deepcopy(record)
+        invalid_daily["target"]["source_daily_row_required"] = True
+        with self.assertRaises(ProductAuthorityError):
+            validate_product_record(invalid_daily)
 
     def test_hero_duel_candidate_keeps_pvp_fail_closed(self) -> None:
         record = self.records["hero_duel"]
@@ -446,7 +472,8 @@ class ProductAuthorityTests(unittest.TestCase):
     def test_gathering_record_binds_supported_variants_and_free_node_guards(self) -> None:
         record = self.records["gathering_resources"]
         self.assertEqual(record["record_type"], "gathering_resources")
-        self.assertEqual(record["record_revision"], "gathering_resources-v1")
+        self.assertEqual(record["record_revision"], "gathering_resources-v2")
+        self.assertEqual(record["recurrence"], "pulse_march_slot_timer")
         self.assertEqual(record["semantic_entry_route"]["source_home_authorities"], ["HOME_READY"])
         self.assertEqual(
             record["semantic_entry_route"]["route"],
@@ -458,12 +485,18 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(target["occupancy"], "free_only")
         self.assertEqual(target["march_slot"], "one_free_slot")
         self.assertEqual(target["formation"], "default")
-        self.assertTrue(target["source_daily_row_required"])
+        self.assertFalse(target["source_daily_row_required"])
         self.assertEqual(target["food_authority"], "forbidden")
         self.assertEqual(record["quantity_cost"]["quantity"], 1)
         self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
-        self.assertEqual(record["semantic_effect"]["resource_progress_successor_required"], True)
-        self.assertFalse(record["semantic_effect"]["identical_retry"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["free_march_slot_required"])
+        self.assertTrue(effect["default_formation_required"])
+        self.assertTrue(effect["outbound_timer_successor_required"])
+        self.assertTrue(effect["return_timer_successor_required"])
+        self.assertTrue(effect["terminal_home_successor_required"])
+        self.assertTrue(effect["resource_progress_successor_required"])
+        self.assertFalse(effect["identical_retry"])
         forbidden = json.dumps(record["forbidden_actions"]).casefold()
         for marker in ("food", "occupied", "level-5", "existing march", "gas", "identical retry"):
             self.assertIn(marker, forbidden)

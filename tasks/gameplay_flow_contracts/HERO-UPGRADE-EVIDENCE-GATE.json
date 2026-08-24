@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "flow_id": "HERO-UPGRADE-EVIDENCE-GATE",
-  "product_purpose": "Observe one bounded Hero Upgrade candidate without authorizing material spend or Upgrade dispatch.",
+  "product_purpose": "Observe approved three-per-reset Wali Hero Upgrade semantics without runtime dispatch until native evidence and route admission.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "up to three candidates per reset after explicit product decision",
   "required_starting_context": [
@@ -43,9 +43,9 @@
       "planner": "HeroUpgradeEvidenceGate",
       "permitted_input": null,
       "postconditions": [
-        "current Wally identity and selected-hero state are recognized",
-        "current level, next level, material, exact amount, balance, and Upgrade state are recognized",
-        "one-level successor, material delta, completion progress, and canonical Home evidence are captured"
+        "current Wali identity and selected-hero state are recognized",
+        "current level, next level, standard material, exact amount, balance, and Upgrade state are recognized",
+        "one-level successor, standard-material delta, completion progress, bounded 150-diamond exception state, and canonical Home evidence are captured"
       ],
       "terminal_outcomes": [
         "blocked"
@@ -73,8 +73,16 @@
     "free_only": false,
     "maximum_cost": null,
     "quantity": 1,
-    "resource_or_currency": "UNKNOWN_HERO_MATERIAL",
-    "notes": "Current hero, level, material, amount, and balance are unresolved; no Upgrade dispatch or material spend is authorized."
+    "resource_or_currency": "STANDARD_HERO_MATERIAL_FIRST",
+    "standard_material_first": true,
+    "diamond_reset_exception": {
+      "allowed": true,
+      "amount": 150,
+      "unit": "DIAMONDS",
+      "only_when_needed": true,
+      "maximum_per_reset": 1
+    },
+    "notes": "Approved product semantics use standard hero material first; one needed 150-diamond reset exception is bounded to once per reset. Current native evidence and route admission remain missing, so no dispatch is authorized."
   },
   "completion_identity": "hero-upgrade:candidate:observed",
   "terminal_outcomes": [
@@ -82,11 +90,11 @@
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native hero-upgrade evidence are current; never schedule or register this flow.",
-  "bounded_recovery_behavior": "Stop on unknown hero, level, material, cost, balance, queue, successor, progress, or terminal Home state; preserve blocked disposition.",
+  "cooldown_deferred_behavior": "Keep the Wali candidate dormant until native evidence and route admission are current; never schedule or register this flow.",
+  "bounded_recovery_behavior": "Stop on unknown or ambiguous Wali identity, level, material, cost, balance, exception state, successor, progress, or terminal Home state; deny identical retry and any unbounded diamond spend.",
   "evidence_requirements": [
-    "Current native Hero surface, Wally identity, selected state, and Upgrade control are missing.",
-    "Current level transition, exact hero material and amount, balance, one-level successor, material delta, completion progress, and quantity-one evidence are missing.",
+    "Current native Hero surface, Wali identity, selected state, and Upgrade control are missing.",
+    "Current level transition, exact standard hero material and amount, balance, one-level successor, material delta, bounded 150-diamond exception, completion progress, and quantity-one evidence are missing.",
     "Canonical Home return and production-controller route/session proof are missing."
   ],
   "evidence_gates": [
@@ -128,14 +136,13 @@
       "fixture_id": "hero_upgrade_native_surface",
       "status": "required_evidence",
       "path": null,
-      "notes": "Synthetic disabled-upgrade arithmetic does not establish current Wally identity, level, material, exact amount, balance, or product authorization."
+      "notes": "Synthetic disabled-upgrade arithmetic does not establish current Wali identity, level, material, exact amount, balance, or product authorization."
     }
   ],
   "unsupported_or_manual_only_states": [
-    "Upgrade",
-    "Upgrade dispatch",
-    "material spend",
+    "Upgrade dispatch before native evidence and route admission",
     "premium material",
+    "premium currency outside the 150-diamond reset exception",
     "unknown hero",
     "ambiguous hero",
     "unknown level",
@@ -143,8 +150,15 @@
     "unknown material",
     "ambiguous material",
     "unknown cost",
+    "ambiguous cost",
     "insufficient material balance",
+    "unbounded diamond spend",
+    "diamond reset without need",
+    "diamond reset above 150",
+    "repeated 150-diamond reset exception",
     "completion progress greater than three",
+    "identical retry",
+    "real-money confirmation",
     "registration",
     "scheduler"
   ],
@@ -163,11 +177,11 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
     "product_record_id": "hero_upgrade",
-    "product_record_revision": "hero_upgrade-v1",
-    "product_record_digest": "555f1c71d54d17256eab6c2fef1914c446b1502a136eaa798191397725ab0891",
+    "product_record_revision": "hero_upgrade-v2",
+    "product_record_digest": "3eaddcecb4a075404bfc1ccfbcc8a55ba09bd167a89604646878a12f9822306f",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

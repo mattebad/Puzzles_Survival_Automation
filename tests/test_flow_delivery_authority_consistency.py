@@ -106,6 +106,36 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertEqual(campaign["historical_live_attempt_count"], 3)
         self.assertEqual(len(campaign["historical_live_attempts"]), 3)
 
+    def test_bioenhancer_registry_flow_has_blocked_non_scheduler_queue_owner(self) -> None:
+        queue = _read(QUEUE)
+        registry = _read(REGISTRY)
+        by_id = {item["flow_id"]: item for item in queue["flows"]}
+        flow_id = "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+        flow = by_id[flow_id]
+        registry_entry = registry["flows"][flow_id]
+        self.assertEqual(flow["status"], "blocked")
+        self.assertEqual(flow["product_policy_status"], "supervised_consequential_validation")
+        self.assertEqual(flow["registration_state"], "NOT_REGISTERED")
+        self.assertFalse(flow["production_eligible"])
+        self.assertFalse(flow["scheduler_eligibility"])
+        self.assertEqual(flow["maximum_live_attempts"], 0)
+        self.assertEqual(flow["live_attempt_count"], 0)
+        self.assertEqual(
+            registry_entry["runner"],
+            "bioenhancer_free_research_bluestacks_runner",
+        )
+        self.assertEqual(
+            registry_entry["evidence_validator"],
+            "bioenhancer_free_research_bluestacks_evidence",
+        )
+        self.assertEqual(
+            registry_entry["recovery_handler"],
+            "bioenhancer_free_research_bluestacks_recovery",
+        )
+        self.assertIn("Free Research 1x", flow["consequence_policy"])
+        self.assertIn("Aggregate Claim remains the sole Claim owner", flow["consequence_policy"])
+        self.assertIn("existing Bioenhancer development runner", flow["next_concrete_action"])
+
     def test_campaign_atlas_dependency_chain_authorizes_one_bounded_survey(self) -> None:
         queue = _read(QUEUE)
         by_id = {item["flow_id"]: item for item in queue["flows"]}

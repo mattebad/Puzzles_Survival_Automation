@@ -195,11 +195,12 @@
       "policy_id": "gathering-resource-node-march-policy",
       "scope": "gathering.resource_and_march",
       "status": "explicitly_approved",
-      "decision": "Bind Food, Wood, Steel, and Gas in Search and select exact level 5. Reveal Gas only through one bounded left swipe and rebind it from the immediate current frame. Bind only an independently proven free level-5 tile, require one free march slot, use the default formation, and dispatch one known-free Food proving march before independent Wood, Steel, and Gas canaries. Never override an existing march or occupied target.",
+      "decision": "Gathering is a direct Home-to-World flow: open Search, select the requested Wood, Steel, or Gas category, select exact level 5, bind one current-frame free node, verify one free march slot and default formation, and dispatch one bounded march with outbound and return timing. Reveal Gas only through one bounded left swipe and rebind it from the immediate current frame. Food is a proving slice only; Wood, Steel, and Gas Daily progress is observed separately and never creates a selected-Daily prerequisite.",
       "source": "explicit_user_direction_2026-08-16",
       "registration_status": "NOT_REGISTERED",
       "scheduler_eligibility": false,
-      "daily_catalog_boundary": "Food is a proving slice only and gains no Daily objective ownership without current selected-Daily admission"
+      "selected_daily_prerequisite": false,
+      "daily_catalog_boundary": "Food is a proving slice only; Wood, Steel, and Gas progress is separately observed and gains no selected-Daily route authority"
     },
     {
       "policy_id": "troop-training-resource-policy",
@@ -255,13 +256,24 @@
     {
       "policy_id": "hero-upgrade-policy",
       "scope": "hero_upgrade.daily",
-      "status": "prohibited",
-      "decision": "Do not authorize a Hero Upgrade. Global upgrades remain prohibited; current Wally identity, reset/reorder state, exact level/material successor, and canonical Home evidence remain unresolved, so no Upgrade dispatch or material spend is permitted.",
-      "candidate_hero": "unknown_current_wally",
-      "candidate_material": "unknown_current_hero_material",
+      "status": "explicitly_approved",
+      "decision": "Hero Upgrade product semantics are approved for exactly three Wali upgrades per reset. Use standard hero material first. One 150-diamond reset exception is allowed only when needed, at most once per reset. Exact Wali identity, selected state, level, standard-material amount, balance, semantic successor, progress, and canonical Home evidence are required before any runtime admission; current native evidence and route implementation remain missing, so dispatch stays disabled.",
+      "candidate_hero": "Wali",
+      "candidate_material": "standard_hero_material",
       "candidate_amount": null,
+      "diamond_reset_exception": {
+        "allowed": true,
+        "amount": 150,
+        "unit": "DIAMONDS",
+        "only_when_needed": true,
+        "maximum_per_reset": 1
+      },
       "daily_completion_target": 3,
       "upgrade_dispatch_allowed": false,
+      "evidence_state": "evidence_required",
+      "runtime_admission": "disabled_until_native_evidence_and_route_admission",
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligibility": false,
       "terminal_state": "home_canonical",
       "source": "execution_matrix_and_explicit_user_direction"
     },
@@ -419,7 +431,7 @@
       "source": "explicit_user_direction_2026-08-20"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r11",
+  "authority_revision": "flow-delivery-product-authority-v2-r12",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1277,7 +1289,7 @@
     {
       "record_id": "hero_upgrade",
       "record_type": "hero_upgrade",
-      "purpose": "Record an unresolved, evidence-gated Hero Upgrade candidate without authorizing material spend or Upgrade dispatch.",
+      "purpose": "Record approved three-per-reset Wali Hero Upgrade semantics while keeping runtime dispatch disabled until native evidence and route admission.",
       "recurrence": "daily_reset_scoped",
       "semantic_entry_route": {
         "source_home_authorities": [
@@ -1292,27 +1304,34 @@
       "action": "observe_one_hero_upgrade_candidate",
       "target": {
         "kind": "hero_upgrade",
-        "hero_identity": "unknown_current_wally",
+        "hero_identity": "Wali",
         "hero_selected": true,
         "current_level": null,
         "target_level": null,
         "target_identity": "HERO_UPGRADE",
-        "candidate_material": "unknown_current_hero_material",
+        "candidate_material": "standard_hero_material",
         "candidate_amount": null,
         "candidate_balance": null,
         "daily_progress_before": 0,
         "daily_completion_target": 3,
-        "policy_status": "prohibited",
+        "policy_status": "explicitly_approved",
         "upgrade_dispatch_allowed": false,
         "terminal_home": "HOME_CANONICAL"
       },
       "quantity_cost": {
         "quantity": 1,
         "cost": {
-          "kind": "unresolved_resource_cost",
+          "kind": "standard_hero_material_first",
           "amount": null,
-          "unit": "UNKNOWN_HERO_MATERIAL",
+          "unit": "STANDARD_HERO_MATERIAL",
           "free_only": false
+        },
+        "diamond_reset_exception": {
+          "allowed": true,
+          "amount": 150,
+          "unit": "DIAMONDS",
+          "only_when_needed": true,
+          "maximum_per_reset": 1
         }
       },
       "semantic_effect": {
@@ -1325,7 +1344,13 @@
         "level_successor_required": true,
         "daily_progress_successor_required": true,
         "daily_progress_maximum": 3,
+        "standard_material_first": true,
+        "diamond_reset_exception_allowed": true,
+        "diamond_reset_exception_amount": 150,
+        "diamond_reset_exception_only_when_needed": true,
+        "diamond_reset_exception_maximum_per_reset": 1,
         "upgrade_dispatch_allowed": false,
+        "native_evidence_required": true,
         "material_delta_required_for_upgrade_proof": true,
         "hero_level_delta_required_for_upgrade_proof": true,
         "canonical_home_successor_required": true,
@@ -1334,10 +1359,9 @@
         "identical_retry": false
       },
       "forbidden_actions": [
-        "Upgrade",
-        "Upgrade dispatch",
-        "material spend",
+        "Upgrade dispatch before native evidence and route admission",
         "premium material",
+        "premium currency outside the 150-diamond reset exception",
         "unknown hero",
         "ambiguous hero",
         "unknown level",
@@ -1347,6 +1371,10 @@
         "unknown cost",
         "ambiguous cost",
         "insufficient material balance",
+        "unbounded diamond spend",
+        "diamond reset without need",
+        "diamond reset above 150",
+        "repeated 150-diamond reset exception",
         "daily progress greater than three",
         "hero level delta without material delta",
         "material delta without hero level successor",
@@ -1361,11 +1389,11 @@
         "daily_owner": null,
         "point_credit_trigger": null,
         "selected_daily_prerequisite": false,
-        "notes": "Hero Upgrade candidate owns no Daily Claim or points; aggregate_daily_claim remains the sole ordinary Claim owner."
+        "notes": "Hero Upgrade product semantics own three Wali upgrades per reset; aggregate_daily_claim remains the sole ordinary Claim owner."
       },
       "authority_references": [
         {
-          "reference_id": "user-direction:hero-upgrades-prohibited-until-allowlisted",
+          "reference_id": "user-direction:hero-upgrades-wali-three-per-reset",
           "reference_kind": "user_direction",
           "immutable": true
         },
@@ -1375,8 +1403,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "hero_upgrade-v1",
-      "record_digest": "555f1c71d54d17256eab6c2fef1914c446b1502a136eaa798191397725ab0891"
+      "record_revision": "hero_upgrade-v2",
+      "record_digest": "3eaddcecb4a075404bfc1ccfbcc8a55ba09bd167a89604646878a12f9822306f"
     },
     {
       "record_id": "alliance_shop_purchase",
@@ -1950,8 +1978,8 @@
     {
       "record_id": "gathering_resources",
       "record_type": "gathering_resources",
-      "purpose": "Authorize evidence-gated Wood, Steel, and Gas level-5 resource-node gathering with exact current-frame node and free-march binding.",
-      "recurrence": "evidence_gated_variant_canary",
+      "purpose": "Authorize direct Home-to-World Wood, Steel, and Gas level-5 gathering with pulse, march-slot, timer, and current-frame safety semantics.",
+      "recurrence": "pulse_march_slot_timer",
       "semantic_entry_route": {
         "source_home_authorities": [
           "HOME_READY"
@@ -1982,7 +2010,7 @@
         "occupancy": "free_only",
         "march_slot": "one_free_slot",
         "formation": "default",
-        "source_daily_row_required": true,
+        "source_daily_row_required": false,
         "food_authority": "forbidden"
       },
       "quantity_cost": {
@@ -2000,6 +2028,11 @@
         "level_5_node_identity_required": true,
         "free_occupancy_successor_required": true,
         "march_identity_successor_required": true,
+        "free_march_slot_required": true,
+        "default_formation_required": true,
+        "outbound_timer_successor_required": true,
+        "return_timer_successor_required": true,
+        "terminal_home_successor_required": true,
         "resource_progress_successor_required": true,
         "dispatch_is_not_success_proof": true,
         "daily_progress_ownership": "separate_catalog_reconciliation",
@@ -2047,8 +2080,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "gathering_resources-v1",
-      "record_digest": "13f171b493fed806b93d81231572e2922f223ce24f487278533d305923cf7700"
+      "record_revision": "gathering_resources-v2",
+      "record_digest": "5c65405bc13a7df05d1e4f3a01f8719b0dc3fc564f0f10b9aae13b1664f4143b"
     },
     {
       "record_id": "world_map_navigation",
@@ -2435,5 +2468,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd"
+  "authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3"
 }

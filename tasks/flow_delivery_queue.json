@@ -4395,6 +4395,47 @@
       "artifact_root": ".local-captures/flow-delivery/HERO-DUEL-EVIDENCE-GATE"
     },
     {
+      "flow_id": "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+      "title": "Validate one zero-cost Bioenhancer Free Research 1x action",
+      "kind": "direct_free_research_integration",
+      "priority": 125,
+      "status": "blocked",
+      "backlog_task_id": "DQ-FLOW-BIOENHANCER",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/flow_delivery_bioenhancer_bluestacks.py",
+        "scripts/bioenhancer_free_research_canary.py",
+        "tasks/bioenhancer.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION.json"
+      ],
+      "navigation_model": "direct_home_to_research_lab_to_bioenhancer_to_home",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current native Research Lab, Bioenhancer, Free Research 1x, cooldown successor, and canonical Home evidence are required before any research input.",
+      "consequence_policy": "Existing development runner owns exactly one current-frame zero-cost Free Research 1x action. Paid, 10x, unknown, stale, contradictory, and identical-retry research remain prohibited. Aggregate Claim remains the sole Claim owner.",
+      "product_policy_status": "supervised_consequential_validation",
+      "registration_state": "NOT_REGISTERED",
+      "production_eligible": false,
+      "scheduler_eligibility": false,
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_flow_delivery_bioenhancer_bluestacks.py",
+        "tests/test_bioenhancer.py",
+        "tests/test_daily_bioenhancer.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current BlueStacks native Free Research 1x identity, immediate-before frame, positive cooldown successor, and canonical Home route/session proof are missing; retained Bliss evidence is non-accepting.",
+      "next_concrete_action": "Use the existing Bioenhancer development runner only after a bounded evidence review; keep registration, scheduling, and research dispatch disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+    },
+    {
       "flow_id": "VIP-GET-PTS-POPUP-DISMISSAL",
       "title": "Record VIP Get Pts popup helper authority and evidence gate",
       "kind": "vip_popup_helper_evidence_gate",

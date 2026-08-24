@@ -1,9 +1,9 @@
 {
   "schema_version": 2,
   "flow_id": "GATHERING-BLUESTACKS-INTEGRATION",
-  "product_purpose": "Evidence-gated Wood, Steel, and Gas level-5 resource-node gathering.",
+  "product_purpose": "Direct Home-to-World Wood, Steel, and Gas level-5 gathering with pulse, march-slot, outbound/return-timer, and current-frame safety semantics.",
   "trigger_cadence_type": "evidence_gated",
-  "reset_scope": "daily_reset",
+  "reset_scope": "pulse_and_march_slot_timer",
   "required_starting_context": [
     "world_map"
   ],
@@ -126,7 +126,8 @@
       "planner": "GatheringRuntimeController",
       "permitted_input": "reconcile_resource_progress_and_return_home",
       "postconditions": [
-        "Positive requested-resource progress and canonical Home are recognized"
+        "Positive requested-resource progress and outbound/return timer successors are recognized",
+        "Canonical Home is recognized after the timer-bound gathering pass"
       ],
       "terminal_outcomes": [
         "complete_for_reset",
@@ -158,7 +159,7 @@
     "maximum_cost": null,
     "quantity": 1,
     "resource_or_currency": null,
-    "notes": "One exact variant dispatch requires a free level-5 node, one free march slot, default formation, and no resource or currency cost."
+    "notes": "One exact Wood, Steel, or Gas variant dispatch requires a current-frame free level-5 node, one free march slot, default formation, outbound and return timer successors, and no resource or currency cost. Food remains outside this admitted record."
   },
   "completion_identity": "gathering-resources:variant-progress",
   "terminal_outcomes": [
@@ -268,11 +269,11 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "7bb8a0b30a0cb8b727a2b45f4830d703686f5c96f31970e10449197f404580bd",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
     "product_record_id": "gathering_resources",
-    "product_record_revision": "gathering_resources-v1",
-    "product_record_digest": "13f171b493fed806b93d81231572e2922f223ce24f487278533d305923cf7700",
+    "product_record_revision": "gathering_resources-v2",
+    "product_record_digest": "5c65405bc13a7df05d1e4f3a01f8719b0dc3fc564f0f10b9aae13b1664f4143b",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
