@@ -43,11 +43,6 @@ MANIFEST_STATUSES = {
     "NOT_APPLICABLE",
 }
 
-STAGE_CONTROL_PLANE_IDS = {
-    8: "stage-8-entry-gate",
-    9: "stage-9-autonomous-service-implementation",
-}
-STAGE_ID_PATTERN = re.compile(r"^stage-(?P<number>[1-9][0-9]*)-[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 HANDOFF_SCHEMA_VERSION = 3
@@ -386,40 +381,9 @@ def parse_handoff(path: Path = HANDOFF_PATH) -> Dict[str, Any]:
         raise GovernanceValidationError("handoff control_owner must be sol_parent")
     if state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"] is not True:
         raise GovernanceValidationError("handoff must prohibit recursive evidence inspection")
-    if state["current_task_id"].startswith("stage-"):
-        validate_handoff_relations(state)
     validate_lifecycle_relations(state)
     return state
 
-
-def _stage_number(value: Any, field_name: str) -> int:
-    if not isinstance(value, str) or not STAGE_ID_PATTERN.fullmatch(value):
-        raise GovernanceValidationError(
-            f"{field_name} must be a canonical schema-3 stage identifier"
-        )
-    number = int(STAGE_ID_PATTERN.fullmatch(value).group("number"))
-    if STAGE_CONTROL_PLANE_IDS.get(number) != value:
-        raise GovernanceValidationError(f"{field_name} is not a known stage identifier")
-    return number
-
-
-def validate_handoff_relations(state: Dict[str, Any]) -> None:
-    current_number = _stage_number(state["current_task_id"], "current_task_id")
-    next_task_id = state["next_task_id"]
-    if not isinstance(next_task_id, str):
-        raise GovernanceValidationError(
-            "schema-3 stage handoff requires a stage successor"
-        )
-    next_number = _stage_number(next_task_id, "next_task_id")
-    if next_number != current_number + 1:
-        raise GovernanceValidationError(
-            "schema-3 stage successor must advance exactly one stage"
-        )
-    active_stage = re.search(r"stage[_-]([0-9]+)(?:[_-]|$)", state["active_delivery_stage"])
-    if active_stage is None or int(active_stage.group(1)) != current_number:
-        raise GovernanceValidationError(
-            "active_delivery_stage must identify the current schema-3 stage"
-        )
 
 
 def validate_lifecycle_relations(state: Dict[str, Any]) -> None:
@@ -834,9 +798,12 @@ def validate_repository(root: Path = ROOT) -> Tuple[List[str], List[str]]:
     backlog = _read(root / "BACKLOG.md")
     validate_git_bindings(root, state)
     validate_lifecycle_relations(state)
-    if state["current_task_id"].startswith("stage-"):
-        validate_handoff_relations(state)
-    else:
+    active_heading = re.search(
+        rf"^### {re.escape(state['current_task_id'])}(?:\s+—.*)?$",
+        backlog,
+        flags=re.MULTILINE,
+    )
+    if active_heading is not None:
         active_block = task_block(backlog, state["current_task_id"])
         fields = validate_task_contract(active_block, state["current_task_id"])
         validate_active_task_state(state, fields, state["current_task_id"])

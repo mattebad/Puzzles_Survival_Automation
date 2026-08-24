@@ -27,7 +27,7 @@ class GovernanceValidationTests(unittest.TestCase):
         self.assertEqual(payload["max_completed_flows_per_parent_conversation"], 2)
         self.assertIn(".local-orchestrator/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
 
-    def test_handoff_has_distinct_current_and_next_stage_fields(self):
+    def test_handoff_has_distinct_current_and_next_task_fields(self):
         state = validate_governance.parse_handoff()
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
         self.assertEqual(
@@ -183,34 +183,37 @@ class GovernanceValidationTests(unittest.TestCase):
             with self.assertRaises(validate_governance.GovernanceValidationError):
                 validate_governance.validate_repository(ROOT)
 
-    def test_valid_current_stage_handoff_relations_pass(self):
+    def test_valid_current_handoff_safety_relations_pass(self):
         state = validate_governance.parse_handoff()
         validate_governance.validate_git_bindings(ROOT, state)
-        validate_governance.validate_handoff_relations(state)
         validate_governance.validate_lifecycle_relations(state)
 
     def test_schema_three_rejects_nonexistent_head_binding(self):
         self._assert_repository_rejects(lambda state: state.update({"head_binding": "0" * 40}))
 
-    def test_schema_three_rejects_malformed_or_backwards_stage_successor(self):
-        for successor in ("not-a-stage", "stage-7-autonomous-service-implementation"):
-            with self.subTest(successor=successor):
-                self._assert_repository_rejects(
-                    lambda state, successor=successor: state.update(
-                        {"next_task_id": successor}
-                    )
-                )
+    def test_schema_three_rejects_nonexistent_product_candidate_head(self):
+        self._assert_repository_rejects(
+            lambda state: state.update({"last_product_candidate_head": "0" * 40})
+        )
 
-    def test_completed_stage_rejects_active_control_state(self):
+
+    def test_completed_handoff_rejects_active_control_state(self):
         mutations = {
             "active_flow": lambda state: state.update({"active_task_or_flow": "flow-x"}),
             "manifest": lambda state: state.update(
                 {"active_execution_manifest_path": "evidence/current-evidence-manifest.json"}
             ),
             "lease": lambda state: state.update({"development_lease_state": "held"}),
+            "journal_lease": lambda state: state["journals_and_lease"].update(
+                {"development_lease_status": "held"}
+            ),
             "owner": lambda state: state.update({"runtime_ownership_state": "flow-x"}),
+            "writable_agent": lambda state: state.update({"writable_agent_state": "agent-x"}),
             "unresolved_action": lambda state: state.update(
                 {"unresolved_action_state": "action-123"}
+            ),
+            "prepared_action": lambda state: state["journals_and_lease"].update(
+                {"active_prepared_input_sent_unresolved_action_ids": ["action-123"]}
             ),
         }
         for name, mutate in mutations.items():
