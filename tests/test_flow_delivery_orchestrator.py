@@ -224,6 +224,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
             "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
             "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
             "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
@@ -242,6 +243,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE",
             "HERO-UPGRADE-EVIDENCE-GATE",
             "HERO-DUEL-EVIDENCE-GATE",
+            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
             "VIP-GET-PTS-POPUP-DISMISSAL",
         ]
         self.assertEqual([item["flow_id"] for item in self.queue["flows"]], expected)
@@ -251,7 +253,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         }
         self.assertIn(counts["active"], (0, 1))
         self.assertEqual(counts["ready"] + counts["active"], 0)
-        self.assertEqual(counts["blocked"], 13)
+        self.assertEqual(counts["blocked"], 15)
         self.assertEqual(counts["completed"], 19)
         self.assertEqual(counts["needs_product_decision"], 0)
 

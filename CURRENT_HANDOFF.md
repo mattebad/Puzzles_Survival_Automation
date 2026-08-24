@@ -416,14 +416,15 @@ architecture passed 92 tests with receipt
 `d5f929a1c4c66432af0fcbfe34bfc521198bf888cec98128ca4ba27d055943ee`.
 No emulator/ADB/BlueStacks observation or runtime input occurred. The
 accepted Stage 6 World session was not rebuilt. Native positive World
-Home-ready/World/Search/Home proof remains required. Next is only Gathering
-product authority.
+Home-ready/World/Search/Home proof remains required. Gathering product authority
+and its route disposition are already recorded; no new Gathering correction is
+pending.
 
 ## Stage 7 ordered remainder and next-three detail
 
-The machine-readable state above is the persistent ordered plan. Next:
-Gathering product authority, then its separate route/session migration.
-Product authority and session migrations remain separate atomic tasks. All
-remaining canonical-plan/catalog entries require one durable migrated,
-blocked-with-owner, disabled-with-owner, or retired disposition before Stage 7
-closure.
+The machine-readable state above is the persistent ordered plan. Gathering
+product authority and its route disposition are already recorded. Only final
+Stage 7 closure validation and publication remain. Supply Depot and Bioenhancer
+queue membership must remain consistent with registry ownership. All evidence
+gates remain truthful; registration and scheduling remain disabled. Stage 8 has
+not begun and is not authorized by this correction.

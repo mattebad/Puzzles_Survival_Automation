@@ -3137,6 +3137,44 @@
       }
     },
     {
+      "flow_id": "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+      "title": "Migrate Supply Depot continuous session with evidence gate",
+      "kind": "continuous_session_migration",
+      "priority": 125,
+      "status": "blocked",
+      "backlog_task_id": "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/flow_delivery_supply_depot_bluestacks.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/SUPPLY-DEPOT-BLUESTACKS-INTEGRATION.json"
+      ],
+      "navigation_model": "canonical_home_to_supply_depot_free_exhaustion_and_canonical_home",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized by this correction; current uninterrupted Free-exhaustion through all Free controls, positive successor, and canonical Home proof remain required.",
+      "consequence_policy": "Offline continuous-session migration is accepted. Paid, diamond, ambiguous, stale, unknown, and identical-retry collection actions remain prohibited; transport or a hold alone does not prove collection; no Daily 5/5 attribution is inferred.",
+      "product_policy_status": "supervised_consequential_validation",
+      "registration_state": "NOT_REGISTERED",
+      "production_eligible": false,
+      "scheduler_eligibility": false,
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_validation_receipt_digest": "21d2184ba75969cdd7e1f75101eddde3f1edf69d1344255eb9564a236b0ca036",
+      "architecture_validation_receipt_digest": "ff47b92baf60b59dcc859bf0fca1232ad0047717aab8fb25fb6f501ea4f06a0d",
+      "focused_tests": [
+        "tests/test_flow_delivery_supply_depot_bluestacks.py",
+        "tests/test_flow_delivery_authority_consistency.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Offline continuous-session migration is accepted, but current uninterrupted Free-exhaustion plus canonical-Home proof remains evidence_required; no live attempt is authorized by this correction.",
+      "next_concrete_action": "Remain evidence_required; use the existing Supply Depot runner, validator, and recovery handler only after separate authorization for current uninterrupted Free-exhaustion plus canonical-Home proof; keep collection, registration, and scheduling disabled.",
+      "last_completed_stage": "focused_validation",
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
+    },
+    {
       "flow_id": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
       "title": "Retire the legacy Supply Depot adapter beside the canonical route",
       "kind": "legacy_adapter_retirement",

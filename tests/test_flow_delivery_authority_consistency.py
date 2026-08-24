@@ -136,6 +136,67 @@ class AuthorityConsistencyTests(unittest.TestCase):
         self.assertIn("Aggregate Claim remains the sole Claim owner", flow["consequence_policy"])
         self.assertIn("existing Bioenhancer development runner", flow["next_concrete_action"])
 
+    def test_supply_registry_flow_has_blocked_non_scheduler_queue_owner(self) -> None:
+        queue = _read(QUEUE)
+        registry = _read(REGISTRY)
+        by_id = {item["flow_id"]: item for item in queue["flows"]}
+        flow_id = "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
+        self.assertIn(flow_id, by_id)
+        self.assertIn(flow_id, registry["flows"])
+        flow = by_id[flow_id]
+        registry_entry = registry["flows"][flow_id]
+        self.assertEqual(flow["status"], "blocked")
+        self.assertEqual(
+            flow["product_policy_status"],
+            "supervised_consequential_validation",
+        )
+        self.assertEqual(flow["registration_state"], "NOT_REGISTERED")
+        self.assertFalse(flow["production_eligible"])
+        self.assertFalse(flow["scheduler_eligibility"])
+        self.assertEqual(flow["maximum_live_attempts"], 0)
+        self.assertEqual(flow["live_attempt_count"], 0)
+        self.assertEqual(flow["live_attempts"], [])
+        self.assertTrue(flow["requires_bluestacks_live"])
+        self.assertIn(
+            "scripts/flow_delivery_supply_depot_bluestacks.py",
+            flow["implementation_entrypoints"],
+        )
+        self.assertEqual(
+            registry_entry["runner"],
+            "supply_depot_bluestacks_runner",
+        )
+        self.assertEqual(
+            registry_entry["evidence_validator"],
+            "supply_depot_bluestacks_evidence",
+        )
+        self.assertEqual(
+            registry_entry["recovery_handler"],
+            "supply_depot_bluestacks_recovery",
+        )
+        self.assertIn("evidence_required", flow["blocked_reason"])
+        self.assertIn("evidence_required", flow["next_concrete_action"])
+        self.assertIn("No live attempt is authorized", flow["live_validation_scope"])
+        policy_text = flow["consequence_policy"].casefold()
+        for prohibited in (
+            "paid",
+            "diamond",
+            "ambiguous",
+            "stale",
+            "unknown",
+            "identical-retry",
+        ):
+            self.assertIn(prohibited, policy_text)
+        self.assertIn("transport or a hold alone", policy_text)
+        self.assertIn("daily 5/5", policy_text)
+        self.assertEqual(
+            flow["focused_validation_receipt_digest"],
+            "21d2184ba75969cdd7e1f75101eddde3f1edf69d1344255eb9564a236b0ca036",
+        )
+        self.assertEqual(
+            flow["architecture_validation_receipt_digest"],
+            "ff47b92baf60b59dcc859bf0fca1232ad0047717aab8fb25fb6f501ea4f06a0d",
+        )
+
     def test_campaign_atlas_dependency_chain_authorizes_one_bounded_survey(self) -> None:
         queue = _read(QUEUE)
         by_id = {item["flow_id"]: item for item in queue["flows"]}
