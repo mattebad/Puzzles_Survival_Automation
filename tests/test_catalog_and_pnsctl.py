@@ -75,6 +75,16 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(objective["progress_format"], "current/5")
         self.assertEqual(objective["claim_support"], "ordinary_row_only")
 
+    def test_catalog_campaign_ap_references_direct_record_without_selected_daily_prerequisite(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        objective = next(
+            item for item in raw["objectives"] if item["objective_key"] == "consume_ap"
+        )
+        self.assertEqual(objective["product_record_id"], "campaign_ap")
+        self.assertFalse(objective["selected_daily_prerequisite"])
+        self.assertEqual(objective["progress_format"], "current/20")
+        self.assertEqual(objective["claim_support"], "ordinary_row_only")
+
     def test_catalog_separates_milestone_claim_from_ordinary_row_claim(self):
         raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
         ordinary = raw["claim_ownership"]["ordinary_claim"]

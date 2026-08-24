@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_nine_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_ten_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -63,6 +63,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "ultimate_challenge",
                 "bioenhancer_research",
                 "noahs_tavern_recruitment",
+                "campaign_ap",
             },
         )
         validate_product_authority(self.authority)
@@ -115,6 +116,35 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(record["daily_ownership"]["point_credit_trigger"], "five_basic_recruit_successors")
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
         self.assertEqual(record["terminal_requirement"]["home_authority"], "HOME_CANONICAL")
+    def test_campaign_ap_record_binds_budget_and_forbidden_modes(self) -> None:
+        record = self.records["campaign_ap"]
+        self.assertEqual(record["record_type"], "campaign_ap")
+        self.assertEqual(record["record_revision"], "campaign_ap-v1")
+        self.assertEqual(record["semantic_entry_route"]["target"], "CAMPAIGN")
+        self.assertEqual(
+            record["target"]["supported_story_destinations"],
+            ["1-20-9", "1-15-9", "2-2-9"],
+        )
+        self.assertEqual(record["target"]["stage_costs"], {"1-15-9": 14, "1-20-9": 16, "2-2-9": 20})
+        self.assertEqual(record["target"]["maximum_ap"], 120)
+        self.assertFalse(record["target"]["refill_allowed"])
+        self.assertEqual(record["quantity_cost"]["cost"]["unit"], "AP")
+        self.assertTrue(record["semantic_effect"]["exact_ap_delta_required"])
+        self.assertTrue(record["semantic_effect"]["result_successor_required"])
+        self.assertTrue(record["semantic_effect"]["no_refill"])
+        self.assertFalse(record["semantic_effect"]["identical_retry"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in (
+            "sweep",
+            "blitz",
+            "auto complete",
+            "ap refill",
+            "ultimate challenge",
+            "unknown cost",
+        ):
+            self.assertIn(marker, forbidden)
 
     def test_direct_records_reject_daily_owner_and_point_credit_even_with_fresh_digests(self) -> None:
         for field, replacement in (

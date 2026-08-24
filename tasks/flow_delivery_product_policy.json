@@ -348,7 +348,7 @@
       "source": "explicit_user_direction_2026-08-20"
     }
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r8",
+  "authority_revision": "flow-delivery-product-authority-v2-r9",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -988,6 +988,100 @@
       "record_digest": "5f36370751b2ff5071c0f42fbe15a28a3c628b28aa1ecf588337f5d32cb61207"
     },
     {
+      "record_id": "campaign_ap",
+      "record_type": "campaign_ap",
+      "purpose": "Run bounded Campaign AP Auto Battle on an approved configured Story stage while AP covers its verified cost.",
+      "recurrence": "pulse_driven_ap_recovery",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "CAMPAIGN",
+        "route": [
+          "CAMPAIGN",
+          "STORY",
+          "CONFIGURED_STAGE"
+        ]
+      },
+      "objective": "campaign_ap_auto_battle",
+      "action": "dispatch_campaign_ap_auto_battle",
+      "target": {
+        "kind": "campaign_ap",
+        "eligibility": "current_ap_covers_configured_stage_cost",
+        "control": "Auto Battle",
+        "quantity": 1,
+        "supported_story_destinations": [
+          "1-20-9",
+          "1-15-9",
+          "2-2-9"
+        ],
+        "stage_costs": {
+          "1-15-9": 14,
+          "1-20-9": 16,
+          "2-2-9": 20
+        },
+        "maximum_ap": 120,
+        "refill_allowed": false,
+        "execution_mode": "auto_battle"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "owned_campaign_ap",
+          "amount": "configured_stage_cost",
+          "unit": "AP",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "maximum_ap": 120,
+        "regeneration_seconds_per_ap": 360,
+        "exact_stage_cost_required": true,
+        "exact_ap_delta_required": true,
+        "result_successor_required": true,
+        "repeat_while_affordable": true,
+        "no_refill": true,
+        "dispatch_is_not_success_proof": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Sweep",
+        "Blitz",
+        "Auto Complete",
+        "AP refill",
+        "unknown stage",
+        "unknown cost",
+        "Ultimate Challenge",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Campaign AP owns direct AP execution only; aggregate Daily Claim remains the sole ordinary row Claim owner."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:campaign-ap-budget-and-auto-battle",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-campaign-ap-stage-and-result",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "campaign_ap-v1",
+      "record_digest": "e8a41e45fb42d473145cd16c3c5914287a6f4eac58359cc363963b0d63a84362"
+    },
+    {
       "record_id": "noahs_tavern_recruitment",
       "record_type": "noahs_tavern_recruitment",
       "purpose": "Maintain the Recruitment Daily Basic-five objective and independent zero-cost Basic, Intermediate, and Advanced single-recruit windows from Noah's Tavern.",
@@ -1099,5 +1193,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "3b64ef5caf8755449bed680c4555117f658db1cf2c50c9df1d17c3019d5bf5c2"
+  "authority_digest": "29de535c71217cd19658a7651d6c4cd911f7d855542b6f90f6a160db7efbfee2"
 }

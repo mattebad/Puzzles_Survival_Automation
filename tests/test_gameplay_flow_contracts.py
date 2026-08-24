@@ -175,6 +175,23 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertIn("one ap per 360 seconds", joined)
         self.assertIn("maximum ap 120", joined)
 
+
+    def test_campaign_ap_contract_binds_typed_record_and_preserves_disabled_state(self):
+        contract = load_flow_contract("CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "campaign_ap")
+        self.assertEqual(binding["product_record_revision"], "campaign_ap-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 20)
+        self.assertEqual(contract["cost_quantity_requirements"]["resource_or_currency"], "CAMPAIGN_AP")
+        self.assertEqual(contract["implementation_status"], "reference_implemented")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["registration_state"], "disabled")
+
     def test_daily_and_maintenance_contract_identities_are_separate(self):
         pairs = (
             ("NANOWEAPON-BLUESTACKS-INTEGRATION", "NANO-MATERIAL-PRODUCTION-MAINTENANCE"),

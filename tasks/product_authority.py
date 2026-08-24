@@ -20,7 +20,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r8"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r9"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -49,6 +49,7 @@ RECORD_TYPES = frozenset(
         "ultimate_challenge",
         "bioenhancer_research",
         "noahs_tavern_recruitment",
+        "campaign_ap",
     }
 )
 RECORD_IDS = frozenset(
@@ -62,6 +63,7 @@ RECORD_IDS = frozenset(
         "ultimate_challenge",
         "bioenhancer_research",
         "noahs_tavern_recruitment",
+        "campaign_ap",
     }
 )
 PRODUCT_RECORD_IDS = RECORD_IDS
@@ -280,6 +282,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "ultimate_challenge": "CAMPAIGN",
         "bioenhancer_research": "RESEARCH_LAB",
         "noahs_tavern_recruitment": "NOAHS_TAVERN",
+        "campaign_ap": "CAMPAIGN",
     }[record_type]
     if target != expected_target:
         raise ProductAuthorityError(
@@ -305,6 +308,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "ultimate_challenge": "ultimate_challenge",
         "bioenhancer_research": "bioenhancer_research",
         "noahs_tavern_recruitment": "noahs_tavern_recruitment",
+        "campaign_ap": "campaign_ap",
     }[record_id]
     if record_type != expected_type:
         raise ProductAuthorityError("product record id/type discriminator mismatch")
@@ -973,6 +977,106 @@ def _validate_noahs_tavern_recruitment_record(record: Mapping[str, Any]) -> None
             )
 
 
+def _validate_campaign_ap_record(record: Mapping[str, Any]) -> None:
+    """Validate bounded AP-funded Auto Battle product authority."""
+
+    if record["objective"] != "campaign_ap_auto_battle":
+        raise ProductAuthorityError(
+            "Campaign AP record objective must be campaign_ap_auto_battle"
+        )
+    if record["action"] != "dispatch_campaign_ap_auto_battle":
+        raise ProductAuthorityError(
+            "Campaign AP action must be dispatch_campaign_ap_auto_battle"
+        )
+    if record["recurrence"] != "pulse_driven_ap_recovery":
+        raise ProductAuthorityError(
+            "Campaign AP recurrence must be pulse_driven_ap_recovery"
+        )
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
+        "route"
+    ) != ["CAMPAIGN", "STORY", "CONFIGURED_STAGE"]:
+        raise ProductAuthorityError(
+            "Campaign AP entry route must bind canonical Home to configured Story stage"
+        )
+    target = record.get("target")
+    if not isinstance(target, Mapping) or (
+        target.get("kind") != "campaign_ap"
+        or target.get("eligibility") != "current_ap_covers_configured_stage_cost"
+        or target.get("control") != "Auto Battle"
+        or target.get("quantity") != 1
+        or target.get("supported_story_destinations")
+        != ["1-20-9", "1-15-9", "2-2-9"]
+        or target.get("stage_costs") != {"1-15-9": 14, "1-20-9": 16, "2-2-9": 20}
+        or target.get("maximum_ap") != 120
+        or target.get("refill_allowed") is not False
+        or target.get("execution_mode") != "auto_battle"
+    ):
+        raise ProductAuthorityError(
+            "Campaign AP target must bind approved stages, costs, budget, and Auto Battle"
+        )
+    quantity_cost = record.get("quantity_cost")
+    if not isinstance(quantity_cost, Mapping) or quantity_cost.get("quantity") != 1:
+        raise ProductAuthorityError("Campaign AP quantity must be exactly one action")
+    cost = quantity_cost.get("cost")
+    if not isinstance(cost, Mapping) or (
+        cost.get("kind") != "owned_campaign_ap"
+        or cost.get("amount") != "configured_stage_cost"
+        or cost.get("unit") != "AP"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError(
+            "Campaign AP must bind one known AP cost without refill or free-only semantics"
+        )
+    effect = record["semantic_effect"]
+    if (
+        effect.get("effect_ordinal") != 1
+        or effect.get("maximum_ap") != 120
+        or effect.get("regeneration_seconds_per_ap") != 360
+        or effect.get("exact_stage_cost_required") is not True
+        or effect.get("exact_ap_delta_required") is not True
+        or effect.get("result_successor_required") is not True
+        or effect.get("repeat_while_affordable") is not True
+        or effect.get("no_refill") is not True
+        or effect.get("dispatch_is_not_success_proof") is not True
+        or effect.get("identical_retry") is not False
+    ):
+        raise ProductAuthorityError(
+            "Campaign AP must require exact cost, AP delta, result successor, and retry denial"
+        )
+    ownership = record["daily_ownership"]
+    if (
+        ownership.get("daily_owner") is not None
+        or ownership.get("point_credit_trigger") is not None
+        or ownership.get("selected_daily_prerequisite") is not False
+    ):
+        raise ProductAuthorityError(
+            "Campaign AP must not own selected Daily or point credit"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Campaign AP terminal requirement must return to canonical Home"
+        )
+    forbidden = " ".join(str(item) for item in record.get("forbidden_actions", []))
+    forbidden_lower = forbidden.casefold()
+    for marker in (
+        "sweep",
+        "blitz",
+        "auto complete",
+        "ap refill",
+        "unknown stage",
+        "unknown cost",
+        "ultimate challenge",
+        "identical retry",
+        "real-money",
+    ):
+        if marker not in forbidden_lower:
+            raise ProductAuthorityError(f"Campaign AP must forbid {marker} controls")
+
+
 def _validate_bioenhancer_research_record(record: Mapping[str, Any]) -> None:
     """Validate one direct, zero-cost Bioenhancer Free Research pulse."""
 
@@ -1079,6 +1183,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_ultimate_challenge_record(record)
     elif record_type == "noahs_tavern_recruitment":
         _validate_noahs_tavern_recruitment_record(record)
+    elif record_type == "campaign_ap":
+        _validate_campaign_ap_record(record)
     else:
         _validate_bioenhancer_research_record(record)
     return dict(record)
@@ -1138,8 +1244,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 9:
-        raise ProductAuthorityError("product authority requires exactly nine records")
+    if not isinstance(records, list) or len(records) != 10:
+        raise ProductAuthorityError("product authority requires exactly ten records")
     return records
 
 
@@ -1367,6 +1473,18 @@ def validate_contract_product_authority_binding(
     ) == "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION":
         raise ProductAuthorityError(
             "Daily Milestone flow must bind the Activity Milestone record"
+        )
+    if record_id == "campaign_ap" and contract.get(
+        "flow_id"
+    ) != "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
+        raise ProductAuthorityError(
+            "Campaign AP record is reserved for the Campaign AP Auto Battle flow"
+        )
+    if record_id != "campaign_ap" and contract.get(
+        "flow_id"
+    ) == "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
+        raise ProductAuthorityError(
+            "Campaign AP Auto Battle flow must bind the Campaign AP record"
         )
     if binding["product_record_revision"] != record["record_revision"]:
         raise ProductAuthorityError("contract references stale product record revision")
