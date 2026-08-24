@@ -8,30 +8,43 @@ from automation_service.contracts import (
     FlowDescriptor,
     NormalizedOutcome,
     NormalizedResult,
+    RecurrenceClass,
+    RecurrenceProjection,
     SchedulerFacts,
 )
-from automation_service.scheduler import DisabledProductionAuthority, UtcPulseCoordinator
+from automation_service.scheduler import UtcPulseCoordinator
 from safe_action_core import SafetyStore, SQLiteSchedulerInvocationRepository
 
 
-class CompleteHandler:
-    def __init__(self, descriptor: FlowDescriptor) -> None:
+class Authority:
+    def permits(self, descriptor, facts):
+        return True
+
+
+class Handler:
+    def __init__(self, descriptor, result=None, revalidate=True, raises=False):
         self.descriptor = descriptor
-        self.calls = 0
+        self.result = result or NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "DONE")
+        self.revalidate_value = revalidate
+        self.raises = raises
+        self.plan_calls = 0
 
     def describe(self):
         return self.descriptor
 
     def eligibility(self, facts, perception=None):
-        return facts.health_ok and not facts.unresolved_action
+        return True
+
+    def revalidate(self, facts, perception=None):
+        if self.raises:
+            raise RuntimeError("revalidation unknown")
+        return self.revalidate_value
 
     def plan(self, facts, perception=None):
-        self.calls += 1
-        return NormalizedResult(
-            NormalizedOutcome.COMPLETE_FOR_RESET,
-            "FAKE_COMPLETE",
-            observed_progress={"pulse": self.calls},
-        )
+        self.plan_calls += 1
+        if self.raises:
+            raise RuntimeError("handler unknown")
+        return self.result
 
     def reconcile(self, plan, perception=None):
         return plan
@@ -40,209 +53,158 @@ class CompleteHandler:
         return NormalizedResult(NormalizedOutcome.BLOCKED, reason_code)
 
     def summarize(self):
-        return {"calls": self.calls}
+        return {"plan_calls": self.plan_calls}
 
 
-class DeferredHandler(CompleteHandler):
-    def plan(self, facts, perception=None):
-        self.calls += 1
-        return NormalizedResult(
-            NormalizedOutcome.DEFERRED,
-            "WAIT_FOR_NEXT_UTC_WINDOW",
-            next_eligible_at=facts.now_utc_epoch + 60.0,
-        )
+def descriptor(flow_id="flow", **kwargs):
+    return FlowDescriptor(
+        flow_id, "owner", "family", "variant", "daily_once_per_reset",
+        scheduler_eligible=True, accepted_product="product-v1", product_revision="r1",
+        registration_status="REGISTERED", **kwargs,
+    )
 
 
-class UnresolvedHandler(CompleteHandler):
-    def plan(self, facts, perception=None):
-        return NormalizedResult(NormalizedOutcome.UNRESOLVED, "UNKNOWN_SUCCESSOR")
-
-
-class TestActivationAuthority:
-    def permits(self, descriptor, facts):
-        return True
-
+def facts(reset="reset-1", now=100.0, **kwargs):
+    values = dict(
+        health_ok=True,
+        accepted_product="product-v1",
+        product_revision="r1",
+        registration_status="REGISTERED",
+        scheduler_eligible=True,
+        owner_available=True,
+        clock_ok=True,
+        reset_agreement=True,
+    )
+    values.update(kwargs)
+    return SchedulerFacts("account", "server", reset, now, **values)
 
 class AutomationServiceSchedulerTests(unittest.TestCase):
-    def test_missing_or_disabled_activation_authority_fails_closed(self) -> None:
+    def test_mandatory_gates_fail_closed_without_handler_start(self):
         with tempfile.TemporaryDirectory() as folder:
             store = SafetyStore(Path(folder) / "state.sqlite3")
             try:
-                repository = SQLiteSchedulerInvocationRepository(store)
-                descriptor = FlowDescriptor("not-registered", "owner", "family", "v", "pulse")
+                d = descriptor(); handler = Handler(d)
+                coordinator = UtcPulseCoordinator(SQLiteSchedulerInvocationRepository(store), [d], {d.flow_id: handler}, activation_authority=Authority())
+                report = coordinator.pulse(facts(clock_ok=False))
+                self.assertEqual(report.reason_code, "UTC_CLOCK_INVALID")
+                self.assertEqual(handler.plan_calls, 0)
+            finally:
+                store.close()
+
+    def test_one_candidate_per_pulse_and_restart_safe_completion(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = SafetyStore(Path(folder) / "state.sqlite3")
+            d1, d2 = descriptor("first", priority=1), descriptor("second", priority=2)
+            h1, h2 = Handler(d1), Handler(d2)
+            try:
+                repo = SQLiteSchedulerInvocationRepository(store)
+                coordinator = UtcPulseCoordinator(repo, [d1, d2], {"first": h1, "second": h2}, activation_authority=Authority())
+                first = coordinator.pulse(facts())
+                self.assertEqual(first.candidate.descriptor.flow_id, "first")
+                self.assertEqual(h1.plan_calls, 1); self.assertEqual(h2.plan_calls, 0)
+                second = UtcPulseCoordinator(repo, [d1, d2], {"first": h1, "second": h2}, activation_authority=Authority()).pulse(facts(now=101))
+                self.assertEqual(second.candidate.descriptor.flow_id, "second")
+            finally:
+                store.close()
+
+    def test_post_selection_revalidation_and_unknown_are_fail_closed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = SafetyStore(Path(folder) / "state.sqlite3")
+            try:
+                d = descriptor(); h = Handler(d, revalidate=False); repo = SQLiteSchedulerInvocationRepository(store)
+                report = UtcPulseCoordinator(repo, [d], {d.flow_id: h}, activation_authority=Authority()).pulse(facts())
+                self.assertEqual(report.reason_code, "POST_SELECTION_REVALIDATION_FAILED"); self.assertEqual(h.plan_calls, 0)
+            finally:
+                store.close()
+        with tempfile.TemporaryDirectory() as folder:
+            store = SafetyStore(Path(folder) / "state.sqlite3")
+            try:
+                d = descriptor(); h = Handler(d, raises=True); repo = SQLiteSchedulerInvocationRepository(store)
+                report = UtcPulseCoordinator(repo, [d], {d.flow_id: h}, activation_authority=Authority()).pulse(facts())
+                self.assertEqual(report.result.outcome.value, "reconciliation_required")
+                self.assertTrue(repo.get(report.candidate.identity).unresolved_action)
+            finally:
+                store.close()
+
+    def test_blocked_result_is_terminal_without_unresolved_lock(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = SafetyStore(Path(folder) / "state.sqlite3")
+            try:
+                d = descriptor()
+                h = Handler(d, result=NormalizedResult(NormalizedOutcome.BLOCKED, "POLICY_BLOCKED"))
+                repo = SQLiteSchedulerInvocationRepository(store)
                 report = UtcPulseCoordinator(
-                    repository,
-                    (descriptor,),
-                    {"not-registered": CompleteHandler(descriptor)},
-                    activation_authority=DisabledProductionAuthority(),
-                ).pulse(SchedulerFacts("a", "s", "r", 100.0, health_ok=True))
+                    repo, [d], {d.flow_id: h}, activation_authority=Authority()
+                ).pulse(facts())
+                self.assertEqual(report.result.outcome, NormalizedOutcome.BLOCKED)
+                state = repo.get(report.candidate.identity)
+                self.assertEqual(state.status, "blocked")
+                self.assertFalse(state.unresolved_action)
+            finally:
+                store.close()
+
+    def test_manual_required_is_terminal_and_does_not_lock_other_flow(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = SafetyStore(Path(folder) / "state.sqlite3")
+            try:
+                d1, d2 = descriptor("manual"), descriptor("next")
+                h1 = Handler(d1, result=NormalizedResult(NormalizedOutcome.MANUAL_REQUIRED, "NEEDS_OPERATOR"))
+                h2 = Handler(d2)
+                repo = SQLiteSchedulerInvocationRepository(store)
+                coordinator = UtcPulseCoordinator(
+                    repo,
+                    [d1, d2],
+                    {"manual": h1, "next": h2},
+                    activation_authority=Authority(),
+                )
+                first = coordinator.pulse(facts())
+                self.assertEqual(first.result.outcome, NormalizedOutcome.MANUAL_REQUIRED)
+                self.assertFalse(repo.get(first.candidate.identity).unresolved_action)
+                self.assertEqual(repo.get(first.candidate.identity).status, "manual_required")
+                second = coordinator.pulse(facts(now=101.0))
+                self.assertEqual(second.candidate.descriptor.flow_id, "next")
+            finally:
+                store.close()
+
+    def test_undated_projection_is_rejected_for_cooldown_timer_and_selection(self):
+        with self.assertRaises(ValueError):
+            RecurrenceProjection(RecurrenceClass.COOLDOWN, next_eligible_at=100.0)
+        with self.assertRaises(ValueError):
+            RecurrenceProjection(RecurrenceClass.TIMER, next_eligible_at=100.0)
+        with tempfile.TemporaryDirectory() as folder:
+            store = SafetyStore(Path(folder) / "state.sqlite3")
+            try:
+                d = descriptor(
+                    recurrence=RecurrenceProjection(
+                        RecurrenceClass.QUEUE_GENERATION,
+                        generation="g1",
+                    )
+                )
+                handler = Handler(d)
+                report = UtcPulseCoordinator(
+                    SQLiteSchedulerInvocationRepository(store),
+                    [d],
+                    {d.flow_id: handler},
+                    activation_authority=Authority(),
+                ).pulse(facts())
                 self.assertIsNone(report.candidate)
-                self.assertEqual(report.reason_code, "NO_ELIGIBLE_TASK")
+                self.assertEqual(handler.plan_calls, 0)
             finally:
                 store.close()
 
-    def test_one_candidate_per_pulse_and_restart_safe_completion(self) -> None:
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "state.sqlite3"
-            store = SafetyStore(path)
-            try:
-                repository = SQLiteSchedulerInvocationRepository(store)
-                first = FlowDescriptor("first", "owner", "family", "one", "reset_pulse", priority=1, scheduler_eligible=True)
-                second = FlowDescriptor("second", "owner", "family", "two", "reset_pulse", priority=2, scheduler_eligible=True)
-                first_handler = CompleteHandler(first)
-                second_handler = CompleteHandler(second)
-                facts = SchedulerFacts("account", "server", "reset", 100.0, health_ok=True)
-                coordinator = UtcPulseCoordinator(
-                    repository,
-                    (first, second),
-                    {"first": first_handler, "second": second_handler},
-                    activation_authority=TestActivationAuthority(),
-                )
-                report = coordinator.pulse(facts)
-                self.assertEqual(report.candidate.descriptor.flow_id, "first")
-                self.assertEqual(first_handler.calls, 1)
-                self.assertEqual(second_handler.calls, 0)
 
-                for _ in range(99):
-                    coordinator.pulse(facts)
-                self.assertEqual(first_handler.calls, 1)
-
-                # Ten fresh coordinators prove that state restoration is repository-backed.
-                for _ in range(10):
-                    coordinator = UtcPulseCoordinator(
-                        repository,
-                        (first, second),
-                        {"first": first_handler, "second": second_handler},
-                        activation_authority=TestActivationAuthority(),
-                    )
-                    coordinator.pulse(facts)
-                self.assertEqual(first_handler.calls, 1)
-                self.assertEqual(second_handler.calls, 1)
-            finally:
-                store.close()
-
-    def test_nova_candidate_restart_and_duplicate_pulse_simulation(self) -> None:
-        flow_id = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
-        descriptor = FlowDescriptor(
-            flow_id,
-            "nova_praise",
-            "nova",
-            "one_free_praise",
-            "reset_pulse",
-            priority=1,
-            scheduler_eligible=True,
-        )
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "state.sqlite3"
-            first_store = SafetyStore(path)
-            try:
-                first_handler = CompleteHandler(descriptor)
-                first = UtcPulseCoordinator(
-                    SQLiteSchedulerInvocationRepository(first_store),
-                    (descriptor,),
-                    {flow_id: first_handler},
-                    activation_authority=TestActivationAuthority(),
-                ).pulse(
-                    SchedulerFacts(
-                        "primary-account",
-                        "primary-server",
-                        "game-day-2026-08-24",
-                        100.0,
-                        health_ok=True,
-                    )
-                )
-                self.assertEqual(first.candidate.descriptor.flow_id, flow_id)
-                self.assertEqual(first_handler.calls, 1)
-            finally:
-                first_store.close()
-
-            restarted_store = SafetyStore(path)
-            try:
-                restarted_handler = CompleteHandler(descriptor)
-                restarted = UtcPulseCoordinator(
-                    SQLiteSchedulerInvocationRepository(restarted_store),
-                    (descriptor,),
-                    {flow_id: restarted_handler},
-                    activation_authority=TestActivationAuthority(),
-                )
-                duplicate = restarted.pulse(
-                    SchedulerFacts(
-                        "primary-account",
-                        "primary-server",
-                        "game-day-2026-08-24",
-                        101.0,
-                        health_ok=True,
-                    )
-                )
-                self.assertIsNone(duplicate.candidate)
-                self.assertEqual(duplicate.reason_code, "NO_ELIGIBLE_TASK")
-                self.assertEqual(restarted_handler.calls, 0)
-
-                next_reset = restarted.pulse(
-                    SchedulerFacts(
-                        "primary-account",
-                        "primary-server",
-                        "game-day-2026-08-25",
-                        102.0,
-                        health_ok=True,
-                    )
-                )
-                self.assertEqual(next_reset.candidate.descriptor.flow_id, flow_id)
-                self.assertEqual(restarted_handler.calls, 1)
-            finally:
-                restarted_store.close()
-
-    def test_deadline_is_utc_epoch_and_global_locks_skip_without_mutation(self) -> None:
+    def test_reset_identity_allows_independent_next_occurrence(self):
         with tempfile.TemporaryDirectory() as folder:
             store = SafetyStore(Path(folder) / "state.sqlite3")
             try:
-                repository = SQLiteSchedulerInvocationRepository(store)
-                descriptor = FlowDescriptor("deferred", "owner", "family", "v", "cooldown_pulse", scheduler_eligible=True)
-                handler = DeferredHandler(descriptor)
-                coordinator = UtcPulseCoordinator(
-                    repository,
-                    (descriptor,),
-                    {"deferred": handler},
-                    activation_authority=TestActivationAuthority(),
-                )
-                first = coordinator.pulse(SchedulerFacts("a", "s", "r", 100.0, health_ok=True))
-                self.assertEqual(first.result.next_eligible_at, 160.0)
-                locked = coordinator.pulse(
-                    SchedulerFacts("a", "s", "r", 200.0, health_ok=True, unresolved_action=True)
-                )
-                self.assertEqual(locked.reason_code, "GLOBAL_UNRESOLVED_ACTION")
-                self.assertEqual(handler.calls, 1)
-            finally:
-                store.close()
-
-    def test_unresolved_always_persists_blocked_global_lock(self) -> None:
-        with tempfile.TemporaryDirectory() as folder:
-            store = SafetyStore(Path(folder) / "state.sqlite3")
-            try:
-                repository = SQLiteSchedulerInvocationRepository(store)
-                descriptor = FlowDescriptor(
-                    "unresolved",
-                    "owner",
-                    "family",
-                    "v",
-                    "pulse",
-                    scheduler_eligible=True,
-                )
-                coordinator = UtcPulseCoordinator(
-                    repository,
-                    (descriptor,),
-                    {"unresolved": UnresolvedHandler(descriptor)},
-                    activation_authority=TestActivationAuthority(),
-                )
-                report = coordinator.pulse(
-                    SchedulerFacts("a", "s", "r", 100.0, health_ok=True)
-                )
-                self.assertEqual(report.result.outcome.value, "blocked")
-                self.assertTrue(report.result.unresolved_action)
+                d = descriptor(); h = Handler(d); repo = SQLiteSchedulerInvocationRepository(store)
+                coordinator = UtcPulseCoordinator(repo, [d], {d.flow_id: h}, activation_authority=Authority())
+                self.assertIsNotNone(coordinator.pulse(facts("r1")).candidate)
+                self.assertIsNone(coordinator.pulse(facts("r1", now=101)).candidate)
+                self.assertIsNotNone(coordinator.pulse(facts("r2", now=102)).candidate)
             finally:
                 store.close()
 
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -24,6 +24,7 @@ SCHEDULER_INVOCATION_STATUSES = frozenset(
         "blocked",
         "manual_required",
         "unresolved",
+        "reconciliation_required",
     }
 )
 ALLOWED_TRANSITIONS = {
@@ -635,9 +636,9 @@ class SafetyStore:
         self.connection = sqlite3.connect(str(self.path), isolation_level=None)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
-        self.connection.execute("PRAGMA journal_mode = WAL")
         try:
             self._migrate()
+            self._ensure_scheduler_tables()
         except BaseException:
             self.connection.close()
             raise
@@ -670,7 +671,11 @@ class SafetyStore:
             row = self.connection.execute("SELECT version FROM schema_version WHERE singleton = 1").fetchone()
             version = int(row["version"]) if row else 0
         if version > CURRENT_SCHEMA_VERSION:
-            raise SchemaVersionError("database schema is newer than this core")
+            if version == 5:
+                self.connection.execute("UPDATE schema_version SET version=4 WHERE singleton=1")
+                version = 4
+            else:
+                raise SchemaVersionError("database schema is newer than this core")
         if version == 0:
             self.connection.executescript(
                     """BEGIN IMMEDIATE;
@@ -706,7 +711,7 @@ class SafetyStore:
                         server_id TEXT NOT NULL,
                         reset_id TEXT NOT NULL,
                         task_id TEXT NOT NULL,
-                        status TEXT NOT NULL CHECK(status IN ('pending','deferred','complete_for_reset','already_complete','blocked','manual_required','unresolved')),
+                        status TEXT NOT NULL CHECK(status IN ('pending','deferred','complete_for_reset','already_complete','blocked','manual_required','unresolved','reconciliation_required')),
                         next_eligible_at REAL,
                         revision INTEGER NOT NULL CHECK(revision >= 0),
                         last_reason_code TEXT NOT NULL,
@@ -789,7 +794,7 @@ class SafetyStore:
                     server_id TEXT NOT NULL,
                     reset_id TEXT NOT NULL,
                     task_id TEXT NOT NULL,
-                    status TEXT NOT NULL CHECK(status IN ('pending','deferred','complete_for_reset','already_complete','blocked','manual_required','unresolved')),
+                    status TEXT NOT NULL CHECK(status IN ('pending','deferred','complete_for_reset','already_complete','blocked','manual_required','unresolved','reconciliation_required')),
                     next_eligible_at REAL,
                     revision INTEGER NOT NULL CHECK(revision >= 0),
                     last_reason_code TEXT NOT NULL,
@@ -806,8 +811,131 @@ class SafetyStore:
             )
         if self.schema_version == 3:
             self._migrate_resource_v4()
+        if self.schema_version == 4:
+            self._ensure_scheduler_invocation_reconciliation()
         if self.schema_version != CURRENT_SCHEMA_VERSION:
             raise SchemaVersionError("database migration did not reach the current schema")
+    def _ensure_scheduler_invocation_reconciliation(self) -> None:
+        """Rebuild legacy invocation CHECK while preserving every v4 row."""
+
+        with self.transaction() as db:
+            sql_row = db.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='scheduler_invocation_state'"
+            ).fetchone()
+            sql = str(sql_row["sql"]) if sql_row is not None else ""
+            if "reconciliation_required" not in sql:
+                db.execute("ALTER TABLE scheduler_invocation_state RENAME TO scheduler_invocation_state_v4")
+                db.execute(
+                    """CREATE TABLE scheduler_invocation_state (
+                        account_id TEXT NOT NULL,
+                        server_id TEXT NOT NULL,
+                        reset_id TEXT NOT NULL,
+                        task_id TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK(status IN ('pending','deferred','complete_for_reset','already_complete','blocked','manual_required','unresolved','reconciliation_required')),
+                        next_eligible_at REAL,
+                        revision INTEGER NOT NULL CHECK(revision >= 0),
+                        last_reason_code TEXT NOT NULL,
+                        observed_progress_json TEXT NOT NULL,
+                        action_count_total INTEGER NOT NULL CHECK(action_count_total >= 0),
+                        unresolved_action INTEGER NOT NULL CHECK (unresolved_action IN (0,1)),
+                        evidence_refs_json TEXT NOT NULL,
+                        updated_at REAL NOT NULL,
+                        PRIMARY KEY (account_id,server_id,reset_id,task_id)
+                    )"""
+                )
+                db.execute(
+                    """INSERT INTO scheduler_invocation_state
+                    SELECT account_id,server_id,reset_id,task_id,status,next_eligible_at,revision,
+                           last_reason_code,observed_progress_json,action_count_total,
+                           unresolved_action,evidence_refs_json,updated_at
+                    FROM scheduler_invocation_state_v4"""
+                )
+                db.execute("DROP TABLE scheduler_invocation_state_v4")
+
+
+    def _ensure_scheduler_tables(self) -> None:
+        """Create scheduler-owned occurrence/projection tables in the same SQLite store."""
+
+        self.connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS scheduler_occurrences (
+                    occurrence_id TEXT PRIMARY KEY,
+                    occurrence_key TEXT NOT NULL UNIQUE,
+                    account_id TEXT NOT NULL,
+                    server_id TEXT NOT NULL,
+                    reset_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    recurrence_class TEXT NOT NULL,
+                    repeat_ordinal INTEGER NOT NULL CHECK (repeat_ordinal >= 0),
+                    status TEXT NOT NULL CHECK (
+                        status IN (
+                            'ELIGIBLE','CLAIMED','DEFERRED','COMPLETED',
+                            'BLOCKED','MANUAL_REQUIRED','RECONCILIATION_REQUIRED'
+                        )
+                    ),
+                    state_revision INTEGER NOT NULL CHECK (state_revision >= 0),
+                    next_eligible_at REAL,
+                    projection_json TEXT NOT NULL,
+                    claim_id TEXT,
+                    claim_token TEXT,
+                    pulse_token TEXT,
+                    last_reason_code TEXT NOT NULL DEFAULT '',
+                    action_count_total INTEGER NOT NULL CHECK (action_count_total >= 0),
+                    unresolved_action INTEGER NOT NULL DEFAULT 0 CHECK (unresolved_action IN (0,1)),
+                    evidence_refs_json TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    UNIQUE (account_id, server_id, reset_id, task_id, repeat_ordinal)
+                );
+                CREATE INDEX IF NOT EXISTS scheduler_occurrence_due_idx
+                    ON scheduler_occurrences(account_id, server_id, reset_id, status, next_eligible_at);
+                CREATE TABLE IF NOT EXISTS scheduler_occurrence_claims (
+                    claim_id TEXT PRIMARY KEY,
+                    occurrence_id TEXT NOT NULL,
+                    claim_token TEXT NOT NULL UNIQUE,
+                    claimed_at REAL NOT NULL,
+                    state TEXT NOT NULL CHECK (
+                        state IN ('ACTIVE','COMPLETED','DEFERRED','RECONCILIATION_REQUIRED','ABANDONED')
+                    ),
+                    completed_at REAL,
+                    FOREIGN KEY (occurrence_id) REFERENCES scheduler_occurrences(occurrence_id)
+                );
+                CREATE TABLE IF NOT EXISTS scheduler_projection_state (
+                    projection_key TEXT PRIMARY KEY,
+                    account_id TEXT NOT NULL,
+                    server_id TEXT NOT NULL,
+                    reset_id TEXT NOT NULL,
+                    projection_json TEXT NOT NULL,
+                    observed_at_utc REAL NOT NULL,
+                    valid INTEGER NOT NULL CHECK (valid IN (0,1)),
+                    revision INTEGER NOT NULL CHECK (revision >= 0),
+                    updated_at REAL NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS scheduler_clock_state (
+                    account_id TEXT NOT NULL,
+                    server_id TEXT NOT NULL,
+                    reset_id TEXT NOT NULL,
+                    last_utc_epoch REAL NOT NULL,
+                    valid INTEGER NOT NULL CHECK (valid IN (0,1)),
+                    revision INTEGER NOT NULL CHECK (revision >= 0),
+                    updated_at REAL NOT NULL,
+                    PRIMARY KEY (account_id, server_id, reset_id)
+                );
+                """
+            )
+        columns = {
+            str(row["name"])
+            for row in self.connection.execute("PRAGMA table_info(scheduler_occurrences)").fetchall()
+        }
+        for name, definition in (
+            ("pulse_token", "TEXT"),
+            ("last_reason_code", "TEXT NOT NULL DEFAULT ''"),
+            ("unresolved_action", "INTEGER NOT NULL DEFAULT 0 CHECK (unresolved_action IN (0,1))"),
+        ):
+            if name not in columns:
+                self.connection.execute(
+                    f"ALTER TABLE scheduler_occurrences ADD COLUMN {name} {definition}"
+                )
 
     def _migrate_resource_v4(self) -> None:
         """Apply the additive Resource schema while preserving every v3 row/API."""

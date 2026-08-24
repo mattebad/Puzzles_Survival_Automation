@@ -1,8 +1,4 @@
-"""Small typed contracts for the offline automation-service composition layer.
-
-The service composes existing policy, action, perception, and scheduler primitives.  It
-does not define a second action journal, coordinate language, or monotonic scheduler.
-"""
+"""Small typed contracts for the offline automation-service composition layer."""
 
 from __future__ import annotations
 
@@ -29,11 +25,131 @@ class NormalizedOutcome(str, Enum):
     BLOCKED = "blocked"
     MANUAL_REQUIRED = "manual_required"
     UNRESOLVED = "unresolved"
+    RECONCILIATION_REQUIRED = "reconciliation_required"
+
+
+class RecurrenceClass(str, Enum):
+    """Closed recurrence vocabulary understood by the offline scheduler."""
+
+    DAILY_ONCE_PER_RESET = "daily_once_per_reset"
+    RESET_BOUNDED = "reset_bounded"
+    COOLDOWN = "cooldown"
+    TIMER = "timer"
+    AP_REGENERATION = "ap_regeneration"
+    STAMINA_REGENERATION = "stamina_regeneration"
+    QUEUE_GENERATION = "queue_generation"
+    MARCH_GENERATION = "march_generation"
+    BOUNDED_REPEAT = "bounded_repeat"
+    EVENT_WINDOW = "event_window"
+
+
+@dataclass(frozen=True)
+class RecurrenceProjection:
+    """Persistable, product-observation-bound recurrence projection."""
+
+    recurrence_class: RecurrenceClass
+    next_eligible_at: float | None = None
+    observed_at_utc: float | None = None
+    generation: str | None = None
+    observed_balance: float | None = None
+    repeat_ordinal: int = 0
+    repeat_limit: int | None = None
+    window_open_at: float | None = None
+    window_close_at: float | None = None
+
+    def __post_init__(self) -> None:
+        values = (
+            self.next_eligible_at,
+            self.observed_at_utc,
+            self.observed_balance,
+            self.window_open_at,
+            self.window_close_at,
+        )
+        if any(
+            value is not None
+            and (isinstance(value, bool) or not math.isfinite(float(value)))
+            for value in values
+        ):
+            raise ValueError("recurrence projection values must be finite numbers")
+        if any(value is not None and float(value) < 0 for value in values):
+            raise ValueError("recurrence projection values cannot be negative")
+        if type(self.repeat_ordinal) is not int or self.repeat_ordinal < 0:
+            raise ValueError("repeat ordinal must be a non-negative integer")
+        if self.repeat_limit is not None and (
+            type(self.repeat_limit) is not int or self.repeat_limit < 1
+        ):
+            raise ValueError("repeat limit must be a positive integer")
+        if self.repeat_limit is not None and self.repeat_ordinal >= self.repeat_limit:
+            raise ValueError("repeat ordinal must remain below repeat limit")
+        if self.recurrence_class in {RecurrenceClass.COOLDOWN, RecurrenceClass.TIMER} and (
+            self.observed_at_utc is None
+        ):
+            raise ValueError("cooldown and timer projections require an explicit observation timestamp")
+        if (
+            self.window_open_at is not None
+            and self.window_close_at is not None
+            and self.window_close_at <= self.window_open_at
+        ):
+            raise ValueError("event window must have a positive UTC duration")
+        if self.recurrence_class in {
+            RecurrenceClass.QUEUE_GENERATION,
+            RecurrenceClass.MARCH_GENERATION,
+        } and not self.generation:
+            raise ValueError("availability generations require a generation identity")
+        if self.recurrence_class in {
+            RecurrenceClass.AP_REGENERATION,
+            RecurrenceClass.STAMINA_REGENERATION,
+        } and (self.observed_balance is None or self.observed_at_utc is None):
+            raise ValueError("resource regeneration requires a fresh timestamped observed balance")
+
+    @property
+    def is_time_projection(self) -> bool:
+        return self.recurrence_class in {
+            RecurrenceClass.COOLDOWN,
+            RecurrenceClass.TIMER,
+            RecurrenceClass.AP_REGENERATION,
+            RecurrenceClass.STAMINA_REGENERATION,
+        }
+
+
+@dataclass(frozen=True)
+class ProductAuthority:
+    """Accepted product and registration facts for one scheduler descriptor."""
+
+    product_id: str
+    product_revision: str
+    registration_status: str = "NOT_REGISTERED"
+    scheduler_eligible: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.product_id.strip() or not self.product_revision.strip():
+            raise ValueError("product authority requires product identity and revision")
+        if self.registration_status not in {"REGISTERED", "NOT_REGISTERED"}:
+            raise ValueError("unsupported registration status")
+
+
+@dataclass(frozen=True)
+class RuntimeOwnerFact:
+    """An observed availability fact, never an owner lease or capability."""
+
+    available: bool = False
+    owner_id: str | None = None
+    observed_at_utc: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.available and not self.owner_id:
+            raise ValueError("available runtime owner requires an owner identity")
+        if self.observed_at_utc is not None and (
+            isinstance(self.observed_at_utc, bool)
+            or not math.isfinite(float(self.observed_at_utc))
+            or self.observed_at_utc < 0
+        ):
+            raise ValueError("runtime owner observation must be a UTC epoch")
 
 
 @dataclass(frozen=True)
 class FlowDescriptor:
-    """Identity and cadence metadata; it contains no gameplay action semantics."""
+    """Identity, authority, and cadence metadata; no gameplay semantics."""
 
     flow_id: str
     owner: str
@@ -43,6 +159,10 @@ class FlowDescriptor:
     priority: int = 100
     reset_scoped: bool = True
     scheduler_eligible: bool = False
+    accepted_product: bool | str = False
+    product_revision: str | None = None
+    registration_status: str = "NOT_REGISTERED"
+    recurrence: RecurrenceProjection | None = None
 
     def __post_init__(self) -> None:
         if not all(
@@ -52,6 +172,28 @@ class FlowDescriptor:
             raise ValueError("flow descriptor requires non-empty identity fields")
         if type(self.priority) is not int or self.priority < 0:
             raise ValueError("flow priority must be a non-negative integer")
+        if self.registration_status not in {"REGISTERED", "NOT_REGISTERED"}:
+            raise ValueError("unsupported flow registration status")
+        if self.product_revision is not None and not self.product_revision.strip():
+            raise ValueError("product revision cannot be blank")
+        if isinstance(self.accepted_product, str) and not self.accepted_product.strip():
+            raise ValueError("accepted product identity cannot be blank")
+
+    @property
+    def product_admitted(self) -> bool:
+        return bool(self.accepted_product)
+
+    @property
+    def recurrence_class(self) -> RecurrenceClass | None:
+        if self.recurrence is not None:
+            return self.recurrence.recurrence_class
+        return {
+            "daily_once": RecurrenceClass.DAILY_ONCE_PER_RESET,
+            "daily_once_per_reset": RecurrenceClass.DAILY_ONCE_PER_RESET,
+            "reset_pulse": RecurrenceClass.DAILY_ONCE_PER_RESET,
+            "cooldown_pulse": RecurrenceClass.COOLDOWN,
+            "timer": RecurrenceClass.TIMER,
+        }.get(self.cadence)
 
 
 @dataclass(frozen=True)
@@ -76,7 +218,6 @@ class PerceptionEnvelope:
     freshness: str
     runtime_state: str = "unknown"
     family_facts: tuple[FamilyFacts, ...] = ()
-    candidate: str | None = None
     runner_up: str | None = None
     negative_evidence: tuple[str, ...] = ()
     invalidated_after_input: bool = False
@@ -91,7 +232,7 @@ class PerceptionEnvelope:
 
 @dataclass(frozen=True)
 class SchedulerFacts:
-    """UTC boundary facts.  No monotonic deadline belongs in this contract."""
+    """Fail-closed UTC boundary facts supplied by external authorities."""
 
     account_id: str
     server_id: str
@@ -101,7 +242,19 @@ class SchedulerFacts:
     unresolved_action: bool = False
     breakers: tuple[str, ...] = ()
     last_frame_age_seconds: float | None = None
+    accepted_product: bool | str = False
+    product_revision: str | None = None
+    registration_status: str = "NOT_REGISTERED"
+    scheduler_eligible: bool = False
+    owner_available: bool = False
+    runtime_owner: RuntimeOwnerFact | None = None
+    clock_ok: bool = False
+    clock_rollback: bool = False
+    reset_agreement: bool = False
+    observed_reset_id: str | None = None
+    projections: Mapping[str, RecurrenceProjection] = field(default_factory=dict)
 
+    projection_freshness_seconds: float = 300.0
     def __post_init__(self) -> None:
         if not all(
             isinstance(value, str) and value.strip()
@@ -114,6 +267,57 @@ class SchedulerFacts:
             not math.isfinite(self.last_frame_age_seconds) or self.last_frame_age_seconds < 0
         ):
             raise ValueError("last-frame age must be finite and non-negative")
+        if self.registration_status not in {"REGISTERED", "NOT_REGISTERED"}:
+            raise ValueError("unsupported scheduler registration status")
+        if self.product_revision is not None and not self.product_revision.strip():
+            raise ValueError("scheduler product revision cannot be blank")
+        if isinstance(self.accepted_product, str) and not self.accepted_product.strip():
+            raise ValueError("scheduler accepted product identity cannot be blank")
+        if self.observed_reset_id is not None and not self.observed_reset_id.strip():
+            raise ValueError("observed reset identity cannot be blank")
+        if self.runtime_owner is not None and self.runtime_owner.available != self.owner_available:
+            raise ValueError("runtime owner fact disagrees with owner_available")
+        if (
+            not math.isfinite(self.projection_freshness_seconds)
+            or self.projection_freshness_seconds < 0
+        ):
+            raise ValueError("projection freshness must be finite and non-negative")
+
+    def gate_failures(self, descriptor: FlowDescriptor) -> tuple[str, ...]:
+        failures: list[str] = []
+        if not self.health_ok:
+            failures.append("GLOBAL_HEALTH_BREAKER")
+        if self.unresolved_action:
+            failures.append("GLOBAL_UNRESOLVED_ACTION")
+        if self.breakers:
+            failures.append("TASK_BREAKER:" + self.breakers[0])
+        if not descriptor.scheduler_eligible or not self.scheduler_eligible:
+            failures.append("SCHEDULER_INELIGIBLE")
+        if descriptor.registration_status != "REGISTERED" or self.registration_status != "REGISTERED":
+            failures.append("REGISTRATION_DISABLED")
+        if not descriptor.product_admitted or not self.accepted_product:
+            failures.append("ACCEPTED_PRODUCT_REQUIRED")
+        if (
+            isinstance(descriptor.accepted_product, str)
+            and isinstance(self.accepted_product, str)
+            and descriptor.accepted_product != self.accepted_product
+        ):
+            failures.append("ACCEPTED_PRODUCT_MISMATCH")
+        if (
+            descriptor.product_revision
+            and self.product_revision
+            and descriptor.product_revision != self.product_revision
+        ):
+            failures.append("PRODUCT_REVISION_MISMATCH")
+        if not self.owner_available:
+            failures.append("SINGLETON_OWNER_UNAVAILABLE")
+        if not self.clock_ok or self.clock_rollback:
+            failures.append("UTC_CLOCK_INVALID")
+        if not self.reset_agreement or (
+            self.observed_reset_id is not None and self.observed_reset_id != self.reset_id
+        ):
+            failures.append("RESET_DISAGREEMENT")
+        return tuple(failures)
 
 
 @dataclass(frozen=True)
@@ -226,6 +430,5 @@ class NormalizedResult:
             not math.isfinite(self.next_eligible_at) or self.next_eligible_at < 0
         ):
             raise ValueError("next_eligible_at must be a non-negative UTC epoch")
-        if self.outcome is NormalizedOutcome.UNRESOLVED:
+        if self.outcome in {NormalizedOutcome.UNRESOLVED, NormalizedOutcome.RECONCILIATION_REQUIRED}:
             object.__setattr__(self, "unresolved_action", True)
-

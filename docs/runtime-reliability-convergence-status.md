@@ -1555,3 +1555,85 @@ The final Stage 8 decision is `READY`. Every nonselected flow keeps its prior ex
 Production registration remains `NOT_REGISTERED`; scheduler eligibility and scheduler execution
 remain disabled. Runtime ownership and unresolved action state are clear. Stage 9 was not
 implemented or activated, and no commit or push occurred.
+
+## Stage 9 r1 rejected after independent recheck
+
+Stage 9 revision `runtime-reliability-stage-9-scheduler-r1` froze
+`UtcPulseCoordinator` as the only executable kernel and
+`SQLiteSchedulerInvocationRepository` over `SafetyStore` as the only persisted
+invocation/occurrence authority. One bounded Luna implementation, one Terra
+review, one consolidated Luna repair, and one Terra recheck consumed the frozen
+managed-turn budget. No runtime session, scheduler service, production pulse,
+gameplay input, ownership acquisition, registration, or scheduler activation
+occurred.
+
+The repair profile passed 14 tests. The frozen affected command ran 28 tests:
+27 passed and one unchanged pre-existing disabled-registry mismatch failed
+because three existing BlueStacks flow IDs are absent from the unchanged
+registry JSON. This baseline was not relabeled or changed.
+
+Sol rejected integration after the recheck retained five must-fix findings:
+explicit `BLOCKED` results still become reconciliation-required; deferred
+occurrences lack a same-pulse reclaim fence; persisted projection invalidation
+is not consumed by selection; reset disagreement does not invalidate both
+conflicting reset projections; and orphan-claim reconciliation does not require
+a verified positive result. The candidate is uncommitted and unpushed.
+Production registration remains `NOT_REGISTERED`; scheduler execution and
+eligibility remain disabled. Stage 10 is inactive. A second repair requires
+explicit user continuation and a new frozen revision; r1 must not be staged,
+committed, pushed, pulsed, or promoted.
+
+## Stage 9 r2 rejected after independent recheck
+
+The user explicitly authorized refrozen revision
+`runtime-reliability-stage-9-scheduler-r2`. Its bounded Luna repair resolved
+all five r1 recheck findings. Targeted scheduler validation passed 18 tests;
+Resource authority schema compatibility passed 21 tests after retaining public
+SafetyStore schema version 4 with a conditional invocation-table CHECK rebuild.
+The affected package profile ran 114 tests with 113 passed, and the frozen
+profile ran 35 tests with 34 passed. Both profiles contain only the same
+unchanged disabled-registry baseline failure for three pre-existing BlueStacks
+flow IDs.
+
+Terra r2 recheck nevertheless found two must-fix regressions. First,
+`MANUAL_REQUIRED` is not explicitly routed and becomes
+reconciliation-required/global unresolved. Second, an undated cooldown or timer
+projection is assigned the current pulse time and can overwrite a persisted
+rollback/reset invalidation after restart. Sol therefore rejected r2
+integration. The candidate remains unstaged, uncommitted, and unpushed.
+Production registration remains `NOT_REGISTERED`; scheduler execution and
+eligibility remain disabled; no runtime or gameplay input occurred; Stage 10
+remains inactive. Any r3 repair requires another explicit user continuation and
+a new frozen revision.
+
+## Stage 9 final acceptance at r3
+
+The user authorized revision `runtime-reliability-stage-9-scheduler-r3`.
+Its bounded Luna repair added terminal `MANUAL_REQUIRED` routing and removed
+all synthesized projection observation times. Cooldown/timer projections now
+require an explicit observation timestamp; persisted rollback/reset
+invalidation survives restart and only a strictly newer explicit observation
+can restore validity.
+
+The r3 targeted profile passed 20 tests, normalized receipt SHA-256
+`5f9b92361ba07a695b2479cddc6d558ea3eff4b7408bef5c306817a693496c5c`.
+Resource compatibility passed 21 tests, receipt
+`92f800743d3ccc763f9ec1c35c4f416bcdb4a8bacc757653983e9db3deb7c3bb`.
+The affected package profile ran 116 tests with 115 passed, receipt
+`c038fcf143155a91f7c4a1a7a245ad6b982e6427f3b4cb2e60755552bc23f078`;
+the frozen profile ran 37 with 36 passed, receipt
+`d20087e31146e96dfd6f4ab6c4283abab176b7b689d11a3eba5b759a92e8da04`.
+Both contain only the separately proven unchanged disabled-registry baseline
+for three pre-existing BlueStacks flow IDs. Terra reviewed the exact cumulative
+r3 candidate and returned no findings.
+
+Sol accepts Stage 9 architecture, integration, persistence, concurrency,
+projection invalidation, verified reconciliation, and legacy retirement.
+`UtcPulseCoordinator` is the sole executable scheduler kernel.
+`SQLiteSchedulerInvocationRepository` over the existing `SafetyStore` database
+is the sole invocation/occurrence authority. Production registration remains
+`NOT_REGISTERED`; scheduler execution and production eligibility remain
+disabled. Stage 9 performed no runtime session, ownership acquisition,
+production pulse, gameplay input, registration, or Stage 10 action. Stage 10
+remains inactive and separately dependency-blocked to its exact observation-
+only entry prerequisites.

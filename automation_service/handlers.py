@@ -34,6 +34,14 @@ class FlowHandler(Protocol):
     ) -> SemanticActionIntent | Any:
         ...
 
+    def revalidate(
+        self,
+        facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> bool:
+        """Re-enter the accepted product boundary after an atomic claim."""
+        ...
+
     def reconcile(
         self,
         plan: SemanticActionIntent | Any,
@@ -50,6 +58,9 @@ class FlowHandler(Protocol):
 
 class DisabledHandler:
     """Explicit placeholder for flows that are not production-registered."""
+
+    def revalidate(self, facts: SchedulerFacts, perception: PerceptionEnvelope | None = None) -> bool:
+        return False
 
     def __init__(self, descriptor: FlowDescriptor) -> None:
         self._descriptor = descriptor

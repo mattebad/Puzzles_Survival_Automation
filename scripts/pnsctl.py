@@ -6600,6 +6600,88 @@ def automation_service_offline(args: argparse.Namespace) -> int:
     ]
     return automation_main(argv)
 
+def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
+    """Run exactly one fail-closed, zero-transport scheduler pulse."""
+
+    from automation_service.contracts import FlowDescriptor, SchedulerFacts
+    from automation_service.handlers import DisabledHandler
+    from automation_service.registry import load_disabled_registry
+    from automation_service.scheduler import DisabledProductionAuthority, UtcPulseCoordinator
+    from safe_action_core import SafetyStore, SQLiteSchedulerInvocationRepository
+
+    if args.state_path is None:
+        print(
+            json.dumps(
+                {
+                    "status": "disabled",
+                    "command": "scheduler-pulse",
+                    "reason": "STATE_PATH_REQUIRED_FOR_OFFLINE_PERSISTENCE",
+                    "transport_count": 0,
+                    "production_registration": "NOT_REGISTERED",
+                    "scheduler_eligible": False,
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+    store = SafetyStore(Path(args.state_path))
+    try:
+        entries = load_disabled_registry()
+        descriptors = tuple(
+            FlowDescriptor(
+                entry.flow_id,
+                "disabled-production-registry",
+                "disabled",
+                "disabled",
+                "daily_once_per_reset",
+                scheduler_eligible=False,
+                accepted_product=False,
+                registration_status="NOT_REGISTERED",
+            )
+            for entry in entries
+        )
+        handlers = {descriptor.flow_id: DisabledHandler(descriptor) for descriptor in descriptors}
+        repository = SQLiteSchedulerInvocationRepository(store)
+        coordinator = UtcPulseCoordinator(
+            repository,
+            descriptors,
+            handlers,
+            activation_authority=DisabledProductionAuthority(),
+        )
+        now = (
+            float(args.now_utc_epoch)
+            if args.now_utc_epoch is not None
+            else datetime.now(timezone.utc).timestamp()
+        )
+        report = coordinator.pulse(
+            SchedulerFacts(
+                args.account_id,
+                args.server_id,
+                args.reset_id,
+                now,
+                health_ok=False,
+            )
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "disabled",
+                    "command": "scheduler-pulse",
+                    "reason": report.reason_code,
+                    "candidate": None,
+                    "transport_count": 0,
+                    "production_registration": "NOT_REGISTERED",
+                    "scheduler_eligible": False,
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+    finally:
+        store.close()
+
+scheduler_pulse_offline = automation_service_scheduler_pulse_offline
+
 
 _CONDUCT_DEFAULT_MAX_INPUTS = {
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": 16,
@@ -7269,6 +7351,15 @@ def parser() -> argparse.ArgumentParser:
     automation_health.add_argument(
         "--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled"
     )
+    scheduler_pulse = automation_sub.add_parser(
+        "pulse",
+        help="one offline UTC scheduler pulse; never starts runtime or transport",
+    )
+    scheduler_pulse.add_argument("--state-path", type=Path, default=None)
+    scheduler_pulse.add_argument("--account-id", default="offline-account")
+    scheduler_pulse.add_argument("--server-id", default="offline-server")
+    scheduler_pulse.add_argument("--reset-id", default="offline-reset")
+    scheduler_pulse.add_argument("--now-utc-epoch", type=float, default=None)
     campaign_plan = automation_sub.add_parser("campaign-plan")
     campaign_plan.add_argument("--destination", default="1-20-9")
     return root
@@ -7546,6 +7637,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
     if args.command == "automation-service":
         try:
+            if args.automation_service_command == "pulse":
+                return automation_service_scheduler_pulse_offline(args)
             return automation_service_offline(args)
         except (OperatorError, OSError, RuntimeError, ValueError) as exc:
             print("pnsctl: " + str(exc), file=sys.stderr)
