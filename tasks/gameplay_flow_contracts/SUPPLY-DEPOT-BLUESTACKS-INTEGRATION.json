@@ -182,7 +182,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "0b82d9611426b9ba50d07be72d48f8b8cf14ca4ba3bb5ae718ca1566878b4a55",
+    "product_authority_digest": "95ca47568cbb707a753d6a8ae6ba90a95468e78b45128871bb27edd2622100ce",
     "product_record_id": "supply_depot",
     "product_record_revision": "supply_depot-v1",
     "product_record_digest": "667ff4961534fa5f667e7875b937f9b14e771f03a33e99698b8c43b2e8da80f2",

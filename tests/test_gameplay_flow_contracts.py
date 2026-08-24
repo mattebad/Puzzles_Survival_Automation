@@ -75,6 +75,24 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(scenario["permitted_inputs"], [])
         self.assertEqual(contract["product_authority_binding"]["product_record_id"], "ruins_shop_purchase")
 
+    def test_rare_earth_shop_contract_is_observation_only_and_unknown_cost_fails_closed(self):
+        contract = load_flow_contract("RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE")
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(contract["product_policy_refs"][0]["policy_id"], "rare-earth-shop-purchase-policy")
+        self.assertEqual(contract["permitted_inputs"], [])
+        self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+            "UNKNOWN_CURRENT_CURRENCY",
+        )
+        self.assertEqual(contract["implementation_status"], "contract_only")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        scenario = contract["scenarios"][0]
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+        self.assertEqual(contract["product_authority_binding"]["product_record_id"], "rare_earth_shop_purchase")
     def test_ultimate_challenge_is_blocked_by_evidence_not_policy(self):
         contract = load_flow_contract("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
         scenario = next(

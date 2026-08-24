@@ -241,6 +241,19 @@
       "source": "explicit_user_direction_2026-07-23"
     },
     {
+      "policy_id": "rare-earth-shop-purchase-policy",
+      "scope": "rare_earth_shop.purchase",
+      "status": "unresolved_user_decision",
+      "decision": "Do not authorize a Rare Earth Shop purchase. The queue requires one current three-star item with exact cost, currency, balance, quantity, successor, and canonical Home evidence; current item and cost identity remain unresolved and no Buy dispatch is permitted.",
+      "candidate_item": "unknown_current_three_star_item",
+      "candidate_currency": "unknown_current_currency",
+      "candidate_cost": null,
+      "quantity": 1,
+      "purchase_dispatch_allowed": false,
+      "terminal_state": "home_canonical",
+      "source": "flow_delivery_queue:rare-earth-shop-purchase"
+    },
+    {
       "policy_id": "ruins-shop-purchase-policy",
       "scope": "ruins_shop.purchase",
       "status": "unresolved_user_decision",
@@ -1119,6 +1132,100 @@
       "record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537"
     },
     {
+      "record_id": "rare_earth_shop_purchase",
+      "record_type": "rare_earth_shop_purchase",
+      "purpose": "Record an unresolved, evidence-gated Rare Earth Shop purchase candidate without authorizing currency spend or Buy dispatch.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "RARE_EARTH_SHOP",
+        "route": [
+          "RARE_EARTH_SHOP"
+        ]
+      },
+      "objective": "rare_earth_shop_purchase",
+      "action": "observe_one_rare_earth_shop_purchase_candidate",
+      "target": {
+        "kind": "rare_earth_shop_purchase",
+        "shop": "RARE_EARTH_SHOP",
+        "candidate_item": "unknown_current_three_star_item",
+        "candidate_rarity": "3_STAR",
+        "candidate_currency": "unknown_current_currency",
+        "candidate_cost": null,
+        "quantity": 1,
+        "policy_status": "unresolved_user_decision",
+        "purchase_dispatch_allowed": false,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "unresolved_currency_cost",
+          "amount": null,
+          "unit": "UNKNOWN_CURRENT_CURRENCY",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "offer_observation_successor_required": true,
+        "exact_item_evidence_required": true,
+        "exact_cost_evidence_required": true,
+        "balance_evidence_required": true,
+        "quantity_one_required": true,
+        "purchase_dispatch_allowed": false,
+        "currency_delta_required_for_purchase_proof": true,
+        "item_delta_required_for_purchase_proof": true,
+        "canonical_home_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Buy",
+        "purchase dispatch",
+        "currency spend",
+        "premium offer",
+        "unknown item",
+        "ambiguous item",
+        "unknown cost",
+        "ambiguous cost",
+        "unknown currency",
+        "insufficient balance",
+        "quantity greater than one",
+        "currency delta without item successor",
+        "item successor without currency delta",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Rare Earth Shop candidate remains unresolved and owns no Daily Claim or points."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:rare-earth-shop-no-dispatch-until-allowlist",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-rare-earth-shop-offer-surface",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "rare_earth_shop_purchase-v1",
+      "record_digest": "47c28608b0b5e9471ad7c912e6f0fafca3d64aff49d1c1f34c4ebb3a22911904"
+    },
+    {
       "record_id": "ruins_shop_purchase",
       "record_type": "ruins_shop_purchase",
       "purpose": "Record an unresolved, evidence-gated Ruins Shop purchase candidate without authorizing currency spend or Buy dispatch.",
@@ -1896,5 +2003,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "0b82d9611426b9ba50d07be72d48f8b8cf14ca4ba3bb5ae718ca1566878b4a55"
+  "authority_digest": "95ca47568cbb707a753d6a8ae6ba90a95468e78b45128871bb27edd2622100ce"
 }

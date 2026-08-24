@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_seventeen_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_eighteen_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -68,6 +68,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "gathering_resources",
                 "zombie_lair",
                 "ruins_shop_purchase",
+                "rare_earth_shop_purchase",
                 "nanoweapon_normal_craft",
                 "nano_material_production",
                 "world_map_navigation",
@@ -104,11 +105,53 @@ class ProductAuthorityTests(unittest.TestCase):
             "gathering_resources",
             "zombie_lair",
             "ruins_shop_purchase",
+            "rare_earth_shop_purchase",
             "nanoweapon_normal_craft",
             "nano_material_production",
             "world_map_navigation",
         ):
             self.assertFalse(self.records[record_id]["daily_ownership"]["selected_daily_prerequisite"])
+    def test_rare_earth_shop_candidate_keeps_unknown_cost_fail_closed(self) -> None:
+        record = self.records["rare_earth_shop_purchase"]
+        policy = next(
+            item
+            for item in self.authority["policies"]
+            if item["policy_id"] == "rare-earth-shop-purchase-policy"
+        )
+        self.assertEqual(policy["status"], "unresolved_user_decision")
+        self.assertFalse(policy["purchase_dispatch_allowed"])
+        self.assertEqual(record["record_type"], "rare_earth_shop_purchase")
+        self.assertEqual(record["semantic_entry_route"]["route"], ["RARE_EARTH_SHOP"])
+        target = record["target"]
+        self.assertEqual(target["candidate_item"], "unknown_current_three_star_item")
+        self.assertEqual(target["candidate_rarity"], "3_STAR")
+        self.assertEqual(target["candidate_currency"], "unknown_current_currency")
+        self.assertIsNone(target["candidate_cost"])
+        self.assertEqual(target["quantity"], 1)
+        self.assertEqual(target["policy_status"], "unresolved_user_decision")
+        self.assertFalse(target["purchase_dispatch_allowed"])
+        cost = record["quantity_cost"]["cost"]
+        self.assertIsNone(cost["amount"])
+        self.assertEqual(cost["unit"], "UNKNOWN_CURRENT_CURRENCY")
+        self.assertFalse(cost["free_only"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["exact_item_evidence_required"])
+        self.assertTrue(effect["exact_cost_evidence_required"])
+        self.assertTrue(effect["quantity_one_required"])
+        self.assertFalse(effect["purchase_dispatch_allowed"])
+        self.assertTrue(effect["canonical_home_successor_required"])
+        self.assertFalse(effect["identical_retry"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in (
+            "unknown item",
+            "unknown cost",
+            "unknown currency",
+            "purchase dispatch",
+            "insufficient balance",
+        ):
+            self.assertIn(marker, forbidden)
+
     def test_ruins_shop_candidate_is_unresolved_and_non_dispatching(self) -> None:
         record = self.records["ruins_shop_purchase"]
         policy = next(

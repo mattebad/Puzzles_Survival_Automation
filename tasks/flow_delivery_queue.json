@@ -130,7 +130,7 @@
       },
       {
         "task_id": "rare-earth-shop-purchase",
-        "execution_flow_id": null,
+        "execution_flow_id": "RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": ["shared_shop_navigation_receipt_primitives"],
         "blocker": "exact current item label/cost and balance-backed successor evidence are missing"
@@ -4253,6 +4253,41 @@
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/RUINS-SHOP-PURCHASE-EVIDENCE-GATE"
+    },
+    {
+      "flow_id": "RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE",
+      "title": "Record Rare Earth Shop purchase authority and evidence gate",
+      "kind": "shop_purchase_evidence_gate",
+      "priority": 171,
+      "status": "blocked",
+      "backlog_task_id": "rare-earth-shop-purchase",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/purchases_disabled.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE.json",
+        "tasks/daily_quest_execution_matrix.json"
+      ],
+      "navigation_model": "canonical_home_to_rare_earth_shop_observation_and_home_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current three-star item label, currency identity, exact cost, balance, quantity, deltas, successor, and canonical Home evidence are required before any route/session input.",
+      "consequence_policy": "Purchase dispatch and currency spend remain prohibited while product status is unresolved_user_decision; unknown item or cost fails closed.",
+      "product_policy_status": "unresolved_user_decision",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_purchases_disabled.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current native Rare Earth Shop target, three-star item label, currency, exact cost, balance, quantity, item/currency deltas, successor, and Home route/session evidence are missing.",
+      "next_concrete_action": "Resolve exact item/currency allowlist and acquire lean native Rare Earth Shop offer plus canonical-Home route/session evidence; keep purchase dispatch disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE"
     }
   ]
 }
