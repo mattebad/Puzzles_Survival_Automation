@@ -260,6 +260,33 @@ class GameplayFlowContractTests(unittest.TestCase):
                 self.assertEqual(contract["registration_state"], "disabled")
                 self.assertFalse(contract["production_eligible"])
                 self.assertEqual(contract["proof_state"], "evidence_required")
+    def test_nanoweapon_contract_binds_exact_normal_craft_and_stays_disabled(self):
+        contract = load_flow_contract("NANOWEAPON-BLUESTACKS-INTEGRATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "nanoweapon_normal_craft")
+        self.assertEqual(binding["product_record_revision"], "nanoweapon_normal_craft-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(
+            contract["consequential_action_class"],
+            "consume_exact_nanoparts_and_start_one_timed_craft",
+        )
+        self.assertFalse(contract["cost_quantity_requirements"]["free_only"])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 100)
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+            "NANO_PARTS",
+        )
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["scenarios"][0]["mode"], "blocked_until_policy")
+        self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
+
     def test_nano_material_contract_binds_zero_resource_batch_and_stays_disabled(self):
         contract = load_flow_contract("NANO-MATERIAL-PRODUCTION-MAINTENANCE")
         binding = contract["product_authority_binding"]

@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_fifteen_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_sixteen_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -67,6 +67,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "troop_training",
                 "gathering_resources",
                 "zombie_lair",
+                "nanoweapon_normal_craft",
                 "nano_material_production",
                 "world_map_navigation",
             },
@@ -101,6 +102,7 @@ class ProductAuthorityTests(unittest.TestCase):
             "troop_training",
             "gathering_resources",
             "zombie_lair",
+            "nanoweapon_normal_craft",
             "nano_material_production",
             "world_map_navigation",
         ):
@@ -134,6 +136,40 @@ class ProductAuthorityTests(unittest.TestCase):
         forbidden = json.dumps(record["forbidden_actions"]).casefold()
         for marker in ("normal craft", "exclusive craft", "resource box", "multiple active"):
             self.assertIn(marker, forbidden)
+    def test_nanoweapon_product_is_one_exact_normal_craft_per_reset(self) -> None:
+        record = self.records["nanoweapon_normal_craft"]
+        self.assertEqual(record["record_type"], "nanoweapon_normal_craft")
+        self.assertEqual(record["recurrence"], "daily_reset_scoped")
+        self.assertEqual(
+            record["semantic_entry_route"]["route"],
+            ["GEAR_FACTORY", "NANOWEAPON", "NORMAL_CRAFT"],
+        )
+        target = record["target"]
+        self.assertTrue(target["completed_claim_on_entry"])
+        self.assertEqual(target["parts_required"], 100)
+        self.assertEqual(target["parts_unit"], "NANO_PARTS")
+        self.assertEqual(target["maximum_active_crafts"], 1)
+        self.assertEqual(target["maximum_starts_per_reset"], 1)
+        self.assertEqual(target["craft_duration_seconds"], 43200)
+        self.assertFalse(target["exclusive_craft_allowed"])
+        self.assertFalse(target["rotating_display_selection_allowed"])
+        self.assertTrue(target["insufficient_parts_defer"])
+        self.assertEqual(record["quantity_cost"]["quantity"], 1)
+        self.assertEqual(record["quantity_cost"]["cost"]["amount"], 100)
+        self.assertEqual(record["quantity_cost"]["cost"]["unit"], "NANO_PARTS")
+        self.assertFalse(record["quantity_cost"]["cost"]["free_only"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["exact_parts_consumption_required"])
+        self.assertTrue(effect["single_start_per_reset_required"])
+        self.assertTrue(effect["exact_duration_required"])
+        self.assertTrue(effect["daily_objective_successor_required"])
+        self.assertFalse(effect["identical_retry"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in ("material production", "exclusive craft", "second craft", "currency"):
+            self.assertIn(marker, forbidden)
+
 
     def test_world_navigation_record_is_zero_cost_and_non_gameplay(self) -> None:
         record = self.records["world_map_navigation"]

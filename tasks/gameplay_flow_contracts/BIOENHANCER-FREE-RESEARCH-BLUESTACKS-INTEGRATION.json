@@ -259,7 +259,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "05f60fe417f462caadca70a39893e7cf6fda7a22e04cec4fee9fc94afa621598",
+    "product_authority_digest": "1a89217743c97799450289d73ed7ec372c2200fc45cde3c5944de46cb5a163c5",
     "product_record_id": "bioenhancer_research",
     "product_record_revision": "bioenhancer_research-v1",
     "product_record_digest": "5f36370751b2ff5071c0f42fbe15a28a3c628b28aa1ecf588337f5d32cb61207",

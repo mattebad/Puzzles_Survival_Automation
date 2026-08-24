@@ -1106,6 +1106,106 @@
       "record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537"
     },
     {
+      "record_id": "nanoweapon_normal_craft",
+      "record_type": "nanoweapon_normal_craft",
+      "purpose": "Authorize one once-per-reset Normal Craft Nanoweapon action with exact nano-part and timer boundaries.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "NANOWEAPON",
+        "route": [
+          "GEAR_FACTORY",
+          "NANOWEAPON",
+          "NORMAL_CRAFT"
+        ]
+      },
+      "objective": "nanoweapon_daily_craft",
+      "action": "start_one_normal_nanoweapon_craft",
+      "target": {
+        "kind": "nanoweapon_normal_craft",
+        "craft_mode": "NORMAL_CRAFT",
+        "completed_claim_on_entry": true,
+        "parts_required": 100,
+        "parts_unit": "NANO_PARTS",
+        "maximum_active_crafts": 1,
+        "maximum_starts_per_reset": 1,
+        "craft_duration_seconds": 43200,
+        "exclusive_craft_allowed": false,
+        "rotating_display_selection_allowed": false,
+        "insufficient_parts_defer": true,
+        "disabled_craft_defer": true,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "exact_material",
+          "amount": 100,
+          "unit": "NANO_PARTS",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "completed_claim_successor_required": true,
+        "exact_parts_consumption_required": true,
+        "single_active_craft_required": true,
+        "single_start_per_reset_required": true,
+        "exact_duration_required": true,
+        "craft_successor_required": true,
+        "daily_objective_successor_required": true,
+        "no_currency_box_or_item_input": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Material Production",
+        "Inherit",
+        "Exclusive Craft",
+        "rotating weapon display selection",
+        "unknown recipe",
+        "ambiguous recipe",
+        "insufficient nano parts",
+        "disabled Craft control",
+        "multiple active crafts",
+        "second craft in reset",
+        "currency",
+        "resource box",
+        "item",
+        "unknown craft result",
+        "ambiguous craft result",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "The bound contract carries selected Daily row identity; this direct product record owns no aggregate Daily Claim."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:nanoweapon-material-policy",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-nanoweapon-normal-craft",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "nanoweapon_normal_craft-v1",
+      "record_digest": "8f925c4e7156c65c8ef026f23074b6f691bb823233d1b12ba613661411ec8254"
+    },
+    {
       "record_id": "nano_material_production",
       "record_type": "nano_material_production",
       "purpose": "Authorize independent zero-resource Nano Material Production maintenance with one exact six-hour batch.",
@@ -1693,5 +1793,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "05f60fe417f462caadca70a39893e7cf6fda7a22e04cec4fee9fc94afa621598"
+  "authority_digest": "1a89217743c97799450289d73ed7ec372c2200fc45cde3c5944de46cb5a163c5"
 }

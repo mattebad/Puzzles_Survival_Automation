@@ -53,6 +53,7 @@ RECORD_TYPES = frozenset(
         "troop_training",
         "gathering_resources",
         "zombie_lair",
+        "nanoweapon_normal_craft",
         "nano_material_production",
         "world_map_navigation",
     }
@@ -72,6 +73,7 @@ RECORD_IDS = frozenset(
         "troop_training",
         "gathering_resources",
         "zombie_lair",
+        "nanoweapon_normal_craft",
         "nano_material_production",
         "world_map_navigation",
     }
@@ -296,6 +298,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "troop_training": "TRAINING_FACILITIES",
         "gathering_resources": "WORLD",
         "zombie_lair": "ZOMBIE_LAIR",
+        "nanoweapon_normal_craft": "NANOWEAPON",
         "nano_material_production": "NANOWEAPON",
         "world_map_navigation": "WORLD",
     }[record_type]
@@ -327,6 +330,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "troop_training": "troop_training",
         "gathering_resources": "gathering_resources",
         "zombie_lair": "zombie_lair",
+        "nanoweapon_normal_craft": "nanoweapon_normal_craft",
         "nano_material_production": "nano_material_production",
         "world_map_navigation": "world_map_navigation",
     }[record_id]
@@ -1243,6 +1247,111 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
             )
 
 
+def _validate_nanoweapon_normal_craft_record(record: Mapping[str, Any]) -> None:
+    """Validate one exact once-per-reset Normal Craft Nanoweapon action."""
+
+    if record["objective"] != "nanoweapon_daily_craft":
+        raise ProductAuthorityError(
+            "Nanoweapon record objective must be nanoweapon_daily_craft"
+        )
+    if record["action"] != "start_one_normal_nanoweapon_craft":
+        raise ProductAuthorityError(
+            "Nanoweapon action must be start_one_normal_nanoweapon_craft"
+        )
+    if record["recurrence"] != "daily_reset_scoped":
+        raise ProductAuthorityError(
+            "Nanoweapon recurrence must be daily_reset_scoped"
+        )
+    route = record["semantic_entry_route"]
+    if (
+        route.get("source_home_authorities") != ["HOME_CANONICAL"]
+        or route.get("route")
+        != ["GEAR_FACTORY", "NANOWEAPON", "NORMAL_CRAFT"]
+    ):
+        raise ProductAuthorityError(
+            "Nanoweapon entry route must bind canonical Home to Normal Craft"
+        )
+    target = record["target"]
+    if (
+        target.get("kind") != "nanoweapon_normal_craft"
+        or target.get("craft_mode") != "NORMAL_CRAFT"
+        or target.get("completed_claim_on_entry") is not True
+        or target.get("parts_required") != 100
+        or target.get("parts_unit") != "NANO_PARTS"
+        or target.get("maximum_active_crafts") != 1
+        or target.get("maximum_starts_per_reset") != 1
+        or target.get("craft_duration_seconds") != 43200
+        or target.get("exclusive_craft_allowed") is not False
+        or target.get("rotating_display_selection_allowed") is not False
+        or target.get("insufficient_parts_defer") is not True
+        or target.get("disabled_craft_defer") is not True
+        or target.get("terminal_home") != "HOME_CANONICAL"
+    ):
+        raise ProductAuthorityError(
+            "Nanoweapon target must bind one exact 100-part Normal Craft"
+        )
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 1
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "exact_material"
+        or cost.get("amount") != 100
+        or cost.get("unit") != "NANO_PARTS"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError(
+            "Nanoweapon must bind exact 100 NANO_PARTS consumption"
+        )
+    effect = record["semantic_effect"]
+    required_effects = (
+        "completed_claim_successor_required",
+        "exact_parts_consumption_required",
+        "single_active_craft_required",
+        "single_start_per_reset_required",
+        "exact_duration_required",
+        "craft_successor_required",
+        "daily_objective_successor_required",
+        "no_currency_box_or_item_input",
+        "dispatch_is_not_success_proof",
+    )
+    if (
+        effect.get("effect_ordinal") != 1
+        or any(effect.get(field) is not True for field in required_effects)
+        or effect.get("daily_ownership") != "none"
+        or effect.get("identical_retry") is not False
+    ):
+        raise ProductAuthorityError(
+            "Nanoweapon successor, cost, or retry safety effect is incomplete"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Nanoweapon terminal requirement must return to canonical Home"
+        )
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "material production",
+        "inherit",
+        "exclusive craft",
+        "rotating weapon display",
+        "insufficient nano parts",
+        "disabled craft",
+        "multiple active",
+        "second craft",
+        "currency",
+        "resource box",
+        "item",
+        "identical retry",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(
+                f"Nanoweapon forbidden actions must include {marker}"
+            )
+
+
 def _validate_nano_material_production_record(record: Mapping[str, Any]) -> None:
     """Validate independent zero-resource six-hour material maintenance."""
 
@@ -1760,6 +1869,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_gathering_resources_record(record)
     elif record_type == "zombie_lair":
         _validate_zombie_lair_record(record)
+    elif record_type == "nanoweapon_normal_craft":
+        _validate_nanoweapon_normal_craft_record(record)
     elif record_type == "nano_material_production":
         _validate_nano_material_production_record(record)
     elif record_type == "world_map_navigation":
@@ -1825,8 +1936,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 15:
-        raise ProductAuthorityError("product authority requires exactly fifteen records")
+    if not isinstance(records, list) or len(records) != 16:
+        raise ProductAuthorityError("product authority requires exactly sixteen records")
     return records
 
 
@@ -2108,6 +2219,18 @@ def validate_contract_product_authority_binding(
     }:
         raise ProductAuthorityError(
             "Zombie Lair contracts must bind the Zombie Lair record"
+        )
+    if record_id == "nanoweapon_normal_craft" and contract.get(
+        "flow_id"
+    ) != "NANOWEAPON-BLUESTACKS-INTEGRATION":
+        raise ProductAuthorityError(
+            "Nanoweapon record is reserved for the Nanoweapon flow"
+        )
+    if record_id != "nanoweapon_normal_craft" and contract.get(
+        "flow_id"
+    ) == "NANOWEAPON-BLUESTACKS-INTEGRATION":
+        raise ProductAuthorityError(
+            "Nanoweapon flow must bind the Nanoweapon record"
         )
     if record_id == "nano_material_production" and contract.get(
         "flow_id"

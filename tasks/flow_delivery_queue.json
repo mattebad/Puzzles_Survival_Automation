@@ -3463,8 +3463,8 @@
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "Policy is closed and pure offline craft code exists, but it has stale generic recipe semantics and lacks native selectors, claim/parts/timer/Home replay, and a supervised canary.",
-      "next_concrete_action": "After Nano Material Production, reconcile the existing pure contract to exact 100-part Normal Craft semantics and acquire native replay evidence before any canary.",
+      "blocked_reason": "Offline Normal Craft policy and adapter/session semantics are reconciled to exact 100 NANO_PARTS, one start per reset, one active craft, 43200 seconds, claim-first, and canonical Home; native selectors, route replay, production replay, and supervised canary remain missing.",
+      "next_concrete_action": "Keep Nanoweapon route/session migration blocked offline pending native Gear Factory/Nanoweapon/Normal Craft/claim/timer/Home evidence; do not dispatch a craft, add an adapter, register, schedule, or use runtime input. Advance to Ruins Shop product authority only.",
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NANOWEAPON-BLUESTACKS-INTEGRATION"

@@ -42,7 +42,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "05f60fe417f462caadca70a39893e7cf6fda7a22e04cec4fee9fc94afa621598",
+    "product_authority_digest": "1a89217743c97799450289d73ed7ec372c2200fc45cde3c5944de46cb5a163c5",
     "product_record_id": "zombie_lair",
     "product_record_revision": "zombie_lair-v1",
     "product_record_digest": "e9a6c9b34e504fcd779138fdb872331a80a3c1f7b5384cd5ee0b10c5b0de7dab",

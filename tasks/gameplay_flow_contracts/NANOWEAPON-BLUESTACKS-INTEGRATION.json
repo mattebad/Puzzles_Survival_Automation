@@ -369,9 +369,9 @@
     }
   ],
   "evidence_requirements": [
-    "Existing tasks/nanoweapon.py and tasks/daily_nanoweapon.py provide pure offline policy and postcondition primitives, but still encode legacy selected-weapon, zero-cost, and non-exact-duration assumptions that require later narrow implementation reconciliation.",
-    "Native selectors and postconditions remain required for Gear Factory radial entry, Gear Factory screen, Nanoweapon, completed-craft claim, Normal Craft, 100 nano parts, enabled/disabled Craft, active 12-hour timer, and canonical Home return.",
-    "A production-controller positive offline replay and a separately authorized supervised consequential canary remain required before registration or scheduling."
+    "Existing tasks/nanoweapon.py and tasks/daily_nanoweapon.py now enforce the exact offline Normal Craft policy: one 100-NANO_PARTS start per reset, one active craft, 43200-second duration, claim-first semantics, and exact-part successor checks; native route/session behavior remains unimplemented.",
+    "Native selectors and postconditions remain required for Gear Factory radial entry, Gear Factory screen, Nanoweapon, completed-craft claim, Normal Craft, exact 100 NANO_PARTS consumption, enabled/disabled Craft, active 43200-second timer, and canonical Home return.",
+    "Native route replay and a separately authorized supervised consequential canary remain required before registration or scheduling."
   ],
   "evidence_gates": [
     {
@@ -495,9 +495,30 @@
   ],
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
-  "offline_proof_state": "regression_required",
+  "offline_proof_state": "current",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r11",
+    "product_authority_digest": "1a89217743c97799450289d73ed7ec372c2200fc45cde3c5944de46cb5a163c5",
+    "product_record_id": "nanoweapon_normal_craft",
+    "product_record_revision": "nanoweapon_normal_craft-v1",
+    "product_record_digest": "8f925c4e7156c65c8ef026f23074b6f691bb823233d1b12ba613661411ec8254",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": ["HOME_CANONICAL"],
+    "selected_daily_prerequisite": false
+  },
   "registration_state": "disabled",
   "production_eligible": false
 }

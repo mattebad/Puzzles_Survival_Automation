@@ -34,7 +34,7 @@ def load_pair() -> tuple[DailyNanoweaponObservation, DailyNanoweaponObservation]
         selected_daily_row=True,
         objective_key="craft_nanoweapon",
         daily_progress_before=0,
-        nanoweapon=load_nanoweapon("free_synthetic"),
+        nanoweapon=load_nanoweapon("normal_craft_synthetic"),
     )
     after = DailyNanoweaponObservation(
         selected_daily_row=True,
@@ -44,6 +44,7 @@ def load_pair() -> tuple[DailyNanoweaponObservation, DailyNanoweaponObservation]
         successor_state="DAILY_NANOWEAPON_COMPLETE",
         nanoweapon=replace(
             before.nanoweapon,
+            nano_parts=0,
             craft_count=1,
             craft_result_visible=True,
             result_identity="Nano Spear",
@@ -57,8 +58,10 @@ class DailyNanoweaponContractTests(unittest.TestCase):
         before, _ = load_pair()
         self.assertTrue(daily_nanoweapon_authorizeable(before))
         spec = daily_nanoweapon_transaction_spec(before)
-        self.assertEqual(spec.action_kind, "CRAFT_NANOWEAPON_FREE")
-        self.assertTrue(spec.free_only)
+        self.assertEqual(spec.action_kind, "CRAFT_NANOWEAPON_NORMAL")
+        self.assertFalse(spec.free_only)
+        self.assertEqual(spec.maximum_cost, 100)
+        self.assertEqual(spec.resource_or_currency, "NANO_PARTS")
         for changes in (
             {"selected_daily_row": False},
             {"objective_key": "upgrade_building"},

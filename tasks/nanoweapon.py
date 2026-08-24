@@ -1,8 +1,9 @@
-"""Offline Craft Weapon contract for Daily nanoweapon objectives.
+"""Offline Normal Craft contract for Daily nanoweapon objectives.
 
-The contract requires a known free recipe and material state.  Material Production, Inherit,
-unknown resources, paid recipes, and long/ambiguous craft states fail closed.  No transport,
-runtime registration, or evidence capture is owned here.
+The contract requires exact 100 NANO_PARTS, one start per reset, one active
+craft, and a 43200-second duration. Material Production, Inherit, unknown
+resources, paid substitutions, and ambiguous craft states fail closed. No
+transport, runtime registration, or evidence capture is owned here.
 """
 
 from __future__ import annotations
@@ -17,14 +18,16 @@ from .profile import PROFILE_ID
 
 NANOWEAPON_SCREEN = "NANOWEAPON"
 CRAFT_WEAPON_TAB = "CRAFT_WEAPON"
-NANOWEAPON_FREE_TARGET = "nanoweapon-craft-free"
-BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
+NANOWEAPON_NORMAL_TARGET = "nanoweapon-craft-normal"
+BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
+NANO_PARTS_REQUIRED = 100
+NORMAL_CRAFT_DURATION_SECONDS = 43200
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True)
 class NanoweaponObservation:
-    """Semantic evidence for one free, known Craft Weapon recipe."""
+    """Semantic evidence for one exact Normal Craft Nanoweapon recipe."""
 
     screen_state: str
     selected_nanoweapon: bool
@@ -33,6 +36,7 @@ class NanoweaponObservation:
     recipe_known: bool
     materials_known: bool
     materials_available: bool
+    nano_parts: Optional[int]
     craft_mode: str
     target_identity: str
     target_roi: ROI
@@ -67,10 +71,10 @@ def _target_inside_panel(observation: NanoweaponObservation) -> bool:
     return bool(px0 <= tx0 < tx1 <= px1 and py0 <= ty0 < ty1 <= py1)
 
 
-def _has_bliss_native_source(observation: NanoweaponObservation) -> bool:
+def _has_native_source(observation: NanoweaponObservation) -> bool:
     refs = tuple(str(ref) for ref in observation.evidence_refs)
     return bool(
-        observation.target_provenance == BLISS_NATIVE_TARGET_PROVENANCE
+        observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
         and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)
@@ -80,7 +84,7 @@ def _has_bliss_native_source(observation: NanoweaponObservation) -> bool:
 
 
 def nanoweapon_authorizeable(observation: NanoweaponObservation) -> bool:
-    """Require a known free Craft Weapon recipe with approved duration policy."""
+    """Require exact Normal Craft parts, cost, and duration policy."""
 
     return bool(
         observation.screen_state == NANOWEAPON_SCREEN
@@ -91,21 +95,21 @@ def nanoweapon_authorizeable(observation: NanoweaponObservation) -> bool:
         and observation.materials_known
         and observation.materials_available
         and observation.craft_mode == "CRAFT"
-        and observation.target_identity == NANOWEAPON_FREE_TARGET
+        and observation.target_identity == NANOWEAPON_NORMAL_TARGET
         and observation.control_class == "CRAFT"
         and observation.craft_ready
         and observation.duration_policy_approved
-        and observation.craft_duration_seconds is not None
-        and observation.craft_duration_seconds >= 0
-        and observation.cost_type == "none"
-        and observation.cost_amount == 0
+        and observation.craft_duration_seconds == NORMAL_CRAFT_DURATION_SECONDS
+        and observation.nano_parts == NANO_PARTS_REQUIRED
+        and observation.cost_type == "NANO_PARTS"
+        and observation.cost_amount == NANO_PARTS_REQUIRED
         and observation.quantity == 1
         and _target_inside_panel(observation)
         and observation.overlay_state in {"none", "none_observed"}
         and bool(observation.game_day_id)
         and not observation.reset_guard_active
         and observation.recognized
-        and _has_bliss_native_source(observation)
+        and _has_native_source(observation)
     )
 
 
@@ -113,23 +117,23 @@ def nanoweapon_transaction_spec(observation: NanoweaponObservation) -> ActionTra
     if not nanoweapon_authorizeable(observation):
         raise ValueError("Nanoweapon Craft Weapon preconditions are not positively recognized")
     return ActionTransactionSpec(
-        action_kind="CRAFT_NANOWEAPON_FREE",
+        action_kind="CRAFT_NANOWEAPON_NORMAL",
         expected_source_screen=NANOWEAPON_SCREEN,
         subject=observation.recipe_name,
         quantity=1,
-        resource_or_currency=None,
-        maximum_cost=0,
-        free_only=True,
+        resource_or_currency="NANO_PARTS",
+        maximum_cost=NANO_PARTS_REQUIRED,
+        free_only=False,
         allowed_confirmation_dialogs=(),
         semantic_preconditions=(
             "nanoweapon_screen",
-            "craft_weapon_tab",
-            "known_recipe_and_materials",
-            "approved_craft_duration_policy",
-            "bliss_native_target_evidence",
-            "explicit_zero_cost",
+            "normal_craft_tab",
+            "known_recipe_and_exact_nano_parts",
+            "approved_43200_second_craft_duration",
+            "bluestacks_native_target_evidence",
+            "exact_100_nano_parts_cost",
         ),
-        semantic_postconditions=("craft_result_or_timer_change",),
+        semantic_postconditions=("craft_result_or_timer_change", "exact_parts_consumed"),
     )
 
 
@@ -137,7 +141,7 @@ def nanoweapon_postcondition_verified(
     before: NanoweaponObservation,
     after: NanoweaponObservation | None,
 ) -> bool:
-    """Require a same-day positive craft result, count increase, or timer start."""
+    """Require exact parts consumption plus a same-day positive craft successor."""
 
     if not nanoweapon_authorizeable(before) or after is None:
         return False
@@ -145,6 +149,9 @@ def nanoweapon_postcondition_verified(
         after.screen_state != NANOWEAPON_SCREEN
         or not after.selected_nanoweapon
         or after.selected_tab != CRAFT_WEAPON_TAB
+        or after.target_identity != NANOWEAPON_NORMAL_TARGET
+        or after.craft_duration_seconds != NORMAL_CRAFT_DURATION_SECONDS
+        or after.nano_parts != before.nano_parts - NANO_PARTS_REQUIRED
         or after.game_day_id != before.game_day_id
         or not after.recognized
     ):
@@ -174,7 +181,7 @@ def nanoweapon_perform_one_pulse(
         )
     if after is None:
         return TaskResult.progress(
-            "CRAFT_NANOWEAPON_FREE is authorized by the offline contract; dispatch remains evidence-gated",
+            "CRAFT_NANOWEAPON_NORMAL is authorized by the offline contract; dispatch remains evidence-gated",
             NANOWEAPON_SCREEN,
         )
     if not nanoweapon_postcondition_verified(before, after):
@@ -185,6 +192,6 @@ def nanoweapon_perform_one_pulse(
         )
     return TaskResult.done(
         "Nanoweapon craft postcondition verified",
-        "nanoweapon:free:completed",
+        "nanoweapon:normal:completed",
         NANOWEAPON_SCREEN,
     )
