@@ -9,6 +9,7 @@ from unittest.mock import patch
 from scripts import pnsctl
 from tasks.catalog import CATALOG_PATH, catalog_summary, load_catalog, objective_for_text
 from tasks.daily_quest import AllianceHelpHandler, AllianceHelpObservation
+MATRIX_PATH = Path(__file__).resolve().parents[1] / "tasks" / "daily_quest_execution_matrix.json"
 
 
 class CatalogTests(unittest.TestCase):
@@ -25,6 +26,15 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(by_key["help_allies"].implementation_status, "LIVE_VALIDATED")
         self.assertEqual(by_key["buy_box"].implementation_status, "DISABLED_POLICY")
         self.assertEqual(by_key["gather_wood"].consequence_class, "spend_or_strategic")
+
+    def test_box_purchase_decision_remains_blocked_without_authorization(self):
+        matrix = json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+        row = next(item for item in matrix["objectives"] if item["objective_key"] == "buy_box")
+        self.assertEqual(row["implementation_status"], "DISABLED_POLICY")
+        self.assertEqual(row["promotion_state"], "DISABLED_POLICY")
+        self.assertIn("no product authorization", row["resource_policy"])
+        self.assertIn("no purchase dispatch", row["action_transaction_boundary"])
+        self.assertIn("explicit product authorization remains absent", row["required_product_or_policy_decisions"])
 
     def test_loader_rejects_row_without_selected_daily_provenance(self):
         raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))

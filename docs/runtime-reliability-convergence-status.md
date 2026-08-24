@@ -1340,9 +1340,23 @@ No shop purchase, runtime input, registration, scheduler change, or
 emulator/ADB/BlueStacks observation occurred. Next is only Box purchase
 product decision.
 
+## Stage 7 Box purchase product decision
+
+`buy_box` remains an admitted catalog objective but is explicitly blocked by
+product policy. The matrix keeps implementation and promotion at
+`DISABLED_POLICY`; no current box item, currency, exact cost, balance,
+successor, or safe purchase result is authorized. Existing
+`tasks/purchases_disabled.py` observation arithmetic remains non-dispatching and
+does not become product authority.
+
+No Box product record, execution flow, registration, scheduler admission, or
+purchase dispatch is added. Synthetic disabled-purchase fixtures do not approve
+an offer. This is a durable block pending explicit product authorization, not a
+live attempt or route migration. Next is only Hero Upgrade product authority.
+
 ## Stage 7 ordered remainder plan
 
-Persistent order after Alliance Shop product-authority migration:
+Persistent order after Box purchase product decision:
 
 1. Ruins Shop product authority and route/session disposition.
 2. Rare Earth Shop product authority and independent route disposition.
@@ -1358,6 +1372,6 @@ Persistent order after Alliance Shop product-authority migration:
 
 Next three are fully detailed only as:
 
-- Rare Earth Shop product authority: preserve independent route disposition.
 - Alliance Shop product authority: preserve route disposition.
-- Box purchase: make explicit product decision, then block or retire.
+- Box purchase: remain blocked pending explicit product authorization.
+- Hero Upgrade product authority: establish typed authority and route disposition.
