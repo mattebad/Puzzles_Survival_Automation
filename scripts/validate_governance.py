@@ -8,6 +8,7 @@ import fnmatch
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -41,6 +42,13 @@ MANIFEST_STATUSES = {
     "NOT_VERIFIED_THIS_RUN",
     "NOT_APPLICABLE",
 }
+
+STAGE_CONTROL_PLANE_IDS = {
+    8: "stage-8-entry-gate",
+    9: "stage-9-autonomous-service-implementation",
+}
+STAGE_ID_PATTERN = re.compile(r"^stage-(?P<number>[1-9][0-9]*)-[a-z0-9]+(?:-[a-z0-9]+)*$")
+
 
 HANDOFF_SCHEMA_VERSION = 3
 HANDOFF_STRUCTURED_MAX_BYTES = 15000
@@ -378,7 +386,134 @@ def parse_handoff(path: Path = HANDOFF_PATH) -> Dict[str, Any]:
         raise GovernanceValidationError("handoff control_owner must be sol_parent")
     if state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"] is not True:
         raise GovernanceValidationError("handoff must prohibit recursive evidence inspection")
+    if state["current_task_id"].startswith("stage-"):
+        validate_handoff_relations(state)
+    validate_lifecycle_relations(state)
     return state
+
+
+def _stage_number(value: Any, field_name: str) -> int:
+    if not isinstance(value, str) or not STAGE_ID_PATTERN.fullmatch(value):
+        raise GovernanceValidationError(
+            f"{field_name} must be a canonical schema-3 stage identifier"
+        )
+    number = int(STAGE_ID_PATTERN.fullmatch(value).group("number"))
+    if STAGE_CONTROL_PLANE_IDS.get(number) != value:
+        raise GovernanceValidationError(f"{field_name} is not a known stage identifier")
+    return number
+
+
+def validate_handoff_relations(state: Dict[str, Any]) -> None:
+    current_number = _stage_number(state["current_task_id"], "current_task_id")
+    next_task_id = state["next_task_id"]
+    if not isinstance(next_task_id, str):
+        raise GovernanceValidationError(
+            "schema-3 stage handoff requires a stage successor"
+        )
+    next_number = _stage_number(next_task_id, "next_task_id")
+    if next_number != current_number + 1:
+        raise GovernanceValidationError(
+            "schema-3 stage successor must advance exactly one stage"
+        )
+    active_stage = re.search(r"stage[_-]([0-9]+)(?:[_-]|$)", state["active_delivery_stage"])
+    if active_stage is None or int(active_stage.group(1)) != current_number:
+        raise GovernanceValidationError(
+            "active_delivery_stage must identify the current schema-3 stage"
+        )
+
+
+def validate_lifecycle_relations(state: Dict[str, Any]) -> None:
+    if state["next_task_activation_status"] == "awaiting_explicit_activation":
+        if state["active_task_or_flow"] != "none":
+            raise GovernanceValidationError(
+                "awaiting_explicit_activation requires no active task or flow"
+            )
+        if state["active_execution_manifest_path"] is not None:
+            raise GovernanceValidationError(
+                "awaiting_explicit_activation must not name an execution manifest"
+            )
+        if state["registration_and_scheduler"]["production_registration"] != "NOT_REGISTERED":
+            raise GovernanceValidationError(
+                "awaiting_explicit_activation requires NOT_REGISTERED"
+            )
+        if state["registration_and_scheduler"]["scheduler_enabled"] is not False:
+            raise GovernanceValidationError(
+                "awaiting_explicit_activation requires scheduler disabled"
+            )
+        if state["runtime_ownership_state"] != "none":
+            raise GovernanceValidationError(
+                "awaiting_explicit_activation requires no runtime owner"
+            )
+    if state["current_task_state"] in {"completed", "completed_offline"}:
+        if state["active_task_or_flow"] != "none":
+            raise GovernanceValidationError(
+                "completed stage must not retain an active task or flow"
+            )
+        if state["active_execution_manifest_path"] is not None:
+            raise GovernanceValidationError(
+                "completed stage must not retain an execution manifest"
+            )
+        if state["development_lease_state"] != "absent":
+            raise GovernanceValidationError("completed stage requires an absent lease")
+        if state["journals_and_lease"]["development_lease_status"] != "absent":
+            raise GovernanceValidationError("completed stage requires an absent journal lease")
+        if state["runtime_ownership_state"] != "none":
+            raise GovernanceValidationError("completed stage requires no runtime owner")
+        if state["writable_agent_state"] != "none":
+            raise GovernanceValidationError("completed stage requires no writable agent")
+        if state["unresolved_action_state"] != "clear":
+            raise GovernanceValidationError("completed stage requires clear unresolved action")
+        if state["journals_and_lease"]["active_prepared_input_sent_unresolved_action_ids"]:
+            raise GovernanceValidationError(
+                "completed stage must have no unresolved prepared inputs"
+            )
+
+
+def _validate_git_binding(root: Path, field_name: str, commit: str, reviewed_head: str) -> None:
+    try:
+        commit_check = subprocess.run(
+            ["git", "-C", str(root), "cat-file", "-e", f"{commit}^{{commit}}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise GovernanceValidationError(f"unable to inspect Git for {field_name}") from exc
+    if commit_check.returncode != 0:
+        raise GovernanceValidationError(f"{field_name} does not identify a repository commit")
+    try:
+        ancestor_check = subprocess.run(
+            ["git", "-C", str(root), "merge-base", "--is-ancestor", commit, reviewed_head],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise GovernanceValidationError(f"unable to inspect Git ancestry for {field_name}") from exc
+    if ancestor_check.returncode != 0:
+        raise GovernanceValidationError(
+            f"{field_name} must be an ancestor of the reviewed HEAD"
+        )
+
+
+def validate_git_bindings(root: Path, state: Dict[str, Any]) -> None:
+    try:
+        reviewed_head = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--verify", "HEAD^{commit}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise GovernanceValidationError("unable to inspect the reviewed Git HEAD") from exc
+    if reviewed_head.returncode != 0:
+        raise GovernanceValidationError("unable to resolve the reviewed Git HEAD")
+    head = reviewed_head.stdout.strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", head):
+        raise GovernanceValidationError("reviewed Git HEAD must be a full Git SHA")
+    for field_name in ("head_binding", "last_product_candidate_head"):
+        _validate_git_binding(root, field_name, state[field_name], head)
+
 
 
 def task_block(backlog_text: str, task_id: str) -> str:
@@ -697,12 +832,18 @@ def validate_flow_delivery_loop_policy(root: Path = ROOT) -> Dict[str, Any]:
 def validate_repository(root: Path = ROOT) -> Tuple[List[str], List[str]]:
     state = parse_handoff(root / "CURRENT_HANDOFF.md")
     backlog = _read(root / "BACKLOG.md")
-    # Schema 3 stage/control-plane tasks are not required to duplicate legacy
-    # BACKLOG task contracts. parse_handoff validates their complete current
-    # state; BACKLOG remains independently checked below for stale nonterminal
-    # legacy entries.
-    validate_indexing_rules(root / ".cursorindexingignore")
+    validate_git_bindings(root, state)
+    validate_lifecycle_relations(state)
+    if state["current_task_id"].startswith("stage-"):
+        validate_handoff_relations(state)
+    else:
+        active_block = task_block(backlog, state["current_task_id"])
+        fields = validate_task_contract(active_block, state["current_task_id"])
+        validate_active_task_state(state, fields, state["current_task_id"])
+        validate_task_evidence(state, fields, state["current_task_id"], root)
+        validate_successor(backlog, state)
     validate_flow_delivery_loop_policy(root)
+    validate_indexing_rules(root / ".cursorindexingignore")
     warnings: List[str] = []
     for match in re.finditer(
         r"^### ([A-Z0-9-]+)(?:\s+—.*)?$", backlog, flags=re.MULTILINE

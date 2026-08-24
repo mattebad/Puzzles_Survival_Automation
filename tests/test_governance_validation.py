@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -173,6 +174,91 @@ class GovernanceValidationTests(unittest.TestCase):
             path.write_text(text, encoding="utf-8")
             with self.assertRaises(validate_governance.GovernanceValidationError):
                 validate_governance.parse_handoff(path)
+
+
+    def _assert_repository_rejects(self, mutate):
+        state = copy.deepcopy(validate_governance.parse_handoff())
+        mutate(state)
+        with patch.object(validate_governance, "parse_handoff", return_value=state):
+            with self.assertRaises(validate_governance.GovernanceValidationError):
+                validate_governance.validate_repository(ROOT)
+
+    def test_valid_current_stage_handoff_relations_pass(self):
+        state = validate_governance.parse_handoff()
+        validate_governance.validate_git_bindings(ROOT, state)
+        validate_governance.validate_handoff_relations(state)
+        validate_governance.validate_lifecycle_relations(state)
+
+    def test_schema_three_rejects_nonexistent_head_binding(self):
+        self._assert_repository_rejects(lambda state: state.update({"head_binding": "0" * 40}))
+
+    def test_schema_three_rejects_malformed_or_backwards_stage_successor(self):
+        for successor in ("not-a-stage", "stage-7-autonomous-service-implementation"):
+            with self.subTest(successor=successor):
+                self._assert_repository_rejects(
+                    lambda state, successor=successor: state.update(
+                        {"next_task_id": successor}
+                    )
+                )
+
+    def test_completed_stage_rejects_active_control_state(self):
+        mutations = {
+            "active_flow": lambda state: state.update({"active_task_or_flow": "flow-x"}),
+            "manifest": lambda state: state.update(
+                {"active_execution_manifest_path": "evidence/current-evidence-manifest.json"}
+            ),
+            "lease": lambda state: state.update({"development_lease_state": "held"}),
+            "owner": lambda state: state.update({"runtime_ownership_state": "flow-x"}),
+            "unresolved_action": lambda state: state.update(
+                {"unresolved_action_state": "action-123"}
+            ),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                self._assert_repository_rejects(mutate)
+
+    def test_awaiting_activation_rejects_active_flow_or_runtime_authority(self):
+        mutations = {
+            "active_flow": lambda state: state.update({"active_task_or_flow": "flow-x"}),
+            "manifest": lambda state: state.update(
+                {"active_execution_manifest_path": "evidence/current-evidence-manifest.json"}
+            ),
+            "registration": lambda state: state["registration_and_scheduler"].update(
+                {"production_registration": "REGISTERED"}
+            ),
+            "scheduler": lambda state: state["registration_and_scheduler"].update(
+                {"scheduler_enabled": True}
+            ),
+            "owner": lambda state: state.update({"runtime_ownership_state": "flow-x"}),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                self._assert_repository_rejects(mutate)
+
+    def test_legacy_backlog_state_evidence_and_successor_are_still_relational(self):
+        cases = {
+            "state": lambda state: state.update(
+                {
+                    "current_task_id": "GOV-DURABLE-STATE",
+                    "current_task_state": "in_progress",
+                }
+            ),
+            "evidence": lambda state: (
+                state.update({"current_task_id": "GOV-DURABLE-STATE"}),
+                state["evidence"].update({"evidence_requirement": "NOT_APPLICABLE"}),
+            ),
+        }
+        for name, mutate in cases.items():
+            with self.subTest(name=name):
+                self._assert_repository_rejects(mutate)
+
+        state = copy.deepcopy(validate_governance.parse_handoff())
+        state["next_task_id"] = "NOT-A-REAL-TASK"
+        with self.assertRaises(validate_governance.GovernanceValidationError):
+            validate_governance.validate_successor(
+                (ROOT / "BACKLOG.md").read_text(encoding="utf-8"),
+                state,
+            )
 
 
 if __name__ == "__main__":
