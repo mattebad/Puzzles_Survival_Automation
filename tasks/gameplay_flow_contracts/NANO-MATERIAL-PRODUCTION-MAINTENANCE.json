@@ -380,7 +380,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "55525c4bb337ccd8a6bc0ff56026c1c704bf72b7473f4ecadb3a60934f420c29",
+    "product_authority_digest": "7464367747c0ab03a6bd75337ad6ed229ca7c1c0ce46fffff7c0bdf92f4eac1b",
     "product_record_id": "nano_material_production",
     "product_record_revision": "nano_material_production-v1",
     "product_record_digest": "49fe5e4486ea94482a076df2e0332640d74f6be8ef240bb509c29c8ee40198a2",

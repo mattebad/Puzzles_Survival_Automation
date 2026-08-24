@@ -241,6 +241,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE",
             "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE",
             "HERO-UPGRADE-EVIDENCE-GATE",
+            "HERO-DUEL-EVIDENCE-GATE",
         ]
         self.assertEqual([item["flow_id"] for item in self.queue["flows"]], expected)
         counts = {
@@ -249,7 +250,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         }
         self.assertIn(counts["active"], (0, 1))
         self.assertEqual(counts["ready"] + counts["active"], 0)
-        self.assertEqual(counts["blocked"], 11)
+        self.assertEqual(counts["blocked"], 12)
         self.assertEqual(counts["completed"], 19)
         self.assertEqual(counts["needs_product_decision"], 0)
 

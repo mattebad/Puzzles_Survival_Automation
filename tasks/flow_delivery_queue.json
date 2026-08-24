@@ -158,10 +158,10 @@
       },
       {
         "task_id": "hero-duel",
-        "execution_flow_id": null,
+        "execution_flow_id": "HERO-DUEL-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": [],
-        "blocker": "free-opponent/popup/exit/loss native evidence and three-dispatch implementation are missing"
+        "blocker": "current Hero Duel event, free opponent, Join state, attempts, participation successor, loss/Exit safety, and canonical Home evidence are missing"
       },
       {
         "task_id": "enhancement-gear-native-proof",
@@ -4358,6 +4358,41 @@
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/HERO-UPGRADE-EVIDENCE-GATE"
+    },
+    {
+      "flow_id": "HERO-DUEL-EVIDENCE-GATE",
+      "title": "Record Hero Duel authority and evidence gate",
+      "kind": "hero_duel_evidence_gate",
+      "priority": 174,
+      "status": "blocked",
+      "backlog_task_id": "hero-duel",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/hero_duel_disabled.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/HERO-DUEL-EVIDENCE-GATE.json",
+        "tasks/daily_quest_execution_matrix.json"
+      ],
+      "navigation_model": "canonical_home_to_hero_duel_observation_and_home_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current Hero Duel event, active state, free opponent, Join control, attempts, participation successor, loss/Exit safety, and canonical Home evidence are required before any route/session input.",
+      "consequence_policy": "PvP entry, lineup change, combat, loss consequence, and resource spend remain prohibited; synthetic arithmetic is non-authorizing.",
+      "product_policy_status": "prohibited",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_hero_duel_disabled.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current native Hero Duel event, free opponent, Join state, attempts, participation result, loss/Exit safety, and Home route/session evidence are missing.",
+      "next_concrete_action": "Resolve Hero Duel PvP policy and acquire lean native event plus canonical-Home route/session evidence; keep PvP entry disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/HERO-DUEL-EVIDENCE-GATE"
     }
   ]
 }

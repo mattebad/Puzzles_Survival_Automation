@@ -57,6 +57,7 @@ RECORD_TYPES = frozenset(
         "rare_earth_shop_purchase",
         "alliance_shop_purchase",
         "hero_upgrade",
+        "hero_duel",
         "nanoweapon_normal_craft",
         "nano_material_production",
         "world_map_navigation",
@@ -81,6 +82,7 @@ RECORD_IDS = frozenset(
         "rare_earth_shop_purchase",
         "alliance_shop_purchase",
         "hero_upgrade",
+        "hero_duel",
         "nanoweapon_normal_craft",
         "nano_material_production",
         "world_map_navigation",
@@ -309,6 +311,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "rare_earth_shop_purchase": "RARE_EARTH_SHOP",
         "alliance_shop_purchase": "ALLIANCE_SHOP",
         "hero_upgrade": "HERO",
+        "hero_duel": "HERO_DUEL",
         "nanoweapon_normal_craft": "NANOWEAPON",
         "nano_material_production": "NANOWEAPON",
         "world_map_navigation": "WORLD",
@@ -345,6 +348,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "rare_earth_shop_purchase": "rare_earth_shop_purchase",
         "alliance_shop_purchase": "alliance_shop_purchase",
         "hero_upgrade": "hero_upgrade",
+        "hero_duel": "hero_duel",
         "nanoweapon_normal_craft": "nanoweapon_normal_craft",
         "nano_material_production": "nano_material_production",
         "world_map_navigation": "world_map_navigation",
@@ -1260,6 +1264,110 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
             raise ProductAuthorityError(
                 f"Gathering forbidden actions must include {marker}"
             )
+def _validate_hero_duel_record(record: Mapping[str, Any]) -> None:
+    """Validate an unresolved, non-dispatch Hero Duel candidate."""
+
+    if record["objective"] != "join_hero_duel":
+        raise ProductAuthorityError(
+            "Hero Duel record objective must be join_hero_duel"
+        )
+    if record["action"] != "observe_one_hero_duel_candidate":
+        raise ProductAuthorityError(
+            "Hero Duel action must remain observation-only until product approval"
+        )
+    if record["recurrence"] != "daily_reset_scoped":
+        raise ProductAuthorityError("Hero Duel recurrence must be daily_reset_scoped")
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
+        "route"
+    ) != ["HERO_DUEL"]:
+        raise ProductAuthorityError(
+            "Hero Duel entry route must bind canonical Home to Hero Duel"
+        )
+    target = record["target"]
+    if (
+        not isinstance(target, Mapping)
+        or target.get("kind") != "hero_duel"
+        or target.get("event_identity") != "unknown_current_hero_duel_event"
+        or target.get("event_active") is not None
+        or target.get("target_identity") != "HERO_DUEL_JOIN"
+        or target.get("candidate_attempts_remaining") is not None
+        or target.get("daily_progress_before") != 0
+        or target.get("daily_completion_target") != 3
+        or target.get("policy_status") != "prohibited"
+        or target.get("pvp_entry_allowed") is not False
+        or target.get("terminal_home") != "HOME_CANONICAL"
+    ):
+        raise ProductAuthorityError(
+            "Hero Duel target must preserve unknown event and attempt bounds"
+        )
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 1
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "prohibited_pvp_cost"
+        or cost.get("amount") is not None
+        or cost.get("unit") != "NO_PVP_RESOURCE_SPEND"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError(
+            "Hero Duel candidate must keep PvP cost fail-closed"
+        )
+    effect = record["semantic_effect"]
+    required_effects = {
+        "effect_ordinal": 1,
+        "exact_event_evidence_required": True,
+        "event_active_evidence_required": True,
+        "free_opponent_evidence_required": True,
+        "join_control_evidence_required": True,
+        "attempts_remaining_evidence_required": True,
+        "participation_successor_required": True,
+        "daily_progress_successor_required": True,
+        "daily_progress_maximum": 3,
+        "pvp_entry_allowed": False,
+        "combat_dispatch_allowed": False,
+        "lineup_change_allowed": False,
+        "canonical_home_successor_required": True,
+        "dispatch_is_not_success_proof": True,
+        "daily_ownership": "none",
+        "identical_retry": False,
+    }
+    if any(effect.get(key) != value for key, value in required_effects.items()):
+        raise ProductAuthorityError(
+            "Hero Duel candidate must stay evidence-gated and non-dispatching"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Hero Duel terminal requirement must return to canonical Home"
+        )
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "join",
+        "pvp entry",
+        "combat dispatch",
+        "lineup change",
+        "attack",
+        "loss consequence",
+        "premium opponent",
+        "unknown event",
+        "ambiguous event",
+        "inactive event",
+        "unknown opponent",
+        "unknown attempts",
+        "insufficient attempts",
+        "identical retry",
+        "real-money",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(
+                f"Hero Duel candidate must forbid {marker} actions"
+            )
+
+
 def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
     """Validate an unresolved, non-dispatch Hero Upgrade candidate."""
 
@@ -2287,6 +2395,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_zombie_lair_record(record)
     elif record_type == "rare_earth_shop_purchase":
         _validate_rare_earth_shop_purchase_record(record)
+    elif record_type == "hero_duel":
+        _validate_hero_duel_record(record)
     elif record_type == "hero_upgrade":
         _validate_hero_upgrade_record(record)
     elif record_type == "alliance_shop_purchase":
@@ -2355,11 +2465,12 @@ def validate_daily_reset_policy(
             )
     return dict(policy)
 
-
 def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
-    if not isinstance(records, list) or len(records) != 20:
-        raise ProductAuthorityError("product authority requires exactly twenty records")
+    if records is None:
+        records = payload.get("representative_product_records")
+    if not isinstance(records, list) or len(records) != 21:
+        raise ProductAuthorityError("product authority requires exactly twenty-one records")
     return records
 
 

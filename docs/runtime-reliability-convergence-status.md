@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, Gathering product authority, Zombie Lair product-authority, Nano Material product-authority, Nanoweapon product-authority/offline-adapter, Ruins Shop product-authority/evidence-gate, Rare Earth Shop product-authority/evidence-gate, Alliance Shop product-authority/evidence-gate, and Hero Upgrade product-authority/evidence-gate lanes accepted offline; Milestone continuous-session lane dispositioned blocked; Gathering route/session, Nano Material route/session, Nanoweapon route/session, and shop/hero route/session lanes remain blocked by missing native evidence. Registration and scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, Gathering product authority, Zombie Lair product-authority, Nano Material product-authority, Nanoweapon product-authority/offline-adapter, Ruins Shop product-authority/evidence-gate, Rare Earth Shop product-authority/evidence-gate, Alliance Shop product-authority/evidence-gate, Hero Upgrade product-authority/evidence-gate, and Hero Duel product-authority/evidence-gate lanes accepted offline; Milestone continuous-session lane dispositioned blocked; Gathering route/session, Nano Material route/session, Nanoweapon route/session, and shop/hero/combat route/session lanes remain blocked by missing native evidence. Registration and scheduling remain disabled. |
 
 
 
@@ -1382,9 +1382,34 @@ No Upgrade dispatch, runtime input, registration, scheduler change, or
 emulator/ADB/BlueStacks observation occurred. Next is only Hero Duel product
 authority.
 
+## Stage 7 Hero Duel product-authority migration
+
+Hero Duel now has typed `hero_duel-v1` candidate authority with record digest
+`1548299f91f76c377167b8a0bef74c62d241886c3198753eb5dd65cb3c9efc12` and
+authority digest
+`7464367747c0ab03a6bd75337ad6ed229ca7c1c0ce46fffff7c0bdf92f4eac1b`. The
+candidate preserves canonical Home to `HERO_DUEL`, unknown current event,
+free-opponent state, attempts, and participation result as unknown. PvP entry,
+lineup changes, combat, and loss consequences remain prohibited.
+
+The product policy is `prohibited`, not PvP authorization. Schema-2
+`HERO-DUEL-EVIDENCE-GATE` binds the candidate and permits no inputs;
+registration is disabled, production eligibility is false, and proof is
+`evidence_required`. `tasks/hero_duel_disabled.py` remains
+observation/arithmetic only and distinct from Daily Claim ownership.
+
+Hero Duel focused validation passed 79 tests with receipt
+`1b1126e4a6139f66826f21d21d4f3b2f891cad04ffe2ad3dfb6c0aaa381f9c28`; the
+architecture profile passed 92 tests with receipt
+`99fc571c3f1b2d8c61a909b4eda2f9fb476a4b51d48ba9026c142d628cebce96`.
+No native Hero Duel event, free opponent, Join state, attempts, participation
+result, loss/Exit safety, or canonical-Home route/session proof exists. No PvP
+entry, runtime input, registration, scheduler change, or emulator/ADB/BlueStacks
+observation occurred. Next is only VIP popup helper authority.
+
 ## Stage 7 ordered remainder plan
 
-Persistent order after Hero Upgrade product-authority migration:
+Persistent order after Hero Duel product-authority migration:
 
 1. Ruins Shop product authority and route/session disposition.
 2. Rare Earth Shop product authority and independent route disposition.
@@ -1400,6 +1425,6 @@ Persistent order after Hero Upgrade product-authority migration:
 
 Next three are fully detailed only as:
 
-- Box purchase: remain blocked pending explicit product authorization.
 - Hero Upgrade product authority: preserve route disposition.
-- Hero Duel product authority: establish offline/combat-blocked disposition.
+- Hero Duel product authority: preserve offline/combat-blocked disposition.
+- VIP popup helper authority: establish typed helper and route disposition.

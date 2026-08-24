@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "flow_id": "HERO-UPGRADE-EVIDENCE-GATE",
-  "product_purpose": "Observe one bounded Hero Upgrade candidate without authorizing material spend or Upgrade dispatch.",
+  "flow_id": "HERO-DUEL-EVIDENCE-GATE",
+  "product_purpose": "Observe one bounded Hero Duel participation candidate without authorizing PvP entry, lineup change, combat, or resource spend.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "up to three candidates per reset after explicit product decision",
   "required_starting_context": ["home_canonical"],
@@ -14,80 +14,79 @@
   ],
   "recognized_states": [
     "home_canonical",
-    "hero",
-    "upgrade_observation",
+    "hero_duel",
+    "participation_observation",
     "blocked"
   ],
   "transition_contracts": [
     {
-      "transition_id": "observe_hero_upgrade_route",
+      "transition_id": "observe_hero_duel_route",
       "from": "home_canonical",
-      "to": "hero",
-      "planner": "HeroUpgradeEvidenceGate",
+      "to": "hero_duel",
+      "planner": "HeroDuelEvidenceGate",
       "permitted_input": null,
       "postconditions": [
-        "Hero route remains an offline observation contract",
-        "no navigation input is authorized"
+        "Hero Duel route remains an offline observation contract",
+        "no navigation or PvP input is authorized"
       ],
       "terminal_outcomes": ["blocked"],
-      "evidence_gate_id": "hero_upgrade_replay"
+      "evidence_gate_id": "hero_duel_replay"
     },
     {
-      "transition_id": "observe_hero_upgrade_candidate",
-      "from": "hero",
-      "to": "upgrade_observation",
-      "planner": "HeroUpgradeEvidenceGate",
+      "transition_id": "observe_hero_duel_candidate",
+      "from": "hero_duel",
+      "to": "participation_observation",
+      "planner": "HeroDuelEvidenceGate",
       "permitted_input": null,
       "postconditions": [
-        "current Wally identity and selected-hero state are recognized",
-        "current level, next level, material, exact amount, balance, and Upgrade state are recognized",
-        "one-level successor, material delta, completion progress, and canonical Home evidence are captured"
+        "current event, active state, free opponent, Join control, and attempts are recognized",
+        "participation successor and completion progress evidence are captured"
       ],
       "terminal_outcomes": ["blocked"],
-      "evidence_gate_id": "hero_upgrade_replay"
+      "evidence_gate_id": "hero_duel_replay"
     },
     {
       "transition_id": "return_canonical_home",
-      "from": "upgrade_observation",
+      "from": "participation_observation",
       "to": "home_canonical",
-      "planner": "HeroUpgradeEvidenceGate",
+      "planner": "HeroDuelEvidenceGate",
       "permitted_input": null,
       "postconditions": [
         "canonical Home remains the required terminal state"
       ],
       "terminal_outcomes": ["blocked"],
-      "evidence_gate_id": "hero_upgrade_replay"
+      "evidence_gate_id": "hero_duel_replay"
     }
   ],
   "permitted_inputs": [],
-  "consequential_action_class": "hero_upgrade_candidate_observation",
+  "consequential_action_class": "hero_duel_candidate_observation",
   "cost_quantity_requirements": {
     "free_only": false,
     "maximum_cost": null,
     "quantity": 1,
-    "resource_or_currency": "UNKNOWN_HERO_MATERIAL",
-    "notes": "Current hero, level, material, amount, and balance are unresolved; no Upgrade dispatch or material spend is authorized."
+    "resource_or_currency": "NO_PVP_RESOURCE_SPEND",
+    "notes": "Current event, free-opponent state, attempts, and participation result are unresolved; no PvP entry, lineup change, combat, or resource spend is authorized."
   },
-  "completion_identity": "hero-upgrade:candidate:observed",
+  "completion_identity": "hero-duel:candidate:observed",
   "terminal_outcomes": ["deferred", "blocked", "manual_required"],
-  "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native hero-upgrade evidence are current; never schedule or register this flow.",
-  "bounded_recovery_behavior": "Stop on unknown hero, level, material, cost, balance, queue, successor, progress, or terminal Home state; preserve blocked disposition.",
+  "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native Hero Duel evidence are current; never schedule or register this flow.",
+  "bounded_recovery_behavior": "Stop on unknown event, opponent, attempts, Join state, combat, loss consequence, completion progress, or terminal Home state; preserve blocked disposition.",
   "evidence_requirements": [
-    "Current native Hero surface, Wally identity, selected state, and Upgrade control are missing.",
-    "Current level transition, exact hero material and amount, balance, one-level successor, material delta, completion progress, and quantity-one evidence are missing.",
+    "Current native Hero Duel event, active state, free opponent, Join control, and attempts are missing.",
+    "Current participation result, completion successor, and bounded three-candidate progress evidence are missing.",
     "Canonical Home return and production-controller route/session proof are missing."
   ],
   "evidence_gates": [
     {
-      "gate_id": "hero_upgrade_replay",
+      "gate_id": "hero_duel_replay",
       "status": "evidence_required",
       "blocks": [
-        "observe_hero_upgrade_route",
-        "observe_hero_upgrade_candidate",
+        "observe_hero_duel_route",
+        "observe_hero_duel_candidate",
         "return_canonical_home"
       ],
       "required_evidence": [
-        "hash-bound native Hero Upgrade surface corpus",
+        "hash-bound native Hero Duel event corpus",
         "production-controller positive route/session replay"
       ],
       "permitted_inputs": []
@@ -95,42 +94,42 @@
   ],
   "scenarios": [
     {
-      "scenario_id": "hero_upgrade_production",
+      "scenario_id": "hero_duel_production",
       "mode": "blocked_until_evidence",
       "start_state": "home_canonical",
       "terminal_state": "blocked",
       "permitted_inputs": [],
       "forbidden_inputs": [],
       "required_transitions": [
-        "observe_hero_upgrade_route",
-        "observe_hero_upgrade_candidate",
+        "observe_hero_duel_route",
+        "observe_hero_duel_candidate",
         "return_canonical_home"
       ],
-      "evidence_gate_ids": ["hero_upgrade_replay"]
+      "evidence_gate_ids": ["hero_duel_replay"]
     }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "hero_upgrade_native_surface",
+      "fixture_id": "hero_duel_native_event",
       "status": "required_evidence",
       "path": null,
-      "notes": "Synthetic disabled-upgrade arithmetic does not establish current Wally identity, level, material, exact amount, balance, or product authorization."
+      "notes": "Synthetic disabled-PvP arithmetic does not establish current event, free opponent, Join state, attempts, or participation authorization."
     }
   ],
   "unsupported_or_manual_only_states": [
-    "Upgrade",
-    "Upgrade dispatch",
-    "material spend",
-    "premium material",
-    "unknown hero",
-    "ambiguous hero",
-    "unknown level",
-    "ambiguous level",
-    "unknown material",
-    "ambiguous material",
-    "unknown cost",
-    "insufficient material balance",
-    "completion progress greater than three",
+    "Join",
+    "PvP entry",
+    "combat dispatch",
+    "lineup change",
+    "attack",
+    "loss consequence",
+    "premium opponent",
+    "unknown event",
+    "ambiguous event",
+    "inactive event",
+    "unknown opponent",
+    "unknown attempts",
+    "insufficient attempts",
     "registration",
     "scheduler"
   ],
@@ -141,7 +140,7 @@
   "supervised_live_proof_state": "evidence_required",
   "product_policy_refs": [
     {
-      "policy_id": "hero-upgrade-policy",
+      "policy_id": "hero-duel-policy",
       "source": "tasks/flow_delivery_product_policy.json"
     }
   ],
@@ -151,9 +150,9 @@
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
     "product_authority_digest": "7464367747c0ab03a6bd75337ad6ed229ca7c1c0ce46fffff7c0bdf92f4eac1b",
-    "product_record_id": "hero_upgrade",
-    "product_record_revision": "hero_upgrade-v1",
-    "product_record_digest": "555f1c71d54d17256eab6c2fef1914c446b1502a136eaa798191397725ab0891",
+    "product_record_id": "hero_duel",
+    "product_record_revision": "hero_duel-v1",
+    "product_record_digest": "1548299f91f76c377167b8a0bef74c62d241886c3198753eb5dd65cb3c9efc12",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

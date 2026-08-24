@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_twenty_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_twenty_one_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -71,6 +71,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "rare_earth_shop_purchase",
                 "alliance_shop_purchase",
                 "hero_upgrade",
+                "hero_duel",
                 "nanoweapon_normal_craft",
                 "nano_material_production",
                 "world_map_navigation",
@@ -110,6 +111,7 @@ class ProductAuthorityTests(unittest.TestCase):
             "rare_earth_shop_purchase",
             "alliance_shop_purchase",
             "hero_upgrade",
+            "hero_duel",
             "nanoweapon_normal_craft",
             "nano_material_production",
             "world_map_navigation",
@@ -241,6 +243,48 @@ class ProductAuthorityTests(unittest.TestCase):
             "unknown material",
             "unknown cost",
             "insufficient material balance",
+        ):
+            self.assertIn(marker, forbidden)
+
+    def test_hero_duel_candidate_keeps_pvp_fail_closed(self) -> None:
+        record = self.records["hero_duel"]
+        policy = next(
+            item
+            for item in self.authority["policies"]
+            if item["policy_id"] == "hero-duel-policy"
+        )
+        self.assertEqual(policy["status"], "prohibited")
+        self.assertFalse(policy["pvp_entry_allowed"])
+        self.assertEqual(record["record_type"], "hero_duel")
+        self.assertEqual(record["semantic_entry_route"]["route"], ["HERO_DUEL"])
+        target = record["target"]
+        self.assertEqual(target["event_identity"], "unknown_current_hero_duel_event")
+        self.assertIsNone(target["event_active"])
+        self.assertEqual(target["target_identity"], "HERO_DUEL_JOIN")
+        self.assertIsNone(target["candidate_attempts_remaining"])
+        self.assertEqual(target["daily_completion_target"], 3)
+        self.assertFalse(target["pvp_entry_allowed"])
+        cost = record["quantity_cost"]["cost"]
+        self.assertIsNone(cost["amount"])
+        self.assertEqual(cost["unit"], "NO_PVP_RESOURCE_SPEND")
+        self.assertFalse(cost["free_only"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["exact_event_evidence_required"])
+        self.assertTrue(effect["free_opponent_evidence_required"])
+        self.assertTrue(effect["join_control_evidence_required"])
+        self.assertTrue(effect["participation_successor_required"])
+        self.assertFalse(effect["pvp_entry_allowed"])
+        self.assertFalse(effect["combat_dispatch_allowed"])
+        self.assertFalse(effect["lineup_change_allowed"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in (
+            "join",
+            "pvp entry",
+            "combat dispatch",
+            "lineup change",
+            "unknown event",
+            "unknown opponent",
+            "insufficient attempts",
         ):
             self.assertIn(marker, forbidden)
 
