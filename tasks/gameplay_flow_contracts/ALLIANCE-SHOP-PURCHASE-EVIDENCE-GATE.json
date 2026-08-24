@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "flow_id": "RUINS-SHOP-PURCHASE-EVIDENCE-GATE",
-  "product_purpose": "Observe one bounded Ruins Shop purchase candidate without authorizing Buy or currency spend.",
+  "flow_id": "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE",
+  "product_purpose": "Observe one bounded Alliance Shop purchase candidate without authorizing Buy or currency spend.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "one candidate per reset after explicit product decision",
   "required_starting_context": ["home_canonical"],
@@ -14,80 +14,80 @@
   ],
   "recognized_states": [
     "home_canonical",
-    "ruins_shop",
+    "alliance_shop",
     "offer_observation",
     "blocked"
   ],
   "transition_contracts": [
     {
-      "transition_id": "observe_ruins_shop_route",
+      "transition_id": "observe_alliance_shop_route",
       "from": "home_canonical",
-      "to": "ruins_shop",
-      "planner": "RuinsShopPurchaseEvidenceGate",
+      "to": "alliance_shop",
+      "planner": "AllianceShopPurchaseEvidenceGate",
       "permitted_input": null,
       "postconditions": [
-        "Ruins Shop route remains an offline observation contract",
+        "Alliance Shop route remains an offline observation contract",
         "no navigation input is authorized"
       ],
       "terminal_outcomes": ["blocked"],
-      "evidence_gate_id": "ruins_shop_native_offer_replay"
+      "evidence_gate_id": "alliance_native_offer_replay"
     },
     {
       "transition_id": "observe_allowlisted_candidate",
-      "from": "ruins_shop",
+      "from": "alliance_shop",
       "to": "offer_observation",
-      "planner": "RuinsShopPurchaseEvidenceGate",
+      "planner": "AllianceShopPurchaseEvidenceGate",
       "permitted_input": null,
       "postconditions": [
-        "current three-star Chip material identity is recognized",
-        "current 15 RUINS_COINS cost and sufficient balance are recognized",
-        "quantity one and item/currency successor evidence are captured"
+        "current Joy Coin offer identity and availability are recognized",
+        "current currency, exact cost, fallback item, and fallback cost are recognized",
+        "sufficient balance, quantity one, and item/currency successor evidence are captured"
       ],
       "terminal_outcomes": ["blocked"],
-      "evidence_gate_id": "ruins_shop_native_offer_replay"
+      "evidence_gate_id": "alliance_native_offer_replay"
     },
     {
       "transition_id": "return_canonical_home",
       "from": "offer_observation",
       "to": "home_canonical",
-      "planner": "RuinsShopPurchaseEvidenceGate",
+      "planner": "AllianceShopPurchaseEvidenceGate",
       "permitted_input": null,
       "postconditions": [
         "canonical Home remains the required terminal state"
       ],
       "terminal_outcomes": ["blocked"],
-      "evidence_gate_id": "ruins_shop_native_offer_replay"
+      "evidence_gate_id": "alliance_native_offer_replay"
     }
   ],
   "permitted_inputs": [],
-  "consequential_action_class": "ruins_shop_purchase_candidate_observation",
+  "consequential_action_class": "alliance_shop_purchase_candidate_observation",
   "cost_quantity_requirements": {
     "free_only": false,
-    "maximum_cost": 15,
+    "maximum_cost": null,
     "quantity": 1,
-    "resource_or_currency": "RUINS_COINS",
-    "notes": "Candidate bounds are unresolved; no Buy dispatch or currency spend is authorized."
+    "resource_or_currency": "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN",
+    "notes": "Current offer, currency, fallback item, and cost are unresolved; no Buy dispatch or currency spend is authorized."
   },
-  "completion_identity": "ruins-shop:purchase:candidate-observed",
+  "completion_identity": "alliance-shop:purchase:candidate-observed",
   "terminal_outcomes": ["deferred", "blocked", "manual_required"],
   "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native offer evidence are current; never schedule or register this flow.",
-  "bounded_recovery_behavior": "Stop on unknown shop, item, cost, balance, quantity, successor, or terminal Home state; preserve blocked disposition.",
+  "bounded_recovery_behavior": "Stop on unknown shop, offer, item, currency, cost, balance, quantity, successor, or terminal Home state; preserve blocked disposition.",
   "evidence_requirements": [
-    "Current native Ruins Shop target and current three-star Chip material label are missing.",
-    "Current 15 RUINS_COINS cost, sufficient balance, quantity bound, item delta, currency delta, and successor evidence are missing.",
+    "Current native Alliance Shop target, Joy Coin offer, availability, and fallback item are missing.",
+    "Current currency identity, exact offer cost, fallback cost, sufficient balance, quantity-one, item delta, currency delta, and successor evidence are missing.",
     "Canonical Home return and production-controller route/session proof are missing."
   ],
   "evidence_gates": [
     {
-      "gate_id": "ruins_shop_native_offer_replay",
+      "gate_id": "alliance_native_offer_replay",
       "status": "evidence_required",
       "blocks": [
-        "observe_ruins_shop_route",
+        "observe_alliance_shop_route",
         "observe_allowlisted_candidate",
         "return_canonical_home"
       ],
       "required_evidence": [
-        "hash-bound native Ruins Shop offer corpus",
+        "hash-bound native Alliance Shop offer corpus",
         "production-controller positive route/session replay"
       ],
       "permitted_inputs": []
@@ -95,26 +95,26 @@
   ],
   "scenarios": [
     {
-      "scenario_id": "ruins_shop_purchase_production",
+      "scenario_id": "alliance_shop_purchase_production",
       "mode": "blocked_until_evidence",
       "start_state": "home_canonical",
       "terminal_state": "blocked",
       "permitted_inputs": [],
       "forbidden_inputs": [],
       "required_transitions": [
-        "observe_ruins_shop_route",
+        "observe_alliance_shop_route",
         "observe_allowlisted_candidate",
         "return_canonical_home"
       ],
-      "evidence_gate_ids": ["ruins_shop_native_offer_replay"]
+      "evidence_gate_ids": ["alliance_native_offer_replay"]
     }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "ruins_shop_native_offer",
+      "fixture_id": "alliance_native_offer",
       "status": "required_evidence",
       "path": null,
-      "notes": "Synthetic disabled-purchase arithmetic does not establish current three-star Chip identity or 15-coin authority."
+      "notes": "Synthetic disabled-purchase arithmetic does not establish current Joy Coin offer, fallback item, currency, or exact cost authority."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -123,6 +123,9 @@
     "unknown item",
     "ambiguous item",
     "unknown cost",
+    "unknown currency",
+    "unknown Joy Coin offer",
+    "unknown Alliance-coin fallback",
     "insufficient balance",
     "quantity greater than one",
     "purchase confirmation",
@@ -136,7 +139,7 @@
   "supervised_live_proof_state": "evidence_required",
   "product_policy_refs": [
     {
-      "policy_id": "ruins-shop-purchase-policy",
+      "policy_id": "alliance-shop-purchase-policy",
       "source": "tasks/flow_delivery_product_policy.json"
     }
   ],
@@ -146,9 +149,9 @@
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
     "product_authority_digest": "65de47fc1ff7fce10f4d004afb9a816ed38febb10741e00ced6a8f404ede5d57",
-    "product_record_id": "ruins_shop_purchase",
-    "product_record_revision": "ruins_shop_purchase-v1",
-    "product_record_digest": "eadc1a6c93de0c64d9ad5a3143a99a6834cfcba5bbfd0dea964698b86dd42222",
+    "product_record_id": "alliance_shop_purchase",
+    "product_record_revision": "alliance_shop_purchase-v1",
+    "product_record_digest": "98c96f0ffc299f9fe2be981ced97e8ff3a387f00562b7799902d4cb2f96e8bef",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

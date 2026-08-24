@@ -55,6 +55,7 @@ RECORD_TYPES = frozenset(
         "zombie_lair",
         "ruins_shop_purchase",
         "rare_earth_shop_purchase",
+        "alliance_shop_purchase",
         "nanoweapon_normal_craft",
         "nano_material_production",
         "world_map_navigation",
@@ -77,6 +78,7 @@ RECORD_IDS = frozenset(
         "zombie_lair",
         "ruins_shop_purchase",
         "rare_earth_shop_purchase",
+        "alliance_shop_purchase",
         "nanoweapon_normal_craft",
         "nano_material_production",
         "world_map_navigation",
@@ -278,7 +280,6 @@ def _validate_authority_references(value: Any, field: str) -> None:
             f"{field} must include both user_direction and native_authority references"
         )
 
-
 def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
     route = record.get("semantic_entry_route")
     if not isinstance(route, Mapping):
@@ -304,6 +305,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "zombie_lair": "ZOMBIE_LAIR",
         "ruins_shop_purchase": "RUINS_SHOP",
         "rare_earth_shop_purchase": "RARE_EARTH_SHOP",
+        "alliance_shop_purchase": "ALLIANCE_SHOP",
         "nanoweapon_normal_craft": "NANOWEAPON",
         "nano_material_production": "NANOWEAPON",
         "world_map_navigation": "WORLD",
@@ -338,6 +340,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "zombie_lair": "zombie_lair",
         "ruins_shop_purchase": "ruins_shop_purchase",
         "rare_earth_shop_purchase": "rare_earth_shop_purchase",
+        "alliance_shop_purchase": "alliance_shop_purchase",
         "nanoweapon_normal_craft": "nanoweapon_normal_craft",
         "nano_material_production": "nano_material_production",
         "world_map_navigation": "world_map_navigation",
@@ -1253,6 +1256,107 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
             raise ProductAuthorityError(
                 f"Gathering forbidden actions must include {marker}"
             )
+def _validate_alliance_shop_purchase_record(record: Mapping[str, Any]) -> None:
+    """Validate an unresolved, non-dispatch Alliance Shop candidate."""
+
+    if record["objective"] != "alliance_shop_purchase":
+        raise ProductAuthorityError(
+            "Alliance Shop record objective must be alliance_shop_purchase"
+        )
+    if record["action"] != "observe_one_alliance_shop_purchase_candidate":
+        raise ProductAuthorityError(
+            "Alliance Shop action must remain observation-only until product approval"
+        )
+    if record["recurrence"] != "daily_reset_scoped":
+        raise ProductAuthorityError(
+            "Alliance Shop recurrence must be daily_reset_scoped"
+        )
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
+        "route"
+    ) != ["ALLIANCE_SHOP"]:
+        raise ProductAuthorityError(
+            "Alliance Shop entry route must bind canonical Home to Alliance Shop"
+        )
+    target = record["target"]
+    if (
+        not isinstance(target, Mapping)
+        or target.get("kind") != "alliance_shop_purchase"
+        or target.get("shop") != "ALLIANCE_SHOP"
+        or target.get("candidate_item") != "unknown_current_alliance_shop_item"
+        or target.get("candidate_currency")
+        != "unknown_current_joy_coin_or_alliance_coin"
+        or target.get("candidate_cost") is not None
+        or target.get("quantity") != 1
+        or target.get("policy_status") != "unresolved_user_decision"
+        or target.get("purchase_dispatch_allowed") is not False
+        or target.get("terminal_home") != "HOME_CANONICAL"
+    ):
+        raise ProductAuthorityError(
+            "Alliance Shop target must preserve unknown item and cost bounds"
+        )
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 1
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "unresolved_currency_cost"
+        or cost.get("amount") is not None
+        or cost.get("unit") != "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError(
+            "Alliance Shop candidate must keep unknown cost fail-closed"
+        )
+    effect = record["semantic_effect"]
+    required_effects = {
+        "effect_ordinal": 1,
+        "offer_observation_successor_required": True,
+        "exact_item_evidence_required": True,
+        "exact_currency_evidence_required": True,
+        "exact_cost_evidence_required": True,
+        "balance_evidence_required": True,
+        "quantity_one_required": True,
+        "purchase_dispatch_allowed": False,
+        "currency_delta_required_for_purchase_proof": True,
+        "item_delta_required_for_purchase_proof": True,
+        "canonical_home_successor_required": True,
+        "dispatch_is_not_success_proof": True,
+        "daily_ownership": "none",
+        "identical_retry": False,
+    }
+    if any(effect.get(key) != value for key, value in required_effects.items()):
+        raise ProductAuthorityError(
+            "Alliance Shop candidate must stay evidence-gated and non-dispatching"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Alliance Shop terminal requirement must return to canonical Home"
+        )
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "buy",
+        "purchase dispatch",
+        "currency spend",
+        "premium offer",
+        "unknown item",
+        "ambiguous item",
+        "unknown cost",
+        "ambiguous cost",
+        "unknown currency",
+        "insufficient balance",
+        "identical retry",
+        "real-money",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(
+                f"Alliance Shop candidate must forbid {marker} actions"
+            )
+
+
 def _validate_rare_earth_shop_purchase_record(record: Mapping[str, Any]) -> None:
     """Validate an unresolved, non-dispatch Rare Earth Shop candidate."""
 
@@ -2069,6 +2173,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_zombie_lair_record(record)
     elif record_type == "rare_earth_shop_purchase":
         _validate_rare_earth_shop_purchase_record(record)
+    elif record_type == "alliance_shop_purchase":
+        _validate_alliance_shop_purchase_record(record)
     elif record_type == "ruins_shop_purchase":
         _validate_ruins_shop_purchase_record(record)
     elif record_type == "nanoweapon_normal_craft":
@@ -2138,8 +2244,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 18:
-        raise ProductAuthorityError("product authority requires exactly eighteen records")
+    if not isinstance(records, list) or len(records) != 19:
+        raise ProductAuthorityError("product authority requires exactly nineteen records")
     return records
 
 

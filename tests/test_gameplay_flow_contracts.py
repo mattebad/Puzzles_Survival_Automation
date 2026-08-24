@@ -93,6 +93,31 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(scenario["mode"], "blocked_until_evidence")
         self.assertEqual(scenario["permitted_inputs"], [])
         self.assertEqual(contract["product_authority_binding"]["product_record_id"], "rare_earth_shop_purchase")
+    def test_alliance_shop_contract_is_observation_only_and_unknown_offer_fails_closed(self):
+        contract = load_flow_contract("ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE")
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(
+            contract["product_policy_refs"][0]["policy_id"],
+            "alliance-shop-purchase-policy",
+        )
+        self.assertEqual(contract["permitted_inputs"], [])
+        self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+            "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN",
+        )
+        self.assertEqual(contract["implementation_status"], "contract_only")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        scenario = contract["scenarios"][0]
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+        self.assertEqual(
+            contract["product_authority_binding"]["product_record_id"],
+            "alliance_shop_purchase",
+        )
+
     def test_ultimate_challenge_is_blocked_by_evidence_not_policy(self):
         contract = load_flow_contract("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
         scenario = next(

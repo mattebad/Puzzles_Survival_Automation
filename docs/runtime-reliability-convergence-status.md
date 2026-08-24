@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, Gathering product authority, Zombie Lair product-authority, Nano Material product-authority, Nanoweapon product-authority/offline-adapter, Ruins Shop product-authority/evidence-gate, and Rare Earth Shop product-authority/evidence-gate lanes accepted offline; Milestone continuous-session lane dispositioned blocked; Gathering route/session, Nano Material route/session, Nanoweapon route/session, Ruins Shop route/session, and Rare Earth Shop route/session migrations dispositioned blocked | Rare Earth Shop remains unresolved-user-decision and non-dispatching; native offer and route/session evidence are still required. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, Gathering product authority, Zombie Lair product-authority, Nano Material product-authority, Nanoweapon product-authority/offline-adapter, Ruins Shop product-authority/evidence-gate, Rare Earth Shop product-authority/evidence-gate, and Alliance Shop product-authority/evidence-gate lanes accepted offline; Milestone continuous-session lane dispositioned blocked; Gathering route/session, Nano Material route/session, Nanoweapon route/session, and shop route/session lanes remain blocked by missing native evidence. Registration and scheduling remain disabled. |
 
 
 
@@ -1312,9 +1312,37 @@ successor, or canonical-Home route/session proof exists. No shop purchase,
 runtime input, registration, scheduler change, or emulator/ADB/BlueStacks
 observation occurred. Next is only Alliance Shop product authority.
 
+## Stage 7 Alliance Shop product-authority migration
+
+Alliance Shop now has typed `alliance_shop_purchase-v1` candidate authority
+with record digest
+`98c96f0ffc299f9fe2be981ced97e8ff3a387f00562b7799902d4cb2f96e8bef` and
+authority digest
+`65de47fc1ff7fce10f4d004afb9a816ed38febb10741e00ced6a8f404ede5d57`. The
+candidate preserves canonical Home to `ALLIANCE_SHOP`, quantity one, unresolved
+Joy Coin offer and Alliance-coin fallback identities, and unknown currency/cost
+as unknown rather than inventing a price. Currency spend and Buy dispatch remain
+prohibited.
+
+The product policy is `unresolved_user_decision`, not purchase authorization.
+Schema-2 `ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE` binds the candidate and permits
+no inputs; registration is disabled, production eligibility is false, and proof
+is `evidence_required`. `tasks/purchases_disabled.py` remains
+observation/arithmetic only and distinct from Daily Claim ownership.
+
+Alliance Shop focused validation passed 76 tests with receipt
+`4cbddc9ca4e8435a6e44874625c4c407a961afd8992fa72156b6b077f2ef9d00`; the
+architecture profile passed 92 tests with receipt
+`10f6ca9b06482c01f7e0d95a5bed3b2bb894cd99006acce804c098dd81675784`.
+No native offer, current Joy Coin availability, fallback item/cost, currency,
+balance, quantity, successor, or canonical-Home route/session proof exists.
+No shop purchase, runtime input, registration, scheduler change, or
+emulator/ADB/BlueStacks observation occurred. Next is only Box purchase
+product decision.
+
 ## Stage 7 ordered remainder plan
 
-Persistent order after Rare Earth Shop product-authority migration:
+Persistent order after Alliance Shop product-authority migration:
 
 1. Ruins Shop product authority and route/session disposition.
 2. Rare Earth Shop product authority and independent route disposition.
@@ -1330,6 +1358,6 @@ Persistent order after Rare Earth Shop product-authority migration:
 
 Next three are fully detailed only as:
 
-- Ruins Shop product authority: preserve route/session disposition.
 - Rare Earth Shop product authority: preserve independent route disposition.
 - Alliance Shop product authority: preserve route disposition.
+- Box purchase: make explicit product decision, then block or retire.

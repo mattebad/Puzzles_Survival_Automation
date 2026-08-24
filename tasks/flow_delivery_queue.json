@@ -116,10 +116,10 @@
       },
       {
         "task_id": "alliance-shop-purchase",
-        "execution_flow_id": null,
+        "execution_flow_id": "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": ["shared_shop_navigation_receipt_primitives"],
-        "blocker": "current Joy Coin and Alliance-coin fallback identities, costs, balances, and successors are missing"
+        "blocker": "current Joy Coin offer/cost/availability, Alliance-coin fallback item/cost/balance, successors, and canonical Home evidence are missing"
       },
       {
         "task_id": "ruins-shop-purchase",
@@ -4288,6 +4288,41 @@
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE"
+    },
+    {
+      "flow_id": "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE",
+      "title": "Record Alliance Shop purchase authority and evidence gate",
+      "kind": "shop_purchase_evidence_gate",
+      "priority": 172,
+      "status": "blocked",
+      "backlog_task_id": "alliance-shop-purchase",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/purchases_disabled.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE.json",
+        "tasks/daily_quest_execution_matrix.json"
+      ],
+      "navigation_model": "canonical_home_to_alliance_shop_observation_and_home_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current Joy Coin offer, availability, currency, exact cost, Alliance-coin fallback item and cost, balance, quantity, deltas, successor, and canonical Home evidence are required before any route/session input.",
+      "consequence_policy": "Purchase dispatch and currency spend remain prohibited while product status is unresolved_user_decision; unknown offer, fallback, item, currency, or cost fails closed.",
+      "product_policy_status": "unresolved_user_decision",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_purchases_disabled.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current native Alliance Shop target, Joy Coin offer and availability, currency, exact cost, Alliance-coin fallback item and cost, balance, quantity, item/currency deltas, successor, and Home route/session evidence are missing.",
+      "next_concrete_action": "Resolve Joy Coin and Alliance-coin fallback allowlist, then acquire lean native Alliance Shop offer plus canonical-Home route/session evidence; keep purchase dispatch disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE"
     }
   ]
 }

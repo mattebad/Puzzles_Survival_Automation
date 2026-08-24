@@ -501,7 +501,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "95ca47568cbb707a753d6a8ae6ba90a95468e78b45128871bb27edd2622100ce",
+    "product_authority_digest": "65de47fc1ff7fce10f4d004afb9a816ed38febb10741e00ced6a8f404ede5d57",
     "product_record_id": "noahs_tavern_recruitment",
     "product_record_revision": "noahs_tavern_recruitment-v1",
     "product_record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e",

@@ -52,7 +52,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "95ca47568cbb707a753d6a8ae6ba90a95468e78b45128871bb27edd2622100ce",
+    "product_authority_digest": "65de47fc1ff7fce10f4d004afb9a816ed38febb10741e00ced6a8f404ede5d57",
     "product_record_id": "ultimate_challenge",
     "product_record_revision": "ultimate_challenge-v1",
     "product_record_digest": "8ce40a2975bf07b34d41751a45a16281ab303ce2071370fd878e5e7c63a3b609",

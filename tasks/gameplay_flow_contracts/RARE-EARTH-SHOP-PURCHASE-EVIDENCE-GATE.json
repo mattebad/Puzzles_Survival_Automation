@@ -146,7 +146,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "95ca47568cbb707a753d6a8ae6ba90a95468e78b45128871bb27edd2622100ce",
+    "product_authority_digest": "65de47fc1ff7fce10f4d004afb9a816ed38febb10741e00ced6a8f404ede5d57",
     "product_record_id": "rare_earth_shop_purchase",
     "product_record_revision": "rare_earth_shop_purchase-v1",
     "product_record_digest": "47c28608b0b5e9471ad7c912e6f0fafca3d64aff49d1c1f34c4ebb3a22911904",

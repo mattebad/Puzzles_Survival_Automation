@@ -55,7 +55,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "95ca47568cbb707a753d6a8ae6ba90a95468e78b45128871bb27edd2622100ce",
+    "product_authority_digest": "65de47fc1ff7fce10f4d004afb9a816ed38febb10741e00ced6a8f404ede5d57",
     "product_record_id": "campaign_ap",
     "product_record_revision": "campaign_ap-v1",
     "product_record_digest": "e8a41e45fb42d473145cd16c3c5914287a6f4eac58359cc363963b0d63a84362",

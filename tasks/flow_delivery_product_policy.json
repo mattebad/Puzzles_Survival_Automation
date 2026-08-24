@@ -241,6 +241,19 @@
       "source": "explicit_user_direction_2026-07-23"
     },
     {
+      "policy_id": "alliance-shop-purchase-policy",
+      "scope": "alliance_shop.purchase",
+      "status": "unresolved_user_decision",
+      "decision": "Do not authorize an Alliance Shop purchase. Current Joy Coin offer/cost/availability and Alliance-coin fallback identities, costs, balances, successor, and canonical Home evidence remain unresolved; no Buy dispatch is permitted.",
+      "candidate_item": "unknown_current_alliance_shop_item",
+      "candidate_currency": "unknown_current_joy_coin_or_alliance_coin",
+      "candidate_cost": null,
+      "quantity": 1,
+      "purchase_dispatch_allowed": false,
+      "terminal_state": "home_canonical",
+      "source": "flow_delivery_queue:alliance-shop-purchase"
+    },
+    {
       "policy_id": "rare-earth-shop-purchase-policy",
       "scope": "rare_earth_shop.purchase",
       "status": "unresolved_user_decision",
@@ -1132,6 +1145,101 @@
       "record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537"
     },
     {
+      "record_id": "alliance_shop_purchase",
+      "record_type": "alliance_shop_purchase",
+      "purpose": "Record an unresolved, evidence-gated Alliance Shop purchase candidate without authorizing currency spend or Buy dispatch.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "ALLIANCE_SHOP",
+        "route": [
+          "ALLIANCE_SHOP"
+        ]
+      },
+      "objective": "alliance_shop_purchase",
+      "action": "observe_one_alliance_shop_purchase_candidate",
+      "target": {
+        "kind": "alliance_shop_purchase",
+        "shop": "ALLIANCE_SHOP",
+        "candidate_item": "unknown_current_alliance_shop_item",
+        "candidate_currency": "unknown_current_joy_coin_or_alliance_coin",
+        "candidate_cost": null,
+        "quantity": 1,
+        "policy_status": "unresolved_user_decision",
+        "purchase_dispatch_allowed": false,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "unresolved_currency_cost",
+          "amount": null,
+          "unit": "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "offer_observation_successor_required": true,
+        "exact_item_evidence_required": true,
+        "exact_currency_evidence_required": true,
+        "exact_cost_evidence_required": true,
+        "balance_evidence_required": true,
+        "quantity_one_required": true,
+        "purchase_dispatch_allowed": false,
+        "currency_delta_required_for_purchase_proof": true,
+        "item_delta_required_for_purchase_proof": true,
+        "canonical_home_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Buy",
+        "purchase dispatch",
+        "currency spend",
+        "premium offer",
+        "unknown item",
+        "ambiguous item",
+        "unknown currency",
+        "ambiguous currency",
+        "unknown cost",
+        "ambiguous cost",
+        "insufficient balance",
+        "quantity greater than one",
+        "currency delta without item successor",
+        "item successor without currency delta",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Alliance Shop candidate remains unresolved and owns no Daily Claim or points."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:alliance-shop-no-dispatch-until-allowlist",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-alliance-shop-offer-surface",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "alliance_shop_purchase-v1",
+      "record_digest": "98c96f0ffc299f9fe2be981ced97e8ff3a387f00562b7799902d4cb2f96e8bef"
+    },
+    {
       "record_id": "rare_earth_shop_purchase",
       "record_type": "rare_earth_shop_purchase",
       "purpose": "Record an unresolved, evidence-gated Rare Earth Shop purchase candidate without authorizing currency spend or Buy dispatch.",
@@ -2003,5 +2111,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "95ca47568cbb707a753d6a8ae6ba90a95468e78b45128871bb27edd2622100ce"
+  "authority_digest": "65de47fc1ff7fce10f4d004afb9a816ed38febb10741e00ced6a8f404ede5d57"
 }
