@@ -221,6 +221,27 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
         self.assertEqual(contract["proof_state"], "evidence_required")
+
+    def test_gathering_contract_binds_typed_variants_and_stays_evidence_gated(self):
+        contract = load_flow_contract("GATHERING-BLUESTACKS-INTEGRATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "gathering_resources")
+        self.assertEqual(binding["product_record_revision"], "gathering_resources-v1")
+        self.assertEqual(binding["home_authority"], "HOME_READY")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["consequential_action_class"], "gathering_march")
+        self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        scenario = contract["scenarios"][0]
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+        self.assertIn("dispatch_attack", scenario["forbidden_inputs"])
     def test_daily_and_maintenance_contract_identities_are_separate(self):
         pairs = (
             ("NANOWEAPON-BLUESTACKS-INTEGRATION", "NANO-MATERIAL-PRODUCTION-MAINTENANCE"),

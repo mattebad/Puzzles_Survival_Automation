@@ -14,7 +14,7 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, and World product-authority lanes accepted offline; Milestone continuous-session lane dispositioned blocked | World navigation-only authority is bound to the existing schema-2 contract without rebuilding the accepted Stage 6 session. Native World positive Home-ready/World/Search/Home proof remains `evidence_required`; Milestone remains `blocked_evidence_required` for missing BlueStacks-native ready-chest/successor/Home evidence. Registration/scheduling remain disabled. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, Recruitment continuous-session, Campaign AP product authority, Campaign AP continuous-session, Troop Training product authority, Troop Training continuous-session, World product authority, and Gathering product-authority lanes accepted offline; Milestone continuous-session lane dispositioned blocked | Gathering authority binds independent Wood, Steel, and Gas level-5 node variants and upgrades its contract to schema 2 without dispatch or route/session migration. Native Gathering category/level-5/free-node/march/progress/Home proof remains `evidence_required`; Milestone remains `blocked_evidence_required` for missing BlueStacks-native ready-chest/successor/Home evidence. Registration/scheduling remain disabled. |
 
 
 
@@ -1114,7 +1114,7 @@ World now has typed `world_map_navigation-v1` authority under
 `flow-delivery-product-authority-v2-r11`, record digest
 `c9dfe10930bc432630388d5edaabcdc294c8925a1d8c2e24d7b1255be07b5418`, and
 authority digest
-`e6f3fd25109628f17cc6d79713669b036be35560c780854425953b7423389e98`.
+`5fc19b2696b32a41cb6ca959f155ad379bf16e818940aae0222700414a91ce23`.
 The record binds `HOME_READY` to `WORLD`, `SEARCH`, `WORLD`, and `HOME`,
 with zero quantity, zero cost, canonical Home terminal proof, no Daily
 ownership, and no resource, march, attack, stamina, AP, currency, combat, or
@@ -1130,35 +1130,61 @@ architecture passed 92 tests with receipt
 No emulator/ADB/BlueStacks observation or runtime input occurred. The
 accepted Stage 6 World session was not rebuilt. Native positive World
 Home-ready/World/Search/Home proof remains required. Next is only Gathering
-product authority.
+route/session migration.
 
+
+## Stage 7 Gathering product-authority migration
+
+Gathering now has typed `gathering_resources-v1` authority under
+`flow-delivery-product-authority-v2-r11`, record digest
+`13f171b493fed806b93d81231572e2922f223ce24f487278533d305923cf7700`, and
+authority digest
+`5fc19b2696b32a41cb6ca959f155ad379bf16e818940aae0222700414a91ce23`.
+The record covers independent Wood, Steel, and Gas variants at exact level 5,
+Search category binding, one bounded Gas reveal swipe, current-frame free-node
+binding, one free march slot, default formation, positive resource/node/march
+successors, and canonical Home. Food, occupied or already-targeted nodes,
+existing-march override, attack/combat, stale or ambiguous targets, and
+identical retry remain forbidden. Catalog progress remains separate from
+ordinary Claim ownership.
+
+The schema-2 Gathering contract remains `evidence_required`, not production
+eligible, and registration-disabled. It blocks every transition behind one
+evidence gate, permits no live input, and keeps route/session migration
+separate. Gathering focused validation passed 11 tests with receipt
+`228010c8d6c716074bf21cce2cbafd7103469858ed3b1eb46b1711262cb2aa3d`;
+authority/contract suites passed 64 tests. The architecture profile passed 92
+tests with receipt
+`6427b746852d519e793f4d81fbee5969ddd463e73fabf09265a705646a1f74de`.
+One initial architecture run failed only because the handoff JSON had a trailing
+comma; the handoff was repaired and the rerun passed. No emulator/ADB/BlueStacks
+observation, runtime input, or march occurred. Next is only Gathering
+route/session migration.
 
 ## Stage 7 ordered remainder plan
 
-Persistent order after World product-authority migration:
+Persistent order after Gathering product-authority migration:
 
-1. Gathering product authority.
-2. Gathering route/session migration.
-3. Zombie Lair product authority and offline disposition.
-4. Nano Material product authority and maintenance/session migration.
-5. Nanoweapon product authority and adapter/session repair.
-6. Ruins Shop product authority and route/session disposition.
-7. Rare Earth Shop product authority and independent route disposition.
-8. Alliance Shop product authority and route disposition.
-9. Box purchase product decision, blocking, or retirement.
-10. Hero Upgrade product authority and route disposition.
-11. Hero Duel product authority and offline/combat-blocked disposition.
-12. VIP popup helper authority and route disposition.
-13. Ruins Challenge ownership selection or retirement.
-14. Personal Might Praise/legacy Claim migration or retirement.
-15. Every remaining catalog and active-plan ticket.
-16. Legacy retirement and final Stage 7 closure.
+1. Gathering route/session migration.
+2. Zombie Lair product authority and offline disposition.
+3. Nano Material product authority and maintenance/session migration.
+4. Nanoweapon product authority and adapter/session repair.
+5. Ruins Shop product authority and route/session disposition.
+6. Rare Earth Shop product authority and independent route disposition.
+7. Alliance Shop product authority and route disposition.
+8. Box purchase product decision, blocking, or retirement.
+9. Hero Upgrade product authority and route disposition.
+10. Hero Duel product authority and offline/combat-blocked disposition.
+11. VIP popup helper authority and route disposition.
+12. Ruins Challenge ownership selection or retirement.
+13. Personal Might Praise/legacy Claim migration or retirement.
+14. Every remaining catalog and active-plan ticket.
+15. Legacy retirement and final Stage 7 closure.
 
 Next three are fully detailed only as:
 
-- Gathering product authority: add typed record and preserve the separate
-  route/session order.
 - Gathering route/session migration: execute only after Gathering product
   authority is current.
 - Zombie Lair product authority: preserve offline disposition and no runtime
   input.
+- Nano Material product authority: keep maintenance/session migration separate.

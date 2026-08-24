@@ -1,63 +1,199 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "GATHERING-BLUESTACKS-INTEGRATION",
-  "product_purpose": "World gathering BlueStacks integration.",
+  "product_purpose": "Evidence-gated Wood, Steel, and Gas level-5 resource-node gathering.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "daily_reset",
-  "required_starting_context": [
-    "world_map"
-  ],
+  "required_starting_context": ["world_map"],
   "shared_primitive_dependencies": [],
   "recognized_states": [
-    "contract_declared",
-    "evidence_required"
+    "world_map",
+    "search",
+    "resource_category",
+    "level_5_node",
+    "resource_node_bound",
+    "march_dispatch_ready",
+    "resource_progress",
+    "home_returned",
+    "blocked"
   ],
-  "state_transitions": [
+  "transition_contracts": [
     {
-      "from": "contract_declared",
-      "to": "evidence_required",
-      "via": "missing_gameplay_evidence",
-      "notes": "Gathering resource consumption prohibited until authorized."
+      "transition_id": "open_world_search",
+      "from": "world_map",
+      "to": "search",
+      "planner": "GatheringRuntimeController",
+      "permitted_input": "open_world_search",
+      "postconditions": ["Search surface positively recognized"],
+      "terminal_outcomes": ["blocked"],
+      "evidence_gate_id": "gathering_variant_canary"
+    },
+    {
+      "transition_id": "select_resource_category",
+      "from": "search",
+      "to": "resource_category",
+      "planner": "GatheringRuntimeController",
+      "permitted_input": "select_resource_category",
+      "postconditions": ["Requested Wood, Steel, or Gas category positively recognized"],
+      "terminal_outcomes": ["blocked"],
+      "evidence_gate_id": "gathering_variant_canary"
+    },
+    {
+      "transition_id": "reveal_gas",
+      "from": "resource_category",
+      "to": "resource_category",
+      "planner": "GatheringRuntimeController",
+      "permitted_input": "reveal_gas",
+      "postconditions": ["Gas successor is positively recognized after one bounded left swipe"],
+      "terminal_outcomes": ["blocked"],
+      "evidence_gate_id": "gathering_variant_canary"
+    },
+    {
+      "transition_id": "select_exact_level_five",
+      "from": "resource_category",
+      "to": "level_5_node",
+      "planner": "GatheringRuntimeController",
+      "permitted_input": "select_exact_level_five",
+      "postconditions": ["Exact level-5 node results positively recognized"],
+      "terminal_outcomes": ["blocked"],
+      "evidence_gate_id": "gathering_variant_canary"
+    },
+    {
+      "transition_id": "bind_free_current_frame_node",
+      "from": "level_5_node",
+      "to": "resource_node_bound",
+      "planner": "GatheringRuntimeController",
+      "permitted_input": "bind_free_current_frame_node",
+      "postconditions": ["Requested node is current-frame bound, free, unoccupied, and not already targeted"],
+      "terminal_outcomes": ["blocked"],
+      "evidence_gate_id": "gathering_variant_canary"
+    },
+    {
+      "transition_id": "verify_free_march_and_default_formation",
+      "from": "resource_node_bound",
+      "to": "march_dispatch_ready",
+      "planner": "GatheringRuntimeController",
+      "permitted_input": "verify_free_march_and_default_formation",
+      "postconditions": ["One free march slot and default formation positively recognized"],
+      "terminal_outcomes": ["blocked"],
+      "evidence_gate_id": "gathering_variant_canary"
+    },
+    {
+      "transition_id": "dispatch_one_gathering_march",
+      "from": "march_dispatch_ready",
+      "to": "resource_progress",
+      "planner": "GatheringRuntimeController",
+      "permitted_input": "dispatch_one_gathering_march",
+      "postconditions": ["Known requested variant and node successor are positively recognized"],
+      "terminal_outcomes": ["action_performed", "blocked"],
+      "evidence_gate_id": "gathering_variant_canary"
+    },
+    {
+      "transition_id": "reconcile_resource_progress_and_return_home",
+      "from": "resource_progress",
+      "to": "home_returned",
+      "planner": "GatheringRuntimeController",
+      "permitted_input": "reconcile_resource_progress_and_return_home",
+      "postconditions": ["Positive requested-resource progress and canonical Home are recognized"],
+      "terminal_outcomes": ["complete_for_reset", "blocked"],
+      "evidence_gate_id": "gathering_variant_canary"
     }
   ],
   "permitted_inputs": [
-    "none_until_implemented"
+    "open_world_search",
+    "select_resource_category",
+    "reveal_gas",
+    "select_exact_level_five",
+    "bind_free_current_frame_node",
+    "verify_free_march_and_default_formation",
+    "dispatch_one_gathering_march",
+    "reconcile_resource_progress_and_return_home",
+    "select_food",
+    "select_unknown_resource",
+    "select_occupied_node",
+    "override_existing_march",
+    "dispatch_attack",
+    "use_non_default_formation",
+    "retry_identical_dispatch"
   ],
-  "local_postconditions": [
-    "evidence_required"
-  ],
-  "consequential_action_class": "none_declared",
+  "consequential_action_class": "gathering_march",
   "cost_quantity_requirements": {
     "free_only": true,
     "maximum_cost": null,
-    "quantity": null,
+    "quantity": 1,
     "resource_or_currency": null,
-    "notes": "Gathering resource consumption prohibited until authorized."
+    "notes": "One exact variant dispatch requires a free level-5 node, one free march slot, default formation, and no resource or currency cost."
   },
-  "completion_identity": "gathering-bluestacks-integration:complete",
-  "terminal_outcomes": [
-    "blocked",
-    "manual_required"
+  "completion_identity": "gathering-resources:variant-progress",
+  "terminal_outcomes": ["action_performed", "deferred", "complete_for_reset", "blocked", "manual_required"],
+  "cooldown_deferred_behavior": "Defer when no free march slot or no independently proven free level-5 node exists.",
+  "bounded_recovery_behavior": "Fail closed on unknown resource, stale node frame, occupied or targeted node, missing slot, wrong formation, unknown successor, or missing progress; deny identical retry.",
+  "product_policy_refs": [
+    {"policy_id": "gathering-existing-march-or-occupied-target", "source": "tasks/flow_delivery_product_policy.json"},
+    {"policy_id": "gathering-resource-node-march-policy", "source": "tasks/flow_delivery_product_policy.json"}
   ],
-  "cooldown_deferred_behavior": "evidence_required",
-  "bounded_recovery_behavior": "evidence_required",
   "evidence_requirements": [
-    "evidence_required: authoritative gameplay state machine and cost/postcondition proof for this flow are not fully established in this architecture task",
-    "Gathering resource consumption prohibited until authorized."
+    "fresh native Search category and exact level-5 evidence for each supported variant",
+    "current-frame node identity, free occupancy, no-existing-march, free-slot, and default-formation evidence",
+    "one uninterrupted native successor and positive requested-resource progress followed by canonical Home",
+    "synthetic fixtures and retained non-native geometry never authorize a march"
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "gathering_variant_canary",
+      "status": "evidence_required",
+      "blocks": [
+        "open_world_search",
+        "select_resource_category",
+        "reveal_gas",
+        "select_exact_level_five",
+        "bind_free_current_frame_node",
+        "verify_free_march_and_default_formation",
+        "dispatch_one_gathering_march",
+        "reconcile_resource_progress_and_return_home",
+        "gathering_variant_canary"
+      ],
+      "required_evidence": ["native Gathering source, successor, progress, and canonical Home evidence"],
+      "permitted_inputs": [],
+      "notes": "Product authority is current offline; live route/session migration is separate and not authorized by this gate."
+    }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "flow_entry",
-      "status": "required_evidence",
-      "path": null,
-      "notes": "Not fabricated in this task."
+      "fixture_id": "gathering_policy_negatives",
+      "status": "synthetic_policy_ok",
+      "path": "tests/fixtures/phase_e_gathering_observations.json",
+      "notes": "Pure contract fixtures prove fail-closed policy only and never authorize live input."
     }
   ],
-  "live_validation_scenarios": [
+  "scenarios": [
     {
-      "id": "gathering-bluestacks-integration-pending",
-      "mode": "blocked_until_policy",
-      "notes": "Gathering resource consumption prohibited until authorized."
+      "scenario_id": "gathering_variant_canary",
+      "mode": "blocked_until_evidence",
+      "start_state": "world_map",
+      "terminal_state": "home_returned",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "select_food",
+        "select_unknown_resource",
+        "select_occupied_node",
+        "override_existing_march",
+        "dispatch_attack",
+        "use_non_default_formation",
+        "retry_identical_dispatch"
+      ],
+      "required_transitions": [
+        "open_world_search",
+        "select_resource_category",
+        "reveal_gas",
+        "select_exact_level_five",
+        "bind_free_current_frame_node",
+        "verify_free_march_and_default_formation",
+        "dispatch_one_gathering_march",
+        "reconcile_resource_progress_and_return_home"
+      ],
+      "evidence_gate_ids": ["gathering_variant_canary"],
+      "notes": "Wood, Steel, and Gas remain independent variants; Food is not admitted."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -67,8 +203,38 @@
     "account_selection_or_switching",
     "credential_entry",
     "ambiguous_account_or_server_identity",
-    "blocking_unknown_modal"
+    "unknown_resource",
+    "occupied_or_targeted_node",
+    "existing_march",
+    "food_variant",
+    "attack_or_combat"
   ],
-  "implementation_status": "contract_only",
-  "proof_state": "evidence_required"
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r11",
+    "product_authority_digest": "5fc19b2696b32a41cb6ca959f155ad379bf16e818940aae0222700414a91ce23",
+    "product_record_id": "gathering_resources",
+    "product_record_revision": "gathering_resources-v1",
+    "product_record_digest": "13f171b493fed806b93d81231572e2922f223ce24f487278533d305923cf7700",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_READY",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": ["HOME_READY"],
+    "selected_daily_prerequisite": false
+  },
+  "registration_state": "disabled",
+  "production_eligible": false
 }

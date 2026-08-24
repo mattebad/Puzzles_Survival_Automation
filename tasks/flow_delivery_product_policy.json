@@ -1106,6 +1106,109 @@
       "record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537"
     },
     {
+      "record_id": "gathering_resources",
+      "record_type": "gathering_resources",
+      "purpose": "Authorize evidence-gated Wood, Steel, and Gas level-5 resource-node gathering with exact current-frame node and free-march binding.",
+      "recurrence": "evidence_gated_variant_canary",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY"
+        ],
+        "target": "WORLD",
+        "route": [
+          "WORLD",
+          "SEARCH",
+          "RESOURCE_CATEGORY",
+          "LEVEL_5_NODE",
+          "MARCH"
+        ]
+      },
+      "objective": "gather_resource_variant",
+      "action": "dispatch_one_gathering_march",
+      "target": {
+        "kind": "gathering_resource_node",
+        "supported_variants": [
+          "WOOD",
+          "STEEL",
+          "GAS"
+        ],
+        "level": 5,
+        "search_control": "WORLD_SEARCH",
+        "category_control": "RESOURCE_CATEGORY",
+        "gas_reveal": "one_bounded_left_swipe",
+        "node_binding": "current_frame_only",
+        "occupancy": "free_only",
+        "march_slot": "one_free_slot",
+        "formation": "default",
+        "source_daily_row_required": true,
+        "food_authority": "forbidden"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "no_resource_or_currency_cost",
+          "amount": 0,
+          "unit": "resource_or_currency",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "requested_variant_identity_required": true,
+        "level_5_node_identity_required": true,
+        "free_occupancy_successor_required": true,
+        "march_identity_successor_required": true,
+        "resource_progress_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_progress_ownership": "separate_catalog_reconciliation",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Food",
+        "unknown resource",
+        "ambiguous resource",
+        "wrong level",
+        "non-level-5 node",
+        "occupied node",
+        "already-targeted node",
+        "existing march override",
+        "no free march slot",
+        "non-default formation",
+        "stale node frame",
+        "Gas without bounded left swipe",
+        "attack",
+        "combat",
+        "unknown target",
+        "ambiguous popup",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Wood, Steel, and Gas catalog progress is reconciled separately from ordinary Claim ownership; Food is not an admitted gathering variant."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:gathering-resource-node-march-policy",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-search-level5-node-and-march",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "gathering_resources-v1",
+      "record_digest": "13f171b493fed806b93d81231572e2922f223ce24f487278533d305923cf7700"
+    },
+    {
       "record_id": "world_map_navigation",
       "record_type": "world_map_navigation",
       "purpose": "Validate one HUD Home-ready to World Search to Home navigation round trip without gameplay dispatch.",
@@ -1400,5 +1503,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "e6f3fd25109628f17cc6d79713669b036be35560c780854425953b7423389e98"
+  "authority_digest": "5fc19b2696b32a41cb6ca959f155ad379bf16e818940aae0222700414a91ce23"
 }

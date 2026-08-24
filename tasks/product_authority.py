@@ -51,6 +51,7 @@ RECORD_TYPES = frozenset(
         "noahs_tavern_recruitment",
         "campaign_ap",
         "troop_training",
+        "gathering_resources",
         "world_map_navigation",
     }
 )
@@ -67,6 +68,7 @@ RECORD_IDS = frozenset(
         "noahs_tavern_recruitment",
         "campaign_ap",
         "troop_training",
+        "gathering_resources",
         "world_map_navigation",
     }
 )
@@ -288,6 +290,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "noahs_tavern_recruitment": "NOAHS_TAVERN",
         "campaign_ap": "CAMPAIGN",
         "troop_training": "TRAINING_FACILITIES",
+        "gathering_resources": "WORLD",
         "world_map_navigation": "WORLD",
     }[record_type]
     if target != expected_target:
@@ -316,6 +319,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "noahs_tavern_recruitment": "noahs_tavern_recruitment",
         "campaign_ap": "campaign_ap",
         "troop_training": "troop_training",
+        "gathering_resources": "gathering_resources",
         "world_map_navigation": "world_map_navigation",
     }[record_id]
     if record_type != expected_type:
@@ -1120,6 +1124,118 @@ def _validate_troop_training_record(record: Mapping[str, Any]) -> None:
             raise ProductAuthorityError(f"Troop Training must forbid {marker} actions")
 
 
+def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
+    """Validate evidence-gated Wood, Steel, and Gas gathering authority."""
+
+    if record["objective"] != "gather_resource_variant":
+        raise ProductAuthorityError(
+            "Gathering record objective must be gather_resource_variant"
+        )
+    if record["action"] != "dispatch_one_gathering_march":
+        raise ProductAuthorityError(
+            "Gathering action must be dispatch_one_gathering_march"
+        )
+    if record["recurrence"] != "evidence_gated_variant_canary":
+        raise ProductAuthorityError(
+            "Gathering recurrence must be evidence_gated_variant_canary"
+        )
+    route = record["semantic_entry_route"]
+    if (
+        route.get("source_home_authorities") != ["HOME_READY"]
+        or route.get("route")
+        != ["WORLD", "SEARCH", "RESOURCE_CATEGORY", "LEVEL_5_NODE", "MARCH"]
+    ):
+        raise ProductAuthorityError(
+            "Gathering entry route must bind HOME_READY to World Search and level-5 march"
+        )
+    target = record["target"]
+    if (
+        target.get("kind") != "gathering_resource_node"
+        or target.get("supported_variants") != ["WOOD", "STEEL", "GAS"]
+        or target.get("level") != 5
+        or target.get("search_control") != "WORLD_SEARCH"
+        or target.get("category_control") != "RESOURCE_CATEGORY"
+        or target.get("gas_reveal") != "one_bounded_left_swipe"
+        or target.get("node_binding") != "current_frame_only"
+        or target.get("occupancy") != "free_only"
+        or target.get("march_slot") != "one_free_slot"
+        or target.get("formation") != "default"
+        or target.get("source_daily_row_required") is not True
+        or target.get("food_authority") != "forbidden"
+    ):
+        raise ProductAuthorityError(
+            "Gathering target must bind supported free level-5 nodes and one free march slot"
+        )
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 1
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "no_resource_or_currency_cost"
+        or cost.get("amount") != 0
+        or cost.get("unit") != "resource_or_currency"
+        or cost.get("free_only") is not True
+    ):
+        raise ProductAuthorityError(
+            "Gathering must bind one free resource-or-currency-cost march"
+        )
+    effect = record["semantic_effect"]
+    required_effects = (
+        "requested_variant_identity_required",
+        "level_5_node_identity_required",
+        "free_occupancy_successor_required",
+        "march_identity_successor_required",
+        "resource_progress_successor_required",
+        "dispatch_is_not_success_proof",
+    )
+    if (
+        effect.get("effect_ordinal") != 1
+        or any(effect.get(field) is not True for field in required_effects)
+        or effect.get("daily_progress_ownership")
+        != "separate_catalog_reconciliation"
+        or effect.get("identical_retry") is not False
+    ):
+        raise ProductAuthorityError(
+            "Gathering successor, reconciliation, or retry safety effect is incomplete"
+        )
+    ownership = record["daily_ownership"]
+    if (
+        ownership.get("daily_owner") is not None
+        or ownership.get("point_credit_trigger") is not None
+        or ownership.get("selected_daily_prerequisite") is not False
+    ):
+        raise ProductAuthorityError("Gathering must not own Daily progress")
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Gathering terminal requirement must return to canonical Home"
+        )
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "food",
+        "unknown resource",
+        "ambiguous resource",
+        "level-5",
+        "occupied",
+        "already-targeted",
+        "existing march",
+        "free march slot",
+        "formation",
+        "stale",
+        "gas",
+        "attack",
+        "combat",
+        "ambiguous",
+        "identical retry",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(
+                f"Gathering forbidden actions must include {marker}"
+            )
+
+
 def _validate_world_map_navigation_record(record: Mapping[str, Any]) -> None:
     """Validate navigation-only Home-to-World/Search-to-Home authority."""
 
@@ -1421,6 +1537,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_noahs_tavern_recruitment_record(record)
     elif record_type == "troop_training":
         _validate_troop_training_record(record)
+    elif record_type == "gathering_resources":
+        _validate_gathering_resources_record(record)
     elif record_type == "world_map_navigation":
         _validate_world_map_navigation_record(record)
     elif record_type == "campaign_ap":
@@ -1484,8 +1602,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 12:
-        raise ProductAuthorityError("product authority requires exactly twelve records")
+    if not isinstance(records, list) or len(records) != 13:
+        raise ProductAuthorityError("product authority requires exactly thirteen records")
     return records
 
 
@@ -1737,6 +1855,18 @@ def validate_contract_product_authority_binding(
     ) == "TROOP-TRAINING-END-TO-END-CONSOLIDATION":
         raise ProductAuthorityError(
             "Troop Training consolidation flow must bind the Troop Training record"
+        )
+    if record_id == "gathering_resources" and contract.get(
+        "flow_id"
+    ) != "GATHERING-BLUESTACKS-INTEGRATION":
+        raise ProductAuthorityError(
+            "Gathering record is reserved for the Gathering flow"
+        )
+    if record_id != "gathering_resources" and contract.get(
+        "flow_id"
+    ) == "GATHERING-BLUESTACKS-INTEGRATION":
+        raise ProductAuthorityError(
+            "Gathering flow must bind the Gathering record"
         )
     if record_id == "world_map_navigation" and contract.get(
         "flow_id"

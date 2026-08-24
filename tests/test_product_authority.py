@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_twelve_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_thirteen_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -65,6 +65,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "noahs_tavern_recruitment",
                 "campaign_ap",
                 "troop_training",
+                "gathering_resources",
                 "world_map_navigation",
             },
         )
@@ -96,6 +97,7 @@ class ProductAuthorityTests(unittest.TestCase):
             "ultimate_challenge",
             "bioenhancer_research",
             "troop_training",
+            "gathering_resources",
             "world_map_navigation",
         ):
             self.assertFalse(self.records[record_id]["daily_ownership"]["selected_daily_prerequisite"])
@@ -117,6 +119,32 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertFalse(effect["identical_retry"])
         forbidden = json.dumps(record["forbidden_actions"]).casefold()
         for marker in ("march", "attack", "stamina", "ap", "resource", "combat"):
+            self.assertIn(marker, forbidden)
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+
+    def test_gathering_record_binds_supported_variants_and_free_node_guards(self) -> None:
+        record = self.records["gathering_resources"]
+        self.assertEqual(record["record_type"], "gathering_resources")
+        self.assertEqual(record["record_revision"], "gathering_resources-v1")
+        self.assertEqual(record["semantic_entry_route"]["source_home_authorities"], ["HOME_READY"])
+        self.assertEqual(
+            record["semantic_entry_route"]["route"],
+            ["WORLD", "SEARCH", "RESOURCE_CATEGORY", "LEVEL_5_NODE", "MARCH"],
+        )
+        target = record["target"]
+        self.assertEqual(target["supported_variants"], ["WOOD", "STEEL", "GAS"])
+        self.assertEqual(target["level"], 5)
+        self.assertEqual(target["occupancy"], "free_only")
+        self.assertEqual(target["march_slot"], "one_free_slot")
+        self.assertEqual(target["formation"], "default")
+        self.assertTrue(target["source_daily_row_required"])
+        self.assertEqual(target["food_authority"], "forbidden")
+        self.assertEqual(record["quantity_cost"]["quantity"], 1)
+        self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
+        self.assertEqual(record["semantic_effect"]["resource_progress_successor_required"], True)
+        self.assertFalse(record["semantic_effect"]["identical_retry"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in ("food", "occupied", "level-5", "existing march", "gas", "identical retry"):
             self.assertIn(marker, forbidden)
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
 
