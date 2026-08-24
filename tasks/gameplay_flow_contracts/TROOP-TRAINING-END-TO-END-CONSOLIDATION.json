@@ -116,7 +116,7 @@
   "product_authority_binding": {
     "binding_type": "typed_product_record",
     "product_authority_revision": "flow-delivery-product-authority-v2-r11",
-    "product_authority_digest": "5fc19b2696b32a41cb6ca959f155ad379bf16e818940aae0222700414a91ce23",
+    "product_authority_digest": "08e7e4d639366cc67b0d2b58e1ff54ba2d9c119f491646bf5bd14bddb6e6ec8f",
     "product_record_id": "troop_training",
     "product_record_revision": "troop_training-v1",
     "product_record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537",

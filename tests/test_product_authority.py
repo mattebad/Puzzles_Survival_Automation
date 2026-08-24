@@ -48,7 +48,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_thirteen_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exactly_fourteen_typed_records(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -66,6 +66,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "campaign_ap",
                 "troop_training",
                 "gathering_resources",
+                "zombie_lair",
                 "world_map_navigation",
             },
         )
@@ -98,6 +99,7 @@ class ProductAuthorityTests(unittest.TestCase):
             "bioenhancer_research",
             "troop_training",
             "gathering_resources",
+            "zombie_lair",
             "world_map_navigation",
         ):
             self.assertFalse(self.records[record_id]["daily_ownership"]["selected_daily_prerequisite"])
@@ -147,6 +149,31 @@ class ProductAuthorityTests(unittest.TestCase):
         for marker in ("food", "occupied", "level-5", "existing march", "gas", "identical retry"):
             self.assertIn(marker, forbidden)
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+
+    def test_zombie_lair_record_binds_daily_and_maintenance_ownership(self) -> None:
+        record = self.records["zombie_lair"]
+        self.assertEqual(record["record_type"], "zombie_lair")
+        self.assertEqual(record["record_revision"], "zombie_lair-v1")
+        self.assertEqual(record["semantic_entry_route"]["source_home_authorities"], ["HOME_CANONICAL"])
+        target = record["target"]
+        self.assertEqual(target["minimum_level"], 30)
+        self.assertEqual(target["maximum_level"], 55)
+        self.assertEqual(target["join_control"], "QUICK_JOIN")
+        self.assertEqual(target["stamina_per_join"], 28)
+        self.assertEqual(target["level_60"], "forbidden")
+        self.assertEqual(target["stamina_refill"], "forbidden")
+        self.assertEqual(
+            record["daily_ownership"]["daily_owner"],
+            "first_successful_eligible_join_per_reset",
+        )
+        self.assertEqual(
+            record["daily_ownership"]["point_credit_trigger"],
+            "first_successful_eligible_join_per_reset",
+        )
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in ("level 60", "stamina refill", "unknown level", "identical retry"):
+            self.assertIn(marker, forbidden)
 
     def test_recruitment_record_separates_basic_daily_from_tier_maintenance(self) -> None:
         record = self.records["noahs_tavern_recruitment"]

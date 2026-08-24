@@ -1106,6 +1106,102 @@
       "record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537"
     },
     {
+      "record_id": "zombie_lair",
+      "record_type": "zombie_lair",
+      "purpose": "Authorize notification-driven Zombie Lair maintenance with bounded eligible joins and separate first-join Daily ownership.",
+      "recurrence": "home_notification_pulse",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "ZOMBIE_LAIR",
+        "route": [
+          "ZOMBIE_LAIR"
+        ]
+      },
+      "objective": "zombie_lair_quick_join",
+      "action": "join_one_eligible_zombie_lair",
+      "target": {
+        "kind": "zombie_lair",
+        "minimum_level": 30,
+        "maximum_level": 55,
+        "join_control": "QUICK_JOIN",
+        "stamina_per_join": 28,
+        "maximum_join_count": "min(eligible_count, floor(current_stamina/28))",
+        "formation": "quick_join_configured_formation",
+        "daily_completion_owner": "first_successful_eligible_join_per_reset",
+        "maintenance_owner": "home_notification_pulse",
+        "static_daily_row": "forbidden",
+        "level_60": "forbidden",
+        "stamina_refill": "forbidden",
+        "safe_terminal": [
+          "HOME_CANONICAL",
+          "SAFE_HOME_EQUIVALENT"
+        ]
+      },
+      "quantity_cost": {
+        "quantity": "bounded_eligible_joins",
+        "cost": {
+          "kind": "fixed_stamina_per_join",
+          "amount": 28,
+          "unit": "STAMINA",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "eligible_level_range_required": true,
+        "quick_join_identity_required": true,
+        "stamina_delta_required": true,
+        "daily_completion_successor_required": true,
+        "maintenance_successor_required": true,
+        "no_refill_required": true,
+        "no_level_60_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "first_successful_eligible_join_per_reset",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "static Daily row launch",
+        "level 60",
+        "unknown level",
+        "ambiguous level",
+        "unknown stamina cost",
+        "stamina refill",
+        "item refill",
+        "currency refill",
+        "wrong formation",
+        "unknown successor",
+        "ambiguous successor",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": "first_successful_eligible_join_per_reset",
+        "point_credit_trigger": "first_successful_eligible_join_per_reset",
+        "selected_daily_prerequisite": false,
+        "notes": "The first successful eligible maintenance join owns Zombie Lair Daily completion; later Home notification pulses remain maintenance-owned."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:zombie-lair-level-stamina-march",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-home-zombie-lair-notification",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "zombie_lair-v1",
+      "record_digest": "e9a6c9b34e504fcd779138fdb872331a80a3c1f7b5384cd5ee0b10c5b0de7dab"
+    },
+    {
       "record_id": "gathering_resources",
       "record_type": "gathering_resources",
       "purpose": "Authorize evidence-gated Wood, Steel, and Gas level-5 resource-node gathering with exact current-frame node and free-march binding.",
@@ -1503,5 +1599,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "5fc19b2696b32a41cb6ca959f155ad379bf16e818940aae0222700414a91ce23"
+  "authority_digest": "08e7e4d639366cc67b0d2b58e1ff54ba2d9c119f491646bf5bd14bddb6e6ec8f"
 }

@@ -52,6 +52,7 @@ RECORD_TYPES = frozenset(
         "campaign_ap",
         "troop_training",
         "gathering_resources",
+        "zombie_lair",
         "world_map_navigation",
     }
 )
@@ -69,6 +70,7 @@ RECORD_IDS = frozenset(
         "campaign_ap",
         "troop_training",
         "gathering_resources",
+        "zombie_lair",
         "world_map_navigation",
     }
 )
@@ -291,6 +293,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "campaign_ap": "CAMPAIGN",
         "troop_training": "TRAINING_FACILITIES",
         "gathering_resources": "WORLD",
+        "zombie_lair": "ZOMBIE_LAIR",
         "world_map_navigation": "WORLD",
     }[record_type]
     if target != expected_target:
@@ -320,6 +323,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "campaign_ap": "campaign_ap",
         "troop_training": "troop_training",
         "gathering_resources": "gathering_resources",
+        "zombie_lair": "zombie_lair",
         "world_map_navigation": "world_map_navigation",
     }[record_id]
     if record_type != expected_type:
@@ -359,15 +363,14 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         raise ProductAuthorityError(
             "direct product record must not require a selected-Daily prerequisite"
         )
-    elif record_type != "noahs_tavern_recruitment" and (
+    elif record_type not in {"noahs_tavern_recruitment", "zombie_lair"} and (
         record["daily_ownership"].get("daily_owner") is not None
-        or record[
-        "daily_ownership"
-        ].get("point_credit_trigger") is not None
+        or record["daily_ownership"].get("point_credit_trigger") is not None
     ):
         raise ProductAuthorityError(
             "direct product record must not own Daily or claim point credit"
         )
+
     _validate_home_route(record, record_type)
     _validate_authority_references(record.get("authority_references"), "authority_references")
     _require_sha256(record.get("record_digest"), "record_digest")
@@ -1236,6 +1239,119 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
             )
 
 
+def _validate_zombie_lair_record(record: Mapping[str, Any]) -> None:
+    """Validate bounded notification-driven Zombie Lair authority."""
+
+    if record["objective"] != "zombie_lair_quick_join":
+        raise ProductAuthorityError(
+            "Zombie Lair record objective must be zombie_lair_quick_join"
+        )
+    if record["action"] != "join_one_eligible_zombie_lair":
+        raise ProductAuthorityError(
+            "Zombie Lair action must be join_one_eligible_zombie_lair"
+        )
+    if record["recurrence"] != "home_notification_pulse":
+        raise ProductAuthorityError(
+            "Zombie Lair recurrence must be home_notification_pulse"
+        )
+    route = record["semantic_entry_route"]
+    if (
+        route.get("source_home_authorities") != ["HOME_CANONICAL"]
+        or route.get("route") != ["ZOMBIE_LAIR"]
+    ):
+        raise ProductAuthorityError(
+            "Zombie Lair entry route must bind canonical Home to notifications"
+        )
+    target = record["target"]
+    if (
+        target.get("kind") != "zombie_lair"
+        or target.get("minimum_level") != 30
+        or target.get("maximum_level") != 55
+        or target.get("join_control") != "QUICK_JOIN"
+        or target.get("stamina_per_join") != 28
+        or target.get("maximum_join_count")
+        != "min(eligible_count, floor(current_stamina/28))"
+        or target.get("formation") != "quick_join_configured_formation"
+        or target.get("daily_completion_owner")
+        != "first_successful_eligible_join_per_reset"
+        or target.get("maintenance_owner") != "home_notification_pulse"
+        or target.get("static_daily_row") != "forbidden"
+        or target.get("level_60") != "forbidden"
+        or target.get("stamina_refill") != "forbidden"
+        or target.get("safe_terminal")
+        != ["HOME_CANONICAL", "SAFE_HOME_EQUIVALENT"]
+    ):
+        raise ProductAuthorityError(
+            "Zombie Lair target must bind eligible Quick Join levels and exact stamina"
+        )
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != "bounded_eligible_joins"
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "fixed_stamina_per_join"
+        or cost.get("amount") != 28
+        or cost.get("unit") != "STAMINA"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError(
+            "Zombie Lair must bind bounded 28-stamina joins"
+        )
+    effect = record["semantic_effect"]
+    required_effects = (
+        "eligible_level_range_required",
+        "quick_join_identity_required",
+        "stamina_delta_required",
+        "daily_completion_successor_required",
+        "maintenance_successor_required",
+        "no_refill_required",
+        "no_level_60_required",
+        "dispatch_is_not_success_proof",
+    )
+    if (
+        effect.get("effect_ordinal") != 1
+        or any(effect.get(field) is not True for field in required_effects)
+        or effect.get("daily_ownership")
+        != "first_successful_eligible_join_per_reset"
+        or effect.get("identical_retry") is not False
+    ):
+        raise ProductAuthorityError(
+            "Zombie Lair successor, ownership, or retry safety effect is incomplete"
+        )
+    ownership = record["daily_ownership"]
+    if (
+        ownership.get("daily_owner")
+        != "first_successful_eligible_join_per_reset"
+        or ownership.get("point_credit_trigger")
+        != "first_successful_eligible_join_per_reset"
+        or ownership.get("selected_daily_prerequisite") is not False
+    ):
+        raise ProductAuthorityError(
+            "Zombie Lair Daily ownership must bind the first successful join"
+        )
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError(
+            "Zombie Lair terminal requirement must return to canonical Home"
+        )
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "level 60",
+        "unknown level",
+        "stamina refill",
+        "item refill",
+        "currency refill",
+        "formation",
+        "unknown successor",
+        "identical retry",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(
+                f"Zombie Lair forbidden actions must include {marker}"
+            )
+
 def _validate_world_map_navigation_record(record: Mapping[str, Any]) -> None:
     """Validate navigation-only Home-to-World/Search-to-Home authority."""
 
@@ -1539,6 +1655,8 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_troop_training_record(record)
     elif record_type == "gathering_resources":
         _validate_gathering_resources_record(record)
+    elif record_type == "zombie_lair":
+        _validate_zombie_lair_record(record)
     elif record_type == "world_map_navigation":
         _validate_world_map_navigation_record(record)
     elif record_type == "campaign_ap":
@@ -1602,8 +1720,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 13:
-        raise ProductAuthorityError("product authority requires exactly thirteen records")
+    if not isinstance(records, list) or len(records) != 14:
+        raise ProductAuthorityError("product authority requires exactly fourteen records")
     return records
 
 
@@ -1867,6 +1985,24 @@ def validate_contract_product_authority_binding(
     ) == "GATHERING-BLUESTACKS-INTEGRATION":
         raise ProductAuthorityError(
             "Gathering flow must bind the Gathering record"
+        )
+    if record_id == "zombie_lair" and contract.get(
+        "flow_id"
+    ) not in {
+        "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
+        "ZOMBIE-LAIR-HOME-MAINTENANCE",
+    }:
+        raise ProductAuthorityError(
+            "Zombie Lair record is reserved for Zombie Lair contracts"
+        )
+    if record_id != "zombie_lair" and contract.get(
+        "flow_id"
+    ) in {
+        "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
+        "ZOMBIE-LAIR-HOME-MAINTENANCE",
+    }:
+        raise ProductAuthorityError(
+            "Zombie Lair contracts must bind the Zombie Lair record"
         )
     if record_id == "world_map_navigation" and contract.get(
         "flow_id"

@@ -39,6 +39,27 @@
   "offline_proof_state": "not_implemented",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r11",
+    "product_authority_digest": "08e7e4d639366cc67b0d2b58e1ff54ba2d9c119f491646bf5bd14bddb6e6ec8f",
+    "product_record_id": "zombie_lair",
+    "product_record_revision": "zombie_lair-v1",
+    "product_record_digest": "e9a6c9b34e504fcd779138fdb872331a80a3c1f7b5384cd5ee0b10c5b0de7dab",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": ["HOME_CANONICAL"],
+    "selected_daily_prerequisite": false
+  },
   "registration_state": "disabled",
   "production_eligible": false
 }

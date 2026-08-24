@@ -242,6 +242,24 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(scenario["mode"], "blocked_until_evidence")
         self.assertEqual(scenario["permitted_inputs"], [])
         self.assertIn("dispatch_attack", scenario["forbidden_inputs"])
+
+    def test_zombie_lair_contracts_bind_one_record_and_stay_disabled(self):
+        for flow_id in (
+            "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
+            "ZOMBIE-LAIR-HOME-MAINTENANCE",
+        ):
+            contract = load_flow_contract(flow_id)
+            binding = contract["product_authority_binding"]
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+                self.assertEqual(binding["product_record_id"], "zombie_lair")
+                self.assertEqual(binding["product_record_revision"], "zombie_lair-v1")
+                self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+                self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+                self.assertFalse(binding["selected_daily_prerequisite"])
+                self.assertEqual(contract["registration_state"], "disabled")
+                self.assertFalse(contract["production_eligible"])
+                self.assertEqual(contract["proof_state"], "evidence_required")
     def test_daily_and_maintenance_contract_identities_are_separate(self):
         pairs = (
             ("NANOWEAPON-BLUESTACKS-INTEGRATION", "NANO-MATERIAL-PRODUCTION-MAINTENANCE"),

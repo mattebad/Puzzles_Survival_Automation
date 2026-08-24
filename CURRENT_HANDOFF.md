@@ -9,36 +9,36 @@
 
   "task_start_worktree": {"tracked_dirty_paths": ["AGENTS.md", "docs/flow-delivery-validation-policy.md", "tests/test_flow_delivery_workflow_policy.py"], "protected_untracked_paths": [".omp/", "Start-PnS-OMP.ps1", "Stop-PnS-OMP.ps1", ".local-captures/", ".local-orchestrator/"]},
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "gathering-route-session-migration",
-  "current_task_state": "blocked_evidence",
-  "next_task_id": "zombie-lair-product-authority-migration",
+  "current_task_id": "zombie-lair-product-authority-migration",
+  "current_task_state": "completed_offline",
+  "next_task_id": "nano-material-product-authority-migration",
   "next_task_activation_status": "awaiting_explicit_selection",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "gathering_route_session_blocked_offline",
+  "active_delivery_stage": "zombie_lair_product_authority_accepted_offline",
 
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "Gathering focused profile passed 11 tests with receipt 228010c8d6c716074bf21cce2cbafd7103469858ed3b1eb46b1711262cb2aa3d; authority/contract suites passed 64 tests; no runtime input.",
-  "latest_architecture_validation_result": "Gathering architecture profile passed 92 tests with receipt 6427b746852d519e793f4d81fbee5969ddd463e73fabf09265a705646a1f74de; no runtime input.",
+  "latest_focused_validation_result": "Zombie focused profile passed 15 tests with receipt c477dcfb92c03ea1126bbfa6d517fc5ddc9f76f137f7df160a1b4a70b1720bf7; authority/contract suites passed 60 tests; no runtime input.",
+  "latest_architecture_validation_result": "Zombie architecture profile passed 92 tests with receipt 1519dddb06a3fbae792f58a75e09dc9dd0c8a6b73c3f57263faaf6b15c7459f1; no runtime input.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "not authorized and not attempted; Gathering route/session migration was not started because no native route implementation or positive evidence exists",
-  "current_evidence_or_session_reference": "No current Gathering native category/level-5/node/march/progress/Home proof is being claimed; product authority and pure fixtures remain non-authorizing",
-  "last_safe_completed_step": "Dispositioned Gathering route/session migration blocked offline because Search category/level-5 selectors, bounded Gas reveal, free-node occupancy binding, free-slot/default-formation replay, and native successor evidence are missing; no adapter, registration, or runtime input was added.",
-  "exact_next_permitted_action": "Perform Zombie Lair product authority migration only; preserve Gathering blocked disposition and do not dispatch a march.",
-  "current_blocker": "Gathering route/session migration lacks the native Search/category/level-5/Gas/node/march implementation and evidence required for a safe session binding; registration and scheduling stay disabled.",
-  "prohibited_repeated_action": "Do not invent a Gathering adapter, dispatch a march, use emulator/ADB/BlueStacks, combine Zombie Lair with Gathering route work, begin Stage 8, or change registration/scheduler state.",
-  "stage_revision": "gathering-route-session-migration-r1",
-  "stage_type": "medium_continuous_session_migration",
-  "product_precondition": "Gathering product authority is current, but native route implementation and positive evidence are absent.",
-  "failure_class": "product_state",
-  "budgets": {"stage_revisions_used": 3, "managed_turns_used": 5, "live_attempts_used": 0, "runtime_inputs_used": 0},
+  "current_live_attempt_state": "not authorized and not attempted; Zombie Lair product authority migration used zero emulator/ADB/BlueStacks observation and zero runtime input",
+  "current_evidence_or_session_reference": "No current Zombie notification/eligible-level/stamina/Quick-Join/successor/Home production proof is being claimed; typed authority and synthetic fixtures remain non-authorizing",
+  "last_safe_completed_step": "Added one zombie_lair-v1 typed authority shared by Daily completion and Home maintenance, binding eligible levels 30-55, exact 28 stamina, Quick Join, bounded joins, no level 60/refill, canonical Home, and disabled registration.",
+  "exact_next_permitted_action": "Perform Nano Material product authority migration only; preserve Zombie Lair offline disposition and do not dispatch a join.",
+  "current_blocker": "Native Zombie notification, eligible-level, exact-stamina, Quick-Join, successor, and Home proof remains required before live admission; registration and scheduling stay disabled.",
+  "prohibited_repeated_action": "Do not join a Zombie Lair, use emulator/ADB/BlueStacks, start Nano Material route/session work with product authority, begin Stage 8, or change registration/scheduler state.",
+  "stage_revision": "zombie-lair-product-authority-migration-r1",
+  "stage_type": "product_authority_migration",
+  "product_precondition": "Zombie Lair typed authority binds both Daily completion and Home maintenance contracts; native evidence remains absent.",
+  "failure_class": "none offline",
+  "budgets": {"stage_revisions_used": 3, "managed_turns_used": 6, "live_attempts_used": 0, "runtime_inputs_used": 0},
 
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Gathering route/session migration requires native Search/category/level-5/Gas/node/march/progress/Home proof and an existing route implementation; current authority and pure fixtures are non-authorizing", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true},
+  "evidence": {"evidence_requirement": "Native Zombie notification, eligible-level, exact-stamina, Quick-Join, successor, and Home proof remains required before live admission; current authority and synthetic fixtures are non-authorizing", "monitoring_issue": "MONITOR-UNOBSERVED-EFFECT-RECONCILIATION", "do_not_recursively_inspect_parent_evidence_tree": true},
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
   "deferred_independent_review": "Sol 5.6 PR review pending; self-review only; no independent review claimed.",
@@ -51,7 +51,7 @@
     "6 World product authority without rebuilding accepted Stage 6 session — accepted offline",
     "7 Gathering product authority — accepted offline",
     "8 Gathering route/session migration — blocked offline pending native route implementation/evidence",
-    "9 Zombie Lair product authority and offline disposition",
+    "9 Zombie Lair product authority and offline disposition — accepted offline",
     "10 Nano Material product authority and maintenance/session migration",
     "11 Nanoweapon product authority and adapter/session repair",
     "12 Ruins Shop product authority and route/session disposition",
@@ -67,9 +67,9 @@
     "22 Legacy retirement and final Stage 7 closure"
   ],
   "next_three_atomic_tasks": [
-    "Gathering route/session migration: blocked offline; do not invent selectors or dispatch without native implementation/evidence.",
-    "Zombie Lair product authority: preserve offline disposition and no runtime input.",
-    "Nano Material product authority: keep maintenance/session migration separate."
+    "Zombie Lair product authority: zombie_lair-v1 authority binds Daily and maintenance contracts and is accepted offline; no join occurred.",
+    "Nano Material product authority: add typed record and keep maintenance/session migration separate.",
+    "Nanoweapon product authority: preserve disabled/repair-gated route status."
   ]
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -366,7 +366,7 @@ World now has typed `world_map_navigation-v1` authority under
 `flow-delivery-product-authority-v2-r11`, record digest
 `c9dfe10930bc432630388d5edaabcdc294c8925a1d8c2e24d7b1255be07b5418`, and
 authority digest
-`5fc19b2696b32a41cb6ca959f155ad379bf16e818940aae0222700414a91ce23`.
+`08e7e4d639366cc67b0d2b58e1ff54ba2d9c119f491646bf5bd14bddb6e6ec8f`.
 The record binds `HOME_READY` to `WORLD`, `SEARCH`, `WORLD`, and `HOME`,
 with zero quantity, zero cost, canonical Home terminal proof, no Daily
 ownership, and no resource, march, attack, stamina, AP, currency, combat, or
