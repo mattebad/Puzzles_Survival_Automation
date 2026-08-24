@@ -1,0 +1,4 @@
+# Project-local OMP settings shared by all profiles.
+# Model roles are profile-owned so ps-local and codex remain isolated.
+defaultThinkingLevel: medium
+mcp.enableProjectConfig: false
