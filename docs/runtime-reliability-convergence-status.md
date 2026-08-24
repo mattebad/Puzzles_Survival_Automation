@@ -14,7 +14,8 @@ closure is commit `dde9b1c` on branch
 | 2 — Resource Effect Authority | Complete in branch candidate | `safe_action_core/resource_effect_authority.py` releases active reconciliation claims transactionally with terminal observe-only reconciliation; `scripts/pnsctl.py` binds Resource identity to validated product authority. Focused Resource tests are the verification evidence. |
 | 3 — control primitives | Complete in commit containing this file | Revision r1 added the pure primitives and trace projection; r3 closed the sole canonical-consumer blocker with provenance-bound Enhancement replay, giving Nova + Enhancement as distinct transition consumers. Focused, affected-package, shared-navigation, independent-review, and parent integration gates are accepted. Production adapters, registration, scheduling, and runtime authority remain unchanged. |
 | 4 — continuous DevelopmentSession and thin conduct (umbrella Stage 6) | Complete offline in commit containing this status | One authoritative DevelopmentSession and thin conduct are proven with Resource + World. R6 closes external-blocker authority with exact structured tokens and bounded free-text display matching. Independent review found no defects; focused, shared-navigation, and architecture gates passed. Registration and scheduling remain disabled. |
-| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, and Recruitment continuous-session lanes accepted offline | Recruitment is bound to one flow-owned DevelopmentSession and checked-in conductor/route verifier, but current uninterrupted Basic-five/reset and independent Basic/Int./Advanced native proof remains evidence_required. Registration/scheduling remain disabled. Next is Daily Milestone Claim route integration or evidence-blocked disposition. |
+| 5 — full portfolio migrations (umbrella Stage 7) | In progress; Daily Claim, Nova Praise, Enhancement, Ultimate, Bioenhancer, Milestone authority, Supply Depot session, Recruitment authority, and Recruitment continuous-session lanes accepted offline; Milestone continuous-session lane dispositioned blocked | Recruitment remains evidence_required for uninterrupted native proof. Daily Milestone remains contract-only and is explicitly `blocked_evidence_required`: no current BlueStacks-native ready chest, same-milestone successor, or canonical-Home corpus. Registration/scheduling remain disabled. Next is Campaign AP product authority only. |
+
 
 
 ## Frozen product rule
@@ -951,6 +952,41 @@ The architecture profile passed 92 tests with receipt
 input, and recruit actions occurred. Retained native proof remains
 `evidence_required`. Failure classification: no remaining local defect;
 deferred Sol 5.6 PR review remains pending and was not claimed.
+
+## Stage 7 Daily Milestone Claim continuous-session disposition
+
+The separate Daily Milestone session lane is not implementable from current
+repository evidence. `tasks/activity_milestones.py` remains a pure authority
+contract, and
+`DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION` remains
+`implementation_status: contract_only`, `proof_state: evidence_required`, and
+production-ineligible. No checked-in BlueStacks adapter, runner, evidence
+validator, or continuous-session route exists. The aggregate ordinary Daily
+Claim owner remains separate; no row Claim or Daily attribution path may
+claim milestone ownership.
+
+Queue disposition is now `blocked_evidence_required` with Sol parent as
+evidence owner. Required evidence: one current BlueStacks-native ready,
+fully-visible, zero-cost milestone chest; exact same-milestone opened/claimed
+or positive bound-points successor; and canonical Home terminal evidence.
+Retained Bliss/synthetic fixtures remain diagnostic and non-authorizing. The
+only admissible next action is separately authorized zero-input or
+navigation-only evidence acquisition; no implementation or Claim dispatch is
+authorized before that evidence. Unknown or contradictory results would
+remain reconciliation-required and deny identical retry.
+
+Milestone authority/catalog/contract/orchestrator validation passed 77 tests.
+The combined authority-consistency suite remains blocked by pre-existing
+`BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION` registry/queue membership
+drift, reproduced against the parent commit and outside this atomic task.
+The checked-in architecture profile passed 92 tests with receipt
+`1058a6df5e80a8d834db29aea50588be431721e2cbe5966a37bf704a51e45a85`. No
+adapter-specific focused profile exists because the contract remains
+`implementation_status: contract_only`. Zero emulator/ADB/BlueStacks
+observation and runtime input occurred. Registration remains
+`NOT_REGISTERED`, scheduler eligibility remains disabled, and ownership is
+absent. Failure classification: `evidence_required`; unrelated authority
+drift is a pre-existing `process_state` blocker.
 
 ## Stage 7 ordered remainder plan
 
