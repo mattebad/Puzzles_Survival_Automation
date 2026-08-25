@@ -1753,3 +1753,17 @@ Sol accepts r4 integration and admits exactly one parent-owned direct
 observation with input ceiling zero. The candidate remains unregistered and
 scheduler-ineligible; gameplay input, transport, handlers, target binding,
 combat, and purchase remain prohibited.
+
+## Stage 10 phase 1 accepted
+
+The single direct observation completed in
+`.local-captures/development-sessions/observe-20260825T175707281261Z`.
+The native frame was 800×1280 for package `com.global.ztmslg`, frame SHA-256
+`5f263720d50762e4994389922158cae1a9ba96e0f791548e426b34da5d89db69`.
+Result and summary both report `status=observed`, `dispatch=false`,
+`input_count=0`, `ownership_released=true`, and no lifecycle state.
+
+Post-observation registration remained `NOT_REGISTERED`, registered flows
+remained empty, and scheduler eligibility remained false. Sol accepts phase 1.
+Phase 2 remains separately inactive pending an exact navigation candidate and
+bounded registration contract.
