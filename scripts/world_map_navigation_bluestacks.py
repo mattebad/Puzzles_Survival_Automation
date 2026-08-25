@@ -702,46 +702,37 @@ def _footer_control_binding(
         if overlap / text_area >= _FOOTER_MIN_TEXT_CANDIDATE_OVERLAP:
             associated.append(candidate)
 
-    distinct: list[tuple[int, int, int, int]] = []
-    for candidate in associated:
-        candidate_area = max(1, (candidate[2] - candidate[0]) * (candidate[3] - candidate[1]))
-        equivalent = False
-        for existing in distinct:
-            existing_area = max(
-                1,
-                (existing[2] - existing[0]) * (existing[3] - existing[1]),
-            )
-            intersection = max(
-                0,
-                min(candidate[2], existing[2]) - max(candidate[0], existing[0]),
-            ) * max(
-                0,
-                min(candidate[3], existing[3]) - max(candidate[1], existing[1]),
-            )
-            if (
-                intersection / min(candidate_area, existing_area)
-                >= _FOOTER_EFFECTIVE_CANDIDATE_MIN_OVERLAP
-                and intersection
-                / max(1, candidate_area + existing_area - intersection)
-                >= _FOOTER_EFFECTIVE_CANDIDATE_MIN_IOU
-                and abs(
-                    (candidate[0] + candidate[2])
-                    - (existing[0] + existing[2])
-                )
-                <= max(candidate[2] - candidate[0], existing[2] - existing[0]) * 0.15
-                and abs(
-                    (candidate[1] + candidate[3])
-                    - (existing[1] + existing[3])
-                )
-                <= max(candidate[3] - candidate[1], existing[3] - existing[1]) * 0.15
-            ):
-                equivalent = True
-                break
-        if not equivalent:
-            distinct.append(candidate)
-    if len(distinct) != 1:
+    distinct = sorted(
+        set(associated),
+        key=lambda candidate: (
+            (candidate[2] - candidate[0]) * (candidate[3] - candidate[1]),
+            candidate,
+        ),
+    )
+    if not distinct:
         return None
-    return distinct[0], (text,), "current-frame-bounded-candidate"
+    smallest_area = (
+        (distinct[0][2] - distinct[0][0])
+        * (distinct[0][3] - distinct[0][1])
+    )
+    smallest = [
+        candidate
+        for candidate in distinct
+        if (candidate[2] - candidate[0]) * (candidate[3] - candidate[1])
+        == smallest_area
+    ]
+    if len(smallest) != 1:
+        return None
+    selected = smallest[0]
+    if not _roi_contains(_FOOTER_NAVIGATION_REGION, selected):
+        return None
+    if any(
+        candidate != selected
+        and not _roi_contains(candidate, selected)
+        for candidate in distinct
+    ):
+        return None
+    return selected, (text,), "current-frame-bounded-candidate"
 
 
 def _footer_fallback_identity(

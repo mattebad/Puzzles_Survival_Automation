@@ -2285,58 +2285,45 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result.control_semantics[WORLD_TO_HOME], ("Base",))
         self.assertNotEqual(result.zoom_identity, WORLD_ZOOM_SUPPORTED)
 
-    def test_footer_binding_rejects_distinct_candidates_but_deduplicates_nested_equivalents(
+    def test_footer_binding_selects_smallest_nested_candidate_and_rejects_ambiguity(
         self,
     ):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         text_roi = (39, 1242, 108, 1261)
         exact = (36, 1242, 112, 1265)
-        nested_equivalent = (35, 1241, 113, 1266)
+        broad_ancestor = (0, 1168, 634, 1271)
         distinct = (50, 1242, 126, 1265)
-
-        with (
-            patch(
-                "scripts.world_map_navigation_bluestacks._ocr_hits",
-                return_value=[],
-            ),
-            patch(
-                "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
-                return_value=[exact, nested_equivalent],
-            ),
-            patch(
-                "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
-                return_value=[("World", text_roi)],
-            ),
-        ):
-            resolved = recognize_world_frame(
-                frame,
-                source_frame_sha256="c" * 64,
-                evidence_ref="current-home-frame.png",
-            )
-        self.assertEqual(resolved.state, HOME_READY)
-        self.assertEqual(resolved.controls[HOME_TO_WORLD], exact)
-
-        with (
-            patch(
-                "scripts.world_map_navigation_bluestacks._ocr_hits",
-                return_value=[],
-            ),
-            patch(
-                "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
-                return_value=[exact, distinct],
-            ),
-            patch(
-                "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
-                return_value=[("World", text_roi)],
-            ),
-        ):
-            ambiguous = recognize_world_frame(
-                frame,
-                source_frame_sha256="d" * 64,
-                evidence_ref="current-home-frame.png",
-            )
-        self.assertEqual(ambiguous.state, "UNKNOWN")
-        self.assertNotIn(HOME_TO_WORLD, ambiguous.controls)
+        cases = (
+            ("nested", [exact, broad_ancestor], HOME_READY, exact),
+            ("broad-only", [broad_ancestor], "UNKNOWN", None),
+            ("non-nested", [exact, distinct], "UNKNOWN", None),
+        )
+        for label, candidates, expected_state, expected_roi in cases:
+            with self.subTest(label=label):
+                with (
+                    patch(
+                        "scripts.world_map_navigation_bluestacks._ocr_hits",
+                        return_value=[],
+                    ),
+                    patch(
+                        "scripts.world_map_navigation_bluestacks._visual_candidate_boxes",
+                        return_value=candidates,
+                    ),
+                    patch(
+                        "scripts.world_map_navigation_bluestacks._footer_navigation_ocr_hits",
+                        return_value=[("World", text_roi)],
+                    ),
+                ):
+                    result = recognize_world_frame(
+                        frame,
+                        source_frame_sha256="c" * 64,
+                        evidence_ref="current-home-frame.png",
+                    )
+                self.assertEqual(result.state, expected_state)
+                if expected_roi is None:
+                    self.assertNotIn(HOME_TO_WORLD, result.controls)
+                else:
+                    self.assertEqual(result.controls[HOME_TO_WORLD], expected_roi)
 
     def test_current_frame_magnifier_binds_search_without_zoom_authority(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
