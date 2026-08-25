@@ -1834,3 +1834,36 @@ rejected for failed semantic navigation/terminal acceptance. Phases 3-6 remain
 unadmitted behind that failure; their current candidate audit also found only
 `blocked_evidence_required` candidates. Phase 7 combat remains unauthorized.
 The Stage decision is `REJECT_STAGE_10`, not completion of all Stage 10 phases.
+
+## Stage 10 phase 2 r4 acceptance
+
+The user restored canonical Home and authorized a materially changed World
+reproof. Revision `runtime-reliability-stage-10-phase-2-navigation-r4` repaired
+the remaining current-frame footer ambiguity: one uniquely smallest measured
+candidate is accepted only when it lies inside the footer region and every
+competing associated contour is its strict broad ancestor. Broad-only,
+equal-area, and non-nested candidates remain fail-closed.
+
+Parent validation passed 97 World, automation-service, scheduler, and
+DevelopmentSession tests. The mapped `gpt-5.6-terra-high` read-only review
+returned `ADMIT_MATERIALLY_CHANGED_CANARY` with no findings. A fresh zero-input
+observation at
+`.local-captures/development-sessions/observe-20260825T203537709174Z`
+captured the native 800×1280 frame, issued no input, and released ownership.
+
+The phase-local offline scheduler state selected only World once with
+`transport_count=0`; the duplicate/reopened-store pulse returned
+`NO_ELIGIBLE_TASK`. The one live canary is retained at
+`.local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260825T203558442951Z`.
+It issued four navigation inputs and zero popup, Daily, claim, resource,
+combat, purchase, maintenance, AP/stamina, currency, node, march, formation, or
+occupancy-override inputs. Continuous evidence verifies
+`HOME_READY -> World -> Search -> World -> HOME_READY`,
+`navigation_only_complete`, unchanged persistent checkpoints, and released
+ownership.
+
+The strict World registration was consumed before runtime. Final production
+registration is `NOT_REGISTERED`, registered flows are empty, scheduler
+eligibility is false, and no runtime operator remains. Sol accepts Phase 2.
+Phase 3 requires separate admission; phases 4–6 remain unadmitted and Phase 7
+combat remains unauthorized.
