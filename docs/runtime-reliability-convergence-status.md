@@ -1800,3 +1800,37 @@ explicit continuation must freeze a bounded Phase 2 r2 correction that
 rehydrates and strictly validates the immutable World dispatch-time registration
 snapshot during retained evidence verification; it must not re-enable broad
 registration or grant scheduler transport authority.
+
+## Stage 10 phase 2 r2 live rejection and durable closure
+
+The r2 immutable-registration correction passed independent review and parent
+integration. Focused automation-service/World validation passed 81 tests and
+DevelopmentSession regression validation passed 20 tests. The required
+zero-input observation completed with zero dispatch/input and released
+ownership.
+
+The single admitted World canary is retained at
+`.local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260825T195954253466Z`.
+Atomic registration consumption succeeded before runtime. The current Home
+frame was recognized, but `home-to-world` was bound to broad ROI
+`[0,1167,631,1268]`; its center `[315,1217]` opened Daily Quest. The route
+failed closed after one navigation input with `unknown_state_or_modal`, zero
+consequential/resource/AP/stamina/currency/combat/node/march/formation inputs,
+no lifecycle state, and ownership released. The successor frame SHA-256 is
+`fe28ec5ac027e2fd4a3f79f527a430120984619ed358cc8a10776fddcc1e59ff`.
+
+The failure is `local_defect`. The bounded footer repair clips the measured
+candidate to the fixed World footer region and passes 60 World tests; an
+independent read-only review returned `ADMIT_MATERIALLY_CHANGED_CANARY`.
+Nevertheless, no second canary was admitted. The supported Home recovery
+command produced a zero-input blocked receipt and did not restore Home. The
+remaining Daily Quest panel is an unsupported manual-only state and therefore
+an explicit hard stop; safety was not weakened and no alternative controller
+or public ADB was used.
+
+Production registration is again `NOT_REGISTERED`, registered flows are empty,
+and scheduler eligibility is false. Phase 1 remains accepted. Phase 2 is
+rejected for failed semantic navigation/terminal acceptance. Phases 3-6 remain
+unadmitted behind that failure; their current candidate audit also found only
+`blocked_evidence_required` candidates. Phase 7 combat remains unauthorized.
+The Stage decision is `REJECT_STAGE_10`, not completion of all Stage 10 phases.

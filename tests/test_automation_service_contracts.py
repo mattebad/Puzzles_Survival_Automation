@@ -68,22 +68,24 @@ class AutomationServiceContractTests(unittest.TestCase):
         result = NormalizedResult(NormalizedOutcome.UNRESOLVED, "UNKNOWN_RESULT")
         self.assertTrue(result.unresolved_action)
 
-    def test_disabled_registry_owns_only_disabled_production_fields(self) -> None:
+    def test_registry_is_fully_disabled_after_phase_canary_closure(self) -> None:
         entries = load_disabled_registry()
         self.assertTrue(entries)
         payload = json.loads(
-            (ROOT / "tasks" / "flow_delivery_disabled_production_registry.json").read_text(
-                encoding="utf-8"
-            )
+            (
+                ROOT / "tasks" / "flow_delivery_disabled_production_registry.json"
+            ).read_text(encoding="utf-8")
         )
         for value in payload["flows"].values():
             self.assertEqual(set(value), ENTRY_FIELDS)
+        self.assertFalse(any(item.registered for item in entries))
         self.assertTrue(all(item.mode == "disabled" for item in entries))
-        self.assertTrue(all(item.registration_status == "NOT_REGISTERED" for item in entries))
+        self.assertTrue(
+            all(item.registration_status == "NOT_REGISTERED" for item in entries)
+        )
         self.assertTrue(all(item.scheduler_eligible is False for item in entries))
         self.assertEqual({item.flow_id for item in entries}, set(BLUESTACKS_FLOW_IDS))
 
 
 if __name__ == "__main__":
     unittest.main()
-

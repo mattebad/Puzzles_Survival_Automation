@@ -1,29 +1,236 @@
 {
-  "schema_version": 1,
-  "registry_kind": "disabled_production_handlers",
   "flows": {
-    "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "NOVA-PRAISE-HOME-ATLAS-MIGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "NOAHS-TAVERN-HOME-ATLAS-MIGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "TROOP-TRAINING-END-TO-END-CONSOLIDATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "NANOWEAPON-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "RECRUITMENT-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "WORLD-MAP-NAVIGATION-FOUNDATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "GATHERING-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false},
-    "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION": {"production_handler": null, "profile": null, "supported_profiles": [], "mode": "disabled", "registration_status": "NOT_REGISTERED", "scheduler_eligible": false}
-  }
+    "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "GATHERING-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "NANOWEAPON-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "NOAHS-TAVERN-HOME-ATLAS-MIGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "NOVA-PRAISE-HOME-ATLAS-MIGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "RECRUITMENT-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "TROOP-TRAINING-END-TO-END-CONSOLIDATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "WORLD-MAP-NAVIGATION-FOUNDATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    }
+  },
+  "registry_kind": "disabled_production_handlers",
+  "schema_version": 1
 }

@@ -644,6 +644,18 @@ def _control_binding(
     )
     if candidate is None:
         return None
+    if (
+        identity in _FOOTER_CONTROL_LABELS
+        and _roi_contains(_FOOTER_NAVIGATION_REGION, text_roi)
+    ):
+        candidate = (
+            max(candidate[0], _FOOTER_NAVIGATION_REGION[0]),
+            max(candidate[1], _FOOTER_NAVIGATION_REGION[1]),
+            min(candidate[2], _FOOTER_NAVIGATION_REGION[2]),
+            min(candidate[3], _FOOTER_NAVIGATION_REGION[3]),
+        )
+        if not _valid_roi(candidate):
+            return None
     return candidate, (text,), "current-frame-bounded-candidate"
 
 

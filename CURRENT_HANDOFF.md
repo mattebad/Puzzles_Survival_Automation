@@ -16,37 +16,37 @@
     ]
   },
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-orchestrator/", ".local-tools/", "evidence/"],
-  "current_task_id": "stage-10-phase-2-navigation",
+  "current_task_id": "stage-10-phase-2-navigation-r2",
   "current_task_state": "rejected_rolled_back",
-  "next_task_id": "stage-10-phase-2-navigation-r2-correction",
-  "next_task_activation_status": "explicit_user_continuation_required",
+  "next_task_id": "stage-10-phase-2-navigation-r3-recovery",
+  "next_task_activation_status": "separate_user_authorization_and_home_recovery_required",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "stage_10_phase_2_rejected",
-  "active_execution_manifest_path": "docs/execution-manifests/runtime-reliability-stage-10-phase-2-navigation-r1.md",
+  "active_delivery_stage": "stage_10_phase_2_r2_rejected",
+  "active_execution_manifest_path": "docs/execution-manifests/runtime-reliability-stage-10-phase-2-navigation-r2.md",
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "Phase 2 candidate passed 18 scheduler-bridge, 21 scheduler-persistence, and 57 World tests; offline first/duplicate pulses were zero-transport.",
-  "latest_architecture_validation_result": "Terra recheck returned DO_NOT_ADMIT: post-consumption verification could not validate the immutable dispatch-time World registration snapshot.",
+  "latest_focused_validation_result": "Phase 2 final integration passed 81 automation-service/World tests and 20 DevelopmentSession tests; the World-only suite passed 60 tests.",
+  "latest_architecture_validation_result": "Independent review found no footer-repair defect and returned ADMIT_MATERIALLY_CHANGED_CANARY; live admission remained blocked by unsupported Home recovery.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "No Phase 2 live attempt occurred; registration and all implementation changes were rolled back before runtime admission.",
-  "current_evidence_or_session_reference": "Phase 1 accepted session remains current; Phase 2 has offline test/pulse receipts only and no DevelopmentSession reference.",
-  "last_safe_completed_step": "Rejected Phase 2 after the bounded repair/recheck cycle and restored 23 disabled flows, no registration, and zero scheduler eligibility.",
-  "exact_next_permitted_action": "After explicit continuation, freeze Phase 2 r2 limited to strict immutable dispatch-time registration snapshot rehydration during World evidence verification.",
-  "current_blocker": "Phase 2 safety/semantic acceptance failed; valid post-consumption canary evidence would be rejected.",
-  "prohibited_repeated_action": "Do not run a World live canary, re-enable registration, admit phases 3-6, repeat Phase 1 observation, dispatch combat, or confirm real-money before a reviewed r2 correction.",
-  "stage_revision": "runtime-reliability-stage-10-phase-2-navigation-r1",
-  "stage_type": "navigation_phase_rejected_rolled_back",
-  "product_precondition": "World product/route candidate remains accepted offline, but the Phase 2 registration/evidence bridge is rejected.",
+  "current_live_attempt_state": "One World canary consumed registration and issued one navigation input; broad footer geometry opened Daily Quest and failed closed. No second canary ran.",
+  "current_evidence_or_session_reference": ".local-captures/development-sessions/WORLD-MAP-NAVIGATION-FOUNDATION-20260825T195954253466Z; zero-input recovery receipt .local-captures/development-sessions/TROOP-TRAINING-END-TO-END-CONSOLIDATION-20260825T200733654079Z",
+  "last_safe_completed_step": "Rolled World registration back to disabled after the failed canary and unsupported zero-input Home recovery; ownership is released.",
+  "exact_next_permitted_action": "Outside automation, restore canonical Home or separately authorize a bounded current-frame Daily Quest recovery; then freeze a new Phase 2 revision.",
+  "current_blocker": "Phase 2 semantic navigation and canonical Home terminal failed; the current Daily Quest panel is an unsupported manual-only state.",
+  "prohibited_repeated_action": "Do not issue another live input, rerun the World canary, re-enable registration, admit phases 3-6, dispatch combat, or confirm real-money before Home recovery and a separately reviewed Phase 2 revision.",
+  "stage_revision": "runtime-reliability-stage-10-phase-2-navigation-r2",
+  "stage_type": "navigation_phase_live_rejected_rolled_back",
+  "product_precondition": "World remains accepted offline; live promotion failed because broad current-frame geometry opened Daily Quest and canonical Home was not recovered.",
   "failure_class": "local_defect",
-  "budgets": {"phase_2_luna_implementation_turns": 1, "phase_2_luna_repair_turns": 1, "phase_2_terra_review_turns": 1, "phase_2_terra_recheck_turns": 1, "phase_2_live_attempts_used": 0, "phase_2_runtime_inputs_used": 0},
+  "budgets": {"phase_2_live_attempts_used": 1, "phase_2_runtime_inputs_used": 1, "phase_2_recovery_inputs_used": 0, "phase_2_identical_retries_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "registered_flows": [], "active_runtime": "none"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Phase 2 r2 must strictly validate and rehydrate the immutable registered World dispatch snapshot after one-shot consumption", "monitoring_issue": "STAGE-10-PHASE-2-REJECTED", "do_not_recursively_inspect_parent_evidence_tree": true},
+  "evidence": {"evidence_requirement": "Current-frame Daily Quest recovery or manual Home restoration, then fresh one-shot World semantic success and Home terminal", "monitoring_issue": "STAGE-10-PHASE-2-R2-LIVE-REJECTED", "do_not_recursively_inspect_parent_evidence_tree": true},
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "deferred_independent_review": "Terra r4 finding-only recheck completed with no findings; no phase-1 review remains pending.",
+  "deferred_independent_review": "Phase 2 footer repair review completed with no findings; phases 4-6 candidate audit found only blocked_evidence_required dispositions.",
   "stage_7_ordered_plan": [
     "1 Daily Milestone Claim continuous-session migration or evidence-blocked disposition",
     "2 Campaign AP product authority",
@@ -72,9 +72,9 @@
     "22 Legacy retirement and final Stage 7 closure — accepted and published at 92d352f6c835ce344881f151779c12b53c220b55; no Stage 8 activation"
   ],
   "next_three_atomic_tasks": [
-    "Stage 10 Phase 2: explicit continuation is required for a refrozen r2 immutable-registration-evidence correction.",
-    "Stage 10 Phases 3-6: remain unadmitted behind Phase 2 acceptance.",
-    "Operations: keep all 23 flows NOT_REGISTERED, scheduler eligibility disabled, and phase 7 combat unauthorized."
+    "Operations: restore canonical Home outside automation or separately authorize an exact Daily Quest recovery contract.",
+    "Stage 10 Phase 2: freeze a new one-shot World revision only after Home recovery and independent review.",
+    "Stage 10 Phases 3-6 remain unadmitted; Phase 7 combat remains unauthorized and awaits explicit combat authorization."
   ]
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -423,3 +423,19 @@ test still asserts an older activation token; the workflow-policy test retains
 four literals from route generations superseded by current `AGENTS.md`.
 Neither failure was caused by the Stage 8 packet. No live input, registration,
 scheduler eligibility, commit, or push was authorized.
+
+## Stage 10 phase 2 r2 live rejection
+
+The single bounded World canary consumed its one-shot registration, then bound
+the Home `World` label to broad ROI `[0,1167,631,1268]`. Its center tap opened
+Daily Quest. The route failed closed after exactly one navigation input and
+released ownership; no consequential, resource, AP/stamina, currency, combat,
+node, march, or formation input occurred. The bounded footer-ROI repair passes
+60 World tests and independent review, but no second canary ran.
+
+The supported Home recovery command issued zero inputs and remained blocked.
+The game is still on an unsupported Daily Quest panel, so this is a manual-only
+hard stop. World registration is disabled, registered flows are empty, and
+scheduler eligibility is false. Phase 1 remains accepted; Phase 2 and Stage 10
+are rejected. Phases 3-6 remain unadmitted and Phase 7 combat remains
+unauthorized.

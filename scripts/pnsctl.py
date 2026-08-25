@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import nullcontext
+from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 import hashlib
 import inspect
@@ -65,8 +66,12 @@ NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT = (
 NOVA_SUPERVISED_ACTION_DATABASE = (
     REPO_ROOT / ".local-orchestrator" / "bluestacks-actions.sqlite3"
 )
-NOVA_SUPERVISED_GUARD_ARCHIVE_DIR = REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-archive"
-NOVA_SUPERVISED_GUARD_RECEIPT_DIR = REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-receipts"
+NOVA_SUPERVISED_GUARD_ARCHIVE_DIR = (
+    REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-archive"
+)
+NOVA_SUPERVISED_GUARD_RECEIPT_DIR = (
+    REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-receipts"
+)
 FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
 FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
@@ -276,7 +281,6 @@ def _register_checked_in_bluestacks_handlers() -> None:
     )
 
 
-
 _register_checked_in_bluestacks_handlers()
 
 
@@ -324,9 +328,7 @@ def _nova_supervised_guard_path(reset_id: object) -> Path:
     if os.path.islink(configured_root):
         raise OperatorError("Nova supervised guard root must not be a symlink")
     orchestrator = configured_root.resolve()
-    path = orchestrator / (
-        f"nova-praise-one-free-pulse-{selected_reset}.guard.json"
-    )
+    path = orchestrator / (f"nova-praise-one-free-pulse-{selected_reset}.guard.json")
     if path.parent != orchestrator or os.path.islink(path):
         raise OperatorError("Nova supervised guard path is unsafe")
     return path
@@ -370,7 +372,9 @@ def _infer_single_nova_reset_id() -> str:
     root = (REPO_ROOT / ".local-orchestrator").resolve()
     candidates = sorted(root.glob("nova-praise-one-free-pulse-*.guard.json"))
     if len(candidates) != 1:
-        raise OperatorError("Nova guard reset_id is required when multiple guards exist")
+        raise OperatorError(
+            "Nova guard reset_id is required when multiple guards exist"
+        )
     payload_path = candidates[0]
     match = re.fullmatch(
         r"nova-praise-one-free-pulse-(?P<reset>[A-Za-z0-9][A-Za-z0-9_.-]{0,127})\.guard\.json",
@@ -993,7 +997,9 @@ def _validate_delegated_observation_artifacts(
         if payload.get("status") != "observed":
             raise OperatorError(f"delegated observation {label} status is not observed")
         if payload.get("input_count") != 0:
-            raise OperatorError(f"delegated observation {label} input count is not zero")
+            raise OperatorError(
+                f"delegated observation {label} input count is not zero"
+            )
         if payload.get("dispatch") is not False:
             raise OperatorError(f"delegated observation {label} dispatch is not false")
         if payload.get("ownership_released") is not True:
@@ -1139,7 +1145,9 @@ def _validate_daily_row_recon_receipt(receipt: Mapping[str, Any]) -> None:
                 )
             continue
         if receipt.get(field) != value:
-            raise OperatorError(f"daily row reconnaissance receipt {field} is not frozen")
+            raise OperatorError(
+                f"daily row reconnaissance receipt {field} is not frozen"
+            )
     expected_bindings = [
         {
             "action_identity": identity,
@@ -1153,15 +1161,21 @@ def _validate_daily_row_recon_receipt(receipt: Mapping[str, Any]) -> None:
         )
     ]
     if receipt.get("action_bindings") != expected_bindings:
-        raise OperatorError("daily row reconnaissance receipt action bindings are not frozen")
+        raise OperatorError(
+            "daily row reconnaissance receipt action bindings are not frozen"
+        )
     binding = receipt.get("evidence_result_binding")
-    if not isinstance(binding, Mapping) or binding.get("result_identity") != DAILY_ROW_RECON_RESULT_IDENTITY:
+    if (
+        not isinstance(binding, Mapping)
+        or binding.get("result_identity") != DAILY_ROW_RECON_RESULT_IDENTITY
+    ):
         raise OperatorError("daily row reconnaissance result identity is not frozen")
     command = receipt.get("command_argv")
     if (
         not isinstance(command, list)
         or len(command) != 16
-        or command[:3] != [
+        or command[:3]
+        != [
             "development-session",
             "daily-row-reconnaissance",
             "--max-inputs",
@@ -1185,11 +1199,15 @@ def _daily_recon_artifact_path(session_directory: Path, value: object) -> Path:
     if not isinstance(value, str) or not value.strip():
         raise OperatorError("daily row reconnaissance artifact path is missing")
     candidate = Path(value)
-    resolved = (candidate if candidate.is_absolute() else session_directory / candidate).resolve()
+    resolved = (
+        candidate if candidate.is_absolute() else session_directory / candidate
+    ).resolve()
     try:
         resolved.relative_to(session_directory.resolve())
     except ValueError as exc:
-        raise OperatorError("daily row reconnaissance artifact escaped its session") from exc
+        raise OperatorError(
+            "daily row reconnaissance artifact escaped its session"
+        ) from exc
     if resolved.is_symlink() or not resolved.is_file():
         raise OperatorError("daily row reconnaissance artifact is missing or unsafe")
     return resolved
@@ -1216,15 +1234,21 @@ def _validate_daily_recon_artifacts(
     )
     frames = payload.get("frames")
     if not isinstance(frames, Mapping) or not required_frames <= set(frames):
-        raise OperatorError("daily row reconnaissance required native frames are missing")
+        raise OperatorError(
+            "daily row reconnaissance required native frames are missing"
+        )
 
     def validate_frame(name: str, reference: object) -> None:
         if not isinstance(reference, Mapping):
-            raise OperatorError(f"daily row reconnaissance frame reference is malformed: {name}")
+            raise OperatorError(
+                f"daily row reconnaissance frame reference is malformed: {name}"
+            )
         path = _daily_recon_artifact_path(session_directory, reference.get("path"))
         declared_hash = reference.get("sha256")
         if not isinstance(declared_hash, str):
-            raise OperatorError(f"daily row reconnaissance frame hash is missing: {name}")
+            raise OperatorError(
+                f"daily row reconnaissance frame hash is missing: {name}"
+            )
         raw = path.read_bytes()
         actual_hash = hashlib.sha256(raw).hexdigest()
         if actual_hash != declared_hash:
@@ -1244,7 +1268,9 @@ def _validate_daily_recon_artifacts(
         if not isinstance(poll, Mapping):
             raise OperatorError(f"daily row reconnaissance poll is malformed: {index}")
         if poll.get("action_identity") not in spec["action_identities"]:
-            raise OperatorError("daily row reconnaissance poll action identity is invalid")
+            raise OperatorError(
+                "daily row reconnaissance poll action identity is invalid"
+            )
         if not isinstance(poll.get("recognition"), Mapping):
             raise OperatorError("daily row reconnaissance poll semantics are missing")
         validate_frame(
@@ -1267,18 +1293,27 @@ def _validate_daily_recon_artifacts(
         or row.get("requested_action") != "navigation"
         for row in actions
     ):
-        raise OperatorError("daily row reconnaissance action records are not completed navigation")
+        raise OperatorError(
+            "daily row reconnaissance action records are not completed navigation"
+        )
     if payload.get("input_count") != spec["max_inputs"]:
         raise OperatorError("daily row reconnaissance input count is not frozen")
-    if payload.get("resource_affecting_inputs") != 0 or payload.get("combat_confirmations") != 0:
+    if (
+        payload.get("resource_affecting_inputs") != 0
+        or payload.get("combat_confirmations") != 0
+    ):
         raise OperatorError("daily row reconnaissance contains a forbidden budget")
     terminal = payload.get("recognitions", {}).get("daily_terminal")
     if not isinstance(terminal, Mapping) or terminal.get("state") != "DAILY_SELECTED":
-        raise OperatorError("daily row reconnaissance terminal semantics are not selected Daily")
+        raise OperatorError(
+            "daily row reconnaissance terminal semantics are not selected Daily"
+        )
     source = payload.get("recognitions", {}).get("source")
     expected_source = "HOME" if variant == DAILY_ROW_RECON_VARIANT else "QUEST"
     if not isinstance(source, Mapping) or source.get("state") != expected_source:
-        raise OperatorError("daily row reconnaissance source semantics are not variant-bound")
+        raise OperatorError(
+            "daily row reconnaissance source semantics are not variant-bound"
+        )
     events_path = _daily_recon_artifact_path(
         session_directory,
         payload.get("runtime_events_path"),
@@ -1290,12 +1325,15 @@ def _validate_daily_recon_artifacts(
     ]
     dispatches = [row for row in event_rows if row.get("type") == "dispatch"]
     if len(dispatches) != spec["max_inputs"]:
-        raise OperatorError("daily row reconnaissance event log dispatch count is not frozen")
+        raise OperatorError(
+            "daily row reconnaissance event log dispatch count is not frozen"
+        )
     if [
-        row.get("action_key") or row.get("target_identity")
-        for row in dispatches
+        row.get("action_key") or row.get("target_identity") for row in dispatches
     ] != list(spec["action_identities"]):
-        raise OperatorError("daily row reconnaissance event action identity order is invalid")
+        raise OperatorError(
+            "daily row reconnaissance event action identity order is invalid"
+        )
 
 
 def _write_daily_recon_artifacts(
@@ -1375,9 +1413,13 @@ def development_session_daily_row_reconnaissance(
             f"daily row reconnaissance requires --max-inputs {spec['max_inputs']}"
         )
     if any(value is None for value in expected_bindings[1:]):
-        raise OperatorError("daily row reconnaissance requires complete receipt bindings")
+        raise OperatorError(
+            "daily row reconnaissance requires complete receipt bindings"
+        )
     if task_id != DAILY_ROW_RECON_TASK_ID or flow_id != DAILY_ROW_RECON_FLOW_ID:
-        raise OperatorError("daily row reconnaissance task or flow binding is not frozen")
+        raise OperatorError(
+            "daily row reconnaissance task or flow binding is not frozen"
+        )
     if scenario != DAILY_ROW_RECON_SCENARIO:
         raise OperatorError("daily row reconnaissance scenario is not frozen")
     if command_argv is None:
@@ -1458,7 +1500,9 @@ def development_session_daily_row_reconnaissance(
                 runtime_relative = runtime_session.resolve().relative_to(
                     session_directory.resolve()
                 )
-                payload["runtime_session_directory"] = str(runtime_relative).replace("\\", "/")
+                payload["runtime_session_directory"] = str(runtime_relative).replace(
+                    "\\", "/"
+                )
             except (OSError, ValueError):
                 payload["runtime_session_directory"] = str(runtime_session)
             payload["runtime_events_path"] = str(
@@ -1495,7 +1539,9 @@ def development_session_daily_row_reconnaissance(
 
         ownership_released = _delegated_observation_ownership_released(session)
         if not ownership_released:
-            raise OperatorError("daily row reconnaissance ownership release is unproven")
+            raise OperatorError(
+                "daily row reconnaissance ownership release is unproven"
+            )
         checkpoint_after = _checkpoint_hashes()
         if checkpoint_after != checkpoint_before:
             route_result = {
@@ -1547,9 +1593,7 @@ DAILY_ROW_CLAIM_DISMISS_VIP_VARIANT = "aggregate-claim-dismiss-vip"
 DAILY_ROW_CLAIM_PREPARE_RESULT_IDENTITY = "daily-claim:prepare:aggregate"
 DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY = "daily-claim:canary:aggregate"
 DAILY_ROW_CLAIM_RETURN_HOME_RESULT_IDENTITY = "daily-claim:return-home:verified"
-DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY = (
-    "daily-row-claim:popup-dismiss:vip-points"
-)
+DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY = "daily-row-claim:popup-dismiss:vip-points"
 DAILY_ROW_CLAIM_PREPARE_ACTION_IDENTITY = "daily-row-prepare-observation"
 DAILY_ROW_CLAIM_ACTION_IDENTITY = "daily-claim:aggregate"
 DAILY_ROW_CLAIM_RETURN_HOME_ACTION_IDENTITY = "daily-return-home"
@@ -1657,7 +1701,10 @@ def _validate_daily_row_claim_receipt(
     if receipt.get("action_bindings") != expected_bindings:
         raise OperatorError("daily row Claim receipt action bindings are not frozen")
     binding = receipt.get("evidence_result_binding")
-    if not isinstance(binding, Mapping) or binding.get("result_identity") != spec["result_identity"]:
+    if (
+        not isinstance(binding, Mapping)
+        or binding.get("result_identity") != spec["result_identity"]
+    ):
         raise OperatorError("daily row Claim result identity is not frozen")
     command = receipt.get("command_argv")
     expected_prefix = [
@@ -1785,10 +1832,7 @@ def _validate_daily_row_claim_artifacts(
         if not isinstance(visual, Mapping):
             return False
         template = visual.get("template_home")
-        return (
-            isinstance(template, Mapping)
-            and template.get("recognized") is True
-        )
+        return isinstance(template, Mapping) and template.get("recognized") is True
 
     frames = payload.get("frames")
     if not isinstance(frames, Mapping) or "source" not in frames:
@@ -1830,7 +1874,11 @@ def _validate_daily_row_claim_artifacts(
         if any(claim.get(field) is None for field in required_reset_fields):
             raise OperatorError("Daily row Claim reset deadline evidence is missing")
         annotated = (session_directory / str(claim["annotated_source"])).resolve()
-        if annotated.is_symlink() or not annotated.is_file() or annotated.stat().st_size == 0:
+        if (
+            annotated.is_symlink()
+            or not annotated.is_file()
+            or annotated.stat().st_size == 0
+        ):
             raise OperatorError("Daily row Claim annotated prepare overlay is unsafe")
     elif mode == "canary":
         actions = payload.get("actions")
@@ -1860,15 +1908,23 @@ def _validate_daily_row_claim_artifacts(
             for row in actions
             if isinstance(row, Mapping)
         ] != expected_actions:
-            raise OperatorError("Daily row Claim canary action identity order is invalid")
+            raise OperatorError(
+                "Daily row Claim canary action identity order is invalid"
+            )
         if any(
             not isinstance(row, Mapping) or row.get("status") != "completed"
             for row in actions
         ):
-            raise OperatorError("Daily row Claim canary action records are not completed")
+            raise OperatorError(
+                "Daily row Claim canary action records are not completed"
+            )
         claim = payload.get("claim")
-        if not isinstance(claim, Mapping) or not claim.get("annotated_immediate_before"):
-            raise OperatorError("Daily row Claim annotated immediate-before overlay is missing")
+        if not isinstance(claim, Mapping) or not claim.get(
+            "annotated_immediate_before"
+        ):
+            raise OperatorError(
+                "Daily row Claim annotated immediate-before overlay is missing"
+            )
         required_reset_fields = (
             "reset_timer",
             "reset_timer_seconds",
@@ -1879,13 +1935,23 @@ def _validate_daily_row_claim_artifacts(
         )
         if any(claim.get(field) is None for field in required_reset_fields):
             raise OperatorError("Daily row Claim reset deadline evidence is missing")
-        annotated = (session_directory / str(claim["annotated_immediate_before"])).resolve()
+        annotated = (
+            session_directory / str(claim["annotated_immediate_before"])
+        ).resolve()
         try:
             annotated.relative_to(session_directory.resolve())
         except ValueError as exc:
-            raise OperatorError("Daily row Claim annotated overlay escaped the session") from exc
-        if annotated.is_symlink() or not annotated.is_file() or annotated.stat().st_size == 0:
-            raise OperatorError("Daily row Claim annotated immediate-before overlay is unsafe")
+            raise OperatorError(
+                "Daily row Claim annotated overlay escaped the session"
+            ) from exc
+        if (
+            annotated.is_symlink()
+            or not annotated.is_file()
+            or annotated.stat().st_size == 0
+        ):
+            raise OperatorError(
+                "Daily row Claim annotated immediate-before overlay is unsafe"
+            )
         recognitions = payload.get("recognitions")
         if not isinstance(recognitions, Mapping):
             raise OperatorError("Daily row Claim recognitions are missing")
@@ -1896,9 +1962,7 @@ def _validate_daily_row_claim_artifacts(
                 or recognition.get("state") != "DAILY_SELECTED"
                 or recognition.get("successor_proven") is not True
             ):
-                raise OperatorError(
-                    f"Daily row Claim {name} is not selected Daily"
-                )
+                raise OperatorError(f"Daily row Claim {name} is not selected Daily")
         final_home = recognitions.get("return_home_final")
         if (
             not isinstance(final_home, Mapping)
@@ -1953,9 +2017,7 @@ def _validate_daily_row_claim_artifacts(
                 or recognition.get("state") != "DAILY_SELECTED"
                 or recognition.get("successor_proven") is not True
             ):
-                raise OperatorError(
-                    f"Daily return-home {name} is not selected Daily"
-                )
+                raise OperatorError(f"Daily return-home {name} is not selected Daily")
         final_home = recognitions.get("return_home_final")
         if (
             not isinstance(final_home, Mapping)
@@ -2045,6 +2107,8 @@ def _validate_daily_row_claim_artifacts(
             or successor.get("unblurred") is not True
         ):
             raise OperatorError("Daily VIP popup successor is not selected Daily")
+
+
 def development_session_daily_row_claim(
     *,
     mode: str,
@@ -2163,7 +2227,9 @@ def development_session_daily_row_claim(
         if runtime is not None:
             runtime_session = Path(runtime.session)
             try:
-                relative = runtime_session.resolve().relative_to(session_directory.resolve())
+                relative = runtime_session.resolve().relative_to(
+                    session_directory.resolve()
+                )
                 runtime_relative = str(relative).replace("\\", "/")
             except (OSError, ValueError):
                 runtime_relative = str(runtime_session)
@@ -2253,7 +2319,11 @@ def development_session_daily_row_claim(
         else:
             os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = previous_limit
         ownership_released = not bool(
-            getattr(getattr(getattr(session, "_ownership", None), "lock", None), "held", True)
+            getattr(
+                getattr(getattr(session, "_ownership", None), "lock", None),
+                "held",
+                True,
+            )
         )
         failure = base_payload(
             "evidence_required",
@@ -2291,10 +2361,14 @@ def development_session_observe(
 
     if delegated_receipt is not None:
         if max_inputs != 0:
-            raise OperatorError("delegated reconnaissance observation requires max_inputs=0")
+            raise OperatorError(
+                "delegated reconnaissance observation requires max_inputs=0"
+            )
         values = (agent_identity, task_id, flow_id, scenario, variant, command_argv)
         if any(value is None for value in values):
-            raise OperatorError("delegated observation requires complete receipt bindings")
+            raise OperatorError(
+                "delegated observation requires complete receipt bindings"
+            )
         _controller, receipt, context = _consume_delegated_receipt(
             delegated_receipt,
             command_argv=command_argv,
@@ -2344,9 +2418,13 @@ def development_session_observe(
                     )
             ownership_released = _delegated_observation_ownership_released(session)
             if not ownership_released:
-                raise OperatorError("delegated observation ownership release is unproven")
+                raise OperatorError(
+                    "delegated observation ownership release is unproven"
+                )
             if _checkpoint_hashes() != before:
-                raise OperatorError("delegated observation mutated a checkpoint artifact")
+                raise OperatorError(
+                    "delegated observation mutated a checkpoint artifact"
+                )
             result["ownership_released"] = True
             (session_directory / "result.json").write_text(
                 json.dumps(result, indent=2, sort_keys=True) + "\n",
@@ -2396,7 +2474,9 @@ def development_session_observe(
                     receipt=receipt,
                     result_identity=context.result_identity,
                     error=f"{type(exc).__name__}: {exc}",
-                    ownership_released=_delegated_observation_ownership_released(session),
+                    ownership_released=_delegated_observation_ownership_released(
+                        session
+                    ),
                 )
             except BaseException as artifact_error:
                 raise exc from artifact_error
@@ -2522,12 +2602,20 @@ def _resource_wall_clock(
     wall_clock: Callable[[], datetime] | None = None,
 ) -> datetime:
     value = datetime.now(timezone.utc) if wall_clock is None else wall_clock()
-    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
-        raise OperatorError("Resource authorization wall clock must be timezone-aware UTC")
+    if (
+        not isinstance(value, datetime)
+        or value.tzinfo is None
+        or value.utcoffset() is None
+    ):
+        raise OperatorError(
+            "Resource authorization wall clock must be timezone-aware UTC"
+        )
     try:
         return value.astimezone(timezone.utc)
     except (TypeError, ValueError, OverflowError) as exc:
-        raise OperatorError("Resource authorization wall clock must be timezone-aware UTC") from exc
+        raise OperatorError(
+            "Resource authorization wall clock must be timezone-aware UTC"
+        ) from exc
 
 
 def _load_resource_daily_reset_authority() -> tuple[dict[str, Any], dict[str, Any]]:
@@ -2589,8 +2677,7 @@ def _resource_deadline_evidence(
         or payload.get("recurrence_interval_hours") != 24
         or payload.get("reset_timezone") != reset_policy["timezone"]
         or payload.get("reset_time") != reset_policy["reset_time"]
-        or payload.get("product_authority_revision")
-        != authority["authority_revision"]
+        or payload.get("product_authority_revision") != authority["authority_revision"]
         or payload.get("product_authority_digest") != authority["authority_digest"]
         or payload.get("product_policy_id") != reset_policy["policy_id"]
         or payload.get("reset_policy_id") != reset_policy["policy_id"]
@@ -2608,13 +2695,17 @@ def _resource_deadline_evidence(
         try:
             expected = derive_static_utc_reset(evaluated)
         except ValueError as exc:
-            raise OperatorError("Resource reset evaluation timestamp is invalid") from exc
+            raise OperatorError(
+                "Resource reset evaluation timestamp is invalid"
+            ) from exc
         if (
             expected.reset_identity_id != deadline_identity
             or expected.reset_start_utc != start
             or expected.reset_deadline_utc != deadline
         ):
-            raise OperatorError("Resource reset payload does not match its UTC wall-clock sample")
+            raise OperatorError(
+                "Resource reset payload does not match its UTC wall-clock sample"
+            )
     return deadline_identity, deadline
 
 
@@ -2637,7 +2728,9 @@ def _produce_resource_runtime_identity(
     owner = str(getattr(session, "owner", "") or "")
     invocation_id = str(getattr(session, "invocation_id", "") or "")
     if not owner or not invocation_id:
-        raise OperatorError("Resource production identity requires the current session binding")
+        raise OperatorError(
+            "Resource production identity requires the current session binding"
+        )
     binding = _resource_fixed_runtime_binding()
     evaluated = _resource_wall_clock(wall_clock)
     authority, reset_policy = _load_resource_daily_reset_authority()
@@ -2684,7 +2777,10 @@ def _produce_resource_runtime_identity(
         "account_id": binding.account_id,
         "server_id": binding.server_id,
     }
-    if identity.assurance is not RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET:
+    if (
+        identity.assurance
+        is not RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET
+    ):
         raise OperatorError("Resource identity assurance is not static UTC")
     _resource_deadline_evidence(deadline_payload)
     if return_deadline_evidence:
@@ -2715,7 +2811,9 @@ def _inspect_admitted_resource_store(path: Path, *, fixed_canonical: bool) -> No
             timeout=0,
         )
     except sqlite3.Error as exc:
-        raise OperatorError("canonical Resource SafetyStore cannot be inspected read-only") from exc
+        raise OperatorError(
+            "canonical Resource SafetyStore cannot be inspected read-only"
+        ) from exc
     try:
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA query_only=ON")
@@ -2749,7 +2847,9 @@ def _inspect_admitted_resource_store(path: Path, *, fixed_canonical: bool) -> No
                 "canonical Resource SafetyStore v4 is incomplete; migration is disabled"
             )
     except sqlite3.Error as exc:
-        raise OperatorError("canonical Resource SafetyStore schema is unreadable") from exc
+        raise OperatorError(
+            "canonical Resource SafetyStore schema is unreadable"
+        ) from exc
     finally:
         connection.close()
 
@@ -2770,13 +2870,19 @@ def _open_admitted_resource_store(
     from scripts.navigation_development_boundary import CANONICAL_ACTION_STORE_PATH
 
     injected = store_factory is not None
-    path = Path(store_path) if store_path is not None else Path(CANONICAL_ACTION_STORE_PATH)
+    path = (
+        Path(store_path)
+        if store_path is not None
+        else Path(CANONICAL_ACTION_STORE_PATH)
+    )
     _inspect_admitted_resource_store(path, fixed_canonical=not injected)
     factory = store_factory or SafetyStore
     try:
         store = factory(path)
     except (OSError, SchemaVersionError) as exc:
-        raise OperatorError("canonical Resource SafetyStore v4 could not be opened") from exc
+        raise OperatorError(
+            "canonical Resource SafetyStore v4 could not be opened"
+        ) from exc
     if getattr(store, "schema_version", None) != 4:
         try:
             store.close()
@@ -2819,11 +2925,16 @@ def _resource_reset_identity(
     if (
         verified_identity.reset_id != deadline_identity
         or identity_deadline != deadline
-        or deadline_payload.get("reset_start_utc") != reset_start.isoformat().replace("+00:00", "Z")
+        or deadline_payload.get("reset_start_utc")
+        != reset_start.isoformat().replace("+00:00", "Z")
     ):
-        raise OperatorError("Resource runtime identity does not match the static UTC reset")
+        raise OperatorError(
+            "Resource runtime identity does not match the static UTC reset"
+        )
     if not verified_identity.observed_utc or not verified_identity.expires_utc:
-        raise OperatorError("Resource runtime identity freshness evidence is incomplete")
+        raise OperatorError(
+            "Resource runtime identity freshness evidence is incomplete"
+        )
     observed = _resource_identity_timestamp(
         verified_identity.observed_utc,
         "Resource runtime identity observed_utc",
@@ -2859,7 +2970,9 @@ def _resource_reset_identity(
         account_id=verified_identity.account_id,
         server_id=verified_identity.server_id,
         runtime_scope=verified_identity.runtime_scope,
-        reset_start_utc=(deadline - timedelta(days=1)).isoformat().replace("+00:00", "Z"),
+        reset_start_utc=(deadline - timedelta(days=1))
+        .isoformat()
+        .replace("+00:00", "Z"),
         reset_deadline_utc=deadline.isoformat().replace("+00:00", "Z"),
         assurance=RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET.value,
         observed_at=max(0.0, observed.timestamp()),
@@ -2905,15 +3018,21 @@ def _build_resource_runtime_components(
     from scripts.navigation_development_boundary import DevelopmentSessionError
 
     if not hasattr(session, "runtime_input_lock"):
-        raise OperatorError("pnsctl DevelopmentSession cannot expose its held runtime lock")
+        raise OperatorError(
+            "pnsctl DevelopmentSession cannot expose its held runtime lock"
+        )
     try:
         runtime_lock = session.runtime_input_lock
     except DevelopmentSessionError as exc:
-        raise OperatorError("Resource authority requires the entered pnsctl DevelopmentSession") from exc
+        raise OperatorError(
+            "Resource authority requires the entered pnsctl DevelopmentSession"
+        ) from exc
     owner = str(getattr(session, "owner", "") or "")
     invocation_id = str(getattr(session, "invocation_id", "") or "")
     if not owner or not invocation_id:
-        raise OperatorError("Resource authority requires the exact pnsctl owner and invocation")
+        raise OperatorError(
+            "Resource authority requires the exact pnsctl owner and invocation"
+        )
     runtime_lock.assert_held(owner, invocation_id)
     reset_identity = _resource_reset_identity(verified_identity, deadline_payload)
     authorization_window = ResourceAuthorizationWindow(
@@ -2970,9 +3089,13 @@ def _build_resource_runtime_components(
             from scripts.bluestacks_native_runtime import CapturedNativeFrame
 
             if type(source) is not CapturedNativeFrame:
-                raise OperatorError("Resource preparation requires the captured immediate-before frame")
+                raise OperatorError(
+                    "Resource preparation requires the captured immediate-before frame"
+                )
             if requested_action_key != "daily-resource-item:use-1k-food":
-                raise OperatorError("Resource preparation action key is not the exact Use seam")
+                raise OperatorError(
+                    "Resource preparation action key is not the exact Use seam"
+                )
             runtime_lock.assert_held(owner, invocation_id)
             now = time.monotonic()
             authority.ensure_static_utc_reset_identity(reset_identity)
@@ -3010,7 +3133,9 @@ def _build_resource_runtime_components(
                 hypothesis_digest=hypothesis_digest,
             )
             if claim.state != "ACTIVE" or not claim.can_dispatch:
-                raise OperatorError("Resource occurrence did not grant one dispatch claim")
+                raise OperatorError(
+                    "Resource occurrence did not grant one dispatch claim"
+                )
             context = authority.occurrence_context(occurrence_id)
             controller_token = str(
                 controller_lease.get("controller_token")
@@ -3023,7 +3148,9 @@ def _build_resource_runtime_components(
                     controller_lease.get("generation", 0),
                 )
             )
-            authorization_generation = authority.next_resource_authorization_generation(context)
+            authorization_generation = authority.next_resource_authorization_generation(
+                context
+            )
             reservation_spec = ResourceReservationSpec(
                 authorization_generation=authorization_generation,
                 immediate_before_sha256=source.sha256,
@@ -3064,7 +3191,9 @@ def _build_resource_runtime_components(
                 ),
                 package_foreground=True,
             )
-            action_key = authority.resource_action_key(context, authorization_generation)
+            action_key = authority.resource_action_key(
+                context, authorization_generation
+            )
             action_id = (
                 "resource-action:v1:"
                 + hashlib.sha256(
@@ -3107,10 +3236,13 @@ def _build_resource_runtime_components(
                 semantic_postconditions=("RESOURCES_1K_FOOD_USED",),
                 resource_authorization_context=context,
             )
-            duplicate = store.connection.execute(
-                "SELECT 1 FROM actions WHERE action_key=?",
-                (action_key,),
-            ).fetchone() is not None
+            duplicate = (
+                store.connection.execute(
+                    "SELECT 1 FROM actions WHERE action_key=?",
+                    (action_key,),
+                ).fetchone()
+                is not None
+            )
             request = PolicyRequest(
                 action_id=action_id,
                 action_key=action_key,
@@ -3142,9 +3274,7 @@ def _build_resource_runtime_components(
             )
             issued = policy.issue_capability(request)
             if not issued.authorized or issued.capability is None:
-                raise OperatorError(
-                    f"Resource capability denied: {issued.reason_code}"
-                )
+                raise OperatorError(f"Resource capability denied: {issued.reason_code}")
             prepared = authority.prepare_resource_effect_action(
                 context,
                 claim,
@@ -3156,7 +3286,9 @@ def _build_resource_runtime_components(
                 now=now,
             )
             if prepared.fence != fence:
-                raise OperatorError("Resource preparation fence changed during atomic preparation")
+                raise OperatorError(
+                    "Resource preparation fence changed during atomic preparation"
+                )
             return PreparedResourceAuthorization(
                 prepared=prepared,
                 request=request,
@@ -3258,16 +3390,18 @@ def development_session_run_flow(
         values = (agent_identity, task_id, scenario, variant, command_argv)
         if any(value is None for value in values):
             raise OperatorError("delegated canary requires complete receipt bindings")
-        _controller, delegated_receipt_payload, delegated_context = _consume_delegated_receipt(
-            delegated_receipt,
-            command_argv=command_argv,
-            agent_identity=str(agent_identity),
-            task_id=str(task_id),
-            flow_id=flow_id,
-            receipt_class="canary",
-            scenario=str(scenario),
-            variant=str(variant),
-            max_inputs=max_inputs,
+        _controller, delegated_receipt_payload, delegated_context = (
+            _consume_delegated_receipt(
+                delegated_receipt,
+                command_argv=command_argv,
+                agent_identity=str(agent_identity),
+                task_id=str(task_id),
+                flow_id=flow_id,
+                receipt_class="canary",
+                scenario=str(scenario),
+                variant=str(variant),
+                max_inputs=max_inputs,
+            )
         )
         delegated_scope = delegated_runtime_context(delegated_context)
 
@@ -3307,8 +3441,7 @@ def development_session_run_flow(
         )
         if missing:
             raise OperatorError(
-                "Nova development-session identity is incomplete: "
-                + ", ".join(missing)
+                "Nova development-session identity is incomplete: " + ", ".join(missing)
             )
         _validate_nova_reset_id(nova_identity.reset_id)
     if live and not yes:
@@ -3401,6 +3534,25 @@ def development_session_run_flow(
             raise OperatorError(
                 f"Ruins chest continuation rejected: {exc.reason}"
             ) from exc
+    registration_snapshot = None
+    if (
+        flow_id == "WORLD-MAP-NAVIGATION-FOUNDATION"
+        and live
+        and not recovery_only
+        and not search_entry_only
+    ):
+        from automation_service.registry import consume_world_registration
+
+        try:
+            registration_snapshot = consume_world_registration()
+        except ValueError as exc:
+            raise OperatorError(
+                "World navigation phase registration is invalid"
+            ) from exc
+        if registration_snapshot is None:
+            raise OperatorError(
+                "World navigation full route is not registered for a phase canary"
+            )
     invocation_id = (
         f"{flow_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     )
@@ -3497,14 +3649,15 @@ def development_session_run_flow(
                 "initial_observation": initial_observation,
                 "initial_observation_payload": initial_observation.to_mapping(),
                 "initial_frame_sha256": initial_observation.frame_sha256,
+                "registration_snapshot": registration_snapshot,
                 "session_control_memory": session.control_memory,
                 "resource_runtime_identity": resource_runtime_identity,
                 "resource_deadline_evidence": resource_deadline_evidence,
             }
             if resource_runtime_components is not None:
-                runtime_context["resource_runtime_factory"] = resource_runtime_components[
-                    "runtime_factory"
-                ]
+                runtime_context["resource_runtime_factory"] = (
+                    resource_runtime_components["runtime_factory"]
+                )
             runner = _BLUESTACKS_FLOW_RUNNERS[contract["runner"]]
             if "live" in inspect.signature(runner).parameters:
                 raw = runner(queue_context, runtime_context, live=live)
@@ -3584,7 +3737,9 @@ def development_session_run_flow(
             if result.get("effect_reconciliation_required") is True:
                 session.terminal_status = "effect_reconciliation_required"
                 session.blocker = "effect_reconciliation_required"
-                session.next_action = "observe-only effect reconciliation; identical retry is denied"
+                session.next_action = (
+                    "observe-only effect reconciliation; identical retry is denied"
+                )
             elif result_status not in {"completed", "dry_run", "observed"}:
                 session.terminal_status = "blocked"
                 session.blocker = str(
@@ -3648,9 +3803,14 @@ def development_session_run_flow(
                 or not (session_directory / "summary.json").is_file()
                 or session._ownership.lock.held
             ):
-                raise OperatorError("delegated flow evidence or ownership release is unproven")
+                raise OperatorError(
+                    "delegated flow evidence or ownership release is unproven"
+                )
             terminal_status = str(result.get("status") or "evidence_required")
-            if terminal_status not in delegated_receipt_payload["permitted_terminal_states"]:
+            if (
+                terminal_status
+                not in delegated_receipt_payload["permitted_terminal_states"]
+            ):
                 terminal_status = "evidence_required"
             delegated_context.record_terminal(status=terminal_status, payload=wrapper)
     except BaseException as exc:
@@ -5198,10 +5358,7 @@ def reconcile_nova_supervised_invocation_guard_proven_no_effect(
     archive_dir = _nova_supervised_guard_archive_dir()
     receipt_dir.mkdir(parents=True, exist_ok=True)
     archive_dir.mkdir(parents=True, exist_ok=True)
-    receipt_path = (
-        receipt_dir
-        / f"proven-no-effect-{stamp}-{receipt_digest[:16]}.json"
-    )
+    receipt_path = receipt_dir / f"proven-no-effect-{stamp}-{receipt_digest[:16]}.json"
     archive_path = (
         archive_dir
         / f"nova-praise-one-free-pulse-{selected_reset}.guard.{stamp}.{guard_sha256[:16]}.json"
@@ -5259,7 +5416,9 @@ def _require_nova_supervised_reset(args: argparse.Namespace, identity) -> None:
     selected = _validate_nova_reset_id(getattr(args, "reset_id", None))
     verified = _validate_nova_reset_id(getattr(identity, "reset_id", None))
     if selected != verified:
-        raise OperatorError("supervised pulse reset_id does not match verified identity")
+        raise OperatorError(
+            "supervised pulse reset_id does not match verified identity"
+        )
 
 
 def _verify_nova_supervised_one_free_pulse_session(
@@ -6670,13 +6829,13 @@ def automation_service_offline(args: argparse.Namespace) -> int:
     ]
     return automation_main(argv)
 
+
 def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
     """Run exactly one fail-closed, zero-transport scheduler pulse."""
 
-    from automation_service.contracts import FlowDescriptor, SchedulerFacts
-    from automation_service.handlers import DisabledHandler
-    from automation_service.registry import load_disabled_registry
-    from automation_service.scheduler import DisabledProductionAuthority, UtcPulseCoordinator
+    from automation_service.contracts import SchedulerFacts
+    from automation_service.registry import WORLD_PRODUCT_ID, WORLD_PRODUCT_REVISION
+    from automation_service.service import registry_scheduler_components
     from safe_action_core import SafetyStore, SQLiteSchedulerInvocationRepository
 
     if args.state_path is None:
@@ -6696,52 +6855,72 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
         return 0
     store = SafetyStore(Path(args.state_path))
     try:
-        entries = load_disabled_registry()
-        descriptors = tuple(
-            FlowDescriptor(
-                entry.flow_id,
-                "disabled-production-registry",
-                "disabled",
-                "disabled",
-                "daily_once_per_reset",
-                scheduler_eligible=False,
-                accepted_product=False,
-                registration_status="NOT_REGISTERED",
-            )
-            for entry in entries
-        )
-        handlers = {descriptor.flow_id: DisabledHandler(descriptor) for descriptor in descriptors}
         repository = SQLiteSchedulerInvocationRepository(store)
-        coordinator = UtcPulseCoordinator(
-            repository,
-            descriptors,
-            handlers,
-            activation_authority=DisabledProductionAuthority(),
+        entries, _descriptors, _handlers, coordinator = registry_scheduler_components(
+            repository
         )
         now = (
             float(args.now_utc_epoch)
             if args.now_utc_epoch is not None
             else datetime.now(timezone.utc).timestamp()
         )
+        registered = next((entry for entry in entries if entry.registered), None)
+        healthy = bool(getattr(args, "health_ok", False))
         report = coordinator.pulse(
             SchedulerFacts(
                 args.account_id,
                 args.server_id,
                 args.reset_id,
                 now,
-                health_ok=False,
+                health_ok=healthy,
+                accepted_product=registered.product_id
+                if registered is not None
+                else False,
+                product_revision=registered.product_revision
+                if registered is not None
+                else None,
+                registration_status=(
+                    registered.registration_status
+                    if registered is not None
+                    else "NOT_REGISTERED"
+                ),
+                scheduler_eligible=bool(
+                    registered is not None and registered.scheduler_eligible
+                ),
+                owner_available=healthy,
+                clock_ok=healthy,
+                reset_agreement=healthy,
             )
         )
+        candidate = None
+        if report.candidate is not None:
+            candidate = {
+                "flow_id": report.candidate.descriptor.flow_id,
+                "identity": asdict(report.candidate.identity),
+                "occurrence_key": report.candidate.occurrence_key,
+            }
+        result = report.result.to_mapping() if report.result is not None else None
         print(
             json.dumps(
                 {
-                    "status": "disabled",
+                    "status": "selected" if candidate is not None else "disabled",
                     "command": "scheduler-pulse",
                     "reason": report.reason_code,
-                    "candidate": None,
+                    "candidate": candidate,
+                    "result": result,
                     "transport_count": 0,
-                    "production_registration": "NOT_REGISTERED",
-                    "scheduler_eligible": False,
+                    "production_registration": "REGISTERED"
+                    if registered is not None
+                    else "NOT_REGISTERED",
+                    "scheduler_eligible": bool(
+                        registered is not None and registered.scheduler_eligible
+                    ),
+                    "accepted_product": WORLD_PRODUCT_ID
+                    if registered is not None
+                    else False,
+                    "product_revision": WORLD_PRODUCT_REVISION
+                    if registered is not None
+                    else None,
                 },
                 sort_keys=True,
             )
@@ -6749,6 +6928,7 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
         return 0
     finally:
         store.close()
+
 
 scheduler_pulse_offline = automation_service_scheduler_pulse_offline
 
@@ -6780,17 +6960,11 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
     )
     if not 1 <= maximum <= 100:
         raise OperatorError("conduct max_inputs must be between 1 and 100")
-    if (
-        flow_id == "RECRUITMENT-BLUESTACKS-INTEGRATION"
-        and maximum != 12
-    ):
+    if flow_id == "RECRUITMENT-BLUESTACKS-INTEGRATION" and maximum != 12:
         raise OperatorError(
             "Recruitment full-pass conduct requires exact max_inputs=12"
         )
-    if (
-        flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
-        and maximum != 32
-    ):
+    if flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION" and maximum != 32:
         raise OperatorError(
             "Troop Training continuous conduct requires exact max_inputs=32"
         )
@@ -6882,7 +7056,9 @@ def _conductor_live_summary(
         try:
             _session, retained = _retained_flow_result(Path(runtime_session))
             if retained.get("flow_id") != flow_id:
-                raise OperatorError("retained flow identity does not match conduct flow")
+                raise OperatorError(
+                    "retained flow identity does not match conduct flow"
+                )
             summary = {
                 "status": retained.get("status", run_payload.get("status", "unknown")),
                 "result": retained,
@@ -6955,9 +7131,7 @@ def _conductor_live_summary(
         "done",
     }:
         try:
-            verification = json.loads(
-                bluestacks_verify_flow(Path(runtime_session))
-            )
+            verification = json.loads(bluestacks_verify_flow(Path(runtime_session)))
         except (OperatorError, OSError, ValueError, json.JSONDecodeError) as exc:
             verification = {
                 "status": "evidence_required",
@@ -7138,10 +7312,14 @@ def conduct_flow(
             }
         )
     run_output = development_session_run_flow(flow_id, **run_kwargs)
-    run_payload = json.loads(run_output) if run_output.strip().startswith("{") else {
-        "status": "unknown",
-        "raw": run_output,
-    }
+    run_payload = (
+        json.loads(run_output)
+        if run_output.strip().startswith("{")
+        else {
+            "status": "unknown",
+            "raw": run_output,
+        }
+    )
     classification_summary, verification = _conductor_live_summary(
         flow_id,
         run_payload if isinstance(run_payload, dict) else {"status": "unknown"},
@@ -7430,6 +7608,11 @@ def parser() -> argparse.ArgumentParser:
     scheduler_pulse.add_argument("--server-id", default="offline-server")
     scheduler_pulse.add_argument("--reset-id", default="offline-reset")
     scheduler_pulse.add_argument("--now-utc-epoch", type=float, default=None)
+    scheduler_pulse.add_argument(
+        "--health-ok",
+        action="store_true",
+        help="admit the healthy offline selection gates; never starts runtime",
+    )
     campaign_plan = automation_sub.add_parser("campaign-plan")
     campaign_plan.add_argument("--destination", default="1-20-9")
     return root

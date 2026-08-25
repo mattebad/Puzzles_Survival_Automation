@@ -3,13 +3,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import Any
 
-from .adapters import AdapterKind, DeviceAdapter, FakeDeviceAdapter, SupervisedBlueStacksAdapter
+from .adapters import (
+    AdapterKind,
+    DeviceAdapter,
+    FakeDeviceAdapter,
+    SupervisedBlueStacksAdapter,
+)
 from .contracts import PerceptionEnvelope, SchedulerFacts, ServiceMode
+from .handlers import DisabledHandler, WorldNavigationSelectionHandler
 from .operations import HealthSnapshot, OperationsService
-from .registry import load_disabled_registry
+from .registry import (
+    DisabledProductionEntry,
+    RegisteredDispatchSnapshot,
+    WORLD_FLOW_ID,
+    load_disabled_registry,
+)
 from .scheduler import DisabledProductionAuthority, PulseReport, UtcPulseCoordinator
+from safe_action_core import SQLiteSchedulerInvocationRepository
 
 
 class ServiceError(RuntimeError):
@@ -23,6 +36,64 @@ class ServiceStatus:
     registered_flows: tuple[str, ...]
     disabled_flows: tuple[str, ...]
     scheduler_eligible: bool
+
+
+def registry_descriptor(entry: DisabledProductionEntry):
+    """Compose a scheduler descriptor from one validated registry entry."""
+
+    from .contracts import FlowDescriptor
+
+    registered = entry.registered
+    return FlowDescriptor(
+        flow_id=entry.flow_id,
+        owner="automation_service",
+        family="world_map_navigation" if entry.flow_id == WORLD_FLOW_ID else "disabled",
+        variant="navigation_only" if registered else "disabled",
+        cadence="daily_once_per_reset",
+        priority=1 if registered else 100,
+        scheduler_eligible=registered and entry.scheduler_eligible,
+        accepted_product=entry.product_id if registered else False,
+        product_revision=entry.product_revision if registered else None,
+        registration_status=entry.registration_status,
+    )
+
+
+def registry_scheduler_components(
+    repository: SQLiteSchedulerInvocationRepository,
+    *,
+    path=None,
+    clock=time.time,
+) -> tuple[
+    tuple[DisabledProductionEntry, ...],
+    tuple[Any, ...],
+    dict[str, Any],
+    UtcPulseCoordinator,
+]:
+    """Build the offline scheduler solely from the checked-in registry."""
+
+    entries = load_disabled_registry(path)
+    descriptors = tuple(registry_descriptor(entry) for entry in entries)
+    handlers: dict[str, Any] = {}
+    for entry, descriptor in zip(entries, descriptors):
+        if entry.flow_id == WORLD_FLOW_ID and entry.registered:
+            handlers[entry.flow_id] = WorldNavigationSelectionHandler(
+                RegisteredDispatchSnapshot.from_entry(entry)
+            )
+        else:
+            handlers[entry.flow_id] = DisabledHandler(descriptor)
+    coordinator = UtcPulseCoordinator(
+        repository,
+        descriptors,
+        handlers,
+        activation_authority=DisabledProductionAuthority(),
+        clock=clock,
+    )
+    return entries, descriptors, handlers, coordinator
+
+
+# Public descriptive aliases used by offline callers and focused contract checks.
+build_registry_scheduler = registry_scheduler_components
+build_scheduler_components = registry_scheduler_components
 
 
 class AutomationService:
@@ -48,14 +119,13 @@ class AutomationService:
         if self.mode is ServiceMode.SUPERVISED and not isinstance(
             self.adapter, SupervisedBlueStacksAdapter
         ):
-            raise ServiceError("supervised mode requires the executor-bound BlueStacks adapter")
-        if (
-            self.mode is ServiceMode.SUPERVISED
-            and (
-                self.coordinator is None
-                or type(self.coordinator.activation_authority)
-                is not DisabledProductionAuthority
+            raise ServiceError(
+                "supervised mode requires the executor-bound BlueStacks adapter"
             )
+        if self.mode is ServiceMode.SUPERVISED and (
+            self.coordinator is None
+            or type(self.coordinator.activation_authority)
+            is not DisabledProductionAuthority
         ):
             raise ServiceError(
                 "supervised mode requires the registry-backed production authority"
@@ -73,12 +143,15 @@ class AutomationService:
 
     def status(self) -> ServiceStatus:
         registry = load_disabled_registry()
+        registered = tuple(item.flow_id for item in registry if item.registered)
         return ServiceStatus(
             mode=self.mode,
             adapter_kind=self.adapter.kind.value,
-            registered_flows=(),
-            disabled_flows=tuple(item.flow_id for item in registry),
-            scheduler_eligible=False,
+            registered_flows=registered,
+            disabled_flows=tuple(
+                item.flow_id for item in registry if not item.registered
+            ),
+            scheduler_eligible=any(item.scheduler_eligible for item in registry),
         )
 
     def observe(self):
@@ -97,16 +170,21 @@ class AutomationService:
         if self.mode is ServiceMode.DRY_RUN:
             if self.adapter.kind not in {AdapterKind.FAKE, AdapterKind.REPLAY}:
                 raise ServiceError("dry_run requires fake or replay adapter")
-            if isinstance(self.coordinator.activation_authority, DisabledProductionAuthority):
-                raise ServiceError("dry_run requires an explicitly injected offline authority")
+            if isinstance(
+                self.coordinator.activation_authority, DisabledProductionAuthority
+            ):
+                raise ServiceError(
+                    "dry_run requires an explicitly injected offline authority"
+                )
         if self.mode is ServiceMode.SUPERVISED and not isinstance(
             self.adapter, SupervisedBlueStacksAdapter
         ):
-            raise ServiceError("supervised mode requires the executor-bound BlueStacks adapter")
+            raise ServiceError(
+                "supervised mode requires the executor-bound BlueStacks adapter"
+            )
         return self.coordinator.pulse(facts, perception=perception)
 
     def health(self, **kwargs: Any) -> HealthSnapshot:
         if "mode" in kwargs:
             raise ServiceError("health mode is owned by the service")
         return self.operations.health(mode=self.mode, **kwargs)
-
