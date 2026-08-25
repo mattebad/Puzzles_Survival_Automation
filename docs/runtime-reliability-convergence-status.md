@@ -1767,3 +1767,36 @@ Post-observation registration remained `NOT_REGISTERED`, registered flows
 remained empty, and scheduler eligibility remained false. Sol accepts phase 1.
 Phase 2 remains separately inactive pending an exact navigation candidate and
 bounded registration contract.
+
+## Stage 10 phase 2 rejected and rolled back
+
+Revision `runtime-reliability-stage-10-phase-2-navigation-r1` selected only
+`WORLD-MAP-NAVIGATION-FOUNDATION`. The candidate implemented strict single-flow
+registration, zero-transport scheduler selection, restart-safe occurrence
+fencing, and dispatch-time registration evidence. Parent validation passed 18
+scheduler-bridge tests, 21 scheduler-persistence tests, and 57 World tests.
+The offline pulse selected World once with `PARENT_CANARY_REQUIRED`, zero
+transport, and no runtime/session/target authority; the duplicate pulse returned
+`NO_ELIGIBLE_TASK`.
+
+Terra's initial review found that a blocked or unknown live result would leave
+World registered. The one permitted Luna repair added atomic one-shot
+registration consumption before the route runner and preserved the registered
+dispatch-time snapshot. Terra's finding-only recheck found a second concrete
+acceptance defect: post-consumption World evidence verification reloaded the
+now-disabled registry rather than the immutable snapshot, so a valid canary
+could not be verified.
+
+Sol rejects Phase 2 as `local_defect` after the bounded Heavy repair/recheck
+cycle. No Phase 2 zero-input observation, live canary, gameplay input, runtime
+transport, or DevelopmentSession occurred. All implementation, test,
+registration, and scheduler changes were rolled back. Production registration
+is `NOT_REGISTERED`, registered flows are empty, scheduler eligibility is false,
+and no runtime owner or lease is active.
+
+Phases 3–6 remain unadmitted because the required Phase 2 safety and semantic
+acceptance failed. Phase 7 combat remains separately unauthorized. A new
+explicit continuation must freeze a bounded Phase 2 r2 correction that
+rehydrates and strictly validates the immutable World dispatch-time registration
+snapshot during retained evidence verification; it must not re-enable broad
+registration or grant scheduler transport authority.
